@@ -3,11 +3,9 @@ import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type ChatId,
   StoreId,
-  type TaskId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useEffect, useState } from "react";
 
@@ -37,7 +35,7 @@ export function WindowTabStrip({
 }: {
   /** Each chat's title by its id, for a tab standing on one. */
   chatTitles: Map<ChatId, string>;
-  childTitles: Map<TaskId, string>;
+  childTitles: Map<StoreId.Session, string>;
   /** Which chat's tabs these are, so a swap to another chat's is not drawn as tabs arriving. */
   groupKey: string;
   onClose: (id: string) => void;
@@ -97,10 +95,7 @@ export function WindowTabStrip({
           key={id}
           onChange={reportDriven}
           tabId={id}
-          targetId={encodeBrowserTargetId(
-            WINDOW_ID,
-            StoreId.SessionSchema.parse(id),
-          )}
+          targetId={browserTargetOf(StoreId.SessionSchema.parse(id))}
         />
       ))}
       <TabStrip

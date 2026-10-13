@@ -1,54 +1,39 @@
 import { describe, expect, it } from "vitest";
 
-import { createdTaskId } from "./created-task";
+import { StoreId } from "@instrument-org/workspace/client";
 
-const created = (command: string, output: string) => ({
-  input: { command },
-  output: { output },
-  state: "output-available",
-});
+import { createdTaskSession } from "./created-task";
 
-describe("createdTaskId", () => {
-  it("reads the id off a task new that succeeded", () => {
+const TASK = StoreId.newSessionId();
+const OTHER = StoreId.newSessionId();
+
+const finished = (
+  handOffs?: { kind: "created" | "sent"; sessionId: StoreId.Session }[],
+) => ({ output: { handOffs }, state: "output-available" });
+
+describe("createdTaskSession", () => {
+  it("reads the session off the call's created hand-off", () => {
     expect(
-      createdTaskId(
-        created(
-          "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
-          'Created lisbon-hotel ("Lisbon"). It is running now.\n',
-        ),
+      createdTaskSession(
+        finished([
+          { kind: "sent", sessionId: OTHER },
+          { kind: "created", sessionId: TASK },
+        ]),
       ),
-    ).toBe("lisbon-hotel");
-  });
-
-  it("finds a task new later in a chain", () => {
-    expect(
-      createdTaskId(
-        created(
-          "task list; task new --name 'x' <<'EOF'\nx\nEOF",
-          "Created x-1",
-        ),
-      ),
-    ).toBe("x-1");
+    ).toBe(TASK);
   });
 
   it.each([
+    { name: "a call that handed nothing off", part: finished() },
     {
-      name: "a command that is not task new",
-      part: created("task list", "Created abc"),
-    },
-    {
-      name: "a task new that failed",
-      part: created("task new", "task: new: a brief is required"),
-    },
-    {
-      name: "an output that names something that is not a task id",
-      part: created("task new <<'EOF'\nx\nEOF", "Created NOT_AN_ID"),
+      name: "a call that only sent to a task",
+      part: finished([{ kind: "sent", sessionId: OTHER }]),
     },
     {
       name: "a call still running",
-      part: { input: { command: "task new" }, state: "input-available" },
+      part: { state: "input-available" },
     },
   ])("gives nothing for $name", ({ part }) => {
-    expect(createdTaskId(part)).toBeUndefined();
+    expect(createdTaskSession(part)).toBeUndefined();
   });
 });

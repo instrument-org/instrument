@@ -2,17 +2,28 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
+import { ChatDirSchema } from "../../schemas/paths";
+import { StoreId } from "../../schemas/store-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createTabCommand } from "./tab";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
+const layout = buildWorkspaceFsLayout({
+  taskHostRoot: ChatDirSchema.parse("/work/chats/tab-command-chat"),
+});
+
+// A page tab, by the session id the window's page tabs carry, and the
+// addresses the browser reports it showing, one per ask, the last repeating.
+const pageTab = StoreId.newSessionId();
+let pageUrls: string[];
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
   string,
-  { id: ReturnType<typeof TaskIdSchema.parse>; title: string }
+  { id: ReturnType<typeof ChatIdSchema.parse>; title: string }
 >();
 vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -28,7 +39,7 @@ let stopAnswering: () => void;
  * got.
  */
 function answeringWindow() {
-  const known = "tab-known";
+  const known = new Set<string>(["tab-known", pageTab]);
   return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
@@ -38,9 +49,18 @@ function answeringWindow() {
     const answer =
       action.kind === "open"
         ? { tabId: `made-${asked.length}` }
-        : action.tabId === known
-          ? { tabId: known }
-          : { error: `no tab ${action.tabId} is open in this chat.` };
+        : action.kind === "list"
+          ? {
+              tabs: [...known].map((id) => ({ id, kind: "screen" as const })),
+            }
+          : known.has(action.tabId)
+            ? {
+                tabId: action.tabId,
+                ...(action.kind === "read"
+                  ? { text: "Jar\nA rigid container." }
+                  : {}),
+              }
+            : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -51,11 +71,11 @@ function answeringWindow() {
 
 function run(options: { timeoutMs?: number }, ...args: string[]) {
   const fsTree = new InMemoryFs();
-  fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
-  return createTabCommand({ chatId, ...options }).execute(
+  fsTree.writeFileSync("/Users/me/Instrument/report.md", "# report");
+  return createTabCommand({ chatId, layout, ...options }).execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: layout.task.shellRoot,
       env: new Map<string, string>(),
       fs: fsTree,
       stdin: EMPTY_BYTES,
@@ -66,6 +86,16 @@ function run(options: { timeoutMs?: number }, ...args: string[]) {
 beforeEach(() => {
   asked = [];
   holders.clear();
+  pageUrls = [];
+  const config = getWorkspaceConfig();
+  setWorkspaceConfig({
+    ...config,
+    browser: {
+      ...config.browser,
+      getTargetUrl: () =>
+        pageUrls.length > 1 ? pageUrls.shift() : pageUrls[0],
+    },
+  });
   stopAnswering = answeringWindow();
 });
 
@@ -103,28 +133,28 @@ describe("tab open", () => {
   // A terminal's `open` stands you in a folder, and so does this one. The
   // slash is how the window is told which of the two it was handed.
   it("opens a folder, named with the slash that says it is one", async () => {
-    const result = await run({}, "open", "/mnt/Instrument");
+    const result = await run({}, "open", "/Users/me/Instrument");
 
-    expect(result.stdout).toBe("Opened /mnt/Instrument/ (tab made-1)\n");
+    expect(result.stdout).toBe("Opened /Users/me/Instrument/ (tab made-1)\n");
     expect(asked[0]?.action).toEqual({
       kind: "open",
       show: true,
-      target: { kind: "path", mount: "/mnt/Instrument/" },
+      target: { kind: "path", path: "/Users/me/Instrument/" },
     });
   });
 
-  it("refuses a path the window cannot show, and opens the rest", async () => {
+  it("refuses a path that does not exist, and opens the rest", async () => {
     const result = await run(
       {},
       "open",
       "/etc/hosts",
-      "/mnt/Instrument/report.md",
+      "/Users/me/Instrument/report.md",
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('"/etc/hosts" is not a page');
+    expect(result.stderr).toContain('"/etc/hosts" does not exist');
     expect(result.stdout).toBe(
-      "Opened /mnt/Instrument/report.md (tab made-1)\n",
+      "Opened /Users/me/Instrument/report.md (tab made-1)\n",
     );
   });
 
@@ -153,7 +183,7 @@ describe("tab close, replace and show", () => {
 
   it("says which task was working in a tab it closed", async () => {
     holders.set("tab-known", {
-      id: TaskIdSchema.parse("read-the-page"),
+      id: ChatIdSchema.parse("read-the-page"),
       title: "Read the page",
     });
 
@@ -193,6 +223,48 @@ describe("tab close, replace and show", () => {
     const result = await run({}, "show", "tab-known");
 
     expect(result.stdout).toBe("Tab tab-known is on the user's screen.\n");
+  });
+
+  it("prints the text of the page in a tab", async () => {
+    const result = await run({}, "read", "tab-known");
+
+    expect(asked[0]?.action).toEqual({ kind: "read", tabId: "tab-known" });
+    expect(result.stdout).toBe("Jar\nA rigid container.\n");
+  });
+
+  it("reads a local page under the chat's own folder", async () => {
+    pageUrls = ["file:///work/chats/tab-command-chat/notes.html"];
+    const result = await run({}, "read", pageTab);
+
+    expect(result.stdout).toBe("Jar\nA rigid container.\n");
+  });
+
+  it("refuses to read a tab on a file outside the chat's folders", async () => {
+    pageUrls = ["file:///Users/someone/secrets.txt"];
+    const result = await run({}, "read", pageTab);
+
+    expect(asked).toEqual([]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe(
+      `tab: tab ${pageTab} shows a file outside your folders, so it can't be read.\n`,
+    );
+  });
+
+  // A page can send its own tab to another file while the window reads it.
+  it("withholds the text when the tab moved outside the chat's folders during the read", async () => {
+    pageUrls = ["https://example.com/", "file:///Users/"];
+    const result = await run({}, "read", pageTab);
+
+    expect(asked).toHaveLength(1);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+  });
+
+  it("passes on the window's refusal to read a tab it does not have", async () => {
+    const result = await run({}, "read", "tab-gone");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("tab: no tab tab-gone is open in this chat.\n");
   });
 
   it("says nothing changed when no window answers", async () => {

@@ -12,7 +12,6 @@ import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { openLogin } from "../atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
@@ -44,7 +43,7 @@ interface MessageErrorProps {
   isDeveloperMode: boolean;
   isLastMessage: boolean;
   message: SessionMessage.Assistant;
-  /** Switches the chat to another model; the card offers no switch without it. */
+  /** Retries the pending request with another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
   onRunAgain?: () => void;
@@ -419,7 +418,6 @@ function errorActions({
         label: `Switch to ${name}`,
         onClick: () => {
           onModelChange(switchTo.uri);
-          toast.success(`Switched to ${name}`);
         },
       },
     ];
@@ -431,7 +429,7 @@ function errorActions({
             {
               label: `Try ${APP_NAME}`,
               onClick: () => {
-                openLogin({ hideManualProvider: true });
+                openLogin({ instrumentOnly: true });
               },
             },
           ]
@@ -441,19 +439,30 @@ function errorActions({
                 label: "Switch to Auto",
                 onClick: () => {
                   onModelChange(instrumentOffer.uri);
-                  toast.success("Switched to Auto");
                 },
               },
             ]
           : [];
     if (provider === "claude-account") {
-      return [...offer, providerSettings, ...tryAgain];
+      return [
+        ...offer,
+        {
+          label: "View usage limits",
+          onClick: () =>
+            openSettings({
+              tab: "Providers",
+              setting: "claude-account",
+              providerUsage: "claude-account",
+            }),
+        },
+        ...tryAgain,
+      ];
     }
     return provider === "chatgpt-account"
       ? [
           ...offer,
           {
-            label: "Manage usage",
+            label: "View usage limits",
             onClick: () => {
               openLink(CHATGPT_USAGE_URL, { addReferral: false });
             },

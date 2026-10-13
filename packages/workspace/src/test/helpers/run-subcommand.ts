@@ -1,6 +1,5 @@
 import { type ByteString, EMPTY_BYTES, InMemoryFs } from "just-bash";
 
-import { MOUNT } from "../../mount-points";
 import {
   runSubcommand,
   type Subcommand,
@@ -18,7 +17,7 @@ export function subcommandRunner<Context>(
     args: string[],
     context: Context,
     stdin: ByteString = EMPTY_BYTES,
-    cwd: string = MOUNT.task,
+    cwd: string = "/work",
   ) =>
     runSubcommand(
       spec,

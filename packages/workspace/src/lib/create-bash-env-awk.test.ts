@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TaskDirSchema } from "../schemas/paths";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -19,13 +19,13 @@ import { createBashEnv } from "./create-bash-env";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-awk-"));
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterEach(async () => {
@@ -35,7 +35,7 @@ afterEach(async () => {
 describe("awk printf", () => {
   it("formats many records in linear time", async () => {
     // Guarded by the test timeout.
-    const bash = await createBashEnv({ sessionId, taskId });
+    const bash = await createBashEnv({ sessionId, chatId });
 
     const result = await bash.exec(
       `seq 1 20000 | awk '{ printf "%s\\n", $0 }' | wc -l`,

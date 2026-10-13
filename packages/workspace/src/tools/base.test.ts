@@ -15,7 +15,7 @@ const TestSchema = BaseInputSchema.extend({
 
 describe("toolInputSchemaForLLM", () => {
   it("validates inputs that omit explanation", async () => {
-    const wrapped = toolInputSchemaForLLM(TestSchema, "main");
+    const wrapped = toolInputSchemaForLLM(TestSchema);
     const result = await wrapped.validate?.({ filePath: "/tmp/x" });
     expect(result).toEqual({
       success: true,
@@ -24,7 +24,7 @@ describe("toolInputSchemaForLLM", () => {
   });
 
   it("validates inputs that include explanation", async () => {
-    const wrapped = toolInputSchemaForLLM(TestSchema, "main");
+    const wrapped = toolInputSchemaForLLM(TestSchema);
     const result = await wrapped.validate?.({
       explanation: "Reading the file",
       filePath: "/tmp/x",
@@ -36,13 +36,13 @@ describe("toolInputSchemaForLLM", () => {
   });
 
   it("rejects inputs with wrong types on other fields", async () => {
-    const wrapped = toolInputSchemaForLLM(TestSchema, "main");
+    const wrapped = toolInputSchemaForLLM(TestSchema);
     const result = await wrapped.validate?.({ filePath: 123 });
     expect(result?.success).toBe(false);
   });
 
   it("emits a JSON schema with explanation marked required, via asSchema()", async () => {
-    const wrapped = toolInputSchemaForLLM(TestSchema, "main");
+    const wrapped = toolInputSchemaForLLM(TestSchema);
     const aiSdkSchema = asSchema(wrapped);
     const json = await aiSdkSchema.jsonSchema;
     expect(json.required).toContain(TOOL_EXPLANATION_PARAM_NAME);
@@ -56,7 +56,7 @@ describe("toolInputSchemaForLLM", () => {
       filePath: z.string(),
       [TOOL_EXPLANATION_PARAM_NAME]: z.string(),
     });
-    const wrapped = toolInputSchemaForLLM(schema, "main");
+    const wrapped = toolInputSchemaForLLM(schema);
     const json = await asSchema(wrapped).jsonSchema;
     const occurrences = (json.required ?? []).filter(
       (key) => key === TOOL_EXPLANATION_PARAM_NAME,
@@ -66,25 +66,17 @@ describe("toolInputSchemaForLLM", () => {
 
   it("leaves schemas without an explanation field untouched", async () => {
     const schema = z.object({ foo: z.string() });
-    const wrapped = toolInputSchemaForLLM(schema, "main");
+    const wrapped = toolInputSchemaForLLM(schema);
     const json = await asSchema(wrapped).jsonSchema;
     expect(json.required).toEqual(["foo"]);
   });
 
-  it("requires the activity of the task agent, ahead of the explanation", async () => {
-    const json = await asSchema(toolInputSchemaForLLM(TestSchema, "main"))
-      .jsonSchema;
+  it("requires the activity, ahead of the explanation", async () => {
+    const json = await asSchema(toolInputSchemaForLLM(TestSchema)).jsonSchema;
     expect(json.required).toEqual([
       TOOL_ACTIVITY_PARAM_NAME,
       TOOL_EXPLANATION_PARAM_NAME,
       "filePath",
     ]);
-  });
-
-  it("leaves the activity out of the chat agent's schema", async () => {
-    const json = await asSchema(toolInputSchemaForLLM(TestSchema, "instrument"))
-      .jsonSchema;
-    expect(json.properties?.[TOOL_ACTIVITY_PARAM_NAME]).toBeUndefined();
-    expect(json.required).toEqual([TOOL_EXPLANATION_PARAM_NAME, "filePath"]);
   });
 });

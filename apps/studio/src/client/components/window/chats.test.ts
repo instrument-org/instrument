@@ -5,6 +5,7 @@ import {
   askOf,
   basename,
   byActivity,
+  byLastUserMessage,
   type ChatFilters,
   choose,
   draftTitle,
@@ -14,7 +15,9 @@ import {
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
+  topicSearch,
   widenToSearch,
+  wordRanges,
 } from "./chats";
 
 function chat({
@@ -31,7 +34,7 @@ function chat({
     state: "idle",
     title: "",
     topics: [],
-    unread: 0,
+    unread: false,
     ...overrides,
   };
 }
@@ -41,7 +44,7 @@ function wordyChat(): Filterable {
   return chat({
     holds: {
       apps: ["gmail"],
-      files: ["/task/out/Protein-Report.md"],
+      files: ["/Users/sam/chat/out/Protein-Report.md"],
       sites: ["amazon.com"],
     },
     latest: { text: "Ready to drink, chocolate first." },
@@ -92,7 +95,7 @@ describe("outsideFilters", () => {
     expect(
       widenToSearch({
         apps: ["gmail"],
-        place: "needsYou",
+        place: "unread",
         search: "protein",
         topics: ["shopping"],
       }),
@@ -107,16 +110,22 @@ describe("matchesFilters", () => {
 
   it.each<[string, Partial<ChatFilters>, Filterable, Filterable]>([
     [
-      "the user to answer",
-      { place: "needsYou" },
-      chat({ state: "waiting" }),
-      chat({ state: "working", unread: 2 }),
+      "replies not yet seen",
+      { place: "unread" },
+      chat({ unread: true }),
+      chat({ archived: true, unread: true }),
+    ],
+    [
+      "been put away",
+      { place: "archived" },
+      chat({ archived: true }),
+      chat({ unread: true }),
     ],
     [
       "a star",
       { place: "starred" },
       chat({ archived: true, starred: true }),
-      chat({ unread: 2 }),
+      chat({ unread: true }),
     ],
     [
       "a topic",
@@ -145,24 +154,20 @@ describe("matchesFilters", () => {
   it("holds no chat in the drafts, since a draft is not a chat yet", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: "drafts" };
     expect(matchesFilters(chat(), filters)).toBe(false);
-    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(false);
+    expect(matchesFilters(chat({ unread: true }), filters)).toBe(false);
     expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(false);
   });
 
   it("keeps every chat not put away in the inbox, whatever it holds", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: undefined };
     expect(matchesFilters(chat(), filters)).toBe(true);
-    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(chat({ unread: true }), filters)).toBe(true);
     expect(matchesFilters(chat({ state: "waiting" }), filters)).toBe(true);
     expect(matchesFilters(chat({ archived: true }), filters)).toBe(false);
   });
 
   it.each<[string, ChatFilters, Filterable]>([
-    [
-      "Needs you",
-      { ...NO_FILTERS, place: "needsYou" },
-      chat({ state: "waiting" }),
-    ],
+    ["Unread", { ...NO_FILTERS, place: "unread" }, chat({ unread: true })],
     [
       "an app",
       { ...NO_FILTERS, apps: ["gmail"] },
@@ -190,13 +195,13 @@ describe("matchesFilters", () => {
 
   it("holds every chat in All, put away or not, narrowed by the search", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: "all" };
-    expect(matchesFilters(chat({ archived: true, unread: 3 }), filters)).toBe(
-      true,
-    );
+    expect(
+      matchesFilters(chat({ archived: true, unread: true }), filters),
+    ).toBe(true);
     expect(
       matchesFilters(chat({ archived: true, state: "waiting" }), filters),
     ).toBe(true);
-    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(chat({ unread: true }), filters)).toBe(true);
     expect(
       matchesFilters(chat({ archived: true, title: "MLS standings" }), {
         ...filters,
@@ -366,7 +371,7 @@ describe("the inbox", () => {
   });
 
   it.each<[string, ChatFilters]>([
-    ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
+    ["the unread", { ...NO_FILTERS, place: "unread" }],
     ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
     ["all of it", { ...NO_FILTERS, place: "all" }],
@@ -375,8 +380,8 @@ describe("the inbox", () => {
   });
 });
 
-describe("the inbox's order", () => {
-  it("puts the chat something last happened in at the top", () => {
+describe("activity order", () => {
+  it("puts the item something last happened in at the top", () => {
     const chats = [
       { id: "b", updatedAt: new Date(2026, 8, 15, 8).getTime() },
       { id: "d", updatedAt: new Date(2026, 8, 16, 11).getTime() },
@@ -399,6 +404,37 @@ describe("the inbox's order", () => {
     const sorted = byActivity(chats);
     expect(sorted).not.toBe(chats);
     expect(chats.map((row) => row.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("chat order by the user's messages", () => {
+  it("ignores agent activity and moves a chat when the user messages it", () => {
+    const first = {
+      id: "a",
+      createdAt: 1,
+      lastUserMessageAt: 3,
+      updatedAt: 10,
+    };
+    const chats = [
+      first,
+      { id: "b", createdAt: 2, lastUserMessageAt: 4, updatedAt: 5 },
+    ];
+    expect(byLastUserMessage(chats).map((row) => row.id)).toEqual(["b", "a"]);
+    first.updatedAt = 20;
+    expect(byLastUserMessage(chats).map((row) => row.id)).toEqual(["b", "a"]);
+    first.lastUserMessageAt = 6;
+    expect(byLastUserMessage(chats).map((row) => row.id)).toEqual(["a", "b"]);
+    expect(chats.map((row) => row.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps the given order for chats messaged at the same moment", () => {
+    expect(
+      byLastUserMessage([
+        { id: "a", lastUserMessageAt: 1 },
+        { id: "b", lastUserMessageAt: 3 },
+        { id: "c", lastUserMessageAt: 3 },
+      ]).map((row) => row.id),
+    ).toEqual(["b", "c", "a"]);
   });
 });
 
@@ -434,9 +470,9 @@ describe("the ask", () => {
   });
 
   it("names a file by its last segment", () => {
-    expect(basename("/task/output/report.md")).toBe("report.md");
+    expect(basename("/Users/sam/chat/output/report.md")).toBe("report.md");
     expect(basename("report.md")).toBe("report.md");
-    expect(basename("/mnt/home/notes/")).toBe("notes");
+    expect(basename("/Users/sam/home/notes/")).toBe("notes");
   });
 });
 
@@ -462,5 +498,39 @@ describe("a draft's title", () => {
     ],
   ])("is %s", (_, words, title) => {
     expect(draftTitle(words)).toBe(title);
+  });
+});
+
+describe("wordRanges", () => {
+  it.each<[string, string, null | number[]]>([
+    ["Lisbon fares", "", null],
+    ["Lisbon fares", "porto", null],
+    ["Lisbon fares", "FARES", [7, 12]],
+    ["Lisbon fares", "fares lis", [0, 3, 7, 12]],
+    ["banana", "an", [1, 5]],
+    ["banana", "ana nan", [1, 5]],
+  ])("finds %j searched for %j", (text, search, ranges) => {
+    expect(wordRanges(text, search)).toEqual(ranges);
+  });
+});
+
+describe("a command menu search's ask of the topics", () => {
+  it.each<[string, boolean, string]>([
+    ["reading", false, "reading"],
+    ["reading list", false, "reading list"],
+    ["topic", true, ""],
+    ["Topics", true, ""],
+    ["topic reading", true, "reading"],
+    ["reading topic", true, "reading"],
+    ["  reading   list topics ", true, "reading list"],
+    ["topic: reading", true, "reading"],
+    // The word inside another is that other word.
+    ["topical", false, "topical"],
+    // A topic with the word in its name is found by the rest of it.
+    ["hot topics", true, "hot"],
+    // Said twice, the second is part of the name.
+    ["topic topic", true, "topic"],
+  ])("%j asks: %j, by the name %j", (words, isAsked, name) => {
+    expect(topicSearch(words)).toEqual({ isAsked, name });
   });
 });

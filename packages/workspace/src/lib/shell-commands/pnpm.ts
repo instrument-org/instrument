@@ -6,9 +6,9 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
-import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
-import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import { type ChatId } from "../../schemas/chat-id";
+import { type WorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
+import { workDir } from "../work-dir";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { resolveCommandContext, subprocessStdin } from "./utils";
@@ -73,16 +73,15 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-export function createNpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
-    taskId,
-    layout,
+    chatId,
     stripNpxCompatibilityFlags,
   );
 }
 
-export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
@@ -117,15 +116,14 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
           stdout: "",
         };
       }
-      const { env: execEnv, taskCwd } = resolveCommandContext(taskId, ctx);
+      const { env: execEnv, taskCwd } = resolveCommandContext(chatId, ctx);
       const execResult = await runPnpmCommand({
-        layout,
         args: ["exec", ...args.slice(1)],
         cwd: taskCwd,
         env: execEnv,
         signal: ctx.signal,
         stdin: subprocessStdin(ctx.stdin),
-        taskId,
+        chatId,
       });
       return {
         exitCode: execResult.exitCode,
@@ -167,11 +165,15 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       ? args.filter((arg) => !GLOBAL_FLAGS.has(arg))
       : args;
 
-    const env = Object.fromEntries(ctx.env);
+    // The host's PATH, which the shell's own does not carry: pnpm's shims
+    // call sed, uname and node from it.
+    const env = {
+      ...Object.fromEntries(ctx.env),
+      ...(process.env.PATH && { PATH: process.env.PATH }),
+    };
 
-    // Map the virtual cwd to its real host dir via the shared bridge so pnpm
-    // runs in the right place regardless of where the task is mounted.
-    const { taskCwd: cwd } = resolveCommandContext(taskId, ctx);
+    // The shell's cwd as a host path.
+    const { taskCwd: cwd } = resolveCommandContext(chatId, ctx);
 
     // The manifest is at the task root, which is also where the agent starts,
     // so reaching this means it ran the command from somewhere else. Fail fast
@@ -186,8 +188,8 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       return {
         exitCode: 1,
         stderr: dedent`
-          No package manifest found here. Your package is the task root (\`${MOUNT.task}\`), which is also where you start.
-          Run package commands from there, e.g. \`cd ${MOUNT.task} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
+          No package manifest found here. Your package is this conversation's folder, which is also where you start.
+          Run package commands from there, e.g. \`cd ${shellPath(workDir(chatId))} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
         `,
         stdout: "",
       };
@@ -196,25 +198,23 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     let installOutput = "";
     if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({
-        layout,
         args: ["install"],
         cwd,
         env,
         signal: ctx.signal,
-        taskId,
+        chatId,
       });
       if (installResult.exitCode !== 0) {
         installOutput = `[auto-install failed]\n${installResult.stdout}${installResult.stderr}\n\n`;
       }
     }
     const result = await runPnpmCommand({
-      layout,
       args: filteredArgs,
       cwd,
       env,
       signal: ctx.signal,
       stdin: subprocessStdin(ctx.stdin),
-      taskId,
+      chatId,
     });
 
     let globalNote = "";
@@ -237,18 +237,17 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   });
 }
 
-export function createPnpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNPX_COMMAND.name, taskId, layout);
+export function createPnpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, chatId);
 }
 
-export function createPnxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNX_COMMAND.name, taskId, layout);
+export function createPnxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNX_COMMAND.name, chatId);
 }
 
 function createDlxAliasCommand(
   name: string,
-  taskId: TaskId,
-  layout: WorkspaceFsLayout,
+  chatId: ChatId,
   normalizeArgs = (args: string[]) => args,
 ) {
   return defineCommand(name, async (args, ctx) => {
@@ -258,16 +257,15 @@ function createDlxAliasCommand(
       return aliasResult;
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const result = await runPnpmCommand({
-      layout,
       args: ["dlx", ...normalizedArgs],
       cwd: taskCwd,
       env,
       pnpmLogLevel: "error",
       signal: ctx.signal,
       stdin: subprocessStdin(ctx.stdin),
-      taskId,
+      chatId,
     });
 
     return {

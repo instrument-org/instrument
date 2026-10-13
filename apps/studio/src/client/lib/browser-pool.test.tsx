@@ -1,8 +1,4 @@
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/client";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import {
@@ -13,10 +9,7 @@ import {
   showOverSlot,
 } from "./browser-pool";
 
-const target = encodeBrowserTargetId(
-  TaskIdSchema.parse("instrument"),
-  StoreId.newSessionId(),
-);
+const target = browserTargetOf(StoreId.newSessionId());
 
 // A stream that stays open without ever yielding, as the pool's event
 // subscriptions are while nothing happens.
@@ -28,7 +21,9 @@ async function* quiet(signal?: AbortSignal) {
 }
 
 vi.mock("@/client/lib/browser-host", () => ({ WINDOW_BROWSER_HOST: "main" }));
-vi.mock("@/client/lib/telemetry", () => ({ captureException: vi.fn() }));
+vi.mock("@/client/lib/capture-exception", () => ({
+  captureException: vi.fn(),
+}));
 vi.mock("@/client/rpc/client", () => {
   const stream = {
     call: (_input: unknown, options?: { signal?: AbortSignal }) =>

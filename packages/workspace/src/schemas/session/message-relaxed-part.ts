@@ -92,6 +92,8 @@ export namespace SessionMessageRelaxedPart {
     output: z.unknown().optional(),
     preliminary: z.boolean().optional(),
     providerExecuted: z.boolean().optional(),
+    // Older failed tool calls hold the model's input here;
+    // `SessionMessagePart.FromStorageSchema` moves it to `input` on read.
     rawInput: z.unknown().optional(),
     state: z.string(),
     title: z.string().optional(),

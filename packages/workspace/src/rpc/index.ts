@@ -1,3 +1,4 @@
+import { aiUsage } from "./routes/ai-usage";
 import { browser } from "./routes/browser";
 import { chats } from "./routes/chats";
 import { computer } from "./routes/computer";
@@ -5,15 +6,16 @@ import { debug } from "./routes/debug";
 import { decision } from "./routes/decision";
 import { memory } from "./routes/memory";
 import { message } from "./routes/message";
+import { permissions } from "./routes/permissions";
 
 import { session } from "./routes/session";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
-import { task } from "./routes/task";
 import { topics } from "./routes/topics";
 import { window } from "./routes/window";
 
 export const router = {
+  aiUsage,
   browser,
   chats,
   computer,
@@ -21,10 +23,10 @@ export const router = {
   decision,
   memory,
   message,
+  permissions,
   session,
   skill,
   storage,
-  task,
   topics,
   window,
 };

@@ -40,9 +40,29 @@ export function firstSentence(text: string): string | undefined {
 }
 
 /**
+ * About the app itself rather than the person's data in it: its skills, its
+ * docs, its help. True to the app, and nothing much to look at.
+ */
+const ABOUT_THE_APP =
+  /(?:^|[-_])(?:skills?|docs?|documentation|help)(?:[-_]|$)/i;
+
+/**
+ * The order a person browsing wants the reads in: what opens on one press
+ * first, then the person's own data before what describes the app, then
+ * lists, since they say most plainly what is there.
+ */
+function browsableFirst(a: Capability, b: Capability): number {
+  const isAbout = (item: Capability) => ABOUT_THE_APP.test(item.name);
+  return (
+    Number(b.runsAsIs) - Number(a.runsAsIs) ||
+    Number(isAbout(a)) - Number(isAbout(b))
+  );
+}
+
+/**
  * An app's tools as what it lets Instrument do: what it reads apart from
- * what it changes, each named in words: lists first among the reads, since
- * they say most plainly what is there, then the app's own order.
+ * what it changes, each named in words, the reads in the order a person
+ * browsing wants them and otherwise in the app's own.
  */
 export function capabilitiesOf(tools: Tool[]): Capabilities {
   const toCapability = (tool: Tool): Capability => ({
@@ -56,6 +76,7 @@ export function capabilitiesOf(tools: Tool[]): Capabilities {
     finds: tools
       .filter((tool) => tool.isRead)
       .toSorted(listsFirst)
-      .map(toCapability),
+      .map(toCapability)
+      .toSorted(browsableFirst),
   };
 }

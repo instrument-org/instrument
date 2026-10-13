@@ -32,6 +32,36 @@ describe("capabilitiesOf", () => {
     ).toBe(runsAsIs);
   });
 
+  it("puts the reads that open on one press first, the app's own docs last among them", () => {
+    const read = (name: string, required = false) => ({
+      description: "",
+      isRead: true,
+      name,
+      params: [{ name: "id", required }],
+    });
+    expect(
+      capabilitiesOf([
+        read("get_issue", true),
+        read("list_agent_skills"),
+        read("list_comments", true),
+        read("list_cycles", true),
+        read("search_documentation"),
+        read("get_user"),
+        read("list_issues"),
+      ]).finds.map((item) => item.name),
+    ).toMatchInlineSnapshot(`
+      [
+        "list_issues",
+        "get_user",
+        "list_agent_skills",
+        "search_documentation",
+        "list_comments",
+        "list_cycles",
+        "get_issue",
+      ]
+    `);
+  });
+
   it("splits reads from changes and names each in words", () => {
     expect(
       capabilitiesOf([

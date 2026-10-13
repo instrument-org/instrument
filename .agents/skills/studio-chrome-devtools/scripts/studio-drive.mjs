@@ -14,7 +14,7 @@
 //   node studio-drive.mjs shot out.png --selector '[role=dialog]'
 //   node studio-drive.mjs wait 'document.querySelectorAll("webview").length > 0'
 //   node studio-drive.mjs rpc workspace.chats.tasks '{"id":"<chat-id>"}'
-//   node studio-drive.mjs wait --idle --task <id>
+//   node studio-drive.mjs wait --idle --chat <chat-id> [--task <session-id>]
 //   node studio-drive.mjs run sequence.mjs
 //   node studio-drive.mjs stop
 //
@@ -57,7 +57,7 @@
 // it is the half that pays for itself when the change is the run's own. Pass
 // `--hot` to boot an instance that reloads all three, for a run that is testing
 // reload behavior or iterating on main. A hand-started instance -- `pnpm dev`,
-// `pnpm dev:studio`, the VS Code launch configs, all of which sit on the
+// `pnpm studio`, the VS Code launch configs, all of which sit on the
 // conventional 48160 -- is untouched by this and hot reloads everything.
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
@@ -96,16 +96,18 @@
 // `sort-modules` would order the declarations alphabetically and leave the
 // section banners labeling whatever landed under them; the cache-location
 // variables belong to a standalone CLI rather than a turbo task; and `dir` is
-// how a path is named everywhere this script reaches, from `taskDir` through
-// `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` it sets.
+// how a path is named everywhere this script reaches, from `chatDir` through
+// `workspaceConfig.chatsDir` to the `ELECTRON_USER_DATA_DIR` it sets.
 
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   utimesSync,
@@ -115,6 +117,7 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { DEV_INSTANCE_COLORS } from "../../../../apps/studio/src/shared/dev-instance-colors.ts";
 import {
   CHECKOUT_KEY,
   checkoutPort,
@@ -392,14 +395,14 @@ function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
 }
 
 /**
- * Drops installed dependencies left inside tasks by a live agent run. A seeded
+ * Drops installed dependencies left inside chat folders by a live agent run. A seeded
  * transcript never creates these, so a workspace only used for driving stays in the low
  * megabytes and this finds nothing.
  */
 function reapWorkArtifacts(workspaceDir) {
-  for (const taskDir of recordDirs(workspaceDir)) {
+  for (const recordDir of recordDirs(workspaceDir)) {
     for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(taskDir, "work", name);
+      const dir = path.join(recordDir, "work", name);
       try {
         if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
           rmSync(dir, { force: true, recursive: true });
@@ -412,9 +415,9 @@ function reapWorkArtifacts(workspaceDir) {
 }
 
 /**
- * Every task and chat folder of a workspace: tasks no chat owns under
- * `tasks/`, chats under `chats/`, and each chat's tasks under its own
- * `tasks/`.
+ * Every record folder of a workspace: the chats under `chats/`, plus any task
+ * folder a 1.x build left under `tasks/` that the boot migration has not yet
+ * moved. A chat's tasks are sessions in its store and work in its folder.
  */
 function recordDirs(workspaceDir) {
   const children = (dir) => {
@@ -427,11 +430,7 @@ function recordDirs(workspaceDir) {
     }
   };
   const chats = children(path.join(workspaceDir, "chats"));
-  return [
-    ...children(path.join(workspaceDir, "tasks")),
-    ...chats,
-    ...chats.flatMap((chat) => children(path.join(chat, "tasks"))),
-  ];
+  return [...children(path.join(workspaceDir, "tasks")), ...chats];
 }
 
 // --- lifecycle ---------------------------------------------------------
@@ -505,6 +504,7 @@ async function cmdBoot(
 
   const file = sessionFile(INSTANCE);
   mkdirSync(path.dirname(file), { recursive: true });
+  const color = pickColor(purpose, file);
   const logFile = file.replace(/\.json$/, ".log");
   const log = openSync(logFile, "a");
 
@@ -547,6 +547,7 @@ async function cmdBoot(
           process.env.PATH,
         ].join(path.delimiter),
         REMOTE_DEBUGGING_PORT: String(port),
+        STUDIO_DRIVE_COLOR: color,
         STUDIO_DRIVE_PURPOSE: purpose,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
@@ -569,6 +570,7 @@ async function cmdBoot(
   child.unref();
 
   const session = {
+    color,
     hot: Boolean(hot),
     ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
@@ -746,6 +748,42 @@ function readStdin() {
 function flag(argv, name, fallback) {
   const index = argv.indexOf(name);
   return index === -1 ? fallback : argv[index + 1];
+}
+
+/**
+ * The color this instance's Dock dot and dev pill wear. Each purpose has a
+ * color of its own, so "hotkeys" comes back the same every time it is booted,
+ * unless a live instance from any checkout already wears it; then it takes the
+ * next one along that none does. Past six live instances, colors repeat.
+ */
+function pickColor(purpose, ownFile) {
+  const names = Object.keys(DEV_INSTANCE_COLORS);
+  const dir = path.dirname(ownFile);
+  const taken = new Set(
+    readdirSync(dir)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => path.join(dir, name))
+      .filter((file) => file !== ownFile)
+      .map((file) => {
+        try {
+          return JSON.parse(readFileSync(file, "utf8"));
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((session) => session?.pid && isAlive(session.pid))
+      .map((session) => session.color),
+  );
+  const start =
+    createHash("sha256").update(purpose).digest().readUInt16BE(0) %
+    names.length;
+  for (let step = 0; step < names.length; step++) {
+    const name = names[(start + step) % names.length];
+    if (!taken.has(name)) {
+      return name;
+    }
+  }
+  return names[start];
 }
 
 function normalizePurpose(rawPurpose) {
@@ -976,8 +1014,8 @@ async function dispatch(app) {
     case "wait": {
       return argv.includes("--idle")
         ? app.waitForIdle({
+            ...(await resolveTarget(app)),
             settleMs: Number(flag(argv, "--settle", "2000")),
-            taskId: await resolveTaskId(app, flag(argv, "--task")),
             // A turn is minutes of work, not the seconds a DOM predicate waits.
             timeout: Number(flag(argv, "--timeout", "600000")),
           })
@@ -1009,39 +1047,36 @@ async function cmdModal(app, name) {
 }
 
 /**
- * One command in a task's real sandbox, with stdout and stderr kept apart.
+ * One command in a chat's real sandbox, with stdout and stderr kept apart.
  * `run-bash` in a checkout answers a different question: it builds its own
  * sandbox from that checkout's dependencies, so it cannot see what a packaged
  * build bundles. Reach for this whenever the question is about the app that is
  * running rather than about the shell in the abstract.
  *
- * The session is the task's most recent unless named, because `session.list`
- * already returns them newest first and a verification check does not care
- * which one it lands in.
+ * The session is the task's when `--task` (or the active tab) names one, and
+ * otherwise the chat's own, which `chats.byId` reports.
  */
 async function cmdBash(app, commandText) {
   if (!commandText) {
     fail(
-      `Usage: bash <command> [--task <id>] [--session <id>]\n` +
-        `  bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --task <task-id>\n` +
+      `Usage: bash <command> [--chat <chat-id>] [--task <session-id>]\n` +
+        `  bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --chat <chat-id>\n` +
         `Needs Developer Mode on, and a build carrying workspace.debug.runBash.`,
     );
   }
-  const taskId = await resolveTaskId(app, flag(argv, "--task"));
-  let sessionId = flag(argv, "--session");
+  const { chatId, sessionId: taskSession } = await resolveTarget(app);
+  let sessionId = taskSession;
   if (!sessionId) {
-    const sessions = await app.rpc("workspace.session.list", { id: taskId });
-    if (!sessions?.length) {
-      fail(
-        `Task ${taskId} has no sessions to run in. Open it once, or pass --session.`,
-      );
+    const chat = await app.rpc("workspace.chats.byId", { id: chatId });
+    if (!chat) {
+      fail(`No chat ${chatId}.`);
     }
-    sessionId = sessions[0].id;
+    sessionId = chat.sessionId;
   }
   return app.rpc("workspace.debug.runBash", {
+    chatId,
     command: commandText,
     sessionId,
-    taskId,
   });
 }
 
@@ -1049,8 +1084,8 @@ async function cmdRpc(app, route, rawInput) {
   if (!route) {
     fail(
       `Usage: rpc <route> [json]\n` +
-        `  rpc workspace.chats.tasks '{"id":"<chat-id>"}'\n` +
-        `  rpc workspace.task.status '{"id":"<task-id>"}'`,
+        `  rpc workspace.chats.byId '{"id":"<chat-id>"}'\n` +
+        `  rpc workspace.chats.tasks '{"id":"<chat-id>"}'`,
     );
   }
 
@@ -1069,29 +1104,42 @@ async function cmdRpc(app, route, rawInput) {
   return app.rpc(route, input);
 }
 
-/** The task named on the command line, or the one the active tab is showing. */
-async function resolveTaskId(app, explicit) {
-  if (explicit) {
-    return explicit;
+/**
+ * The chat named by `--chat`, and the task in it by `--task` (its session),
+ * or else what the active tab is showing: a chat at `/chats/<id>`, a task at
+ * `/tasks/<session>?chat=<id>`.
+ */
+async function resolveTarget(app) {
+  const chatId = flag(argv, "--chat");
+  const sessionId = flag(argv, "--task");
+  if (chatId) {
+    return { chatId, ...(sessionId ? { sessionId } : {}) };
   }
-  // Reading the active tab needs the dev-only handle, though the wait itself
-  // does not. Say so here rather than spending the handle's timeout to report
-  // a missing dev build, which is not what a packaged build is missing.
+  // Reading the active tab needs the dev-only handle, though the commands
+  // themselves do not. Say so here rather than spending the handle's timeout
+  // to report a missing dev build, which is not what a packaged build is
+  // missing.
   if (!(await evaluate(app.cdp, "Boolean(window.__studioDrive)"))) {
     fail(
-      "Pass --task. Taking the task from the active tab needs the dev-only handle, " +
-        "which a packaged build omits; the wait itself does not.",
+      "Pass --chat. Taking the chat from the active tab needs the dev-only handle, " +
+        "which a packaged build omits; the command itself does not.",
     );
   }
   const { path: routePath } = await evaluate(
     app.cdp,
     "window.__studioDrive.state()",
   );
-  const match = /^\/tasks\/([^/?]+)/.exec(routePath ?? "");
-  if (!match) {
-    fail(
-      `No --task, and the active tab is not a task (path: ${routePath ?? "none"}).`,
-    );
+  const url = new URL(routePath ?? "/", "app://studio");
+  const chat = /^\/chats\/([^/]+)$/.exec(url.pathname);
+  if (chat) {
+    return { chatId: decodeURIComponent(chat[1]) };
   }
-  return match[1];
+  const task = /^\/tasks\/([^/]+)$/.exec(url.pathname);
+  const taskChat = url.searchParams.get("chat");
+  if (task && taskChat) {
+    return { chatId: taskChat, sessionId: decodeURIComponent(task[1]) };
+  }
+  fail(
+    `No --chat, and the active tab is not a chat or a task (path: ${routePath ?? "none"}).`,
+  );
 }

@@ -1,4 +1,10 @@
 import { BROWSER_HREF } from "@/client/atoms/window";
+import {
+  deleteGroupTabRouter,
+  getGroupTabRouter,
+  setGroupTabRouter,
+} from "@/client/lib/group-tab-router-registry";
+import { createTabRouter } from "@/client/lib/tab-router";
 import { TabIdSchema } from "@/shared/tabs";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, renderHook } from "@testing-library/react";
@@ -73,5 +79,25 @@ describe("opening into a group", () => {
     });
     expect(second).toBe(first);
     expect(result.current.tabs).toHaveLength(1);
+  });
+
+  it("walks a screen tab up to another screen by its own router, keeping it", () => {
+    const { result } = at(`/chats/${CHAT}`);
+    let id: string | undefined;
+    act(() => {
+      id = result.current.openScreen(BROWSER_HREF);
+    });
+    if (id === undefined) {
+      throw new Error("no screen tab opened");
+    }
+    const router = createTabRouter({ pathname: BROWSER_HREF });
+    setGroupTabRouter(id, router);
+    act(() => {
+      result.current.navigateScreen("/apps");
+    });
+    expect(getGroupTabRouter(id)).toBe(router);
+    expect(router.history.location.pathname).toBe("/apps");
+    expect(router.history.length).toBe(2);
+    deleteGroupTabRouter(id);
   });
 });

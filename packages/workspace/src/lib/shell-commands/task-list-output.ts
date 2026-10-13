@@ -1,5 +1,3 @@
-import { type TaskId } from "../../schemas/task-id";
-
 /**
  * How long each unit a span may be written in lasts. A month and a year are
  * the round figures a question uses rather than calendar arithmetic, since a
@@ -39,7 +37,8 @@ export interface TaskListQuery {
 
 /** One task as the listing needs it. */
 export interface TaskListRow {
-  id: TaskId;
+  /** Its handle in the chat, `t1`. */
+  id: string;
   /** Whether an agent turn is live in it. */
   isRunning: boolean;
   /**
@@ -47,29 +46,18 @@ export interface TaskListRow {
    * is doing. The two come apart when a turn ends with a scan still going.
    */
   leftRunning: number;
+  /** The step it is on, what it waits for, or what it last said. */
+  line: string;
+  /** Where it stands: at work, stopped on an ask, done, or failed. */
+  status: "done" | "failed" | "running" | "waiting";
   title: string;
   updatedAt: Date;
-  /** Why it is held from starting, and for how long so far, when it is. */
-  waiting?: string;
 }
 
 export interface TaskListSelection {
   /** Matched the query but fell outside the window, and so goes in the footer. */
   omitted: number;
   shown: TaskListRow[];
-  total: number;
-}
-
-/** A task that matched a search, with what it said about the term. */
-export interface TaskSearchRow extends TaskListRow {
-  /** Text parts that matched; zero when only the name did. */
-  count: number;
-  snippet: string;
-}
-
-export interface TaskSearchSelection {
-  omitted: number;
-  shown: TaskSearchRow[];
   total: number;
 }
 
@@ -144,18 +132,17 @@ export function parseListDate(
 }
 
 /**
- * The listing itself: a column each for the id, whether it is running, what it
- * has in the background when any row does, the day it was last active, how
- * long ago that was, and its title.
+ * The listing itself: a column each for the id, where it stands, what it has
+ * in the background when any row does, the day it was last active, how long
+ * ago that was, and its title with its line after it: the step it is on, what
+ * it waits for, or what it last said.
  *
- * The day is written out as well as the age because a listing without one is
- * filtered by reading a date out of the id, which is the day the task was made
- * rather than the day it was last active, and which a quarter of tasks do not
- * carry at all.
+ * The day is written out as well as the age, so a listing is filtered by the
+ * day a task was last active rather than by working one out from an age.
  *
  * The background column is its own rather than a word in the status column,
  * because "running" there means an agent turn is live, and a task that ended
- * its turn with a scan still going is idle and has one. One cell saying both
+ * its turn with a scan still going is done and has one. One cell saying both
  * with one word would say neither.
  */
 export function renderTaskList(
@@ -165,17 +152,13 @@ export function renderTaskList(
   const anyLeft = selection.shown.some((row) => row.leftRunning > 0);
   const cells = selection.shown.map((row) => [
     row.id,
-    row.waiting
-      ? `waiting: ${row.waiting}`
-      : row.isRunning
-        ? "running"
-        : "idle",
+    row.status,
     ...(anyLeft
       ? [row.leftRunning > 0 ? `${row.leftRunning} in background` : ""]
       : []),
     row.updatedAt.toISOString().slice(0, 10),
     `${formatAge(now.getTime() - row.updatedAt.getTime())} ago`,
-    row.title,
+    row.line ? `${row.title} · ${row.line}` : row.title,
   ]);
   const last = (cells[0]?.length ?? 1) - 1;
   const widths = Array.from({ length: last }, (_, column) =>
@@ -189,42 +172,6 @@ export function renderTaskList(
         )
         .join("  "),
     )
-    .join("\n");
-  if (selection.omitted === 0) {
-    return `${table}\n`;
-  }
-  return `${table}\n\n${moreLine(selection, ", or find one with `task search <words>`")}\n`;
-}
-
-/**
- * A search result: the same row, with what the task said about the term under
- * it. The status column goes, since what a task is doing now is not what is
- * being asked; the count stays, because one mention and thirty are different
- * answers and the ordering is built on the difference.
- */
-export function renderTaskSearch(
-  selection: TaskSearchSelection,
-  { now = new Date() }: { now?: Date } = {},
-): string {
-  const cells = selection.shown.map((row) => [
-    row.id,
-    row.updatedAt.toISOString().slice(0, 10),
-    `${formatAge(now.getTime() - row.updatedAt.getTime())} ago`,
-    row.title,
-  ]);
-  const widths = [0, 1, 2].map((column) =>
-    Math.max(...cells.map((row) => (row[column] ?? "").length)),
-  );
-  const table = selection.shown
-    .map((row, index) => {
-      const head = (cells[index] ?? [])
-        .map((cell, column) =>
-          column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
-        )
-        .join("  ");
-      const mentions = row.count === 0 ? "in its name" : `${row.count}×`;
-      return `${head}\n    ${mentions}  ${row.snippet || "matched its name"}`;
-    })
     .join("\n");
   if (selection.omitted === 0) {
     return `${table}\n`;
@@ -245,8 +192,7 @@ export function selectTasks(
   query: TaskListQuery = {},
 ): TaskListSelection {
   const matched = rows.filter((row) => {
-    // A task waiting to start is work in hand, and listed with what runs.
-    if (query.running && !row.isRunning && !row.waiting) {
+    if (query.running && !row.isRunning) {
       return false;
     }
     if (query.since && row.updatedAt < query.since) {
@@ -270,9 +216,6 @@ export function selectTasks(
  * narrow is the point of it: a listing that only says there is more invites an
  * answer drawn from the part that fit.
  */
-function moreLine(
-  selection: { omitted: number; total: number },
-  extra = "",
-): string {
-  return `… ${selection.omitted} more of ${selection.total}. Narrow with --since <date> or --until <date>${extra}; --all shows every match.`;
+function moreLine(selection: { omitted: number; total: number }): string {
+  return `… ${selection.omitted} more of ${selection.total}. Narrow with --since <date> or --until <date>; --all shows every match.`;
 }

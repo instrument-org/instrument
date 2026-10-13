@@ -1,6 +1,6 @@
 # Plan: privacy-first diagnostics and feedback
 
-Status: proposal, not started apart from three leaky-field fixes out of phase 0 (the two content-carrying events, the tool error text on `llm.error`, and the crash-record redaction claim). The structural work is untouched: `enableUsageMetrics` still defaults on and PostHog still ships in both processes. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
+Status: in progress. Tier A's removal half has landed: PostHog is gone from both processes (SDKs, init, CSP hosts, env validation, the release source-map upload), along with the persisted `telemetryId`, the `enableUsageMetrics` preference and its Settings toggle, and the whole event catalog with every call site. Decision 2 went the other way from its recommendation: the catalog was deleted rather than retargeted, so nothing records events locally either. Exceptions still flow through the injected `CaptureExceptionFunction`, which now writes only to the main log and the developer-mode exception list. Phase 3's local half is built: Crashpad runs with uploads off, and each start logs the minidumps it has not reported yet and whether the last session exited at all ([register-crash-diagnostics.ts](../../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts)). Release builds attach their source maps to the GitHub release, so a stack in a report can be resolved against the build it came from. Sending is built too: a crash or hang from the last session waits in a bell in the window corner, every report goes through one dialog whose Show details is exactly what is sent, Help > Report a Problem… and the two error screens open it, and reports post to the `apps/reports` Worker in the internal repo (`MAIN_VITE_REPORTS_BASE_URL`), which attributes signed-in reports by their token. Not started: the local journal, spans and the stall watchdog, the diagnostics screen, and chat feedback with its transcript. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
 
 ## Scope
 
@@ -24,18 +24,13 @@ Two carve-outs to state before someone else finds them:
 
 ## Current state
 
-Nothing has been removed. Both PostHog SDKs are live and default-on.
+No analytics SDK ships and nothing leaves the device on its own account. What remains is local:
 
-- [machine/preferences.ts](../../../apps/studio/src/electron-main/stores/machine/preferences.ts) defaults `enableUsageMetrics` to on for every install. It is machine-wide, so every workspace on a computer reports under the same choice.
-- [telemetry.ts](../../../apps/studio/src/client/lib/telemetry.ts) calls `posthog.init` and subscribes to the opt-out preference afterward. [router.tsx](../../../apps/studio/src/client/router.tsx) calls `capturePageView` on every rendered route, so init happens at window open for opted-out users. Init fetches remote config from the PostHog host, and `capture_exceptions: true` loads the autocapture extension from a PostHog asset URL.
-- [telemetry.ts](../../../apps/studio/src/electron-main/lib/telemetry.ts) constructs the Node client at module load with `enableExceptionAutocapture: true`, before any preference is read.
-- [index.html:19-31](../../../apps/studio/src/index.html#L19-L31) permits `https://*.posthog.com` in `connect-src`, `script-src`, and `style-src`.
-- [machine/state.ts](../../../apps/studio/src/electron-main/stores/machine/state.ts) persists a stable `telemetryId`, one per computer whichever workspace is open, sent as `distinctId` on every server event.
-- [telemetry.ts](../../../packages/shared/src/types/telemetry.ts) permits raw model-search queries and external URLs, and an exception property bag carrying `rpc_path`, `session_id`, `message_id`, `tool_call_id`, `machine_state`.
+- `captureServerException` ([capture-server-exception.ts](../../../apps/studio/src/electron-main/lib/capture-server-exception.ts)) is the sink every workspace and ai-gateway exception reaches through `CaptureExceptionFunction` ([types.ts](../../../packages/workspace/src/types.ts), [types.ts](../../../packages/ai-gateway/src/types.ts)). It writes to electron-log, and in developer mode to the in-memory exception list. The renderer's `captureException` ([capture-exception.ts](../../../apps/studio/src/client/lib/capture-exception.ts)) writes to the console. Rebinding either to a journal or an opt-in uploader is a change to one file.
+- [shared/src/types/exceptions.ts](../../../packages/shared/src/types/exceptions.ts) still allows `session_id`, `message_id`, `tool_call_id`, `rpc_path` and `machine_state` on an exception. Harmless while nothing uploads them; the phase 3 allowlist has to drop them.
+- The event catalog is gone. Phase 1's journal, if it wants events, starts from an empty catalog rather than a retargeted one.
 
-**Removal is a four-file change.** There are 38 event and 54 exception call sites, but none touch PostHog. `CaptureEventFunction` and `CaptureExceptionFunction` are already injected into workspace ([types.ts:164-165](../../../packages/workspace/src/types.ts#L164-L165)) and ai-gateway ([types.ts:7](../../../packages/ai-gateway/src/types.ts#L7)). Only Studio binds them to PostHog. Swapping the sink is a constructor argument, so there is no reason to delete the event catalog on the way out.
-
-**Diagnostics seed.** [server-exceptions.ts](../../../apps/studio/src/electron-main/lib/server-exceptions.ts) is an unbounded in-memory array, developer-mode only, populated only when telemetry is off.
+**Diagnostics seed.** [server-exceptions.ts](../../../apps/studio/src/electron-main/lib/server-exceptions.ts) is an unbounded in-memory array, developer-mode only.
 
 **Timing seed.** [boot-timing.ts](../../../apps/studio/src/electron-main/lib/boot-timing.ts) wraps each step of main-process boot and logs its duration through electron-log, so a packaged build's `main.log` says which step a slow launch spent its time in. A formatted string, not a record, and the only timing anywhere in the app. [main-log-retention-and-transport.md](../../findings/main-log-retention-and-transport.md) measures what that file retains and why its transport defaults do not survive the volume Phase 1 adds.
 
@@ -110,13 +105,13 @@ Today it attaches account identity, email, URL, user agent, country, and Cloudfl
 
 ## Sequencing
 
-**Phase 0, next release.** Default `enableUsageMetrics` off. Apply opt-out before `posthog.init` in both processes. Disable exception autocapture in both. Remove remote script loading. Add a cold-start network test. Fix the "anonymous" wording.
+**Phase 0.** Done by removal rather than by defaults: there is no SDK left to opt out of, no autocapture, no remote script, and no usage-metrics toggle whose wording could say "anonymous". Still open: a cold-start network test that fails on any request a fresh install makes before the user acts.
 
-**Phase 1.** `DiagnosticsSink` and journal. Span records, with the boot steps retargeted off electron-log and the main-thread stall watchdog added. Rebind the four Studio files. Reshape the two leaky catalog fields. Remove `posthog-js`, `posthog-node`, the CSP allowances, the env validation in [validate-env.ts](../../../apps/studio/validate-env.ts) and [electron.vite.config.ts:239](../../../apps/studio/electron.vite.config.ts#L239), and the persisted `telemetryId`. Diagnostics UI. Published egress registry. Offline local-model integration test.
+**Phase 1.** `DiagnosticsSink` and journal, bound in place of the local exception sinks. Span records, with the boot steps retargeted off electron-log and the main-thread stall watchdog added. Diagnostics UI. Published egress registry. Offline local-model integration test.
 
 **Phase 2.** Report composer, thumbs with first-run disclosure, task rating, "Report this problem". Bundle, redaction, preview, upload, receipt, deletion token, lifecycle.
 
-**Phase 3.** Crashpad with upload disabled, pending-crash UI, manual submission, the default-off sanitized exception setting.
+**Phase 3.** Crashpad with upload disabled and the unclean-exit marker (built). Pending-crash UI, manual submission, the default-off sanitized exception setting.
 
 **Phase 4.** Quarantine queue, sanitized derivatives, dedup fingerprints, isolated triage, human approval gate, promotion into evals.
 
@@ -125,7 +120,7 @@ Phase 0 and 1 are independent of the storage work. **Phase 2 is not**: built aga
 ## Decisions
 
 1. Tier A or B. Recommendation: B.
-2. Keep the event catalog locally, or delete it. Recommendation: keep, given the injection seam already exists.
+2. Keep the event catalog locally, or delete it. Decided: deleted, with every call site, so the privacy claim did not wait on the journal. The exception seam stays.
 3. Thumbs scope. Recommendation: whole thread behind a first-run payload disclosure.
 4. Whether submitted threads can become eval fixtures. Blocks Phase 2 consent copy. Unresolved.
 5. Whether the agent gets raw read access to the user's conversation history. Moved here from [conversation-storage.md](conversation-storage.md). Unresolved.
@@ -136,8 +131,8 @@ Phase 0 and 1 are independent of the storage work. **Phase 2 is not**: built aga
 
 ## Acceptance criteria
 
-- [ ] A fresh install makes no analytics request and creates no stable analytics identifier.
-- [ ] PostHog domains and scripts are absent from the bundle and the CSP.
+- [x] A fresh install makes no analytics request and creates no stable analytics identifier.
+- [x] PostHog domains and scripts are absent from the bundle and the CSP. (PostHog still appears as an app in the integrations catalog, with its brand icon; that is content, not a destination the app reports to.)
 - [ ] A local-model-only workflow completes with the network unavailable.
 - [ ] Opening or dismissing any feedback surface sends nothing.
 - [ ] The previewed manifest, byte counts, and hashes match the uploaded bundle exactly.

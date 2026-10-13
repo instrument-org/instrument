@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { MOUNT } from "../mount-points";
-
 // These schemas are shared with the renderer, so they cannot reach for
 // `node:path`. Matches `path.isAbsolute` for both posix (`/foo`) and win32
 // (`\foo`, `C:\foo`, `C:/foo`) shapes regardless of the host platform.
@@ -20,11 +18,8 @@ export type AbsolutePath = z.output<typeof AbsolutePathSchema>;
 export const WorkspaceDirSchema = AbsolutePathSchema.brand("WorkspaceDir");
 export type WorkspaceDir = z.output<typeof WorkspaceDirSchema>;
 
-export const TaskDirSchema = AbsolutePathSchema.brand("TaskDir");
-export type TaskDir = z.output<typeof TaskDirSchema>;
-
-/** A chat's folder, `chats/<id>/`: a record's folder like a task's, never a task's. */
-export const ChatDirSchema = TaskDirSchema.brand("ChatDir");
+/** A chat's folder, `chats/<id>/`, or the window's, which is scoped like one. */
+export const ChatDirSchema = AbsolutePathSchema.brand("ChatDir");
 export type ChatDir = z.output<typeof ChatDirSchema>;
 
 const UnbrandedRelativePathSchema = z.string().refine((val) => {
@@ -44,38 +39,25 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
 );
 
 /**
- * Root of the attached-folder mounts in the workspace virtual FS (e.g.
- * `/mnt/Photos`). Attached folders live on the user's real disk and are
- * surfaced under this prefix, read-only or read-write according to the access
- * the user granted each one. Single source of truth for the mount root: this
- * schema, the attached-folder mount points, and the asset server all derive
- * from it.
+ * An absolute path in the shell's spelling (`/Users/sam/Photos/cat.png`, or
+ * `/c/Users/sam/Photos/cat.png` on Windows). Which of them the agent may read
+ * is for the permission rules to say when one is opened.
  */
-
-const MountedWorkspacePathSchema = z
+const AbsoluteFilePathSchema = z
   .string()
-  .refine(
-    (val) =>
-      val.startsWith(`${MOUNT.attachedFolders}/`) ||
-      // A chat's read-only view of a task it created; resolved by the
-      // same layout the attached folders are, for a task of that kind only.
-      val.startsWith(`${MOUNT.tasks}/`) ||
-      // A skill, read where its source is mounted (`/skills/<source>/...`).
-      val.startsWith(`${MOUNT.skills}/`),
-    `Mounted path must be under ${MOUNT.attachedFolders}/, ${MOUNT.tasks}/, or ${MOUNT.skills}/`,
-  )
-  .brand("MountedWorkspacePath")
+  .refine((val) => val.startsWith("/"), "Path must be absolute")
+  .brand("AbsoluteFilePath")
   .refine(
     (val) =>
       !val.includes("\\") &&
       !val.includes("//") &&
       !val.split("/").includes(".."),
-    "Mounted path must not contain traversal or invalid separators",
+    "Path must not contain traversal or invalid separators",
   );
 
-/** A task-relative path or an attached folder's absolute virtual mount path. */
+/** A path relative to the chat's folder, or an absolute path in the shell's spelling. */
 export const WorkspaceFilePathSchema = z.union([
   RelativeTaskPathSchema,
-  MountedWorkspacePathSchema,
+  AbsoluteFilePathSchema,
 ]);
 export type WorkspaceFilePath = z.output<typeof WorkspaceFilePathSchema>;

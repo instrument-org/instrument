@@ -1,7 +1,7 @@
 import { type LanguageModelV4Message } from "@ai-sdk/provider";
 import { describe, expect, it } from "vitest";
 
-import { continuationOf, splitPrompt } from "./language-model";
+import { branchOf, continuationOf, splitPrompt } from "./language-model";
 
 const system: LanguageModelV4Message = {
   content: "You are Pebble.",
@@ -52,6 +52,38 @@ function continuation(
 }
 
 describe("continuationOf", () => {
+  // A step that hands work off ends the turn on its tool call, and the
+  // message saying the work finished arrives after the results.
+  it("continues with tool results and what was said after them", () => {
+    const first = [system, user("one")];
+    expect(
+      continuation(after(first, ["t1"]), [
+        ...first,
+        callsTool("t1"),
+        toolResult("t1"),
+        user("the task finished"),
+      ]),
+    ).toEqual({
+      kind: "tool-results",
+      results: toolResult("t1").content,
+      followedBy: [user("the task finished")],
+    });
+  });
+
+  it("names what followed the reply when tool results were awaited", () => {
+    const first = [system, user("one")];
+    expect(
+      continuation(after(first, ["t1"]), [
+        ...first,
+        callsTool("t1"),
+        reply("never ran it"),
+      ]),
+    ).toEqual({
+      kind: "restart",
+      reason: "awaiting 1 tool results, the reply is followed by assistant",
+    });
+  });
+
   it("continues a new turn with only the new message", () => {
     const first = [system, user("one")];
     expect(
@@ -88,6 +120,34 @@ describe("continuationOf", () => {
     });
   });
 
+  // Our loop marks a cache breakpoint on the last part of the newest two
+  // messages, so the breakpoint a message carried last step is gone from it
+  // this step. Reading that as a changed message restarted the process on
+  // every step, from a replay that dropped images and the cached prefix.
+  it("continues when a cache breakpoint moved off a part it had seen", () => {
+    const marked = (message: LanguageModelV4Message): LanguageModelV4Message =>
+      message.role === "user"
+        ? {
+            ...message,
+            content: message.content.map((part) => ({
+              ...part,
+              providerOptions: {
+                anthropic: { cacheControl: { type: "ephemeral" } },
+              },
+            })),
+          }
+        : message;
+    const first = [system, marked(user("one"))];
+    expect(
+      continuation(after(first, ["t1"]), [
+        system,
+        user("one"),
+        callsTool("t1"),
+        toolResult("t1"),
+      ]),
+    ).toMatchObject({ kind: "tool-results" });
+  });
+
   it("starts over when an earlier message changed", () => {
     const first = [system, user("one")];
     expect(
@@ -97,7 +157,10 @@ describe("continuationOf", () => {
         reply("a"),
         user("two"),
       ]),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "restart",
+      reason: "message 1 of 2 (user) changed since the process saw it",
+    });
   });
 
   it("starts over when tool results answer calls it was not waiting on", () => {
@@ -108,11 +171,53 @@ describe("continuationOf", () => {
         callsTool("t2"),
         toolResult("t2"),
       ]),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "restart",
+      reason: "results answer 1 calls and leave 1 of 1 unanswered",
+    });
   });
 
   it("starts over when the reply is missing", () => {
     const first = [system, user("one")];
-    expect(continuation(after(first), [...first, user("two")])).toBeUndefined();
+    expect(continuation(after(first), [...first, user("two")])).toEqual({
+      kind: "restart",
+      reason: "message 2 is user, not the reply",
+    });
+  });
+});
+
+describe("branchOf", () => {
+  const branch = (
+    parent: ReturnType<typeof after>,
+    prompt: LanguageModelV4Message[],
+  ) => {
+    const { kept, keptPrints, transient } = splitPrompt(prompt);
+    return branchOf(parent, kept, keptPrints, transient);
+  };
+
+  // A task's history is its chat's up to the step that started it, then its
+  // assignment: what that step was sent, without the reply it gave.
+  it("branches with the new messages after everything the parent saw", () => {
+    const chat = [system, user("one")];
+    expect(
+      branch(after(chat, ["t1"]), [...chat, user("the assignment")]),
+    ).toEqual([user("the assignment")]);
+  });
+
+  it("does not branch from a parent whose messages changed", () => {
+    expect(
+      branch(after([system, user("one")]), [
+        system,
+        user("edited"),
+        user("the assignment"),
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("does not branch past a reply the parent never saw", () => {
+    const chat = [system, user("one")];
+    expect(
+      branch(after(chat), [...chat, reply("a"), user("the assignment")]),
+    ).toBeUndefined();
   });
 });

@@ -2,8 +2,8 @@
  * Does a task make a designed PDF or deck the way the pdf and powerpoint
  * skills say to, and does what it hands over hold up?
  *
- * Briefs are written the way the chat writes them for a PDF: the goal, the
- * user's words, and "Use the pdf skill". Which route the task takes is the
+ * Prompts are written the way a task is told what to do for a PDF: the goal,
+ * the user's words, and "Use the pdf skill". Which route the task takes is the
  * skill's to decide, and every run so far followed the skill's first table,
  * so these mostly measure the skill rather than the model's taste.
  *
@@ -18,9 +18,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { SKILL_NAMES } from "../../src/lib/skill-names";
-import { taskDir } from "../../src/lib/task-dir-utils";
+import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
 const FIXTURES = path.resolve(
@@ -42,8 +42,8 @@ function pass(text: string, evidence: string): AssertionResult {
 }
 
 /** The newest PDF under the task's work folder, the skills it copied aside. */
-async function newestPdf(taskId: TaskId) {
-  const work = path.join(taskDir(taskId), "work");
+async function newestPdf(chatId: ChatId) {
+  const work = path.join(chatDir(chatId), "work");
   const found: { file: string; mtime: number }[] = [];
   const walk = async (at: string, depth: number) => {
     const entries = await fs.promises
@@ -77,9 +77,9 @@ async function newestPdf(taskId: TaskId) {
 }
 
 const wrotePrintedPdf: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "wrote a PDF printed by the browser";
-    const pdf = await newestPdf(taskId);
+    const pdf = await newestPdf(chatId);
     if (!pdf) {
       return fail(text, "no PDF under work/");
     }
@@ -94,8 +94,8 @@ const wrotePrintedPdf: Assertion = {
 function cameBackAs(pages: number): Assertion {
   const text = `came back as ${pages} page${pages === 1 ? "" : "s"}`;
   return {
-    check: async ({ taskId }) => {
-      const pdf = await newestPdf(taskId);
+    check: async ({ chatId }) => {
+      const pdf = await newestPdf(chatId);
       if (!pdf) {
         return fail(text, "no PDF under work/");
       }
@@ -172,9 +172,9 @@ const ranThePreview: Assertion = {
 };
 
 const wroteADeck: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "wrote a .pptx";
-    const work = path.join(taskDir(taskId), "work");
+    const work = path.join(chatDir(chatId), "work");
     const decks = (
       await fs.promises.readdir(work, { recursive: true }).catch(() => [])
     ).filter((name) => String(name).toLowerCase().endsWith(".pptx"));

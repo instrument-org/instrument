@@ -1,9 +1,10 @@
 import { withoutPageEditParam } from "@instrument-org/shared";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { reachOf } from "./permissions/rules";
 import {
   classifyHostPath,
-  nonTaskMounts,
+  otherFolders,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 
@@ -12,9 +13,9 @@ import {
  * it. The person's browser tab shows that address; the agent's browser loads
  * that same address, so what the agent checks is the page the person sees.
  * The agent names such a page by its own path (`work/report.html`,
- * `/mnt/Docs/page.html`), and these translate between the two spellings at
- * the edge of the agent's browser, the way the shell's path bridge does for
- * native binaries.
+ * `/Users/sam/Docs/page.html`), and these translate between the two spellings
+ * at the edge of the agent's browser. They differ on Windows, where the shell
+ * spells `C:\Users\sam` as `/c/Users/sam`.
  */
 
 /**
@@ -40,53 +41,57 @@ export function agentPathOfFileUrl(
 
 /**
  * The agent's path for a file on this computer, or null when the agent could
- * not read that file with its own tools: outside every mount, inside a mount's
- * private directory, or reached through a symlink that leaves its mount.
+ * not read that file with its own tools: outside every folder it reaches, inside a
+ * folder's private directory, or reached through a symlink that leaves its
+ * folder.
  */
 function agentPathOfHostFile(
   layout: WorkspaceFsLayout,
   hostPath: string,
 ): null | string {
   const found = classifyHostPath(layout, hostPath);
-  return found === null || found.masked !== undefined || found.escapes
+  return found === null ||
+    found.masked !== undefined ||
+    found.escapes ||
+    reachOf(layout.rules, hostPath, "read").level !== "allow"
     ? null
-    : found.virtualPath;
+    : found.shellPath;
 }
 
-/** How a file outside every mount is named to the agent. */
+/** How a file outside every folder is named to the agent. */
 const OUTSIDE_FILE_ADDRESS = "file://<a file outside your folders>";
 
 /**
- * Text the agent's browser printed, with every `file://` address under a mount
- * spelled in the agent's own paths: `file:///Users/.../report.html` becomes
- * `file:///task/work/report.html`, which the agent can hand straight back to
- * `agent-browser open`. A page in Edit carries a parameter the person's own
+ * Text the agent's browser printed, with every `file://` address in a folder it reaches
+ * spelled in the agent's own paths, which the agent can hand straight back to
+ * `agent-browser open`; they differ from the host's on Windows
+ * (`file:///C:/Users/sam/report.html` becomes `file:///c/Users/sam/report.html`). A page in Edit carries a parameter the person's own
  * view of it never shows, and the agent does not see it either. An address
- * outside every mount is a place on this computer the agent has no path for,
+ * outside every folder is a place on this computer the agent has no path for,
  * and is named only as that.
  */
 export function agentSpellingOfFileUrls(
   text: string,
   layout: WorkspaceFsLayout,
 ): string {
-  const mounts = [layout.task, ...nonTaskMounts(layout)].toSorted(
+  const folders = [layout.task, ...otherFolders(layout)].toSorted(
     (a, b) => b.hostRoot.length - a.hostRoot.length,
   );
   let result = withoutPageEditParam(text);
-  for (const mount of mounts) {
-    const hostUrl = fileUrlOfHostPath(mount.hostRoot);
-    const agentUrl = `file://${mount.mountPoint}`;
+  for (const folder of folders) {
+    const hostUrl = fileUrlOfHostPath(folder.hostRoot);
+    const agentUrl = `file://${folder.shellRoot}`;
     result = result.replaceAll(
       new RegExp(`${escapeRegExp(hostUrl)}(?=[/?#]|$|[^\\w%.-])`, "g"),
       agentUrl,
     );
   }
-  const mountPoints = mounts
-    .map((mount) => escapeRegExp(mount.mountPoint.slice(1)))
+  const roots = folders
+    .map((folder) => escapeRegExp(folder.shellRoot.slice(1)))
     .join("|");
   return result.replaceAll(
     new RegExp(
-      String.raw`file:\/\/\/(?!(?:${mountPoints})(?:[\/?#]|$|[^\w%.-]))[^\s"'<>)\]]*`,
+      String.raw`file:\/\/\/(?!(?:${roots})(?:[\/?#]|$|[^\w%.-]))[^\s"'<>)\]]*`,
       "g",
     ),
     OUTSIDE_FILE_ADDRESS,

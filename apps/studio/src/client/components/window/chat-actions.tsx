@@ -1,9 +1,9 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
-import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -15,7 +15,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
@@ -49,8 +49,8 @@ export function useChatActions(chat: Chat): RowAction[] {
 /**
  * What a chat offers that no line of it carries, in the order the row's
  * edge and its menu list them: putting it away, or back in the inbox, with
- * an undo in the toast either way; marking it read while something in it
- * is unseen, or unread again once it has replies to be unread, with no
+ * an undo in the toast either way; marking it read while it carries the
+ * unread mark, or unread while it does not, whatever it holds, with no
  * toast at all, since the row itself says which it is; starring it or
  * taking the star back, last, where a starred row wears its star; and, in
  * the menu alone, showing its folder, and in developer mode saving its
@@ -63,9 +63,9 @@ export function useChatActions(chat: Chat): RowAction[] {
  */
 export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const transcript = useTranscriptActions({ sessionId: undefined });
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
   const queryClient = useQueryClient();
-  const paint = (id: TaskId, change: (chat: Chat) => Chat) => {
+  const paint = (id: ChatId, change: (chat: Chat) => Chat) => {
     paintChat(queryClient, { id }, change);
   };
   const repaint = () => {
@@ -75,22 +75,26 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   // mutation object, which is new on every render and would make the
   // function returned below new with it, and every row the list memoizes on
   // it render again.
-  const { mutate: seen } = useMutation(
-    rpcClient.workspace.chats.seen.mutationOptions({
-      onError: repaint,
-      onMutate: (input) => {
-        paint(input.id, (chat) => ({ ...chat, unread: 0 }));
-      },
-    }),
-  );
-  // Unseen again is the newest reply only, which is one to the count.
-  const { mutate: unseen } = useMutation(
-    rpcClient.workspace.chats.unseen.mutationOptions({
+  const { mutate: read } = useMutation(
+    rpcClient.workspace.chats.read.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
         paint(input.id, (chat) => ({
           ...chat,
-          unread: Math.max(chat.unread, 1),
+          unread: false,
+          unreadByUser: false,
+        }));
+      },
+    }),
+  );
+  const { mutate: unread } = useMutation(
+    rpcClient.workspace.chats.unread.mutationOptions({
+      onError: repaint,
+      onMutate: (input) => {
+        paint(input.id, (chat) => ({
+          ...chat,
+          unread: true,
+          unreadByUser: true,
         }));
       },
     }),
@@ -125,30 +129,23 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
             setArchived(queryClient, input, true);
           },
         };
-    const mark: RowAction[] =
-      chat.unread > 0
-        ? [
-            {
-              icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
-              id: "read",
-              label: "Mark as read",
-              run: () => {
-                seen(input);
-              },
-            },
-          ]
-        : chat.replyCount > 0
-          ? [
-              {
-                icon: <EnvelopeSimpleIcon className="size-3.5" />,
-                id: "unread",
-                label: "Mark as unread",
-                run: () => {
-                  unseen(input);
-                },
-              },
-            ]
-          : [];
+    const mark: RowAction = chat.unread
+      ? {
+          icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
+          id: "read",
+          label: "Mark as read",
+          run: () => {
+            read(input);
+          },
+        }
+      : {
+          icon: <EnvelopeSimpleIcon className="size-3.5" />,
+          id: "unread",
+          label: "Mark as unread",
+          run: () => {
+            unread(input);
+          },
+        };
     const starred: RowAction = chat.starred
       ? {
           icon: <StarIcon className="size-3.5" weight="fill" />,
@@ -191,7 +188,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         void showTaskFolder(chat.id);
       },
     };
-    return [put, ...mark, starred, ...(isDeveloperMode ? [save] : []), show];
+    return [put, mark, starred, ...(isDeveloperMode ? [save] : []), show];
   };
 }
 
@@ -202,7 +199,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
  */
 function paintChat(
   queryClient: QueryClient,
-  { id }: { id: TaskId },
+  { id }: { id: ChatId },
   change: (chat: Chat) => Chat,
 ) {
   queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>
@@ -248,9 +245,9 @@ function setArchived(
       repaintChats(queryClient);
       toast.error(
         archived
-          ? "Failed to archive the chat"
-          : "Failed to move the chat to the inbox",
-        { description: error instanceof Error ? error.message : String(error) },
+          ? "Couldn't archive the chat"
+          : "Couldn't move the chat to the inbox",
+        { cause: error },
       );
     },
   );

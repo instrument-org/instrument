@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
 import { renderSteps, sessionSteps, trajectorySince } from "./steps";
 
 vi.mock(import("../session-store-storage"));
 
-const taskId = createMockTaskConfig(TaskIdSchema.parse("steps-outline"));
+const chatId = createMockChatConfig(ChatIdSchema.parse("steps-outline"));
 
 const at = (seconds: number) =>
   new Date(Date.UTC(2026, 8, 11, 18, 30, seconds));
@@ -106,7 +106,7 @@ async function seed() {
   const sessionId = StoreId.newSessionId();
   await Store.saveSession(
     { createdAt: at(0), id: sessionId, title: "task" },
-    taskId,
+    chatId,
   );
   for (const message of [
     user(sessionId, at(0), "Inspect the repository and write\nan audit."),
@@ -114,7 +114,7 @@ async function seed() {
       call(
         {
           activity: "Inspecting runtime changes and history",
-          command: "git -C /mnt/repo log",
+          command: "git -C /Users/sam/repo log",
           explanation: "Reading history",
         },
         at(4),
@@ -123,7 +123,7 @@ async function seed() {
       call(
         {
           activity: "Inspecting runtime changes and history",
-          command: "rg --files /mnt/repo | head",
+          command: "rg --files /Users/sam/repo | head",
         },
         at(5),
         {
@@ -137,7 +137,7 @@ async function seed() {
       call(
         {
           activity: "Pinning the review range",
-          command: "cp -R /mnt/repo work/",
+          command: "cp -R /Users/sam/repo work/",
           explanation: "Copying",
         },
         at(45),
@@ -160,7 +160,7 @@ async function seed() {
       said("Copying the repository first, then reading the range.", at(52)),
     ]),
   ]) {
-    await Store.saveMessageWithParts(message, taskId);
+    await Store.saveMessageWithParts(message, chatId);
   }
   return sessionId;
 }
@@ -188,13 +188,13 @@ function user(
 describe("sessionSteps", () => {
   it("outlines a session as the phases its calls named and each call's end", async () => {
     const sessionId = await seed();
-    const steps = await sessionSteps({ sessionId, taskId });
+    const steps = await sessionSteps({ sessionId, chatId });
 
     expect(steps.map((step) => `${step.kind}: ${step.text}`)).toEqual([
       "user: Inspect the repository and write an audit.",
       "activity: Inspecting runtime changes and history",
       "call: bash: Reading history (exit 1)",
-      "call: bash: rg --files /mnt/repo | head",
+      "call: bash: rg --files /Users/sam/repo | head",
       "user: Change of plan: phase one only.",
       "activity: Pinning the review range",
       "call: bash: Copying (still running as bg_1)",
@@ -206,7 +206,7 @@ describe("sessionSteps", () => {
 
   it("renders one line per step with the activity as the heading", async () => {
     const sessionId = await seed();
-    const rendered = renderSteps(await sessionSteps({ sessionId, taskId }));
+    const rendered = renderSteps(await sessionSteps({ sessionId, chatId }));
 
     // Local time, so only the shape is pinned.
     expect(rendered.split("\n")).toHaveLength(10);
@@ -216,21 +216,21 @@ describe("sessionSteps", () => {
   });
 
   it("lists the activities set since a moment, for the overdue note", async () => {
-    await seed();
+    const sessionId = await seed();
 
-    expect(await trajectorySince(taskId, at(40))).toEqual([
+    expect(await trajectorySince({ sessionId, chatId }, at(40))).toEqual([
       "Pinning the review range",
     ]);
-    expect(await trajectorySince(taskId, at(0))).toEqual([
+    expect(await trajectorySince({ sessionId, chatId }, at(0))).toEqual([
       "Inspecting runtime changes and history",
       "Pinning the review range",
     ]);
   });
 
   it("lists the calls instead when no activity was set since the moment", async () => {
-    await seed();
+    const sessionId = await seed();
 
-    expect(await trajectorySince(taskId, at(46))).toEqual([
+    expect(await trajectorySince({ sessionId, chatId }, at(46))).toEqual([
       "bash: Waiting (running)",
       "bash: Failing (failed)",
     ]);

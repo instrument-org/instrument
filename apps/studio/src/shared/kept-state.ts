@@ -4,16 +4,14 @@
  * as it loads and writes a key back as it changes.
  *
  * They split by what losing one costs: `layout` is where the person left off,
- * `drafts` and `bookmarks` are things they made, `history` is what they
- * visited, and `view` is how they like things laid out.
+ * `drafts` and `bookmarks` are things they made, and `view` is how they like
+ * things laid out. `drafts` is not a file: its one key, {@link DRAFTS_KEY},
+ * is kept as a folder per draft at the workspace root.
  */
-export const KEPT_FILES = [
-  "bookmarks",
-  "drafts",
-  "history",
-  "layout",
-  "view",
-] as const;
+export const KEPT_FILES = ["bookmarks", "drafts", "layout", "view"] as const;
+
+/** The key of `drafts` the window's drafts are kept under, the only one it holds. */
+export const DRAFTS_KEY = "drafts.v2";
 
 export type KeptFile = (typeof KEPT_FILES)[number];
 

@@ -31,7 +31,7 @@ const lines = (count: number) =>
   Array.from({ length: count }, (_, index) => `line ${index + 1}`).join("\n");
 
 async function renderMessage(text: string) {
-  await renderInBrowser(
+  const screen = await renderInBrowser(
     // The bubble is sized as a share of its parent, so the parent needs a width
     // before any of it can be measured.
     <div style={{ width: 600 }}>
@@ -46,6 +46,8 @@ async function renderMessage(text: string) {
     throw new Error("the message rendered without its content element");
   }
   return {
+    ...screen,
+    content,
     hasExpandTarget: () =>
       document.querySelector('[data-slot="user-message-expand"]') !== null,
     isClipped: () => content.scrollHeight > content.clientHeight,
@@ -53,10 +55,10 @@ async function renderMessage(text: string) {
 }
 
 describe("UserMessage in a browser", () => {
-  // Nine lines clear the clamp and thirty overrun it by plenty; the ones
+  // Fourteen lines clear the clamp and thirty overrun it by plenty; the ones
   // between are the interesting ones, where a message is taller than one
   // candidate clamp and shorter than another.
-  it.each([1, 9, 10, 11, 12, 30])(
+  it.each([1, 14, 15, 16, 17, 30])(
     "offers to expand a %i-line message only when it is cut off",
     async (lineCount) => {
       const message = await renderMessage(lines(lineCount));
@@ -67,4 +69,35 @@ describe("UserMessage in a browser", () => {
         .toBe(message.isClipped());
     },
   );
+
+  // A fade alone read as a message that ended a little early, so the cut is
+  // also said in words, on a row that is the control. The rest of the bubble
+  // still answers a press, through that row's stretched box rather than a
+  // second, unnamed control.
+  it("says a clipped message has more and opens it from anywhere on it", async () => {
+    const screen = await renderMessage(lines(30));
+    const expand = screen.getByRole("button", { name: "Show more" });
+    await expect.element(expand).toBeVisible();
+
+    // A point on the clipped text belongs to the row's control.
+    const textBox = screen.content.getBoundingClientRect();
+    expect(
+      document.elementFromPoint(
+        textBox.left + textBox.width / 2,
+        textBox.top + 10,
+      ),
+    ).toBe(expand.element());
+
+    await expand.click();
+    const collapse = screen.getByRole("button", { name: "Show less" });
+    await expect.element(collapse).toBeVisible();
+    expect(
+      screen.container.querySelector('[data-slot="user-message-expand"]'),
+    ).toBeNull();
+
+    await collapse.click();
+    await expect
+      .element(screen.getByRole("button", { name: "Show more" }))
+      .toBeVisible();
+  });
 });

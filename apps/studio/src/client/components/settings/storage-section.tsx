@@ -1,4 +1,5 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +26,7 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 type InvalidFolder =
   RPCOutput["workspace"]["storage"]["invalidFolders"]["list"][number];
@@ -131,8 +132,10 @@ function UnrecognizedFolders() {
         queryKey: rpcClient.workspace.storage.invalidFolders.list.key(),
       });
       toast.success(`Moved “${folder.name}” to the trash`);
-    } catch {
-      toast.error(`Couldn't move “${folder.name}” to the trash`);
+    } catch (error) {
+      toast.error(`Couldn't move “${folder.name}” to the trash`, {
+        cause: error,
+      });
     }
   };
 
@@ -141,11 +144,11 @@ function UnrecognizedFolders() {
   }
 
   const chats = folders.filter((folder) => folder.kind === "chat");
-  // A task inside a chat is a task to the person, wherever its folder is.
-  const tasks = folders.filter((folder) => folder.kind !== "chat");
+  // Tasks an earlier version kept, which the move into chats left behind.
+  const tasks = folders.filter((folder) => folder.kind === "legacy-task");
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" {...settingAnchor("broken-folders")}>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <FolderIcon className="size-4" />
@@ -222,7 +225,7 @@ function WorkspaceLocation() {
   }
 
   return (
-    <section className="space-y-2">
+    <section className="space-y-2" {...settingAnchor("workspace-location")}>
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-sm font-medium text-muted-foreground">
           Workspace location
@@ -238,7 +241,7 @@ function WorkspaceLocation() {
           {showInFolderLabel("folder")}
         </Button>
       </div>
-      <div className="rounded-lg border bg-muted/40 px-3 py-2">
+      <div className="rounded-lg border bg-muted/40 px-3 py-2 select-text">
         <code className="font-mono text-xs break-all text-foreground">
           {location.rootDir}
         </code>

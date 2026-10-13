@@ -23,7 +23,7 @@ export interface WorkspaceSkillChanges {
  * directory only.
  *
  * That directory is the whole of what an agent can install or revise (the
- * writable `/skills` mount), so a change here is the complete answer to "did
+ * one skills folder it can write), so a change here is the complete answer to "did
  * this turn touch a skill" -- every other source is read-only to the agent.
  */
 export type WorkspaceSkillIndex = Map<string, SkillStamp>;
@@ -159,22 +159,22 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
  * mutation to the main thread, where the tracker for the turn that ran the
  * command records it.
  */
-let forwardSkillMutation: ((mountPath: string) => void) | undefined;
+let forwardSkillMutation: ((skillPath: string) => void) | undefined;
 
 /**
- * Records one successful mutation routed through this session's writable
- * skills mount. `mountPath` is relative to that mount, as just-bash sees it.
+ * Records one successful mutation in the workspace skills directory, which
+ * `skillPath` names relative to that directory.
  */
-export function recordWorkspaceSkillMutation(mountPath: string): void {
+export function recordWorkspaceSkillMutation(skillPath: string): void {
   if (forwardSkillMutation) {
-    forwardSkillMutation(mountPath);
+    forwardSkillMutation(skillPath);
     return;
   }
   const tracker = trackerForCurrentTurn();
   if (!tracker) {
     return;
   }
-  const normalized = mountPath.replaceAll("\\", "/");
+  const normalized = skillPath.replaceAll("\\", "/");
   const relative = normalized.startsWith("/")
     ? normalized.slice(1)
     : normalized;
@@ -200,7 +200,7 @@ export function recordWorkspaceSkillWrite(filePath: string): void {
 }
 
 export function setSkillMutationForwarder(
-  next: (mountPath: string) => void,
+  next: (skillPath: string) => void,
 ): void {
   forwardSkillMutation = next;
 }

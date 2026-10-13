@@ -15,12 +15,13 @@ import { type SessionMessageDataPart } from "../../src/schemas/session/message-d
 import { StoreId } from "../../src/schemas/store-id";
 import {
   type WindowTabAction,
+  type WindowTabAnswer,
   type WindowTabTarget,
 } from "../../src/schemas/window-tab";
 import {
   type BrowserConfig,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
+  parseBrowserTargetId,
 } from "../../src/types";
 
 export interface StandInTab {
@@ -41,7 +42,7 @@ export function createStandInWindow() {
             kind: "page",
           }
         : {
-            at: target.mount,
+            at: target.path,
             id: `screen-${crypto.randomUUID()}`,
             kind: "screen",
           };
@@ -49,9 +50,26 @@ export function createStandInWindow() {
     return tab;
   };
 
-  const act = (action: WindowTabAction): { error?: string; tabId?: string } => {
+  const act = (action: WindowTabAction): Omit<WindowTabAnswer, "requestId"> => {
     if (action.kind === "open") {
       return { tabId: add(action.target).id };
+    }
+    if (action.kind === "list") {
+      return {
+        tabs: [...tabs.values()].map((tab) =>
+          tab.kind === "page"
+            ? { id: tab.id, kind: "page" as const, title: "", url: tab.at }
+            : { id: tab.id, kind: "screen" as const },
+        ),
+      };
+    }
+    if (action.kind === "adopt") {
+      tabs.set(action.tabId, {
+        at: action.url,
+        id: action.tabId,
+        kind: "page",
+      });
+      return { tabId: action.tabId };
     }
     const tab = tabs.get(action.tabId);
     if (!tab) {
@@ -71,6 +89,9 @@ export function createStandInWindow() {
         tabs.delete(tab.id);
         return { tabId: add(target).id };
       }
+      case "read": {
+        return { error: "the stand-in window has no page to read." };
+      }
       case "restore":
       case "show": {
         return { tabId: tab.id };
@@ -78,11 +99,11 @@ export function createStandInWindow() {
     }
   };
 
-  /** A page tab of the window, by its target id in the window's terms. */
+  /** A page tab of the window, by its target id. */
   const pageOf = (targetId: string) => {
-    const decoded = decodeBrowserTargetId(targetId);
-    const tab = decoded ? tabs.get(decoded.sessionId) : undefined;
-    return decoded && tab?.kind === "page" ? { decoded, tab } : undefined;
+    const tab =
+      parseBrowserTargetId(targetId) === null ? undefined : tabs.get(targetId);
+    return tab?.kind === "page" ? tab : undefined;
   };
 
   return {
@@ -94,22 +115,18 @@ export function createStandInWindow() {
           const page = pageOf(targetId);
           const meta = base.getTargetMeta(targetId);
           return page && !meta
-            ? {
-                id: page.decoded.id,
-                // Nothing reads a stand-in tab's storage.
-                partitionDir: AbsolutePathSchema.parse("/"),
-                sessionId: page.decoded.sessionId,
-              }
+            ? // Nothing reads a stand-in tab's storage.
+              { partitionDir: AbsolutePathSchema.parse("/") }
             : meta;
         },
-        listTargets: async (id) => [
-          ...(await base.listTargets(id)),
+        listTargets: async () => [
+          ...(await base.listTargets()),
           ...[...tabs.values()].flatMap((tab) => {
             const sessionId = StoreId.SessionSchema.safeParse(tab.id);
             return tab.kind === "page" && sessionId.success
               ? [
                   {
-                    id: encodeBrowserTargetId(id, sessionId.data),
+                    id: browserTargetOf(sessionId.data),
                     title: "",
                     type: "page" as const,
                     url: tab.at,

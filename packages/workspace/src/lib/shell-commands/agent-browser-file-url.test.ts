@@ -1,33 +1,32 @@
 import { InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../../schemas/paths";
+import { MountedFolder } from "../../schemas/mounted-folder";
+import { AbsolutePathSchema, ChatDirSchema } from "../../schemas/paths";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
+const TASK = "/Users/me/Tasks/test-task";
+
 const layout = buildWorkspaceFsLayout({
-  attachedFolders: {
+  folders: {
     docs: {
       access: "read-only",
-      createdAt: 0,
-      id: FolderAttachment.IdSchema.parse("docs"),
-      mountName: "Docs",
+      id: MountedFolder.IdSchema.parse("docs"),
       path: AbsolutePathSchema.parse("/Users/me/My Docs"),
-      source: "user",
     },
   },
-  taskHostRoot: TaskDirSchema.parse("/Users/me/Tasks/test-task"),
+  taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/test-task"),
 });
 
 async function makeCtx() {
   const fs = new InMemoryFs();
-  await fs.mkdir("/task/output", { recursive: true });
-  await fs.writeFile("/task/output/report.html", "<html></html>");
-  await fs.writeFile("/task/output/quarterly report.html", "<html></html>");
-  await fs.mkdir("/mnt/Docs", { recursive: true });
-  await fs.writeFile("/mnt/Docs/notes.html", "<html></html>");
-  return { cwd: "/task", fs };
+  await fs.mkdir(`${TASK}/output`, { recursive: true });
+  await fs.writeFile(`${TASK}/output/report.html`, "<html></html>");
+  await fs.writeFile(`${TASK}/output/quarterly report.html`, "<html></html>");
+  await fs.mkdir("/Users/me/My Docs", { recursive: true });
+  await fs.writeFile("/Users/me/My Docs/notes.html", "<html></html>");
+  return { cwd: TASK, fs };
 }
 
 async function rewrite(args: string[]) {
@@ -46,13 +45,16 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it.each([
     {
       name: "file url under the task mount",
-      url: "file:///task/output/report.html",
+      url: "file:///Users/me/Tasks/test-task/output/report.html",
     },
     {
       name: "file url with a localhost host",
-      url: "file://localhost/task/output/report.html",
+      url: "file://localhost/Users/me/Tasks/test-task/output/report.html",
     },
-    { name: "virtual absolute path", url: "/task/output/report.html" },
+    {
+      name: "absolute path",
+      url: "/Users/me/Tasks/test-task/output/report.html",
+    },
     { name: "task-relative path", url: "output/report.html" },
     { name: "dot-relative path", url: "./output/report.html" },
   ])("opens a $name at the file's own address", async ({ url }) => {
@@ -66,7 +68,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it("keeps query and hash from a file url", async () => {
     const result = await rewritten([
       "open",
-      "file:///task/output/report.html?tab=2#summary",
+      "file:///Users/me/Tasks/test-task/output/report.html?tab=2#summary",
     ]);
 
     expect(result[1]).toMatchInlineSnapshot(
@@ -82,8 +84,8 @@ describe("rewriteNavigationArgToFileUrl", () => {
     );
   });
 
-  it("opens an attached folder's file where it lives", async () => {
-    const result = await rewritten(["open", "/mnt/Docs/notes.html"]);
+  it("opens a folder mount's file where it lives", async () => {
+    const result = await rewritten(["open", "/Users/me/My Docs/notes.html"]);
 
     expect(result[1]).toMatchInlineSnapshot(
       `"file:///Users/me/My%20Docs/notes.html"`,
@@ -91,7 +93,10 @@ describe("rewriteNavigationArgToFileUrl", () => {
   });
 
   it("opens a missing task file so the agent sees the browser's not-found page", async () => {
-    const result = await rewritten(["open", "file:///task/output/absent.html"]);
+    const result = await rewritten([
+      "open",
+      "file:///Users/me/Tasks/test-task/output/absent.html",
+    ]);
 
     expect(result[1]).toMatchInlineSnapshot(
       `"file:///Users/me/Tasks/test-task/output/absent.html"`,
@@ -101,18 +106,10 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it.each([
     { arg: "file:///etc/hosts", name: "file outside every mount" },
     {
-      arg: "file:///task/.instrument/task.db",
+      arg: "file:///Users/me/Tasks/test-task/.instrument/task.db",
       name: "file in the task's private directory",
     },
-    {
-      arg: "file:///Users/me/Tasks/test-task/output/report.html",
-      name: "host address, which the agent never has",
-    },
     { arg: "/etc/hosts", name: "path outside every mount" },
-    {
-      arg: "/Users/me/Tasks/test-task/output/report.html",
-      name: "host path, which the CLI would read as a host name",
-    },
   ])("refuses a $name", async ({ arg }) => {
     expect(await rewrite(["open", arg])).toHaveProperty("error");
   });

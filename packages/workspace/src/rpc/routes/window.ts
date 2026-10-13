@@ -7,14 +7,13 @@ import {
   outputFolderPath,
 } from "../../lib/chat/output-folder";
 import { resolveChat } from "../../lib/record-folders";
-import { ensureWindowDir, updateWindowState } from "../../lib/window-state";
-import { FolderAttachment } from "../../schemas/folder-attachment";
+import { ensureWindowDir } from "../../lib/window-paths";
+import { MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
 import {
   WindowTabAnswerSchema,
   WindowTabRequestSchema,
 } from "../../schemas/window-tab";
-import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -26,7 +25,7 @@ import { publisher } from "../publisher";
 const ensure = base
   .output(
     z.object({
-      attachedFolders: z.record(z.string(), FolderAttachment.Schema),
+      folders: z.record(z.string(), MountedFolder.Schema),
     }),
   )
   .handler(async ({ context }) => {
@@ -40,19 +39,7 @@ const ensure = base
           error instanceof Error ? error : new Error(String(error)),
         );
       });
-    return { attachedFolders: await folderReach(WINDOW_ID) };
-  });
-
-/**
- * The tab the window's browser has in front, which is the tab the
- * chat's own `agent-browser` drives; null once no tab is open.
- */
-const setActiveTab = base
-  .input(z.object({ targetId: BrowserTargetIdSchema.nullable() }))
-  .handler(async ({ input }) => {
-    await updateWindowState(() => ({
-      browserTargetId: input.targetId ?? undefined,
-    }));
+    return { folders: await folderReach(WINDOW_ID) };
   });
 
 /**
@@ -82,6 +69,5 @@ const tabDone = base.input(WindowTabAnswerSchema).handler(({ input }) => {
 export const window = {
   ensure,
   events: { tab },
-  setActiveTab,
   tabDone,
 };

@@ -25,7 +25,7 @@ import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 type Status = RPCOutput["billing"]["status"];
 
@@ -54,7 +54,7 @@ export function UsageAndBillingSection() {
           >
             <Button
               onClick={() => {
-                openLogin({ hideManualProvider: true });
+                openLogin({ instrumentOnly: true });
               }}
               size="sm"
               variant="brand"
@@ -113,8 +113,8 @@ function PlanGroup({ status }: { status: Status }) {
   const openLink = useOpenExternalLink();
   const portal = useMutation(
     rpcClient.billing.openPortal.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't open billing");
+      onError: (error) => {
+        toast.error("Couldn't open billing", { cause: error });
       },
     }),
   );

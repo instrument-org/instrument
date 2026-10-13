@@ -8,8 +8,8 @@ import { TASKS_DIR_NAME } from "../constants";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "./interrupted-tool-calls";
 import { isToolPart } from "./is-tool-part";
 import {
@@ -17,12 +17,12 @@ import {
   getSessionsStoreStorage,
 } from "./session-store-storage";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
-const id = TaskIdSchema.parse("interrupted-tool-calls-test");
+const id = ChatIdSchema.parse("interrupted-tool-calls-test");
 const createdAt = new Date("2025-01-01T00:00:00.000Z");
 
-let taskId: TaskId;
+let chatId: ChatId;
 let root: string;
 let sessionId: StoreId.Session;
 
@@ -30,8 +30,8 @@ beforeEach(async () => {
   root = await fs.mkdtemp(
     path.join(os.tmpdir(), "interrupted-tool-calls-test-"),
   );
-  taskId = createMockTaskConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   sessionId = StoreId.newSessionId();
 });
 
@@ -63,7 +63,7 @@ async function endProcess() {
 
 async function readParts(message: SessionMessage.Type) {
   return unwrap(
-    await Store.getParts(message.metadata.sessionId, message.id, taskId),
+    await Store.getParts(message.metadata.sessionId, message.id, chatId),
   );
 }
 
@@ -72,9 +72,9 @@ async function seed(
   message: SessionMessage.Type,
   parts: SessionMessagePart.Type[],
 ) {
-  unwrap(await Store.saveMessage(message, taskId));
+  unwrap(await Store.saveMessage(message, chatId));
   for (const part of parts) {
-    unwrap(await Store.savePart(part, taskId, { publish: false }));
+    unwrap(await Store.savePart(part, chatId, { publish: false }));
   }
 }
 
@@ -91,10 +91,10 @@ function toolPart(
     sessionId: message.metadata.sessionId,
   };
   const call = {
-    input: { reason: "Your Desktop." },
+    input: { choices: ["Desktop", "Documents"], question: "Where?" },
     metadata,
     toolCallId: `call-${metadata.id}`,
-    type: "tool-request_folder" as const,
+    type: "tool-choose" as const,
   };
   switch (state) {
     case "input-available": {
@@ -107,7 +107,7 @@ function toolPart(
       return {
         ...call,
         metadata: { ...metadata, endedAt: createdAt },
-        output: { status: "declined" as const },
+        output: { declined: true as const, note: undefined },
         state,
       };
     }
@@ -222,7 +222,7 @@ describe("sweepInterruptedToolCalls", () => {
     await endProcess();
 
     // The first thing this process does with the task.
-    const storage = unwrap(await getSessionsStoreStorage(taskId));
+    const storage = unwrap(await getSessionsStoreStorage(chatId));
     const keys = unwrap(await storage.getKeys("parts"));
     const stored = unwrap(await storage.getItemRaw<string>(keys[0] ?? ""));
 

@@ -1,8 +1,9 @@
 import { AsyncIteratorClass } from "@orpc/server";
 
 import { publisher } from "../rpc/publisher";
-import { type TaskId } from "../schemas/task-id";
-import { type RecordRef } from "./record-folders";
+import { type ChatId } from "../schemas/chat-id";
+import { type StoreId } from "../schemas/store-id";
+import { StorageKey } from "./storage-key";
 
 /**
  * What moved in a record:
@@ -26,35 +27,59 @@ export type RecordChange =
   | "settings"
   | "state";
 
-/**
- * One change to one record. A removal carries what the record was, since
- * the record index has forgotten it by the time anything hears.
- */
-export type RecordChanged =
-  | { id: TaskId; kind: "removed"; ref: RecordRef }
-  | { id: TaskId; kind: Exclude<RecordChange, "removed"> };
+/** One change to one chat. */
+export interface RecordChanged {
+  id: ChatId;
+  kind: RecordChange;
+  /**
+   * On a write to a transcript, the message it was to, and whether it took
+   * the message out: what a live transcript re-reads by.
+   */
+  message?: {
+    id: StoreId.Message;
+    removed: boolean;
+    sessionId: StoreId.Session;
+  };
+}
 
 /** Says that something about a record moved. */
 export function recordChanged(
-  id: TaskId,
+  id: ChatId,
   kind: Exclude<RecordChange, "removed">,
 ): void {
   publisher.publish("record.changed", { id, kind });
 }
 
-/** Says that a record is gone, once the index has forgotten it. */
-export function recordRemoved(ref: RecordRef): void {
-  publisher.publish("record.changed", { id: ref.id, kind: "removed", ref });
+/** Says that a chat is gone, once the index has forgotten it. */
+export function recordRemoved(id: ChatId): void {
+  publisher.publish("record.changed", { id, kind: "removed" });
 }
 
 /**
- * The change a write to one key of a record's store is: its transcript, or
- * what its sessions keep.
+ * Says what a write to one key of a chat's store changed, once it has
+ * landed: its transcript, naming the message, or what its sessions keep.
  */
-export function storeKeyChange(key: string): "messages" | "session" {
-  return key.startsWith("messages:") || key.startsWith("parts:")
-    ? "messages"
-    : "session";
+export function recordStoreWrite(
+  id: ChatId,
+  key: string,
+  { removed }: { removed: boolean },
+): void {
+  if (!key.startsWith("messages:") && !key.startsWith("parts:")) {
+    publisher.publish("record.changed", { id, kind: "session" });
+    return;
+  }
+  const message = StorageKey.messageOf(key);
+  publisher.publish("record.changed", {
+    id,
+    kind: "messages",
+    ...(message && {
+      message: {
+        id: message.id,
+        removed: removed && message.ownRow,
+        sessionId: message.sessionId,
+      },
+    }),
+  });
 }
 
 /**

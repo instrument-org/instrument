@@ -1,43 +1,39 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
-import { sleep } from "radashi";
 import { z } from "zod";
 
-import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { createSession } from "../../lib/create-session";
+import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { chatContextFor } from "../../lib/chat/chat-context";
 import { setChatTopics } from "../../lib/chat/chats";
 
-import { resolveChat, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
 
 const listWithParts = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.array(SessionMessage.WithPartsSchema))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
     const messages = await Store.getMessagesWithParts({
       sessionId,
-      taskId,
+      chatId,
     });
 
     if (messages.isErr()) {
@@ -48,7 +44,7 @@ const listWithParts = base
   });
 
 /**
- * One send at a time per task, in the order they arrived. The opening
+ * One send at a time per chat, in the order they arrived. The opening
  * message of a chat reads the other chats before it is stored, which can
  * take a moment, and a message sent into the chat meanwhile would otherwise
  * be stored, numbered, and handed to the agent ahead of the one it follows.
@@ -62,15 +58,8 @@ const create = base
       asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
-      /**
-       * The id for the session this message opens, when the caller chose
-       * it: a window that shows the new chat from the press, before this
-       * call has answered, has to know which chat it is showing. Ignored
-       * alongside `sessionId`, which names a session that already exists.
-       */
-      newSessionId: StoreId.SessionSchema.optional(),
       prompt: z.string(),
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
@@ -91,7 +80,6 @@ const create = base
         folders,
         id,
         modelURI,
-        newSessionId,
         prompt,
         replyTo,
         sessionId,
@@ -100,7 +88,7 @@ const create = base
       },
     }) =>
       sendsInOrder(id, async () => {
-        const taskId = id;
+        const chatId = id;
 
         const modelResult = await fetchModel({
           captureException: context.workspaceConfig.captureException,
@@ -110,50 +98,28 @@ const create = base
         });
 
         if (!modelResult.ok) {
-          const error = modelResult.error;
-          context.workspaceConfig.captureException(error);
-          throw toORPCError(error, errors);
+          throw toORPCError(modelResult.error, errors);
         }
 
         const model = modelResult.value;
 
-        // A chat's record holds one session, the one its settings name.
-        const chatId = resolveChat(taskId);
-        const chatSession = chatId ? sessionOfChat(chatId) : undefined;
-        const isChat = chatId !== undefined;
-
-        let finalSessionId: StoreId.Session;
-        // The other chats as they stand when a new one opens, read before
-        // the new session exists so it is not among them.
-        let chatContext: SessionMessageDataPart.ChatContextDataPart | undefined;
-        if (sessionId) {
-          finalSessionId = sessionId;
-        } else {
-          if (isChat) {
-            chatContext = await chatContextFor();
-          }
-          const sessionResult = await createSession({
-            sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
-            taskId,
-          });
-          if (sessionResult.isErr()) {
-            context.workspaceConfig.captureException(sessionResult.error);
-            throw toORPCError(sessionResult.error, errors);
-          }
-          finalSessionId = sessionResult.value.id;
-          if (chatId && topics && topics.length > 0) {
-            await setChatTopics(chatId, topics);
-          }
+        // The chat's own session is written with the chat; a chat from
+        // before that gets it here, whichever of its sessions is named.
+        const chatSession = await ensureChatSession(chatId);
+        if (chatSession.isErr()) {
+          throw toORPCError(chatSession.error, errors);
+        }
+        // Without a session named, the message goes to the chat's own.
+        const finalSessionId = sessionId ?? chatSession.value.id;
+        if (!sessionId && topics && topics.length > 0) {
+          await setChatTopics(chatId, topics);
         }
 
         const messageIdsBeforeResult = await Store.getMessageIds(
           finalSessionId,
-          taskId,
+          chatId,
         );
         if (messageIdsBeforeResult.isErr()) {
-          context.workspaceConfig.captureException(
-            messageIdsBeforeResult.error,
-          );
           throw toORPCError(messageIdsBeforeResult.error, errors);
         }
         const isFirstMessageInSession =
@@ -161,20 +127,17 @@ const create = base
 
         const messageResult = await newMessage({
           asks,
-          chatContext,
           files,
           folders,
-          model,
           modelURI,
           prompt,
           replyTo,
           sessionId: finalSessionId,
-          taskId,
+          chatId,
           viewing,
         });
 
         if (messageResult.isErr()) {
-          context.workspaceConfig.captureException(messageResult.error);
           throw toORPCError(messageResult.error, errors);
         }
 
@@ -187,12 +150,13 @@ const create = base
             const title = await generateTitleFromUserMessage({
               message,
               model,
+              chatId,
               workspaceConfig: context.workspaceConfig,
             });
             if (title.isOk()) {
               await updateSessionTitle({
                 sessionId: message.metadata.sessionId,
-                taskId,
+                chatId,
                 title: title.value,
               });
             }
@@ -203,14 +167,13 @@ const create = base
 
         // Written now, so the conversation shows it the moment it was sent; the
         // session runs it when its turn comes and never writes it again.
-        const written = await Store.saveMessageWithParts(message, taskId);
+        const written = await Store.saveMessageWithParts(message, chatId);
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
         }
         context.workspaceRef.send({
           type: "addMessage",
           value: {
-            agentName: agentNameForTask(taskId),
             id,
             message,
             model,
@@ -220,8 +183,8 @@ const create = base
         });
 
         // A settings write, which the record change feed reports: what moves
-        // the task in the list.
-        await recordTaskActivity(taskId);
+        // the chat in the list.
+        await recordChatActivity(chatId);
 
         return { sessionId: message.metadata.sessionId };
       }),
@@ -231,7 +194,7 @@ const live = {
   list: base
     .input(
       z.object({
-        id: TaskIdSchema,
+        id: ChatIdSchema,
         sessionId: StoreId.SessionSchema,
       }),
     )
@@ -246,7 +209,7 @@ const live = {
 
       try {
         const initial = await Store.getMessagesWithParts(
-          { sessionId: input.sessionId, taskId: input.id },
+          { sessionId: input.sessionId, chatId: input.id },
           { signal },
         );
         if (initial.isErr()) {
@@ -269,31 +232,22 @@ const live = {
             const messageIds = [...batch.updated];
             const readUpdated = () =>
               Store.getMessagesWithParts(
-                { messageIds, sessionId: input.sessionId, taskId: input.id },
+                { messageIds, sessionId: input.sessionId, chatId: input.id },
                 { signal },
               );
 
-            // A message can be unreadable mid-write (writes aren't atomic),
-            // so give the write a moment to settle before falling back to a
-            // full reload, which surfaces a persistent error the same way
-            // the initial read does.
-            let messages = await readUpdated();
-            for (
-              let retry = 0;
-              messages.isErr() && retry < 2 && !signal?.aborted;
-              retry++
-            ) {
-              await sleep(50);
-              messages = await readUpdated();
-            }
+            // A message and its parts are written and removed together, so
+            // a read that fails falls back to a full reload, which surfaces a
+            // persistent error the same way the initial read does.
+            const messages = await readUpdated();
 
             if (messages.isOk()) {
               for (const message of messages.value) {
                 snapshot.upsert(message);
               }
               // The read omits ids the index named but the fetch couldn't
-              // find (mid-write or just removed). Drop them; a later event
-              // re-adds a message that reappears.
+              // find, just removed. Drop them; a later event re-adds a
+              // message that reappears.
               const found = new Set(messages.value.map(({ id }) => id));
               for (const messageId of messageIds) {
                 if (!found.has(messageId)) {
@@ -302,7 +256,7 @@ const live = {
               }
             } else {
               const reload = await Store.getMessagesWithParts(
-                { sessionId: input.sessionId, taskId: input.id },
+                { sessionId: input.sessionId, chatId: input.id },
                 { signal },
               );
               if (reload.isErr()) {

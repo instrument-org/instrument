@@ -1,56 +1,36 @@
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { MOUNT } from "@instrument-org/workspace/client";
 
 import { isInside, segmentsOf } from "./host-path";
-import { parseHref } from "./window-href";
+import { type ComputerTab, matchScreen } from "./window-href";
 
 /**
  * The folder or file a computer tab's address names, the way the computer
  * route reads its search; undefined for an address that is not the
  * computer's.
  */
-export function computerTabOf(href: string) {
-  const { pathname, search } = parseHref(href);
-  if (pathname !== "/files") {
+export function computerTabOf(href: string): ComputerTab | undefined {
+  const screen = matchScreen(href);
+  if (screen.kind !== "computer") {
     return;
   }
-  const file = search.get("file");
-  const tree = search.get("tree");
-  return {
-    ...(file === null ? {} : { file }),
-    path: search.get("path") ?? "",
-    root: search.get("root") ?? "~",
-    ...(tree === null ? {} : { tree }),
-  };
+  const { kind: _computer, ...tab } = screen;
+  return tab;
 }
 
 /**
- * The virtual path the agent reaches a path on the Mac by, when a granted
- * folder covers it: through the deepest such folder. What the screen tells
- * the conversation about a file the person has open, and nothing the person
- * sees.
+ * The path the agent reaches a path on the Mac by, when a granted folder
+ * covers it: the path itself. What the screen tells the conversation about a
+ * file the person has open, and nothing the person sees.
  */
-export function mountOfHostPath(
+export function reachablePath(
   hostPath: string,
-  attachedFolders: Record<string, { mountName: string; path: string }>,
+  folders: Record<string, { path: string }>,
 ): string | undefined {
-  let best: undefined | { mountName: string; path: string };
-  for (const folder of Object.values(attachedFolders)) {
-    if (
-      isInside(hostPath, folder.path) &&
-      (best === undefined || folder.path.length > best.path.length)
-    ) {
-      best = folder;
-    }
-  }
-  if (!best) {
-    return;
-  }
-  // Back into the paths the agent works in, which are POSIX wherever the
-  // computer's own are not: the names below the grant are what carries over,
-  // never the separator they were written with.
-  const below = segmentsOf(hostPath.slice(best.path.length));
-  return [`${MOUNT.attachedFolders}/${best.mountName}`, ...below].join("/");
+  return Object.values(folders).some((folder) =>
+    isInside(hostPath, folder.path),
+  )
+    ? hostPath
+    : undefined;
 }
 
 /**

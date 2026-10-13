@@ -4,12 +4,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
+import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
-import { getTaskSettings } from "../src/lib/task-settings";
+import { getChatSettings } from "../src/lib/chat-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { TaskDirSchema } from "../src/schemas/paths";
-import { TaskIdSchema } from "../src/schemas/task-id";
+import { ChatDirSchema } from "../src/schemas/paths";
+import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
 const { positionals, values } = parseArgs({
@@ -22,7 +23,8 @@ const { positionals, values } = parseArgs({
 
 const inputPath = positionals[0];
 const outputPath = values.output;
-// A chat task has a root session per chat, so this names which one.
+// A chat's store holds its own session and each task's, so this names one;
+// the chat's own is the default.
 const wantedSessionId = values.session;
 
 if (!inputPath) {
@@ -34,21 +36,34 @@ if (!inputPath) {
   );
 }
 
-const dir = TaskDirSchema.parse(path.resolve(inputPath));
-const tasksDir = path.dirname(dir);
+const dir = ChatDirSchema.parse(path.resolve(inputPath));
 
-const settings = await getTaskSettings(dir);
+// The workspace root is above `chats/<chat>` or a 1.x `tasks/<id>`, and
+// chats are found by scanning its `chats/`.
+const parts = dir.split(path.sep);
+const chatsAt = parts.lastIndexOf(CHATS_DIR_NAME);
+const rootDir =
+  chatsAt > 0
+    ? parts.slice(0, chatsAt).join(path.sep)
+    : path.dirname(path.dirname(dir));
+
+const settings = await getChatSettings(dir);
 const folderName = path.basename(dir);
-const id = TaskIdSchema.parse(folderName);
-setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));
-const taskId = id;
+const id = ChatIdSchema.parse(folderName);
+setWorkspaceConfig(
+  createStubWorkspaceConfig({
+    rootDir,
+    tasksDir: path.join(rootDir, TASKS_DIR_NAME),
+  }),
+);
+const chatId = id;
 
-const sessionsResult = await Store.getSessions(taskId, {
+const sessionsResult = await Store.getSessions(chatId, {
   includeChildSessions: true,
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(dir, ".instrument", "task.db")}: ${sessionsResult.error.message}`,
+    `Failed to load sessions from ${path.join(dir, ".instrument", "chat.db")}: ${sessionsResult.error.message}`,
   );
 }
 
@@ -62,12 +77,12 @@ if (rootSessions.length > 1 && !wantedSessionId) {
 }
 
 const rootSession = wantedSessionId
-  ? rootSessions.find((session) => session.id === wantedSessionId)
+  ? sessionsResult.value.find((session) => session.id === wantedSessionId)
   : rootSessions[0];
 if (!rootSession) {
   throw new Error(
     wantedSessionId
-      ? `No root session ${wantedSessionId} in ${dir}`
+      ? `No session ${wantedSessionId} in ${dir}`
       : `No root session found in ${dir}`,
   );
 }
@@ -77,11 +92,11 @@ const markdown = await getSessionMarkdown({
     source: dir,
     sourceType: "task-directory",
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
-    taskName: settings?.name ?? folderName,
+    taskName: rootSessions[0]?.title ?? folderName,
     transcriptGeneratedAt: new Date().toISOString(),
   },
   sessionId: rootSession.id,
-  taskId,
+  chatId,
 });
 
 if (outputPath) {

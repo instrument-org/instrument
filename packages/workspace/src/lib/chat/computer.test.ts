@@ -1,36 +1,44 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { accessIn, type AttachedRoot, listComputerFolder } from "./computer";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
+import { AbsolutePathSchema } from "../../schemas/paths";
+import {
+  accessIn,
+  describeComputerFiles,
+  type FolderRoot,
+  listComputerFolder,
+} from "./computer";
 
 // Host paths in the running platform's own separators, which is what the
 // listing and the grants both carry: a Windows grant is `C:\Users\casey\Documents`
 // and its children are spelled the same way.
 const home = path.resolve(path.sep, "Users", "casey");
 const documents = path.join(home, "Documents");
-const roots: AttachedRoot[] = [
-  { grant: "read-only", mountPoint: "/mnt/Home", root: home },
-  { grant: "read-only", mountPoint: "/mnt/Documents", root: documents },
+const roots: FolderRoot[] = [
+  { grant: "read-only", root: home, shellRoot: shellPath(home) },
+  { grant: "read-only", root: documents, shellRoot: shellPath(documents) },
 ];
 
 describe("accessIn", () => {
   it("is the granted folder itself", () => {
     expect(accessIn(roots, documents)).toEqual({
       access: "read-only",
-      mountPath: "/mnt/Documents",
       root: documents,
+      shellPath: shellPath(documents),
     });
   });
 
   it("reaches a file under the grant through it, in the agent's separators", () => {
     expect(accessIn(roots, path.join(documents, "reports", "q3.pdf"))).toEqual({
       access: "read-only",
-      mountPath: "/mnt/Documents/reports/q3.pdf",
       root: documents,
+      shellPath: `${shellPath(documents)}/reports/q3.pdf`,
     });
   });
 
@@ -46,12 +54,18 @@ describe("accessIn", () => {
   it("does not read a sibling sharing the grant's name as a prefix as inside it", () => {
     expect(accessIn(roots, path.join(home, "Documents-old", "a.txt"))).toEqual({
       access: "read-only",
-      mountPath: "/mnt/Home/Documents-old/a.txt",
       root: home,
+      shellPath: `${shellPath(home)}/Documents-old/a.txt`,
     });
     expect(
       accessIn(
-        [{ grant: "read-only", mountPoint: "/mnt/Documents", root: documents }],
+        [
+          {
+            grant: "read-only",
+            root: documents,
+            shellRoot: shellPath(documents),
+          },
+        ],
         path.join(home, "Documents-old", "a.txt"),
       ),
     ).toBeUndefined();
@@ -65,7 +79,7 @@ describe("accessIn", () => {
 });
 
 describe("listComputerFolder", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("computer-listing"));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-listing"));
   let folder: string | undefined;
 
   afterEach(async () => {
@@ -86,7 +100,7 @@ describe("listComputerFolder", () => {
       ),
     );
 
-    const listing = await listComputerFolder({ path: folder, taskId });
+    const listing = await listComputerFolder({ path: folder, chatId });
     if (listing.kind !== "listing") {
       throw new Error(`refused: ${listing.reason}`);
     }
@@ -104,7 +118,7 @@ describe("listComputerFolder", () => {
     await fs.mkdir(shut, { mode: 0o000 });
 
     try {
-      expect(await listComputerFolder({ path: shut, taskId })).toMatchObject({
+      expect(await listComputerFolder({ path: shut, chatId })).toMatchObject({
         kind: "refused",
         path: shut,
         reason: "account",
@@ -112,5 +126,128 @@ describe("listComputerFolder", () => {
     } finally {
       await fs.chmod(shut, 0o700);
     }
+  });
+
+  // The app folders iCloud Drive shows live in each app's own container; the
+  // Mac helper is what names them, stood in for here by a script.
+  it.runIf(process.platform === "darwin")(
+    "shows iCloud Drive's app folders by name and reads one through its name",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-icloud-"));
+      vi.stubEnv("HOME", folder);
+      const containers = path.join(folder, "Library", "Mobile Documents");
+      const drive = path.join(containers, "com~apple~CloudDocs");
+      const vault = path.join(containers, "iCloud~md~obsidian", "Documents");
+      await fs.mkdir(path.join(drive, "Books"), { recursive: true });
+      await fs.mkdir(path.join(vault, "Notes"), { recursive: true });
+      const helper = path.join(folder, "instrument-mac");
+      await fs.writeFile(
+        helper,
+        `#!/bin/sh\necho '${JSON.stringify({ access: "granted", folders: [{ name: "Obsidian", path: vault }] })}'\n`,
+        { mode: 0o755 },
+      );
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        macHelperBinPath: AbsolutePathSchema.parse(helper),
+      });
+
+      try {
+        const top = await listComputerFolder({ path: drive, chatId });
+        const inside = await listComputerFolder({
+          path: path.join(drive, "Obsidian"),
+          chatId,
+        });
+        if (top.kind !== "listing" || inside.kind !== "listing") {
+          throw new Error("refused");
+        }
+        expect({
+          inside: {
+            entries: inside.entries.map((entry) => entry.name),
+            path: inside.path,
+          },
+          top: top.entries.map((entry) => [entry.name, entry.path]),
+        }).toEqual({
+          inside: { entries: ["Notes"], path: vault },
+          top: [
+            ["Books", path.join(drive, "Books")],
+            ["Obsidian", vault],
+          ],
+        });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "lists iCloud Drive's own folders and says the app folders are locked when macOS refuses them",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-icloud-"));
+      vi.stubEnv("HOME", folder);
+      const drive = path.join(
+        folder,
+        "Library",
+        "Mobile Documents",
+        "com~apple~CloudDocs",
+      );
+      await fs.mkdir(path.join(drive, "Books"), { recursive: true });
+      const helper = path.join(folder, "instrument-mac-refused");
+      await fs.writeFile(
+        helper,
+        `#!/bin/sh\necho '${JSON.stringify({ access: "refused", folders: [] })}'\n`,
+        { mode: 0o755 },
+      );
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        macHelperBinPath: AbsolutePathSchema.parse(helper),
+      });
+
+      try {
+        expect(await listComputerFolder({ path: drive, chatId })).toMatchObject(
+          {
+            appFoldersLocked: true,
+            entries: [{ name: "Books" }],
+            kind: "listing",
+          },
+        );
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+});
+
+describe("describeComputerFiles", () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-describe"));
+  let folder: string | undefined;
+
+  afterEach(async () => {
+    if (folder) {
+      await fs.rm(folder, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps the order asked and leaves out what is gone or is a folder", async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-describe-"));
+    const later = path.join(folder, "later.txt");
+    const earlier = path.join(folder, "earlier.md");
+    await fs.writeFile(later, "a");
+    await fs.writeFile(earlier, "b");
+    await fs.mkdir(path.join(folder, "sub"));
+
+    const files = await describeComputerFiles({
+      paths: [
+        later,
+        path.join(folder, "gone.txt"),
+        path.join(folder, "sub"),
+        earlier,
+      ],
+      chatId,
+    });
+
+    expect(files.map((file) => [file.name, file.kind])).toEqual([
+      ["later.txt", "file"],
+      ["earlier.md", "file"],
+    ]);
   });
 });

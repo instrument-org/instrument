@@ -7,28 +7,27 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   disposeSessionsStoreStorage,
   getSessionsStoreStorage,
 } from "./session-store-storage";
 import { StorageKey } from "./storage-key";
-import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
-const id = TaskIdSchema.parse("store-migrations-test");
+const id = ChatIdSchema.parse("store-migrations-test");
 const VERSION_KEY = "__migration_version__";
 
-let taskId: TaskId;
+let chatId: ChatId;
 let root: string;
 let sessionId: StoreId.Session;
 let messageId: StoreId.Message;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "store-migrations-test-"));
-  taskId = createMockTaskConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   sessionId = StoreId.newSessionId();
   messageId = StoreId.newMessageId();
 });
@@ -46,7 +45,7 @@ function legacyFolderPart(folder: Record<string, unknown>) {
 async function openAndReadStoredPart(): Promise<
   Record<string, unknown> | undefined
 > {
-  const storage = unwrap(await getSessionsStoreStorage(taskId));
+  const storage = unwrap(await getSessionsStoreStorage(chatId));
   const keys = unwrap(await storage.getKeys("parts"));
   const key = keys[0];
   if (key === undefined) {
@@ -61,7 +60,7 @@ async function openAndReadStoredPart(): Promise<
  * the next open sees a task that predates the migrations and runs them.
  */
 async function seedStoredPart(part: Record<string, unknown>): Promise<void> {
-  const storage = unwrap(await getSessionsStoreStorage(taskId));
+  const storage = unwrap(await getSessionsStoreStorage(chatId));
   const partId = StoreId.newPartId();
   unwrap(
     await storage.setItemRaw(
@@ -95,25 +94,6 @@ function unwrap<T, E>(result: Result<T, E>): T {
 }
 
 describe("store migrations", () => {
-  it("renames a folder stored before the mount name said what it was", async () => {
-    await seedStoredPart(
-      legacyFolderPart({
-        access: "read-write",
-        createdAt: 1_718_198_400_000,
-        id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-        name: "Home-Downloads",
-        path: "/Users/sam/Downloads",
-        source: "user",
-      }),
-    );
-
-    const parts = unwrap(await Store.getParts(sessionId, messageId, taskId));
-
-    expect(parts[0]).toMatchObject({
-      data: { folders: [{ mountName: "Home-Downloads" }] },
-    });
-  });
-
   // The point of migrating rather than translating on read: the stored data is
   // what changed, so nothing downstream has to know the old shape existed.
   it("writes the rename back to the database", async () => {
@@ -158,7 +138,7 @@ describe("store migrations", () => {
     );
 
     const afterFirst = await openAndReadStoredPart();
-    const storage = unwrap(await getSessionsStoreStorage(taskId));
+    const storage = unwrap(await getSessionsStoreStorage(chatId));
     unwrap(await storage.removeItem(VERSION_KEY));
     unwrap(await disposeSessionsStoreStorage(id));
 
@@ -170,11 +150,11 @@ describe("store migrations", () => {
   // is stale and make it run everything it knows again.
   it("leaves a version written by a newer build alone", async () => {
     await seedStoredPart({ text: "hello", type: "text" });
-    const seeded = unwrap(await getSessionsStoreStorage(taskId));
+    const seeded = unwrap(await getSessionsStoreStorage(chatId));
     unwrap(await seeded.setItemRaw(VERSION_KEY, 3));
     unwrap(await disposeSessionsStoreStorage(id));
 
-    const storage = unwrap(await getSessionsStoreStorage(taskId));
+    const storage = unwrap(await getSessionsStoreStorage(chatId));
 
     expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(3);
   });
@@ -182,7 +162,7 @@ describe("store migrations", () => {
   it("records the version so a migrated task does not scan again", async () => {
     await seedStoredPart({ text: "hello", type: "text" });
 
-    const storage = unwrap(await getSessionsStoreStorage(taskId));
+    const storage = unwrap(await getSessionsStoreStorage(chatId));
 
     expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(2);
   });

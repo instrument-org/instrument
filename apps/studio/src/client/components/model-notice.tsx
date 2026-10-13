@@ -12,15 +12,20 @@ import { XIcon } from "@phosphor-icons/react/X";
  *
  * Its button does the thing (switches, retries) rather than opening something
  * that does, so the row that reports a problem is also the way out of it.
+ *
+ * `nudge` counts the sends it refused: each new count flashes the row, so a
+ * blocked send points at the reason already on screen.
  */
 export function ModelNoticeRow({
   className,
   notice,
+  nudge = 0,
   onAction,
   onDismiss,
 }: {
   className?: string;
   notice: ModelNotice;
+  nudge?: number;
   onAction: (action: ModelAction) => void;
   onDismiss?: () => void;
 }) {
@@ -29,7 +34,7 @@ export function ModelNoticeRow({
   return (
     <div
       className={cn(
-        "flex min-h-8 min-w-0 items-center gap-2 rounded-lg py-1 pr-1 pl-2.5 text-xs",
+        "relative isolate flex min-h-8 min-w-0 items-center gap-2 rounded-lg py-1 pr-1 pl-2.5 text-xs",
         isOffer
           ? "bg-black/[0.04] text-foreground dark:bg-white/[0.06]"
           : "bg-yellow-50 text-yellow-900 ring-1 ring-yellow-300 ring-inset dark:bg-yellow-500/15 dark:text-yellow-100 dark:ring-yellow-500/30",
@@ -38,6 +43,13 @@ export function ModelNoticeRow({
       data-slot="model-notice"
       role={isOffer ? "status" : "alert"}
     >
+      {nudge > 0 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 animate-notice-nudge rounded-lg"
+          key={nudge}
+        />
+      )}
       <Icon
         className={cn(
           "size-4 shrink-0",

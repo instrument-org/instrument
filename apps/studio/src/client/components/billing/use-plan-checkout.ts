@@ -2,7 +2,7 @@ import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * How often billing is read while Checkout is open in the browser. The API

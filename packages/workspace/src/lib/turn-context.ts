@@ -3,7 +3,7 @@ import { monotonicFactory } from "ulid";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 const ulid = monotonicFactory();
 
@@ -16,7 +16,7 @@ const TurnIdSchema = z.string().brand("TurnId");
 
 /** The turn a piece of work belongs to, and the session that owns the report. */
 export interface TurnContext {
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session;
   turnId: TurnId;
 }
@@ -25,7 +25,7 @@ export type TurnId = z.output<typeof TurnIdSchema>;
 
 /** A task and session. What a caller knows before the turn is looked up. */
 export interface TurnKey {
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session;
 }
 

@@ -8,10 +8,40 @@ export namespace Session {
     /** When the chat was put away; absent while it is in the inbox. */
     archivedAt: z.date().optional(),
     createdAt: z.date(),
+    /**
+     * On a task, the last of its parent's messages it carries on from. Its
+     * history is read rather than copied: the parent's messages up to and
+     * including this one, then its own, so its first request sends the
+     * prefix the parent's last request did.
+     */
+    forkedAtMessageId: StoreId.MessageSchema.optional(),
+    /**
+     * A task's short name in its chat, `t1`, `t2`, … in the order the chat
+     * started them: what the `task` command takes. Given once, when the task
+     * is started, and never changed. Absent on the chat's own session.
+     */
+    handle: z.string().optional(),
     id: StoreId.SessionSchema,
+    /**
+     * The session a task was started from: its chat's conversation. Absent on
+     * the chat's own session.
+     */
     parentId: StoreId.SessionSchema.optional(),
     /** When the user starred the chat; absent while it is not starred. */
     starredAt: z.date().optional(),
+    /**
+     * Since when the chat has had something the user has not looked at: set
+     * as the chat settles (a reply, a question, or a turn that ended in an
+     * error) and by the user marking it unread, and taken off once they have
+     * looked. Absent while the chat is read.
+     */
+    unreadAt: z.date().optional(),
+    /**
+     * Whether the user marked the chat unread themselves. Such a mark holds
+     * while they stay on the chat it was set from, and clears only when they
+     * come back to it; a mark the chat set clears as soon as it is seen.
+     */
+    unreadByUser: z.boolean().optional(),
     /**
      * The last message of the conversation before its context window was reset.
      *
@@ -37,6 +67,12 @@ export namespace Session {
      * reader: this boundary cannot be judged, so it stands.
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
+    /**
+     * Who ended a task's last turn with a stop: the user, from the task or
+     * the chat's Stop, or the chat's agent with `task stop`. Absent when
+     * the turn ended on its own, and on the chat's own session.
+     */
+    stoppedBy: z.enum(["chat", "user"]).optional(),
     title: z.string(),
     /**
      * When the chat's title stopped being the app's to change: its one

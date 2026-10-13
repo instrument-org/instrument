@@ -9,6 +9,7 @@ import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import * as _ from "radashi";
@@ -18,30 +19,35 @@ import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
-import { attachChats, workspaceMachine } from "../src/electron";
+import {
+  attachChats,
+  prepareBundledSkills,
+  workspaceMachine,
+} from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
-import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
+import { isTypedByUser } from "../src/lib/typed-by-user";
+import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
+import { openAsks } from "../src/lib/permissions/asks";
 import { Store } from "../src/lib/store";
-import { updateTaskSettings } from "../src/lib/task-settings";
-import { getTaskUsageSummary } from "../src/lib/usage-summary";
+import { updateChatSettings } from "../src/lib/chat-settings";
+import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
+import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
-import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
-import { type StoreId } from "../src/schemas/store-id";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
-import { type TaskId } from "../src/schemas/task-id";
+import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
@@ -56,12 +62,29 @@ import {
   resolveRegistryDir,
   write,
 } from "./utils";
-import { resolveChat } from "../src/lib/record-folders";
+import { resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import { ensureChat } from "../src/lib/chat/chat-records";
+import { createTopic, updateTopic } from "../src/lib/chat/topics";
+import { StoreId } from "../src/schemas/store-id";
+import { type WorkspaceConfig } from "../src/types";
+import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
+);
+
+// The pnpm the app ships, as its JS entry: the workspace runs pnpm with node,
+// so a shell shim from PATH (pnpm's own installer writes one) dies on line 2.
+const PNPM_BIN = path.join(
+  path.dirname(
+    createRequire(
+      path.resolve(import.meta.dirname, "../../../apps/studio/package.json"),
+    ).resolve("pnpm"),
+  ),
+  "bin",
+  "pnpm.mjs",
 );
 
 export interface Assertion {
@@ -100,11 +123,12 @@ function evalPrefix(name: string): string {
 export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
 
 export interface CompletedRun {
-  /** Every task this run's task started, however deep. Empty unless it delegated. */
-  childTaskIds: TaskId[];
+  /** Every task this run's chat started, by its session. Empty unless it forked. */
+  childSessionIds: StoreId.Session[];
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
   label: string;
+  metrics: RunMetrics;
   /** The sanitized model id, as it appears in the label and the results path. */
   modelLabel: string;
   modelURI: string;
@@ -117,15 +141,97 @@ export interface CompletedRun {
    * model, where `modelURI` already says it.
    */
   resolvedModelId?: string;
+  /**
+   * The session the case's prompt went to: the chat's own, or for a task
+   * case, the task the run started from an empty chat.
+   */
+  sessionId: StoreId.Session;
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
-  taskId: TaskId;
-  /** This task plus every task it started. Equal to `usage` when it delegated nothing. */
+  /** The chat the run is in. */
+  chatId: ChatId;
+  /** This task plus every task it started. Equal to `usage` when it forked nothing. */
   treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
   trial: number;
-  /** This task alone, which for a chat is the conversation only. */
+  /** The run's session alone, which for a chat is the conversation only. */
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+}
+
+/**
+ * What a run cost the person waiting on it, as opposed to what it produced.
+ * Times are from the case's first message being sent.
+ */
+export interface RunMetrics {
+  /** Cached input tokens across the tree, for pricing a run. */
+  cacheReadTokens: number;
+  /**
+   * When the run was last working: the last turn's end for a task, and the
+   * moment the whole tree went quiet for a chat, not the moment the harness
+   * finished waiting to be sure of it.
+   */
+  doneMs: number;
+  /**
+   * The first non-empty text the run's own agent streamed: the chat's for a
+   * chat case, never a task's. Absent when it never wrote any.
+   */
+  firstTextMs?: number;
+  /** See `EvalCase.marks`: milliseconds to each, `null` when never seen. */
+  marks?: Record<string, null | number>;
+  /**
+   * Shell calls anywhere in the tree whose output refused them or named an
+   * unknown flag, option or command: a call the agent got wrong. `task`
+   * counts the ones that ran a `task` command, the hand-off calls.
+   */
+  refusals: { all: number; task: number };
+  /** `task new` commands the run's own agent ran. */
+  taskCommands: { new: number };
+  /** Tasks the run started, however deep. */
+  tasksCreated: number;
+  /** Tool calls by every agent in the tree. */
+  toolCalls: number;
+  /**
+   * Each message the user typed, in order, by how the conversation's own
+   * replies to it began: see `TurnShape`.
+   */
+  turnShapes?: TurnShape[];
+  /**
+   * Each message the user typed, in order: how long from it being sent to
+   * the conversation's last reply before the next one (or the end), the
+   * tokens the conversation's own replies spent in that span, and the
+   * characters of text they showed. The conversation's own, not its tasks'.
+   */
+  turns?: { chars: number; ms: number; tokens: number }[];
+  /** `duringWork` follow-ups sent after the turn ended instead of inside it. */
+  duringWorkMissed?: number;
+  /**
+   * Characters of assistant text in the run's own sessions: what the user
+   * reads. For a chat that is the chat's replies, not its tasks'.
+   */
+  visibleChars: number;
+}
+
+/**
+ * How the conversation's replies to one typed message began: the first
+ * non-empty text, verbatim; whether it came before the first tool call
+ * (absent when nothing called a tool); how many text parts and tool calls
+ * the replies held, so a turn that needed no tools and said two things shows
+ * as such; every non-empty text part, verbatim, each one a message the user
+ * sees; and each step's tokens, cached input included.
+ */
+export interface TurnShape {
+  firstText?: string;
+  steps: {
+    cacheReadTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    text: boolean;
+    toolCalls: number;
+  }[];
+  textBeforeTool?: boolean;
+  textParts: number;
+  texts?: string[];
+  toolCalls: number;
 }
 
 /**
@@ -189,6 +295,12 @@ const TREE_QUIET_MS = 6000;
 /** How often the tree is sampled while waiting for it to go quiet. */
 const TREE_POLL_MS = 500;
 
+/**
+ * How long an answer to a card waits for the asking session's turn to end
+ * before it goes in anyway, for an agent that keeps working past an ask.
+ */
+const ANSWER_AFTER_TURN_MAX_MS = 120_000;
+
 export interface EvalCase {
   /**
    * What the user answers to each `choose` the agent puts to them, in the
@@ -210,23 +322,61 @@ export interface EvalCase {
   /**
    * Connected apps to stand up before the run, each a real loopback server with
    * a real manifest and a connection on record. For the paths that only exist
-   * once a service is reachable: handing one to a task, and calling it.
+   * once a service is reachable: calling it, from the chat or a task.
    *
    * One apps directory serves every case in a run, so these are listed in every
    * case's context, not only this one's. Run an app case on its own. A task
-   * case is handed these, as a chat's `task new --app` would.
+   * case reaches these, as every fork reaches the chat's apps.
    */
   apps?: AppFixture[];
   assertions?: Assertion[];
+  /**
+   * Called with a follow-up's position just before it is sent, for a case
+   * that has to see what the run had made by then: a draft the follow-up
+   * asks to change, say.
+   */
+  beforeFollowUp?: (position: number) => Promise<void> | void;
+  /**
+   * Every folder the agent runs into and asks for is answered as the user
+   * saying not now: for what the agent does once a folder is refused.
+   */
+  declinesFolders?: boolean;
+  /** Every app the agent asks to use is answered as the user saying not now. */
+  declinesApps?: boolean;
+  /** Every app the agent asks to use is answered as the user allowing it. */
+  allowsApps?: boolean;
   files?: FileUpload.Type[];
-  folders?: { access?: FolderAttachment.Access; path: string }[];
+  /**
+   * The folders the user picks for each folder card the agent's work raises,
+   * in the order they come up, answered the way the card does once a folder
+   * is chosen in the picker. A card past the end of the list goes
+   * unanswered, as one nobody clicks.
+   */
+  folderPicks?: string[];
+  /**
+   * `inPlace` attaches the folder where it is rather than a per-run copy:
+   * for a folder under the run's home, which `setup` made and which a
+   * process with a home of its own (`INSTRUMENT_EVAL_HOME`) does not share.
+   */
+  folders?: {
+    inPlace?: boolean;
+    path: string;
+  }[];
   /**
    * Further user turns, sent one at a time on the same session once the turn
    * before it has settled. For behavior that only exists across turns: a
    * context rollover, or anything the agent is supposed to carry forward
    * rather than re-derive. Assertions see every session the run produced.
+   *
+   * A string is sent once the conversation's own turn ends, which for a chat
+   * is while its tasks may still be working. `settled` waits for every task
+   * in the tree as well, the way a person waits to read a reply before
+   * answering it. `afterMs` sends that long after the previous message
+   * without waiting at all, so it lands while the work is under way, as a
+   * correction typed mid-job does. `duringWork` sends it while the
+   * conversation's own agent has a tool call in flight.
    */
-  followUps?: string[];
+  followUps?: (FollowUp | string)[];
   /**
    * For a chat case scored on what the conversation does when a task
    * reports, not on the task's work: every task the conversation starts is
@@ -241,18 +391,40 @@ export interface EvalCase {
     said: string;
   };
   /**
-   * Which agent answers the prompt. A chat delegates to tasks it
-   * creates inside the same workspace, so a run of that kind produces the
-   * chat's transcript plus one per task it made. A task case runs the task
-   * agent in a task of a chat the run makes for it (`startRun`).
+   * Where the prompt is answered. A chat forks tasks inside the same
+   * workspace, so a run of that kind produces the chat's transcript plus one
+   * per task it made. A task case runs the agent in a task of a chat the run
+   * makes for it (`startRun`), as a fork is told what to do.
    */
   kind?: "chat" | "task";
+  /**
+   * Moments to time: from the user message containing `after` being sent
+   * (the first message when absent) to the first assistant text streamed in
+   * the run's own task that matches `match`, so how long the user waited
+   * for one answer in particular. Recorded in the run's metrics and in
+   * `$HOME/.eval-marks/<task id>.json`, where an assertion reads them, `null`
+   * when nothing matched.
+   */
+  marks?: { after?: string; match: RegExp; name: string }[];
   name: string;
+  /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
+  /**
+   * Run before the case's task is created, with the run's home and workspace
+   * in place: for fixtures that have to be made rather than copied, such as
+   * files whose modification times matter, or a memory already kept.
+   */
+  setup?: () => Promise<void> | void;
   shouldStop?: (
     part: SessionMessagePart.Type,
-    taskId: TaskId,
+    chatId: ChatId,
   ) => boolean | Promise<boolean>;
+  /**
+   * Topics the chat is filed under from its first message, made before the
+   * run with these instructions, the way a chat started from a topic in the
+   * window is. Chat cases only.
+   */
+  topics?: { instructions: string; name: string }[];
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
@@ -271,16 +443,45 @@ interface AssertionContext {
    */
   childSessions: () => Promise<ChildTaskSessions[]>;
   sessions: Session.WithMessagesAndParts[];
-  taskId: TaskId;
+  chatId: ChatId;
 }
 
 interface ChildTaskSessions {
+  /** The task's session, which is its id. */
+  sessionId: StoreId.Session;
+  /** Its own messages, without the conversation it carries on from. */
   sessions: Session.WithMessagesAndParts[];
-  taskId: TaskId;
   title: string;
 }
 
 type ChooseAnswer = z.output<typeof Choose.outputSchema>;
+
+type FollowUp = FollowUpTiming &
+  (
+    | { prompt: string }
+    | {
+        /**
+         * The user pressing Stop on one of the chat's tasks, by its handle,
+         * in place of a message: what the task's page and the chat's task
+         * list do.
+         */
+        stopTask: string;
+      }
+  );
+
+interface FollowUpTiming {
+  afterMs?: number;
+  /**
+   * Sent while the conversation's own agent is mid tool work: once it has
+   * finished `afterToolCalls` tool calls since the previous message was sent,
+   * at the moment its next call is in flight. For a message that has to land
+   * inside foreground work rather than between turns. Sent when the turn ends
+   * instead, should it end first; `duringWorkMissed` in the run's metrics
+   * counts those.
+   */
+  duringWork?: { afterToolCalls: number };
+  settled?: boolean;
+}
 
 export function defineEval(evalCase: EvalCase): EvalCase {
   return evalCase;
@@ -289,7 +490,7 @@ export function defineEval(evalCase: EvalCase): EvalCase {
 /**
  * The short model name a run is labeled and filed under. A report generated
  * from a past workspace has no runs to read this from, only the model URI each
- * task recorded, so the derivation has to be available on its own.
+ * chat recorded, so the derivation has to be available on its own.
  */
 export function modelLabelFor(uri: string): string {
   const parsed = AIGatewayModelURI.parse(uri);
@@ -358,18 +559,14 @@ export async function runEvals(
         ...createStubBrowserConfig(),
         hasNoWindow: true,
       }),
-      captureEvent: () => {
-        return;
-      },
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
-      defaultTaskTemplateDir: path.resolve(
+      chatTemplateDir: path.resolve(
         import.meta.dirname,
         "../templates/default",
       ),
       getAIProviderConfigs: () => providerConfigs,
-      isExternalBrowserEnabled: () => true,
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
@@ -379,9 +576,7 @@ export async function runEvals(
         : {}),
       modelCache: noopModelCache,
       nodeExecEnv: {},
-      pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
-        (result) => result.stdout.trim() || "pnpm",
-      ),
+      pnpmBinPath: PNPM_BIN,
       preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
@@ -390,6 +585,7 @@ export async function runEvals(
       uvBinPath: await execa({ reject: false })`which uv`.then(
         (result) => result.stdout.trim() || "uv",
       ),
+      toolBinDir: toolBinDirIn(workspaceRootDir),
       uvDataDir: path.join(workspaceRootDir, "uv-data"),
       webSearch: unavailableWebSearchClient,
     },
@@ -397,6 +593,8 @@ export async function runEvals(
 
   attachChats(actor);
   actor.start();
+  // Awaited, unlike the app's: a case's first command may read them.
+  await prepareBundledSkills(actor.getSnapshot().context.config);
 
   const runs = models
     .flatMap((uri) => {
@@ -459,7 +657,15 @@ export async function runEvals(
         if (evalCase.kind === "chat") {
           ensureWorkspaceFolder();
         }
+        await evalCase.setup?.();
         const folders = privateFoldersFor(evalCase, index) ?? [];
+        if (evalCase.topics && evalCase.kind === "chat") {
+          return openChatUnderTopics(evalCase, evalCase.topics, {
+            context,
+            folders,
+            uri,
+          });
+        }
         return startRun(
           {
             // A task case is handed the apps it declares, the way a chat
@@ -488,7 +694,7 @@ export async function runEvals(
       // which has no input for it: every turn of this run then reads it, the
       // conversation's and each of its tasks'.
       if (reasoningEffort) {
-        await updateTaskSettings(id, { reasoningEffort });
+        await updateChatSettings(id, { reasoningEffort });
       }
 
       write(
@@ -497,10 +703,53 @@ export async function runEvals(
 
       const abortController = new AbortController();
       const startedAt = Date.now();
+      let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
       // Each question once: a part is published again on every update.
       const askedIds = new Set<string>();
+      const handledAskIds = new Set<string>();
+      let folderPicksUsed = 0;
+      // See `FollowUp.duringWork`: the run's own finished tool calls, and
+      // who is waiting for one to be in flight after enough of them.
+      const ownToolsDone = new Set<string>();
+      const ownToolsStarted = new Set<string>();
+      let workWaiter:
+        | { afterCalls: number; baseline: number; resolve: () => void }
+        | undefined;
+      let duringWorkMissed = 0;
+      // See `EvalCase.marks`. Each is timed from when its message is sent.
+      const marks: {
+        after?: string;
+        at?: number;
+        match: RegExp;
+        name: string;
+        sentAt?: number;
+      }[] = (evalCase.marks ?? []).map((mark) => ({
+        ...mark,
+        sentAt:
+          mark.after === undefined || evalCase.prompt.includes(mark.after)
+            ? startedAt
+            : undefined,
+      }));
+      const roles = new Map<string, string | undefined>();
+      const roleOf = async (part: SessionMessagePart.Type) => {
+        const { messageId, sessionId: partSessionId } = part.metadata;
+        const known = roles.get(messageId);
+        if (known) {
+          return known;
+        }
+        const stored = await Store.getMessages({
+          messageIds: [messageId],
+          sessionId: partSessionId,
+          chatId: id,
+        });
+        const role = stored.isOk() ? stored.value[0]?.role : undefined;
+        if (role) {
+          roles.set(messageId, role);
+        }
+        return role;
+      };
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
@@ -532,8 +781,10 @@ export async function runEvals(
         void call(sessionRoute.stop, { id }, { context });
       };
 
+      // The whole chat's spend, its tasks' included: a runaway task is as much
+      // the run's as a runaway conversation.
       const enforcementTimer = setInterval(() => {
-        void getTaskUsageSummary(id).then((usage) => {
+        void getUsageSummary(id).then((usage) => {
           enforceCaps(usage.totalTokens);
         }, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
@@ -541,11 +792,126 @@ export async function runEvals(
       void (async () => {
         try {
           for await (const event of partUpdates) {
-            if (event.id !== id) {
+            // The run's own session: a task's parts are in the chat's store
+            // too, and are the task's.
+            if (
+              event.id !== id ||
+              event.part.metadata.sessionId !== sessionId
+            ) {
               continue;
             }
 
             const part = event.part;
+
+            // Every message's parts are published, the user's and the
+            // context's included, and a part does not say whose it is. Those
+            // are stored before their parts are published, so a text part
+            // whose message is not yet stored, or is stored as the
+            // assistant's, is a reply being streamed.
+            if (
+              firstTextAt === undefined &&
+              part.type === "text" &&
+              part.text.trim() !== ""
+            ) {
+              const seenAt = Date.now();
+              const stored = await Store.getMessages({
+                messageIds: [part.metadata.messageId],
+                sessionId: part.metadata.sessionId,
+                chatId: id,
+              });
+              const role = stored.isOk() ? stored.value[0]?.role : undefined;
+              if (role === undefined || role === "assistant") {
+                firstTextAt ??= seenAt;
+              }
+            }
+
+            if (part.type === "text") {
+              const open = marks.filter(
+                (mark) =>
+                  mark.sentAt !== undefined &&
+                  mark.at === undefined &&
+                  mark.match.test(part.text),
+              );
+              if (open.length > 0) {
+                const seenAt = Date.now();
+                if ((await roleOf(part)) !== "user") {
+                  for (const mark of open) {
+                    mark.at ??= seenAt;
+                  }
+                }
+              }
+            }
+
+            if (isToolPart(part)) {
+              if (
+                part.state === "output-available" ||
+                part.state === "output-error"
+              ) {
+                ownToolsDone.add(part.toolCallId);
+              } else if (
+                part.state === "input-available" &&
+                !ownToolsStarted.has(part.toolCallId)
+              ) {
+                ownToolsStarted.add(part.toolCallId);
+                if (
+                  workWaiter &&
+                  ownToolsDone.size - workWaiter.baseline >=
+                    workWaiter.afterCalls
+                ) {
+                  workWaiter.resolve();
+                  workWaiter = undefined;
+                }
+              }
+            }
+
+            // A boundary the agent ran into shows the person a card, which
+            // the case answers the way they would: a scripted pick, a no, or
+            // nothing, leaving the agent to carry on without it.
+            for (const ask of await openAsks(id)) {
+              if (handledAskIds.has(ask.id)) {
+                continue;
+              }
+              handledAskIds.add(ask.id);
+              const declines =
+                ask.kind === "folder"
+                  ? evalCase.declinesFolders
+                  : evalCase.declinesApps;
+              const picked =
+                ask.kind === "folder" && !declines
+                  ? evalCase.folderPicks?.[folderPicksUsed++]
+                  : undefined;
+              const allows = ask.kind === "app" && evalCase.allowsApps;
+              write(
+                `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
+              );
+              if (declines || picked || allows) {
+                // Answered once the asking session's turn is over, as a
+                // person reading the card would, so the answer arrives as a
+                // wake rather than mid-turn.
+                void (async () => {
+                  const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                  while (isWorking(id, ask.sessionId) && Date.now() < until) {
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, TREE_POLL_MS),
+                    );
+                  }
+                  await call(
+                    permissionsRoute.answer,
+                    {
+                      askId: ask.id,
+                      decision: declines ? "declined" : "allowed",
+                      id,
+                      ...(picked && { path: picked }),
+                    },
+                    { context },
+                  );
+                })().catch((error: unknown) => {
+                  process.stderr.write(
+                    `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+                  );
+                });
+              }
+            }
 
             if (
               part.type === "tool-choose" &&
@@ -591,7 +957,7 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const usage = await getTaskUsageSummary(id);
+              const usage = await getUsageSummary(id);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
@@ -638,9 +1004,24 @@ export async function runEvals(
         runDeadline === undefined
           ? undefined
           : Math.max(0, runDeadline - Date.now());
-      let outcome = await waitForSessionDone(sessionId, id, {
+      const followUps = (evalCase.followUps ?? []).map((followUp) =>
+        typeof followUp === "string" ? { prompt: followUp } : followUp,
+      );
+      const isTimed = (followUp?: FollowUp) =>
+        followUp?.afterMs !== undefined || followUp?.duringWork !== undefined;
+      // Counted from each message sent, so a `duringWork` follow-up waits on
+      // tool calls of the turn it is meant to land in.
+      let toolsAtLastSend = 0;
+      let turn = waitForSessionDone(sessionId, id, {
         timeoutMs: remainingMs(),
       });
+      let outcome: "done" | "timeout" = "done";
+      let doneAt = startedAt;
+      let lastSentAt = startedAt;
+      if (!isTimed(followUps[0])) {
+        outcome = await turn;
+        doneAt = Date.now();
+      }
 
       if (evalCase.finishesAs && !stoppedBy && outcome !== "timeout") {
         await standInForTasks(id, evalCase.finishesAs, {
@@ -655,34 +1036,106 @@ export async function runEvals(
       // loops on turn one. A turn that stopped or timed out ends the run
       // rather than asking the next question into a session that is not
       // listening.
-      for (const followUp of evalCase.followUps ?? []) {
+      for (const [position, followUp] of followUps.entries()) {
         if (stoppedBy || outcome === "timeout") {
           break;
         }
+        if (followUp.duringWork !== undefined) {
+          const { afterToolCalls } = followUp.duringWork;
+          const inFlight = new Promise<"in flight">((resolve) => {
+            workWaiter = {
+              afterCalls: afterToolCalls,
+              baseline: toolsAtLastSend,
+              resolve: () => {
+                resolve("in flight");
+              },
+            };
+          });
+          const first = await Promise.race([inFlight, turn]);
+          workWaiter = undefined;
+          if (first !== "in flight") {
+            duringWorkMissed += 1;
+          }
+        } else if (followUp.afterMs !== undefined) {
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              Math.max(0, lastSentAt + (followUp.afterMs ?? 0) - Date.now()),
+            ),
+          );
+        } else if (followUp.settled && evalCase.kind === "chat") {
+          await waitForTreeQuiet(id, {
+            timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+          });
+        }
+        // A message sent into a turn in progress is heard between its steps,
+        // and that turn's end is the one still awaited; sent to a session at
+        // rest, it starts a turn of its own.
+        await evalCase.beforeFollowUp?.(position);
+        if ("stopTask" in followUp) {
+          const task = (await listChildTasks(id)).find(
+            (child) => child.handle === followUp.stopTask,
+          );
+          write(
+            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${task ? "" : " (no such task)"}${c.reset}\n`,
+          );
+          if (task) {
+            await call(
+              sessionRoute.stop,
+              { id, sessionId: task.id },
+              { context },
+            );
+          }
+          lastSentAt = Date.now();
+          continue;
+        }
+        const steering = isTimed(followUp) && isWorking(id, sessionId);
         write(
-          `${evalPrefix(label)}${c.dim}Follow-up: ${followUp.slice(0, 60)}${c.reset}\n`,
+          `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
         );
+        const sendingAt = Date.now();
+        for (const mark of marks) {
+          if (
+            mark.sentAt === undefined &&
+            mark.after !== undefined &&
+            followUp.prompt.includes(mark.after)
+          ) {
+            mark.sentAt = sendingAt;
+          }
+        }
         await call(
           messageRoute.create,
-          { id, modelURI: uri, prompt: followUp, sessionId },
+          { id, modelURI: uri, prompt: followUp.prompt, sessionId },
           { context },
         );
-        outcome = await waitForSessionDone(sessionId, id, {
-          timeoutMs: remainingMs(),
-        });
+        lastSentAt = Date.now();
+        toolsAtLastSend = ownToolsDone.size;
+        if (!steering) {
+          turn = waitForSessionDone(sessionId, id, {
+            timeoutMs: remainingMs(),
+          });
+        }
+        if (!isTimed(followUps[position + 1])) {
+          outcome = await turn;
+          doneAt = Date.now();
+        }
       }
 
       // The children and the wake they trigger are the rest of a chat
       // run. Everything above this line has only watched the conversation.
-      if (evalCase.kind === "chat" && !stoppedBy) {
+      // A message sent mid-turn that the turn ended before hearing runs as a
+      // turn of its own, so a timed follow-up waits the same way.
+      if ((evalCase.kind === "chat" || followUps.some(isTimed)) && !stoppedBy) {
         const settled = await waitForTreeQuiet(id, {
           timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
         });
-        if (settled === "timeout") {
+        if (settled.status === "timeout") {
           stoppedBy = "timeout";
           process.stderr.write(
             `${evalPrefix(label)}${c.red}Tree never settled${c.reset}${c.dim}: a task in this run was still working when time ran out.${c.reset}\n`,
           );
+        } else {
+          doneAt = Math.max(doneAt, settled.quietSince);
         }
       }
 
@@ -696,13 +1149,15 @@ export async function runEvals(
         );
       }
 
-      const usage = await getTaskUsageSummary(id);
-      // What a delegating run actually spent is the conversation plus every
+      const usage = await getUsageSummary(id, { sessionId });
+      // What a forking run actually spent is the conversation plus every
       // task it started; the conversation's own total is a fraction of it, and
-      // reporting only that would make delegation look free.
-      const childTaskIds = await treeTaskIds(id);
+      // reporting only that would make forking look free.
+      const childSessionIds = await childTasksOf(id, sessionId);
       const childUsages = await Promise.all(
-        childTaskIds.map((childId) => getTaskUsageSummary(childId)),
+        childSessionIds.map((childId) =>
+          getUsageSummary(id, { sessionId: childId }),
+        ),
       );
       const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
       for (const one of [usage, ...childUsages]) {
@@ -710,6 +1165,43 @@ export async function runEvals(
         treeUsage.outputTokens += one.outputTokens;
         treeUsage.totalTokens += one.totalTokens;
       }
+      const markTimes =
+        marks.length > 0
+          ? Object.fromEntries(
+              marks.map((mark) => [
+                mark.name,
+                mark.at === undefined || mark.sentAt === undefined
+                  ? null
+                  : mark.at - mark.sentAt,
+              ]),
+            )
+          : undefined;
+      if (markTimes) {
+        const marksDir = path.join(os.homedir(), ".eval-marks");
+        fs.mkdirSync(marksDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(marksDir, `${id}.json`),
+          JSON.stringify(markTimes),
+        );
+      }
+      const metrics = {
+        ...(await metricsFor(id, sessionId, childSessionIds, {
+          doneAt,
+          firstTextAt,
+          startedAt,
+        })),
+        ...(markTimes ? { marks: markTimes } : {}),
+        ...(evalCase.followUps?.some(
+          (followUp) =>
+            typeof followUp !== "string" && followUp.duringWork !== undefined,
+        )
+          ? { duringWorkMissed }
+          : {}),
+        cacheReadTokens: [usage, ...childUsages].reduce(
+          (sum, one) => sum + one.inputTokenDetails.cacheReadTokens,
+          0,
+        ),
+      };
       const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const costUSD = price
         ? [usage, ...childUsages].reduce(
@@ -720,20 +1212,22 @@ export async function runEvals(
 
       finishedRuns += 1;
       write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childTaskIds.length > 0 ? ` across ${childTaskIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
       );
 
       return {
-        childTaskIds,
+        childSessionIds,
         costUSD,
         label,
+        metrics,
         modelLabel,
         modelURI: uri,
         name: evalCase.name,
         overBudget,
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
+        sessionId,
         stoppedBy,
-        taskId: id,
+        chatId: id,
         treeUsage,
         trial,
         usage: {
@@ -766,28 +1260,71 @@ export function runKey(run: {
 }
 
 /**
- * Every session of a task, parts included, which is what an assertion reads and
- * what a suite needs to render anything of its own afterwards. Exported because
- * each standalone runner had otherwise written this same function privately.
+ * A run's session, parts included, which is what an assertion reads and what
+ * a suite needs to render anything of its own afterwards: the one named, or a
+ * chat's own conversation. A task's comes with only its own messages, never
+ * the conversation it carries on from. Exported because each standalone
+ * runner had otherwise written this same function privately.
  */
 export async function sessionsFor(
-  taskId: TaskId,
+  chatId: ChatId,
+  sessionId?: StoreId.Session,
 ): Promise<Session.WithMessagesAndParts[]> {
-  const list = await Store.getSessions(taskId, { includeChildSessions: true });
-  if (list.isErr()) {
+  const ids = sessionId
+    ? [sessionId]
+    : (await Store.getSessions(chatId)).map((list) =>
+        list.map((session) => session.id),
+      );
+  if (!Array.isArray(ids) && ids.isErr()) {
     return [];
   }
   const sessions: Session.WithMessagesAndParts[] = [];
-  for (const session of list.value) {
-    const withParts = await Store.getSessionWithMessagesAndParts(
-      session.id,
-      taskId,
-    );
-    if (withParts.isOk()) {
-      sessions.push(withParts.value);
+  for (const id of Array.isArray(ids) ? ids : ids.value) {
+    const session = await Store.getSession(id, chatId);
+    const messages = await Store.getMessagesWithParts({
+      inherited: false,
+      sessionId: id,
+      chatId,
+    });
+    if (session.isOk() && messages.isOk()) {
+      sessions.push({ ...session.value, messages: messages.value });
     }
   }
   return sessions;
+}
+
+/**
+ * The tasks a run started: those of its chat when the run is the chat's own
+ * conversation, and none for a task case, whose session starts nothing.
+ */
+async function childTasksOf(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<StoreId.Session[]> {
+  if (!resolveChat(chatId) || sessionOfChat(chatId) !== sessionId) {
+    return [];
+  }
+  return (await listChildTasks(chatId)).map((task) => task.id);
+}
+
+/**
+ * The tasks a run's chat started, each with its own messages: what a chat
+ * case is scored on when the work happened in them.
+ */
+export async function childSessionsOf(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<ChildTaskSessions[]> {
+  if (!resolveChat(chatId) || sessionOfChat(chatId) !== sessionId) {
+    return [];
+  }
+  return Promise.all(
+    (await listChildTasks(chatId)).map(async (child) => ({
+      sessionId: child.id,
+      sessions: await sessionsFor(chatId, child.id),
+      title: child.title,
+    })),
+  );
 }
 
 /**
@@ -814,18 +1351,17 @@ function ensureWorkspaceFolder() {
  * others just wrote, and a model that finds three charts it did not make
  * behaves nothing like one working in the folder the user actually has.
  *
- * A read-only attachment is shared instead. Nothing a run does can change it,
- * so the isolation the copy buys is worth nothing there, while the copy itself
- * is a per-run walk of the whole tree: a case that attaches a folder large
- * enough to be interesting spends longer copying it than the agent spends
- * working in it.
+ * A folder marked `inPlace` is attached where it is instead: one `setup`
+ * made under the run's home, or one too large to copy for every run. A
+ * granted folder is the chat's to write, so a committed fixture is never
+ * attached in place.
  *
  * The basename is preserved because it becomes the mount name, which the case's
  * own prompt refers to ("my Reports folder").
  */
 function privateFoldersFor(evalCase: EvalCase, index: number) {
-  return evalCase.folders?.map((folder) => {
-    if (folder.access === "read-only") {
+  return evalCase.folders?.map(({ inPlace, ...folder }) => {
+    if (inPlace) {
       return folder;
     }
     const root = path.join(
@@ -838,6 +1374,229 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
   });
 }
 
+/**
+ * Opens a chat filed under `topics` the way the window's first send from a
+ * topic does: the chat's record, then its first message with the topic ids,
+ * which tag the chat before that message is written, so its note carries
+ * their instructions.
+ */
+async function openChatUnderTopics(
+  evalCase: EvalCase,
+  topics: NonNullable<EvalCase["topics"]>,
+  {
+    context,
+    folders,
+    uri,
+  }: {
+    context: {
+      workspaceConfig: WorkspaceConfig;
+      workspaceRef: WorkspaceActorRef;
+    };
+    folders: { path: string }[];
+    uri: string;
+  },
+): Promise<{ id: ChatId; sessionId: StoreId.Session }> {
+  const topicIds: string[] = [];
+  for (const { instructions, name } of topics) {
+    const topic = await createTopic({ name });
+    await updateTopic(topic.id, { instructions });
+    topicIds.push(topic.id);
+  }
+  const newSessionId = StoreId.newSessionId();
+  const id = await ensureChat(newSessionId, evalCase.prompt);
+  const { sessionId } = await call(
+    messageRoute.create,
+    {
+      files: evalCase.files,
+      folders: folders.length > 0 ? folders : undefined,
+      id,
+      modelURI: uri,
+      prompt: evalCase.prompt,
+      topics: topicIds,
+      viewing: evalCase.viewing,
+    },
+    { context },
+  );
+  return { id, sessionId };
+}
+
+/**
+ * What a shell says when it turns a call down: the product's own refusals
+ * ("refuses", "refused") and a command line it could not parse.
+ */
+const REFUSED =
+  /\brefus(?:es|ed|ing)\b|unknown (?:flag|option|command|subcommand|argument)|unrecognized (?:option|argument|command)|invalid (?:flag|option)/i;
+
+/** See `RunMetrics`. */
+async function metricsFor(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  childSessionIds: StoreId.Session[],
+  {
+    doneAt,
+    firstTextAt,
+    startedAt,
+  }: { doneAt: number; firstTextAt?: number; startedAt: number },
+): Promise<Omit<RunMetrics, "cacheReadTokens">> {
+  let visibleChars = 0;
+  const taskCommands = { new: 0 };
+  const turns: NonNullable<RunMetrics["turns"]> = [];
+  const turnShapes: TurnShape[] = [];
+  for (const session of await sessionsFor(chatId, sessionId)) {
+    turns.push(...turnsOf(session.messages));
+    turnShapes.push(...turnShapesOf(session.messages));
+    for (const message of session.messages) {
+      if (message.role !== "assistant") {
+        continue;
+      }
+      for (const part of message.parts) {
+        if (part.type === "text") {
+          visibleChars += part.text.trim().length;
+        }
+        if (part.type === "tool-bash" && part.input?.command) {
+          const command: string = part.input.command;
+          taskCommands.new += [
+            ...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g),
+          ].length;
+        }
+      }
+    }
+  }
+  let toolCalls = 0;
+  const refusals = { all: 0, task: 0 };
+  for (const one of [sessionId, ...childSessionIds]) {
+    for (const session of await sessionsFor(chatId, one)) {
+      for (const message of session.messages) {
+        toolCalls += message.parts.filter((part) => isToolPart(part)).length;
+        for (const part of message.parts) {
+          if (part.type !== "tool-bash") {
+            continue;
+          }
+          const said =
+            part.state === "output-available"
+              ? part.output.output
+              : part.state === "output-error"
+                ? part.errorText
+                : "";
+          if (REFUSED.test(said)) {
+            refusals.all += 1;
+            if (
+              /(?:^|[\n;&|(])\s*task\s+[a-z]/.test(part.input?.command ?? "")
+            ) {
+              refusals.task += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  return {
+    doneMs: doneAt - startedAt,
+    firstTextMs:
+      firstTextAt === undefined ? undefined : firstTextAt - startedAt,
+    refusals,
+    taskCommands,
+    tasksCreated: childSessionIds.length,
+    toolCalls,
+    turns,
+    turnShapes,
+    visibleChars,
+  };
+}
+
+/** See `TurnShape`. */
+function turnShapesOf(
+  messages: Session.WithMessagesAndParts["messages"],
+): TurnShape[] {
+  const shapes: TurnShape[] = [];
+  messages.forEach((message, index) => {
+    if (message.role !== "user" || !isTypedByUser(message)) {
+      return;
+    }
+    const next = messages.findIndex(
+      (later, at) => at > index && later.role === "user",
+    );
+    const replies = messages
+      .slice(index + 1, next === -1 ? undefined : next)
+      .filter((reply) => reply.role === "assistant");
+    const parts = replies.flatMap((reply) => reply.parts);
+    const texts = parts.filter(
+      (part) => part.type === "text" && part.text.trim() !== "",
+    );
+    const firstText = parts.findIndex(
+      (part) => part.type === "text" && part.text.trim() !== "",
+    );
+    const firstTool = parts.findIndex((part) => isToolPart(part));
+    const first = parts[firstText];
+    shapes.push({
+      ...(first?.type === "text" ? { firstText: first.text.trim() } : {}),
+      steps: replies.map((reply) => ({
+        cacheReadTokens:
+          reply.metadata.usage?.inputTokenDetails.cacheReadTokens ?? 0,
+        inputTokens: reply.metadata.usage?.inputTokens ?? 0,
+        outputTokens: reply.metadata.usage?.outputTokens ?? 0,
+        text: reply.parts.some(
+          (part) => part.type === "text" && part.text.trim() !== "",
+        ),
+        toolCalls: reply.parts.filter((part) => isToolPart(part)).length,
+      })),
+      ...(firstTool === -1
+        ? {}
+        : { textBeforeTool: firstText !== -1 && firstText < firstTool }),
+      textParts: texts.length,
+      texts: texts.flatMap((part) =>
+        part.type === "text" ? [part.text.trim()] : [],
+      ),
+      toolCalls: parts.filter((part) => isToolPart(part)).length,
+    });
+  });
+  return shapes;
+}
+
+/**
+ * Each message the user typed and the replies that answered it: the
+ * assistant messages after it up to the next message of the user's or of the
+ * harness (a wake), timed to the last of them finishing. See `RunMetrics`.
+ */
+function turnsOf(
+  messages: Session.WithMessagesAndParts["messages"],
+): NonNullable<RunMetrics["turns"]> {
+  const turns: NonNullable<RunMetrics["turns"]> = [];
+  messages.forEach((message, index) => {
+    if (message.role !== "user" || !isTypedByUser(message)) {
+      return;
+    }
+    const next = messages.findIndex(
+      (later, at) => at > index && later.role === "user",
+    );
+    const replies = messages
+      .slice(index + 1, next === -1 ? undefined : next)
+      .filter((reply) => reply.role === "assistant");
+    const last = replies.at(-1);
+    const endedAt = last
+      ? (last.metadata.finishedAt ?? last.metadata.createdAt).getTime()
+      : message.metadata.createdAt.getTime();
+    turns.push({
+      chars: replies.reduce(
+        (sum, reply) =>
+          sum +
+          reply.parts.reduce(
+            (chars, part) =>
+              chars + (part.type === "text" ? part.text.trim().length : 0),
+            0,
+          ),
+        0,
+      ),
+      ms: endedAt - message.metadata.createdAt.getTime(),
+      tokens: replies.reduce(
+        (sum, reply) => sum + (reply.metadata.usage?.totalTokens ?? 0),
+        0,
+      ),
+    });
+  });
+  return turns;
+}
+
 function sanitizeCanonicalId(canonicalId: string): string {
   return canonicalId.replaceAll(/[^a-z0-9-]/gi, "-");
 }
@@ -848,7 +1607,7 @@ function sanitizeCanonicalId(canonicalId: string): string {
  * expects, so it wakes nothing of its own.
  */
 async function standInForTasks(
-  chatId: TaskId,
+  chatId: ChatId,
   { leavesOpen = [], said }: NonNullable<EvalCase["finishesAs"]>,
   {
     standInWindow,
@@ -860,16 +1619,22 @@ async function standInForTasks(
 ) {
   const resolved = resolveChat(chatId);
   for (const child of resolved ? await listChildTasks(resolved) : []) {
-    expectStop(child.id);
-    workspaceRef.send({ type: "stopSessions", value: { id: child.id } });
-    while (isWorking(child.id)) {
+    workspaceRef.send({
+      type: "stopSessions",
+      value: {
+        id: chatId,
+        notice: { by: "chat", wakesChat: false },
+        sessionId: child.id,
+      },
+    });
+    while (isWorking(chatId, child.id)) {
       await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
     }
     for (const tab of leavesOpen) {
       standInWindow.openPage(tab);
     }
     wakeChatWithTaskEvent(
-      chatId,
+      child.chatId,
       {
         status: "done",
         summary: said,
@@ -882,30 +1647,13 @@ async function standInForTasks(
               })),
             }
           : {}),
-        taskId: child.id,
+        handle: child.handle,
+        sessionId: child.id,
         title: child.title,
       },
       workspaceRef,
     );
   }
-}
-
-/** Every task descended from this one, however deep. */
-async function treeTaskIds(rootTaskId: TaskId): Promise<TaskId[]> {
-  const found: TaskId[] = [];
-  const frontier = [rootTaskId];
-  while (frontier.length > 0) {
-    const next = frontier.pop();
-    if (next === undefined) {
-      break;
-    }
-    const chatId = resolveChat(next);
-    for (const child of chatId ? await listChildTasks(chatId) : []) {
-      found.push(child.id);
-      frontier.push(child.id);
-    }
-  }
-  return found;
 }
 
 async function waitForSessionDone(
@@ -947,33 +1695,31 @@ async function waitForSessionDone(
 }
 
 /**
- * Waits until no task in this run's tree has been working for a continuous
- * stretch, so a lull between a child finishing and its wake reaching the
- * chat is not mistaken for the end.
+ * Waits until no session of this run's chat, its own or a task's, has been
+ * working for a continuous stretch, so a lull between a child finishing and
+ * its wake reaching the chat is not mistaken for the end.
  *
- * Scoped to the tree rather than the workspace because one workspace holds
+ * Scoped to the chat rather than the workspace because one workspace holds
  * every concurrent run of a suite, and waiting on all of them would make each
  * run as long as the slowest.
  */
 async function waitForTreeQuiet(
-  rootTaskId: TaskId,
+  rootChatId: ChatId,
   { timeoutMs }: { timeoutMs: number },
-): Promise<"quiet" | "timeout"> {
+): Promise<{ quietSince: number; status: "quiet" } | { status: "timeout" }> {
   const deadline = Date.now() + timeoutMs;
   let quietSince: number | undefined;
   while (Date.now() < deadline) {
-    const working = [rootTaskId, ...(await treeTaskIds(rootTaskId))].some(
-      (taskId) => isWorking(taskId),
-    );
+    const working = isWorking(rootChatId);
     if (working) {
       quietSince = undefined;
     } else {
       quietSince ??= Date.now();
       if (Date.now() - quietSince >= TREE_QUIET_MS) {
-        return "quiet";
+        return { quietSince, status: "quiet" };
       }
     }
     await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
   }
-  return "timeout";
+  return { status: "timeout" };
 }

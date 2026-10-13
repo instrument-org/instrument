@@ -12,7 +12,7 @@ import {
   type GuestHandle,
 } from "@/client/lib/browser-pool";
 import { registerFileFlush } from "@/client/lib/file-flush";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { createDiskQueue, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
 import { PAGE_EDITOR_CHANNEL } from "@/shared/page-editor-channels";
@@ -31,7 +31,7 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { createActor, fromCallback } from "xstate";
 
 import {
@@ -258,9 +258,7 @@ const PAGE_MODES = [
 export function PageEditToggle({ tabId }: { tabId: string }) {
   const { isEditing, setEditing } = usePageEdit(tabId);
   const current = PAGE_MODES[isEditing ? 1 : 0];
-  const chord = formatAccelerator(WINDOW_SHORTCUTS.editPage.accelerator).join(
-    "",
-  );
+  const chord = formatAcceleratorText(WINDOW_SHORTCUTS.editPage.accelerator);
   return (
     // Non-modal, so a press on the page's guest (its own web contents) is not
     // swallowed by a modal menu's overlay and closes it instead.
@@ -353,8 +351,8 @@ function serveGuest({
     void queue.run(work);
   };
   // Back to the page as it is, saying why.
-  const giveUp = (message: string, description?: string) => {
-    toast.error(message, description ? { description } : {});
+  const giveUp = (message: string, cause?: unknown) => {
+    toast.error(message, { cause });
     latest.current.setEditing(false);
   };
   const load = async (input: { state: unknown; text?: string }) => {
@@ -366,10 +364,7 @@ function serveGuest({
         ...input,
       });
     } catch (error) {
-      giveUp(
-        "Could not open this page to edit",
-        error instanceof Error ? error.message : undefined,
-      );
+      giveUp("Couldn't open this page to edit", error);
       return;
     }
     generation = result.generation;
@@ -497,7 +492,7 @@ function serveGuest({
         // here shows one.
         if (message.kind === "error") {
           sendBack({ type: "editorFailed" });
-          giveUp("The editor could not start", message.message);
+          giveUp("Couldn't start the editor", message.message);
         }
         break;
       }

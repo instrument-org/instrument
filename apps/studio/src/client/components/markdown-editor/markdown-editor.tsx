@@ -9,6 +9,7 @@ import { MarkdownTaskContext } from "@/client/components/markdown-task-context";
 import { MermaidDiagram } from "@/client/components/mermaid-diagram";
 import { MessageActions, MessageCard } from "@/client/components/message-card";
 import { messageKindOf } from "@/client/components/message-kind";
+import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { useAskMarks } from "@/client/components/window/ask-marks";
 import { WindowContext } from "@/client/components/window/context";
@@ -31,7 +32,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   createEditorSession,
@@ -205,7 +206,7 @@ function FenceView({
   // reach is what can place them on this computer.
   const appWindow = useContext(WindowContext);
   return (
-    <MarkdownTaskContext value={{ taskId: appWindow ? WINDOW_ID : undefined }}>
+    <MarkdownTaskContext value={{ chatId: appWindow ? WINDOW_ID : undefined }}>
       <div className="group/fence relative">
         {language === AGENT_MESSAGE_LANGUAGE ? (
           <MessageCard message={parseMessage(content)} />
@@ -313,7 +314,7 @@ function LiveDocument({
       onStatus: (next, detail) => {
         setStatus(next);
         if (next === "error") {
-          toast.error("Could not save", { description: detail });
+          toast.error("Couldn't save your changes", { cause: detail });
         }
       },
       renderFence: (language, content) => {
@@ -349,9 +350,7 @@ function LiveDocument({
         }
       },
       (error: unknown) => {
-        toast.error("Could not open the editor", {
-          description: error instanceof Error ? error.message : undefined,
-        });
+        toast.error("Couldn't open the editor", { cause: error });
       },
     );
     return () => {
@@ -442,17 +441,23 @@ function LiveDocument({
       <div
         // The left gutter holds each block's + and drag handle, which sit
         // outside the text; any narrower and they spill over whatever is
-        // beside the document, such as a file tree.
+        // beside the document, such as a file tree. A pane with the room
+        // gives the right side the same, so the page stands in its middle.
         className={cn(
-          "pt-8 pr-8 pb-24 pl-14",
-          isMessage && "mx-auto w-full max-w-2xl",
+          "pr-8 pb-24 pl-14",
+          isMessage
+            ? "mx-auto w-full max-w-2xl pt-8"
+            : "pt-10 @xl/markdown:pr-14 @3xl/markdown:pt-16",
         )}
       >
         <div
-          className={cn(
-            isMessage &&
-              "rounded-xl border border-border bg-card text-card-foreground shadow-xs",
-          )}
+          // A document keeps to a measure, a line of about 85 characters in
+          // its type however wide the pane is; a message is a card.
+          className={
+            isMessage
+              ? "rounded-xl border border-border bg-card text-card-foreground shadow-xs"
+              : "mx-auto max-w-2xl"
+          }
         >
           {message ? (
             <MessageHead
@@ -494,18 +499,27 @@ function LiveDocument({
           )}
         </div>
       </div>
-      {offscreen && (
-        <div className="pointer-events-none sticky bottom-4 flex justify-center">
-          <UpdatedPill
-            direction={offscreen}
-            onClick={() => {
-              changedRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-              setOffscreen(null);
-            }}
-          />
+      {(offscreen || status === "error") && (
+        <div className="pointer-events-none sticky bottom-4 flex flex-wrap justify-center gap-2">
+          {status === "error" && (
+            <SaveFailedPill
+              onRetry={() => {
+                session?.retrySave();
+              }}
+            />
+          )}
+          {offscreen && (
+            <UpdatedPill
+              direction={offscreen}
+              onClick={() => {
+                changedRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+                setOffscreen(null);
+              }}
+            />
+          )}
         </div>
       )}
       {fences.map((fence) => {

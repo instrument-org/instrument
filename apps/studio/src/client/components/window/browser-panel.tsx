@@ -1,5 +1,6 @@
 import { bookmarksAtom } from "@/client/atoms/window";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
+import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -51,14 +52,14 @@ import {
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
 import { withoutPageEditParam } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type StoreId,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -70,6 +71,7 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -77,7 +79,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * A page of the in-app browser, hosted in the artifact panel. The guest `<webview>`
@@ -103,7 +105,6 @@ export function BrowserPanel({
   restoreUrl,
   sessionId,
   sliding,
-  taskId,
 }: {
   active: boolean;
   /**
@@ -156,9 +157,8 @@ export function BrowserPanel({
   // The pane is sliding open or shut, so the slot is moving under a guest that
   // only follows it while something is watching. See useBrowserSlot.
   sliding?: boolean;
-  taskId: TaskId;
 }) {
-  const targetId = encodeBrowserTargetId(taskId, sessionId);
+  const targetId = browserTargetOf(sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
@@ -212,7 +212,14 @@ export function BrowserPanel({
   // own host claims the single find-opener slot, clears it on unmount, and this
   // panel never re-registers.
   const covered = useIsGuestCovered({ insideOverlay });
-  const find = useBrowserFind({ active, covered, isVisible, targetId });
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const find = useBrowserFind({
+    active,
+    covered,
+    isVisible,
+    surfaceRef,
+    targetId,
+  });
   const slotRef = useBrowserSlot({
     active,
     covered,
@@ -241,9 +248,11 @@ export function BrowserPanel({
     rpcClient.workspace.browser.open.mutationOptions(),
   );
 
-  // Targets this panel has already auto-opened, so a reap (active -> false)
-  // doesn't re-create the guest in a loop and defeat the reaper. After a reap
-  // the user re-opens explicitly via the "Reopen browser" button.
+  // Targets this panel has already auto-opened while on screen, so a guest
+  // that goes while the page is up (a crash) is not re-created in a loop:
+  // the user re-opens it with the "Reopen browser" button. A guest discarded
+  // while the page was off screen comes back by itself, since leaving the
+  // screen forgets the open.
   //
   // Held until the pane has finished sliding. Opening a target ends in the
   // renderer mounting a `<webview>`, which costs a WebContents and a compositor
@@ -259,13 +268,17 @@ export function BrowserPanel({
     }
     autoOpenedRef.current.add(targetId);
     openBrowser({
-      id: taskId,
-      sessionId,
+      targetId,
       ...(restoreUrl && restoreUrl !== "about:blank" ? { restoreUrl } : {}),
     });
     // Once per target: the address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
+  }, [active, openBrowser, sliding, targetId]);
+  useEffect(() => {
+    if (!isVisible) {
+      autoOpenedRef.current.delete(targetId);
+    }
+  }, [isVisible, targetId]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);
@@ -425,7 +438,10 @@ export function BrowserPanel({
         "flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
         className,
       )}
+      data-find-surface
+      ref={surfaceRef}
     >
+      {isVisible ? <PageLease targetId={targetId} /> : null}
       {(() => {
         // The page's menu, the same in either shape of the bar.
         const menu = (
@@ -596,6 +612,11 @@ export function BrowserPanel({
                   Open in external browser
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={openClearBrowsingData}>
+                <BroomIcon className="size-4" />
+                Clear browsing data…
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -606,6 +627,7 @@ export function BrowserPanel({
         const controls = (
           <>
             {pageControls}
+            <BrowserDownloadsButton />
             {menu}
           </>
         );
@@ -735,6 +757,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
+            <BrowserDownloadsButton />
             {menu}
           </>
         );
@@ -829,8 +852,7 @@ export function BrowserPanel({
               <Button
                 onClick={() => {
                   openBrowser({
-                    id: taskId,
-                    sessionId,
+                    targetId,
                   });
                 }}
                 size="sm"
@@ -843,8 +865,7 @@ export function BrowserPanel({
             <Button
               onClick={() => {
                 openBrowser({
-                  id: taskId,
-                  sessionId,
+                  targetId,
                 });
               }}
               size="sm"
@@ -864,4 +885,19 @@ export function BrowserPanel({
       )}
     </div>
   );
+}
+
+/**
+ * Tells the browser this page is drawn, for as long as it is mounted: a page
+ * nobody draws starts its clock, and its guest is discarded when the clock
+ * runs out. Mounted only while the page is on screen, since unmounting is
+ * what ends the subscription and with it the hold.
+ */
+function PageLease({ targetId }: { targetId: BrowserTargetId }) {
+  useQuery(
+    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
+      input: { targetId },
+    }),
+  );
+  return null;
 }

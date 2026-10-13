@@ -2,35 +2,35 @@ import { AsyncIteratorClass } from "@orpc/server";
 
 import { publisher } from "../rpc/publisher";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 export interface ChangedMessageBatch {
   removed: Set<StoreId.Message>;
   updated: Set<StoreId.Message>;
 }
 
-// Folds message/part events into a deduped map of changed message ids and
-// yields one batch per drain. Callback subscriptions capture every event
-// synchronously at publish time, so nothing is lost to the publisher's
-// single-event buffer, and a burst collapses into one batch because the
-// consumer only pulls the next batch after it finishes the current one.
-// Subscriptions register when this function is called (not on the first
-// pull), so a caller can subscribe before taking an initial snapshot and no
-// event lands unobserved in between. Scoped to `input.sessionId` when given so
-// a token streaming elsewhere doesn't wake this subscription; omit it to watch
-// the whole task (e.g. a task-wide usage rollup). message.updated/.removed
-// carry messageId/sessionId directly; part.updated carries both on the part.
-// Tears down on signal abort or on iterator return/throw; either path
-// unsubscribes and settles a pending pull with done.
+// Folds the store's transcript writes (each a `record.changed` naming its
+// message) into a deduped map of changed message ids and yields one batch
+// per drain. A callback subscription captures every change synchronously at
+// publish time, so nothing is lost to the publisher's single-event buffer,
+// and a burst collapses into one batch because the consumer only pulls the
+// next batch after it finishes the current one. The subscription registers
+// when this function is called (not on the first pull), so a caller can
+// subscribe before taking an initial snapshot and no change lands
+// unobserved in between. Scoped to `input.sessionId` when given so a token
+// streaming elsewhere doesn't wake this subscription; omit it to watch the
+// whole chat (e.g. a chat-wide usage rollup). Tears down on signal abort or
+// on iterator return/throw; either path unsubscribes and settles a pending
+// pull with done.
 export function changedMessageBatches(
   input: {
     /** One task, or a test every task's events are put to. */
-    id: ((id: TaskId) => boolean) | TaskId;
+    id: ((id: ChatId) => boolean) | ChatId;
     sessionId?: StoreId.Session;
   },
   signal: AbortSignal | undefined,
 ) {
-  const matchesTask = (id: TaskId) =>
+  const matchesTask = (id: ChatId) =>
     typeof input.id === "function" ? input.id(id) : id === input.id;
   const changes = new Map<StoreId.Message, "removed" | "updated">();
 
@@ -50,20 +50,9 @@ export function changedMessageBatches(
     input.sessionId === undefined || sessionId === input.sessionId;
 
   const unsubscribes = [
-    publisher.subscribe("message.updated", (payload) => {
-      if (matchesTask(payload.id) && matchesSession(payload.sessionId)) {
-        mark(payload.messageId, "updated");
-      }
-    }),
-    publisher.subscribe("message.removed", (payload) => {
-      if (matchesTask(payload.id) && matchesSession(payload.sessionId)) {
-        mark(payload.messageId, "removed");
-      }
-    }),
-    publisher.subscribe("part.updated", (payload) => {
-      const { messageId, sessionId } = payload.part.metadata;
-      if (matchesTask(payload.id) && matchesSession(sessionId)) {
-        mark(messageId, "updated");
+    publisher.subscribe("record.changed", ({ id, message }) => {
+      if (message && matchesTask(id) && matchesSession(message.sessionId)) {
+        mark(message.id, message.removed ? "removed" : "updated");
       }
     }),
   ];

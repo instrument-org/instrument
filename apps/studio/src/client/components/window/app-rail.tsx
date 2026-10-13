@@ -20,12 +20,15 @@ import { type ReactNode } from "react";
  * The places, in the order the rail draws them, each drawn filled while it
  * is the place stood in.
  */
-const PLACES: { id: AppPlace; label: string }[] = [
+export const PLACES: { id: AppPlace; label: string }[] = [
   { id: "chat", label: "Chat" },
   { id: "files", label: "Files" },
   { id: "browser", label: "Browser" },
   { id: "apps", label: "Apps" },
 ];
+
+/** The rail's width in px, `w-19`, for what is laid over the window clear of it. */
+export const APP_RAIL_WIDTH = 76;
 
 /**
  * The rail down the window's left edge: New at its top, then one entry per
@@ -53,7 +56,7 @@ export function AppRail({
   return (
     <nav
       aria-label="Places"
-      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 pt-1 pb-2 select-none"
+      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 pt-1 pb-2"
     >
       {/* The way to a new chat, in the brand's own green: round, since the
         word under it is the label and the tile needs none of its own. */}
@@ -126,6 +129,9 @@ function RailEntry({
   return (
     <button
       aria-current={isOn ? "page" : undefined}
+      // What the inbox peeks out from, so a press on it is no press outside
+      // the peek.
+      data-peeks-inbox={onHover ? "" : undefined}
       className={cn(
         "flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5",
         isOn

@@ -73,7 +73,7 @@ The platform is the blocker; our own wiring is nearly there.
 - **The Electron upgrade.** 42 to 44 is two majors and is the entire cost of this feature. Nothing else on the list is more than a day.
 - **A `--enable-blink-features=WebMCP` switch.** The CDP domain ships unflagged on 152, but a site that feature-detects will not register anything unless the page-facing API exists, so the flag is load-bearing even though we only consume over CDP. Chrome gates the page API behind an origin trial; an origin trial token is signed per origin and will not validate in Electron, so the command-line switch is how it gets turned on for every site rather than something we can rely on sites to carry.
 - **Subcommands.** `agent-browser` has no notion of tools. Upstream v0.33.2 has zero WebMCP references, so `tools list` and `tools call` would be ours to add in [`agent-browser.ts`](../../packages/workspace/src/lib/shell-commands/agent-browser.ts) alongside the existing rewrites, plus the help text and the skill.
-- **Untrusted-output handling.** The protocol itself annotates `toolResponded.output` as untrusted and a prompt-injection risk. Tool output needs the same nonce-delimited wrapping page content already gets, and for the same reason.
+- **Untrusted-output handling.** The protocol itself annotates `toolResponded.output` as untrusted and a prompt-injection risk. It gets what page content gets: printed as returned, after any line of ours and never before one ([decision record](../decisions/2026-10-09-outside-content-arrives-last-and-unmarked.md)).
 
 ## The surface is real but small
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { appChanged } from "./apps/changed";
 import { appListChanges, sessionEnds } from "./host-events";
 
@@ -12,7 +12,7 @@ describe("host events", () => {
     const ends = sessionEnds({ signal: controller.signal });
     const next = ends.next();
     const ended = {
-      id: TaskIdSchema.parse("host-events"),
+      id: ChatIdSchema.parse("host-events"),
       sessionId: StoreId.newSessionId(),
     };
     publisher.publish("session.done", ended);

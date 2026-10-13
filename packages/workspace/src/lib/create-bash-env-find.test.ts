@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -29,22 +29,19 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let lockedDir: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 async function run(command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Home: {
         access: "read-only",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("home-id"),
-        mountName: "Home",
-        path: TaskDirSchema.parse(attachedDir),
-        source: "user",
+        id: MountedFolder.IdSchema.parse("home-id"),
+        path: ChatDirSchema.parse(attachedDir),
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -63,7 +60,7 @@ beforeEach(async () => {
     "# notes\n",
   );
   await fs.chmod(lockedDir, 0o000);
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {
@@ -73,19 +70,44 @@ afterEach(async () => {
 
 describe.skipIf(asRoot)("find over an unreadable directory in a mount", () => {
   it("reports the directory and keeps going", async () => {
-    const result = await run("find /mnt/Home -name '*.md'");
+    const result = await run(`find ${attachedDir} -name '*.md'`);
 
-    expect(result.stdout).toBe("/mnt/Home/Documents/notes.md\n");
-    expect(result.stderr).toBe("find: /mnt/Home/.Trash: Permission denied\n");
+    expect(result.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
+    expect(result.stderr).toBe(
+      `find: ${attachedDir}/.Trash: Permission denied\n`,
+    );
     expect(result.exitCode).toBe(1);
   });
 
   it("keeps the results reachable through a pipeline", async () => {
     const result = await run(
-      "find /mnt/Home -name '*.md' 2>/dev/null | head -1",
+      `find ${attachedDir} -name '*.md' 2>/dev/null | head -1`,
     );
 
-    expect(result.stdout).toBe("/mnt/Home/Documents/notes.md\n");
+    expect(result.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
     expect(result.exitCode).toBe(0);
+  });
+});
+
+// Guards the patch part pinned to vercel-labs/just-bash#555: `-newermt` and
+// `-mmin` are what a model reaches for first when asked about recent files,
+// and without them `find ... -newermt <date> | head` reads as an empty search.
+describe.skipIf(asRoot)("find's time predicates", () => {
+  it("finds what changed after a date, and in the last minutes", async () => {
+    const notes = path.join(attachedDir, "Documents", "notes.md");
+    const old = path.join(attachedDir, "Documents", "old.md");
+    await fs.writeFile(old, "old\n");
+    await fs.utimes(old, new Date(2026, 0, 1), new Date(2026, 0, 1));
+    await fs.utimes(notes, new Date(), new Date());
+
+    const since = await run(
+      `find ${attachedDir}/Documents -name '*.md' -newermt 2026-06-01`,
+    );
+    const recent = await run(
+      `find ${attachedDir}/Documents -name '*.md' -mmin -5`,
+    );
+
+    expect(since.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
+    expect(recent.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
   });
 });

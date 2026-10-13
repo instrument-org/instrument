@@ -1,9 +1,9 @@
 import { PageFavicon } from "@/client/components/favicon";
 import {
-  bookmarksAtom,
-  CHATS_HREF,
-  visitedPagesAtom,
-} from "@/client/atoms/window";
+  noteTypedPage,
+  useCompletionPages,
+} from "@/client/hooks/use-browser-history";
+import { bookmarksAtom } from "@/client/atoms/window";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -29,6 +29,7 @@ import {
   omnibarField,
 } from "@/client/components/window/omnibar-field";
 import { ShellContext } from "@/client/components/window/shell-context";
+import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import {
   type TabLocation,
   taskHref,
@@ -55,7 +56,7 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import {
   type ReactNode,
   use,
@@ -230,6 +231,7 @@ export function Omnibar({
   };
   /** Where a site goes: this tab's own guest on a page, a tab of its own anywhere else. */
   const openSite = (url: string) => {
+    noteTypedPage(url);
     (onSite ?? openPage)(url);
   };
   // Done with: the field goes back to showing the place, or to empty on a
@@ -247,12 +249,10 @@ export function Omnibar({
    */
   const openFolder = (host: string) => {
     const home = window.api.homeDir;
-    const search = routerLocation.search as Record<string, unknown>;
+    const here = matchScreen(routerLocation.href);
     const currentRoot =
-      routerLocation.pathname === "/files" &&
-      typeof search.root === "string" &&
-      search.root !== RECENTS_ROOT
-        ? search.root
+      here.kind === "computer" && here.root !== RECENTS_ROOT
+        ? here.root
         : undefined;
     const currentRootHost =
       currentRoot === undefined ? undefined : expandHomePath(currentRoot, home);
@@ -561,8 +561,10 @@ function useRows({
   const words = typed.trim();
   const shell = use(ShellContext);
 
-  // On the web: the pages the window knows, bookmarks ahead of history.
-  const visited = useAtomValue(visitedPagesAtom);
+  // On the web: the pages the window knows, bookmarks ahead of history,
+  // whose part is the pages the person goes back to (Chromium's significant
+  // ones) rather than every page seen once.
+  const visited = useCompletionPages();
   const bookmarks = useAtomValue(bookmarksAtom);
   const pages = unique(
     [
@@ -819,7 +821,7 @@ function useRows({
           id: `chat:${id}`,
           name: title,
           run: () => {
-            open.visit(`${CHATS_HREF}/${id}`);
+            open.visit(chatHref(id));
           },
         }));
       }
@@ -836,7 +838,9 @@ function useRows({
             id: `task:${task.id}`,
             name: task.title,
             run: () => {
-              open.visit(taskHref(task.id, chat));
+              if (chat) {
+                open.visit(taskHref(task.id, chat));
+              }
             },
           }),
         );

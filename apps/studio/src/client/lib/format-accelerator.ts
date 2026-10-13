@@ -105,3 +105,12 @@ function modifierKind(part: string, isMac: boolean): ModifierKind | undefined {
   }
   return MODIFIERS[part];
 }
+
+/**
+ * The accelerator as one string for running text: `⇧⌘T` on macOS, where the
+ * symbols run together, and `Ctrl+Shift+T` everywhere else, where words need
+ * the plus between them.
+ */
+export function formatAcceleratorText(accelerator: ShortcutAccelerator) {
+  return formatAccelerator(accelerator).join(isMacOS() ? "" : "+");
+}

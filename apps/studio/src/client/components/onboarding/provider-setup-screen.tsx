@@ -12,6 +12,7 @@ import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { Button } from "../ui/button";
 
@@ -19,7 +20,7 @@ export type ProviderSetupPage = "add-provider" | "welcome";
 
 export function ProviderSetupScreen({
   error,
-  hideManualProvider,
+  instrumentOnly,
   onAddProvider,
   onBack,
   onContinue,
@@ -27,9 +28,10 @@ export function ProviderSetupScreen({
   onLoginSuccess,
   onPageChange,
   page,
+  signedIn,
 }: {
   error?: Error | null;
-  hideManualProvider?: boolean;
+  instrumentOnly?: boolean;
   onAddProvider?: () => void;
   onBack?: () => void;
   onContinue: () => void;
@@ -37,10 +39,30 @@ export function ProviderSetupScreen({
   onLoginSuccess: () => void;
   onPageChange: (page: ProviderSetupPage) => void;
   page: ProviderSetupPage;
+  /** Signed in to Instrument already, so the page offers only the providers to add. */
+  signedIn?: boolean;
 }) {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
+  const { data: claudeStatus } = useQuery(
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
+  );
+
+  // The sign-in holding for the browser, which alone stays on the page until
+  // it finishes or is canceled.
+  const [holding, setHolding] = useState<"chatgpt" | "claude" | "google">();
+  const holdingChange =
+    (provider: "chatgpt" | "claude" | "google") => (waiting: boolean) => {
+      setHolding((current) =>
+        waiting ? provider : current === provider ? undefined : current,
+      );
+    };
+  const shows = (provider: "chatgpt" | "claude" | "google") =>
+    !holding || holding === provider;
+
+  // Signed in to Claude already, there is no Claude plan left to add.
+  const offersClaude = !signedIn || claudeStatus?.kind !== "signed-in";
 
   if (page === "add-provider") {
     return (
@@ -61,7 +83,7 @@ export function ProviderSetupScreen({
   return (
     <OnboardingScreen
       footer={
-        !hideManualProvider && (
+        !instrumentOnly && (
           <Button
             className="text-foreground/40 hover:bg-transparent hover:text-foreground/60"
             onClick={
@@ -85,10 +107,14 @@ export function ProviderSetupScreen({
 
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-              Log in to {APP_NAME}
+              {signedIn ? "Add an AI provider" : `Log in to ${APP_NAME}`}
             </h1>
             <p className="text-sm text-foreground/80">
-              A guided AI workspace for ambitious work
+              {signedIn
+                ? offersClaude
+                  ? "Use the ChatGPT or Claude plan you already pay for."
+                  : "Use the ChatGPT plan you already pay for."
+                : "A guided AI workspace for ambitious work"}
             </p>
           </div>
         </div>
@@ -115,31 +141,44 @@ export function ProviderSetupScreen({
             </div>
           )}
 
-          <GoogleLoginButton
-            caption={
-              <div className="flex items-center justify-center gap-x-2">
-                <BrandLeafIcon className="size-3" />
-                <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                  Create an account to get free AI usage
-                </p>
-              </div>
-            }
-            className="w-full justify-center"
-            onLogin={onLogin}
-            onSuccess={onLoginSuccess}
-          />
+          {!signedIn && shows("google") && (
+            <GoogleLoginButton
+              caption={
+                <div className="flex items-center justify-center gap-x-2">
+                  <BrandLeafIcon className="size-3" />
+                  <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
+                    Create an account to get free AI usage
+                  </p>
+                </div>
+              }
+              className="w-full justify-center"
+              onLogin={onLogin}
+              onSuccess={onLoginSuccess}
+              onWaitingChange={holdingChange("google")}
+            />
+          )}
 
-          <ChatGPTLoginButton
-            caption="Pay for ChatGPT Plus or Pro? Use it here."
-            className="w-full justify-center"
-            onSuccess={onLoginSuccess}
-          />
+          {!instrumentOnly && (
+            <>
+              {shows("chatgpt") && (
+                <ChatGPTLoginButton
+                  caption="Pay for ChatGPT Plus or Pro? Use it here."
+                  className="w-full justify-center"
+                  onSuccess={onLoginSuccess}
+                  onWaitingChange={holdingChange("chatgpt")}
+                />
+              )}
 
-          <ClaudeLoginButton
-            caption="Pay for Claude Pro or Max? Use it here."
-            className="w-full justify-center"
-            onSuccess={onLoginSuccess}
-          />
+              {offersClaude && shows("claude") && (
+                <ClaudeLoginButton
+                  caption="Pay for Claude Pro or Max? Use it here."
+                  className="w-full justify-center"
+                  onSuccess={onLoginSuccess}
+                  onWaitingChange={holdingChange("claude")}
+                />
+              )}
+            </>
+          )}
 
           <TermsFooter />
         </div>

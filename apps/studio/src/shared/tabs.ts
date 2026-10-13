@@ -1,5 +1,5 @@
 import { TabIconsSchema } from "@instrument-org/shared/icons";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
 // A tab's memory-history stack, captured on close so reopening restores the
@@ -10,7 +10,7 @@ const TabHistorySchema = z.object({
 });
 export type TabHistory = z.output<typeof TabHistorySchema>;
 
-// A tab's stable identity. Distinct from `taskId`: a tab is a window into a
+// A tab's stable identity. Distinct from `chatId`: a tab is a window into a
 // route (which may be a task, a project, the new-tab page, ...), so the brand
 // keeps the two from being passed interchangeably even though both are strings.
 export const TabIdSchema = z.string().brand("TabId");
@@ -21,7 +21,7 @@ export const TabSchema = z.object({
   iconName: TabIconsSchema.optional(),
   id: TabIdSchema,
   pathname: z.string(),
-  taskId: TaskIdSchema.optional(),
+  chatId: ChatIdSchema.optional(),
   title: z.string().optional(),
 });
 

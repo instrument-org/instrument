@@ -4,17 +4,16 @@ import {
   BROWSER_HREF,
   type ComposePlacement,
   type Draft,
+  type DraftAttachment,
   draftGroupOf,
   draftSnapshotsAtom,
-  findersByTabAtom,
   NEW_TAB_HREF,
-  type ScreenView,
-  screenViewsAtom,
 } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
+  type AttachedItem,
   PromptInput,
   type PromptInputRef,
 } from "@/client/components/prompt-input";
@@ -28,28 +27,22 @@ import {
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import {
-  type FileUpload,
-  type SessionMessageDataPart,
-} from "@instrument-org/workspace/client";
+import { type FileUpload } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
-import {
-  type ReactNode,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { isEqual } from "radashi";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { ulid } from "ulid";
 
 import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -58,17 +51,18 @@ import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Topic } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
+  COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
   GROWN,
 } from "./compose-layout";
 import { ComposeZeroState } from "./compose-zero-state";
-import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
-import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
-import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
-import { computerTabOf } from "./file-tabs";
+import { ContextChips, HeldMark } from "./context-chip";
+import { type ContextItem, draftContextItems } from "./context-items";
 import { GroupItem } from "./group-item";
+import { usePageHost } from "./page-hosts";
+import { tabSurfaceAtom } from "./tab-surface";
 import { segmentsOf } from "./host-path";
 import { LinkSurface } from "./link-surface";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
@@ -80,22 +74,15 @@ import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
-import { parseHref } from "./window-href";
+import { chatOfGroup, matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
 export interface DraftSend {
-  /** The chips over the words at the press, which the chat's first message is drawn with. */
-  attached: SessionMessageDataPart.SentChip[];
   files?: FileUpload.Input[];
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
-}
-
-/** Whether an address is Apps or one app's front, which a draft's band shows itself. */
-function isAppsHref(pathname: string) {
-  return pathname === APPS_HREF || pathname.startsWith(`${APPS_HREF}/`);
 }
 
 /** How many marks the minimized bar shows of what the draft holds. */
@@ -104,13 +91,36 @@ const BAR_MARKS = 4;
 /** The most the words take before they scroll, whatever the window could give them. */
 const WORDS_MAX_HEIGHT = 400;
 
-/** A docked window's height with a few lines of words in it, in layout px; it grows from here with the words. */
+/** A docked window's height, in layout px, however long the words run: they scroll inside it, and Expand is there for more room. */
 const COMPOSE_HEIGHT = 640;
 
-/** The words' height the docked height already allows for: three lines. Past it the window grows. */
-const WORDS_BASE_HEIGHT = 72;
-
 const NO_TITLES = new Map<never, never>();
+
+/** What of an item in the composer is kept with the draft: its path, for one that has a place on disk. */
+function attachmentOf(item: AttachedItem): DraftAttachment[] {
+  if (item.type === "folder") {
+    return [{ kind: "folder", path: item.path }];
+  }
+  if (!("path" in item)) {
+    return [];
+  }
+  const { mimeType, name, path, size } = item;
+  return [{ kind: "file", mimeType, name, path, size }];
+}
+
+/** A kept attachment back in the composer, drawn by its icon until it is given again. */
+function itemOf(attachment: DraftAttachment): AttachedItem {
+  return attachment.kind === "folder"
+    ? { id: ulid(), path: attachment.path, type: "folder" }
+    : {
+        id: ulid(),
+        mimeType: attachment.mimeType,
+        name: attachment.name,
+        path: attachment.path,
+        size: attachment.size,
+        type: "file",
+      };
+}
 
 /**
  * The marks of what a group holds, for a window put down to a bar: a site's
@@ -216,13 +226,11 @@ export function ComposeWindow({
   modelURI,
   onChange,
   onClose,
+  onDiscard,
   onModelChange,
   onNewTopic,
-  onPageChrome,
-  onPageHost,
   onPlacementChange,
   onStart,
-  onViewChange,
   openOutside,
   placement,
   right,
@@ -235,17 +243,13 @@ export function ComposeWindow({
   onChange: (update: (draft: Draft) => Draft) => void;
   /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
   onClose: (words: string) => void;
+  /** Throws the draft away, from the head's trash, offered while it has words to lose. */
+  onDiscard: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
   onNewTopic: (name: string) => void;
-  /** The element the draft's page is drawn into while a page is up, null while none is. */
-  /** Where the address row takes the page's reload and controls, while a page is up. */
-  onPageChrome: (slots: PageChromeSlots | undefined) => void;
-  onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
-  /** What the band has up, in the terms the conversation is told it, or null for nothing it can say. */
-  onViewChange: (view: null | ScreenView) => void;
   /** A screen the band cannot draw, handed to the window to open beside the chat. */
   openOutside: (href: string) => void;
   placement: Exclude<ComposePlacement, "bar">;
@@ -257,7 +261,6 @@ export function ComposeWindow({
 }) {
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
   const group = draftGroupOf(draft.id);
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === group);
   // What was marked in files and moved here, as pills that go with the words.
@@ -272,52 +275,32 @@ export function ComposeWindow({
     select: (routerState) => routerState.location.href,
   });
   const inView = useTabInView();
-  const included = includedTabOf(draft, windowTabs.allTabs, (id) =>
-    id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
-  );
-
-  // What the thing the draft was opened over points at on this computer,
-  // with what the draft already holds by name left out, so each is said
-  // once, with what each of the window's own Files tabs has in its Finder.
-  const finders = useAtomValue(findersByTabAtom);
-  const chosen = draft.chosen ?? [];
-  const includedItems = included
-    ? includedItemsOf(included, finders[included.id] ?? null, chosen)
-    : undefined;
-  const showsIncluded =
-    included !== undefined &&
-    (includedItems === undefined || includedItems.length > 0);
-
-  // What the window has up behind the draft now, when that is something
-  // else: it goes with the message too, in a pill of its own the person can
-  // leave out, so the draft says everything the chat will be told.
-  const behind = behindTabOf(draft, inView);
-  const behindItems = behind
-    ? includedItemsOf(behind, finders[behind.id] ?? null, [
-        ...chosen,
-        ...(includedItems ?? []),
-      ])
-    : undefined;
-  const showsBehind =
-    behind !== undefined &&
-    (behindItems === undefined || behindItems.length > 0);
-
-  // The chips as the press finds them, which the chat's first message is
-  // drawn with, so the transcript shows what went the way the draft did.
-  const volumes = useComputerVolumes();
-  const names = { appsBySlug, ...(volumes ? { volumes } : {}) };
-  const attached = [
-    ...chosen.map(({ kind, path }) => ({
-      items: [{ kind, path }],
-      kind: "paths" as const,
-    })),
-    ...(showsIncluded
-      ? [heldChipOf({ items: includedItems, tab: included }, names)]
-      : []),
-    ...(showsBehind
-      ? [heldChipOf({ items: behindItems, tab: behind }, names)]
-      : []),
-  ];
+  // What the draft carries besides its words, as its chips: the same list
+  // its chat is told at the press (see draftContextItems).
+  const surfaces = useAtomValue(tabSurfaceAtom);
+  const contextItems = draftContextItems({
+    allTabs: windowTabs.allTabs,
+    bandUp: up,
+    chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
+    draft,
+    finderOf: (id) => surfaces[id]?.finder ?? null,
+    group,
+    hrefOfAppTab: (id) =>
+      id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
+    inView,
+  });
+  const leaveOut = (item: ContextItem) => {
+    onChange((current) => {
+      if (item.kind === "chosen") {
+        const left = (current.chosen ?? []).filter(
+          (entry) => entry.path !== item.item.path,
+        );
+        const { chosen: _was, ...rest } = current;
+        return left.length > 0 ? { ...rest, chosen: left } : rest;
+      }
+      return { ...current, leftOut: [...(current.leftOut ?? []), item.key] };
+    });
+  };
 
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.
@@ -328,13 +311,72 @@ export function ComposeWindow({
   const words = useAtomValue(promptDraftAtom(key));
 
   const inputRef = useRef<PromptInputRef>(null);
+
+  // What the box holds is kept with the draft by path. Bytes with no file
+  // behind them (a pasted image, long pasted words) are written to the
+  // draft's own folder as they arrive and kept by that path once written.
+  const staged = useRef(new Map<string, DraftAttachment | null>());
+  const latestItems = useRef<AttachedItem[]>([]);
+  const keepAttached = (items: AttachedItem[]) => {
+    latestItems.current = items;
+    const kept = items.flatMap((item) => {
+      if (item.type === "file" && "content" in item) {
+        const written = staged.current.get(item.id);
+        return written ? [written] : [];
+      }
+      return attachmentOf(item);
+    });
+    onChange((current) => {
+      if (isEqual(current.attached ?? [], kept)) {
+        return current;
+      }
+      const { attached: _was, ...rest } = current;
+      return kept.length > 0 ? { ...rest, attached: kept } : rest;
+    });
+  };
+  const keepItems = (items: AttachedItem[]) => {
+    for (const item of items) {
+      if (
+        item.type !== "file" ||
+        !("content" in item) ||
+        staged.current.has(item.id)
+      ) {
+        continue;
+      }
+      staged.current.set(item.id, null);
+      void rpcClient.drafts.stage
+        .call({
+          content: item.content,
+          draftId: draft.id,
+          itemId: item.id,
+          name: item.name,
+        })
+        .then(({ path, size }) => {
+          staged.current.set(item.id, {
+            kind: "file",
+            mimeType: item.mimeType,
+            name: item.name,
+            path,
+            size,
+          });
+          keepAttached(latestItems.current);
+        })
+        .catch(() => {
+          staged.current.delete(item.id);
+        });
+    }
+    keepAttached(items);
+  };
   // Layout rather than passive effects: on the way in the box's handle is
   // set by then and on the way out it is still there, which a passive
   // cleanup would find already gone.
+  // Past a relaunch only what has a place on disk is left, from the record.
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (snapshot) {
       input?.restore({ ...snapshot, prompt: words });
+    } else if (draft.attached && draft.attached.length > 0) {
+      input?.restore({ items: draft.attached.map(itemOf), prompt: words });
     }
     return () => {
       const kept = input?.snapshot();
@@ -355,32 +397,6 @@ export function ComposeWindow({
   // The head's slot the composer's button row is drawn into. State rather
   // than a ref: the row is a portal, which needs the element to exist.
   const [headSlot, setHeadSlot] = useState<HTMLDivElement | null>(null);
-  // How tall the words are on their own, which is what a docked window grows
-  // with: measured off the editor, whose own box is never clipped (its
-  // scroller is around it), so a squeezed window still knows what the words
-  // would take. A definite height on the window is also what lets the page
-  // and the folder inside the band size themselves against it.
-  const wordsWrapRef = useRef<HTMLDivElement>(null);
-  const [wordsHeight, setWordsHeight] = useState(WORDS_BASE_HEIGHT);
-  useEffect(() => {
-    const editor =
-      wordsWrapRef.current?.querySelector<HTMLElement>(".prompt-editor");
-    if (!editor) {
-      return;
-    }
-    const measure = () => {
-      setWordsHeight(editor.offsetHeight);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(editor);
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-  const dockedHeight =
-    COMPOSE_HEIGHT + Math.max(0, wordsHeight - WORDS_BASE_HEIGHT);
-
   // What the band opens lands in the draft's group and comes up in the band,
   // never on screen behind the window; the caret goes back to the words,
   // which are what the window is for.
@@ -426,11 +442,12 @@ export function ComposeWindow({
   // a draft and opens beside the chat instead. An app is named in the words
   // by mentioning it.
   const openScreen = (href: string) => {
-    const { pathname } = parseHref(href);
+    const { kind } = matchScreen(href);
     if (
-      computerTabOf(href) ||
-      isAppsHref(pathname) ||
-      pathname === parseHref(NEW_TAB_HREF).pathname
+      kind === "computer" ||
+      kind === "apps" ||
+      kind === "app" ||
+      kind === "newTab"
     ) {
       openScreenIn(href);
       return;
@@ -441,59 +458,45 @@ export function ComposeWindow({
     windowTabs.close(id);
   };
 
-  // What the band has up, for the chat the draft starts: a folder or file
-  // is said by the screen drawing it, since only that screen knows where the
-  // browser has walked to.
-  const filesView = useAtomValue(screenViewsAtom)[up?.id ?? ""] ?? null;
-  const onViewChangeEvent = useEffectEvent(onViewChange);
-  const upKind =
-    up === undefined || (up.kind === "screen" && isHomeTab(up))
-      ? "home"
-      : up.kind === "page"
-        ? "page"
-        : computerTabOf(up.href)
-          ? "computer"
-          : "other";
-  useEffect(() => {
-    onViewChangeEvent(
-      upKind === "home"
-        ? { screen: "home" }
-        : upKind === "page"
-          ? { screen: "browser" }
-          : upKind === "computer"
-            ? filesView
-            : null,
-    );
-  }, [upKind, filesView]);
-  useEffect(
-    () => () => {
-      onViewChangeEvent(null);
-    },
-    [],
-  );
   // The element the page is drawn into, held as state so the ref React
   // calls is one stable setter: a callback made afresh each render is
-  // called with null and then the element on every render, and reporting
-  // each of those up re-renders the layout, which renders this again.
+  // called with null and then the element on every render, and each of
+  // those would be said to the browser again. The address row takes the
+  // page's reload and controls, or else the page draws its own bar.
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
-  const onPageHostEvent = useEffectEvent(onPageHost);
-  useEffect(() => {
-    onPageHostEvent(pageHost);
-  }, [pageHost]);
-  useEffect(
-    () => () => {
-      onPageHostEvent(null);
-    },
-    [],
-  );
+  const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
+  usePageHost(group, {
+    chrome: pageChrome ?? true,
+    into: pageHost,
+    isActive: true,
+    layer: COMPOSE_GUEST_LAYER,
+    place: `${placement}:${right}:${width}`,
+  });
 
   // The strip is drawn once there is anything to switch between: a lone
   // new tab is the band's own face rather than a tab.
   // Nothing open yet: the band is only its tiles and the strip under them,
   // so it takes what those need and the words take the rest.
-  const isEmpty = up === undefined || upKind === "home";
+  const isEmpty = up === undefined || (up.kind === "screen" && isHomeTab(up));
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
+  const wordsFill = isEmpty && !showsStrip;
+  const openBrowser = () => {
+    // The caret goes to the new tab's address field, which takes it as it
+    // arrives only while nothing else holds it; the words give it up rather
+    // than taking it back.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    windowTabs.openOrFocusScreen(BROWSER_HREF, {
+      group,
+      isOpened: true,
+      select: true,
+    });
+  };
+  const openNewTab = () => {
+    windowTabs.openScreen(NEW_TAB_HREF, { group, select: true });
+  };
 
   const content = (() => {
     if (isEmpty) {
@@ -508,19 +511,7 @@ export function ComposeWindow({
           onOpenApps={() => {
             openScreenIn(APPS_HREF);
           }}
-          onOpenBrowser={() => {
-            // The caret goes to the new tab's address field, which takes it
-            // as it arrives only while nothing else holds it; the words give
-            // it up rather than taking it back.
-            if (document.activeElement instanceof HTMLElement) {
-              document.activeElement.blur();
-            }
-            windowTabs.openOrFocusScreen(BROWSER_HREF, {
-              group,
-              isOpened: true,
-              select: true,
-            });
-          }}
+          onOpenBrowser={openBrowser}
           onOpenFolder={openFolder}
         />
       );
@@ -529,7 +520,7 @@ export function ComposeWindow({
       <GroupItem
         closeTab={closeTab}
         group={group}
-        onPageChrome={onPageChrome}
+        onPageChrome={setPageChrome}
         onPageHost={setPageHost}
         up={up}
       />
@@ -564,7 +555,7 @@ export function ComposeWindow({
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
       initial={{ opacity: 0, right: isExpanded ? 0 : right, y: 24 }}
-      style={isExpanded ? GROWN : { height: dockedHeight, width }}
+      style={isExpanded ? GROWN : { height: COMPOSE_HEIGHT, width }}
       transition={COMPOSE_MOTION}
     >
       <WindowContext
@@ -596,6 +587,10 @@ export function ComposeWindow({
           openScreen: (href, options) => {
             if (options?.newTab) {
               appWindow.openScreen(href, options);
+              // A grown window would cover the tab brought up behind it.
+              if (isExpanded && !options.behind) {
+                onPlacementChange("docked");
+              }
             } else {
               openScreen(href);
             }
@@ -659,6 +654,11 @@ export function ComposeWindow({
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
+                  {words.trim() !== "" && (
+                    <WindowButton label="Discard draft" onClick={onDiscard}>
+                      <TrashIcon className="size-4" />
+                    </WindowButton>
+                  )}
                   <WindowButton
                     label="Minimize"
                     onClick={() => {
@@ -668,6 +668,7 @@ export function ComposeWindow({
                     <MinusIcon className="size-4" />
                   </WindowButton>
                   <WindowButton
+                    keepsFocus
                     label={isExpanded ? "Shrink" : "Expand"}
                     onClick={() => {
                       onPlacementChange(isExpanded ? "docked" : "expanded");
@@ -689,17 +690,16 @@ export function ComposeWindow({
                   </WindowButton>
                 </div>
               </div>
-              {/* The words give way to the band only once the window can
-                  grow no further: the band keeps a floor, and the words
-                  scroll past what is left. The editor keeps three lines of
-                  its own whatever is attached over it, so a chip or a row of
-                  pasted files takes its room from the band, not the words. */}
+              {/* The words give way to the band: the band keeps a floor,
+                  and the words scroll past what is left. The editor keeps
+                  three lines of its own whatever is attached over it, so a
+                  chip or a row of pasted files takes its room from the band,
+                  not the words. */}
               <div
                 className={cn(
                   "flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6",
-                  isEmpty && !showsStrip && "flex-1",
+                  wordsFill && "flex-1",
                 )}
-                ref={wordsWrapRef}
               >
                 <PromptInput
                   actionsInto={headSlot}
@@ -710,69 +710,28 @@ export function ComposeWindow({
                     marked.length > 0 ? <AskPills asks={marked} /> : undefined
                   }
                   autoFocus
-                  autoResizeMaxHeight={WORDS_MAX_HEIGHT}
+                  // Over the tiles alone the words take all the room the
+                  // window has, and scroll only past that.
+                  autoResizeMaxHeight={wordsFill ? null : WORDS_MAX_HEIGHT}
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
+                  onItemsChange={keepItems}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.
                   isLoading={false}
                   lead={
-                    chosen.length > 0 || showsIncluded || showsBehind ? (
-                      <>
-                        {chosen.map((item) => (
-                          <ChosenChip
-                            item={item}
-                            key={item.path}
-                            onLeaveOut={() => {
-                              onChange((current) => {
-                                const { chosen: kept = [], ...rest } = current;
-                                const left = kept.filter(
-                                  (entry) => entry.path !== item.path,
-                                );
-                                return left.length > 0
-                                  ? { ...rest, chosen: left }
-                                  : rest;
-                              });
-                            }}
-                          />
-                        ))}
-                        {showsIncluded && (
-                          <IncludedChip
-                            appsBySlug={appsBySlug}
-                            items={includedItems}
-                            onLeaveOut={() => {
-                              onChange((current) => {
-                                const { included: _left, ...rest } = current;
-                                return rest;
-                              });
-                            }}
-                            tab={included}
-                          />
-                        )}
-                        {showsBehind && (
-                          <IncludedChip
-                            appsBySlug={appsBySlug}
-                            items={behindItems}
-                            onLeaveOut={() => {
-                              onChange((current) => ({
-                                ...current,
-                                leftBehind: [
-                                  ...(current.leftBehind ?? []),
-                                  behind.id,
-                                ],
-                              }));
-                            }}
-                            tab={behind}
-                          />
-                        )}
-                      </>
+                    contextItems.length > 0 ? (
+                      <ContextChips
+                        items={contextItems}
+                        onLeaveOut={leaveOut}
+                      />
                     ) : undefined
                   }
                   modelURI={modelURI}
                   onModelChange={onModelChange}
                   onSubmit={(send) => {
-                    onStart({ ...send, attached });
+                    onStart(send);
                   }}
                   placeholder="What do you need?"
                   ref={inputRef}
@@ -784,24 +743,21 @@ export function ComposeWindow({
               <div
                 className={cn(
                   "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
-                  isEmpty && !showsStrip ? "shrink-0" : "min-h-80 flex-1",
+                  wordsFill ? "shrink-0" : "min-h-80 flex-1",
                 )}
               >
                 {showsStrip && (
                   // The tab on screen in the card's color, so it reads as
-                  // the top of the card under it rather than as the floor.
-                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)]">
+                  // the top of the card under it rather than as the floor. In
+                  // dark the floor is the page's own color, so the tab is
+                  // lifted to the card's.
+                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)] dark:[--background:var(--card)]">
                     <WindowTabStrip
                       chatTitles={NO_TITLES}
                       childTitles={NO_TITLES}
                       groupKey={group}
                       onClose={closeTab}
-                      onNew={() => {
-                        windowTabs.openScreen(NEW_TAB_HREF, {
-                          group,
-                          select: true,
-                        });
-                      }}
+                      onNew={openNewTab}
                       onReorder={(keys) => {
                         windowTabs.reorder(keys, group);
                       }}
@@ -825,13 +781,19 @@ export function ComposeWindow({
   );
 }
 
-/** One of a window's own buttons: minimize, expand, close. */
+/**
+ * One of a window's own buttons: discard, minimize, expand, close. One that
+ * `keepsFocus` takes no focus when pressed, so the caret stays in the words
+ * while the window changes around them.
+ */
 export function WindowButton({
   children,
+  keepsFocus = false,
   label,
   onClick,
 }: {
   children: ReactNode;
+  keepsFocus?: boolean;
   label: string;
   onClick: () => void;
 }) {
@@ -841,6 +803,13 @@ export function WindowButton({
         aria-label={label}
         className="size-7 text-muted-foreground hover:text-foreground"
         onClick={onClick}
+        onMouseDown={
+          keepsFocus
+            ? (event) => {
+                event.preventDefault();
+              }
+            : undefined
+        }
         size="icon-sm"
         variant="ghost"
       >

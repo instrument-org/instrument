@@ -5,7 +5,7 @@ import { alphabetical } from "radashi";
 import { type AnyAgent } from "../agents/types";
 import { SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
 import {
@@ -32,7 +32,6 @@ import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning
 import { sanitizeModelText } from "./sanitize-model-text";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
-import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * Marks a message said for this request only and kept nowhere. A model that
@@ -40,7 +39,7 @@ import { getWorkspaceConfig } from "./workspace-config";
  * sends it with the turn but does not count it as part of what it has seen,
  * since the next request leaves it out or says it differently.
  */
-const TRANSIENT = { instrument: { transient: true } };
+export const TRANSIENT = { instrument: { transient: true } };
 
 /**
  * The shape of the session baseline this build writes.
@@ -53,23 +52,23 @@ const TRANSIENT = { instrument: { transient: true } };
  * message it was opened with for the rest of its life.
  */
 
-export const SESSION_CONTEXT_VERSION = 40;
+export const SESSION_CONTEXT_VERSION = 41;
 
 export async function prepareModelMessages({
   agent,
   model,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const messageResults = await Store.getMessagesWithParts(
-    { sessionId, taskId },
+    { sessionId, chatId },
     { signal },
   );
 
@@ -101,7 +100,7 @@ export async function prepareModelMessages({
   // window: a reported count from before a reset describes a request that is no
   // longer being sent, and taking it at face value would roll the session over
   // again on every turn, eating another slice of history each time.
-  const sessionResult = await Store.getSession(sessionId, taskId, { signal });
+  const sessionResult = await Store.getSession(sessionId, chatId, { signal });
   const session = sessionResult.isOk() ? sessionResult.value : undefined;
 
   const contextLength = effectiveContextLength(model);
@@ -132,7 +131,7 @@ export async function prepareModelMessages({
         },
         type: "data-modelChange",
       },
-      taskId,
+      chatId,
       { signal },
     );
   }
@@ -215,7 +214,7 @@ export async function prepareModelMessages({
           rolledOverAfterMessageId: newest.id,
           rolledOverUnderUsableTokens: usable,
         },
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -250,13 +249,13 @@ export async function prepareModelMessages({
             },
             type: "data-contextRollover",
           },
-          taskId,
+          chatId,
           { signal },
         );
 
         // The whole of memory was told on a message the cut just dropped, so
         // the chat's next message tells it again.
-        await resetMemoryReported({ sessionId, taskId });
+        await resetMemoryReported({ sessionId, chatId });
       }
     }
   }
@@ -293,12 +292,16 @@ export async function prepareModelMessages({
   if (contextMessages.length === 0 || hasOutdatedBaseline) {
     // Replaced rather than added to: two baselines in the store are two
     // baselines in every later request, and the superseded one would keep being
-    // sent for the rest of the session.
-    for (const message of contextMessages) {
+    // sent for the rest of the session. A task's inherited baseline belongs to
+    // its chat, which replaces it on its own next turn, so only this session's
+    // own are removed.
+    for (const message of contextMessages.filter(
+      (stored) => stored.metadata.sessionId === sessionId,
+    )) {
       const removeResult = await Store.removeMessage(
         message.id,
         message.metadata.sessionId,
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -309,7 +312,7 @@ export async function prepareModelMessages({
 
     const builtContextMessages = await agent.getMessages({
       sessionId,
-      taskId,
+      chatId,
     });
 
     const newContextMessages = builtContextMessages.map((message) => ({
@@ -322,7 +325,7 @@ export async function prepareModelMessages({
 
     const saveResults = await Promise.all(
       newContextMessages.map((message) =>
-        Store.saveMessageWithParts(message, taskId, { signal }),
+        Store.saveMessageWithParts(message, chatId, { signal }),
       ),
     );
 
@@ -345,24 +348,11 @@ export async function prepareModelMessages({
     model,
   });
 
-  if (portableMessagesResult.redactedReasoningDetailsCount > 0) {
-    getWorkspaceConfig().captureEvent("llm.reasoning_details_redacted", {
-      modelId: model.canonicalId,
-      providerId: model.params.provider,
-      redacted_message_count: portableMessagesResult.redactedMessageCount,
-      redacted_reasoning_details_count:
-        portableMessagesResult.redactedReasoningDetailsCount,
-      source_model_ids: portableMessagesResult.sourceModelIds,
-      source_provider_ids: portableMessagesResult.sourceProviderIds,
-    });
-  }
-
   // Including all tools so they can run their toModelOutput even if they are
   // not used in this session
   const modelMessages = await SessionMessage.toModelMessages(
     portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
-    { agentName: agent.name },
   );
 
   const nonEmptyModelMessages = modelMessages.filter(
@@ -417,7 +407,7 @@ export async function prepareModelMessages({
   // the first one after.
   if (nonContextMessages.length < allNonContextMessages.length) {
     preparedMessages.push({
-      content: contextRolloverNotice(await readHandoffNotes(taskId)),
+      content: contextRolloverNotice(await readHandoffNotes(chatId)),
       providerOptions: TRANSIENT,
       role: "user",
     });

@@ -6,32 +6,26 @@ import {
   type ModelCache,
   type ReportPlatformRefusal,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
+import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
-import { type TaskId, TaskIdSchema } from "./schemas/task-id";
 import { type WebSearchClient } from "./schemas/web-search";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
-    id: TaskId,
-    sessionId: StoreId.Session,
+    targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
-  ) => Promise<{ targetId: BrowserTargetId }>;
-  getTargetMeta: (targetId: BrowserTargetId) => null | {
-    id: TaskId;
-    partitionDir: AbsolutePath;
-    sessionId: StoreId.Session;
-  };
+  ) => Promise<void>;
+  getTargetMeta: (
+    targetId: BrowserTargetId,
+  ) => null | { partitionDir: AbsolutePath };
   /**
    * The address of the document in the guest's main frame, as the main process
    * saw it arrive; undefined for a target with no live guest. What the CDP
@@ -50,15 +44,26 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
-  listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   /**
-   * Whether ads and trackers are blocked in this task's tabs: off when the
-   * person turned blocking off for the workspace, or when the task set
-   * `blocking: false` for itself. The task's setting lasts until the app quits
-   * and never touches the person's.
+   * Whether the guest is in the middle of something its page cannot get
+   * back after a reload: playing sound, downloading, or open in DevTools.
+   */
+  isGuestBusy: (targetId: BrowserTargetId) => boolean;
+  listTargets: () => Promise<BrowserTarget[]>;
+  /**
+   * Told just before a blank guest is navigated back to the page its tab was
+   * last on (`restoreLastPage`), so the browser's history can tell reopening
+   * a page from visiting it.
+   */
+  noteRestore?: (targetId: BrowserTargetId, url: string) => void;
+  /**
+   * Whether ads and trackers are blocked in the tabs an agent drives: off
+   * when the person turned blocking off for the workspace, or when the agent
+   * set `blocking: false` for those tabs. The agent's setting lasts until the
+   * app quits and never touches the person's.
    */
   contentBlocking: (
-    id: TaskId,
+    targets: readonly BrowserTargetId[],
     blocking?: boolean,
   ) => { task: boolean; workspace: boolean };
   onTargetDestroyed: (
@@ -101,48 +106,11 @@ export interface BrowserTarget {
   url: string;
 }
 
-// The bridge routing key for a single browser view: a (id, sessionId)
-// tuple encoded as `${id}/${sessionId}`. The schema delegates to the
-// existing TaskId and StoreId.Session validators so a parse failure
-// pinpoints the offending half. Use `encodeBrowserTargetId` /
-// `decodeBrowserTargetId` to construct or parse one; never build by hand.
-export const BrowserTargetIdSchema = z
-  .custom<`${TaskId}/${StoreId.Session}`>()
-  .superRefine((val, ctx) => {
-    if (typeof val !== "string") {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message: "BrowserTargetId must be a string",
-      });
-      return;
-    }
-    const slash = val.indexOf("/");
-    if (slash <= 0 || slash === val.length - 1) {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message:
-          "BrowserTargetId must be `${id}/${sessionId}` with both halves non-empty",
-      });
-      return;
-    }
-    const taskIdResult = TaskIdSchema.safeParse(val.slice(0, slash));
-    if (!taskIdResult.success) {
-      for (const issue of taskIdResult.error.issues) {
-        ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
-      }
-    }
-    const sessionResult = StoreId.SessionSchema.safeParse(val.slice(slash + 1));
-    if (!sessionResult.success) {
-      for (const issue of sessionResult.error.issues) {
-        ctx.addIssue({ ...issue, path: ["sessionId", ...issue.path] });
-      }
-    }
-  })
-  .brand("BrowserTargetId");
+// The bridge routing key for one browser view: the id of the window tab it
+// is drawn in, which is a session id. Branded apart from a session id so a
+// chat's or task's session is never taken for a tab.
+export const BrowserTargetIdSchema =
+  StoreId.SessionSchema.brand("BrowserTargetId");
 
 export type BrowserTargetId = z.output<typeof BrowserTargetIdSchema>;
 
@@ -164,9 +132,12 @@ export interface WorkspaceAppsConfig {
    * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
    * store. Optional so headless and test contexts run without sign-in. The
    * redirect URL is read per sign-in, from the port the callback server bound.
+   * The relay redirect is where a vendor sends back a sign-in made with
+   * Instrument's own client for `service`, on its way to that same port.
    */
   oauth?: {
     redirectUrl: () => string;
+    relayRedirectUrl: (service: string) => string;
     store: McpOAuthStore;
   };
 }
@@ -174,13 +145,30 @@ export interface WorkspaceAppsConfig {
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
+  /**
+   * The file this workspace's record of the model requests it made is kept
+   * in, inside the workspace's own `.instrument` folder. Absent where nothing
+   * should persist (tests, scripts), and then nothing is recorded.
+   */
+  aiUsageFile?: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
-  captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
-  defaultTaskTemplateDir: AbsolutePath;
+  chatTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
+  /**
+   * What the Finder knows about a folder's entries beyond what `stat` says
+   * (packages, hidden extensions, hidden entries), for the file browser's
+   * listing. Absent off macOS and in builds without the Mac module.
+   */
+  finderEntries?: (folder: string) => Promise<FinderEntry[]>;
+  /**
+   * Where a Finder alias leads, for the file browser to follow one as it
+   * follows a symbolic link; undefined for a path that is not an alias.
+   * Absent off macOS and in builds without the Mac module.
+   */
+  resolveAlias?: (path: string) => Promise<string | undefined>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
@@ -206,11 +194,16 @@ export interface WorkspaceConfig {
    * expires.
    */
   refreshExpiredCredentials?: AIGatewayEnv["Variables"]["refreshExpiredCredentials"];
-  // Read per invocation rather than captured at boot: the flag is a live store
-  // the user can toggle from Settings, and this config is built once.
-  isExternalBrowserEnabled: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
+  /**
+   * Whether native commands (node, python, uv, pnpm, ffmpeg, git,
+   * osascript) are held to Settings › Permissions with Seatbelt on macOS. A
+   * plain flag, because native commands run in the bash worker, which is sent
+   * a snapshot of the config with each command. Off, native commands run
+   * unwrapped, as they do off macOS.
+   */
+  nativeSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
   /** Told about each hosted request our platform refused (no plan, a spent window). */
   reportPlatformRefusal?: ReportPlatformRefusal;
@@ -222,19 +215,46 @@ export interface WorkspaceConfig {
   preparedSkillsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  // Where every chat's folder is, `chats/` under the root.
+  chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
-  tasksDir: AbsolutePath;
+  // Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
+  // migration reads, and names a new chat stays clear of while a folder
+  // there waits to move.
+  legacyTasksDir: AbsolutePath;
+  /**
+   * The system's temp folders, which the agent writes with no card. Absent,
+   * they are the system's own (`/tmp`, `/var/tmp` and `os.tmpdir()`). A test
+   * names none: its fixtures live in the system's temp folder and stand for
+   * folders outside every one the agent reaches.
+   */
+  tempFolders?: readonly AbsolutePath[];
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
-  // The bundled Mac helper behind the `calendar` and `contacts` commands; absent off
-  // macOS and in builds that do not carry it.
+  // The bundled Mac helper behind the `calendar` and `contacts` commands and
+  // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
+  // Where the system keeps the person's own folders, which is not always under
+  // the home folder by its English name: Windows moves Desktop and Documents
+  // into OneDrive, and Linux names them in the desktop's language.
+  knownFolders?: Record<KnownFolder, string>;
+  // The app's folder on PATH that links `node`, `pnpm`, `uv` and the rest,
+  // which a package script or bin shim finds `node` through. Native commands
+  // may read it whatever the rules say about the folder it sits in.
+  toolBinDir?: AbsolutePath;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
-  // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
+  // app's userData so uv never writes into the person's home.
   uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }
+export type KnownFolder =
+  | "desktop"
+  | "documents"
+  | "downloads"
+  | "music"
+  | "pictures"
+  | "videos";
 type CdpMethod = keyof ProtocolMapping.Commands;
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]["paramsType"];
 
@@ -252,23 +272,13 @@ type CdpSendArgs<M extends CdpMethod> =
         ? [params?: P]
         : never;
 
-export function decodeBrowserTargetId(
-  targetId: string,
-): null | { id: TaskId; sessionId: StoreId.Session } {
-  const result = BrowserTargetIdSchema.safeParse(targetId);
-  if (!result.success) {
-    return null;
-  }
-  const slash = result.data.indexOf("/");
-  return {
-    id: result.data.slice(0, slash) as TaskId,
-    sessionId: result.data.slice(slash + 1) as StoreId.Session,
-  };
+/** The browser view drawn in the window tab with this id. */
+export function browserTargetOf(tabId: StoreId.Session): BrowserTargetId {
+  return BrowserTargetIdSchema.parse(tabId);
 }
 
-export function encodeBrowserTargetId(
-  id: TaskId,
-  sessionId: StoreId.Session,
-): BrowserTargetId {
-  return BrowserTargetIdSchema.parse(`${id}/${sessionId}`);
+/** A browser view's id from a string that may not be one, or null. */
+export function parseBrowserTargetId(value: string): BrowserTargetId | null {
+  const result = BrowserTargetIdSchema.safeParse(value);
+  return result.success ? result.data : null;
 }

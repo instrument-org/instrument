@@ -15,13 +15,11 @@ import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
 import { Route as DebugBillingRouteImport } from './routes/debug/billing'
-import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
-import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
-import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
@@ -31,12 +29,12 @@ import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
 import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
-import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
-import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
+import { Route as AppTasksSessionIdRouteImport } from './routes/_app/tasks/$sessionId'
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
 import { Route as DebugComponentsAppIconsRouteImport } from './routes/debug/components/app-icons'
 import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
+import { Route as DebugComponentsElevationRouteImport } from './routes/debug/components/elevation'
 import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
 import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
 import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
@@ -45,6 +43,7 @@ import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/co
 import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
 import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
 import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
+import { Route as DebugComponentsToastsRouteImport } from './routes/debug/components/toasts'
 import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
 import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
 import { Route as DebugComponentsOnboardingIndexRouteImport } from './routes/debug/components/onboarding/index'
@@ -82,6 +81,11 @@ const AppFilesRoute = AppFilesRouteImport.update({
   path: '/files',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppNewTabRoute = AppNewTabRouteImport.update({
+  id: '/new-tab',
+  path: '/new-tab',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
   path: '/release-notes',
@@ -97,24 +101,9 @@ const DebugBillingRoute = DebugBillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => DebugRouteRoute,
 } as any)
-const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
-  id: '/browser-views',
-  path: '/browser-views',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
 const DebugComponentsRoute = DebugComponentsRouteImport.update({
   id: '/components',
   path: '/components',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugErrorsRoute = DebugErrorsRouteImport.update({
-  id: '/errors',
-  path: '/errors',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
@@ -162,17 +151,11 @@ const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   path: '/tasks/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppTasksIdRoute = AppTasksIdRouteImport.update({
-  id: '/tasks/$id',
-  path: '/tasks/$id',
+const AppTasksSessionIdRoute = AppTasksSessionIdRouteImport.update({
+  id: '/tasks/$sessionId',
+  path: '/tasks/$sessionId',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const DebugBrowserViewTargetIdRoute =
-  DebugBrowserViewTargetIdRouteImport.update({
-    id: '/browser-view/$targetId',
-    path: '/browser-view/$targetId',
-    getParentRoute: () => DebugRouteRoute,
-  } as any)
 const DebugComponentsIndexRoute = DebugComponentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -193,6 +176,12 @@ const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
   path: '/colors',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
+const DebugComponentsElevationRoute =
+  DebugComponentsElevationRouteImport.update({
+    id: '/elevation',
+    path: '/elevation',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
 const DebugComponentsErrorCardRoute =
   DebugComponentsErrorCardRouteImport.update({
     id: '/error-card',
@@ -237,6 +226,11 @@ const DebugComponentsQuestionRoute = DebugComponentsQuestionRouteImport.update({
 const DebugComponentsSpinnerRoute = DebugComponentsSpinnerRouteImport.update({
   id: '/spinner',
   path: '/spinner',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
+const DebugComponentsToastsRoute = DebugComponentsToastsRouteImport.update({
+  id: '/toasts',
+  path: '/toasts',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
 const DebugComponentsTranscriptRoute =
@@ -288,12 +282,10 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
+  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/billing': typeof DebugBillingRoute
-  '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/debug/errors': typeof DebugErrorsRoute
-  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
@@ -301,11 +293,11 @@ export interface FileRoutesByFullPath {
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
-  '/tasks/$id': typeof AppTasksIdRoute
-  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
+  '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
@@ -314,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps/': typeof AppAppsIndexRoute
@@ -330,11 +323,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
+  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/billing': typeof DebugBillingRoute
-  '/debug/browser-views': typeof DebugBrowserViewsRoute
-  '/debug/errors': typeof DebugErrorsRoute
-  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug': typeof DebugIndexRoute
@@ -342,11 +333,11 @@ export interface FileRoutesByTo {
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
-  '/tasks/$id': typeof AppTasksIdRoute
-  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
+  '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
@@ -354,6 +345,7 @@ export interface FileRoutesByTo {
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps': typeof AppAppsIndexRoute
@@ -374,12 +366,10 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
+  '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/debug/billing': typeof DebugBillingRoute
-  '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/debug/errors': typeof DebugErrorsRoute
-  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
@@ -387,11 +377,11 @@ export interface FileRoutesById {
   '/_app/apps/$slug': typeof AppAppsSlugRoute
   '/_app/chats/$id': typeof AppChatsIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
-  '/_app/tasks/$id': typeof AppTasksIdRoute
-  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
+  '/_app/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
@@ -400,6 +390,7 @@ export interface FileRoutesById {
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/_app/apps/': typeof AppAppsIndexRoute
@@ -420,12 +411,10 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/browser'
     | '/files'
+    | '/new-tab'
     | '/release-notes'
     | '/debug/billing'
-    | '/debug/browser-views'
     | '/debug/components'
-    | '/debug/errors'
-    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug/'
@@ -433,11 +422,11 @@ export interface FileRouteTypes {
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
-    | '/tasks/$id'
-    | '/debug/browser-view/$targetId'
+    | '/tasks/$sessionId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
@@ -446,6 +435,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
+    | '/debug/components/toasts'
     | '/debug/components/transcript'
     | '/debug/components/typography'
     | '/apps/'
@@ -462,11 +452,9 @@ export interface FileRouteTypes {
     | '/'
     | '/browser'
     | '/files'
+    | '/new-tab'
     | '/release-notes'
     | '/debug/billing'
-    | '/debug/browser-views'
-    | '/debug/errors'
-    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug'
@@ -474,11 +462,11 @@ export interface FileRouteTypes {
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
-    | '/tasks/$id'
-    | '/debug/browser-view/$targetId'
+    | '/tasks/$sessionId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
@@ -486,6 +474,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
+    | '/debug/components/toasts'
     | '/debug/components/transcript'
     | '/debug/components/typography'
     | '/apps'
@@ -505,12 +494,10 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/_app/browser'
     | '/_app/files'
+    | '/_app/new-tab'
     | '/_app/release-notes'
     | '/debug/billing'
-    | '/debug/browser-views'
     | '/debug/components'
-    | '/debug/errors'
-    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug/'
@@ -518,11 +505,11 @@ export interface FileRouteTypes {
     | '/_app/apps/$slug'
     | '/_app/chats/$id'
     | '/_app/sites/$id'
-    | '/_app/tasks/$id'
-    | '/debug/browser-view/$targetId'
+    | '/_app/tasks/$sessionId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
@@ -531,6 +518,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
+    | '/debug/components/toasts'
     | '/debug/components/transcript'
     | '/debug/components/typography'
     | '/_app/apps/'
@@ -595,6 +583,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/new-tab': {
+      id: '/_app/new-tab'
+      path: '/new-tab'
+      fullPath: '/new-tab'
+      preLoaderRoute: typeof AppNewTabRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/release-notes': {
       id: '/_app/release-notes'
       path: '/release-notes'
@@ -616,32 +611,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugBillingRouteImport
       parentRoute: typeof DebugRouteRoute
     }
-    '/debug/browser-views': {
-      id: '/debug/browser-views'
-      path: '/browser-views'
-      fullPath: '/debug/browser-views'
-      preLoaderRoute: typeof DebugBrowserViewsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
     '/debug/components': {
       id: '/debug/components'
       path: '/components'
       fullPath: '/debug/components'
       preLoaderRoute: typeof DebugComponentsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/errors': {
-      id: '/debug/errors'
-      path: '/errors'
-      fullPath: '/debug/errors'
-      preLoaderRoute: typeof DebugErrorsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/notifications': {
-      id: '/debug/notifications'
-      path: '/notifications'
-      fullPath: '/debug/notifications'
-      preLoaderRoute: typeof DebugNotificationsRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/onboarding/': {
@@ -707,19 +681,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/tasks/$id': {
-      id: '/_app/tasks/$id'
-      path: '/tasks/$id'
-      fullPath: '/tasks/$id'
-      preLoaderRoute: typeof AppTasksIdRouteImport
+    '/_app/tasks/$sessionId': {
+      id: '/_app/tasks/$sessionId'
+      path: '/tasks/$sessionId'
+      fullPath: '/tasks/$sessionId'
+      preLoaderRoute: typeof AppTasksSessionIdRouteImport
       parentRoute: typeof AppRouteRoute
-    }
-    '/debug/browser-view/$targetId': {
-      id: '/debug/browser-view/$targetId'
-      path: '/browser-view/$targetId'
-      fullPath: '/debug/browser-view/$targetId'
-      preLoaderRoute: typeof DebugBrowserViewTargetIdRouteImport
-      parentRoute: typeof DebugRouteRoute
     }
     '/debug/components/': {
       id: '/debug/components/'
@@ -747,6 +714,13 @@ declare module '@tanstack/react-router' {
       path: '/colors'
       fullPath: '/debug/components/colors'
       preLoaderRoute: typeof DebugComponentsColorsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/elevation': {
+      id: '/debug/components/elevation'
+      path: '/elevation'
+      fullPath: '/debug/components/elevation'
+      preLoaderRoute: typeof DebugComponentsElevationRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
     '/debug/components/error-card': {
@@ -805,6 +779,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsSpinnerRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/toasts': {
+      id: '/debug/components/toasts'
+      path: '/toasts'
+      fullPath: '/debug/components/toasts'
+      preLoaderRoute: typeof DebugComponentsToastsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/transcript': {
       id: '/debug/components/transcript'
       path: '/transcript'
@@ -860,11 +841,12 @@ declare module '@tanstack/react-router' {
 interface AppRouteRouteChildren {
   AppBrowserRoute: typeof AppBrowserRoute
   AppFilesRoute: typeof AppFilesRoute
+  AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppAppsSlugRoute: typeof AppAppsSlugRoute
   AppChatsIdRoute: typeof AppChatsIdRoute
   AppSitesIdRoute: typeof AppSitesIdRoute
-  AppTasksIdRoute: typeof AppTasksIdRoute
+  AppTasksSessionIdRoute: typeof AppTasksSessionIdRoute
   AppAppsIndexRoute: typeof AppAppsIndexRoute
   AppChatsIndexRoute: typeof AppChatsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
@@ -873,11 +855,12 @@ interface AppRouteRouteChildren {
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppBrowserRoute: AppBrowserRoute,
   AppFilesRoute: AppFilesRoute,
+  AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppAppsSlugRoute: AppAppsSlugRoute,
   AppChatsIdRoute: AppChatsIdRoute,
   AppSitesIdRoute: AppSitesIdRoute,
-  AppTasksIdRoute: AppTasksIdRoute,
+  AppTasksSessionIdRoute: AppTasksSessionIdRoute,
   AppAppsIndexRoute: AppAppsIndexRoute,
   AppChatsIndexRoute: AppChatsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,
@@ -915,6 +898,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
   DebugComponentsAppIconsRoute: typeof DebugComponentsAppIconsRoute
   DebugComponentsColorsRoute: typeof DebugComponentsColorsRoute
+  DebugComponentsElevationRoute: typeof DebugComponentsElevationRoute
   DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
   DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
   DebugComponentsFormElementsRoute: typeof DebugComponentsFormElementsRoute
@@ -923,6 +907,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsProviderIconsRoute: typeof DebugComponentsProviderIconsRoute
   DebugComponentsQuestionRoute: typeof DebugComponentsQuestionRoute
   DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
+  DebugComponentsToastsRoute: typeof DebugComponentsToastsRoute
   DebugComponentsTranscriptRoute: typeof DebugComponentsTranscriptRoute
   DebugComponentsTypographyRoute: typeof DebugComponentsTypographyRoute
   DebugComponentsIndexRoute: typeof DebugComponentsIndexRoute
@@ -932,6 +917,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsAlertsRoute: DebugComponentsAlertsRoute,
   DebugComponentsAppIconsRoute: DebugComponentsAppIconsRoute,
   DebugComponentsColorsRoute: DebugComponentsColorsRoute,
+  DebugComponentsElevationRoute: DebugComponentsElevationRoute,
   DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,
   DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,
   DebugComponentsFormElementsRoute: DebugComponentsFormElementsRoute,
@@ -940,6 +926,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsProviderIconsRoute: DebugComponentsProviderIconsRoute,
   DebugComponentsQuestionRoute: DebugComponentsQuestionRoute,
   DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,
+  DebugComponentsToastsRoute: DebugComponentsToastsRoute,
   DebugComponentsTranscriptRoute: DebugComponentsTranscriptRoute,
   DebugComponentsTypographyRoute: DebugComponentsTypographyRoute,
   DebugComponentsIndexRoute: DebugComponentsIndexRoute,
@@ -951,22 +938,14 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 
 interface DebugRouteRouteChildren {
   DebugBillingRoute: typeof DebugBillingRoute
-  DebugBrowserViewsRoute: typeof DebugBrowserViewsRoute
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
-  DebugErrorsRoute: typeof DebugErrorsRoute
-  DebugNotificationsRoute: typeof DebugNotificationsRoute
   DebugIndexRoute: typeof DebugIndexRoute
-  DebugBrowserViewTargetIdRoute: typeof DebugBrowserViewTargetIdRoute
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
   DebugBillingRoute: DebugBillingRoute,
-  DebugBrowserViewsRoute: DebugBrowserViewsRoute,
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
-  DebugErrorsRoute: DebugErrorsRoute,
-  DebugNotificationsRoute: DebugNotificationsRoute,
   DebugIndexRoute: DebugIndexRoute,
-  DebugBrowserViewTargetIdRoute: DebugBrowserViewTargetIdRoute,
 }
 
 const DebugRouteRouteWithChildren = DebugRouteRoute._addFileChildren(

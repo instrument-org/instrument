@@ -1,9 +1,12 @@
-import { APP_NAME } from "@instrument-org/shared";
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+import { openSettings } from "../atoms/settings-modal";
+
+vi.mock("../atoms/settings-modal", () => ({ openSettings: vi.fn() }));
 
 import { MessageError } from "./message-error";
 import { TooltipProvider } from "./ui/tooltip";
@@ -18,7 +21,7 @@ vi.mock("@/client/rpc/client", () => ({
       live: {
         hasToken: {
           experimental_liveOptions: () => ({
-            queryFn: () => Promise.resolve(false),
+            queryFn: () => Promise.resolve(true),
             queryKey: ["auth", "hasToken"],
           }),
         },
@@ -29,7 +32,16 @@ vi.mock("@/client/rpc/client", () => ({
         live: {
           list: {
             experimental_liveOptions: () => ({
-              queryFn: () => Promise.resolve({ models: [] }),
+              queryFn: () =>
+                Promise.resolve({
+                  models: [
+                    {
+                      uri: "auto?provider=instrument",
+                      providerId: OUR_MODELS.text.id,
+                      name: "Auto",
+                    },
+                  ],
+                }),
               queryKey: ["gateway", "models"],
             }),
           },
@@ -87,12 +99,14 @@ function renderError({
   isDeveloperMode = false,
   isLastMessage = true,
   provider = OUR_MODELS.providerType,
+  onModelChange = vi.fn(),
 }: {
   error?: MessageErrorData;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   provider?: null | string;
+  onModelChange?: (uri: string) => void;
 }) {
   return renderWithProviders(
     <TooltipProvider>
@@ -101,7 +115,7 @@ function renderError({
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         message={messageWithError(error, provider)}
-        onModelChange={vi.fn()}
+        onModelChange={onModelChange}
         onRunAgain={vi.fn()}
       />
     </TooltipProvider>,
@@ -109,6 +123,48 @@ function renderError({
 }
 
 describe("MessageError", () => {
+  it.each(["claude-account", "chatgpt-account"])(
+    "recovers %s with the explicit Auto model",
+    async (provider) => {
+      const onModelChange = vi.fn();
+      renderError({
+        provider,
+        onModelChange,
+        error: {
+          classification: "usage-limit",
+          kind: "unknown",
+          message: "Limit reached",
+        },
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Switch to Auto" }),
+        ).not.toBeNull(),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Switch to Auto" }));
+      expect(onModelChange).toHaveBeenCalledExactlyOnceWith(
+        "auto?provider=instrument",
+      );
+    },
+  );
+
+  it("opens Claude's usage limits directly", () => {
+    renderError({
+      error: {
+        classification: "usage-limit",
+        kind: "unknown",
+        message: "Weekly limit reached",
+      },
+      provider: "claude-account",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "View usage limits" }));
+    expect(openSettings).toHaveBeenCalledWith({
+      tab: "Providers",
+      setting: "claude-account",
+      providerUsage: "claude-account",
+    });
+  });
+
   it("keeps the provider's own text out of the transcript", () => {
     const { container } = renderError({});
 
@@ -226,10 +282,12 @@ describe("MessageError", () => {
     });
 
     expect(screen.getByText("ChatGPT is out of usage for now")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "View usage limits" }),
+    ).not.toBeNull();
   });
 
-  it("offers Instrument when the Claude account's limit was reached", async () => {
+  it("offers Auto when the Claude account's limit was reached", async () => {
     renderError({
       error: {
         classification: "usage-limit",
@@ -244,7 +302,7 @@ describe("MessageError", () => {
 
     expect(screen.getByText("Claude usage limit reached")).not.toBeNull();
     expect(
-      await screen.findByRole("button", { name: `Try ${APP_NAME}` }),
+      await screen.findByRole("button", { name: "Switch to Auto" }),
     ).not.toBeNull();
   });
 
@@ -278,17 +336,23 @@ describe("MessageError", () => {
         line: "Stopped: you've reached your plan's limit for now.",
         statusCode: 429,
       },
-    ])("ends the turn on one line for $body.code", ({ body, line, statusCode }) => {
-      renderError({ error: refusal(body, statusCode) });
+    ])(
+      "ends the turn on one line for $body.code",
+      ({ body, line, statusCode }) => {
+        renderError({ error: refusal(body, statusCode) });
 
-      expect(screen.getByText(line)).not.toBeNull();
-      expect(screen.queryByRole("alert")).toBeNull();
-      expect(screen.queryByRole("button")).toBeNull();
-    });
+        expect(screen.getByText(line)).not.toBeNull();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.queryByRole("button")).toBeNull();
+      },
+    );
 
     it("keeps the line once the chat has moved on", () => {
       renderError({
-        error: refusal({ code: "subscription-required", reason: "no-plan" }, 402),
+        error: refusal(
+          { code: "subscription-required", reason: "no-plan" },
+          402,
+        ),
         isLastMessage: false,
       });
 

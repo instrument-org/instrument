@@ -1,6 +1,6 @@
 # Token cost per task: where it goes and what would move it
 
-**Status:** open. Baseline measured once, 2026-09-24, over one developer's local task history. The ranked list is the live part; each item names how it would be validated. Two direct fixes from this pass landed (reasoning replay for current OpenAI models, cache-aware eval cost); nothing prompt-side has moved (checked 2026-10-02: the `bash` description still carries the `IMPORTANT:` blocks the system-prompt pass below proposes rewriting).
+**Status:** open. Baseline measured once, 2026-09-24, over one developer's local task history. The ranked list is the live part; each item names how it would be validated. Two direct fixes from this pass landed (reasoning replay for current OpenAI models, cache-aware eval cost); nothing prompt-side has moved (checked 2026-10-02: the `bash` description still carries the `IMPORTANT:` blocks the system-prompt pass below proposes rewriting). Measured when a chat briefed a separate task agent; a task is now a fork of its chat running the same prompt, so the per-agent prefixes and the planner and worker split below describe that older shape.
 
 The question is price-weighted token cost per completed task, not tokens per request: every step resends the prefix and the whole conversation so far, so a change that shrinks one request but adds steps can cost more. This is the cost counterpart to [agent-prompt-surface-review.md](./agent-prompt-surface-review.md), which measured the prompt's wording, and to [prompt-cache-provider-affinity-and-breakpoints.md](./prompt-cache-provider-affinity-and-breakpoints.md), which this measurement partly retires.
 
@@ -123,7 +123,7 @@ Proposed only (model mix and orchestration, not harness text):
 
 Not changed, and why:
 
-- Request order, tool order, and volatile content were already right: tools are picked in a fixed order, the context message is written once per session, the date is day-granular, and nonces are seeded from the tool-call id. The ways a tool description changes mid-session (activity-headings flag, external-browser setting, `generate_image` on a model switch) are all rare, and a model switch already discards the cache.
+- Request order, tool order, and volatile content were already right: tools are picked in a fixed order, the context message is written once per session, and the date is day-granular. The ways a tool description changes mid-session (activity-headings flag, external-browser setting, `generate_image` on a model switch) are all rare, and a model switch already discards the cache.
 - Large outputs already spill: `bash` and `web_fetch` write the full output to `.tool-output/` and show head and tail.
 - Nothing strips reasoning items except the cross-model OpenRouter redaction, which is correct.
 

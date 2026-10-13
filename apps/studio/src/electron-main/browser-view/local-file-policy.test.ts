@@ -137,7 +137,7 @@ describe("isAllowedLocalRequest", () => {
     ["an encoded climb out of the folder", `${FOLDER}/%2E%2E/notes.md`, "xhr"],
     [
       "the task's private directory beside the page",
-      `${FOLDER}/.instrument/task.db`,
+      `${FOLDER}/.instrument/chat.db`,
       "xhr",
     ],
     [
@@ -251,7 +251,7 @@ describe("isAllowedLocalRequest", () => {
     expect(
       read(
         main,
-        "file:///Users/casey/tasks/a/.instrument/task.db",
+        "file:///Users/casey/tasks/a/.instrument/chat.db",
         "mainFrame",
       ),
     ).toBe(false);

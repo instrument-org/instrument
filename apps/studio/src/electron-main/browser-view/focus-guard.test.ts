@@ -1,8 +1,4 @@
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/electron";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,8 +7,7 @@ import {
   isAgentDrivenCommand,
 } from "./focus-guard";
 
-const TASK_ID = TaskIdSchema.parse("focus-guard-test");
-const TARGET_ID = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
+const TARGET_ID = browserTargetOf(StoreId.newSessionId());
 
 const COMMAND_TAIL_MS = 500;
 

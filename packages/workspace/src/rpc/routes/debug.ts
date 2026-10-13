@@ -2,10 +2,9 @@ import ms from "ms";
 import { z } from "zod";
 
 import { createBashEnv } from "../../lib/create-bash-env";
-import { childTaskMounts } from "../../lib/chat/children";
 import { folderReach } from "../../lib/chat/folder-reach";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
 import { resolveChat } from "../../lib/record-folders";
 
@@ -50,7 +49,7 @@ const runBash = base
     z.object({
       command: z.string().min(1),
       sessionId: StoreId.SessionSchema,
-      taskId: TaskIdSchema,
+      chatId: ChatIdSchema,
       timeoutMs: z
         .number()
         .int()
@@ -71,19 +70,12 @@ const runBash = base
   .handler(async ({ input, signal }) => {
     // A chat's own shell, with the commands the chat runs, for the chat's
     // agent; a task's otherwise, the way the bash tool builds it.
-    const chatId = resolveChat(input.taskId);
+    const chatId = resolveChat(input.chatId);
     const bash = await createBashEnv({
-      attachedFolders: await folderReach(input.taskId),
-      ...(chatId
-        ? {
-            chat: {
-              childMounts: await childTaskMounts(chatId),
-              id: chatId,
-            },
-          }
-        : {}),
+      folders: await folderReach(input.chatId),
+      role: chatId ? "chat" : "task",
       sessionId: input.sessionId,
-      taskId: input.taskId,
+      chatId: input.chatId,
     });
 
     const startedAt = performance.now();

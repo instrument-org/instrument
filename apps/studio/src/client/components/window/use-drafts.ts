@@ -21,16 +21,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
 import { appTabsAtom } from "./app-tabs";
-import { type Topic } from "./chats";
+import { NO_FILTERS, type Topic } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { isGroupShown, isIncludable, tabInView } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
+import { chatOfGroup } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
@@ -45,12 +46,13 @@ const CHAT_ARRIVAL_MS = ms("3 seconds");
  */
 export function useDrafts({
   activeHref,
-  attachedFolders,
+  folders,
   compose,
   draftContext,
   isChat,
   isOpen,
   openChat,
+  openDrafts,
   saveDefaultModelURI,
   topics,
   windowTabs,
@@ -58,7 +60,7 @@ export function useDrafts({
   /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
   activeHref: string;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
-  attachedFolders: Record<string, { mountName: string; path: string }>;
+  folders: Record<string, { path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
   /** What a draft's window has up, read as its chat starts. */
@@ -71,6 +73,8 @@ export function useDrafts({
   isOpen: boolean;
   /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
   openChat: (chatId: ChatId) => void;
+  /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
+  openDrafts: () => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The topics, for the one the inbox stands in. */
@@ -79,7 +83,7 @@ export function useDrafts({
 }) {
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const chatFilters = useAtomValue(chatFiltersAtom);
+  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const appTabs = useAtomValue(appTabsAtom);
   const queryClient = useQueryClient();
@@ -95,6 +99,11 @@ export function useDrafts({
     () => new Map(),
   );
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // The drafts thrown away whose Undo is still on offer: out of Drafts, but
+  // not deleted until the offer goes.
+  const [discardingIds, setDiscardingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   // The chat a draft just became, and the draft it was, for as long as
@@ -157,7 +166,11 @@ export function useDrafts({
             isGroupTabShown: false,
           })
         : undefined;
+    // A chat on screen is the chat, its pane open or not: what is in it is
+    // the chat's to name, not the draft's.
+    const overChat = chatOfGroup(overGroup);
     const included =
+      (overChat === undefined ? undefined : { chat: overChat }) ??
       inPlace ??
       (onScreen && appTabId !== null && isIncludable(onScreen)
         ? { appTabId }
@@ -211,7 +224,7 @@ export function useDrafts({
       ),
     );
   }, [draftIds, setDraftSnapshots]);
-  /** Throws a draft away: its window, its record, what its composer held, and its tabs. */
+  /** Throws a draft away: its window, its folder with what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
@@ -220,18 +233,73 @@ export function useDrafts({
     windowTabs.dropGroup(draftGroupOf(id));
   };
   /**
+   * Throws a draft away on the person's say, from its window or from Drafts,
+   * with a moment to take it back: its window goes and it leaves Drafts at
+   * once, and it is deleted only once the toast offering Undo is gone. Undo
+   * puts it back in Drafts, with its window back up if it had one.
+   */
+  const discardDraft = (id: string) => {
+    const wasOpen = compose.entries.some(
+      (entry) => entry.kind === "draft" && entry.draftId === id,
+    );
+    compose.remove(draftGroupOf(id));
+    setDiscardingIds((current) => new Set(current).add(id));
+    let isSettled = false;
+    const settle = (keep: boolean) => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      setDiscardingIds((current) => withoutId(current, id));
+      if (!keep) {
+        deleteDraft(id);
+      } else if (wasOpen) {
+        showDraft(id);
+      }
+    };
+    toast("Your draft was discarded", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          settle(true);
+        },
+      },
+      onAutoClose: () => {
+        settle(false);
+      },
+      onDismiss: () => {
+        settle(false);
+      },
+    });
+  };
+  /**
    * Closes a draft's window: one with words is kept in Drafts the way mail
-   * keeps a draft, and one with nothing written is thrown away, whatever it
-   * gathered, so a draft opened and closed again leaves nothing behind. The
-   * words come from the window, since the record follows the box a beat
-   * behind.
+   * keeps a draft, with a toast offering to go to Drafts or to discard it,
+   * and one with nothing written is thrown away, whatever it gathered, so
+   * a draft opened and closed again leaves nothing behind. The words come
+   * from the window, since the record follows the box a beat behind.
    */
   const closeDraft = (id: string, words: string) => {
     if (words.trim() === "") {
       deleteDraft(id);
-    } else {
-      compose.remove(draftGroupOf(id));
+      return;
     }
+    compose.remove(draftGroupOf(id));
+    toast("Your draft is saved in Drafts", {
+      action: {
+        label: "View drafts",
+        onClick: () => {
+          setChatFilters({ ...NO_FILTERS, place: "drafts" });
+          openDrafts();
+        },
+      },
+      cancel: {
+        label: "Discard",
+        onClick: () => {
+          discardDraft(id);
+        },
+      },
+    });
   };
   /**
    * Starts the chat the draft is for: what its composer sends (the words,
@@ -252,14 +320,8 @@ export function useDrafts({
     }
     // Read at the press, while the draft's window and what its band has up
     // are still there to read; the window changes under it at once.
-    // The chips the draft showed go with it, for the transcript to draw.
-    const viewing = draftContext(id)
-      .then((read) =>
-        read && send.attached.length > 0
-          ? { ...read, attached: send.attached }
-          : read,
-      )
-      .catch(() => undefined);
+    // With the chips it showed, for the transcript to draw.
+    const viewing = draftContext(id).catch(() => undefined);
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
@@ -277,7 +339,7 @@ export function useDrafts({
       (ask) =>
         ask.destination?.kind === "draft" && ask.destination.draftId === id,
     );
-    const asks = asksPart(marked, attachedFolders);
+    const asks = asksPart(marked, folders);
     void (async () => {
       // The chat's record is made first, so the window never shows a chat
       // whose record is not there yet; it is a folder and a settings file,
@@ -298,9 +360,7 @@ export function useDrafts({
       } catch (error) {
         opened();
         setStartingIds((current) => withoutId(current, id));
-        toast.error("Failed to start the chat", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error("Couldn't start the chat", { cause: error });
         return;
       }
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
@@ -320,7 +380,6 @@ export function useDrafts({
           folders: send.folders,
           id: chatId,
           modelURI: send.modelURI,
-          newSessionId: sessionId,
           prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
           // A context that cannot be gathered is a chat told less, not a
@@ -334,14 +393,14 @@ export function useDrafts({
           compose.becomeDraft(chatId, id);
         }
         setSentWords((current) => withoutKey(current, chatId));
-        toast.error("Failed to start the chat", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error("Couldn't start the chat", { cause: error });
         return;
       } finally {
         opened();
         setStartingIds((current) => withoutId(current, id));
       }
+      // The chat has its own copies of what was attached by now, so the
+      // draft's folder can go with it.
       setDrafts((current) => current.filter((entry) => entry.id !== id));
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
@@ -366,7 +425,8 @@ export function useDrafts({
   return {
     arrivedId: arrived?.chatId,
     closeDraft,
-    deleteDraft,
+    discardDraft,
+    discardingIds,
     newDraft,
     sentWords,
     showDraft,

@@ -9,21 +9,40 @@ import { startMcpTracker } from "./mcp-tracker";
 
 /** A connected app a case wants to exist before it runs. */
 export interface AppFixture {
+  /** The account it is signed in as, as the manifest names it. */
+  account?: string;
   /**
    * `api` (the default) serves the small REST tracker below; `mcp` serves
-   * the larger issue tracker in `mcp-tracker.ts` over MCP.
+   * the larger issue tracker in `mcp-tracker.ts` over MCP; `web` is a site
+   * the user said they are signed in to, at `url`, with no server at all.
    */
-  kind?: "api" | "mcp";
+  kind?: "api" | "mcp" | "web";
   /** What the user calls it, as the manifest carries it. */
   name: string;
+  /**
+   * For an `api` app, what it serves in place of the issue tracker: a stand-in
+   * for a service a case needs, such as a mailbox or a store.
+   */
+  service?: StandInService;
   slug: string;
+  /** For a web app, where it is worked. */
+  url?: string;
+}
+
+/** A service an `api` app serves on loopback, described by its guide. */
+export interface StandInService {
+  /** The guide's opening line, saying what the service is. */
+  about: string;
+  /** The guide's endpoint list, a line each. */
+  endpoints: string[];
+  /** The JSON body for a request, or `undefined` for a 404. */
+  respond: (method: string, pathname: string) => unknown;
 }
 
 /**
  * Stands up the apps a case declared: a real HTTP server on loopback, a real
  * manifest in the workspace's apps directory, and a connection on record, so
- * `app request` goes end to end and `task app --add` has something it can
- * actually hand over.
+ * `app request` goes end to end against something real.
  *
  * Loopback rather than a stub inside the process because the whole path is what
  * is being scored: the manifest gate, the connection check, and the request. A
@@ -42,6 +61,27 @@ export async function seedConnectedApps(
   for (const fixture of fixtures) {
     const dir = path.join(appsDir, fixture.slug);
     await fs.mkdir(dir, { recursive: true });
+    if (fixture.kind === "web") {
+      await fs.writeFile(
+        path.join(dir, "app.json"),
+        `${JSON.stringify(
+          {
+            ...(fixture.account ? { account: fixture.account } : {}),
+            name: fixture.name,
+            type: "web",
+            url: fixture.url,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      await fs.writeFile(
+        path.join(dir, "guide.md"),
+        `# ${fixture.name}\n\nWorked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
+      );
+      await recordConnected(fixture.slug, { apps, appsDir });
+      continue;
+    }
     if (fixture.kind === "mcp") {
       const tracker = await startMcpTracker();
       closers.push(tracker.close);
@@ -65,8 +105,15 @@ export async function seedConnectedApps(
       await recordConnected(fixture.slug, { apps, appsDir });
       continue;
     }
+    const { service } = fixture;
     const server = http.createServer((request, response) => {
-      const body = respondTo(request.method ?? "GET", request.url ?? "/");
+      const url = request.url ?? "/";
+      const method = request.method ?? "GET";
+      const body = service
+        ? url === "/health"
+          ? { ok: true }
+          : service.respond(method, url.split("?")[0] ?? "/")
+        : respondTo(method, url);
       response.writeHead(body === undefined ? 404 : 200, {
         "content-type": "application/json",
       });
@@ -100,13 +147,15 @@ export async function seedConnectedApps(
       [
         `# ${fixture.name}`,
         "",
-        `${fixture.name} tracks the team's issues.`,
+        service?.about ?? `${fixture.name} tracks the team's issues.`,
         "",
         "## Endpoints",
         "",
-        "- `GET /issues` -- every issue, as `{ issues: [{ id, title, state }] }`.",
-        "- `GET /issues/<id>` -- one issue.",
-        '- `POST /issues` -- file one, as `{ "title": "...", "body": "..." }`.',
+        ...(service?.endpoints ?? [
+          "- `GET /issues` -- every issue, as `{ issues: [{ id, title, state }] }`.",
+          "- `GET /issues/<id>` -- one issue.",
+          '- `POST /issues` -- file one, as `{ "title": "...", "body": "..." }`.',
+        ]),
         "",
       ].join("\n"),
     );

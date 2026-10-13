@@ -1,13 +1,11 @@
-import { featuresAtom } from "@/client/atoms/features";
 import {
   getToolNameByType,
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
@@ -27,7 +25,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
-import { BashCommandChip, BrowserChip, type BrowserInfo } from "./tool-bash";
+import { BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
@@ -38,14 +36,13 @@ export function ToolCallSummary({
   children,
   isDeadDevMode = false,
   part,
-  taskId,
+  chatId,
 }: {
   children?: ReactNode;
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
-  const features = useAtomValue(featuresAtom);
   const { backgroundProcess, isRunning, isStreaming } = useToolCallSession();
   const group = useTranscriptGroup();
   const { isExpanded, setIsExpanded } = useRowExpansion(part.metadata.id);
@@ -154,17 +151,9 @@ export function ToolCallSummary({
         {deadLabel ?? label}
       </span>
 
-      {browserInfo ? (
-        <BrowserChip info={browserInfo} />
-      ) : (
-        features.bash_summary_chip &&
-        part.type === "tool-bash" &&
-        part.state === "output-available" && (
-          <BashCommandChip commands={part.output.commands} />
-        )
-      )}
+      {browserInfo && <BrowserChip info={browserInfo} />}
       <WebSearchChip part={part} />
-      <SourceImagesChip id={taskId} part={part} />
+      <SourceImagesChip id={chatId} part={part} />
       <FileChip part={part} />
       <RunRowChevron
         isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}

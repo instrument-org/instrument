@@ -1,14 +1,13 @@
 import {
+  type AppPlace,
+  chatFiltersAtom,
   chatGroupAtom,
-  CHATS_HREF,
   type Draft,
   draftGroupOf,
   draftsAtom,
-  findersByTabAtom,
   inboxOpenAtom,
-  pageSlotsAtom,
   paneOpenByGroupAtom,
-  screenViewsAtom,
+  chatsOutOf,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -35,16 +34,15 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { setTabPathname } from "@/client/lib/tabs-model";
-import { captureComponentError } from "@/client/lib/telemetry";
+import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -79,25 +77,23 @@ import {
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
-import {
-  BrowserTabs,
-  type BrowserTabsHandle,
-  type ComposeHost,
-} from "./browser-tabs";
+import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
+import { NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
+import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
+import { isPaneOpen } from "./draft-context";
+import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
+import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
-import {
-  pageSlotByTabAtom,
-  type WindowShell as Shell,
-  ShellContext,
-} from "./shell-context";
+import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
+import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
@@ -111,7 +107,7 @@ import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
-import { chatOfGroup, chatOfHref } from "./window-href";
+import { chatHref, chatOfGroup, chatOfHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -265,7 +261,9 @@ function WindowShell({
     useDefaultModelURI();
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
+  const setChatFilters = useSetAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
@@ -322,6 +320,7 @@ function WindowShell({
         windowTabs.dropGroup(draftGroupOf(draft.id));
       }
     }
+    // A draft's folder goes with it, and what was pasted into it.
     setDrafts((current) => current.filter(isKept));
     for (const entry of compose.entries) {
       if (
@@ -406,31 +405,11 @@ function WindowShell({
       setPaneOpen(windowTabs.groupOnScreen, true);
     }
   };
-  // The pages screens draw into slots of their own (a page's file beside a
-  // file tab's tree), shown while the screen that made the slot is up.
-  const pageSlots = useAtomValue(pageSlotsAtom);
-  const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
-    ([group, { insideOverlay, into, isShown = true, layer }]) =>
-      into
-        ? [
-            {
-              chrome: false,
-              group,
-              into,
-              isActive: isShown,
-              ...(layer === undefined ? {} : { layer }),
-              ...(insideOverlay ? { insideOverlay } : {}),
-              place: `${group}:${rowWidth}`,
-            },
-          ]
-        : [],
-  );
-
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
-  const pageSlot =
-    useAtomValue(pageSlotByTabAtom)[appTabs.model.selectedId ?? ""] ?? null;
+  const surfaces = useAtomValue(tabSurfaceAtom);
+  const pageSlot = surfaces[appTabs.model.selectedId ?? ""]?.slot ?? null;
   const [stage] = useState(() => {
     const element = document.createElement("div");
     element.className = "relative h-full min-h-0";
@@ -451,7 +430,7 @@ function WindowShell({
    */
   const landChat = (chatId: ChatId) => {
     compose.remove(chatId);
-    appTabs.navigate(`${CHATS_HREF}/${chatId}`);
+    appTabs.navigate(chatHref(chatId));
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -468,19 +447,20 @@ function WindowShell({
   const appsBySlug = useAppsBySlug();
   // What a new tab shows, asked for as the window comes up rather than as the
   // tab mounts, so the page lays out from the cache instead of growing a
-  // section at a time as each answer lands.
+  // section at a time as each answer lands. The new tab's own code is split
+  // from the window's, so it is fetched now too, or the first Cmd+T waits on
+  // it.
   const queryClient = useQueryClient();
+  const { activeRouter } = appTabs;
   useEffect(() => {
     if (!opened) {
       return;
     }
     void queryClient.prefetchQuery(
-      rpcClient.workspace.computer.recents.queryOptions(),
-    );
-    void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
-  }, [opened, queryClient]);
+    void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
+  }, [activeRouter, opened, queryClient]);
 
   const requestClose = (id: string) => {
     // Any group's: a popped-out chat's rail closes its tabs here too.
@@ -488,6 +468,7 @@ function WindowShell({
   };
 
   usePageThumbnailHousekeeping();
+  useSignInLanding(openScreen);
 
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const topics = topicsQuery.data ?? [];
@@ -515,26 +496,24 @@ function WindowShell({
 
   // What the tab in view says it shows: a chat's or a site's tab up while
   // its pane is open, or the screen the window's tab is at.
-  const screenViews = useAtomValue(screenViewsAtom);
   const groupUp = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
   const screenView =
     groupInView === undefined
-      ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
+      ? (surfaces[appTabs.model.selectedId ?? ""]?.view ?? null)
       : groupUp?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
-            (paneOpenByGroup[groupInView] ?? true))
-        ? (screenViews[groupUp.id] ?? null)
+            isPaneOpen(groupInView, paneOpenByGroup))
+        ? (surfaces[groupUp.id]?.view ?? null)
         : null;
   // What goes with a message, read at the moment of sending.
-  const finders = useAtomValue(findersByTabAtom);
+  const volumes = useComputerVolumes();
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     appTabId: appTabs.model.selectedId,
     browser,
     chatTitles,
     drafts,
-    finders,
     href: activeHref,
     hrefOfAppTab: (id) =>
       id === appTabs.model.selectedId
@@ -543,14 +522,16 @@ function WindowShell({
     paneOpenByGroup,
     screenView,
     state: opened,
-    viewsById: compose.viewsById,
+    surfaces,
+    ...(volumes ? { volumes } : {}),
     windowTabs,
   });
   sendContextRef.current = sendContext;
   const {
     arrivedId,
     closeDraft,
-    deleteDraft,
+    discardDraft,
+    discardingIds,
     newDraft,
     sentWords,
     showDraft,
@@ -558,18 +539,44 @@ function WindowShell({
     startingIds,
   } = useDrafts({
     activeHref,
-    attachedFolders: opened?.attachedFolders ?? {},
+    folders: opened?.folders ?? {},
     compose,
     draftContext,
     isOpen: opened !== undefined,
     isChat,
     openChat: (chatId) => {
-      appTabs.navigate(`${CHATS_HREF}/${chatId}`);
+      appTabs.navigate(chatHref(chatId));
+    },
+    openDrafts: () => {
+      setInboxOpen(true);
+      if (place !== "chat") {
+        appTabs.goToPlace("chat");
+      }
     },
     saveDefaultModelURI,
     topics,
     windowTabs,
   });
+  /**
+   * The tab up to one of the rail's places, from the rail, its chords, or the
+   * command menu. Chat asked for is the inbox asked for too, even where the
+   * row is narrow enough that it stepped aside. Peeked out already, the list
+   * stays where it is drawn rather than sliding in again under it. A place
+   * asked for in a tab of its own waits behind, the way a bookmark
+   * middle-clicked in a browser does.
+   */
+  const choosePlace = (next: AppPlace, { newTab = false } = {}) => {
+    if (next === "chat") {
+      if (inboxPeek.isOpen) {
+        setInboxLandsAtOnce(true);
+      }
+      setInboxOpen(true);
+    }
+    if (next === place && !newTab) {
+      return;
+    }
+    appTabs.goToPlace(next, { behind: newTab, newTab });
+  };
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
   const listedChats = useRef<ChatId[]>([]);
@@ -586,6 +593,7 @@ function WindowShell({
       forward: () => {
         windowSteps.go("forward");
       },
+      goToPlace: choosePlace,
       newChat: newDraft,
       newTab: appTabs.openNewTab,
       // A file from outside the app is the person's own, in a tab of its own.
@@ -617,7 +625,7 @@ function WindowShell({
               : listed.at(-1)
             : listed[at + direction];
         if (next !== undefined) {
-          openScreen(`${CHATS_HREF}/${next}`);
+          openScreen(chatHref(next));
         }
       },
     },
@@ -683,9 +691,7 @@ function WindowShell({
       return;
     }
     return () => {
-      getGuest(
-        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id)),
-      )?.reload();
+      getGuest(browserTargetOf(StoreId.SessionSchema.parse(page.id)))?.reload();
     };
   };
 
@@ -714,15 +720,19 @@ function WindowShell({
     arrivedId,
     childTitles,
     compose,
-    deleteDraft,
+    discardDraft,
     // Only a draft with words is a draft to come back to; one being written
-    // with none yet is its window's alone, and one being sent is already its
-    // chat.
+    // with none yet is its window's alone, one being sent is already its
+    // chat, and one just discarded is gone unless its Undo brings it back.
     chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
-      (draft) => hasWords(draft) && !startingIds.has(draft.id),
+      (draft) =>
+        hasWords(draft) &&
+        !startingIds.has(draft.id) &&
+        !discardingIds.has(draft.id),
     ),
+    goToPlace: choosePlace,
     newDraft: () => {
       newDraft();
     },
@@ -731,6 +741,13 @@ function WindowShell({
     },
     onNewTopic: (name) => {
       setNewTopic(name ? { name } : {});
+    },
+    // A topic is a view of the inbox, so going to one is the inbox standing
+    // in it and nothing else: a search or a place left over from before
+    // would hide the chats it was asked for.
+    openTopic: (topicId) => {
+      setChatFilters({ ...NO_FILTERS, topics: [topicId] });
+      choosePlace("chat");
     },
     requestClose,
     rowWidth,
@@ -782,17 +799,22 @@ function WindowShell({
                 modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
                   setDrafts((current) =>
-                    current.map((entry) =>
-                      entry.id === id
-                        ? { ...update(entry), updatedAt: Date.now() }
-                        : entry,
-                    ),
+                    current.map((entry) => {
+                      if (entry.id !== id) {
+                        return entry;
+                      }
+                      const next = update(entry);
+                      return next === entry
+                        ? entry
+                        : { ...next, updatedAt: Date.now() };
+                    }),
                   );
                 }}
                 onCloseChat={(chatId) => {
                   compose.remove(chatId);
                 }}
                 onCloseDraft={closeDraft}
+                onDiscardDraft={discardDraft}
                 onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
                 onNewChatTopic={(chatId, name) => {
@@ -814,19 +836,7 @@ function WindowShell({
             }
             rail={
               <AppRail
-                onChoose={(next, { newTab }) => {
-                  // Chat asked for is the inbox asked for too, even where the
-                  // row is narrow enough that it stepped aside.
-                  if (next === "chat") {
-                    setInboxOpen(true);
-                  }
-                  if (next === place && !newTab) {
-                    return;
-                  }
-                  // A place asked for in a tab of its own waits behind, the
-                  // way a bookmark middle-clicked in a browser does.
-                  appTabs.goToPlace(next, { behind: newTab, newTab });
-                }}
+                onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {
                   newDraft();
@@ -852,6 +862,7 @@ function WindowShell({
               </div>
               <InboxPeek
                 isOpen={inboxPeek.isOpen}
+                leavesAtOnce={inboxPeek.leavesAtOnce}
                 onPointerEnter={inboxPeek.onPointerEnter}
                 onPointerLeave={inboxPeek.onPointerLeave}
                 panelRef={inboxPeek.panelRef}
@@ -867,14 +878,22 @@ function WindowShell({
                     appTabs.navigate(INBOX_HREF);
                     setInboxOpen(true);
                   }}
-                  onDeleteDraft={deleteDraft}
+                  onDeleted={(id) => {
+                    windowTabs.dropGroup(id);
+                    if (id === chatUp) {
+                      inboxPeek.close();
+                      appTabs.navigate(INBOX_HREF, { replace: true });
+                      setInboxOpen(true);
+                    }
+                  }}
+                  onDeleteDraft={discardDraft}
                   onOpenChat={(entry) => {
                     inboxPeek.close();
                     // Peeked out over another place, the chat pops out over
                     // it, so the place stays where it was; in Chat, with the
                     // inbox put away, it opens beside where the inbox was.
                     if (isChat) {
-                      openScreen(`${CHATS_HREF}/${entry.id}`);
+                      openScreen(chatHref(entry.id));
                     } else {
                       compose.float(entry.id);
                     }
@@ -883,7 +902,18 @@ function WindowShell({
                     inboxPeek.close();
                     showDraft(id);
                   }}
+                  onPopOut={(entry) => {
+                    inboxPeek.close();
+                    compose.float(entry.id);
+                    // The chat up in Chat leaves it for its own window, with
+                    // the inbox back in its column.
+                    if (entry.id === chatUp && isChat) {
+                      appTabs.navigate(INBOX_HREF);
+                      setInboxOpen(true);
+                    }
+                  }}
                   openChatId={chatUp}
+                  outIds={chatsOutOf(compose.entries)}
                 />
               </InboxPeek>
               <CommandMenu
@@ -900,10 +930,10 @@ function WindowShell({
               <ActiveTabProvider isActive={pageSlot?.isShown ?? false}>
                 <BrowserTabs
                   chromeInto={pageSlot?.chrome?.into ?? null}
-                  compose={[...compose.hosts, ...slotHosts]}
                   fieldInto={pageSlot?.chrome?.fieldInto ?? null}
                   ref={setBrowser}
                   reloadInto={pageSlot?.chrome?.reloadInto ?? null}
+                  rowWidth={rowWidth}
                 />
               </ActiveTabProvider>,
               stage,

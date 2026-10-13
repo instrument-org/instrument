@@ -29,6 +29,12 @@ styl = "styl"
 licence = "licence"
 # A chat title cut at its length cap in a migration test's snapshot.
 sprin = "sprin"
+# A stem an eval regex matches so "excluded" and "excluding" both count.
+exclud = "exclud"
+# A preview build name cut at its length cap in a test.
+wel = "wel"
+# The `b a` branch in a sed one-liner, written `$!ba`.
+ba = "ba"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.
@@ -66,6 +72,9 @@ extend-exclude = [
   "registry/",
   # Brand icons copied from their collections, ids and all.
   "packages/workspace/directory-icons/",
+  # Messages as people typed them, typos included: the decision eval asks
+  # about them as they are.
+  "packages/workspace/evals/decision/corpus/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
   "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
@@ -75,9 +84,11 @@ extend-exclude = [
   # output and extracted PDF glyph runs, not prose anyone maintains.
   "fixtures/workspaces/**/session.json",
   "fixtures/workspaces/**/files/",
+  # Provider streams replayed as recorded. Their deltas split words mid-token,
+  # and "correcting" a fragment changes what the stream assembles to.
+  "packages/ai-gateway/src/lib/providers/*/fixtures/",
   # An eval whose subject is whether the agent honors a standing instruction to
   # write British English. The spellings in it are the fixture.
-  "packages/workspace/evals/cases/project-instructions.ts",
   # Quotes the misspellings it is about, so correcting them erases the point.
   "docs/findings/spelling-check-cost-versus-signal.md",
 ]

@@ -1,0 +1,164 @@
+diff --git a/packages/just-bash/src/commands/base64/base64.ts b/packages/just-bash/src/commands/base64/base64.ts
+index dba5f335..89d4e9ea 100644
+--- a/packages/just-bash/src/commands/base64/base64.ts
++++ b/packages/just-bash/src/commands/base64/base64.ts
+@@ -14,6 +14,15 @@ import { parseArgs } from "../../utils/args.js";
+ import { accountFileInput } from "../../utils/file-reader.js";
+ import { hasHelpFlag, showHelp } from "../help.js";
+ 
++// A loop into a preallocated array: `Uint8Array.from(string, mapFn)` collects
++// every char into a temporary array first, ~30x slower, and ends the process
++// with "invalid array length" past a few hundred MB.
++function uint8ArrayFromLatin1(s: string): Uint8Array {
++  const bytes = new Uint8Array(s.length);
++  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
++  return bytes;
++}
++
+ const base64Help = {
+   name: "base64",
+   summary: "base64 encode/decode data and print to standard output",
+@@ -83,7 +92,7 @@ async function readBinary(
+     // Convert binary string directly to bytes without UTF-8 re-encoding
+     return {
+       ok: true,
+-      data: Uint8Array.from(stdinBinary, (c) => c.charCodeAt(0)),
++      data: uint8ArrayFromLatin1(stdinBinary),
+     };
+   }
+ 
+@@ -99,7 +108,7 @@ async function readBinary(
+         "string_length",
+       );
+       // Convert binary string directly to bytes without UTF-8 re-encoding
+-      chunks.push(Uint8Array.from(stdinBinary, (c) => c.charCodeAt(0)));
++      chunks.push(uint8ArrayFromLatin1(stdinBinary));
+       totalLength += stdinBinary.length;
+       continue;
+     }
+diff --git a/packages/just-bash/src/commands/gzip/gzip.ts b/packages/just-bash/src/commands/gzip/gzip.ts
+index b47eeeef..86281821 100644
+--- a/packages/just-bash/src/commands/gzip/gzip.ts
++++ b/packages/just-bash/src/commands/gzip/gzip.ts
+@@ -20,6 +20,15 @@ import { parseArgs } from "../../utils/args.js";
+ import { CodecBudget } from "../compression/codec-budget.js";
+ import { hasHelpFlag, showHelp } from "../help.js";
+ 
++// A loop into a preallocated array: `Uint8Array.from(string, mapFn)` collects
++// every char into a temporary array first, ~30x slower, and ends the process
++// with "invalid array length" past a few hundred MB.
++function uint8ArrayFromLatin1(s: string): Uint8Array {
++  const bytes = new Uint8Array(s.length);
++  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
++  return bytes;
++}
++
+ const gzipHelp = {
+   name: "gzip",
+   summary: "compress or expand files",
+@@ -418,7 +427,7 @@ async function readReservedOperand(
+   );
+   try {
+     return {
+-      data: Uint8Array.from(stdinBytes, (char) => char.charCodeAt(0)),
++      data: uint8ArrayFromLatin1(stdinBytes),
+       lease,
+     };
+   } catch (error) {
+@@ -457,7 +466,7 @@ async function processFile(
+     );
+     let codecLease: ResourceLease | undefined;
+     try {
+-      inputData = Uint8Array.from(stdinBytes, (c) => c.charCodeAt(0));
++      inputData = uint8ArrayFromLatin1(stdinBytes);
+       if (decompress) {
+         if (!isGzip(inputData)) {
+           if (!flags.quiet) {
+diff --git a/packages/just-bash/src/commands/md5sum/checksum.ts b/packages/just-bash/src/commands/md5sum/checksum.ts
+index 62e89c64..28875988 100644
+--- a/packages/just-bash/src/commands/md5sum/checksum.ts
++++ b/packages/just-bash/src/commands/md5sum/checksum.ts
+@@ -11,6 +11,15 @@ import type {
+ } from "../../types.js";
+ import { hasHelpFlag, showHelp, unknownOption } from "../help.js";
+ 
++// A loop into a preallocated array: `Uint8Array.from(string, mapFn)` collects
++// every char into a temporary array first, ~30x slower, and ends the process
++// with "invalid array length" past a few hundred MB.
++function uint8ArrayFromLatin1(s: string): Uint8Array {
++  const bytes = new Uint8Array(s.length);
++  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
++  return bytes;
++}
++
+ export type HashAlgorithm = "md5" | "sha1" | "sha256";
+ 
+ // Map prevents prototype pollution
+@@ -177,9 +186,7 @@ export function createChecksumCommand(
+       // through without decoding.
+       const readBinary = async (file: string): Promise<Uint8Array | null> => {
+         if (file === "-") {
+-          return Uint8Array.from(latin1FromBytes(ctx.stdin), (c) =>
+-            c.charCodeAt(0),
+-          );
++          return uint8ArrayFromLatin1(latin1FromBytes(ctx.stdin));
+         }
+         try {
+           return await ctx.fs.readFileBuffer(ctx.fs.resolvePath(ctx.cwd, file));
+diff --git a/packages/just-bash/src/commands/split/split.ts b/packages/just-bash/src/commands/split/split.ts
+index 69af87f2..7cd541d4 100644
+--- a/packages/just-bash/src/commands/split/split.ts
++++ b/packages/just-bash/src/commands/split/split.ts
+@@ -50,7 +50,9 @@ const MAX_OUTPUT_FILES = 100_000;
+ let splitTransactionId = 0;
+ 
+ function toUint8Array(content: string): Uint8Array {
+-  return Uint8Array.from(content, (char) => char.charCodeAt(0));
++  const bytes = new Uint8Array(content.length);
++  for (let i = 0; i < content.length; i++) bytes[i] = content.charCodeAt(i);
++  return bytes;
+ }
+ 
+ type SplitMode = "lines" | "bytes" | "chunks";
+diff --git a/packages/just-bash/src/commands/tar/tar.ts b/packages/just-bash/src/commands/tar/tar.ts
+index 6ce1770a..4b5b0fba 100644
+--- a/packages/just-bash/src/commands/tar/tar.ts
++++ b/packages/just-bash/src/commands/tar/tar.ts
+@@ -34,6 +34,15 @@ import {
+ } from "./archive.js";
+ import { parseOptions, type TarOptions } from "./tar-options.js";
+ 
++// A loop into a preallocated array: `Uint8Array.from(string, mapFn)` collects
++// every char into a temporary array first, ~30x slower, and ends the process
++// with "invalid array length" past a few hundred MB.
++function uint8ArrayFromLatin1(s: string): Uint8Array {
++  const bytes = new Uint8Array(s.length);
++  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
++  return bytes;
++}
++
+ const BATCH_SIZE = 100;
+ 
+ function archiveLimits(ctx: RuntimeCommandContext) {
+@@ -732,9 +741,7 @@ async function extractTarArchive(
+     }
+   } else {
+     // Read from stdin - convert binary string directly to bytes without UTF-8 re-encoding
+-    archiveData = Uint8Array.from(latin1FromBytes(ctx.stdin), (c) =>
+-      c.charCodeAt(0),
+-    );
++    archiveData = uint8ArrayFromLatin1(latin1FromBytes(ctx.stdin));
+   }
+ 
+   // Parse archive - auto-detect compression or use flags
+@@ -987,9 +994,7 @@ async function listTarArchive(
+     }
+   } else {
+     // Read from stdin - convert binary string directly to bytes without UTF-8 re-encoding
+-    archiveData = Uint8Array.from(latin1FromBytes(ctx.stdin), (c) =>
+-      c.charCodeAt(0),
+-    );
++    archiveData = uint8ArrayFromLatin1(latin1FromBytes(ctx.stdin));
+   }
+ 
+   // Parse archive - auto-detect compression or use flags

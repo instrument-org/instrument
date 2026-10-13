@@ -16,7 +16,6 @@ export function openAICompatibleURL({
     case "google": {
       return `${baseURL}/openai${path}`;
     }
-    case "perplexity":
     case "z-ai": {
       return `${baseURL}${path}`;
     }

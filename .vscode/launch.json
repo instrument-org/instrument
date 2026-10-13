@@ -4,41 +4,10 @@
   // rather than the system/shell default.
   "compounds": [
     {
-      "configurations": [
-        "Debug Studio Main Process (Dev Shim)",
-        "Dev Shim Client"
-      ],
-      "name": "🐛 Studio with Dev Shim Client",
-      "presentation": {
-        "order": 2
-      },
-      "stopAll": true
-    },
-    {
-      "configurations": [
-        "Debug Studio Main Process (Dev Shim)",
-        "Debug Studio Renderer Process",
-        "Dev Shim Client"
-      ],
+      "configurations": ["🐛 Studio", "Debug Studio Renderer Process"],
       "name": "🐛 Studio with Renderer",
       "presentation": {
-        "order": 8
-      },
-      "stopAll": true
-    },
-    {
-      "configurations": ["Debug Workspace CLI", "Dev Shim Client"],
-      "name": "🐛 Workspace CLI",
-      "presentation": {
-        "order": 3
-      },
-      "stopAll": true
-    },
-    {
-      "configurations": ["Debug Workspace CLI Watch Mode", "Dev Shim Client"],
-      "name": "🐛 Workspace CLI Watch Mode",
-      "presentation": {
-        "order": 4
+        "order": 2
       },
       "stopAll": true
     }
@@ -47,63 +16,16 @@
     {
       "cwd": "${workspaceRoot}/apps/studio",
       "env": {
-        "MAIN_VITE_USE_BUILT_SHIM_CLIENT": "true",
         "NODE_OPTIONS": "--enable-source-maps",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
         "REMOTE_DEBUGGING_PORT": "48160" // PORTS.electronDebug
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
       "name": "🐛 Studio",
+      // What `pnpm studio` runs first: dependencies, registry/, the Mac bridge.
+      "preLaunchTask": "Prepare",
       "presentation": {
         "order": 1
-      },
-      "request": "launch",
-      "runtimeArgs": ["--sourcemap"],
-      "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite",
-      "type": "node",
-      "windows": {
-        "env": {
-          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
-        },
-        "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite.cmd"
-      }
-    },
-    {
-      "cwd": "${workspaceRoot}/apps/studio",
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps",
-        "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
-        "REMOTE_DEBUGGING_PORT": "48160"
-      },
-      "internalConsoleOptions": "openOnFirstSessionStart",
-      "name": "Debug Studio Main Process (Dev Shim)",
-      "presentation": {
-        "hidden": true
-      },
-      "request": "launch",
-      "runtimeArgs": ["--sourcemap"],
-      "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite",
-      "type": "node",
-      "windows": {
-        "env": {
-          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
-        },
-        "runtimeExecutable": "${workspaceRoot}/apps/studio/node_modules/.bin/electron-vite.cmd"
-      }
-    },
-    {
-      "cwd": "${workspaceRoot}/apps/studio",
-      "env": {
-        "ELECTRON_USE_NEW_USER_FOLDER": "true",
-        "MAIN_VITE_USE_BUILT_SHIM_CLIENT": "true",
-        "NODE_OPTIONS": "--enable-source-maps",
-        "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}",
-        "REMOTE_DEBUGGING_PORT": "48160"
-      },
-      "internalConsoleOptions": "openOnFirstSessionStart",
-      "name": "🐛 Studio Fresh",
-      "presentation": {
-        "order": 5
       },
       "request": "launch",
       "runtimeArgs": ["--sourcemap"],
@@ -130,39 +52,16 @@
       "webRoot": "${workspaceRoot}/apps/studio/src"
     },
     {
-      "cwd": "${workspaceRoot}/packages/shim-client",
-      "env": {
-        "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}"
-      },
-      "internalConsoleOptions": "neverOpen",
-      "name": "Dev Shim Client",
-      "request": "launch",
-      "runtimeArgs": [
-        "--configLoader",
-        "runner",
-        "--port",
-        "48350",
-        "--clearScreen",
-        "false"
-      ],
-      "runtimeExecutable": "${workspaceRoot}/packages/shim-client/node_modules/.bin/vite",
-      "skipFiles": ["<node_internals>/**", "${workspaceRoot}/node_modules/**"],
-      "type": "node",
-      "windows": {
-        "env": {
-          "PATH": "${workspaceRoot}/node_modules/.bin;${env:PATH}"
-        },
-        "runtimeExecutable": "${workspaceRoot}/packages/shim-client/node_modules/.bin/vite.cmd"
-      }
-    },
-    {
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}/packages/workspace",
       "env": {
         "NODE_ENV": "development",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}"
       },
-      "name": "Debug Workspace CLI",
+      "name": "🐛 Workspace CLI",
+      "presentation": {
+        "order": 3
+      },
       "program": "${workspaceFolder}/packages/workspace/scripts/run-workspace.ts",
       "request": "launch",
       "runtimeExecutable": "${workspaceRoot}/packages/workspace/node_modules/.bin/tsx",
@@ -185,7 +84,10 @@
         "NODE_ENV": "development",
         "PATH": "${workspaceRoot}/node_modules/.bin:${env:PATH}"
       },
-      "name": "Debug Workspace CLI Watch Mode",
+      "name": "🐛 Workspace CLI Watch Mode",
+      "presentation": {
+        "order": 4
+      },
       "program": "${workspaceFolder}/packages/workspace/scripts/run-workspace.ts",
       "request": "launch",
       "runtimeArgs": ["--watch"],

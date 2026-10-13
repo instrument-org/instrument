@@ -12,14 +12,13 @@ import { type ReactNode } from "react";
 
 import { FilePathsGrid } from "./agent-files-block";
 import { AppEventNote } from "./app-event-note";
-import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
+import { FolderChangesNote } from "./folder-changes-note";
 import { ChatDevOnly } from "./dev-mode-card";
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { PermissionAnswerNote } from "./permission-asks";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
-import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
-import { TaskAppChangesNote } from "./task-app-changes-note";
 import { TaskEventNote } from "./task-event-note";
 import { SentAsksNote } from "./window/ask-pills";
 
@@ -37,7 +36,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-appEvent": "always",
   // The places the user marked in their files, as the pills they sent.
   "data-asks": "always",
-  "data-attachedFolderChanges": "always",
+  "data-folderChanges": "always",
+  "data-permissionAnswer": "always",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
   // running when the turn began, and a card in the transcript saying "2 still
@@ -61,6 +61,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // the only record a pre-fence conversation has of what a turn produced, and
   // the person who wants that is the person whose task it is.
   "data-fileChanges": "always",
+  // Words the chat wrote to one of its tasks: the assignment a fork starts
+  // on, and what it sent later. Shown in the task's transcript, where they
+  // are the reason for everything that follows.
+  "data-fromChat": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
   // What the agent is told it remembers about the user. Context for the
@@ -74,8 +78,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
-  "data-projectChanges": "always",
-  "data-projectContext": "hidden",
   // Drawn by the chat stream over the user's bubble, not in the part's place
   // under it.
   "data-reply": "hidden",
@@ -84,7 +86,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // Shown for the same reason the folder note is: the change was made in a
   // conversation the reader of this transcript is not looking at, and it is
   // usually what the task had stopped and waited for.
-  "data-taskAppChanges": "always",
   // The reason a chat woke, shown so a reply that follows nothing the
   // user typed has a visible cause.
   "data-taskEvent": "always",
@@ -93,9 +94,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
   "data-chatTopics": "dev",
-  // Which earlier version's task a chat was made from. Context for the
-  // model; the user sees the conversation it carried on.
-  "data-adoptedTask": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -141,16 +139,6 @@ export function renderDataPart({
   const noteClassName = compact ? "mt-1" : "mt-2";
 
   switch (part.type) {
-    case "data-adoptedTask": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={`Made from task ${part.data.taskId}`}
-        />
-      );
-    }
     case "data-appEvent": {
       if (ctx.presentation === "chat") {
         return ctx.isDeveloperMode ? (
@@ -161,12 +149,15 @@ export function renderDataPart({
       }
       return <AppEventNote data={part.data} key={part.metadata.id} />;
     }
+    case "data-permissionAnswer": {
+      return <PermissionAnswerNote data={part.data} key={part.metadata.id} />;
+    }
     case "data-asks": {
       return <SentAsksNote data={part.data} key={part.metadata.id} />;
     }
-    case "data-attachedFolderChanges": {
+    case "data-folderChanges": {
       return (
-        <AttachedFolderChangesNote
+        <FolderChangesNote
           data={part.data}
           isDeveloperMode={ctx.isDeveloperMode}
           key={part.metadata.id}
@@ -174,7 +165,6 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
-    case "data-projectContext":
     case "data-reply": {
       return null;
     }
@@ -272,6 +262,16 @@ export function renderDataPart({
         <FilePathsGrid key={part.metadata.id} paths={[...new Set(paths)]} />
       );
     }
+    case "data-fromChat": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={`From the chat: ${part.data.text}`}
+        />
+      );
+    }
     case "data-intent": {
       return (
         <ModelContextDebugCard
@@ -326,9 +326,6 @@ export function renderDataPart({
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
     }
-    case "data-projectChanges": {
-      return <ProjectChangesNote data={part.data} key={part.metadata.id} />;
-    }
     case "data-skillChanges": {
       return (
         // Wider than the file grid's mt-2: that grid is a block of its own and
@@ -350,9 +347,6 @@ export function renderDataPart({
           text={`Skills mentioned: ${part.data.names.join(", ")}`}
         />
       );
-    }
-    case "data-taskAppChanges": {
-      return <TaskAppChangesNote data={part.data} key={part.metadata.id} />;
     }
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.

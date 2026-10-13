@@ -1,35 +1,33 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { isExpectedNetworkError } from "@instrument-org/shared";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
-import { cancelHold } from "../../lib/task-hold";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
 import { ToolNameSchema } from "../../tools/name";
+import { chatSessionRef } from "../../machines/workspace";
 import { base, toORPCError } from "../base";
 
 const byIdWithMessagesAndParts = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(Session.WithMessagesAndPartsSchema)
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
     const session = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      taskId,
+      chatId,
     );
 
     if (session.isErr()) {
@@ -42,15 +40,15 @@ const byIdWithMessagesAndParts = base
 const list = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       includeChildSessions: z.boolean().default(false),
     }),
   )
   .output(z.array(Session.Schema))
   .handler(async ({ errors, input }) => {
     const { id, includeChildSessions } = input;
-    const taskId = id;
-    const sessions = await Store.getSessions(taskId, {
+    const chatId = id;
+    const sessions = await Store.getSessions(chatId, {
       includeChildSessions,
     });
     if (sessions.isErr()) {
@@ -70,7 +68,7 @@ const list = base
 const run = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       sessionId: StoreId.SessionSchema,
     }),
@@ -78,7 +76,7 @@ const run = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, modelURI, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -88,16 +86,12 @@ const run = base
     });
 
     if (!modelResult.ok) {
-      if (!isExpectedNetworkError(modelResult.error)) {
-        context.workspaceConfig.captureException(modelResult.error);
-      }
       throw toORPCError(modelResult.error, errors);
     }
 
     context.workspaceRef.send({
       type: "runTurn",
       value: {
-        agentName: agentNameForTask(taskId),
         id,
         model: modelResult.value,
         sessionId,
@@ -105,44 +99,52 @@ const run = base
     });
 
     // A settings write, which the record change feed reports: what moves the task in the list.
-    await recordTaskActivity(taskId);
-
-    context.workspaceConfig.captureEvent("session.run");
+    await recordChatActivity(chatId);
   });
 
+/**
+ * Stops a record's agents: a chat's, which is its own conversation and every
+ * task it started, since Stop means all of the user's work wherever it is
+ * running; or with `sessionId`, that one session alone, a task's say.
+ */
 const stop = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      sessionId: StoreId.SessionSchema.optional(),
+    }),
+  )
   .handler(({ context, input }) => {
-    // A task held from starting has no session to stop; stopping it cancels
-    // the start instead.
-    cancelHold(input.id);
+    // The user's stop, which the task's page ends on. One task stopped
+    // while the chat carries on is news to wake the chat with; the
+    // chat's own Stop ends the chat's turn too, and wakes nothing.
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
         id: input.id,
+        notice: { by: "user", wakesChat: input.sessionId !== undefined },
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
-
-    context.workspaceConfig.captureEvent("session.stopped");
   });
 
 const toMarkdown = base
   .input(
     z.object({
       frontMatter: z.record(z.string(), z.unknown()).optional(),
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ input }) => {
     const { frontMatter, id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
     const markdown = await getSessionMarkdown({
       frontMatter,
       sessionId,
-      taskId,
+      chatId,
     });
     return { markdown };
   });
@@ -150,16 +152,16 @@ const toMarkdown = base
 const contextTokens = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.object({ inputTokens: z.number() }))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
-    const messages = await Store.getMessages({ sessionId, taskId });
+    const messages = await Store.getMessages({ sessionId, chatId });
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }
@@ -183,7 +185,7 @@ const live = {
   contextTokens: base
     .input(
       z.object({
-        id: TaskIdSchema,
+        id: ChatIdSchema,
         sessionId: StoreId.SessionSchema,
       }),
     )
@@ -204,15 +206,15 @@ const live = {
 };
 
 /**
- * Answer a tool call that is waiting on the user: a `choose` or a
- * `request_folder`. The output is checked against the tool's own schema, then
+ * Answer a tool call that is waiting on the user: a `choose`. The output is
+ * checked against the tool's own schema, then
  * handed to the session holding the call, which records it and lets the agent
  * go on.
  */
 const answerToolCall = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       output: z.unknown(),
       toolCallId: z.string(),
       toolName: ToolNameSchema,
@@ -232,11 +234,7 @@ const answerToolCall = base
     // unanswered on disk and the card that draws it still has its buttons. The
     // machine drops such an answer with a line in the log, so say it here
     // instead, where the click can be told it went nowhere.
-    const sessions =
-      context.workspaceRef
-        .getSnapshot()
-        .context.sessionRefsByTaskId.get(input.id) ?? [];
-    if (sessions.length === 0) {
+    if (!chatSessionRef(context.workspaceRef.getSnapshot().context, input.id)) {
       throw new ORPCError("CONFLICT", {
         message: "That request ended before the answer reached it.",
       });

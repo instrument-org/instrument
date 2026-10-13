@@ -30,6 +30,7 @@ function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
   const context = {
     ask: vi.fn(),
     browser: {
+      adopt: vi.fn(),
       navigate: vi.fn(),
       navigateTab: vi.fn(),
       open: browserOpen,
@@ -37,6 +38,7 @@ function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
       openOrFocus: vi.fn(),
       pageInPlaceOf: vi.fn(),
       readPage: vi.fn(),
+      readPageText: vi.fn(),
       restore: vi.fn(),
     },
     focusComposer: vi.fn(),

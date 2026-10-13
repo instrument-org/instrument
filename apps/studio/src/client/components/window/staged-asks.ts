@@ -12,7 +12,7 @@ import { useContext, useEffect, useRef } from "react";
 import { groupOnScreenAtom } from "./window-tabs";
 
 import { WindowContext } from "./context";
-import { mountOfHostPath } from "./file-tabs";
+import { reachablePath } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { chatOfGroup } from "./window-href";
 
@@ -54,17 +54,17 @@ export const stagedAsksAtom = atom<StagedAsk[]>([]);
 /** The file whose Ask has its list of waiting asks open, if any: a pin on a page opens it too. */
 export const askTrayAtom = atom<null | string>(null);
 
-/** Staged asks as the message carries them, each file with the virtual path the agent reaches it by. */
+/** Staged asks as the message carries them, each file with the path the agent reaches it by. */
 export function asksPart(
   asks: readonly StagedAsk[],
-  attachedFolders: Record<string, { mountName: string; path: string }>,
+  folders: Record<string, { path: string }>,
 ): SessionMessageDataPart.AsksDataPart | undefined {
   if (asks.length === 0) {
     return;
   }
   return {
     asks: asks.map((ask) => {
-      const mount = mountOfHostPath(ask.path, attachedFolders);
+      const mount = reachablePath(ask.path, folders);
       return {
         ...(ask.context ? { context: ask.context } : {}),
         ...(ask.excerpt ? { excerpt: ask.excerpt } : {}),

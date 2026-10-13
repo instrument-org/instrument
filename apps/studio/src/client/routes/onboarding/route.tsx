@@ -6,7 +6,7 @@ import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useMatchRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export const Route = createFileRoute("/onboarding")({
   beforeLoad: async () => {

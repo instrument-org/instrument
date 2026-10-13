@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { StoreId, ChatIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,7 @@ const part = (input?: { choices: string[]; question: string }) =>
     type: "tool-choose",
   }) as unknown as Parameters<typeof ToolChoose>[0]["part"];
 
-const taskId = TaskIdSchema.parse("test-task");
+const chatId = ChatIdSchema.parse("test-task");
 
 describe("ToolChoose", () => {
   // Every row draws a chevron, because whether a body has anything in it is
@@ -31,7 +31,7 @@ describe("ToolChoose", () => {
   // open, and the reader has no way to tell those apart or report either.
   it("says so rather than drawing nothing when the input has not arrived", () => {
     const { container } = renderWithProviders(
-      <ToolChoose part={part()} taskId={taskId} />,
+      <ToolChoose part={part()} chatId={chatId} />,
     );
 
     expect(container.textContent).toBe("The question has not arrived yet.");
@@ -41,7 +41,7 @@ describe("ToolChoose", () => {
     const { container } = renderWithProviders(
       <ToolChoose
         part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        taskId={taskId}
+        chatId={chatId}
       />,
     );
 
@@ -53,7 +53,7 @@ describe("ToolChoose", () => {
     const { container } = renderWithProviders(
       <ToolChoose
         part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        taskId={taskId}
+        chatId={chatId}
       />,
     );
 
@@ -69,12 +69,12 @@ describe("ToolChoose", () => {
     const { container, queryClient } = renderWithProviders(
       <ToolChoose
         part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        taskId={taskId}
+        chatId={chatId}
       />,
     );
 
     queryClient.setQueryData(
-      rpcClient.workspace.task.live.activity.experimental_liveOptions()
+      rpcClient.workspace.chats.live.activity.experimental_liveOptions()
         .queryKey,
       [],
     );
@@ -129,12 +129,41 @@ describe("QuestionCard", () => {
     fireEvent.change(screen.getByLabelText("Note"), {
       target: { value: "Ask design. " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip with note" }));
     expect(onAnswer).toHaveBeenCalledWith({
       declined: true,
       note: "Ask design.",
     });
   });
+
+  it.each([
+    { name: "Vue", sending: { selectedChoice: "Vue" } },
+    { name: "Your own answer", sending: { selectedChoice: "Svelte" } },
+  ])(
+    "draws $sending.selectedChoice as picked while it is sending",
+    ({ name, sending }) => {
+      renderWithProviders(
+        <QuestionCard
+          choices={["React", "Vue"]}
+          onAnswer={vi.fn()}
+          question="Which one?"
+          sending={sending}
+          status="open"
+        />,
+      );
+      const radios = screen.getAllByRole("radio");
+      expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(
+        name === "Vue" ? ["false", "true"] : ["false", "false"],
+      );
+      expect(radios.every((radio) => radio.hasAttribute("disabled"))).toBe(
+        true,
+      );
+      expect(screen.getByLabelText("Your own answer")).toHaveProperty(
+        "disabled",
+        true,
+      );
+    },
+  );
 
   it.each([
     { output: { declined: true as const }, text: "You skipped this question." },

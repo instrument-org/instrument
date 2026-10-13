@@ -1,4 +1,4 @@
-import type { TaskId } from "@instrument-org/workspace/electron";
+import type { BrowserTargetId } from "@instrument-org/workspace/electron";
 
 import { app, type Session, type WebContents, webFrameMain } from "electron";
 
@@ -61,6 +61,12 @@ export interface GuestRecord {
   readonly frames: Map<string, FrameId & { url: string }>;
   readonly id: number;
   readonly role: GuestRole;
+  /**
+   * When a person last clicked, tapped or pressed a key in this contents, by
+   * `Date.now()`, or 0 if never. Input an agent's CDP command dispatches is
+   * not counted; see `noteUserInput` in `external-app-links.ts`.
+   */
+  userInputAt: number;
 }
 
 const keyOf = ({ processId, routingId }: FrameId) =>
@@ -85,7 +91,7 @@ export function createGuestRegistry() {
       roleOf: (contents: WebContents) => GuestRole;
     }
   >();
-  const unblockedTasks = new Set<TaskId>();
+  const unblockedTargets = new Set<BrowserTargetId>();
   let listening = false;
 
   function track(contents: WebContents, role: GuestRole): GuestRecord {
@@ -97,6 +103,7 @@ export function createGuestRegistry() {
       frames: new Map(),
       id,
       role,
+      userInputAt: 0,
     };
     records.set(id, record);
     contents.on(
@@ -143,25 +150,31 @@ export function createGuestRegistry() {
     get(id: number): GuestRecord | undefined {
       return records.get(id);
     },
-    /** Whether the contents' task turned ad blocking off for its own tabs. */
+    /** Whether an agent driving the contents' tab turned ad blocking off for it. */
     isAdBlockExempt(id: number): boolean {
-      const task = records.get(id)?.entry?.id;
-      return task !== undefined && unblockedTasks.has(task);
+      const targetId = records.get(id)?.entry?.targetId;
+      return targetId !== undefined && unblockedTargets.has(targetId);
     },
     records(): IterableIterator<GuestRecord> {
       return records.values();
     },
     /**
-     * Turns ad blocking off (`false`) or on (`true`) for a task's own tabs,
-     * or with `undefined` only asks; answers whether it blocks for them.
+     * Turns ad blocking off (`false`) or on (`true`) for the tabs an agent
+     * drives, or with `undefined` only asks; answers whether it blocks in
+     * every one of them.
      */
-    setAdBlocking(task: TaskId, blocking: boolean | undefined): boolean {
-      if (blocking === false) {
-        unblockedTasks.add(task);
-      } else if (blocking === true) {
-        unblockedTasks.delete(task);
+    setAdBlocking(
+      targets: readonly BrowserTargetId[],
+      blocking: boolean | undefined,
+    ): boolean {
+      for (const targetId of targets) {
+        if (blocking === false) {
+          unblockedTargets.add(targetId);
+        } else if (blocking === true) {
+          unblockedTargets.delete(targetId);
+        }
       }
-      return !unblockedTasks.has(task);
+      return targets.every((targetId) => !unblockedTargets.has(targetId));
     },
     /** Records one contents directly; the app's sessions go through {@link watchSession}. */
     track,

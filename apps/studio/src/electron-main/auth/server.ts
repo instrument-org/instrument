@@ -1,47 +1,28 @@
-import {
-  auth,
-  createGoogleProvider,
-  decodeOAuthState,
-  store,
-} from "@/electron-main/auth/client";
+import { receiveInstrumentCallback } from "@/electron-main/auth/client";
 import {
   GOOGLE_MARK,
   newAuthReference,
   OPENAI_MARK,
+  OPENROUTER_MARK,
   previewOutcomes,
   renderAuthPage,
 } from "@/electron-main/auth/page";
+import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
-  announceConnected,
-  APP_OAUTH_CALLBACK_PATH,
-  appHome,
   appMark,
   appName,
   getAppsDir,
+  receiveAppCallback,
 } from "@/electron-main/lib/apps";
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
-import {
-  CHATGPT_CALLBACK_PATH,
-  receiveChatGPTCallback,
-} from "@/electron-main/lib/chatgpt-account";
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { getSessionStore } from "@/electron-main/stores/workspace/session";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import { receiveChatGPTCallback } from "@/electron-main/lib/chatgpt-account";
+import { receiveOpenRouterCallback } from "@/electron-main/lib/openrouter-connect";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
-import {
-  appChanged,
-  cancelMcpOAuth,
-  completeMcpOAuth,
-  pendingMcpOAuthSlug,
-  recordConnection,
-} from "@instrument-org/workspace/electron";
-import { type Context, Hono } from "hono";
+import { type Context, type Handler, Hono } from "hono";
 import fs from "node:fs/promises";
 
 const DEFAULT_PORT =
@@ -80,15 +61,9 @@ export function startAuthCallbackServer() {
 }
 
 async function start() {
-  const app = new Hono();
+  const app = createAuthCallbackApp();
 
-  // Bound before the routes are registered, so they close over the port the
-  // bind actually took. Nothing can reach the server in between: registration
-  // runs in the same tick.
-  //
-  // IPv4 loopback only, so the OAuth callback and the auth preview pages aren't
-  // exposed to the local network; the system browser reaches the callback via
-  // localhost/127.0.0.1.
+  // IPv4 loopback keeps callbacks and preview pages off the local network.
   const bound = await listenWithPortFallback({
     basePort: DEFAULT_PORT,
     listen: (port) => serve({ fetch: app.fetch, hostname: "127.0.0.1", port }),
@@ -119,21 +94,35 @@ async function start() {
     );
   });
 
-  app.get("/icon.png", (c) =>
+  return { port };
+}
+
+export function createAuthCallbackApp() {
+  const app = new Hono();
+  const paths = new Set<string>();
+  const get = (path: string, handler: Handler) => {
+    if (paths.has(path)) {
+      throw new Error(`Duplicate auth callback route: GET ${path}`);
+    }
+    paths.add(path);
+    app.get(path, handler);
+  };
+
+  get("/icon.png", (c) =>
     serveAsset(
       c,
       () => import("../../../resources/icon.png?asset"),
       "image/png",
     ),
   );
-  app.get("/app-icon-stylized.png", (c) =>
+  get("/app-icon-stylized.png", (c) =>
     serveAsset(
       c,
       () => import("../../client/assets/app-icon-stylized.png?asset"),
       "image/png",
     ),
   );
-  app.get("/favicon.ico", (c) =>
+  get("/favicon.ico", (c) =>
     serveAsset(
       c,
       () => import("../../../resources/favicon.ico?asset"),
@@ -144,7 +133,7 @@ async function start() {
   );
   // The app's own Roboto Serif, so the pages set their headings in the
   // face the window uses even where the browser can't reach Google Fonts.
-  app.get("/fonts/roboto-serif-400.woff2", (c) =>
+  get("/fonts/roboto-serif-400.woff2", (c) =>
     serveAsset(
       c,
       () =>
@@ -152,7 +141,7 @@ async function start() {
       "font/woff2",
     ),
   );
-  app.get("/tailwind.js", (c) =>
+  get("/tailwind.js", (c) =>
     serveAsset(
       c,
       () => import("../../../resources/tailwind-browser.js?asset"),
@@ -171,203 +160,100 @@ async function start() {
     return renderAuthPage({ ...page, kind: "failed", reference });
   };
 
-  app.get("/auth/callback/google", async (c) => {
-    const code = c.req.query("code");
-    const state = c.req.query("state");
-
-    if (
-      c.req.query("error") !== undefined &&
-      state !== undefined &&
-      state === store.state
-    ) {
-      publisher.publish("auth.sign-in-outcome", { outcome: "declined" });
-      focusAppWindow();
-      return c.html(
-        renderAuthPage({
-          kind: "declined",
-          service: googleService,
-          signIn: true,
-        }),
-      );
-    }
-
-    if (
-      code === undefined ||
-      store.state === null ||
-      state !== store.state ||
-      store.codeVerifier === null
-    ) {
+  // The API's Google sign-in lands here with a single-use token, or with the
+  // error that ended it.
+  get(AUTH_CALLBACK_PATHS.instrument, async (c) => {
+    const finished = receiveInstrumentCallback(new URL(c.req.url).searchParams);
+    if (!finished) {
       captureServerException(
-        new Error("OAuth callback received with invalid state or missing code"),
+        new Error("Sign-in callback received with invalid state"),
         { scopes: ["auth"] },
       );
       focusAppWindow();
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
-
-    const decodedState = decodeOAuthState(state);
-    if (!decodedState) {
-      focusAppWindow();
-      return c.html(renderAuthPage({ kind: "expired" }), 400);
-    }
-
-    const google = createGoogleProvider({ port });
-    const { codeVerifier } = store;
-    const sessionStore = getSessionStore();
-
-    const headers = new Headers();
-    let email: string | undefined;
-
+    let result: Awaited<typeof finished>;
     try {
-      const tokens = await google.validateAuthorizationCode(code, codeVerifier);
-      const res = await auth.signIn.social(
-        {
-          // The ID token alone proves who signed in; Google's access and
-          // refresh tokens are never sent to the platform.
-          idToken: { token: tokens.idToken() },
-          provider: "google",
-        },
-        {
-          headers,
-          onSuccess(ctx) {
-            const authToken = ctx.response.headers.get("set-auth-token");
-            sessionStore.set("apiBearerToken", authToken);
-            getWorkspaceState().set("hasCompletedProviderSetup", true);
-          },
-        },
-      );
-
-      if (res.error) {
-        const page = failed(new Error("Login failed", { cause: res.error }));
-        publisher.publish("auth.sign-in-outcome", {
-          error: res.error,
-          outcome: "failed",
-        });
-        focusAppWindow();
-        return await c.html(page, 400);
-      }
-      // The session is saved by now, so reading the email must not throw
-      // into the catch below and report a sign-in that went through as failed.
-      const { data } = res;
-      email = data && "user" in data ? data.user.email : undefined;
+      result = await finished;
     } catch (error) {
       const page = failed(new Error("Error signing in", { cause: error }));
-      // The button in the app holds until it hears how the sign-in went.
-      publisher.publish("auth.sign-in-outcome", {
-        error: {
-          message: error instanceof Error ? error.message : undefined,
-          status: 500,
-          statusText: "Error signing in",
-        },
-        outcome: "failed",
-      });
       focusAppWindow();
       return c.html(page, 400);
     }
-
-    void setDefaultModel();
-    publisher.publish("auth.sign-in-outcome", { outcome: "signed-in" });
-    // Delay focus so the renderer has time to navigate to the success screen
-    // before the window comes to front -- keeps the entrance animation visible.
-    setTimeout(focusAppWindow, 400);
-    captureServerEvent("auth.logged_in");
-    return c.html(
-      renderAuthPage({ email, kind: "signed-in", service: googleService }),
-    );
+    switch (result.outcome) {
+      case "canceled": {
+        focusAppWindow();
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      case "declined": {
+        focusAppWindow();
+        return c.html(
+          renderAuthPage({
+            kind: "declined",
+            service: googleService,
+            signIn: true,
+          }),
+        );
+      }
+      case "signed-in": {
+        // Delay focus so the renderer has time to navigate to the success
+        // screen before the window comes to front -- keeps the entrance
+        // animation visible.
+        setTimeout(focusAppWindow, 400);
+        return c.html(
+          renderAuthPage({
+            email: result.email,
+            kind: "signed-in",
+            service: googleService,
+          }),
+        );
+      }
+    }
   });
 
-  // An app's sign-in lands here after the user approves. Finish the parked
-  // flow (the code becomes tokens, the app becomes connected), then tell the
-  // window and the chat. The page opened in the window's own browser,
-  // so this renders where the user is looking rather than pulling focus.
-  app.get(APP_OAUTH_CALLBACK_PATH, async (c) => {
-    const code = c.req.query("code");
-    const state = c.req.query("state");
-    const oauthError = c.req.query("error");
-    const appsDir = getAppsDir();
-    if (
-      state !== undefined &&
-      (oauthError !== undefined || code === undefined)
-    ) {
-      // Denied or abandoned in the provider's page: the flow is torn down and
-      // the conversation hears a decline, the same as "Not now" on the card.
-      const slug = pendingMcpOAuthSlug(state);
-      await cancelMcpOAuth(state);
-      if (slug === undefined || !appsDir) {
-        return c.html(renderAuthPage({ kind: "expired" }), 400);
-      }
-      await recordConnection(slug, { status: "declined" });
-      await appChanged(slug, { event: "declined" });
-      const name = await appName(appsDir, slug);
-      focusAppWindow();
-      return c.html(
-        renderAuthPage({
-          kind: "declined",
-          service: { mark: await appMark(appsDir, slug), name },
-        }),
-      );
-    }
-    if (code === undefined || state === undefined) {
+  // An app's sign-in lands here after the user approves. The page opened in
+  // the window's own browser, so this renders where the user is looking
+  // rather than pulling focus.
+  get(AUTH_CALLBACK_PATHS.app, async (c) => {
+    const result = await receiveAppCallback(new URL(c.req.url).searchParams);
+    if (result.outcome === "expired") {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
-    const slug = pendingMcpOAuthSlug(state);
-    const result = await completeMcpOAuth({ code, state });
-    if (result.isErr()) {
-      // No flow was waiting for this state: an old tab or a second visit.
-      if (slug === undefined) {
-        return c.html(renderAuthPage({ kind: "expired" }), 400);
+    const appsDir = getAppsDir();
+    const name = appsDir ? await appName(appsDir, result.slug) : result.slug;
+    const service = {
+      mark: appsDir ? await appMark(appsDir, result.slug) : undefined,
+      name,
+    };
+    switch (result.outcome) {
+      case "connected": {
+        // Either way the tab gets a page that says what happened. The window
+        // takes itself back to the app's page when the sign-in it waited on
+        // lands; one that ran in the user's own browser also brings the
+        // window to the front, so that way back is already taken.
+        if (result.opensIn !== "app") {
+          focusAppWindow();
+        }
+        return c.html(renderAuthPage({ kind: "connected", service }));
       }
-      const name = appsDir ? await appName(appsDir, slug) : slug;
-      const page = failed(
-        new Error(`App sign-in failed: ${result.error.message}`),
-        { connecting: name },
-      );
-      if (appsDir) {
-        await recordConnection(slug, {
-          error: result.error.message,
-          status: "failed",
-        });
-        await appChanged(slug, {
-          detail: result.error.message,
-          event: "failed",
-        });
+      case "declined": {
+        focusAppWindow();
+        return c.html(renderAuthPage({ kind: "declined", service }));
       }
-      focusAppWindow();
-      return c.html(page, 400);
+      case "failed": {
+        const page = failed(new Error(`App sign-in failed: ${result.error}`), {
+          connecting: name,
+        });
+        focusAppWindow();
+        return c.html(page, 400);
+      }
     }
-    const name = appsDir
-      ? await appName(appsDir, result.value.slug)
-      : result.value.slug;
-    if (appsDir) {
-      await announceConnected(result.value.slug);
-    }
-    // A sign-in that ran in the window's own browser lands on the service
-    // itself, signed in: the connection is visible where it matters, and no
-    // page of ours is left in the tab. One that ran in the user's browser
-    // gets a page that says what happened and the way back into the app,
-    // and the window comes to the front so that way back is already taken.
-    const home = appsDir
-      ? await appHome(appsDir, result.value.slug)
-      : undefined;
-    if (result.value.opensIn === "app" && home) {
-      return c.redirect(home);
-    }
-    focusAppWindow();
-    return c.html(
-      renderAuthPage({
-        kind: "connected",
-        service: {
-          mark: appsDir ? await appMark(appsDir, result.value.slug) : undefined,
-          name,
-        },
-      }),
-    );
   });
 
   // Sign in with ChatGPT lands here. The sign-in is finished before the page
   // renders, so it says whether the plan is ready, and the window comes back
   // to the front because the browser it ran in is the user's own.
-  app.get(CHATGPT_CALLBACK_PATH, async (c) => {
+  get(AUTH_CALLBACK_PATHS.chatgpt, async (c) => {
     const params = new URL(c.req.url).searchParams;
     const finished = receiveChatGPTCallback(params);
     if (!finished) {
@@ -416,7 +302,42 @@ async function start() {
     }
   });
 
-  app.get("/test", (c) =>
+  get(AUTH_CALLBACK_PATHS.openrouter, async (c) => {
+    const finished = receiveOpenRouterCallback(new URL(c.req.url).searchParams);
+    if (!finished) {
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
+    }
+    const openRouter = { mark: OPENROUTER_MARK, name: "OpenRouter" };
+    const status = await finished.then(
+      (value) => ({ value }),
+      (error: unknown) =>
+        failed(new Error("Connecting OpenRouter failed", { cause: error }), {
+          connecting: openRouter.name,
+        }),
+    );
+    focusAppWindow();
+    if (!("value" in status)) {
+      return c.html(status, 400);
+    }
+    switch (status.value.outcome) {
+      case "canceled": {
+        // A newer connect took this one's place, or it was given up in the app.
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      case "connected": {
+        return c.html(
+          renderAuthPage({ kind: "connected", service: openRouter }),
+        );
+      }
+      case "declined": {
+        return c.html(
+          renderAuthPage({ kind: "declined", service: openRouter }),
+        );
+      }
+    }
+  });
+
+  get("/test", (c) =>
     c.html(
       renderAuthPage({
         index: previewOutcomes().map(({ label }, i) => ({
@@ -426,11 +347,11 @@ async function start() {
       }),
     ),
   );
-  app.get("/test/:index", async (c) => {
+  get("/test/:index", async (c) => {
     const previews = previewOutcomes(await directoryIconDataUri("linear"));
     const preview = previews[Number(c.req.param("index"))];
     return preview ? c.html(renderAuthPage(preview.outcome)) : c.notFound();
   });
 
-  return { port };
+  return app;
 }

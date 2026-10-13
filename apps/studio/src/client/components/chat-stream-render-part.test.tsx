@@ -4,6 +4,7 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
+import { isValidElement } from "react";
 import { describe, expect, it } from "vitest";
 
 // Relative, not `@/tests/render`: oxlint's type-aware pass does not resolve the
@@ -13,6 +14,8 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
+import { PermissionAsksForPart } from "./permission-asks";
+import { ToolCallBody } from "./message-part/tool-call";
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
@@ -81,7 +84,7 @@ function chatPartNode(
       // Nothing to do: these tests assert on the reasoning row, not on retry.
     },
     // Never read for a reasoning part, so the fixture stops at the boundary.
-    task: undefined as never,
+    chatInfo: undefined as never,
   } satisfies RenderPartContext;
 
   return renderChatPart({
@@ -110,7 +113,7 @@ function renderReasoning(parts: SessionMessagePart.Type[]) {
       // Nothing to do: these tests assert on the reasoning row, not on retry.
     },
     // Never read for a reasoning part, so the fixture stops at the boundary.
-    task: undefined as never,
+    chatInfo: undefined as never,
   } satisfies RenderPartContext;
 
   renderWithProviders(
@@ -175,31 +178,40 @@ describe("renderChatPart in the chat", () => {
     state: "done",
   };
 
-  function chatNode(part: SessionMessagePart.Type, isDeveloperMode: boolean) {
+  function chatNode(
+    part: SessionMessagePart.Type,
+    isDeveloperMode: boolean,
+    { isStreaming = false }: { isStreaming?: boolean } = {},
+  ) {
     const message = {
       id: messageId,
       metadata: { createdAt: new Date(0), sessionId },
       parts: [part],
       role: "assistant",
     } as SessionMessage.WithParts;
-    return renderChatPart({
+    const node = renderChatPart({
       browserStatusContextAdded: false,
       ctx: {
         isAgentRunning: false,
         isDeveloperMode,
-        isToolStreaming: () => false,
+        isToolStreaming: () => isStreaming,
         lastMessageId: messageId,
         onRetry: () => {
           // Nothing to do: these tests assert on whether the row exists.
         },
         presentation: "chat",
-        // Handed to the row, never read while building it.
-        task: undefined as never,
+        // Only the id is read, to look up the asks a call raised.
+        chatInfo: { id: "chat" } as never,
       },
       message,
       part,
       partIndex: 0,
     });
+    // A hidden call still holds a place for the asks it raised, which draw
+    // nothing when there are none; the row itself is what these tests count.
+    return isValidElement(node) && node.type === PermissionAsksForPart
+      ? null
+      : node;
   }
 
   it.each([
@@ -209,4 +221,34 @@ describe("renderChatPart in the chat", () => {
     expect(chatNode(part, false)).toBeNull();
     expect(chatNode(part, true)).not.toBeNull();
   });
+
+  // A question the model is still writing has nothing to ask yet, and once
+  // written it is the card alone, with no row above it to open or shut it.
+  it.each([false, true])(
+    "draws a question as its card once it has arrived (developer mode: %s)",
+    (isDeveloperMode) => {
+      const choosePart = {
+        ...toolPart,
+        input: { question: "Which one?" },
+        state: "input-streaming",
+        type: "tool-choose",
+      } satisfies SessionMessagePart.ToolPart;
+      expect(
+        chatNode(choosePart, isDeveloperMode, { isStreaming: true }),
+      ).toBeNull();
+      expect(
+        chatNode(
+          {
+            ...choosePart,
+            input: { choices: ["This", "That"], question: "Which one?" },
+            state: "input-available",
+          },
+          isDeveloperMode,
+          { isStreaming: true },
+        ),
+      ).toMatchObject({
+        props: { children: [{ type: ToolCallBody }, expect.anything()] },
+      });
+    },
+  );
 });

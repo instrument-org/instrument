@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../rpc/publisher";
 import { WorkspaceDirSchema } from "../schemas/paths";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { SKILL_ARTIFACT_WATCHER_IGNORE } from "./skill-artifact-ignore";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
@@ -124,7 +124,7 @@ async function setupWorkspace() {
   const workspaceRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), "skill-watcher-"),
   );
-  createMockTaskConfigForDir(path.join(workspaceRoot, "tasks", "watcher-test"));
+  createMockChatConfigForDir(path.join(workspaceRoot, "tasks", "watcher-test"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(workspaceRoot),

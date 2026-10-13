@@ -1,19 +1,15 @@
-import {
-  type AIGatewayModel,
-  type AIGatewayModelURI,
-} from "@instrument-org/ai-gateway";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { ok } from "neverthrow";
 
-import { MOUNT } from "../mount-points";
 import { type FileUpload } from "../schemas/file-upload";
-import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type MountedFolder } from "../schemas/mounted-folder";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { type ChatId } from "../schemas/chat-id";
+import { detectFolderChanges } from "./folder-changes";
 import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
@@ -25,50 +21,45 @@ import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
-import { detectTaskAppChanges } from "./task-app-changes";
-import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-record";
 import { resolveChat } from "./record-folders";
+import { updateChatSettings } from "./chat-settings";
+import { grantFolder } from "./chat/grants";
+import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
+import { workDir } from "./work-dir";
 
 export async function newMessage({
   asks,
-  chatContext,
   files,
   folders,
+  fromChat,
   intent,
-  model,
   modelURI,
   prompt,
   replyTo,
   sessionId,
-  taskId,
+  chatId,
   viewing,
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
-  /** The user's other chats, on the message that opens a new one; see the chat-context part. */
-  chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
+  /** Folders the user sent with the message, each granted to the chat. */
+  folders?: { path: string }[];
   /**
-   * Folders to grant the task, each at the access and under the mount name
-   * given, where given; see grant-folders.ts.
+   * Words the chat wrote to this task, in place of a prompt; see the
+   * from-chat part.
    */
-  folders?: {
-    access?: FolderAttachment.Access;
-    mountName?: string;
-    path: string;
-    source?: FolderAttachment.Source;
-  }[];
+  fromChat?: SessionMessageDataPart.FromChatDataPart;
   intent?: string;
-  model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
   replyTo?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
   /** What the sending surface had on screen; see the view-context part. */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
 }) {
@@ -85,6 +76,19 @@ export async function newMessage({
       },
       text: prompt.trim(),
       type: "text",
+    });
+  }
+
+  if (fromChat) {
+    parts.push({
+      data: fromChat,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-fromChat",
     });
   }
 
@@ -117,7 +121,7 @@ export async function newMessage({
 
   if (viewing) {
     parts.push({
-      data: await withTabHolders(taskId, viewing),
+      data: await withTabHolders(chatId, viewing),
       metadata: {
         createdAt,
         id: StoreId.newPartId(),
@@ -154,11 +158,14 @@ export async function newMessage({
     });
   }
 
+  for (const folder of folders ?? []) {
+    await grantFolder({ chatId, path: folder.path, source: "attached" });
+  }
+
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: taskDir(taskId),
+      dir: workDir(chatId),
       files,
-      folders,
       messageId,
       sessionId,
     });
@@ -167,27 +174,25 @@ export async function newMessage({
       return uploadResult;
     }
 
-    parts.push(await namedByReach(taskId, uploadResult.value.part));
-  }
-
-  if (chatContext) {
-    parts.push({
-      data: chatContext,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-chatContext",
-    });
+    const { part } = uploadResult.value;
+    parts.push(
+      part.type === "data-attachments" && folders && folders.length > 0
+        ? {
+            ...part,
+            data: {
+              ...part.data,
+              folders: folders.map((folder) => ({ path: folder.path })),
+            },
+          }
+        : part,
+    );
   }
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({
     createdAt,
     messageId,
     sessionId,
-    taskId,
+    chatId,
   });
   if (backgroundProcessesPart) {
     parts.push(backgroundProcessesPart);
@@ -196,15 +201,16 @@ export async function newMessage({
   // A chat has no browser of its own: it drives whichever of the
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
-  // it tales about tabs it never owned.
-  const isChat = resolveChat(taskId) !== undefined;
+  // it tales about tabs it never owned. A task of the chat's, in the same
+  // store, is told as a task.
+  const isChat = sessionRole(chatId, sessionId) === "chat";
   const browserStatusPart = isChat
     ? undefined
     : await createBrowserStatusPart({
         createdAt,
         messageId,
         sessionId,
-        taskId,
+        chatId,
       });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
@@ -212,7 +218,7 @@ export async function newMessage({
 
   // The session context states the date the session started and is never
   // rewritten, so a session that ran overnight is corrected here instead.
-  const dateChange = await detectDateChange({ messageId, sessionId, taskId });
+  const dateChange = await detectDateChange({ messageId, sessionId, chatId });
   if (dateChange.isErr()) {
     // Awareness of the date is best-effort; never block sending.
     getWorkspaceConfig().captureException(dateChange.error);
@@ -233,7 +239,7 @@ export async function newMessage({
       messageId,
       sentAt: createdAt,
       sessionId,
-      taskId,
+      chatId,
     });
     if (messageGap.isErr()) {
       // Awareness of the gap is best-effort; never block sending.
@@ -248,7 +254,7 @@ export async function newMessage({
       createdAt,
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (chatTopicsPart) {
       parts.push(chatTopicsPart);
@@ -260,25 +266,11 @@ export async function newMessage({
       createdAt,
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (memoryPart) {
       parts.push(memoryPart);
     }
-  }
-
-  // The apps a task may reach are named in the session context, which is never
-  // rewritten, so an app handed over after it started arrives here or nowhere.
-  const appChanges = await detectTaskAppChanges({
-    messageId,
-    sessionId,
-    taskId,
-  });
-  if (appChanges.isErr()) {
-    // Awareness of app changes is best-effort; never block sending.
-    getWorkspaceConfig().captureException(appChanges.error);
-  } else if (appChanges.value) {
-    parts.push(appChanges.value);
   }
 
   // A chat's apps are listed in its session context, written once; one
@@ -287,7 +279,7 @@ export async function newMessage({
     const chatAppChanges = await detectChatAppChanges({
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (chatAppChanges.isErr()) {
       getWorkspaceConfig().captureException(chatAppChanges.error);
@@ -297,15 +289,12 @@ export async function newMessage({
   }
 
   // Notify agent of folders added, removed, or renamed since last turn
-  // (per-session baseline diff). Runs after writeUploadedAttachments above so a
-  // rename it triggers is read as part of "current" and reported now instead of
-  // lagging a turn behind, and so the folders this message attaches can be
-  // named here as already announced.
-  const folderChanges = await detectAttachedFolderChanges({
-    announced: folders?.map((folder) => folder.path) ?? [],
+  // (per-session baseline diff). Runs after the grants above, so a folder
+  // sent with this message is told here, under the name it mounts at.
+  const folderChanges = await detectFolderChanges({
     messageId,
     sessionId,
-    taskId,
+    chatId,
   });
   if (folderChanges.isErr()) {
     // Awareness of folder changes is best-effort; never block sending.
@@ -321,13 +310,14 @@ export async function newMessage({
     role: "user",
   };
 
-  await setTaskState(taskDir(taskId), { selectedModelURI: modelURI });
-
-  getWorkspaceConfig().captureEvent("message.created", {
-    files_count: files?.length ?? 0,
-    modelId: model.canonicalId,
-    providerId: model.params.provider,
-  });
+  // The composer sending is what picks the chat's model; a task's message
+  // runs on the chat's and picks nothing.
+  if (isChat) {
+    const picked = await updateChatSettings(chatId, { modelURI });
+    if (picked.isErr()) {
+      return picked;
+    }
+  }
 
   return ok(message);
 }
@@ -341,20 +331,20 @@ async function createChatTopicsPart({
   createdAt,
   messageId,
   sessionId,
-  taskId,
+  chatId,
 }: {
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
-  const session = await Store.getSession(sessionId, taskId);
+  const session = await Store.getSession(sessionId, chatId);
   if (session.isErr()) {
     return undefined;
   }
   const tagged = session.value.topics ?? [];
   if (tagged.length === 0) {
-    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>
@@ -365,14 +355,14 @@ async function createChatTopicsPart({
     }
   }
   const known = await listTopics();
-  const reach = await folderReach(taskId);
+  const reach = await folderReach(chatId);
   const topics = [];
   for (const id of tagged) {
     const topic = known.find((entry) => entry.id === id);
     if (!topic) {
       continue;
     }
-    const folders = topicFolderMounts(reach, topic.folders ?? []);
+    const folders = topicFolderPaths(reach, topic.folders ?? []);
     topics.push({
       ...(topic.about ? { about: topic.about } : {}),
       ...(topic.emoji ? { emoji: topic.emoji } : {}),
@@ -389,46 +379,19 @@ async function createChatTopicsPart({
 }
 
 /**
- * The attachments part with each folder named the way the agent reaches it. A
- * chat mounts its sent folders beside the ones it reaches without holding
- * (folder-reach.ts), and a namesake there can move one to a qualified name.
+ * The path of each of a topic's folders the chat reaches. A folder no longer
+ * on disk is not reached, and is left out so the agent is not pointed at
+ * nothing.
  */
-async function namedByReach(
-  taskId: TaskId,
-  part: SessionMessagePart.Type,
-): Promise<SessionMessagePart.Type> {
-  if (part.type !== "data-attachments" || !part.data.folders) {
-    return part;
-  }
-  const reach = Object.values(await folderReach(taskId));
-  return {
-    ...part,
-    data: {
-      ...part.data,
-      folders: part.data.folders.map((folder) => ({
-        ...folder,
-        mountName:
-          reach.find((entry) => entry.path === folder.path)?.mountName ??
-          folder.mountName,
-      })),
-    },
-  };
-}
-
-/**
- * Where each of a topic's folders is mounted in the chat, by the chat's
- * reach. A folder no longer on disk is in no mount, and is left out so the
- * agent is not pointed at nothing.
- */
-function topicFolderMounts(
-  reach: Record<string, FolderAttachment.Type>,
+function topicFolderPaths(
+  reach: Record<string, MountedFolder.Type>,
   folders: TopicFolder[],
 ): string[] {
   return folders.flatMap((folder) => {
-    const mounted = Object.values(reach).find(
+    const reached = Object.values(reach).find(
       (entry) => entry.path === folder.path,
     );
-    return mounted ? [`${MOUNT.attachedFolders}/${mounted.mountName}`] : [];
+    return reached ? [shellPath(reached.path)] : [];
   });
 }
 
@@ -438,14 +401,13 @@ function topicFolderMounts(
  * from what is stored and must say the same thing every time it is read.
  */
 async function withTabHolders(
-  taskId: TaskId,
+  chatId: ChatId,
   viewing: SessionMessageDataPart.ViewContextDataPart,
 ): Promise<SessionMessageDataPart.ViewContextDataPart> {
   if (!viewing.tabs?.length && !viewing.page?.tabs?.length) {
     return viewing;
   }
-  const chatId = resolveChat(taskId);
-  if (!chatId) {
+  if (!resolveChat(chatId)) {
     return viewing;
   }
   const holders = await tabHolders(chatId);

@@ -9,10 +9,9 @@ import path from "node:path";
 import { dedent, fork } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
-import { redactTaskDir } from "../lib/filter-shell-output";
 import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
 import {
@@ -26,7 +25,7 @@ import {
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
-import { childTaskMounts } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,
@@ -45,12 +44,11 @@ import {
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
-import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { resolveChat } from "../lib/record-folders";
+import { chatReach } from "../lib/permissions/chat-rules";
+import { workDir } from "../lib/work-dir";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
@@ -376,7 +374,7 @@ async function handleMediaFile({
 export const ReadFile = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Relative path to the file to read, or an attached-folder mount path (${MOUNT.attachedFolders}/<name>/...)`,
+      description: `Path to the file to read, relative to this conversation's folder or the full path of a file in one of the user's folders`,
     }),
     [INPUT_PARAMS.limit]: z
       .number()
@@ -484,10 +482,10 @@ export const ReadFile = setupTool({
   ]),
 }).create({
   description: ({ model }) => dedent`
-    Reads a file from the task, including folders the user attached (mounted under ${MOUNT.attachedFolders}/<name>/). You can access any file directly by using this tool.
+    Reads a file from this conversation's folder, or from one of the user's folders. You can access any file directly by using this tool.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's mount path (${MOUNT.attachedFolders}/<name>/...). E.g. ./${TASK_FOLDER_NAMES.attachments}/upload.txt
+    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to this conversation's folder, or the full path of a file in one of the user's folders. E.g. ./${CHAT_FOLDER_NAMES.attachments}/upload.txt
     - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
@@ -498,14 +496,12 @@ export const ReadFile = setupTool({
     - Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.
     - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
-  execute: async ({ agentName, input, model, signal, taskId, taskState }) => {
+  execute: async ({ input, partId, model, sessionId, signal, chatId }) => {
     const region = input.region;
-    const chatId = agentName === "instrument" ? resolveChat(taskId) : undefined;
     const layout = buildWorkspaceFsLayout({
-      apps: agentName === "instrument",
-      attachedFolders: taskState.attachedFolders,
-      extraMounts: chatId ? await childTaskMounts(chatId) : undefined,
-      taskHostRoot: taskDir(taskId),
+      apps: sessionRole(chatId, sessionId) === "chat",
+      ...(await chatReach(chatId, sessionId, partId)),
+      taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveExistingFilePath({
       inputPath: input.filePath,
@@ -540,8 +536,8 @@ export const ReadFile = setupTool({
           // The private dir is masked from the shell too, so listing it here
           // would advertise a path every read of it rejects.
           exclude:
-            path.resolve(absolutePath) === path.resolve(taskDir(taskId))
-              ? [TASK_FOLDER_NAMES.private]
+            path.resolve(absolutePath) === path.resolve(workDir(chatId))
+              ? [CHAT_FOLDER_NAMES.private]
               : undefined,
           hidden: true,
           limit: DIRECTORY_LISTING_LIMIT,
@@ -615,11 +611,7 @@ export const ReadFile = setupTool({
       }
 
       return ok({
-        // A script that resolved an absolute path may have written the task
-        // dir into the file; keep it out of the model context and the persisted
-        // tool result. Task-dir only: a home path in file contents can be
-        // legitimate, so redacting it risks mangling a path the agent edits.
-        content: redactTaskDir(rawContent, taskDir(taskId)),
+        content: rawContent,
         displayedLines: selectedLines.length,
         filePath: displayPath,
         hasMoreLines,
@@ -841,9 +833,9 @@ export const ReadFile = setupTool({
               type: "text",
             },
             {
-              data: output.base64Data,
+              data: { data: output.base64Data, type: "data" },
               mediaType: output.mimeType,
-              type: "file-data",
+              type: "file",
             },
           ],
         };

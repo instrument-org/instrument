@@ -1,145 +1,136 @@
+import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { getAuthServerPort } from "@/electron-main/auth/state";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getToken } from "@/electron-main/platform-api/utils";
-import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import * as arctic from "arctic";
 import { createAuthClient } from "better-auth/client";
+import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { captureServerException } from "../lib/capture-server-exception";
 
-export const auth = createAuthClient({
+const auth = createAuthClient({
   baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth`,
 });
 
-export const store: {
-  codeVerifier: null | string;
-  state: null | string;
-} = {
-  codeVerifier: null,
-  state: null,
-};
-
-// Reaches us back through the provider's redirect, so it is parsed rather than
-// asserted even though the caller has already matched it against the value we
-// stored before the redirect.
-const OAuthStateSchema = z.object({
-  state: z.string(),
+const DesktopSignInSchema = z.object({
+  token: z.string().min(1),
+  user: z.object({ email: z.string() }),
 });
 
-type OAuthState = z.output<typeof OAuthStateSchema>;
-
-export function createGoogleProvider({ port }: { port: number }) {
-  return new arctic.Google(
-    import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID ?? "invalid-client-id",
-    import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET ?? "invalid-client-secret",
-    `http://localhost:${port}/auth/callback/google`,
+/**
+ * Trade the single-use token the API handed the loopback for a session, with
+ * the PKCE verifier that proves this app started the sign-in.
+ */
+async function exchangeDesktopSignIn({
+  codeVerifier,
+  token,
+}: {
+  codeVerifier: string;
+  token: string;
+}) {
+  const response = await fetch(
+    `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/exchange`,
+    {
+      body: JSON.stringify({ token, verifier: codeVerifier }),
+      headers: {
+        ...getAnonymousPlatformApiHeaders(),
+        "content-type": "application/json",
+      },
+      method: "POST",
+    },
   );
-}
-
-export function decodeOAuthState(encodedState: string): null | OAuthState {
-  try {
-    const decoded = Buffer.from(encodedState, "base64").toString("utf8");
-    const parsed = OAuthStateSchema.safeParse(JSON.parse(decoded));
-    return parsed.success ? parsed.data : null;
-  } catch (error) {
-    captureServerException(
-      new Error("Failed to decode OAuth state", { cause: error }),
-      { scopes: ["rpc", "auth"] },
-    );
-    return null;
+  if (!response.ok) {
+    throw new Error(`Sign-in exchange failed with ${response.status}`);
   }
+  return DesktopSignInSchema.parse(await response.json());
 }
-
-/** Ends the Google sign-in waiting on the browser, as canceled. */
-let cancelPendingSignIn: (() => void) | undefined;
 
 /**
- * Open Google's sign-in in the user's browser and wait for it to come back.
+ * How a Google sign-in to Instrument ended, and who it signed in when it did.
+ * One that went wrong rejects instead, with what went wrong.
+ */
+type InstrumentSignInResult =
+  | { email: string; outcome: Extract<SignInOutcome, "signed-in"> }
+  | { outcome: Extract<SignInOutcome, "canceled" | "declined"> };
+
+const signIns = createLoopbackSignIn<InstrumentSignInResult>({});
+
+/**
+ * Hand the API's redirect to the Google sign-in waiting for it. Resolves once
+ * the sign-in has finished; undefined when none is waiting or the redirect
+ * carries another `state`. One callback per sign-in started: a second visit
+ * finds nothing waiting.
+ */
+export function receiveInstrumentCallback(
+  params: URLSearchParams,
+): Promise<InstrumentSignInResult> | undefined {
+  return signIns.receive(params);
+}
+
+/**
+ * Open the API's Google sign-in in the user's browser and wait for it to come
+ * back to the loopback server.
  * Starting again while one waits cancels that one, so only the newest tab can
  * land. Resolves "canceled" when the user gives up from the app.
  */
 export async function signInSocial(): Promise<
-  Extract<SignInOutcome, "canceled" | "declined" | "signed-in">
+  InstrumentSignInResult["outcome"]
 > {
-  cancelPendingSignIn?.();
   const authServerPort = getAuthServerPort();
   if (authServerPort === null) {
+    signIns.supersede();
     throw new Error("Auth server port is not set");
   }
 
-  const google = createGoogleProvider({ port: authServerPort });
-
-  const baseState = arctic.generateState();
-  const encodedState = Buffer.from(
-    JSON.stringify({ state: baseState }),
-  ).toString("base64");
-
-  store.state = encodedState;
-  store.codeVerifier = arctic.generateCodeVerifier();
-
-  const scopes = ["email", "profile", "openid"];
-  const url = google.createAuthorizationURL(
-    encodedState,
-    store.codeVerifier,
-    scopes,
-  );
-
-  const controller = new AbortController();
-  const outcome = new Promise<
-    Extract<SignInOutcome, "canceled" | "declined" | "signed-in">
-  >((resolve, reject) => {
-    const cancel = () => {
-      // The callback for this sign-in is refused from here on.
-      store.state = null;
-      store.codeVerifier = null;
-      resolve("canceled");
-      controller.abort();
-    };
-    cancelPendingSignIn = cancel;
-
-    async function waitForAuthUpdate() {
-      const { signal } = controller;
-      try {
-        for await (const payload of publisher.subscribe(
-          "auth.sign-in-outcome",
-          { signal },
-        )) {
-          if (payload.outcome === "failed") {
-            reject(new Error("Login failed", { cause: payload.error }));
-          } else {
-            resolve(payload.outcome);
-          }
-          break;
-        }
-      } catch {
-        // Aborted by a cancel, which has already resolved.
-      } finally {
-        if (cancelPendingSignIn === cancel) {
-          cancelPendingSignIn = undefined;
-        }
-        controller.abort();
-      }
-    }
-
-    void waitForAuthUpdate();
-  });
-
-  try {
+  const codeVerifier = randomBytes(32).toString("base64url");
+  const result = await signIns.start(async ({ received, state }) => {
+    const url = new URL(
+      `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/start`,
+    );
+    url.searchParams.set("callback_version", "2");
+    url.searchParams.set("port", String(authServerPort));
+    url.searchParams.set("state", state);
+    url.searchParams.set(
+      "code_challenge",
+      createHash("sha256").update(codeVerifier).digest("base64url"),
+    );
     await openExternal(url.toString());
-  } catch (error) {
-    cancelPendingSignIn?.();
-    throw error;
-  }
-  return outcome;
+
+    const params = await received;
+    if (!params) {
+      return { outcome: "canceled" };
+    }
+    const ended = params.get("error");
+    if (ended === "access_denied") {
+      return { outcome: "declined" };
+    }
+    const token = params.get("token");
+    let email: string;
+    try {
+      if (token === null) {
+        throw new Error(`Sign-in ended with ${ended ?? "no token"}`);
+      }
+      const signedIn = await exchangeDesktopSignIn({ codeVerifier, token });
+      getSessionStore().set("apiBearerToken", signedIn.token);
+      getWorkspaceState().set("hasCompletedProviderSetup", true);
+      email = signedIn.user.email;
+    } catch (error) {
+      throw new Error("Login failed", { cause: error });
+    }
+    void setDefaultModel();
+    return { email, outcome: "signed-in" };
+  });
+  return result.outcome;
 }
 
 /** Cancel the Google sign-in waiting on the browser, if there is one. */
 export function cancelSignInSocial() {
-  cancelPendingSignIn?.();
+  signIns.supersede();
 }
 
 /**

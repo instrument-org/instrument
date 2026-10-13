@@ -110,6 +110,8 @@ export interface PromptEditorRef {
   /** Insert at the caret, spaced off from whatever it lands between. */
   insertText: (text: string) => void;
   moveCaretToEnd: () => void;
+  /** Put words in at the caret exactly as a paste of them would, however long. */
+  pasteText: (text: string) => void;
   /** Replace the whole document: an external reset or a prefill. */
   setValue: (text: string) => void;
 }
@@ -241,6 +243,22 @@ export function PromptEditor({
   );
   const onChangeEvent = useEffectEvent(onChange);
   const onPasteEvent = useEffectEvent(onPaste);
+  // Words put in at the caret the way a paste puts them: a skill's markup
+  // becomes its chip, and the step undoes as one paste.
+  const pasteInto = (
+    view: EditorView,
+    text: string,
+    known: ComposerSkill[],
+  ) => {
+    const slice = Slice.maxOpen(promptDocFromPastedText(text, known).content);
+    view.dispatch(
+      view.state.tr
+        .replaceSelection(slice)
+        .scrollIntoView()
+        .setMeta("paste", true)
+        .setMeta("uiEvent", "paste"),
+    );
+  };
   const onSubmitEvent = useEffectEvent(onSubmit);
   // The slash menu as the editor's state last had it, for drawing. The state
   // itself is the plugin's (`slash-menu.ts`); the view's handlers read it
@@ -322,6 +340,26 @@ export function PromptEditor({
         paste: (_view, event) => onPasteEvent(event),
       },
       handleKeyDown: (_view, event) => {
+        // Paste as text: the clipboard's words go in as they are, never
+        // through the composer's paste handler, which makes a long paste
+        // an attachment.
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.shiftKey &&
+          !event.altKey &&
+          event.key.toLowerCase() === "v"
+        ) {
+          event.preventDefault();
+          void navigator.clipboard
+            .readText()
+            .then((text) => {
+              if (text) {
+                pasteInto(view, text, currentSkills());
+              }
+            })
+            .catch(() => undefined);
+          return true;
+        }
         const { index, menu: activeMenu } = slashMenuOf(view.state);
         if (activeMenu) {
           const entriesNow = currentEntries(activeMenu.query);
@@ -368,16 +406,7 @@ export function PromptEditor({
         if (!text) {
           return false;
         }
-        const slice = Slice.maxOpen(
-          promptDocFromPastedText(text, currentSkills()).content,
-        );
-        editorView.dispatch(
-          editorView.state.tr
-            .replaceSelection(slice)
-            .scrollIntoView()
-            .setMeta("paste", true)
-            .setMeta("uiEvent", "paste"),
-        );
+        pasteInto(editorView, text, currentSkills());
         return true;
       },
       // A token in the draft is the same token the sent message will show, so
@@ -551,6 +580,12 @@ export function PromptEditor({
       return view ? promptTextFromDoc(view.state.doc) : "";
     },
     insertText,
+    pasteText: (text) => {
+      const view = viewRef.current;
+      if (view) {
+        pasteInto(view, text, skills);
+      }
+    },
     moveCaretToEnd: () => {
       const view = viewRef.current;
       if (!view) {
@@ -608,13 +643,14 @@ export function PromptEditor({
 
         The corner is the composer's own rather than the popover radius, for the
         same reason the width is the composer's: this is read against the edge of
-        the box it hangs off.
+        the box it hangs off. A row's is that corner less the 4px it sits in by,
+        so a highlighted first or last row curves alongside it.
       */}
       <PopoverContent
         align="start"
         alignOffset={alignOffset}
         avoidCollisions={false}
-        className="overflow-y-auto rounded-[20px] p-1 shadow-lg"
+        className="overflow-y-auto rounded-[20px] p-1 shadow-float-lg"
         maxHeight="18rem"
         onCloseAutoFocus={preventDefault}
         // The popover's layer takes Escape on the document before the editor
@@ -702,7 +738,7 @@ function MenuEntryButton({
   return (
     <button
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm text-foreground/60",
+        "flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left text-sm text-foreground/60",
         selected && "bg-accent text-foreground",
       )}
       data-highlighted={selected ? "" : undefined}

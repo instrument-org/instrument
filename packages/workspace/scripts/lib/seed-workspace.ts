@@ -1,6 +1,6 @@
 // Builds a workspace on disk from a committed fixture description.
 //
-// Everything here goes through the workspace's own libraries -- `initializeTask`
+// Everything here goes through the workspace's own libraries -- `initializeChat`
 // for the directory, `Store` for the conversation -- rather than writing task
 // files directly. That is deliberate and load-bearing: task storage is moving
 // (see docs/plans/completed/user-chosen-working-folder.md and
@@ -15,38 +15,35 @@
 // the artifacts a tool would have written come from the fixture's `files/`.
 
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import { ok, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ulid } from "ulid";
 
 import { TASKS_DIR_NAME } from "../../src/constants";
-import { copyTask } from "../../src/lib/copy-task";
-import { initializeChat, initializeTask } from "../../src/lib/initialize-task";
-import { newTaskId } from "../../src/lib/new-task-id";
+import { copyChatFolder } from "../../src/lib/copy-chat-folder";
+import { initializeChat } from "../../src/lib/initialize-chat";
+import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
-import { taskDir } from "../../src/lib/task-dir-utils";
-import { setTaskState } from "../../src/lib/task-record";
-import { updateTaskSettings } from "../../src/lib/task-settings";
-import { placeTaskAt } from "../../src/lib/record-folders";
+import { chatDir, placeChat } from "../../src/lib/record-folders";
+import { updateChatRecord } from "../../src/lib/chat-record";
+import { addChildTask } from "../../src/lib/chat/children";
+import { grantFolder } from "../../src/lib/chat/grants";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
-import { FolderAttachment } from "../../src/schemas/folder-attachment";
 import {
   AbsolutePathSchema,
   RelativePathSchema,
-  TaskDirSchema,
 } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessage } from "../../src/schemas/session/message";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { StoreId } from "../../src/schemas/store-id";
 import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../src/schemas/chat-id";
 import { type WorkspaceConfig } from "../../src/types";
 import { createStubWorkspaceConfig } from "./stub-workspace-config";
 import {
@@ -55,21 +52,21 @@ import {
   type FixtureTask,
   type WorkspaceFixture,
 } from "./workspace-fixture";
-import { type ChatId, ChatIdSchema } from "../../src/schemas/chat-id";
 
 // Where a chat's folders are made: in the user-data directory beside the
 // workspace, not inside it, as a user's own folders are.
 const FOLDERS_DIR_NAME = "folders";
 
-const DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
+const CHAT_TEMPLATE_DIR = path.resolve(
   import.meta.dirname,
   "../../templates/default",
 );
 
 export interface SeededTask {
   /** The chat it is inside, for a task a chat started. */
-  chat?: TaskId;
-  id: TaskId;
+  chat?: ChatId;
+  /** A record's id, or for a task a chat started, its session in the chat's store. */
+  id: StoreId.Session | ChatId;
   key: string;
   /** A chat's record, or a task. */
   kind: "chat" | "task";
@@ -104,18 +101,22 @@ export async function seedWorkspace({
     overrides: {
       // The one stub path the seeder reads through rather than merely names:
       // task creation copies this template into every task it makes.
-      defaultTaskTemplateDir: AbsolutePathSchema.parse(
-        DEFAULT_TASK_TEMPLATE_DIR,
-      ),
+      chatTemplateDir: AbsolutePathSchema.parse(CHAT_TEMPLATE_DIR),
     },
     rootDir,
     tasksDir,
   });
-  // `taskDir()` and everything under `Store` read the config from this
+  // `chatDir()` and everything under `Store` read the config from this
   // singleton rather than taking it as an argument.
   setWorkspaceConfig(workspaceConfig);
 
   const seeded: SeededTask[] = [];
+  // A 1.x task's folder is flat under `tasks/`, which the chat index is
+  // pointed at while they are seeded, so the store writes land there.
+  setWorkspaceConfig({
+    ...workspaceConfig,
+    chatsDir: AbsolutePathSchema.parse(tasksDir),
+  });
   for (const { files, session, task } of fixture.tasks) {
     const id = await seedTask({ files, now, session, task, workspaceConfig });
     if (task.pinned) {
@@ -123,7 +124,13 @@ export async function seedWorkspace({
     }
     seeded.push({ id, key: task.key, kind: "task", name: task.name });
   }
+  setWorkspaceConfig(workspaceConfig);
   for (const { chat, folders, session, tasks } of fixture.chats) {
+    // A chat's parts name its tasks by session (a task event, a hand-off), so
+    // each task's fresh id is settled before the chat is written.
+    for (const { session: taskSession } of tasks) {
+      freshIds.set(taskSession.id, StoreId.newSessionId());
+    }
     // The record `seedTask` made from a chat's fixture is a chat.
     const chatId = ChatIdSchema.parse(
       await seedTask({
@@ -134,24 +141,17 @@ export async function seedWorkspace({
         workspaceConfig,
       }),
     );
-    const granted = await makeFolders({ folders, now, userDataDir });
-    await setTaskState(taskDir(chatId), { attachedFolders: granted });
+    for (const folderPath of await makeFolders({ folders, userDataDir })) {
+      await grantFolder({ chatId, path: folderPath, source: "attached" });
+    }
     seeded.push({ id: chatId, key: chat.key, kind: "chat", name: chat.name });
     for (const { files, session: taskSession, task } of tasks) {
-      const id = await seedTask({
-        files,
+      const id = await seedChatTask({
         chatId,
+        files,
         now,
         session: taskSession,
         task,
-        workspaceConfig,
-      });
-      await setTaskState(taskDir(id), {
-        attachedFolders: Object.fromEntries(
-          Object.entries(granted).filter(([mount]) =>
-            task.folders.includes(mount),
-          ),
-        ),
       });
       seeded.push({
         chat: chatId,
@@ -187,9 +187,9 @@ async function copyFixtureFiles({
   id,
 }: {
   files: FixtureFile[];
-  id: TaskId;
+  id: ChatId;
 }) {
-  const dir = taskDir(id);
+  const dir = chatDir(id);
 
   for (const file of files) {
     const destination = resolvePathWithinTaskDir({
@@ -214,14 +214,12 @@ function datesIn(metadata: Record<string, unknown>): Date[] {
  */
 async function makeFolders({
   folders,
-  now,
   userDataDir,
 }: {
   folders: { files: FixtureFile[]; mount: string }[];
-  now: Date;
   userDataDir: string;
-}): Promise<Record<string, FolderAttachment.Type>> {
-  const granted: Record<string, FolderAttachment.Type> = {};
+}): Promise<string[]> {
+  const made: string[] = [];
   for (const folder of folders) {
     const dir = path.join(userDataDir, FOLDERS_DIR_NAME, folder.mount);
     await fs.mkdir(dir, { recursive: true });
@@ -233,16 +231,9 @@ async function makeFolders({
       await fs.mkdir(path.dirname(destination), { recursive: true });
       await fs.copyFile(file.from, destination);
     }
-    granted[folder.mount] = {
-      access: "read-write",
-      createdAt: now.getTime(),
-      id: FolderAttachment.IdSchema.parse(ulid()),
-      mountName: folder.mount,
-      path: AbsolutePathSchema.parse(dir),
-      source: "user",
-    };
+    made.push(dir);
   }
-  return granted;
+  return made;
 }
 
 /**
@@ -251,12 +242,8 @@ async function makeFolders({
  * star the chat it makes. Written raw for that reason, the one place the
  * seeder writes a task file itself.
  */
-async function pinLegacyTask(id: TaskId, pinnedAt: Date) {
-  const file = path.join(
-    taskDir(id),
-    TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
-  );
+async function pinLegacyTask(id: ChatId, pinnedAt: Date) {
+  const file = path.join(chatDir(id), PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME);
   const settings = JSON.parse(await fs.readFile(file, "utf8")) as Record<
     string,
     unknown
@@ -289,36 +276,32 @@ function rebaseTimestamps<T extends Record<string, unknown>>(
 }
 
 /**
- * Seeds one record: a task inside the chat named by `chatId`, a chat's own
- * record when `task` is a chat, which holds its session as the chat's and
- * takes no task scaffold, or, with neither, a task flat under `tasks/` as 1.x
- * left one, which the layout migration moves into a chat of its own at the
- * app's next boot.
+ * Seeds one record: a chat's own record when `task` is a chat, which holds
+ * its session as the chat's, or a task flat under `tasks/` as 1.x left one,
+ * which the layout migration moves into a chat of its own at the app's next
+ * boot.
  */
 async function seedTask({
-  chatId,
   files,
   now,
   session,
   task,
   workspaceConfig,
 }: {
-  chatId?: ChatId;
   files: FixtureFile[];
   now: Date;
   session: Session.WithMessagesAndParts;
   task: FixtureChat | FixtureChatTask | FixtureTask;
   workspaceConfig: WorkspaceConfig;
-}): Promise<TaskId> {
+}): Promise<ChatId> {
   const isChat = "tasks" in task;
   // The fixture's own key becomes the folder name, so a seeded task has an id
   // that is readable, stable across seeds, and findable in the fixture.
-  const id = await newTaskId({
+  const id = newChatId({
     preferredFolderName: SubdomainPartSchema.parse(task.key),
-    workspaceConfig,
   });
 
-  // `newTaskId` falls back to a dated name when the folder is taken, which for
+  // `newChatId` falls back to a dated name when the folder is taken, which for
   // a fixture is silent corruption rather than a convenience: the seeded id
   // stops matching the one the manifest promises and every script addressing
   // the task by name breaks. Seeding is only ever meant to run against a clean
@@ -355,22 +338,17 @@ async function seedTask({
     if (isChat) {
       yield* await initializeChat({
         chatId: ChatIdSchema.parse(id),
-        initialSettings: { name: task.name },
+        initialSettings: {},
         sessionId: chatSession.id,
         workspaceConfig,
       });
-    } else if (chatId !== undefined) {
-      yield* await initializeTask(
-        {
-          chatId,
-          initialSettings: { name: task.name },
-          taskId: id,
-          workspaceConfig,
-        },
-        {},
-      );
     } else {
-      yield* seedLegacyTaskFolder({ id, name: task.name, workspaceConfig });
+      yield* seedLegacyTaskFolder({
+        id,
+        name: task.name,
+        sessionId: chatSession.id,
+        workspaceConfig,
+      });
     }
 
     yield* Store.saveSession(chatSession, id);
@@ -394,36 +372,77 @@ async function seedTask({
 }
 
 /**
+ * Seeds a task a chat started, which is a session in the chat's store: the
+ * chat's session its parent, its recorded transcript its own, and its files
+ * in the chat's folder, where a task works. Returns its session.
+ */
+async function seedChatTask({
+  chatId,
+  files,
+  now,
+  session,
+  task,
+}: {
+  chatId: ChatId;
+  files: FixtureFile[];
+  now: Date;
+  session: Session.WithMessagesAndParts;
+  task: FixtureChatTask;
+}): Promise<StoreId.Session> {
+  const latest = Math.max(
+    ...collectTimestamps(session).map((date) => date.getTime()),
+  );
+  const rebased = withFreshIdsAndTimes(session, {
+    deltaMs: now.getTime() - task.agedMinutes * 60_000 - latest,
+    title: task.name,
+  });
+  await addChildTask(chatId, rebased.session);
+  const result = await safeTry(async function* () {
+    for (const message of rebased.messages) {
+      yield* Store.saveMessageWithParts(message, chatId);
+    }
+    return ok(undefined);
+  });
+  if (result.isErr()) {
+    throw result.error;
+  }
+  await copyFixtureFiles({ files, id: chatId });
+  await disposeSessionsStoreStorage(chatId);
+  return rebased.session.id;
+}
+
+/**
  * A task's folder flat under `tasks/`, laid down the way 1.x made one: the
  * default scaffold and its settings. The app never makes one now, so it is
- * placed in this process's index by hand, for the store writes that follow.
+ * put in this process's index by hand, where the index is pointed at
+ * `tasks/`, for the store writes that follow.
  */
 function seedLegacyTaskFolder({
   id,
   name,
+  sessionId,
   workspaceConfig,
 }: {
-  id: TaskId;
+  id: ChatId;
   name: string;
+  sessionId: StoreId.Session;
   workspaceConfig: WorkspaceConfig;
 }) {
-  const dir = TaskDirSchema.parse(path.join(workspaceConfig.tasksDir, id));
-  placeTaskAt(id, LEGACY_SEED_CHAT_ID, dir);
-  return copyTask({
+  const dir = placeChat(id, sessionId);
+  return copyChatFolder({
     includePrivateFolder: false,
-    sourceDir: workspaceConfig.defaultTaskTemplateDir,
+    sourceDir: workspaceConfig.chatTemplateDir,
     targetDir: dir,
-  }).andThen(() =>
-    updateTaskSettings(id, {
-      createdAt: new Date(),
+  }).map(() =>
+    // 1.x kept a task's name in its settings; written raw because a chat's
+    // settings have no such field.
+    updateChatRecord(dir, "settings", () => ({
+      createdAt: new Date().toISOString(),
       createdWithAppVersion: workspaceConfig.appVersion,
       name,
-    }),
+    })),
   );
 }
-
-/** The chat a 1.x task is filed under while it is seeded; it has no folder. */
-const LEGACY_SEED_CHAT_ID = ChatIdSchema.parse("legacy-seed");
 
 /**
  * Fresh ids for the session, its messages and its parts, plus the timestamp
@@ -431,11 +450,38 @@ const LEGACY_SEED_CHAT_ID = ChatIdSchema.parse("legacy-seed");
  * orders by key -- so reusing the recorded ids would order a transcript by when
  * it was captured while its timestamps claim something else.
  */
+/**
+ * The fresh id each recorded session took, by the recorded one, so a part
+ * naming another session (a task event, a hand-off) names the one seeded.
+ */
+const freshIds = new Map<string, string>();
+
+/** A part's data with every recorded session id in it swapped for its fresh one. */
+function withFreshSessionIds(value: unknown): unknown {
+  if (typeof value === "string") {
+    return freshIds.get(value) ?? value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(withFreshSessionIds);
+  }
+  if (typeof value === "object" && value !== null && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        withFreshSessionIds(entry),
+      ]),
+    );
+  }
+  return value;
+}
+
 function withFreshIdsAndTimes(
   session: Session.WithMessagesAndParts,
   { deltaMs, title }: { deltaMs: number; title: string },
 ) {
-  const sessionId = StoreId.newSessionId();
+  const sessionId = StoreId.SessionSchema.parse(
+    freshIds.get(session.id) ?? StoreId.newSessionId(),
+  );
 
   const messages = session.messages.map((message) => {
     const messageId = StoreId.newMessageId();
@@ -443,6 +489,10 @@ function withFreshIdsAndTimes(
       (part) =>
         ({
           ...part,
+          ...("data" in part ? { data: withFreshSessionIds(part.data) } : {}),
+          ...("output" in part && part.output
+            ? { output: withFreshSessionIds(part.output) }
+            : {}),
           metadata: {
             ...rebaseTimestamps(part.metadata, deltaMs),
             id: StoreId.newPartId(),

@@ -15,6 +15,9 @@ function markup(svg: string, ink: boolean): string {
   if (result === undefined) {
     result = (ink ? svg.replace(INK, 'fill="currentColor"') : svg)
       .replace(/ (?:width|height)="1em"/g, "")
+      // On the element itself, which an ancestor's `svg` size rule (a
+      // Button's, say) is written to leave alone.
+      .replace("<svg", '<svg class="size-full"')
       .replace(/ style="[^"]*"/, "")
       // The text beside the mark names it; a title would say it twice.
       .replace(/<title>[^<]*<\/title>/, "");
@@ -40,7 +43,7 @@ export function VendorMark({
   return (
     <span
       aria-hidden
-      className={cn("inline-flex shrink-0 [&>svg]:size-full", className)}
+      className={cn("inline-flex shrink-0", className)}
       // Markup from a pinned package's own SVG files, not from anything a
       // user or a provider supplies.
       dangerouslySetInnerHTML={{ __html: markup(svg, ink) }}

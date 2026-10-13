@@ -1,24 +1,28 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { APP_NAME } from "@instrument-org/shared";
+
+import { type ChatId } from "../../schemas/chat-id";
+import {
+  appDenied,
+  appReach,
+  runsCodeOutside,
+  scriptTargets,
+} from "../permissions/apps";
+import { raiseAsk, waitingNote } from "../permissions/asks";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  bridgeAppleScriptPaths,
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-  unreachablePathArgError,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const OSASCRIPT_COMMAND = {
   description:
     "Run AppleScript (`osascript -e '...'`, or a script file) or JavaScript for Automation (`-l JavaScript`) against the apps on this Mac that publish a scripting dictionary: Mail, Notes, Music, Photos, Finder, Safari, Keynote and the like. " +
     "For Calendar, Reminders, and Contacts, use the `calendar` and `contacts` commands instead when they are listed: they are faster and read every account. " +
     "An app with no dictionary cannot be scripted this way. " +
-    "macOS asks the user the first time each app is controlled, and the command waits on their answer. " +
+    "Each app needs the person's yes in Instrument first: the first script to an app shows them a card, and you hear when they answer. A script may only use the app's own terms; one that runs a shell or other code (`do shell script`, the Objective-C bridge) is refused, so do that part in your own shell. " +
+    "macOS also asks the user the first time each app is controlled, and the command waits on their answer. " +
     "Error -1743 means they declined, and only they can change it, under System Settings, Privacy & Security, Automation. " +
     "Working an app's windows through System Events (keystrokes, clicks, reading its buttons and windows) is refused: reach an app through a file it imports, its URL scheme, or its own scripting terms.",
   name: "osascript",
@@ -29,7 +33,7 @@ export const OSASCRIPT_COMMAND = {
  * Events it sends are attributed to the app, which is what the system asks the
  * user about.
  */
-const OSASCRIPT_PATH = "/usr/bin/osascript";
+export const OSASCRIPT_PATH = "/usr/bin/osascript";
 
 /**
  * Apps a script cannot reach by name, by the bundle id that reaches them.
@@ -149,22 +153,17 @@ async function scriptFileSource(
   }
 }
 
+function refuse(reason: string) {
+  return { exitCode: 1, stderr: `osascript: refused: ${reason}\n`, stdout: "" };
+}
+
 export function createOsascriptCommand(
-  taskId: TaskId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(OSASCRIPT_COMMAND.name, async (args, ctx) => {
-    // The value after each `-e` is script source, not a path: it is checked
-    // and bridged as code, and only the remaining arguments as paths.
+    // The value after each `-e` is script source, not a path.
     const isScript = args.map((_arg, index) => args[index - 1] === "-e");
-    const unreachable = unreachablePathArgError(
-      OSASCRIPT_COMMAND.name,
-      args.filter((_arg, index) => !isScript[index]),
-      ctx.cwd,
-    );
-    if (unreachable !== undefined) {
-      return { exitCode: 1, stderr: unreachable, stdout: "" };
-    }
     const piped = subprocessStdin(ctx.stdin);
     const sources = [
       ...args.filter((_arg, index) => isScript[index]),
@@ -174,27 +173,52 @@ export function createOsascriptCommand(
     if (sources.some(worksAppWindows)) {
       return { exitCode: 1, stderr: WORKS_APP_WINDOWS_REFUSAL, stdout: "" };
     }
-    const bridgedArgs: string[] = [];
-    for (const [index, arg] of args.entries()) {
-      if (!isScript[index]) {
-        bridgedArgs.push(...resolvePathArgs([arg], taskId, ctx));
-        continue;
+    // An app takes no Apple Events from a sandboxed sender, so a script that
+    // tells one runs outside the native sandbox, and only when the person
+    // allowed every app it tells. A script that tells none runs inside it.
+    const targets = sources.flatMap(scriptTargets);
+    for (const app of targets) {
+      const level = await appReach(chatId, app);
+      if (level === "never" && (await appDenied(chatId, app))) {
+        return refuse(
+          `the person said not now to ${app} in this chat. Don't look for another way to use it; say what you skipped without it.`,
+        );
       }
-      const bridged = bridgeAppleScriptPaths(arg, taskId);
-      if ("error" in bridged) {
-        return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      if (level === "never") {
+        return refuse(
+          `${app} is marked Not allowed in Settings › Permissions, so ${APP_NAME} won't control it. Tell the person what you skipped.`,
+        );
       }
-      bridgedArgs.push(addressAppsById(bridged.code));
+      if (level === "ask") {
+        const asker = layout.rules.asker;
+        if (!asker) {
+          return refuse(`using ${app} needs the person's yes first.`);
+        }
+        raiseAsk(asker, "app", app);
+        return refuse(`${waitingNote(app)} Run this again once they allow it.`);
+      }
     }
+    const outside =
+      targets.length > 0
+        ? sources.map(runsCodeOutside).find((found) => found !== undefined)
+        : undefined;
+    if (outside) {
+      return refuse(
+        `this script runs code outside the app it tells (\`${outside}\`), which an app you control may not do. Do that part with your own shell, where the folder rules hold, and keep the script to the app's own terms.`,
+      );
+    }
+    const hostArgs = args.flatMap((arg, index) =>
+      isScript[index] ? [addressAppsById(arg)] : hostPathArgs([arg]),
+    );
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     // A script piped in is ASCII where it names an app, so the rewrite reads
     // it as the latin1 bytes it arrives as and leaves every other byte be.
     const stdin = piped
       ? Buffer.from(addressAppsById(piped.toString("latin1")), "latin1")
       : undefined;
 
-    const result = await execShim(OSASCRIPT_PATH, bridgedArgs, {
+    const result = await execShim(OSASCRIPT_PATH, hostArgs, {
       cancelSignal: ctx.signal,
       cwd: taskCwd,
       env: {
@@ -204,11 +228,12 @@ export function createOsascriptCommand(
       // A script piped in (`osascript - <<'EOF'`) is read from stdin; with
       // nothing piped, an ignored stdin keeps a bare `osascript` from waiting.
       ...(stdin ? { input: stdin } : { stdin: "ignore" }),
+      ...(targets.length > 0 && { unsandboxed: true }),
     });
 
     const streams = mapStreams(
       shimOutput(result, OSASCRIPT_COMMAND.name),
-      (text) => filterShellOutput(text, layout),
+      (text) => filterShellOutput(text),
     );
     return {
       exitCode: result.exitCode ?? 1,

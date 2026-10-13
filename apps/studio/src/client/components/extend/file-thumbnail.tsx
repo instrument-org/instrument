@@ -6,6 +6,8 @@ type ThumbnailFile = {
 };
 export type FileThumbnailProps = {
   file: ThumbnailFile | File;
+  /** Drawn with no card or backing behind it, for an icon that is its own shape. */
+  bare?: boolean;
   className?: string;
   previewAspectRatio?: number;
   previewClassName?: string;
@@ -72,6 +74,7 @@ function FileThumbnailLoadingOverlay() {
   );
 }
 export function FileThumbnail({
+  bare = false,
   className,
   previewAspectRatio,
   previewClassName,
@@ -157,14 +160,16 @@ export function FileThumbnail({
   return (
     <div
       className={cx(
-        "group overflow-hidden rounded-lg border bg-background text-foreground",
+        "group overflow-hidden text-foreground",
+        !bare && "rounded-lg border bg-background",
         className,
       )}
       style={style}
     >
       <div
         className={cx(
-          "relative aspect-square overflow-hidden bg-muted [contain:layout_paint]",
+          "relative aspect-square overflow-hidden [contain:layout_paint]",
+          !bare && "bg-muted",
           previewClassName,
         )}
         style={

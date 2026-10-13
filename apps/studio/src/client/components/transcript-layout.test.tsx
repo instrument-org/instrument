@@ -1,5 +1,4 @@
 import {
-  ProjectIdSchema,
   type SessionMessage,
   type SessionMessagePart,
   StoreId,
@@ -177,15 +176,9 @@ function buildMessage(
       // did or said. It draws a card of its own and is never a step.
       case "note": {
         return {
-          data: {
-            foldersAdded: [],
-            foldersRemoved: [],
-            instructionsChanged: false,
-            projectId: ProjectIdSchema.parse("prj_01234567890123456789012345"),
-            projectName: label,
-          },
+          data: { created: [label], updated: [] },
           metadata,
-          type: "data-projectChanges",
+          type: "data-skillChanges",
         };
       }
       case "prose": {

@@ -1,7 +1,7 @@
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { rpcClient } from "@/client/rpc/client";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
 /**
@@ -13,17 +13,24 @@ export function GoogleLoginButton({
   className,
   onLogin,
   onSuccess,
+  onWaitingChange,
 }: {
   /** Above the button; replaced by where to finish while the browser has it. */
   caption?: ReactNode;
   className?: string;
   onLogin: () => Promise<SignInOutcome>;
   onSuccess?: () => void;
+  /** Told when the button starts and stops holding. */
+  onWaitingChange?: (waiting: boolean) => void;
 }) {
   const [waiting, setWaiting] = useState(false);
   // Counts presses, so a sign-in that settles after a newer one started
   // leaves the button to the newer one.
   const attempts = useRef(0);
+
+  useEffect(() => {
+    onWaitingChange?.(waiting);
+  }, [onWaitingChange, waiting]);
 
   const login = async () => {
     const attempt = ++attempts.current;

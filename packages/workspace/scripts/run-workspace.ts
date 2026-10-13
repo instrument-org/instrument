@@ -16,14 +16,14 @@ import readline from "node:readline";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
 
-import { type TaskId } from "../src/client";
+import { type ChatId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { defaultTaskName } from "../src/lib/default-task-name";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { type StoreId } from "../src/schemas/store-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { startRun } from "../evals/lib/start-run";
 import { env } from "./lib/env";
 
@@ -115,20 +115,14 @@ const actor = createActor(workspaceMachine, {
     apps: createMemoryAppsConfig(),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: (...args: unknown[]) => {
-      console.log("captureEvent", args);
-    },
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    defaultTaskTemplateDir: path.resolve(
-      import.meta.dirname,
-      "../templates/default",
-    ),
+    chatTemplateDir: path.resolve(import.meta.dirname, "../templates/default"),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
-    isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
+    nativeSandbox: true,
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",
     ),
@@ -163,10 +157,7 @@ const actor = createActor(workspaceMachine, {
             process.stdout.write(".");
             return;
           }
-          if (
-            event.event.type === "agent.usingTool" ||
-            event.event.type.toLowerCase().includes("heartbeat")
-          ) {
+          if (event.event.type.toLowerCase().includes("heartbeat")) {
             // Too verbose to log
             return;
           }
@@ -189,7 +180,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-let taskId: TaskId | undefined;
+let chatId: ChatId | undefined;
 
 const FAKE_FILES = {
   audio: {
@@ -262,12 +253,12 @@ rl.on("line", (input) => {
       workspaceRef: actor,
     };
 
-    if (taskId) {
+    if (chatId) {
       void call(
         messageRoute.create,
         {
           files,
-          id: taskId,
+          id: chatId,
           modelURI: MODEL_URI,
           prompt,
           sessionId: savedSessionId,
@@ -287,7 +278,7 @@ rl.on("line", (input) => {
         },
         context,
       ).then((newTask) => {
-        taskId = newTask.id;
+        chatId = newTask.id;
         savedSessionId = newTask.sessionId;
       });
     }

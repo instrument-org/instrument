@@ -3,23 +3,31 @@ import { unique } from "radashi";
 
 import { type AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 
 const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
   "claude-sonnet-5": ["default"],
 };
 
-// Models that we normally wouldn't set as default, but we for the author
+/**
+ * The model each kind of provider leads its list with. A pattern rather than
+ * an id where the line is what matters: every Sonnet matches, and
+ * `demoteSupersededModels` leaves the tag on the newest one only.
+ */
 const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
-  Record<AIGatewayProviderConfig.Type["type"], string[]>
+  Record<AIGatewayProviderConfig.Type["type"], RegExp>
 > = {
-  anthropic: ["claude-sonnet-5"],
-  cerebras: ["gpt-oss-120b"],
-  google: ["gemini-3.7-flash"],
-  groq: ["gpt-oss-120b"],
-  openai: ["gpt-5.6-terra"],
-  "x-ai": ["grok-4.6"],
-  "z-ai": ["glm-5.3"],
+  anthropic: /^claude-sonnet-/,
+  cerebras: /^gpt-oss-120b$/,
+  google: /^gemini-3\.7-flash$/,
+  groq: /^gpt-oss-120b$/,
+  openai: /^gpt-5\.6-terra$/,
+  "x-ai": /^grok-4\.6$/,
+  "z-ai": /^glm-5\.3$/,
 };
+
+/** Workers AI is an OpenAI-compatible key, so it is told apart by its address. */
+const WORKERS_AI_DEFAULT_MODEL = /^glm-[\d.]+-flash$/;
 
 /**
  * Suffixes that name a modality this app cannot drive a coding turn with, even
@@ -112,8 +120,10 @@ export function addHeuristicTags(
     tags = tags.filter((tag) => tag !== "recommended" && tag !== "default");
   }
 
-  const defaultModels = DEFAULT_MODELS_BY_CONFIG_TYPE[config.type] ?? [];
-  if (defaultModels.includes(canonicalId)) {
+  const defaultModel = isWorkersAiProviderConfig(config)
+    ? WORKERS_AI_DEFAULT_MODEL
+    : DEFAULT_MODELS_BY_CONFIG_TYPE[config.type];
+  if (defaultModel?.test(canonicalId)) {
     tags.push("default");
   }
 

@@ -9,7 +9,7 @@ import {
   UNTRUSTED_TASK_FILE_IMAGE_KINDS,
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
-import { ChatIdSchema, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -92,8 +92,8 @@ const FILE_BASE = vi.hoisted(() => "instrument://computer-test");
 // Where the task's files are, answered without a task: every path under the
 // task's own folder, which is what a message's image needs to be drawn at all.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (taskId: unknown, filePaths: readonly string[]) =>
-    taskId === undefined
+  useHostPaths: (chatId: unknown, filePaths: readonly string[]) =>
+    chatId === undefined
       ? {}
       : Object.fromEntries(
           filePaths.map((filePath) => [
@@ -113,10 +113,10 @@ vi.mock("@/client/lib/computer-file-url", () => ({
 // before the plugins arrived.
 const RAW_HTML_TIMEOUT = 10_000;
 
-const TASK_ID = TaskIdSchema.parse("a-task");
+const TASK_ID = ChatIdSchema.parse("a-task");
 
 function renderMarkdown(markdown: string) {
-  return renderWithProviders(<Markdown markdown={markdown} taskId={TASK_ID} />);
+  return renderWithProviders(<Markdown markdown={markdown} chatId={TASK_ID} />);
 }
 
 /**
@@ -139,11 +139,11 @@ function withFileDragBridge() {
 describe("Markdown links", () => {
   it("opens a file: link to a shared folder, which the task file index never holds", () => {
     renderMarkdown(
-      "Created [`August.md`](file:///mnt/Documents-Test%202/August.md) in Test 2.",
+      "Created [`August.md`](file:///Users/sam/Documents-Test%202/August.md) in Test 2.",
     );
 
     expect(screen.getByRole("button", { name: "August.md" }).title).toBe(
-      "/mnt/Documents-Test 2/August.md",
+      "/Users/sam/Documents-Test 2/August.md",
     );
   });
 
@@ -151,11 +151,11 @@ describe("Markdown links", () => {
   // same way, and the path in it is the file it meant.
   it("opens an app link to a file as that file", () => {
     renderMarkdown(
-      "Added them to [2026-09-23.md](instrument://file//mnt/Journal/2026-09-23.md).",
+      "Added them to [2026-09-23.md](instrument://file//Users/sam/Journal/2026-09-23.md).",
     );
 
     expect(screen.getByRole("button", { name: "2026-09-23.md" }).title).toBe(
-      "/mnt/Journal/2026-09-23.md",
+      "/Users/sam/Journal/2026-09-23.md",
     );
   });
 
@@ -208,11 +208,8 @@ describe("Markdown links", () => {
   // `<a>` carrying the empty href the default transform leaves behind does not
   // have either: the dead anchor is the whole bug, so a test that cannot see
   // one passes whether the href reaches the shell or not.
-  it.each([
-    ["a path outside the mounts", "file:///Users/someone/.ssh/id_rsa"],
-    ["a traversal", "../../etc/passwd"],
-  ])("leaves a link to %s as plain text", (_case, href) => {
-    const { container } = renderMarkdown(`Saved [your key](${href}).`);
+  it("leaves a link to a traversal as plain text", () => {
+    const { container } = renderMarkdown("Saved [your key](../../etc/passwd).");
 
     expect(container.querySelector("a")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
@@ -288,15 +285,15 @@ describe("Markdown links", () => {
     renderWithProviders(
       <WindowContext value={context}>
         <Markdown
-          markdown="I started [the hotel search](instrument://task/lisbon-hotel)."
-          taskId={TASK_ID}
+          markdown="I started [the hotel search](instrument://task/ses_01J9TASK)."
+          chatId={TASK_ID}
         />
       </WindowContext>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "the hotel search" }));
 
-    expect(openScreen).toHaveBeenCalledWith("/tasks/lisbon-hotel");
+    expect(openScreen).toHaveBeenCalledWith("/tasks/ses_01J9TASK");
   });
 });
 
@@ -453,7 +450,7 @@ describe("Markdown images", () => {
       <Markdown
         isStreaming
         markdown="![The chart](output/chart.png)"
-        taskId={TASK_ID}
+        chatId={TASK_ID}
       />,
     );
 
@@ -498,7 +495,7 @@ describe("Markdown half-written constructs", () => {
 describe("Markdown streaming words", () => {
   const streamingWords = (markdown: string) => {
     const { container } = renderWithProviders(
-      <Markdown isStreaming markdown={markdown} taskId={TASK_ID} />,
+      <Markdown isStreaming markdown={markdown} chatId={TASK_ID} />,
     );
     return [...container.querySelectorAll("[data-stream-word]")].map(
       (word) => word.textContent,
@@ -678,11 +675,11 @@ describe("Markdown raw HTML", () => {
   // allow-list a browser would apply does not know as a scheme.
   it("still opens a file: link in a document that holds HTML", async () => {
     await renderDrawn(
-      "<p>Note.</p>\n\nWrote [`notes.md`](file:///mnt/Shared/notes.md).",
+      "<p>Note.</p>\n\nWrote [`notes.md`](file:///Users/sam/Shared/notes.md).",
     );
 
     expect(screen.getByRole("button", { name: "notes.md" }).title).toBe(
-      "/mnt/Shared/notes.md",
+      "/Users/sam/Shared/notes.md",
     );
   });
 
@@ -1265,7 +1262,7 @@ describe("Markdown file chips", () => {
     };
     const { store } = renderWithProviders(
       <ComposerDraftContext value={draftKey}>
-        <Markdown markdown={CHIP} taskId={TASK_ID} />
+        <Markdown markdown={CHIP} chatId={TASK_ID} />
       </ComposerDraftContext>,
     );
 

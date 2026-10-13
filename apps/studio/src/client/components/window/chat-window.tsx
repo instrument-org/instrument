@@ -5,10 +5,9 @@ import { cn } from "@/client/lib/utils";
 import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type SessionMessageDataPart,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -16,39 +15,31 @@ import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { motion } from "motion/react";
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
-import { ChatActivity } from "./chat-activity";
-import { ChatHeading } from "./chat-header";
+import { ChatHeader } from "./chat-header";
 import { ChatScreen } from "./chat-screen";
 import { ChatTiles } from "./chat-tiles";
 import { type Chat, draftTitle, type Topic } from "./chats";
 import {
   CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
+  COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   GROWN,
 } from "./compose-layout";
 import { BarMarks, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
-import { heldChipOf, IncludedChip } from "./context-chip";
-import { DeleteChatDialog } from "./delete-chat-dialog";
+import { ContextChips } from "./context-chip";
 import { GroupItem } from "./group-item";
-import { isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
+import { usePageHost } from "./page-hosts";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
-import { type ComposePeek } from "./use-compose";
-import { useTabInView } from "./use-tab-in-view";
+import { useChatContext } from "./use-chat-context";
 import { useWindowTabs } from "./window-tabs";
 
 /** A chat's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
@@ -138,9 +129,6 @@ export function ChatWindow({
   onMinimize,
   onNewTopic,
   onOpenInChats,
-  onPageChrome,
-  onPageHost,
-  onPeek,
   onPlacementChange,
   onSetTopics,
   placement,
@@ -162,12 +150,6 @@ export function ChatWindow({
   onNewTopic: (name?: string) => void;
   /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
   onOpenInChats: () => void;
-  /** The element the chat's page is drawn into while the window is grown with a page up, null while none is. */
-  /** Where the address row takes the page's reload and controls, while a page is up. */
-  onPageChrome: (slots: PageChromeSlots | undefined) => void;
-  onPageHost: (element: HTMLElement | null) => void;
-  /** What the small window peeks at, for the layer that draws a page into the card; undefined while it peeks at nothing, or at something that is not a page. */
-  onPeek: (peek: ComposePeek | undefined) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
   onSetTopics: (topics: string[]) => void;
   placement: "docked" | "expanded";
@@ -176,6 +158,7 @@ export function ChatWindow({
   /** What goes with a reply: the chat's own tab up while the window shows it, what is behind the window otherwise. */
   sendContext: (options: {
     isViewOpen: boolean;
+    leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The words the draft this window was sent, while the chat they start is on its way. */
   sentWords?: string;
@@ -195,7 +178,6 @@ export function ChatWindow({
   const showsItem = isExpanded && isViewOpen && up !== undefined;
   const isWorking =
     chat === undefined ? sentWords !== undefined : chat.state === "working";
-  const [isDeleting, setDeleting] = useState(false);
   const taskTitles = useTaskTitles();
 
   // The tab peeked at in the small window: a look, kept here and nowhere
@@ -209,20 +191,6 @@ export function ChatWindow({
   const [peekHost, setPeekHost] = useState<HTMLDivElement | null>(null);
   const [peekChrome, setPeekChrome] = useState<PageChromeSlots>();
   const peekPageId = peekTab?.kind === "page" ? peekTab.id : undefined;
-  const reportPeek = useEffectEvent(onPeek);
-  useEffect(() => {
-    reportPeek(
-      peekPageId === undefined
-        ? undefined
-        : { chrome: peekChrome, into: peekHost, tabId: peekPageId },
-    );
-  }, [peekChrome, peekHost, peekPageId]);
-  useEffect(
-    () => () => {
-      reportPeek(undefined);
-    },
-    [],
-  );
   // The card stands over the conversation from near the window's head down
   // to just over the tiles, however tall the composer under them grows.
   // Measured in layout px, which the card's height is set in under the
@@ -262,68 +230,46 @@ export function ChatWindow({
   );
 
   // The page's host, held as state so the ref React calls is one stable
-  // setter (see the draft window's).
+  // setter (see the draft window's), and where the address row takes the
+  // page's reload and controls. Grown, the window draws the page it has up;
+  // small, only the page it peeks at.
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
-  const onPageHostRef = useRef(onPageHost);
-  useEffect(() => {
-    onPageHostRef.current = onPageHost;
-  });
-  useEffect(() => {
-    onPageHostRef.current(pageHost);
-  }, [pageHost]);
-  useEffect(
-    () => () => {
-      onPageHostRef.current(null);
-    },
-    [],
+  const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
+  usePageHost(
+    chatId,
+    isExpanded
+      ? {
+          chrome: pageChrome ?? true,
+          into: pageHost,
+          isActive: true,
+          layer: COMPOSE_GUEST_LAYER,
+          place: `expanded:${right}:${width ?? ""}`,
+        }
+      : peekPageId === undefined
+        ? undefined
+        : {
+            chrome: peekChrome ?? false,
+            into: peekHost,
+            isActive: true,
+            layer: COMPOSE_GUEST_LAYER,
+            place: `peek:${right}:${width ?? ""}`,
+            tabId: peekPageId,
+          },
   );
 
-  // What the window has up behind the chat, which goes with each message:
-  // shown as a pill while the composer has the caret, so the person sees it
-  // before sending, and left out of every message after its × is pressed,
-  // until something else comes up behind.
-  // What is in view is read the way a draft reads it, so a screen of the
-  // window's own (a folder, an app) is behind the chat as a site or another
-  // chat's tab is.
-  const [leftOutId, setLeftOutId] = useState<string>();
-  const [isComposing, setComposing] = useState(false);
-  const inView = useTabInView();
-  const behind =
-    inView !== undefined &&
-    windowTabs.groupOnScreen !== chatId &&
-    isIncludable(inView)
-      ? inView
-      : undefined;
-  // A screen of the window's own keeps its tab's id wherever it walks, so
-  // it is left out where it stood, and comes back once it is somewhere else.
-  const behindKey =
-    behind?.kind === "screen" ? `${behind.id} ${behind.href}` : behind?.id;
-  const isBehindLeftOut = behindKey !== undefined && behindKey === leftOutId;
-  const behindChip =
-    behind && !isBehindLeftOut
-      ? heldChipOf({ items: undefined, tab: behind }, { appsBySlug })
-      : undefined;
-  const behindChipRef = useRef(behindChip);
-  const isBehindLeftOutRef = useRef(isBehindLeftOut);
-  const showsItemRef = useRef(false);
-  useEffect(() => {
-    behindChipRef.current = behindChip;
-    isBehindLeftOutRef.current = isBehindLeftOut;
-    showsItemRef.current = showsItem;
+  // What goes with each message besides its words, as the chips over the
+  // composer: the chat's own tab while the window shows it, and otherwise
+  // what is in view behind the chat, each until its x is pressed. The send
+  // reads the same list at the press.
+  const context = useChatContext({ chatId, isViewOpen: showsItem });
+  const contextRef = useRef({
+    isViewOpen: showsItem,
+    leftOut: context.leftOut,
   });
-  // The chat's own tab while the window shows it; what is behind the window
-  // otherwise, unless that was left out, with its chip for the transcript.
-  const contextToSend = async () => {
-    if (showsItemRef.current) {
-      return sendContext({ isViewOpen: true });
-    }
-    if (isBehindLeftOutRef.current) {
-      return;
-    }
-    const chip = behindChipRef.current;
-    const viewing = await sendContext({ isViewOpen: false });
-    return viewing && chip ? { ...viewing, attached: [chip] } : viewing;
-  };
+  useEffect(() => {
+    contextRef.current = { isViewOpen: showsItem, leftOut: context.leftOut };
+  });
+  const contextToSend = () => sendContext(contextRef.current);
 
   /** Grows the window with what is up in the chat drawn large. */
   const showUp = () => {
@@ -342,11 +288,12 @@ export function ChatWindow({
     }
   };
   // A new tab each time: the person asked for another, even of a kind the
-  // chat already has open.
-  const openHere = (href: string) => {
+  // chat already has open. One a link opened closes on back from its start;
+  // one the person added from the tiles stays.
+  const openHere = (href: string, { isOpened }: { isOpened: boolean }) => {
     windowTabs.openScreen(href, {
       group: chatId,
-      isOpened: true,
+      isOpened,
       select: true,
     });
     showUp();
@@ -375,10 +322,10 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(outputFolderHref());
+          openHere(outputFolderHref(), { isOpened: false });
         }}
         onAddWeb={() => {
-          openHere(BROWSER_HREF);
+          openHere(BROWSER_HREF, { isOpened: false });
         }}
         onClose={closeTab}
         onReorder={(keys) => {
@@ -394,9 +341,7 @@ export function ChatWindow({
           }
         }}
         tabs={tabs}
-        targetOf={(tab) =>
-          encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
-        }
+        targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
         taskTitles={taskTitles}
       />
     </div>
@@ -438,93 +383,55 @@ export function ChatWindow({
       }
       transition={COMPOSE_MOTION}
     >
-      {chat && (
-        <DeleteChatDialog
-          chat={chat}
-          onDeleted={onClose}
-          onOpenChange={setDeleting}
-          open={isDeleting}
-        />
-      )}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 select-none">
-        {/* No mark of work here: the line at the conversation's end says
-          the chat is working, where its reply will land. */}
-        <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-        {chat ? (
-          <ChatHeading
-            chat={chat}
-            menu={{
-              // An archived chat is put away, so its window goes with it.
-              onArchived: onClose,
-              onOpenInChats,
-              onViewTasks: () => {
-                openTasksHere(tasksHref(chatId));
-              },
-            }}
-            onDelete={() => {
-              setDeleting(true);
-            }}
-            onNewTopic={onNewTopic}
-            onSetTopics={onSetTopics}
-            titleClassName="text-[13px] font-semibold"
-            topics={topics}
-          />
-        ) : (
-          <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {sentWords === undefined ? "Chat" : draftTitle(sentWords)}
-          </h2>
-        )}
-        {chat && (
-          <ChatActivity
-            chatId={chat.id}
-            isCompact
-            onOpen={(id) => {
-              openTasksHere(taskHref(id, chatId));
-            }}
-            tasks={chat.runningTasks}
-          />
-        )}
-        <div className="flex shrink-0 items-center gap-0.5">
-          <WindowButton label="Minimize" onClick={onMinimize}>
-            <MinusIcon className="size-4" />
-          </WindowButton>
-          <WindowButton
-            label={isExpanded ? "Shrink" : "Expand"}
-            onClick={() => {
-              onPlacementChange(isExpanded ? "docked" : "expanded");
-            }}
-          >
-            {isExpanded ? (
-              <ArrowsInSimpleIcon className="size-4" />
-            ) : (
-              <ArrowsOutSimpleIcon className="size-4" />
-            )}
-          </WindowButton>
-          <WindowButton label="Close" onClick={onClose}>
-            <XIcon className="size-4" />
-          </WindowButton>
-        </div>
-      </div>
+      <ChatHeader
+        chat={chat}
+        fallbackTitle={
+          sentWords === undefined ? undefined : draftTitle(sentWords)
+        }
+        // An archived chat is put away, so its window goes with it.
+        onArchived={onClose}
+        onDeleted={onClose}
+        onNewTopic={onNewTopic}
+        onOpenInChats={onOpenInChats}
+        onOpenTask={(id) => {
+          openTasksHere(taskHref(id, chatId));
+        }}
+        onSetTopics={onSetTopics}
+        onViewTasks={() => {
+          openTasksHere(tasksHref(chatId));
+        }}
+        topics={topics}
+        trailing={
+          <div className="flex shrink-0 items-center gap-0.5">
+            <WindowButton label="Minimize" onClick={onMinimize}>
+              <MinusIcon className="size-4" />
+            </WindowButton>
+            <WindowButton
+              keepsFocus
+              label={isExpanded ? "Shrink" : "Expand"}
+              onClick={() => {
+                onPlacementChange(isExpanded ? "docked" : "expanded");
+              }}
+            >
+              {isExpanded ? (
+                <ArrowsInSimpleIcon className="size-4" />
+              ) : (
+                <ArrowsOutSimpleIcon className="size-4" />
+              )}
+            </WindowButton>
+            <WindowButton label="Close" onClick={onClose}>
+              <XIcon className="size-4" />
+            </WindowButton>
+          </div>
+        }
+      />
       <div className="relative flex min-h-0 flex-1" ref={setBody}>
-        {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. The sizes are the chat column's. */}
+        {/* The sizes are the chat column's. */}
         <div
           className={cn(
-            "relative min-h-0 min-w-0 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]",
+            "relative min-h-0 min-w-0 [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]",
             showsItem ? "w-105 shrink-0 border-r border-border" : "flex-1",
           )}
-          // The caret anywhere in the conversation column, the pill's own ×
-          // included, keeps the pill up.
-          onBlur={(event) => {
-            if (
-              !(event.relatedTarget instanceof Node) ||
-              !event.currentTarget.contains(event.relatedTarget)
-            ) {
-              setComposing(false);
-            }
-          }}
-          onFocus={() => {
-            setComposing(true);
-          }}
         >
           {/* What the conversation asks to have shown comes up large in
               this window; what it opens behind (an agent's page arriving)
@@ -558,7 +465,7 @@ export function ChatWindow({
                   return;
                 }
                 if (options?.show && computerTabOf(href)) {
-                  openHere(href);
+                  openHere(href, { isOpened: true });
                   return;
                 }
                 const tasks = tasksOfHref(href);
@@ -594,15 +501,10 @@ export function ChatWindow({
                 <ActiveTabProvider isActive>
                   <ChatScreen
                     composerLead={
-                      isComposing && behind && !isBehindLeftOut ? (
-                        <IncludedChip
-                          appsBySlug={appsBySlug}
-                          items={undefined}
-                          onLeaveOut={() => {
-                            setLeftOutId(behindKey);
-                          }}
-                          said="In view behind the chat, so it goes to Instrument with your message."
-                          tab={behind}
+                      context.chips.length > 0 ? (
+                        <ContextChips
+                          items={context.chips}
+                          onLeaveOut={context.leaveOut}
                         />
                       ) : undefined
                     }
@@ -620,7 +522,7 @@ export function ChatWindow({
         </div>
         {peekTab && (
           <div
-            className="absolute inset-x-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl-soft ring-1 ring-gray-300 select-none [--guest-bottom-radius:var(--radius-xl)] dark:ring-gray-600"
+            className="absolute inset-x-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl-soft ring-1 ring-gray-300 [--guest-bottom-radius:var(--radius-xl)] dark:ring-gray-600"
             data-slot="chat-peek"
             onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -655,7 +557,7 @@ export function ChatWindow({
                 onClose={() => {
                   setViewOpen(false);
                 }}
-                onPageChrome={onPageChrome}
+                onPageChrome={setPageChrome}
                 onPageHost={setPageHost}
                 up={up}
               />

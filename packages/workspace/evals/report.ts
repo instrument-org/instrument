@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { getTasks } from "../src/lib/get-tasks";
+import { getChatInfos } from "../src/lib/chat-info";
 import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
-import { taskDir } from "../src/lib/task-dir-utils";
-import { getTaskState } from "../src/lib/task-record";
-import { getTaskUsageSummary } from "../src/lib/usage-summary";
+import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import { chatModelURI } from "../src/lib/chat-settings";
+import { getUsageSummary } from "../src/lib/usage-summary";
 import {
   hasWorkspaceConfig,
   setWorkspaceConfig,
@@ -18,7 +18,9 @@ import {
   type EvalCase,
   modelLabelFor,
   runKey,
+  type RunMetrics,
   type RunStop,
+  childSessionsOf,
   sessionsFor,
 } from "./harness";
 import {
@@ -27,7 +29,9 @@ import {
   systemPromptDigest,
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
-import { resolveChat } from "../src/lib/record-folders";
+import { renderUserView } from "./lib/user-view";
+import { type StoreId } from "../src/schemas/store-id";
+import { type ChatId } from "../src/schemas/chat-id";
 
 interface RollupSummary {
   assertions: {
@@ -67,6 +71,8 @@ interface RunReport {
   erroredRequests: number;
   failed: number;
   label: string;
+  /** Present only for runs this process watched. See `RunMetrics`. */
+  metrics?: RunMetrics;
   modelURI?: string;
   /** Where this run's transcript and assertions were written. */
   outputDir: string;
@@ -75,8 +81,11 @@ interface RunReport {
   stoppedBy?: RunStop;
   /** The system prompt this task was scored against. See `provenance`. */
   systemPromptSha256?: string;
-  taskId: string;
+  chatId: string;
   totalTokens: number;
+  /** This task plus every task it started, for runs this process watched. */
+  treeTokens?: number;
+  treeUsage?: CompletedRun["treeUsage"];
 }
 
 /**
@@ -87,12 +96,19 @@ interface RunReport {
 const MAX_CONSOLE_EVIDENCE = 300;
 
 export async function generateReport({
+  caseForRoots,
   evalCases = [],
   includeContextMessages = false,
   outputDir,
   runs = [],
   workspaceRootDir,
 }: {
+  /**
+   * The case every task that no chat started is scored as, for a workspace
+   * that holds one case's run. Without the runs that made it, a chat is
+   * known only by the title it was given since, not by its case's name.
+   */
+  caseForRoots?: string;
   evalCases?: EvalCase[];
   includeContextMessages?: boolean;
   outputDir: string;
@@ -112,10 +128,10 @@ export async function generateReport({
   // can only be recovered from the run that produced it. Without this the match
   // below almost never succeeds and every committed assertion silently reports
   // nothing, which reads exactly like having no assertions to begin with.
-  const runsByTaskId = new Map(runs.map((run) => [run.taskId, run] as const));
+  const runsByChatId = new Map(runs.map((run) => [run.chatId, run] as const));
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
-  // `taskDir()` and friends read the config from its module singleton, which the
+  // `chatDir()` and friends read the config from its module singleton, which the
   // `run` flow populates when the workspace machine boots. Reporting on a past
   // workspace dir never boots one, so seed it here -- but only when it is absent,
   // so a report generated at the end of a run keeps the machine's own config.
@@ -123,7 +139,7 @@ export async function generateReport({
     setWorkspaceConfig(workspaceConfig);
   }
 
-  const listed = await getTasks({
+  const listed = await getChatInfos({
     direction: "asc",
     sortBy: "createdAt",
   });
@@ -131,11 +147,8 @@ export async function generateReport({
   // transcript to report.
   const tasks = (
     await Promise.all(
-      listed.tasks.map(async (task) =>
-        resolveChat(task.id) &&
-        !(await getTaskState(taskDir(task.id))).selectedModelURI
-          ? []
-          : [task],
+      listed.chats.map(async (task) =>
+        resolveChat(task.id) && !(await chatModelURI(task.id)) ? [] : [task],
       ),
     )
   ).flat();
@@ -176,11 +189,10 @@ export async function generateReport({
   const claimedDirs = new Set<string>();
 
   for (const task of tasks) {
-    const taskId = task.id;
-    const run = runsByTaskId.get(taskId);
+    const chatId = task.id;
+    const run = runsByChatId.get(chatId);
 
-    const taskState = await getTaskState(taskDir(taskId));
-    const taskModelURI = run?.modelURI ?? taskState.selectedModelURI;
+    const taskModelURI = run?.modelURI ?? (await chatModelURI(chatId));
     if (taskModelURI) {
       rollupModelURIs.add(taskModelURI);
     }
@@ -190,7 +202,7 @@ export async function generateReport({
     // over a past workspace dir is still filed by case and model rather than by
     // a slug of the prompt with a numeric suffix, which named nothing anyone
     // could act on.
-    const caseName = run?.name ?? task.title;
+    const caseName = run?.name ?? caseForRoots ?? task.title;
     const evalCase =
       evalCasesByName.get(caseName) ??
       evalCasesByName.get(task.id) ??
@@ -210,41 +222,25 @@ export async function generateReport({
     }
     claimedDirs.add(relativeDir);
 
-    const sessionsResult = await Store.getSessions(taskId);
-
-    if (sessionsResult.isErr()) {
-      process.stderr.write(
-        `Error loading sessions for ${label}: ${sessionsResult.error.message}\n`,
-      );
-      continue;
-    }
-
-    const rootSessions = sessionsResult.value;
-
-    if (rootSessions.length > 1) {
-      process.stderr.write(
-        `Warning: ${label} has ${rootSessions.length} root sessions (expected 1). Using the first one.\n`,
-      );
-    }
-
-    const rootSession = rootSessions[0];
+    const rootSession = run
+      ? { id: run.sessionId }
+      : await runSessionOf(chatId, label);
     if (!rootSession) {
-      process.stderr.write(
-        `Warning: ${label} has no root session, skipping.\n`,
-      );
       continue;
     }
 
     const markdown = await getSessionMarkdown({
       includeContextMessages,
       sessionId: rootSession.id,
-      taskId,
+      chatId,
     });
 
     const taskOutputDir = path.join(outputDir, relativeDir);
     await fs.mkdir(taskOutputDir, { recursive: true });
 
-    const stats = await getTaskUsageSummary(taskId);
+    const stats = await getUsageSummary(chatId, {
+      sessionId: rootSession.id,
+    });
 
     // A run whose every step failed on a 402/429 still reaches this point having
     // produced a task and a transcript, so without this it reports exactly like a
@@ -257,7 +253,7 @@ export async function generateReport({
     // the stored errors by hand.
     const sessionWithParts = await Store.getSessionWithMessagesAndParts(
       rootSession.id,
-      taskId,
+      chatId,
     );
     const messageErrors = sessionWithParts.isOk()
       ? sessionWithParts.value.messages.flatMap((message) =>
@@ -297,7 +293,7 @@ export async function generateReport({
       "utf8",
     );
     const symlinkPath = path.join(taskOutputDir, "task");
-    await fs.symlink(taskDir(taskId), symlinkPath).catch(() => {
+    await fs.symlink(chatDir(chatId), symlinkPath).catch(() => {
       return;
     });
 
@@ -310,8 +306,15 @@ export async function generateReport({
     // Read once for both the digest and the assertions: the digest has to be
     // recorded for every task, including one with no assertions to run, and
     // that is the case where the old code never loaded the sessions at all.
-    const sessions = await sessionsFor(taskId);
+    const sessions = await sessionsFor(chatId, rootSession.id);
     const systemPromptSha256 = systemPromptDigest(sessions);
+    if (evalCase?.kind === "chat") {
+      await fs.writeFile(
+        path.join(taskOutputDir, "user-view.md"),
+        renderUserView(sessions),
+        "utf8",
+      );
+    }
     if (systemPromptSha256) {
       rollupPromptDigests.add(systemPromptSha256);
     }
@@ -321,12 +324,14 @@ export async function generateReport({
       JSON.stringify(
         {
           costUSD: run?.costUSD,
+          metrics: run?.metrics,
           modelURI: taskModelURI,
           name: caseName,
+          treeUsage: run?.treeUsage,
           resolvedModelId: run?.resolvedModelId,
           stoppedBy,
           systemPromptSha256,
-          taskId: task.id,
+          chatId: task.id,
         },
         null,
         2,
@@ -336,24 +341,14 @@ export async function generateReport({
 
     let assertionResults: AssertionResult[] = [];
     if (evalCase?.assertions && evalCase.assertions.length > 0) {
-      // A conversation that delegates does most of what it is being scored on
-      // inside its tasks, and those are separate tasks rather than sessions of
-      // this one, so `sessions` alone cannot see the work. Read lazily: only an
-      // chat case has children, and only some of its assertions ask.
-      const childSessions = async () => {
-        const chatId = resolveChat(taskId);
-        const children = chatId ? await listChildTasks(chatId) : [];
-        return Promise.all(
-          children.map(async (child) => ({
-            sessions: await sessionsFor(child.id),
-            taskId: child.id,
-            title: child.title,
-          })),
-        );
-      };
+      // A conversation that forks does much of what it is being scored on
+      // inside its tasks, which are sessions of the chat's beside its own, so
+      // `sessions` alone cannot see the work. Read lazily: only a chat case
+      // has children, and only some of its assertions ask.
+      const childSessions = () => childSessionsOf(chatId, rootSession.id);
       assertionResults = await Promise.all(
         evalCase.assertions.map((a) =>
-          Promise.resolve(a.check({ childSessions, sessions, taskId })),
+          Promise.resolve(a.check({ childSessions, sessions, chatId })),
         ),
       );
       const passed = assertionResults.filter((r) => r.passed).length;
@@ -409,14 +404,17 @@ export async function generateReport({
       erroredRequests: apiErrors.length,
       failed: assertionResults.filter((r) => !r.passed).length,
       label,
+      metrics: run?.metrics,
       modelURI: taskModelURI,
       outputDir: relativeDir,
       passed: assertionResults.filter((r) => r.passed).length,
       resolvedModelId: run?.resolvedModelId,
       stoppedBy,
       systemPromptSha256,
-      taskId: task.id,
+      chatId: task.id,
       totalTokens: stats.totalTokens,
+      treeTokens: run?.treeUsage.totalTokens,
+      treeUsage: run?.treeUsage,
     });
   }
 
@@ -449,6 +447,28 @@ export async function generateReport({
   );
 
   return rollup;
+}
+
+/**
+ * The session a run past its process went to, read from its chat: the
+ * chat's own conversation when anything was said in it, else the task a
+ * task case started from the empty chat.
+ */
+async function runSessionOf(
+  chatId: ChatId,
+  label: string,
+): Promise<undefined | { id: StoreId.Session }> {
+  const own = resolveChat(chatId) ? sessionOfChat(chatId) : undefined;
+  if (!own) {
+    process.stderr.write(`Warning: ${label} has no session, skipping.\n`);
+    return undefined;
+  }
+  const said = await Store.getMessageIds(own, chatId);
+  if (said.isOk() && said.value.length > 0) {
+    return { id: own };
+  }
+  const [task] = await listChildTasks(chatId);
+  return { id: task?.id ?? own };
 }
 
 function truncate(text: string): string {

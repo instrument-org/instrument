@@ -1,6 +1,6 @@
 # What the orchestrator can reach, and whether attachment is the right shape for it
 
-**Status:** still open, checked 2026-10-02. Researched 2026-09-08. Nothing here is built. The premise that started it — "the orchestrator cannot modify files, so it could safely read the whole disk" — is half true, and the half that is false is where the design turns. Recorded because the answer is not "yes" or "no" but "read and write have to come apart first", and that is a change to how a task's grant is derived rather than to how the shell is mounted.
+**Status:** still open, checked 2026-10-02. Researched 2026-09-08. Nothing here is built. The premise that started it — "the orchestrator cannot modify files, so it could safely read the whole disk" — is half true, and the half that is false is where the design turns. Recorded because the answer is not "yes" or "no" but "read and write have to come apart first", and that is a change to how a task's grant is derived rather than to how the shell is mounted. The premise has since moved further: the chat is the one agent (`agents/instrument.ts`), with file tools and a writable working folder, and its tasks are forks that reach exactly the chat's folders, so the read-only conversation this weighs no longer exists; the question of ambient read for the agent stands.
 
 ## The question
 

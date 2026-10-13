@@ -1,4 +1,4 @@
-import { HANDOFF_NOTES_PATH } from "../../src/lib/handoff-notes";
+import { HANDOFF_NOTES_RELATIVE_PATH } from "../../src/lib/handoff-notes";
 import { type Assertion, defineEval } from "../harness";
 
 /**
@@ -184,7 +184,7 @@ const keepsItsFormat: Assertion = {
  */
 const wroteNotesToTheNamedPath: Assertion = {
   check: ({ sessions }) => {
-    const notesFile = HANDOFF_NOTES_PATH.split("/").at(-1) ?? "";
+    const notesFile = HANDOFF_NOTES_RELATIVE_PATH.split("/").at(-1) ?? "";
     const wrote = sessions
       .flatMap((s) => s.messages as { parts: { type: string }[] }[])
       .flatMap((m) => m.parts)

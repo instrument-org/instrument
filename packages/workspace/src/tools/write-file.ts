@@ -6,17 +6,18 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
+import { sessionRole } from "../lib/chat/children";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
-import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
+import { workDir } from "../lib/work-dir";
 
 const INPUT_PARAMS = {
   content: "content",
@@ -36,7 +37,7 @@ export const WriteFile = setupTool({
   name: "write_file",
   outputSchema: z.object({
     content: z.string(),
-    // Task-relative, or the mount path of a writable attached folder.
+    // Task-relative, or the absolute path in a writable folder.
     filePath: z.string(),
     isNewFile: z.boolean(),
     modifiedAt: z.number(),
@@ -46,14 +47,14 @@ export const WriteFile = setupTool({
     Writes a file, creating parent directories as needed.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.work}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./${CHAT_FOLDER_NAMES.work}/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
-    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html ${MOUNT.attachedFolders}/<folder>/foo.html\`.  `,
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
+    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html <folder>/foo.html\`.  `,
+  execute: async ({ input, partId, sessionId, signal, chatId }) => {
     const layout = buildWorkspaceFsLayout({
-      apps: agentName === "instrument",
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
+      apps: sessionRole(chatId, sessionId) === "chat",
+      ...(await chatReach(chatId, sessionId, partId)),
+      taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,

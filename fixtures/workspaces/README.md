@@ -19,7 +19,7 @@ documents/
                                             preferences.json
 ```
 
-A fixture describes what the app makes today: **chats**, each with the tasks it started inside it. A top-level `tasks:` entry is a task no chat owns, which is what a 1.x build made and what boot now adopts into a chat of its own; `legacy-tasks` is the fixture for that migration, and nothing else wants one.
+A fixture describes what the app makes today: **chats**, each with the tasks it started inside it. A top-level `tasks:` entry is a task no chat owns, which is what a 1.x build made and what boot now makes into a chat; `legacy-tasks` is the fixture for that migration, and nothing else wants one.
 
 ## Using one
 

@@ -208,6 +208,12 @@ body {
   --shadow-xl-soft: var(--elevation-xl-soft);
   --shadow-2xl-soft: var(--elevation-2xl-soft);
   --shadow-3xl-soft: var(--elevation-3xl-soft);
+  /* Same ramp for what floats over arbitrary content: menus, popovers,
+   * tooltips. Its hairline is opaque, so nothing passing under it shows
+   * through the ring. */
+  --shadow-float-sm: var(--elevation-float-sm);
+  --shadow-float-md: var(--elevation-float-md);
+  --shadow-float-lg: var(--elevation-float-lg);
 }
 
 /* =========================
@@ -271,6 +277,9 @@ body {
   --elevation-xl: var(--elevation-xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-2xl: var(--elevation-2xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-3xl: var(--elevation-3xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-float-sm: var(--elevation-sm);
+  --elevation-float-md: var(--elevation-md);
+  --elevation-float-lg: var(--elevation-lg);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -406,6 +415,19 @@ body {
   --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
   --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
   --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
+  /* The ring sits outside the element's edge, so a translucent white would
+   * show whatever passes under a menu or popover through it. Each floating
+   * ring is that white already composited over `--background`: the same pixel
+   * over the window, and a steady edge over anything else. */
+  --elevation-float-sm:
+    0 0 0 1px color-mix(in srgb, #fff 8%, var(--background)),
+    var(--elevation-sm-soft);
+  --elevation-float-md:
+    0 0 0 1px color-mix(in srgb, #fff 10%, var(--background)),
+    var(--elevation-md-soft);
+  --elevation-float-lg:
+    0 0 0 1px color-mix(in srgb, #fff 11%, var(--background)),
+    var(--elevation-lg-soft);
 }
 
 /* Typography gives `.prose` a `max-width: 65ch` measure of its own, and every
@@ -886,8 +908,25 @@ body {
   * {
     @apply border-border outline-ring/50 scrollbar-thin scrollbar-color;
   }
+  /* The window is chrome, and a click that strays across a label, a row, or a
+   * tab must not leave a highlight behind, so selection is off for all of it.
+   * What a person reads or copies turns it back on: anything editable, a
+   * conversation, an error's message, and any region that says `select-text`.
+   * `:where` keeps these at no specificity, so a component's own rule (a
+   * widget inside an editor, a gutter) still wins. */
   body {
-    @apply text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased select-none;
+  }
+  :where(
+    input,
+    textarea,
+    [contenteditable]:not([contenteditable="false"]),
+    [data-transcript],
+    [data-slot="alert-description"],
+    [data-slot="dialog-description"],
+    [data-slot="alert-dialog-description"]
+  ) {
+    user-select: text;
   }
 }
 
@@ -1028,6 +1067,26 @@ a.cursor-pointer {
   100% {
     background-color: transparent;
     box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* A send the composer's model notice refused: the row lights in its own yellow
+ * and settles back, so the eye goes to the reason already on screen. Drawn
+ * inside the row, so a parent that clips cannot cut it off, and a color rather
+ * than a shake, so it reads the same with reduced motion. */
+@utility animate-notice-nudge {
+  animation: notice-nudge 900ms ease-out both;
+}
+
+@keyframes notice-nudge {
+  0%,
+  25% {
+    background-color: --alpha(var(--color-yellow-400) / 35%);
+    box-shadow: inset 0 0 0 2px --alpha(var(--color-yellow-500) / 70%);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 2px transparent;
   }
 }
 
@@ -1297,6 +1356,78 @@ a.cursor-pointer {
   opacity: 1;
 }
 
+/* The same fades for a scroller that cannot hold them as flex items, such as
+   a virtualized table with a sticky header. They stand over the scroller's
+   edges inside a wrapper that carries the same `data-scroll-*` marks, kept up
+   to date by measuring. `--scroll-edge-inset-top` keeps them clear of a header
+   that must stay legible, and `--scroll-edge-surface` is what they fade to. */
+.scroll-edge-fade {
+  --scroll-edge-size: 1.5rem;
+
+  position: absolute;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+
+.scroll-edge-fade[data-edge="start"],
+.scroll-edge-fade[data-edge="end"] {
+  top: var(--scroll-edge-inset-top, 0px);
+  bottom: 0;
+  width: var(--scroll-edge-size);
+}
+
+.scroll-edge-fade[data-edge="top"],
+.scroll-edge-fade[data-edge="bottom"] {
+  right: 0;
+  left: 0;
+  height: var(--scroll-edge-size);
+}
+
+.scroll-edge-fade[data-edge="start"] {
+  left: 0;
+  background: linear-gradient(
+    to right,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+.scroll-edge-fade[data-edge="end"] {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+.scroll-edge-fade[data-edge="top"] {
+  top: var(--scroll-edge-inset-top, 0px);
+  background: linear-gradient(
+    to bottom,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+.scroll-edge-fade[data-edge="bottom"] {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+[data-scroll-start] > .scroll-edge-fade[data-edge="start"],
+[data-scroll-end] > .scroll-edge-fade[data-edge="end"],
+[data-scroll-top] > .scroll-edge-fade[data-edge="top"],
+[data-scroll-bottom] > .scroll-edge-fade[data-edge="bottom"] {
+  opacity: 1;
+}
+
 /* Copy and expand, hung off the table's top corner at the trailing end. Where
    the transcript has room beside the table they stand in it, level with the top
    of the header row; where it has none they lift above the header instead,
@@ -1547,64 +1678,53 @@ a.cursor-pointer {
   }
 }
 
-[data-sonner-toast] {
-  /* Fixes hover for toast growing to full height of screen */
-  height: auto !important;
-  /* Ring-less md elevation so it doesn't double up with Sonner's 1px border. */
-  box-shadow: var(--shadow-md-soft) !important;
-}
-
-/* Sonner's default action button is a solid, inverted (high-emphasis) button.
-   Restyle it to match our `secondary` Button variant so it reads as a subtle,
-   lower-emphasis control. The `.toaster` class raises specificity above
-   Sonner's own `[data-sonner-toast][data-styled='true'] [data-button]` rule,
-   which is injected at runtime after this stylesheet. */
-.toaster [data-sonner-toast][data-styled="true"] [data-button] {
-  height: auto;
-  padding: 4px 10px;
-  border-radius: var(--radius-md);
-  background: var(--secondary);
-  color: var(--secondary-foreground);
-  box-shadow: var(--shadow-xs);
-}
-
-.toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
-  background: var(--muted);
-}
-
-.dark .toaster [data-sonner-toast][data-styled="true"] [data-button] {
-  background: var(--gray-800);
-  color: var(--foreground);
-}
-
-.dark .toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
-  background: var(--gray-700);
-}
-
-/* Sonner lays a toast out as one row -- icon, text, button -- and the text
-   column is the part that gives when the button takes its width. A toast
-   carrying a description then has roughly half the card to say it in, so a
+/* Sonner lays a toast out as one row -- icon, text, button, close -- and the
+   text column is the part that gives when the button takes its width. A card
+   carrying a description then has roughly half its width to say it in, so a
    filename or an error message breaks mid-word into a ragged stack beside a
    button sitting in its own whitespace. Give those two rows: the text spans
-   the card, the button drops beneath it. Both children are placed in the
-   second column explicitly so the layout holds for a toast with no icon. */
-.toaster
-  [data-sonner-toast][data-styled="true"]:has([data-description]):has(
-    [data-button]
-  ) {
+   the card with the close button at its end, and the button drops beneath
+   the text. Every child is placed explicitly so the layout holds for a toast
+   with no icon. */
+.toaster [data-sonner-toast]:has([data-description]):has([data-button]) {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  row-gap: 10px;
+  row-gap: 4px;
 
   [data-icon] {
     grid-column: 1;
-    /* Centered on the title's first line, not on the whole text block. */
-    margin-top: 2px;
+    grid-row: 1;
   }
 
-  [data-content],
+  [data-content] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  [data-close-button] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
   [data-button] {
     grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+}
+
+/* Sonner's dark theme paints its close button on any toast, styled or not.
+   Ours is a bare glyph in both themes. [data-sonner-toaster] lifts this past
+   Sonner's own rule, which is injected at runtime after this stylesheet. */
+.toaster[data-sonner-toaster][data-sonner-theme="dark"]
+  [data-sonner-toast]
+  [data-close-button] {
+  background: transparent;
+  color: var(--muted-foreground);
+
+  &:hover {
+    background: var(--accent);
+    color: var(--foreground);
   }
 }

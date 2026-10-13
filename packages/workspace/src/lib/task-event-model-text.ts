@@ -1,9 +1,7 @@
 import ms from "ms";
 
-import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
-import { describeHoldings } from "./chat/describe-holdings";
 import { describeLeftRunning } from "./chat/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
@@ -18,8 +16,11 @@ export function taskEventModelNote(
   data: SessionMessageDataPart.TaskEventDataPart,
 ) {
   const lines = data.events.map((event) => {
-    const outcome =
-      event.status === "error"
+    // What the `task` command takes for it.
+    const id = event.handle ?? event.sessionId;
+    const outcome = event.stoppedBy
+      ? `was ${asClause(event.ended ?? "Stopped").replace(/^stopped/, "stopped by the user")} and did not finish`
+      : event.status === "error"
         ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
         : event.status === "overdue"
           ? "is still working"
@@ -65,9 +66,6 @@ export function taskEventModelNote(
       : event.ended || event.status === "overdue"
         ? ""
         : " It said nothing.";
-    // The shape of its folder, as counts: enough to see a repository copied
-    // in or a build left behind, without a listing the chat can make
-    // for itself when it wants the names.
     // What the step running now is doing, on its own line: the measure of a
     // step that may never end on its own, which its label does not give.
     const inFlight =
@@ -78,9 +76,6 @@ export function taskEventModelNote(
       event.needs && event.needs.length > 0
         ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
         : "";
-    const holds = event.holds
-      ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
-      : "";
     // Where a result that lives on a page is: the tab, by the id `tab show`
     // takes, since the task's transcript holds only its account of the page.
     const tabs =
@@ -89,23 +84,19 @@ export function taskEventModelNote(
         : "";
     const running =
       event.running && event.running.length > 0
-        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${event.taskId} --all\`; a server they are using stays.`
+        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${tabs}${running}`;
+    // The user's stop is a decision, not a turn to pick up again.
+    const leave = event.stoppedBy
+      ? ` Leave it stopped unless they ask for it again.`
+      : "";
+    return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${needs}${tabs}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);
   // the note says only what happened and why the turn is running.
   const overdue = data.events.every((event) => event.status === "overdue");
   if (overdue) {
-    const asked = data.events.find((event) => event.askedAfterMs !== undefined);
-    if (asked?.askedAfterMs !== undefined && data.events.length === 1) {
-      return systemNote`
-        You asked to look at a task after ${ms(asked.askedAfterMs, { long: true })}, and it is still at work:
-        ${lines.join("\n")}
-        Nothing has gone wrong that anyone has said. Nobody typed anything; this note is why you are awake.
-      `;
-    }
     return systemNote`
       ${data.events.length === 1 ? "A task you created is taking a while:" : "Tasks you created are taking a while:"}
       ${lines.join("\n")}
@@ -116,15 +107,20 @@ export function taskEventModelNote(
   const waiting = data.events.every(
     (event) => event.needs && event.needs.length > 0,
   );
+  const stopped = data.events.every((event) => event.stoppedBy === "user");
   return systemNote`
     ${
-      waiting
+      stopped
         ? data.events.length === 1
-          ? "A task you created is waiting on you:"
-          : "Tasks you created are waiting on you:"
-        : data.events.length === 1
-          ? "A task you created has finished:"
-          : "Tasks you created have finished:"
+          ? "The user stopped a task you created:"
+          : "The user stopped tasks you created:"
+        : waiting
+          ? data.events.length === 1
+            ? "A task you created is waiting on you:"
+            : "Tasks you created are waiting on you:"
+          : data.events.length === 1
+            ? "A task you created has finished:"
+            : "Tasks you created have finished:"
     }
     ${lines.join("\n")}
     Nobody typed anything; this note is why you are awake.

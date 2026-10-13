@@ -1,4 +1,9 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  liveRead,
+  chatDir,
+  ChatIdSchema,
+} from "@instrument-org/workspace/electron";
+import { recordFileOpen } from "@/electron-main/browser-view/history-store";
 import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
 import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
@@ -11,6 +16,7 @@ import {
 } from "@/electron-main/lib/file-open-target";
 import { resolveDarwinTarget } from "@/electron-main/lib/file-open-target/resolve-darwin";
 import { openExternal } from "@/electron-main/lib/open-external";
+import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import {
   effectiveDisplayProtocol,
   resolveOzonePlatform,
@@ -26,7 +32,6 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
-import { taskDir, TaskIdSchema } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import {
   app,
@@ -227,6 +232,7 @@ const openFileWith = base
         message: error instanceof Error ? error.message : undefined,
       });
     }
+    recordFileOpen(input.filePath, "external");
   });
 
 // Default-app name and icon for "Open in {app}" affordances. Fields are null
@@ -237,6 +243,7 @@ const fileOpenTarget = base
     z.object({
       appName: z.string().nullable(),
       iconUrl: z.string().nullable(),
+      opensUnnamed: z.boolean(),
     }),
   )
   .handler(({ input }) => getFileOpenTarget(input.filePath));
@@ -308,19 +315,15 @@ const openPath = base
       stats.isFile() && os.platform() === "darwin"
         ? await getFileOpenTarget(input.filepath)
         : { launchAppPath: null };
-    if (launchAppPath) {
-      try {
-        await execFileAsync("open", ["-a", launchAppPath, input.filepath]);
-      } catch (error) {
-        throw errors.ERROR_OPENING_FILE({
-          message: error instanceof Error ? error.message : undefined,
-        });
-      }
-      return;
-    }
-    const errorMessage = await shell.openPath(input.filepath);
+    const errorMessage = await openPathOnComputer(input.filepath, {
+      appPath: launchAppPath,
+    });
     if (errorMessage) {
       throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+    }
+    // A folder opened in the file manager is browsing, not a recent file.
+    if (stats.isFile()) {
+      recordFileOpen(input.filepath, "external");
     }
   });
 
@@ -353,7 +356,7 @@ const openFolder = base
     }),
   )
   .handler(async ({ input }) => {
-    const errorMessage = await shell.openPath(input.folderPath);
+    const errorMessage = await openPathOnComputer(input.folderPath);
     if (errorMessage) {
       shell.showItemInFolder(input.folderPath);
     }
@@ -562,8 +565,8 @@ function readWindowState(webContentsId: number) {
 
 /** Where a task's folder is on the computer, for the window to show it in its own folder view. */
 const taskFolderPath = base
-  .input(z.object({ id: TaskIdSchema }))
-  .handler(({ input }) => taskDir(input.id));
+  .input(z.object({ id: ChatIdSchema }))
+  .handler(({ input }) => chatDir(input.id));
 
 const copyFileToClipboard = base
   .errors({

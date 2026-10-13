@@ -72,7 +72,7 @@ describe("prepareSourceImage", () => {
   it("converts a format the provider does not take", async () => {
     const result = await prepareSourceImage({
       bytes: gif,
-      displayPath: "/mnt/Photos/cat.gif",
+      displayPath: "/Users/sam/Photos/cat.gif",
     });
 
     const prepared = result._unsafeUnwrap();
@@ -98,7 +98,7 @@ describe("prepareSourceImage", () => {
   it("converts the photo a phone hands over", async () => {
     const result = await prepareSourceImage({
       bytes: await fs.readFile(HEIC_FIXTURE),
-      displayPath: "/mnt/Photos/IMG_4021.heic",
+      displayPath: "/Users/sam/Photos/IMG_4021.heic",
     });
 
     expect(measureImage(result._unsafeUnwrap())).toMatchObject({

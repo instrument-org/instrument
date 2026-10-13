@@ -166,7 +166,7 @@ async function getAISDKImageModel({
     }
     case "openai": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
-      const model = sdk.image("gpt-image-2");
+      const model = sdk.image("gpt-image-2.5-flare");
       return Result.ok({ model, type: "image" as const });
     }
     case "openrouter": {

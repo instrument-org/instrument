@@ -15,8 +15,13 @@ export { CHAT_COMMAND } from "./chat-command";
 
 const CHAT_NAME = CHAT_COMMAND.name;
 
-/** How much of a message a listing shows before it is cut. */
+/** How much of a message a listing or a search hit shows before it is cut. */
 const LINE_MAX = 240;
+/**
+ * How much of one message `read` shows: enough that a path or a link in a
+ * long message reaches the agent whole.
+ */
+const READ_MAX = 4000;
 const DEFAULT_TAIL = 20;
 const DEFAULT_CHATS = 20;
 const SEARCH_MAX = 20;
@@ -75,7 +80,12 @@ function chatRow(chat: Chat, names: Map<string, string>): string {
 
 function cut(text: string, max = LINE_MAX): string {
   const line = text.replaceAll(/\s+/g, " ").trim();
-  return line.length > max ? `${line.slice(0, max)}…` : line;
+  if (line.length <= max) {
+    return line;
+  }
+  return max === READ_MAX
+    ? `${line.slice(0, max)}… (${line.length - max} more characters)`
+    : `${line.slice(0, max)}…`;
 }
 
 /**
@@ -129,10 +139,10 @@ function findChat(
 }
 
 /** A chat's messages as `who: what` lines, oldest first. */
-async function lines(chat: Chat): Promise<string[]> {
+async function lines(chat: Chat, max = LINE_MAX): Promise<string[]> {
   const messages = await Store.getMessagesWithParts({
     sessionId: chat.sessionId,
-    taskId: chat.id,
+    chatId: chat.id,
   });
   if (messages.isErr()) {
     return [];
@@ -149,7 +159,7 @@ async function lines(chat: Chat): Promise<string[]> {
       if (!text) {
         return [];
       }
-      return [`${message.role === "user" ? "user" : "you"}: ${cut(text)}`];
+      return [`${message.role === "user" ? "user" : "you"}: ${cut(text, max)}`];
     },
   );
 }
@@ -184,7 +194,7 @@ async function runRead(input: SubcommandInput) {
     throw new Error(found.error);
   }
   const tail = Number(input.value("tail") ?? DEFAULT_TAIL);
-  const said = await lines(found.chat);
+  const said = await lines(found.chat, READ_MAX);
   const shown = said.slice(
     -(Number.isFinite(tail) && tail > 0 ? tail : DEFAULT_TAIL),
   );

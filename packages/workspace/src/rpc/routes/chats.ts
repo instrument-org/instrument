@@ -1,51 +1,47 @@
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { isWorking } from "../../lib/chat/activity";
+import { isWorking, latestStep } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
   ChatSchema,
-  markChatSeen,
-  markChatUnseen,
+  markChatRead,
+  markChatUnread,
   renameChat,
   setChatStarred,
   setChatTopics,
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
-import { listChildTasks } from "../../lib/chat/children";
+import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
-import { taskStanding } from "../../lib/chat/standing";
+import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
-  owningChat,
   resolveChat,
   sessionOfChat,
 } from "../../lib/record-folders";
-import { taskDir } from "../../lib/task-dir-utils";
-import { taskHold } from "../../lib/task-hold";
-import { trashChat } from "../../lib/trash-task";
+import { trashChat } from "../../lib/trash-chat";
 import { StoreId } from "../../schemas/store-id";
-import { TaskInChatSchema } from "../../schemas/task";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
+import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
-/** A task the window filed, as its tasks screen lists it. */
-const ChildTaskSchema = TaskInChatSchema.extend({
-  // With each one's folder on disk: what a link into `/tasks/<id>` opens.
-  dir: z.string(),
+/** A task the chat started, as its tasks screen lists it. */
+const ChildTaskSchema = ChatTaskSchema.extend({
   /** Where it stands and the line the list says about it. */
   standing: z.object({
-    kind: z.enum(["done", "failed", "running", "waiting"]),
+    kind: TaskStandingKindSchema,
     line: z.string(),
   }),
-  /** Whether a stop has something to end: an agent at work, or a hold on its start. */
+  /** The label of its newest step of its own, when it gave one. */
+  step: z.string().optional(),
+  /** Whether a stop has something to end: an agent at work. */
   stoppable: z.boolean(),
 });
 
@@ -56,26 +52,27 @@ async function childTasks(id: ChatId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(
     tasks.map(async (task) => {
-      const running = isWorking(task.id);
+      const ref = { sessionId: task.id, chatId: id };
+      const running = isWorking(id, task.id);
+      const step = await latestStep(ref);
       return {
         ...task,
-        dir: taskDir(task.id),
-        standing: await taskStanding({ isRunning: running, taskId: task.id }),
-        stoppable: running || taskHold(task.id) !== undefined,
+        standing: await taskStanding({ ...ref, isRunning: running }),
+        ...(step ? { step } : {}),
+        stoppable: running,
       };
     }),
   );
 }
 
 /**
- * Whether a change is to a task the chat filed: what one of its rows shows
- * (its title, its standing, its step) is all in the task's own record.
+ * Whether a change is to the chat whose tasks a list shows: what one of its
+ * rows shows (its title, its standing, its step) is all in the chat's store,
+ * and whether it works is its session's agent.
  */
 function inChat(chatId: ChatId) {
   return (change: RecordChanged) =>
-    change.kind === "removed"
-      ? change.ref.kind === "task" && change.ref.chatId === chatId
-      : owningChat(change.id) === chatId;
+    change.id === chatId && change.kind !== "settings";
 }
 
 /**
@@ -83,7 +80,7 @@ function inChat(chatId: ChatId) {
  * chat's: nothing lists every chat's tasks.
  */
 const childTasksRoute = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(ChildTaskSchema.array())
   .handler(async ({ errors, input }) => {
     const chatId = resolveChat(input.id);
@@ -95,7 +92,7 @@ const childTasksRoute = base
 
 /** A chat's tasks, re-read whenever one of them may have changed. */
 const liveChildTasksRoute = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(ChildTaskSchema.array()))
   .handler(async function* ({ errors, input, signal }) {
     const chatId = resolveChat(input.id);
@@ -134,18 +131,20 @@ const liveListChatsRoute = base
     yield* liveChatList(signal);
   });
 
-/** What the user has seen in a chat, so its count can clear. */
-const seenChatRoute = base
+/** Takes a chat's unread mark off: the user has looked at it, or said so. */
+const readChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, markChatSeen);
+    await whenChat(input.id, markChatRead);
   });
 
-/** A chat the user wants back among the unread: its newest reply unseen again. */
-const unseenChatRoute = base
+/** Marks a chat unread by the user's hand, which holds until they come back to it. */
+const unreadChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, markChatUnseen);
+    await whenChat(input.id, (chatId) =>
+      markChatUnread(chatId, { byUser: true }),
+    );
   });
 
 /** Puts a chat away: out of the inbox, still in the list, marked. */
@@ -261,25 +260,29 @@ const trashChatRoute = base
       workspaceRef: context.workspaceRef,
     });
     if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
   });
 
 export const chats = {
+  ...chatRoutes,
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
-  live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
+  live: {
+    ...chatRoutes.live,
+    list: liveListChatsRoute,
+    tasks: liveChildTasksRoute,
+  },
   ofSession: chatOfSessionRoute,
+  read: readChatRoute,
   rename: renameChatRoute,
   retitle: retitleChatRoute,
-  seen: seenChatRoute,
   session: chatSessionRoute,
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
   tasks: childTasksRoute,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,
-  unseen: unseenChatRoute,
+  unread: unreadChatRoute,
 };

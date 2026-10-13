@@ -25,8 +25,7 @@ import { TypedError } from "./errors";
  * - **Refused when unreadable.** A file that is there and cannot be read as a
  *   JSON object is never written over: what this build would write is its own
  *   empty reading of it plus a change, which would replace everything the file
- *   held. `set-aside` moves a file that opens but does not parse beside it
- *   first, for a file whose loss costs nothing worth refusing a write for.
+ *   held.
  *
  * Writes from two processes sharing a workspace are still unordered, and the
  * last rename wins: the temporary file is named per process only so they
@@ -35,14 +34,9 @@ import { TypedError } from "./errors";
 export type JsonRecord = Record<string, unknown>;
 
 export type JsonRecordRead =
-  | { cause: unknown; kind: "unreadable"; opened: boolean }
+  | { cause: unknown; kind: "unreadable" }
   | { kind: "missing" }
   | { kind: "read"; record: JsonRecord };
-
-interface UpdateOptions {
-  /** What to do with a file that opens but is not a JSON object. Refused unless said. */
-  unreadable?: "refuse" | "set-aside";
-}
 
 /** How long a rename another program is holding the file against is retried. */
 const RENAME_RETRY_MS = 1000;
@@ -58,7 +52,7 @@ export async function readJsonRecord(file: string): Promise<JsonRecordRead> {
   } catch (error) {
     return isNotFound(error)
       ? { kind: "missing" }
-      : { cause: error, kind: "unreadable", opened: false };
+      : { cause: error, kind: "unreadable" };
   }
   return parsed(contents);
 }
@@ -70,7 +64,7 @@ export function readJsonRecordSync(file: string): JsonRecordRead {
   } catch (error) {
     return isNotFound(error)
       ? { kind: "missing" }
-      : { cause: error, kind: "unreadable", opened: false };
+      : { cause: error, kind: "unreadable" };
   }
   return parsed(contents);
 }
@@ -115,10 +109,9 @@ async function renameWhenAllowed(
 export function updateJsonRecord(
   file: string,
   change: (record: JsonRecord) => JsonRecord | undefined,
-  options: UpdateOptions = {},
 ): Promise<JsonRecord> {
   return enqueue(file, async () => {
-    const current = await writableRecord(file, options);
+    const current = await writableRecord(file);
     const changes = change(current);
     if (changes === undefined) {
       return current;
@@ -145,14 +138,10 @@ export function updateJsonRecord(
 export function updateJsonRecordSync(
   file: string,
   change: (record: JsonRecord) => JsonRecord | undefined,
-  options: UpdateOptions = {},
 ): JsonRecord {
   const read = readJsonRecordSync(file);
   if (read.kind === "unreadable") {
-    if (options.unreadable !== "set-aside" || !read.opened) {
-      throw refusal(file, read.cause);
-    }
-    syncFs.renameSync(file, asidePath(file));
+    throw refusal(file, read.cause);
   }
   const current = read.kind === "read" ? read.record : {};
   const changes = change(current);
@@ -170,11 +159,6 @@ export function updateJsonRecordSync(
     throw error;
   }
   return next;
-}
-
-/** Where a file that does not parse is moved, beside it, when it is set aside. */
-function asidePath(file: string): string {
-  return `${file}.unreadable-${Date.now()}`;
 }
 
 function isBusy(error: unknown): boolean {
@@ -209,14 +193,13 @@ function parsed(contents: string): JsonRecordRead {
   try {
     value = JSON.parse(contents);
   } catch (error) {
-    return { cause: error, kind: "unreadable", opened: true };
+    return { cause: error, kind: "unreadable" };
   }
   return isRecord(value)
     ? { kind: "read", record: value }
     : {
         cause: new Error("Not a JSON object"),
         kind: "unreadable",
-        opened: true,
       };
 }
 
@@ -237,10 +220,7 @@ function temporaryPath(file: string): string {
 }
 
 /** The file's record to build on, or the refusal to build on it. */
-async function writableRecord(
-  file: string,
-  { unreadable = "refuse" }: UpdateOptions,
-): Promise<JsonRecord> {
+async function writableRecord(file: string): Promise<JsonRecord> {
   const read = await readJsonRecord(file);
   if (read.kind === "read") {
     return read.record;
@@ -248,9 +228,5 @@ async function writableRecord(
   if (read.kind === "missing") {
     return {};
   }
-  if (unreadable !== "set-aside" || !read.opened) {
-    throw refusal(file, read.cause);
-  }
-  await fs.rename(file, asidePath(file));
-  return {};
+  throw refusal(file, read.cause);
 }

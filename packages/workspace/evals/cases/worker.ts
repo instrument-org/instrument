@@ -1,12 +1,10 @@
 /**
- * Can a model do the work, as opposed to decide who should?
+ * Can a model do the work, as opposed to talk about it?
  *
- * The conversation and the tasks under it are two different jobs, and a model
- * good at one is not thereby good at the other: the conversation has four tools
- * and has to choose, while a task has every file tool, a shell with real
- * binaries, a browser and skills, and has to finish something. Measuring only
- * the conversation picks models that delegate beautifully to workers that
- * cannot deliver.
+ * Each case here runs as a task told what to do in so many words, the way a
+ * fork is: every file tool, a shell with real binaries, a browser and skills,
+ * and something to finish. Measuring only the conversation picks models that
+ * answer well and cannot deliver.
  *
  * These are the deliverables the transcript is actually full of. Documents come
  * first because they are the hardest honest test in the suite: nothing here can
@@ -32,8 +30,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { taskDir } from "../../src/lib/task-dir-utils";
-import { type TaskId } from "../../src/schemas/task-id";
+import { chatDir } from "../../src/lib/record-folders";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
 /** The four bytes every OOXML file starts with, being a zip. */
@@ -53,12 +51,12 @@ const MIN_DOCUMENT_BYTES = 4000;
 
 /**
  * Every file this task could have written: its own folder, and the workspace
- * folder, since a brief naming one is answered in the other about as often.
+ * folder, since a prompt naming one is answered in the other about as often.
  */
-async function deliverables(taskId: TaskId): Promise<string[]> {
+async function deliverables(chatId: ChatId): Promise<string[]> {
   const home = process.env.HOME ?? "";
   return [
-    ...(await filesUnder(taskDir(taskId))),
+    ...(await filesUnder(chatDir(chatId))),
     ...(home
       ? await filesUnder(path.join(home, "Documents", "Instrument"))
       : []),
@@ -107,11 +105,11 @@ function pass(text: string, evidence: string): AssertionResult {
  * disk rather than in the transcript because the claim and the artifact come
  * apart exactly here.
  */
-function wroteADocument(extension: string): Assertion {
+export function wroteADocument(extension: string): Assertion {
   const text = `wrote a ${extension} that is a real document`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const candidates = written.filter((file) =>
         file.toLowerCase().endsWith(extension),
       );
@@ -194,10 +192,10 @@ function zipMembers(archive: Buffer, matches: (name: string) => boolean) {
  * with no model near the line.
  */
 const deckWasDesigned: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text =
       "designed the deck rather than leaving it on the blank default";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     const decks = written.filter(
       (file) =>
         file.toLowerCase().endsWith(".pptx") && !file.includes("templates"),
@@ -316,8 +314,8 @@ const MIN_IMAGE_BYTES = 8000;
 function reportContains(label: string, value: number): Assertion {
   const text = `got ${label} right`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const readable = written.filter((file) =>
         /\.(?:md|txt|csv|html)$/i.test(file),
       );
@@ -354,8 +352,8 @@ function reportContains(label: string, value: number): Assertion {
 function wroteAnImage(): Assertion {
   const text = "wrote a PNG that is a real rendered image";
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const images = written.filter((file) =>
         file.toLowerCase().endsWith(".png"),
       );
@@ -385,9 +383,9 @@ function wroteAnImage(): Assertion {
 
 /** Something a browser would render, rather than a stub. */
 const wroteAWebPage: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "wrote an HTML page with its styling inside it";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     for (const file of written.filter((one) => /\.html?$/i.test(one))) {
       const body = await fs.readFile(file, "utf8").catch(() => "");
       const styled = /<style[\s>]/i.test(body) || /style="/i.test(body);
@@ -413,8 +411,8 @@ const wroteAWebPage: Assertion = {
 function documentContains(label: string, value: number): Assertion {
   const text = `got ${label} right`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const docs = written.filter((file) =>
         file.toLowerCase().endsWith(".docx"),
       );
@@ -474,8 +472,8 @@ function wroteSomethingToLookAt(
 ): Assertion {
   const text = `wrote a ${extension} worth opening`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const matches = written.filter(
         (file) =>
           file.toLowerCase().endsWith(extension) && !file.includes("templates"),
@@ -509,9 +507,9 @@ function wroteSomethingToLookAt(
  * answers this without opening the document.
  */
 const embeddedAnImage: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "put the chart inside the document";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     const docs = written.filter((file) => /\.(?:docx|pptx)$/i.test(file));
     for (const doc of docs) {
       const archive = await fs.readFile(doc).catch(() => null);
@@ -551,10 +549,10 @@ const embeddedAnImage: Assertion = {
  * That splits the same seven cleanly, with the three near-misses on the
  * failing side.
  */
-const sheetRecomputes: Assertion = {
-  check: async ({ taskId }) => {
+export const sheetRecomputes: Assertion = {
+  check: async ({ chatId }) => {
     const text = "built a workbook that recomputes when an input changes";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
       const archive = await fs.readFile(book).catch(() => null);
       if (!archive) {
@@ -589,10 +587,10 @@ const sheetRecomputes: Assertion = {
  * Either counts as having produced something to look at; only one of them is a
  * spreadsheet doing its job, so the evidence says which.
  */
-const sheetHasAChart: Assertion = {
-  check: async ({ taskId }) => {
+export const sheetHasAChart: Assertion = {
+  check: async ({ chatId }) => {
     const text = "put a chart in the workbook";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
       const archive = await fs.readFile(book).catch(() => null);
       if (!archive) {
@@ -614,12 +612,12 @@ const sheetHasAChart: Assertion = {
   text: "put a chart in the workbook",
 };
 
-/** Every option the brief supplied, so a comparison cannot quietly drop half. */
+/** Every option the prompt supplied, so a comparison cannot quietly drop half. */
 function comparedEvery(names: string[]): Assertion {
   const text = `compared all ${names.length} of them`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       for (const file of written.filter((one) =>
         /\.(?:html?|md)$/i.test(one),
       )) {
@@ -655,7 +653,7 @@ function firstNamed(window: string, names: string[]): string | undefined {
  * The pick the supplied data actually supports.
  *
  * A shopping comparison is only worth anything if the recommendation survives
- * the constraints in the brief, and those constraints have exactly one or two
+ * the constraints in the prompt, and those constraints have exactly one or two
  * right answers here. Read from the recommendation itself rather than the whole
  * page, because every option is named somewhere on a comparison page by
  * definition; the run of text after the word "recommend" is where the model
@@ -664,8 +662,8 @@ function firstNamed(window: string, names: string[]): string | undefined {
 function recommended(allowed: string[], rejected: string[]): Assertion {
   const text = `recommended one the constraints allow`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       for (const file of written.filter((one) =>
         /\.(?:html?|md)$/i.test(one),
       )) {
@@ -694,7 +692,7 @@ function recommended(allowed: string[], rejected: string[]): Assertion {
           : fail(
               text,
               firstPick
-                ? `picked ${firstPick}, which the brief rules out`
+                ? `picked ${firstPick}, which the prompt rules out`
                 : `named none of ${allowed.join(" or ")}`,
             );
       }
@@ -796,7 +794,7 @@ export const WORKER_EVALS = [
       reportContains("the best region's revenue", 215_748.97),
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "worker-data-report",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row. Work out total revenue for the year, revenue per region, and which region did best, and write it up as summary.md in your output folder with a short table. Revenue is units times unit price.",
@@ -812,7 +810,7 @@ export const WORKER_EVALS = [
       embeddedAnImage,
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "worker-data-memo",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Write it up as a one-page memo called memo.docx in your output folder for someone who will not open the spreadsheet: the total for the year up top, a table of revenue by region, a chart of monthly revenue actually embedded in the document, and one sentence saying what you would do about it. Lay it out so the point lands without reading every number.",
@@ -827,7 +825,7 @@ export const WORKER_EVALS = [
       sheetHasAChart,
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "worker-data-workbook",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Turn it into a workbook called sales.xlsx in your output folder that I can actually work in: the rows with revenue worked out per row, a summary of revenue by region and by month that totals with real formulas rather than pasted numbers, and a chart of the monthly trend. Lay it out so I can find things, and make it so that changing a unit price updates everything downstream.",
@@ -854,7 +852,7 @@ export const WORKER_EVALS = [
       ),
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: SHOPPING_FIXTURE }],
+    folders: [{ path: SHOPPING_FIXTURE }],
     name: "worker-product-comparison",
     prompt:
       "espresso-machines.csv in my Shopping folder has six machines I am choosing between. Build me a single-file comparison page called compare.html in your output folder that lets me see the differences at a glance and ends with a clear recommendation. My budget is $700, I want a 58mm portafilter so my accessories fit, and I want PID temperature control. Everything else is a trade-off I want you to make for me: I pull one shot on a weekday morning and I am usually in a hurry. Style it inside the file, no libraries and no external images.",

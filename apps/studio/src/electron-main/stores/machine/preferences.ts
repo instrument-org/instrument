@@ -1,21 +1,29 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { MACHINE_PREFERENCES_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  NO_SIDEBAR_CHANGES,
+  SidebarPlacesSchema,
+} from "@/shared/sidebar-places";
 import Store from "electron-store";
 import { z } from "zod";
 
 /**
- * What a person chose for this computer, whichever workspace is open: whether
- * it reports usage, and which builds it updates to. Per-workspace choices are
- * in `workspace/preferences.ts`.
+ * What a person chose for this computer, whichever workspace is open: which
+ * builds it updates to, whether error reports are sent without asking, and
+ * what the Files sidebar pins, whose paths are this computer's. Per-workspace choices are in `workspace/preferences.ts`.
  */
 export const MachinePreferencesSchema = z.object({
-  enableUsageMetrics: z.boolean().catch(true),
   // Release channels are not exposed to the user and are used internally for testing
   releaseChannel: z
     .enum(["latest", "beta", "alpha"])
     .optional()
     .catch(undefined),
+  // Set from a report's own checkbox, and turned off in Settings: crashes and
+  // app errors are then sent without asking. Chats never are.
+  sendErrorReportsAutomatically: z.boolean().catch(false).default(false),
+  sidebarPlaces:
+    SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES).default(NO_SIDEBAR_CHANGES),
 });
 
 type MachinePreferences = z.output<typeof MachinePreferencesSchema>;

@@ -470,19 +470,6 @@ export function resolveSkillName(
 }
 
 /**
- * The segment a source's skills appear under in the skills mount.
- *
- * Both bundled sources answer to one segment because they materialize into one
- * flat prepared directory: they are the app's own skills either way, and
- * nothing downstream has a reason to tell them apart. Every other source keeps
- * its own id, which is what carries provenance and writability in the path
- * itself, so the agent never has to infer either.
- */
-export function skillsMountSegment(sourceId: SkillSourceId): string {
-  return BUNDLED_SOURCE_IDS.has(sourceId) ? APP_NAME_SLUG : sourceId;
-}
-
-/**
  * Separate the YAML block from the body without a library.
  *
  * The block keeps the newline that follows the opening `---`, so a YAML error's

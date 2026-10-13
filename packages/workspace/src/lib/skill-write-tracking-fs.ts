@@ -6,7 +6,31 @@ import { recordWorkspaceSkillMutation } from "./workspace-skill-index";
  * Records successful mutations to a mounted skills filesystem without changing
  * its read or write behavior.
  */
-export function skillWriteTrackingFs(delegate: IFileSystem): IFileSystem {
+export function skillWriteTrackingFs(
+  delegate: IFileSystem,
+  /**
+   * A path as the delegate is given it, as a path inside the skills folder,
+   * or undefined for a path outside it. The delegate is the skills folder
+   * itself unless it is a wider folder holding it.
+   */
+  toSkillPath: (path: string) => string | undefined = (path) => path,
+): IFileSystem {
+  const record = (paths: string[]) => {
+    for (const path of paths) {
+      const inSkills = toSkillPath(path);
+      if (inSkills !== undefined) {
+        recordWorkspaceSkillMutation(inSkills);
+      }
+    }
+  };
+  const recordAfter = async <T>(
+    operation: Promise<T>,
+    paths: string[],
+  ): Promise<T> => {
+    const result = await operation;
+    record(paths);
+    return result;
+  };
   const readFileBytes = delegate.readFileBytes?.bind(delegate);
   const readdirWithFileTypes = delegate.readdirWithFileTypes?.bind(delegate);
   const tracked: IFileSystem = {
@@ -22,7 +46,7 @@ export function skillWriteTrackingFs(delegate: IFileSystem): IFileSystem {
       const existed = await delegate.exists(args[0]);
       await delegate.mkdir(...args);
       if (!existed) {
-        recordWorkspaceSkillMutation(args[0]);
+        record([args[0]]);
       }
     },
     mv: (...args) => recordAfter(delegate.mv(...args), [args[0], args[1]]),
@@ -46,15 +70,4 @@ export function skillWriteTrackingFs(delegate: IFileSystem): IFileSystem {
     tracked.readdirWithFileTypes = readdirWithFileTypes;
   }
   return tracked;
-}
-
-async function recordAfter<T>(
-  operation: Promise<T>,
-  paths: string[],
-): Promise<T> {
-  const result = await operation;
-  for (const path of paths) {
-    recordWorkspaceSkillMutation(path);
-  }
-  return result;
 }

@@ -4,9 +4,7 @@ Status: **ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped i
 
 ## Goal
 
-A user who already pays for Claude (Pro or Max) or ChatGPT (Plus or Pro) can run Instrument on that plan instead of our credits. We run the official `claude` or `codex` CLI on their machine, signed in with their own account. We stay the tool host: our prompt, our sandboxed tools, our skills and our transcript, with their subscription supplying the model.
-
-This lowers the barrier to trying the product for people who already pay for a model.
+A user who already pays for Claude (Pro or Max) or ChatGPT (Plus or Pro) can run Instrument on that plan rather than on the models Instrument provides. We run the official `claude` or `codex` CLI on their machine, signed in with their own account. We stay the tool host: our prompt, our sandboxed tools, our skills and our transcript, with their subscription supplying the model.
 
 ## What the terms allow
 
@@ -75,4 +73,3 @@ Checked on a Max plan in a clean room: a multi-step turn with our real tools, a 
 - Startup: each task starts a fresh Claude Code process, about 2s on its first step. The SDK's warm-spare option should cover it; not tried.
 - Several Claude accounts: possible in principle, one config folder each, but rotating accounts past a usage limit is what the ChatGPT terms forbid and Anthropic's may too. Not offered.
 - Packaging: the SDK must be reachable from the packaged main bundle; unchecked.
-- Monetization: subscription users pay us nothing for inference, so what they pay for has to be the product itself.

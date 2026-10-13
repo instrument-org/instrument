@@ -7,7 +7,7 @@ import {
   WorkspaceDirSchema,
 } from "../../src/schemas/paths";
 import { unavailableWebSearchClient } from "../../src/schemas/web-search";
-import { createStubBrowserConfig } from "../../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../../src/types";
 
 export function createStubWorkspaceConfig({
@@ -17,7 +17,7 @@ export function createStubWorkspaceConfig({
 }: {
   // For the parts a script actually exercises. The defaults below point at
   // paths that need only be well-formed, not real; a script that creates tasks
-  // has to supply a real `defaultTaskTemplateDir`, for one.
+  // has to supply a real `chatTemplateDir`, for one.
   overrides?: Partial<WorkspaceConfig>;
   rootDir?: string;
   tasksDir: string;
@@ -30,19 +30,15 @@ export function createStubWorkspaceConfig({
     appsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: () => {
-      return;
-    },
     captureException: () => {
       return;
     },
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "default-task-template"),
+    chatTemplateDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "chat-template"),
     ),
     getAIProviderConfigs: () => [],
     // On for the dev harnesses, which exist to exercise the real thing. The
     // app ships with it off until the macOS permission prompt is handled.
-    isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
@@ -56,7 +52,8 @@ export function createStubWorkspaceConfig({
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "system-skills"),
     ),
-    tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
+    chatsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "chats")),
+    legacyTasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),

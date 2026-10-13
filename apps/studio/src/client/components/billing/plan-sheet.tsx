@@ -15,14 +15,13 @@ import {
 } from "@/client/components/ui/dialog";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
-import { useModalBack } from "@/client/hooks/use-modal-back";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { rpcClient } from "@/client/rpc/client";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * The plan picker as a sheet over whatever opened it, a chat or Settings.
@@ -33,11 +32,12 @@ import { toast } from "sonner";
 export function PlanSheet() {
   const [state, setState] = useAtom(planSheetAtom);
   const isOpen = state !== null;
-  useBlockTabNavigation(isOpen);
   // Over Settings, a back press closes the sheet and leaves Settings open.
-  useModalBack(() => {
-    setState(null);
-  }, isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   return (
     <Dialog

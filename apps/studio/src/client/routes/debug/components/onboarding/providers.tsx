@@ -1,6 +1,7 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
-import { createFileRoute } from "@tanstack/react-router";
+import { OnboardingScreen } from "@/client/components/onboarding/screen";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { noop } from "radashi";
 
 import { getOnboardingScreen } from "../../-debug-routes";
@@ -14,12 +15,20 @@ export const Route = createFileRoute("/debug/components/onboarding/providers")({
 });
 
 function RouteComponent() {
+  const navigate = useNavigate();
   return (
     <OnboardingWindowFrame>
       <OnboardingLayout>
-        <div className="flex-1 overflow-y-auto px-11 pt-6 pb-11">
-          <AddProviderForm onSuccess={noop} providers={[]} submitLabel="Next" />
-        </div>
+        <OnboardingScreen align="top" className="px-11 pt-17 pb-11">
+          <AddProviderForm
+            onBack={() =>
+              void navigate({ to: getOnboardingScreen("login").to })
+            }
+            onSuccess={noop}
+            providers={[]}
+            submitLabel="Next"
+          />
+        </OnboardingScreen>
       </OnboardingLayout>
     </OnboardingWindowFrame>
   );

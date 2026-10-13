@@ -17,11 +17,18 @@ export const Route = createFileRoute("/_app/files")({
     source: z.boolean().optional(),
     /** The folder a file tab's own tree is rooted at: where the Finder stood when the file was opened. */
     tree: z.string().optional(),
+    /**
+     * The layout this step of the tab's history shows the folder in, so back
+     * and forward show each folder the way it looked. Absent on an address
+     * that arrives at a folder directly (a place, a new tab, a typed path),
+     * which opens in the folder's own layout and is then written here.
+     */
+    view: z.enum(["columns", "gallery", "icons", "list"]).optional(),
   }),
 });
 
 function ComputerRoute() {
-  const { file, path, root, select, source, tree } = Route.useSearch();
+  const { file, path, root, select, source, tree, view } = Route.useSearch();
   return (
     <FilesScreen
       file={file}
@@ -30,6 +37,7 @@ function ComputerRoute() {
       select={select}
       source={source ?? false}
       tree={tree}
+      view={view}
     />
   );
 }

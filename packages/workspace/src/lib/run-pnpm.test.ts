@@ -1,45 +1,43 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
-import { taskLayout } from "../test/helpers/task-layout";
 
-vi.mock(import("./execa-node-for-task"));
+vi.mock(import("./execa-node-for-chat"));
 
 describe("runPnpmCommand", () => {
   it("sets pnpm_config_reporter=append-only on the child process env", async () => {
-    const { execaNodeForTask } = await import("./execa-node-for-task");
-    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
+    const { execaNodeForChat } = await import("./execa-node-for-chat");
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["install"],
-      layout: taskLayout(taskId),
-      taskId,
+      chatId,
     });
 
-    expect(execaNodeForTask).toHaveBeenCalledTimes(1);
+    expect(execaNodeForChat).toHaveBeenCalledTimes(1);
 
-    const firstCall = vi.mocked(execaNodeForTask).mock.calls[0];
+    const firstCall = vi.mocked(execaNodeForChat).mock.calls[0];
     expect(firstCall).toBeDefined();
     if (firstCall === undefined) {
-      throw new Error("expected execaNodeForTask to have been called");
+      throw new Error("expected execaNodeForChat to have been called");
     }
 
-    const [passedTaskId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
-      typeof taskId,
+    const [passedChatId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
+      typeof chatId,
       string,
       string[],
       { env?: Record<string, string> },
       unknown,
     ];
 
-    expect(passedTaskId).toBe(taskId);
+    expect(passedChatId).toBe(chatId);
     expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
     expect(cliArgs).toEqual(["install"]);
     expect(execaOpts.env).toMatchObject({
@@ -50,22 +48,21 @@ describe("runPnpmCommand", () => {
   });
 
   it("sets pnpm_config_loglevel=error when pnpmLogLevel is error", async () => {
-    const { execaNodeForTask } = await import("./execa-node-for-task");
-    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
+    const { execaNodeForChat } = await import("./execa-node-for-chat");
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["dlx", "jiti@2.6.1", "x.ts"],
-      layout: taskLayout(taskId),
       pnpmLogLevel: "error",
-      taskId,
+      chatId,
     });
 
-    expect(execaNodeForTask).toHaveBeenCalledWith(
-      taskId,
+    expect(execaNodeForChat).toHaveBeenCalledWith(
+      chatId,
       getWorkspaceConfig().pnpmBinPath,
       ["dlx", "jiti@2.6.1", "x.ts"],
       expect.objectContaining({

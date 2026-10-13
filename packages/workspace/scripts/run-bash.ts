@@ -8,11 +8,9 @@
  *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one task dir
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
  *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against existing task dir
- *   pnpm script:run-bash -- --tasks-dir /path/to/tasks # REPL with custom tasks root
- *   pnpm script:run-bash -- --attach /some/dir "ls /mnt" # mount a folder read-only under /mnt
- *   pnpm script:run-bash -- --attach-writable /some/dir "..." # mount it read-write instead
- *   pnpm script:run-bash -- --mount-name Home/Downloads --attach-writable ~/Downloads "ls /mnt/Home"
- *                                                      # mount the next folder under a name given, as a chat's task does
+ *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
+ *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
+ *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -25,37 +23,37 @@ import "./lib/define-globals-apply";
 
 import { noopModelCache } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
+import { createRequire } from "node:module";
+import { toolBinDirIn } from "./lib/tool-bin-dir";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { ulid } from "ulid";
 
-import { TASK_FOLDER_NAMES } from "../src/constants";
+import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
-import { grantFolders } from "../src/lib/grant-folders";
+import { placeChat, resolveChat } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { type FolderAttachment } from "../src/schemas/folder-attachment";
+import { MountedFolder } from "../src/schemas/mounted-folder";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
-import { TaskIdSchema } from "../src/schemas/task-id";
+import { ChatIdSchema } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 
 function parseArgs(argv: string[]) {
   const attach: {
-    access: FolderAttachment.Access;
-    mountName?: string;
+    access: MountedFolder.Access;
     path: string;
   }[] = [];
-  let mountName: string | undefined;
   let bail = false;
   const commands: string[] = [];
-  let taskId: string | undefined;
-  let tasksDir: string | undefined;
+  let chatId: string | undefined;
+  let chatsDir: string | undefined;
 
   const remaining = [...argv];
   while (remaining.length > 0) {
@@ -66,10 +64,8 @@ function parseArgs(argv: string[]) {
         if (dir) {
           attach.push({
             access: "read-only",
-            ...(mountName ? { mountName } : {}),
             path: path.resolve(dir),
           });
-          mountName = undefined;
         }
 
         break;
@@ -79,16 +75,9 @@ function parseArgs(argv: string[]) {
         if (dir) {
           attach.push({
             access: "read-write",
-            ...(mountName ? { mountName } : {}),
             path: path.resolve(dir),
           });
-          mountName = undefined;
         }
-
-        break;
-      }
-      case "--mount-name": {
-        mountName = remaining.shift();
 
         break;
       }
@@ -98,12 +87,12 @@ function parseArgs(argv: string[]) {
         break;
       }
       case "--task": {
-        taskId = remaining.shift();
+        chatId = remaining.shift();
 
         break;
       }
-      case "--tasks-dir": {
-        tasksDir = remaining.shift();
+      case "--chats-dir": {
+        chatsDir = remaining.shift();
 
         break;
       }
@@ -115,17 +104,17 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  return { attach, bail, commands, taskId, tasksDir };
+  return { attach, bail, chatsDir, commands, chatId };
 }
 
 const args = parseArgs(process.argv.slice(2));
 
 const rootDir = path.resolve(os.tmpdir(), "instrument-bash-repl");
-const tasksDir = args.tasksDir
-  ? path.resolve(args.tasksDir)
-  : path.join(rootDir, "tasks");
+const chatsDir = args.chatsDir
+  ? path.resolve(args.chatsDir)
+  : path.join(rootDir, "chats");
 
-await fs.mkdir(tasksDir, { recursive: true });
+await fs.mkdir(chatsDir, { recursive: true });
 
 const uvBinPath = AbsolutePathSchema.parse(
   await execa({ reject: false })`which uv`.then(
@@ -138,22 +127,30 @@ setWorkspaceConfig({
   appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
-  captureEvent: () => {
-    return;
-  },
   captureException: () => {
     return;
   },
-  defaultTaskTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "default-task-template"),
+  chatTemplateDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "chat-template"),
   ),
   getAIProviderConfigs: () => [],
-  isExternalBrowserEnabled: () => true,
   modelCache: noopModelCache,
   nodeExecEnv: {},
+  nativeSandbox: true,
+  // The pnpm the app ships, as its JS entry, which the workspace runs with
+  // node: a shell shim from PATH is neither JS nor readable in the sandbox.
   pnpmBinPath: AbsolutePathSchema.parse(
-    await execa({ reject: false })`which pnpm`.then(
-      ({ stdout }) => stdout.trim() || "/usr/bin/pnpm",
+    path.join(
+      path.dirname(
+        createRequire(
+          path.resolve(
+            import.meta.dirname,
+            "../../../apps/studio/package.json",
+          ),
+        ).resolve("pnpm"),
+      ),
+      "bin",
+      "pnpm.mjs",
     ),
   ),
   preparedSkillsDir: AbsolutePathSchema.parse(
@@ -164,7 +161,9 @@ setWorkspaceConfig({
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
-  tasksDir: AbsolutePathSchema.parse(tasksDir),
+  chatsDir: AbsolutePathSchema.parse(chatsDir),
+  legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
+  toolBinDir: AbsolutePathSchema.parse(toolBinDirIn(rootDir)),
   trashItem: () => Promise.resolve(),
   uvBinPath,
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
@@ -176,37 +175,41 @@ if (process.env.INSTRUMENT_BASH_WORKER === "1") {
   setBashWorkerFactory(createTsxBashWorker);
 }
 
-const taskId = TaskIdSchema.parse(args.taskId ?? ulid().toLowerCase());
+const chatId = ChatIdSchema.parse(args.chatId ?? ulid().toLowerCase());
 
-const taskDir = path.join(tasksDir, taskId);
-await fs.mkdir(taskDir, { recursive: true });
+const chatDir = path.join(chatsDir, chatId);
+await fs.mkdir(chatDir, { recursive: true });
 // Match initializeTask's guarantee: the agent-visible pair always exists
 // (the repl skips the template copy that normally scaffolds `work/`).
-for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
-  await fs.mkdir(path.join(taskDir, dirName), { recursive: true });
+for (const dirName of [CHAT_FOLDER_NAMES.attachments, CHAT_FOLDER_NAMES.work]) {
+  await fs.mkdir(path.join(chatDir, dirName), { recursive: true });
+}
+const sessionId = StoreId.newSessionId();
+// The shell finds its folder through the chat index, which the repl's folder,
+// made by hand, is put in.
+if (resolveChat(chatId) === undefined) {
+  placeChat(chatId, sessionId);
 }
 
-const sessionId = StoreId.newSessionId();
-
-const attachedFolders = grantFolders(
-  [],
-  args.attach.map((folder) => ({
-    access: folder.access,
-    ...(folder.mountName ? { mountName: folder.mountName } : {}),
-    path: AbsolutePathSchema.parse(folder.path),
-    source: "user" as const,
-  })),
-  Date.now(),
-).folders;
+const attached = args.attach.map((folder, index) => ({
+  ...folder,
+  id: MountedFolder.IdSchema.parse(`attach-${index}`),
+}));
+const folders = Object.fromEntries(
+  attached.map((folder): [string, MountedFolder.Type] => {
+    const hostPath = AbsolutePathSchema.parse(folder.path);
+    return [hostPath, { access: folder.access, id: folder.id, path: hostPath }];
+  }),
+);
 
 const bash = await createBashEnv({
-  attachedFolders,
+  folders,
   sessionId,
-  taskId,
+  chatId,
 });
 
 process.stderr.write(
-  `task dir: ${taskDir}\ntask: ${taskId}  session: ${sessionId}\n\n`,
+  `task dir: ${chatDir}\ntask: ${chatId}  session: ${sessionId}\n\n`,
 );
 
 // The exit is explicit, so nothing a command left running (a background job,

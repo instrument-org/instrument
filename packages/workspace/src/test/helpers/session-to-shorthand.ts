@@ -70,7 +70,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         break;
       }
       case "output-error": {
-        content += `\n${indent("<input>")}\n${indent(JSON.stringify(part.input || part.rawInput || "none", null, 2), 2)}\n${indent("</input>")}`;
+        content += `\n${indent("<input>")}\n${indent(JSON.stringify(part.input || "none", null, 2), 2)}\n${indent("</input>")}`;
         content += `\n${indent(`<error>${part.errorText}</error>`)}\n`;
 
         break;
@@ -82,8 +82,8 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
   }
 
   switch (part.type) {
-    case "data-adoptedTask": {
-      return `<data-adoptedTask>${part.data.taskId}</data-adoptedTask>`;
+    case "data-permissionAnswer": {
+      return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
     }
     case "data-appEvent": {
       return `<data-appEvent events="${part.data.events.map((event) => `${event.slug}:${event.event}`).join(",")}" />`;
@@ -91,13 +91,11 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-asks": {
       return `<data-asks count="${part.data.asks.length}" />`;
     }
-    case "data-attachedFolderChanges": {
+    case "data-folderChanges": {
       const foldersList = part.data.removed
-        .map(
-          (folder) => `<folder name="${folder.name}" path="${folder.path}" />`,
-        )
+        .map((folder) => `<folder path="${folder.path}" />`)
         .join("\n");
-      return `<data-attachedFolderChanges>\n${indent(foldersList)}\n</data-attachedFolderChanges>`;
+      return `<data-folderChanges>\n${indent(foldersList)}\n</data-folderChanges>`;
     }
     case "data-attachments": {
       const filesList = part.data.files
@@ -157,6 +155,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(", ");
       return `<data-fileChanges>${files}</data-fileChanges>`;
     }
+    case "data-fromChat": {
+      return `<data-fromChat kind="${part.data.kind}">${part.data.text}</data-fromChat>`;
+    }
     case "data-intent": {
       return `<data-intent>${part.data.text}</data-intent>`;
     }
@@ -171,26 +172,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
-    }
-    case "data-projectChanges": {
-      const projectName = ` projectName="${part.data.projectName}"`;
-      const instructions = part.data.instructionsChanged
-        ? ` instructionsChanged`
-        : "";
-      const added =
-        part.data.foldersAdded.length > 0
-          ? ` added="${part.data.foldersAdded.map((folder) => folder.name).join(",")}"`
-          : "";
-      const removed =
-        part.data.foldersRemoved.length > 0
-          ? ` removed="${part.data.foldersRemoved.map((folder) => folder.name).join(",")}"`
-          : "";
-      return `<data-projectChanges${projectName}${instructions}${added}${removed} />`;
-    }
-    case "data-projectContext": {
-      const projectName = ` projectName="${part.data.projectName}"`;
-      const instructions = part.data.instructions ? ` instructions` : "";
-      return `<data-projectContext${projectName}${instructions} />`;
     }
     case "data-reply": {
       return `<data-reply>${part.data.text}</data-reply>`;
@@ -209,16 +190,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }
-    case "data-taskAppChanges": {
-      const appsList = [
-        ...part.data.added.map((app) => `<added slug="${app.slug}" />`),
-        ...part.data.removed.map((app) => `<removed slug="${app.slug}" />`),
-      ].join("\n");
-      return `<data-taskAppChanges>\n${indent(appsList)}\n</data-taskAppChanges>`;
-    }
     case "data-taskEvent": {
       const events = part.data.events
-        .map((event) => `${event.taskId}:${event.status}`)
+        .map((event) => `${event.sessionId}:${event.status}`)
         .join(",");
       return `<data-taskEvent>${events}</data-taskEvent>`;
     }

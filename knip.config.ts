@@ -26,7 +26,11 @@ const config: KnipConfig = {
   },
   workspaces: {
     ".": {
-      entry: ["scripts/*.ts!", ".agents/wireframe-kit/*.{ts,mjs}!"],
+      entry: [
+        "scripts/*.ts!",
+        "scripts/sandbox-bakeoff/*.ts!",
+        ".agents/wireframe-kit/*.{ts,mjs}!",
+      ],
       ignoreBinaries: ["actionlint", "electron", "powershell.exe"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
@@ -55,6 +59,8 @@ const config: KnipConfig = {
         "magick", // System ImageMagick used to generate the Windows folder icon
         "swift", // Xcode toolchain that builds the Mac helper (scripts/build-mac-helper.ts)
         "clang", // Xcode toolchain that links the Mac helper's native module
+        "plutil", // macOS tool that names the dev Electron clone (scripts/dev-supervisor.ts)
+        "codesign", // macOS tool that re-signs the dev Electron clone (scripts/dev-supervisor.ts)
         "tail",
         "op",
         "gh",
@@ -84,7 +90,18 @@ const config: KnipConfig = {
       // The eval and script trees are reached through package.json scripts, which
       // knip drops in production mode; name them so only tests get dropped there.
       // The default run calls `evals/cli.ts!` redundant for that reason: keep it.
-      entry: ["__mocks__/*", "evals/cli.ts!", "scripts/*.ts!"],
+      // The hand-off matrix runs on its own, and preloads the three evals/lib
+      // modules into each child it starts with `--import`.
+      entry: [
+        "__mocks__/*",
+        "evals/cli.ts!",
+        "evals/handoff-matrix.ts!",
+        "evals/user-view-grade.ts!",
+        "evals/lib/memoize-model-catalogs.ts!",
+        "evals/lib/pin-openrouter-model.ts!",
+        "evals/lib/retry-workers-ai-rate-limits.ts!",
+        "scripts/*.ts!",
+      ],
       ignore: ["fixtures/**/*"],
       ignoreBinaries: [
         "which",

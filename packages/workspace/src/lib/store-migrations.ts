@@ -56,7 +56,7 @@ const VERSION_KEY = "__migration_version__";
 
 const MIGRATIONS: StoreMigration[] = [
   {
-    // Folders were stored under `name`, which was the mount name all along.
+    // Folders were stored under `name`, which was the name the folder was mounted under all along.
     name: "folder attachments carry mountName",
     run: async ({ storage }) => {
       await eachStoredPart(storage, (part) => {

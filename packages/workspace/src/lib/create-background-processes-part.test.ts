@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   killSessionBackgroundProcesses,
   promoteBackgroundProcess,
@@ -14,20 +14,20 @@ import {
 } from "./background-processes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
-const id = TaskIdSchema.parse("background-processes-part-test");
+const id = ChatIdSchema.parse("background-processes-part-test");
 
 let root: string;
 let sessionId: StoreId.Session;
-let taskId: TaskId;
+let chatId: ChatId;
 
 async function makePart() {
   return createBackgroundProcessesPart({
     createdAt: new Date(),
     messageId: StoreId.newMessageId(),
     sessionId,
-    taskId,
+    chatId,
   });
 }
 
@@ -49,9 +49,8 @@ function startRunning(command: string) {
           { once: true },
         );
       }),
-    taskId,
   });
-  const promoted = promoteBackgroundProcess({ handle, sessionId, taskId });
+  const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
   if ("error" in promoted) {
     throw new Error(promoted.error);
   }
@@ -60,8 +59,8 @@ function startRunning(command: string) {
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bg-part-test-"));
-  taskId = createMockTaskConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   sessionId = StoreId.newSessionId();
 });
 

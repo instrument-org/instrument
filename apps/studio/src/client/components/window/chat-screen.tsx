@@ -1,12 +1,12 @@
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
-import { TaskChat } from "@/client/components/task/chat";
+import { ChatConversation } from "@/client/components/task/chat";
+import { Alert, AlertDescription } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -21,7 +21,7 @@ import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
-import { WorkingRow } from "./working-row";
+import { useReadOnView } from "./use-read-on-view";
 
 /**
  * How long a chat with no session is waited for before it is called gone: a
@@ -88,7 +88,7 @@ export function ChatScreen(props: ChatScreenProps) {
 }
 
 function ChatScreenOfRecord({
-  chatId: taskId,
+  chatId,
   composerLead,
   isUp,
   sendContext,
@@ -97,69 +97,71 @@ function ChatScreenOfRecord({
   tiles,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
-  const task = useQuery(
-    rpcClient.workspace.task.live.byId.experimental_liveOptions({
-      input: { id: taskId },
+  const info = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
+      input: { id: chatId },
     }),
   );
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
-      input: { id: taskId },
+  const folders = useQuery(
+    rpcClient.workspace.chats.live.folders.experimental_liveOptions({
+      input: { id: chatId },
     }),
   );
   // The chat as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
   const chats = useQuery(chatListOptions());
-  const chat = chats.data?.find((entry) => entry.id === taskId);
-  // While the chat's own agent composes, the transcript shows the typing
-  // dots; the chat is otherwise at work when a task filed from it is, and
-  // that is said at the transcript's tail too. Read from the tasks filed
-  // from it rather than from the chat's state, which folds its own agent
-  // in: the state is the list's, a re-read behind the actor the dots follow,
-  // so at a turn's end it still says working for a moment after the dots
-  // have gone, and the tail would say so in their place.
-  const { isAgentRunning } = useAgentSessionStatus({ id: taskId, sessionId });
-  const isWorkingElsewhere =
-    chat?.runningTasks.some((running) => !running.waiting) === true &&
-    !isAgentRunning;
+  const chat = chats.data?.find((entry) => entry.id === chatId);
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());
   // What was marked in files and moved into this chat's composer goes
   // with its next message, as pills there.
-  const groupAsks = useComposerAsks({ chatId: taskId, kind: "chat" });
+  const groupAsks = useComposerAsks({ chatId, kind: "chat" });
   const { remove: removeAsks } = useStagedAskActions();
 
-  // Reading the chat is what clears its count, so it is marked read on
-  // arrival and again as each reply finishes while it is on screen. The pane
-  // beside the tabs does not clear it on its own.
-  const markSeen = useMutation(
-    rpcClient.workspace.chats.seen.mutationOptions(),
-  );
-  const newestSettledMessageId = chat?.newestSettledMessageId;
-  useEffect(() => {
-    if (!isUp) {
-      return;
-    }
-    markSeen.mutate({ id: taskId });
-    // The mutation is stable; re-running on its identity would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [isUp, taskId, newestSettledMessageId]);
+  // Looking at the chat is what takes its unread mark off. The pane beside
+  // the tabs does not clear it on its own.
+  useReadOnView({ chat, chatId, isUp });
 
-  if (!task.data || !state.data) {
+  const loadError = info.error ?? folders.error;
+  if (loadError) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <Alert className="max-w-md" variant="warning">
+          <AlertDescription className="flex flex-col gap-4">
+            <div className="font-semibold">This chat couldn’t open</div>
+            <div className="text-sm">
+              {loadError.message || "Something went wrong reading it."}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  void info.refetch();
+                  void folders.refetch();
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+  if (!info.data || !folders.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
       </div>
     );
   }
-  const modelURI = state.data.selectedModelURI ?? defaultModelURI;
-  const attachedFolders = state.data.attachedFolders ?? {};
+  const modelURI = info.data.modelURI ?? defaultModelURI;
+  const reach = folders.data;
   // Into this chat's own group, shown: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
   // A new-tab gesture over any of it asks for a tab of the window's own.
-  const into = { group: taskId, ownTab: true, show: true };
+  const into = { group: chatId, ownTab: true, show: true };
   const intoOr = (options?: OpenOptions) =>
     options?.newTab ? { behind: options.behind, newTab: true } : into;
   return (
@@ -178,7 +180,7 @@ function ChatScreenOfRecord({
                 return;
               }
               createMessage.mutate({
-                id: taskId,
+                id: chatId,
                 modelURI,
                 prompt,
                 sessionId,
@@ -190,7 +192,7 @@ function ChatScreenOfRecord({
             openScreen: (href, options) => {
               appWindow.openScreen(href, intoOr(options));
             },
-            chatId: taskId,
+            chatId,
           }}
         >
           <FileOpenContext
@@ -203,15 +205,15 @@ function ChatScreenOfRecord({
                 appWindow.openPage(url, intoOr(options));
               }}
             >
-              <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
-                <TaskChat
+              <ChatSessionProvider sessionId={sessionId} chatId={chatId}>
+                <ChatConversation
                   asks={
                     groupAsks.length === 0
                       ? undefined
                       : {
                           pills: <AskPills asks={groupAsks} />,
                           take: () => {
-                            const part = asksPart(groupAsks, attachedFolders);
+                            const part = asksPart(groupAsks, reach);
                             const ids = groupAsks.map((ask) => ask.id);
                             return part
                               ? {
@@ -230,17 +232,14 @@ function ChatScreenOfRecord({
                   composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
-                  draftKey={{ chatId: taskId, scope: "chat" }}
+                  draftKey={{ chatId, scope: "chat" }}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
-                  task={task.data}
-                  transcriptTrailing={
-                    isWorkingElsewhere ? <WorkingRow /> : null
-                  }
+                  chatInfo={info.data}
                 />
-              </TaskSessionProvider>
+              </ChatSessionProvider>
             </PageOpenContext>
           </FileOpenContext>
         </WindowContext>

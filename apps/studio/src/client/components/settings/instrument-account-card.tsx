@@ -58,7 +58,7 @@ export function InstrumentAccountCard() {
             ) : (
               <Button
                 onClick={() => {
-                  openLogin({ hideManualProvider: true });
+                  openLogin({ instrumentOnly: true });
                 }}
                 variant="brand"
               >

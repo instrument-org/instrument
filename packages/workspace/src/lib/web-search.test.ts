@@ -6,10 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { webSearch } from "./web-search";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -97,7 +97,7 @@ async function runProviderSearch(chunks: LanguageModelV4StreamPart[]) {
       }),
   });
 
-  createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-provider"), {
+  createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-provider"), {
     model,
     webSearch: rejectingWebSearchClient,
     webSearchModel: { model: searchModel },
@@ -221,8 +221,8 @@ describe("webSearch", () => {
         }),
       );
 
-      createMockTaskConfig(
-        TaskIdSchema.parse("2026-07-27-web-search-platform"),
+      createMockChatConfig(
+        ChatIdSchema.parse("2026-07-27-web-search-platform"),
         {
           model,
           webSearch: searchWeb,
@@ -254,7 +254,7 @@ describe("webSearch", () => {
     it("reports a signed-out user instead of falling back to a provider", async () => {
       const model = createMockAIGatewayModel();
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-out"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-out"), {
         model,
         webSearch: () =>
           Promise.resolve({
@@ -287,7 +287,7 @@ describe("webSearch", () => {
           ok: true,
         });
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-retry"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-retry"), {
         model,
         webSearch: searchWeb,
         webSearchModel: { model: neverCalledSearchModel() },
@@ -305,7 +305,7 @@ describe("webSearch", () => {
         Promise.resolve(unavailable),
       );
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-down"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-down"), {
         model,
         webSearch: searchWeb,
         webSearchModel: {
@@ -344,7 +344,7 @@ describe("webSearch", () => {
         }),
       );
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-broke"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-broke"), {
         model,
         webSearch: searchWeb,
         webSearchModel: { model: neverCalledSearchModel() },
@@ -356,6 +356,100 @@ describe("webSearch", () => {
       expect(results.at(-1)?._unsafeUnwrapErr().errorType).toBe(
         "payment-required",
       );
+    });
+  });
+
+  describe("a model whose provider cannot search", () => {
+    const signedOut: WebSearchClient = () =>
+      Promise.resolve({
+        errorMessage: "Sign in to search the web.",
+        errorType: "not-authenticated",
+        ok: false,
+      });
+
+    function setUp(platformSearch: WebSearchClient) {
+      const model = createMockAIGatewayModel({ provider: "openai-compatible" });
+      createMockChatConfig(
+        ChatIdSchema.parse("2026-10-10-web-search-keyless"),
+        { model, webSearch: platformSearch },
+      );
+      return model;
+    }
+
+    it("searches keyless when the user is signed out", async () => {
+      const model = setUp(signedOut);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json({
+          id: 1,
+          jsonrpc: "2.0",
+          result: {
+            content: [
+              {
+                text: "Title: One\nURL: https://one.test\nPublished: 2026-10-08T09:00:00.000Z\nAuthor: N/A\nHighlights:\nThe passage that matched.",
+                type: "text",
+              },
+            ],
+          },
+        }),
+      );
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(results.map((r) => r._unsafeUnwrap())).toMatchInlineSnapshot(`
+        [
+          {
+            "costDollars": 0,
+            "kind": "excerpts",
+            "sources": [
+              {
+                "author": undefined,
+                "publishedDate": "2026-10-08T09:00:00.000Z",
+                "text": "The passage that matched.",
+                "title": "One",
+                "url": "https://one.test",
+              },
+            ],
+          },
+        ]
+      `);
+    });
+
+    it("leaves a signed-in user on our endpoint", async () => {
+      const model = setUp(() =>
+        Promise.resolve({
+          data: { costDollars: 0.007, results: [] },
+          ok: true,
+        }),
+      );
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
+        costDollars: 0.007,
+      });
+    });
+
+    it("offers signing in when the keyless search fails", async () => {
+      const model = setUp(signedOut);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("", { status: 500 }));
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(results.map((r) => r._unsafeUnwrapErr())).toMatchInlineSnapshot(`
+        [
+          {
+            "errorMessage": "The free web search failed with status 500. Try again in a moment, or sign in to Instrument to search the web.",
+            "errorType": "not-authenticated",
+          },
+        ]
+      `);
     });
   });
 });

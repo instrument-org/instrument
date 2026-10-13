@@ -24,7 +24,7 @@ import { type FileRouteTypes } from "../routeTree.gen";
 const SCROLLER_OWNED_PATHS = [
   "/debug/components/transcript",
   "/chats/$id",
-  "/tasks/$id",
+  "/tasks/$sessionId",
 ] satisfies FileRouteTypes["fullPaths"][];
 
 // A path parameter cannot be compared literally, so an entry carrying one is

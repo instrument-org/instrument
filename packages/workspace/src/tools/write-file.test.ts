@@ -6,20 +6,21 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../schemas/paths";
+import { grantFolder } from "../lib/chat/grants";
+import { chatDir } from "../lib/record-folders";
+import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { WriteFile } from "./write-file";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), {
+const chatId = createMockChatConfig(ChatIdSchema.parse("test"), {
   model,
 });
 
@@ -27,12 +28,10 @@ function makeExecuteArgs(
   input: Parameters<typeof WriteFile.execute>[0]["input"],
 ) {
   return {
-    agentName: "main" as const,
     input,
     model,
     signal: AbortSignal.timeout(10_000),
-    taskId,
-    taskState: { browserTabs: [] },
+    chatId,
   };
 }
 
@@ -42,7 +41,7 @@ describe("WriteFile - toModelOutput", () => {
   });
 
   it("returns a bare success line for a new file", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
 
     const input = {
       content: "const x = 2;",
@@ -62,8 +61,8 @@ describe("WriteFile - toModelOutput", () => {
 
   it("returns a bare success line for an overwritten file", async () => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.tasks]: {
-        [taskId]: { "index.ts": "const x = 1;" },
+      [MOCK_WORKSPACE_DIRS.chats]: {
+        [chatId]: { "index.ts": "const x = 1;" },
       },
     });
 
@@ -89,15 +88,15 @@ describe("WriteFile - path policy", () => {
     mockFs.restore();
   });
 
-  it("writes /task/... virtual paths to the real task location", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+  it("writes the chat's own folder by its full path", async () => {
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
 
     const result = await runTool(
       WriteFile,
       makeExecuteArgs({
         content: "report",
         explanation: "test",
-        filePath: "/task/output/report.md",
+        filePath: `${chatDir(chatId)}/output/report.md`,
       }),
     );
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
@@ -107,18 +106,18 @@ describe("WriteFile - path policy", () => {
     mockFs({
       "/tmp/workspace": {
         skills: {},
-        tasks: { [taskId]: {} },
+        tasks: { [chatId]: {} },
       },
     });
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     await beginSkillChangeTracking(turn);
 
     const result = await runTool(WriteFile, {
       ...makeExecuteArgs({
         content: "---\ndescription: Brief\n---\n\nBody.\n",
         explanation: "test",
-        filePath: "/skills/workspace/brief/SKILL.md",
+        filePath: `${getWorkspaceSkillsDir()}/brief/SKILL.md`,
       }),
       sessionId,
     });
@@ -131,59 +130,19 @@ describe("WriteFile - path policy", () => {
     });
   });
 
-  it("rejects writes into a read-only attached mount", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
-
-    const result = await runTool(WriteFile, {
-      ...makeExecuteArgs({
-        content: "nope",
-        explanation: "test",
-        filePath: "/mnt/Docs/report.md",
-      }),
-      taskState: {
-        browserTabs: [],
-        attachedFolders: {
-          docs: {
-            access: "read-only",
-            createdAt: 0,
-            id: FolderAttachment.IdSchema.parse("docs-id"),
-            mountName: "Docs",
-            path: AbsolutePathSchema.parse("/ext/Docs"),
-            source: "user",
-          },
-        },
-      },
-    });
-    const error = result._unsafeUnwrapErr();
-    expect(error.message).toContain("read-only");
-    expect(error.message).toContain("copy");
-  });
-
-  it("writes into a read-write mount at its real location", async () => {
+  it("writes into a granted folder by its full path", async () => {
     mockFs({
       "/ext/Docs": {},
-      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
     });
+    await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
 
     const result = await runTool(WriteFile, {
       ...makeExecuteArgs({
         content: "written by the agent",
         explanation: "test",
-        filePath: "/mnt/Docs/report.md",
+        filePath: "/ext/Docs/report.md",
       }),
-      taskState: {
-        browserTabs: [],
-        attachedFolders: {
-          docs: {
-            access: "read-write",
-            createdAt: 0,
-            id: FolderAttachment.IdSchema.parse("docs-id"),
-            mountName: "Docs",
-            path: AbsolutePathSchema.parse("/ext/Docs"),
-            source: "user",
-          },
-        },
-      },
     });
 
     expect(result.isOk()).toBe(true);

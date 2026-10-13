@@ -1,4 +1,4 @@
-import { captureException } from "@/client/lib/telemetry";
+import { captureException } from "@/client/lib/capture-exception";
 import { rpcClient } from "@/client/rpc/client";
 import {
   BROWSER_GUEST_VIEWPORT,
@@ -198,11 +198,68 @@ function focusGuest(targetId: BrowserTargetId) {
   pool.get(targetId)?.webview.focus({ preventScroll: true });
 }
 
+/** How long a page opened in place of what the person was in waits to come on screen and take the keyboard. */
+const HEIR_WAIT_MS = 5000;
+
+/**
+ * Pages opened in place of what the person was in, by target, with when
+ * their claim on the keyboard lapses. The view a link was followed from
+ * goes away with the caret in it, and a browser keeps the keyboard in the
+ * content area across a link, so the page that took its place takes the
+ * keyboard as it comes on screen, which is what lets back and forward step
+ * through it.
+ */
+const keyboardHeirs = new Map<BrowserTargetId, number>();
+
+/**
+ * Hands the keyboard to the page once it is on screen and ready, unless
+ * the person has put it somewhere they can see by then.
+ */
+export function takeKeyboardOnArrival(targetId: BrowserTargetId) {
+  keyboardHeirs.set(targetId, Date.now() + HEIR_WAIT_MS);
+  queueMicrotask(() => {
+    passKeyboardTo(targetId);
+  });
+}
+
+function passKeyboardTo(targetId: BrowserTargetId) {
+  const lapses = keyboardHeirs.get(targetId);
+  const pooled = pool.get(targetId);
+  if (lapses === undefined || !pooled?.handle || !paintOwners.has(targetId)) {
+    return;
+  }
+  keyboardHeirs.delete(targetId);
+  if (Date.now() > lapses || !isKeyboardOffScreen()) {
+    return;
+  }
+  pooled.webview.focus({ preventScroll: true });
+}
+
+/**
+ * Whether the keyboard is in nothing the person can see: on the body, or
+ * on an element hidden with the view it was in (every window tab stays
+ * mounted, hidden with `visibility`).
+ */
+function isKeyboardOffScreen() {
+  const focused = document.activeElement;
+  return (
+    focused === null ||
+    focused === document.body ||
+    !focused.checkVisibility({
+      opacityProperty: true,
+      visibilityProperty: true,
+    })
+  );
+}
+
 function recordHostFocus(event: FocusEvent) {
   const target = event.target;
   if (!(target instanceof HTMLElement) || target.tagName === "WEBVIEW") {
     return;
   }
+  // Somewhere the person put the keyboard on purpose, which outranks a page
+  // still on its way.
+  keyboardHeirs.clear();
   lastHostFocusedElement = target;
   // With no guests mounted nothing can steal focus, so skip the per-focusin
   // RPC. The main process re-seeds its claim from window focus whenever a
@@ -695,6 +752,7 @@ function disposeWebview(targetId: BrowserTargetId) {
   pool.delete(targetId);
   paintOwners.delete(targetId);
   slotClaims.delete(targetId);
+  keyboardHeirs.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -775,6 +833,7 @@ function ensureWebview(
           webview.getWebContentsId(),
         );
         publishAttached();
+        passKeyboardTo(targetId);
       }
     },
     { once: true },
@@ -929,6 +988,10 @@ function placeGuest(targetId: BrowserTargetId) {
   const corners = `0 0 ${bottomRight} ${bottomLeft}`;
   paintOwners.set(targetId, owner);
   pooled.lastVisibleBounds = bounds;
+  // After the commit that put it here, once the view it replaced is gone.
+  queueMicrotask(() => {
+    passKeyboardTo(targetId);
+  });
   reportEffectiveSurface(pooled, {
     height: bounds.height,
     width: bounds.width,

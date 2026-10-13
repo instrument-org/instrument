@@ -1,17 +1,12 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-  unreachablePathArgError,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const FFPROBE_COMMAND = {
   description: "Probe and inspect audio and video files using FFprobe.",
@@ -19,26 +14,17 @@ export const FFPROBE_COMMAND = {
 } as const;
 
 export function createFfprobeCommand(
-  taskId: TaskId,
-  layout: WorkspaceFsLayout,
+  chatId: ChatId,
+  _layout: WorkspaceFsLayout,
 ) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
-    const unreachable = unreachablePathArgError(
-      FFPROBE_COMMAND.name,
-      args,
-      ctx.cwd,
-    );
-    if (unreachable !== undefined) {
-      return { exitCode: 1, stderr: unreachable, stdout: "" };
-    }
-
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
       FFPROBE_PATH,
       // Same build-configuration block ffmpeg prints; `-version` still shows it.
-      ["-hide_banner", ...resolvePathArgs(args, taskId, ctx)],
+      ["-hide_banner", ...hostPathArgs(args)],
       {
         cancelSignal: ctx.signal,
         cwd: taskCwd,
@@ -55,7 +41,7 @@ export function createFfprobeCommand(
 
     const streams = mapStreams(
       shimOutput(result, FFPROBE_COMMAND.name),
-      (text) => filterShellOutput(text, layout),
+      (text) => filterShellOutput(text),
     );
     return {
       exitCode: result.exitCode ?? 1,

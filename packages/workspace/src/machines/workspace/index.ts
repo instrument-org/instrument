@@ -4,10 +4,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import ms from "ms";
 import {
   type ActorRefFrom,
@@ -19,12 +16,13 @@ import {
   type SnapshotFrom,
 } from "xstate";
 
-import { AGENTS } from "../../agents/all";
-import { type AgentName } from "../../agents/types";
-import { APPS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { instrumentAgent } from "../../agents/instrument";
+import { APPS_DIR_NAME, CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
+import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
+import { sessionOfChat } from "../../lib/record-folders";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -34,8 +32,9 @@ import {
   WorkspaceDirSchema,
 } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
+import { type StopNotice } from "../../schemas/stop-notice";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WebSearchClient } from "../../schemas/web-search";
 import {
   type BrowserConfig,
@@ -49,26 +48,21 @@ import {
   sessionMachine,
   type SessionMachineParentEvent,
 } from "../session";
-import {
-  type BrowserPresenceLevel,
-  taskBrowserMachine,
-  type TaskBrowserParentEvent,
-} from "../task-browser";
+import { windowBrowserLogic } from "../window-browser";
+import { isDrivenByWorkingAgent } from "../../lib/chat/driven-tabs";
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
   | SessionMachineParentEvent
-  | TaskBrowserParentEvent
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { id: TaskId; level: BrowserPresenceLevel };
+      value: { targetId: BrowserTargetId };
     }
   | {
       type: "addMessage";
       value: {
-        agentName: AgentName;
-        id: TaskId;
+        id: ChatId;
         /** Stop the step in flight so the message runs as the next turn. */
         interrupt?: boolean;
         message: SessionMessage.UserWithParts;
@@ -81,8 +75,7 @@ export type WorkspaceEvent =
   | {
       type: "createSession";
       value: {
-        agentName: AgentName;
-        id: TaskId;
+        id: ChatId;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
@@ -91,7 +84,6 @@ export type WorkspaceEvent =
   | {
       type: "internal.spawnSession";
       value: {
-        agentName: AgentName;
         // Absent for a turn that runs over what the session already holds.
         message?: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
@@ -99,44 +91,39 @@ export type WorkspaceEvent =
         /** The message is already in the store; see `addMessage`. */
         saved?: boolean;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        chatId: ChatId;
       };
     }
   | {
-      type: "prepareToTrashTask";
-      value: { id: TaskId; onBrowserReaped?: () => void };
+      type: "prepareToTrashChat";
+      value: { id: ChatId };
     }
   | {
       type: "registerBrowserTarget";
-      value: {
-        id: TaskId;
-        partitionDir: AbsolutePath;
-        sessionId: StoreId.Session;
-        targetId: BrowserTargetId;
-      };
+      value: { targetId: BrowserTargetId };
     }
   | {
       type: "releaseBrowserPresence";
-      value: { id: TaskId; level: BrowserPresenceLevel };
+      value: { targetId: BrowserTargetId };
     }
-  | { type: "removeTaskBeingTrashed"; value: { id: TaskId } }
+  | { type: "removeChatBeingTrashed"; value: { id: ChatId } }
   | {
       type: "runTurn";
       value: {
-        agentName: AgentName;
-        id: TaskId;
+        id: ChatId;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
       };
     }
   | {
       type: "stopSessions";
-      value: { id: TaskId };
+      /** Every session of the record, or the one named, with whose stop it is. */
+      value: { id: ChatId; notice?: StopNotice; sessionId?: StoreId.Session };
     }
   | {
       type: "updateInteractiveToolCall";
       value: {
-        id: TaskId;
+        id: ChatId;
         update: ToolCallUpdate;
       };
     };
@@ -146,9 +133,9 @@ export type WorkspaceEvent =
 // fresh actor over the same stored session rather than reaching for this one.
 function findLiveSessionRef(
   context: WorkspaceContext,
-  { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
+  { id, sessionId }: { id: ChatId; sessionId: StoreId.Session },
 ) {
-  return context.sessionRefsByTaskId
+  return context.sessionRefsByChatId
     .get(id)
     ?.find(
       (ref) =>
@@ -157,140 +144,57 @@ function findLiveSessionRef(
     );
 }
 
+/**
+ * The running session of a chat's own conversation, the one its settings
+ * name, or none while it has no turn to run.
+ */
+export function chatSessionRef(context: WorkspaceContext, id: ChatId) {
+  const sessionId = sessionOfChat(id);
+  return sessionId === undefined
+    ? undefined
+    : findLiveSessionRef(context, { id, sessionId });
+}
+
 export const workspaceMachine = setup({
   actions: {
-    acquireBrowserPresence: enqueueActions(
-      (
-        { enqueue },
-        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
-      ) => {
-        enqueue.assign(({ context, spawn }) => {
-          const existing = context.taskBrowserRefs.get(id);
-          const ref =
-            existing ??
-            spawn("taskBrowserMachine", {
-              input: {
-                browser: context.config.browser,
-                id,
-              },
-            });
-          ref.send({ type: "acquirePresence", value: { level } });
-          if (existing) {
-            return {};
-          }
-          return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
-          };
-        });
-      },
-    ),
-
     assignEventError: createAssignEventError(),
 
-    clearSessionRefsByTaskId: assign(({ context }, { id }: { id: TaskId }) => {
-      const newsessionRefsByTaskId = new Map<TaskId, SessionActorRef[]>();
+    clearSessionRefsByChatId: assign(({ context }, { id }: { id: ChatId }) => {
+      const nextSessionRefs = new Map<ChatId, SessionActorRef[]>();
 
       for (const [
-        sessionTaskId,
+        sessionChatId,
         refs,
-      ] of context.sessionRefsByTaskId.entries()) {
-        const shouldRemove = sessionTaskId === id;
+      ] of context.sessionRefsByChatId.entries()) {
+        const shouldRemove = sessionChatId === id;
 
         if (shouldRemove) {
           continue;
         }
 
-        newsessionRefsByTaskId.set(sessionTaskId, refs);
+        nextSessionRefs.set(sessionChatId, refs);
       }
 
       return {
-        sessionRefsByTaskId: newsessionRefsByTaskId,
+        sessionRefsByChatId: nextSessionRefs,
       };
     }),
 
-    forwardAttachAgentSession: enqueueActions(
-      (
-        { context },
-        { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
-      ) => {
-        const ref = context.taskBrowserRefs.get(id);
-        ref?.send({
-          type: "attachAgentSession",
-          value: { sessionId },
-        });
-      },
-    ),
-
-    // Get-or-spawn the task's browser machine and forward a target event to it.
-    // The user-open (`registerTarget`) and agent CDP (`updateCdpHeartbeat`) paths
-    // carry the same payload and differ only in which event the ref receives;
-    // the ref decides how each affects its liveness state.
-    forwardToTaskBrowser: enqueueActions(
-      (
-        { enqueue },
-        {
-          event,
-          id,
-          partitionDir,
-          sessionId,
-          targetId,
-        }: {
-          event: "registerTarget" | "updateCdpHeartbeat";
-          id: TaskId;
-          partitionDir: AbsolutePath;
-          sessionId: StoreId.Session;
-          targetId: BrowserTargetId;
-        },
-      ) => {
-        enqueue.assign(({ context, spawn }) => {
-          const existing = context.taskBrowserRefs.get(id);
-          const ref =
-            existing ??
-            spawn("taskBrowserMachine", {
-              input: {
-                browser: context.config.browser,
-                id,
-              },
-            });
-          ref.send({
-            type: event,
-            value: { partitionDir, sessionId, targetId },
-          });
-          if (existing) {
-            return {};
-          }
-          return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
-          };
-        });
-      },
-    ),
-
-    handleTaskBrowserStopped: enqueueActions(
-      ({ context, enqueue }, { id }: { id: TaskId }) => {
-        const ref = context.taskBrowserRefs.get(id);
-        if (ref) {
-          enqueue.stopChild(ref);
-        }
-        const nextRefs = new Map(context.taskBrowserRefs);
-        nextRefs.delete(id);
-        enqueue.assign({ taskBrowserRefs: nextRefs });
-
-        const resolvers = context.pendingBrowserReapResolvers.get(id);
-        if (resolvers && resolvers.length > 0) {
-          for (const resolve of resolvers) {
-            resolve();
-          }
-          const nextResolvers = new Map(context.pendingBrowserReapResolvers);
-          nextResolvers.delete(id);
-          enqueue.assign({ pendingBrowserReapResolvers: nextResolvers });
-        }
-      },
-    ),
+    // A tab opened from the window and one an agent sends a command to both
+    // reach the browser's lifetime here, which records the guest once.
+    registerBrowserTarget: (
+      { context },
+      { targetId }: { targetId: BrowserTargetId },
+    ) => {
+      context.windowBrowserRef.send({
+        type: "registerTarget",
+        value: { targetId },
+      });
+    },
 
     dropSessionRef: assign(
-      ({ context }, { actorId, id }: { actorId: string; id: TaskId }) => {
-        const existingSessionActorRefs = context.sessionRefsByTaskId.get(id);
+      ({ context }, { actorId, id }: { actorId: string; id: ChatId }) => {
+        const existingSessionActorRefs = context.sessionRefsByChatId.get(id);
         if (!existingSessionActorRefs) {
           return {};
         }
@@ -299,27 +203,16 @@ export const workspaceMachine = setup({
           (ref) => ref.id !== actorId,
         );
 
-        const newSessionRefsByTaskId = new Map(context.sessionRefsByTaskId);
+        const newSessionRefsByChatId = new Map(context.sessionRefsByChatId);
         if (remaining.length > 0) {
-          newSessionRefsByTaskId.set(id, remaining);
+          newSessionRefsByChatId.set(id, remaining);
         } else {
-          newSessionRefsByTaskId.delete(id);
+          newSessionRefsByChatId.delete(id);
         }
 
         return {
-          sessionRefsByTaskId: newSessionRefsByTaskId,
+          sessionRefsByChatId: newSessionRefsByChatId,
         };
-      },
-    ),
-
-    releaseBrowserPresence: enqueueActions(
-      (
-        { context },
-        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
-      ) => {
-        context.taskBrowserRefs
-          .get(id)
-          ?.send({ type: "releasePresence", value: { level } });
       },
     ),
 
@@ -330,22 +223,22 @@ export const workspaceMachine = setup({
           id,
           sessionRef,
         }: {
-          id: TaskId;
+          id: ChatId;
           sessionRef: SessionActorRef;
         },
       ) => {
         const existingSessionActorRefs =
-          context.sessionRefsByTaskId.get(id) ?? [];
+          context.sessionRefsByChatId.get(id) ?? [];
 
         const activeSessionActorRefs = existingSessionActorRefs.filter(
           (ref) => ref.getSnapshot().status !== "done",
         );
 
-        const newSessionRefsByTaskId = new Map(context.sessionRefsByTaskId);
-        newSessionRefsByTaskId.set(id, [...activeSessionActorRefs, sessionRef]);
+        const newSessionRefsByChatId = new Map(context.sessionRefsByChatId);
+        newSessionRefsByChatId.set(id, [...activeSessionActorRefs, sessionRef]);
 
         return {
-          sessionRefsByTaskId: newSessionRefsByTaskId,
+          sessionRefsByChatId: newSessionRefsByChatId,
         };
       },
     ),
@@ -354,7 +247,7 @@ export const workspaceMachine = setup({
   actors: {
     sessionMachine,
 
-    taskBrowserMachine,
+    windowBrowserLogic,
 
     workspaceServerLogic,
   },
@@ -364,18 +257,20 @@ export const workspaceMachine = setup({
     events: {} as WorkspaceEvent,
     input: {} as {
       aiGatewayApp: AIGatewayApp;
+      aiUsageFile?: string;
       apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
-      captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
-      defaultTaskTemplateDir: string;
+      chatTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
+      finderEntries?: WorkspaceConfig["finderEntries"];
+      resolveAlias?: WorkspaceConfig["resolveAlias"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
-      isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
+      nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
       preparedSkillsDir: string;
@@ -385,9 +280,11 @@ export const workspaceMachine = setup({
       rootDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
+      toolBinDir?: string;
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
+      knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
     },
     output: {},
@@ -396,25 +293,30 @@ export const workspaceMachine = setup({
   context: ({ input, self, spawn }) => {
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const workspaceConfig: WorkspaceConfig = {
+      ...(input.aiUsageFile && {
+        aiUsageFile: AbsolutePathSchema.parse(input.aiUsageFile),
+      }),
       apps: input.apps,
       appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
       appVersion: input.appVersion,
       browser: input.browser,
-      captureEvent: input.captureEvent,
       captureException: input.captureException,
-      defaultTaskTemplateDir: AbsolutePathSchema.parse(
-        input.defaultTaskTemplateDir,
-      ),
+      chatTemplateDir: AbsolutePathSchema.parse(input.chatTemplateDir),
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
+      ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
+      ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
-      isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),
       modelCache: input.modelCache,
+      ...(input.nativeSandbox && {
+        nativeSandbox: input.nativeSandbox,
+      }),
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
@@ -427,7 +329,11 @@ export const workspaceMachine = setup({
       }),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
-      tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
+      ...(input.toolBinDir && {
+        toolBinDir: AbsolutePathSchema.parse(input.toolBinDir),
+      }),
+      chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
+      legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       ...(input.macHelperBinPath === undefined
@@ -439,14 +345,19 @@ export const workspaceMachine = setup({
       webSearch: input.webSearch,
     };
     // Publish the single per-process config so code can read it via
-    // getWorkspaceConfig() instead of threading it through every TaskId.
+    // getWorkspaceConfig() instead of threading it through every ChatId.
     setWorkspaceConfig(workspaceConfig);
+    registerAIUsageTelemetry();
     return {
       config: workspaceConfig,
-      pendingBrowserReapResolvers: new Map(),
-      sessionRefsByTaskId: new Map(),
-      taskBrowserRefs: new Map(),
-      tasksBeingTrashed: [],
+      sessionRefsByChatId: new Map(),
+      windowBrowserRef: spawn("windowBrowserLogic", {
+        input: {
+          browser: workspaceConfig.browser,
+          isDrivenByWorkingAgent,
+        },
+      }),
+      chatsBeingTrashed: [],
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
           aiGatewayApp: input.aiGatewayApp,
@@ -469,9 +380,11 @@ export const workspaceMachine = setup({
       },
     },
     acquireBrowserPresence: {
-      actions: {
-        params: ({ event }) => event.value,
-        type: "acquireBrowserPresence",
+      actions: ({ context, event }) => {
+        context.windowBrowserRef.send({
+          type: "acquireVisible",
+          value: event.value,
+        });
       },
     },
     addMessage: [
@@ -492,16 +405,15 @@ export const workspaceMachine = setup({
       {
         actions: raise(({ event }) => {
           const id = event.value.id;
-          const taskId = id;
+          const chatId = id;
           return {
             type: "internal.spawnSession",
             value: {
-              agentName: event.value.agentName,
               message: event.value.message,
               model: event.value.model,
               saved: event.value.saved,
               sessionId: event.value.sessionId,
-              taskId,
+              chatId,
             },
           };
         }),
@@ -509,15 +421,14 @@ export const workspaceMachine = setup({
     ],
     createSession: {
       actions: raise(({ event }) => {
-        const taskId = event.value.id;
+        const chatId = event.value.id;
         return {
           type: "internal.spawnSession",
           value: {
-            agentName: event.value.agentName,
             message: event.value.message,
             model: event.value.model,
             sessionId: event.value.sessionId,
-            taskId,
+            chatId,
           },
         };
       }),
@@ -525,19 +436,12 @@ export const workspaceMachine = setup({
     "internal.spawnSession": {
       actions: enqueueActions(({ enqueue, event, self }) => {
         enqueue.assign(({ spawn }) => {
-          const {
-            agentName,
-            message,
-            model,
-            runRequested,
-            saved,
-            sessionId,
-            taskId,
-          } = event.value;
+          const { message, model, runRequested, saved, sessionId, chatId } =
+            event.value;
 
           const sessionMachineRef = spawn("sessionMachine", {
             input: {
-              agent: AGENTS[agentName],
+              agent: instrumentAgent,
               baseLLMRetryDelayMs: ms("1 second"),
               llmRequestChunkTimeoutMs: ms("5 minutes"),
               model,
@@ -546,13 +450,13 @@ export const workspaceMachine = setup({
               runRequested,
               savedMessageIds: saved && message ? [message.id] : [],
               sessionId,
-              taskId,
+              chatId,
             },
           });
 
           enqueue({
             params: {
-              id: taskId,
+              id: chatId,
               sessionRef: sessionMachineRef,
             },
             type: "trackSessionRef",
@@ -562,51 +466,15 @@ export const workspaceMachine = setup({
         });
       }),
       guard: ({ context, event }) => {
-        const id = event.value.taskId;
-        return !context.tasksBeingTrashed.includes(id);
+        const id = event.value.chatId;
+        return !context.chatsBeingTrashed.includes(id);
       },
     },
-    prepareToTrashTask: {
+    prepareToTrashChat: {
       actions: enqueueActions(({ context, enqueue, event }) => {
         enqueue.assign({
-          tasksBeingTrashed: [...context.tasksBeingTrashed, event.value.id],
+          chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
-
-        // Reap the trashed task's taskBrowser, if one exists.
-        const matchingTaskIds: TaskId[] = [];
-        const browserRef = context.taskBrowserRefs.get(event.value.id);
-        if (browserRef) {
-          matchingTaskIds.push(event.value.id);
-          browserRef.send({ type: "forceReap" });
-        }
-
-        if (event.value.onBrowserReaped) {
-          const resolver = event.value.onBrowserReaped;
-          if (matchingTaskIds.length === 0) {
-            // Nothing to wait for: resolve immediately so trash-task can
-            // proceed without blocking.
-            resolver();
-          } else {
-            // Wait for every matching taskBrowser.stopped before resolving.
-            enqueue.assign({
-              pendingBrowserReapResolvers: () => {
-                const next = new Map(context.pendingBrowserReapResolvers);
-                let remaining = matchingTaskIds.length;
-                const onceAll = () => {
-                  remaining -= 1;
-                  if (remaining === 0) {
-                    resolver();
-                  }
-                };
-                for (const sd of matchingTaskIds) {
-                  const existing = next.get(sd) ?? [];
-                  next.set(sd, [...existing, onceAll]);
-                }
-                return next;
-              },
-            });
-          }
-        }
 
         enqueue.raise({
           type: "stopSessions",
@@ -616,20 +484,22 @@ export const workspaceMachine = setup({
     },
     registerBrowserTarget: {
       actions: {
-        params: ({ event }) => ({ event: "registerTarget", ...event.value }),
-        type: "forwardToTaskBrowser",
+        params: ({ event }) => event.value,
+        type: "registerBrowserTarget",
       },
     },
     releaseBrowserPresence: {
-      actions: {
-        params: ({ event }) => event.value,
-        type: "releaseBrowserPresence",
+      actions: ({ context, event }) => {
+        context.windowBrowserRef.send({
+          type: "releaseVisible",
+          value: event.value,
+        });
       },
     },
-    removeTaskBeingTrashed: {
+    removeChatBeingTrashed: {
       actions: assign(({ context, event }) => {
         return {
-          tasksBeingTrashed: context.tasksBeingTrashed.filter(
+          chatsBeingTrashed: context.chatsBeingTrashed.filter(
             (id) => id !== event.value.id,
           ),
         };
@@ -647,11 +517,10 @@ export const workspaceMachine = setup({
         actions: raise(({ event }) => ({
           type: "internal.spawnSession",
           value: {
-            agentName: event.value.agentName,
             model: event.value.model,
             runRequested: true,
             sessionId: event.value.sessionId,
-            taskId: event.value.id,
+            chatId: event.value.id,
           },
         })),
       },
@@ -664,7 +533,7 @@ export const workspaceMachine = setup({
         enqueue({
           params: {
             actorId: event.value.actorId,
-            id: event.value.taskId,
+            id: event.value.chatId,
           },
           type: "dropSessionRef",
         });
@@ -672,62 +541,43 @@ export const workspaceMachine = setup({
     },
     stopSessions: {
       actions: ({ context, event }) => {
-        const sessionActorRefs = context.sessionRefsByTaskId.get(
+        const sessionActorRefs = context.sessionRefsByChatId.get(
           event.value.id,
         );
-        if (sessionActorRefs) {
-          for (const sessionActorRef of sessionActorRefs) {
-            sessionActorRef.send({ type: "stop" });
+        const { notice, sessionId } = event.value;
+        for (const sessionActorRef of sessionActorRefs ?? []) {
+          if (
+            sessionId === undefined ||
+            sessionActorRef.getSnapshot().context.sessionId === sessionId
+          ) {
+            sessionActorRef.send({
+              ...(notice ? { notice } : {}),
+              type: "stop",
+            });
           }
         }
       },
     },
 
-    "taskBrowser.stopped": {
-      actions: {
-        params: ({ event }) => ({ id: event.value.id }),
-        type: "handleTaskBrowserStopped",
-      },
-    },
-
+    // Only the chat's own conversation asks the user anything, so the
+    // answer goes to its session and no task's.
     updateInteractiveToolCall: [
       {
         actions: ({ context, event }) => {
-          const id = event.value.id;
-          const sessionRefs = context.sessionRefsByTaskId.get(id);
-          if (!sessionRefs) {
-            return;
-          }
-          for (const sessionRef of sessionRefs) {
-            // TODO: Don't send to all sessions, just the one that has the tool call
-            sessionRef.send({
-              type: "updateInteractiveToolCall",
-              value: event.value.update,
-            });
-          }
+          chatSessionRef(context, event.value.id)?.send({
+            type: "updateInteractiveToolCall",
+            value: event.value.update,
+          });
         },
-        guard: ({ context, event }) => {
-          const id = event.value.id;
-          const sessionRefs = context.sessionRefsByTaskId.get(id);
-          return !!sessionRefs && sessionRefs.length > 0;
-        },
+        guard: ({ context, event }) =>
+          chatSessionRef(context, event.value.id) !== undefined,
       },
       {
         actions: log(({ event }) => {
-          return `No session refs found for id: ${event.value.id}`;
+          return `No running session of ${event.value.id} to answer`;
         }),
       },
     ],
-
-    "workspaceServer.attachAgentSession": {
-      actions: {
-        params: ({ event }) => ({
-          id: event.value.id,
-          sessionId: event.value.sessionId,
-        }),
-        type: "forwardAttachAgentSession",
-      },
-    },
 
     "workspaceServer.error": {
       actions: log(({ event }) => {
@@ -745,14 +595,8 @@ export const workspaceMachine = setup({
 
     "workspaceServer.updateCdpHeartbeat": {
       actions: {
-        params: ({ event }) => ({
-          event: "updateCdpHeartbeat",
-          id: event.value.id,
-          partitionDir: event.value.partitionDir,
-          sessionId: event.value.sessionId,
-          targetId: event.value.targetId,
-        }),
-        type: "forwardToTaskBrowser",
+        params: ({ event }) => event.value,
+        type: "registerBrowserTarget",
       },
     },
   },

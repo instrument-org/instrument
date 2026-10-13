@@ -4,10 +4,12 @@ import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import superjson from "superjson";
 
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
+import { type StoreId } from "../schemas/store-id";
 import { cacheByStoreGeneration } from "./store-generation";
 import { STORE_MIGRATION_COUNT } from "./store-migrations";
-import { sessionStorePath, taskDir } from "./task-dir-utils";
+import { sessionStorePath } from "./chat-dir-utils";
+import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -17,26 +19,15 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  * rebuilt from the stores as it is read: the index is derived, so it is never
  * migrated.
  */
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 7;
 
 /**
- * What the index keeps, one row per chat or task: each a value derived from
- * that record's own store, and the stamp of the store it was derived from.
+ * What the index keeps, one row per session: each a value derived from that
+ * session in its chat's store, and the stamp of the store it was derived from.
  */
-export type IndexTable =
-  | "chat_digests"
-  | "linked_files"
-  | "task_apps"
-  | "task_hosts"
-  | "task_standings";
+export type IndexTable = "chat_digests" | "task_hosts" | "task_standings";
 
-const TABLES: IndexTable[] = [
-  "chat_digests",
-  "linked_files",
-  "task_apps",
-  "task_hosts",
-  "task_standings",
-];
+const TABLES: IndexTable[] = ["chat_digests", "task_hosts", "task_standings"];
 
 /**
  * A derived value, and whether it may be kept. A value read around a failure
@@ -81,50 +72,36 @@ export function closeWorkspaceIndex() {
 }
 
 /**
- * A value derived from a task's store, kept until that store changes: in
- * memory by the store's write count, which every write in this process moves,
- * and across launches in the index, by the store's files' sizes and
- * modification times, which also move for a write made while the app was
- * closed. Only a value whose store has moved is computed again, and one the
- * computation marks `unkept` is kept in neither place.
- *
- * `files` names what else the value is read from besides the task's store,
- * such as its settings, so a change to them is seen across launches too.
+ * A value derived from one session in a chat's store, kept until it changes:
+ * in memory by that session's write count, which every write to it in this
+ * process moves and a write to another session does not, and across launches
+ * in the index, by the store's files' sizes and modification times, which
+ * also move for a write made while the app was closed. Only a value whose
+ * session has moved is computed again, and one the computation marks
+ * `unkept` is kept in neither place.
  *
  * The index only ever speeds a read up: a row it cannot read or write is
  * derived as though it were absent.
  */
-export function indexedByStore<Value>(
-  table: IndexTable,
-  {
-    files = () => [],
-    inMemory = true,
-  }: {
-    files?: (taskId: TaskId) => string[];
-    /**
-     * Whether to also keep the value in memory by the store's write count.
-     * Off for a value read from more than the store, which a write elsewhere
-     * changes without moving that count; its caller keeps it in memory by
-     * whatever does announce those writes.
-     */
-    inMemory?: boolean;
-  } = {},
-) {
+export function indexedByStore<Value>(table: IndexTable) {
   const memory = cacheByStoreGeneration<Derived<Value>>(
     (derived) => derived.keep,
   );
   const read =
-    (taskId: TaskId, compute: () => Promise<Derived<Value>>) =>
+    (
+      chatId: ChatId,
+      key: StoreId.Session,
+      compute: () => Promise<Derived<Value>>,
+    ) =>
     async (): Promise<Derived<Value>> => {
       // Taken before the value is computed: a write that lands meanwhile
       // leaves a stamp older than the store, which only costs a recompute.
       const stamp = await stampOf([
-        sessionStorePath(taskDir(taskId)),
-        `${sessionStorePath(taskDir(taskId))}-wal`,
-        ...files(taskId),
+        sessionStorePath(chatDir(chatId)),
+        `${sessionStorePath(chatDir(chatId))}-wal`,
       ]);
       if (stamp !== undefined) {
-        const row = guarded(() => openIndex()?.read.get(table)?.get(taskId));
+        const row = guarded(() => openIndex()?.read.get(table)?.get(key));
         if (row?.stamp === stamp && typeof row.value === "string") {
           const value = row.value;
           const parsed = guarded(() => ({
@@ -140,18 +117,21 @@ export function indexedByStore<Value>(
         guarded(() =>
           openIndex()
             ?.write.get(table)
-            ?.run(taskId, stamp, superjson.stringify(derived.value)),
+            ?.run(key, stamp, superjson.stringify(derived.value)),
         );
       }
       return derived;
     };
   return async (
-    taskId: TaskId,
+    chatId: ChatId,
+    sessionId: StoreId.Session,
     compute: () => Promise<Derived<Value>>,
   ): Promise<Value> => {
-    const derived = await (inMemory
-      ? memory(taskId, read(taskId, compute))
-      : read(taskId, compute)());
+    const derived = await memory(
+      chatId,
+      sessionId,
+      read(chatId, sessionId, compute),
+    );
     return derived.value;
   };
 }

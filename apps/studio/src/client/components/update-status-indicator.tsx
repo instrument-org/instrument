@@ -9,7 +9,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 const PROGRESS_RING_CIRCUMFERENCE = 44;
 const NOT_AVAILABLE_BADGE_TIMEOUT_MS = 5000;
@@ -149,7 +149,7 @@ export function UpdateStatusIndicator() {
                 openSettings({ tab: "General" });
               },
             },
-            description: error.message,
+            cause: error,
           });
           return;
         }

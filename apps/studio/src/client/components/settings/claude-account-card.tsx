@@ -1,4 +1,7 @@
+import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { useAtomValue } from "jotai";
 import { openLogin } from "@/client/atoms/login-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
@@ -13,7 +16,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { capitalize } from "radashi";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;
@@ -35,7 +38,15 @@ export function ClaudeAccountCard() {
     rpcClient.claudeAccount.signOut.mutationOptions(),
   );
   const [hint, setHint] = useState<string>();
-  const [showUsage, setShowUsage] = useState(false);
+  const settings = useAtomValue(settingsModalAtom);
+  const [showUsage, setShowUsage] = useState(
+    settings?.providerUsage === "claude-account",
+  );
+  useEffect(() => {
+    if (settings?.providerUsage === "claude-account") {
+      setShowUsage(true);
+    }
+  }, [settings]);
   const wasSigningIn = useRef(false);
 
   // A sign-in this card started has finished: the account is connected, as
@@ -67,7 +78,10 @@ export function ClaudeAccountCard() {
 
   return (
     <Card className="gap-0 p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div
+        className="flex items-start justify-between gap-4"
+        {...settingAnchor("claude-account")}
+      >
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center">
             <AIProviderIcon type="claude-account" />
@@ -143,8 +157,11 @@ function describe(status: Status) {
     const percent = total > 0 ? Math.round((received / total) * 100) : 0;
     return `Getting Claude Code ready, ${percent}% done.`;
   }
+  if (status.finishing) {
+    return "Connecting your Claude account.";
+  }
   if (status.signingIn) {
-    return `Finish signing in to Claude in your browser. ${APP_NAME} picks it up as soon as you're done.`;
+    return "Finish signing in to Claude in your browser.";
   }
   if (status.install?.state === "failed") {
     return `Claude Code didn't install: ${status.install.failed}`;
@@ -217,7 +234,7 @@ function PlanUsage() {
           </p>
           <Button
             onClick={() => {
-              openLogin({ hideManualProvider: true });
+              openLogin({ instrumentOnly: true });
             }}
             size="sm"
           >

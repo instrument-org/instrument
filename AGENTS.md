@@ -1,6 +1,6 @@
 # Instrument Monorepo
 
-pnpm monorepo for the Instrument desktop app platform.
+pnpm monorepo for the Instrument desktop app platform. The public website is https://tryinstrument.com; the app talks to its API at `api.tryinstrument.com` (`staging.api.` for staging) and fetches updates from `releases.tryinstrument.com`. Neither the website nor the API lives in this repo.
 
 - `apps/studio`: Electron desktop app (main product)
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management
@@ -10,8 +10,8 @@ pnpm monorepo for the Instrument desktop app platform.
 
 ## Product terminology
 
-- The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
-- On disk, a chat lives under `chats/<id>/` and the tasks it started under `chats/<id>/tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. Every task belongs to the chat that started it; `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to move into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. What the window keeps about the chats (seen marks, the tab on screen) is `.instrument/window.json` at the workspace root.
+- The user talks to one agent in a **chat**, the only record, named by its `ChatId` everywhere: code, routes, RPC, events, types, and on-disk layout. A chat holds **sessions**, each a thread of messages and tool calls (`SessionId`): the chat's own conversation is the session with no parent, and a **task** is a session the chat started in the background, with the chat's session as its parent. "Task" is the word for that child session in the agent's `task` command (which names it by a per-chat handle, `t1`) and in the UI, never in storage.
+- On disk, a chat lives under `chats/<id>/` with `.instrument/{chat.db,settings.json}`. Its folder is the work folder for every session in it, tasks included. `chat.db` holds its sessions and their messages and nothing else; a task's row carries `parentId` and `forkedAtMessageId`, and its history is read as the parent's messages up to that point, then its own, never copied. `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to turn into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. A draft (a chat not yet started) lives under `drafts/<id>/`: its words in `draft.md`, what was pasted into it beside them, and the rest in `.instrument/settings.json`. One settings file per chat: what the app knows about it at the top level (the model and reasoning effort every session runs on, the folders granted in the chat), where the user left off under `state` (the tabs its sessions hold, each naming the task driving it, none meaning the chat). A chat's title, its own marks (starred, archived, unread) and its topics are on its session row in `chat.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
 
 ## UI copy
 
@@ -23,6 +23,8 @@ What to avoid:
 - **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
 - **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
 - **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
+- **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
+- **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 
@@ -31,6 +33,10 @@ A line that works: "Importing adds to what Instrument remembers, so you can brin
 Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names of sibling repos/checkouts on one dev's disk — not in code, docs, plans, commits, or PRs. Meaningless to others, goes stale when layout changes. Such pointers go in local notes, not shared history.
 
 Sources outside this repo are reachable by name instead: `agent-reference.json` (shared) and `agent-reference.local.json` (gitignored, where machine paths go) declare them, and `agent-reference status` lists them.
+
+## Plans and usage
+
+Plans, pricing, and usage limits belong to the API, which enforces them and records why. In this repo, treat them as answers the server gives rather than re-deciding them: build what the app does with them, and keep code, docs, and commits about that behavior.
 
 ## Registry Submodule
 
@@ -64,13 +70,13 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 - `pnpm check-and-test` — full local check (includes spelling, format, etc.)
 - `pnpm check-and-test:ci` — what CI runs (drops format/spelling, adds `check:packages:dedupe`, so it is not a strict subset). Formatting is deliberately not a merge gate: `pnpm fix` applies it unattended, so holding types, lint, build, and tests red behind a blank line costs more than the blank line does
 - `pnpm turbo:fix:lint` — fix lint
-- `pnpm fix` — spelling + format over the whole repo in ~5s, which is how a file the hook never saw gets formatted. `pnpm fix --lint` adds a type-aware oxlint fix across every package at full CPU, so run that one deliberately rather than in a checkout other agents are working in
+- `pnpm fix` — regenerates derived files a test pins (the product guide reference), then spelling + format over the whole repo, in ~7s. Run it after editing settings, screens or shortcuts; it is also how a file the hook never saw gets formatted. `pnpm fix --lint` adds a type-aware oxlint fix across every package at full CPU, so run that one deliberately rather than in a checkout other agents are working in
 
-`check:lint` / `fix:lint` run `oxlint --type-aware` alone, with no ESLint. The rules are deliberately few: oxlint's correctness category, the type-aware rules that catch real bugs (floating and misused promises, the `no-unsafe-*` family that keeps `any` out), import cycles, the React hook and React Compiler checks, Tailwind's unknown and conflicting classes, and the repo's own guardrails as local plugins (`apps/studio/oxlint-rules.ts`, `packages/workspace/oxlint-rules.ts`). Nothing checks ordering or naming style; do not add rules that only ask for a different spelling of working code.
+`check:lint` / `fix:lint` run `oxlint --type-aware` alone, with no ESLint. The rules are deliberately few: oxlint's correctness category, the type-aware rules that catch real bugs (floating and misused promises, the `no-unsafe-*` family that keeps `any` out), import cycles, the React hook and React Compiler checks, Tailwind's unknown and conflicting classes, and the repo's own guardrails as a local plugin (`apps/studio/oxlint-rules.ts`). Nothing checks ordering or naming style; do not add rules that only ask for a different spelling of working code.
 
-A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --type-aware --fix` on Stop over the files that session edited. Any error oxlint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --type-aware --fix` on Stop over the files that session edited, and runs `vitest related` over them in each one's package (the `test:ci` projects, capped at 60s). Any error oxlint could not fix, and any related test that fails, blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
 
-What the hook does not cover: type errors, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
+What the hook does not cover: type errors, tests in another package that import what you edited, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
 
 ## Key catalog versions
 
@@ -92,6 +98,8 @@ What the hook does not cover: type errors, and any file written by something oth
 ## Worktrees
 
 After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored env files (required to boot Studio), inits `registry/`, installs deps. Idempotent. Hooks do this automatically only for sessions started inside a worktree or via EnterWorktree.
+
+A worktree Claude Code makes (`claude -w`, a subagent's `isolation: worktree`) starts from the local `HEAD`, so it has main's unpushed commits. Land one with `scripts/land.sh` from inside it: it rebases the branch onto the local main, runs types, lint, knip and the related tests for what changed, fast-forwards main in the primary checkout, and removes the worktree and its branch.
 
 Multiple worktrees can run Studio at once: dev skips the single-instance lock, and the servers an instance binds fall back past the ports another one holds. Start one with `studio-drive.mjs boot --purpose <purpose>` (`studio-chrome-devtools` skill) rather than `pnpm dev` directly, so a checkout that already has an instance reuses it and the CDP port comes from the checkout path instead of from a guess. They all share one dev userData dir, so two instances are also two writers of one set of preferences and one workspace; `boot --purpose <purpose> --workspace <fixture>` gets a disposable one instead.
 
@@ -124,14 +132,14 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `REVIEW.md` — Repo-specific code review calibration.
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
 - `.agents/skills/instrument-commit-message/SKILL.md` — This repo's commit scopes and real examples from the history.
-- `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
+- `.agents/setup.md` — Prerequisites before the first `pnpm studio`.
 - `.agents/env.md` — Environment variables for Studio and workspace.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
-- `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
-- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task`, `/skills`, `/mnt`, `/apps`, and `/tasks` mount layout and the virtual↔host path bridge.
+- `docs/architecture/agent-sandbox.md` — How agent tools are contained (the Permissions rules, path-scoped file I/O, the just-bash filesystem, agent-browser allowlist, real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux).
+- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — How the folders a chat reaches are mounted at their real paths, the nested-mount collapse, and known just-bash quirks.
 - `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
-- `docs/architecture/in-app-browser.md` — The in-app browser the user and a chat's tasks share: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.
+- `docs/architecture/in-app-browser.md` — The in-app browser the user, a chat, and its tasks share: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.
 - `docs/architecture/background-processes.md` — What happens to a `bash` command that outlives its `yieldMs`: the promotion rule, the `jobs`/`fg`/`kill` command surface, who owns a running process and what ends one, and the caps.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.

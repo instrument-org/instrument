@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { ExternalLink } from "./external-link";
 

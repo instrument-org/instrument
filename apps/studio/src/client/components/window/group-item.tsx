@@ -1,15 +1,19 @@
-import { screenViewsAtom, type WindowTab } from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
+import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  WINDOW_ID,
-} from "@instrument-org/workspace/client";
+import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
+import {
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
@@ -23,8 +27,10 @@ import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
+import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
+import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -72,7 +78,8 @@ export function GroupItem({
   const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
-  const filesView = useAtomValue(screenViewsAtom)[up.id];
+  const { view: filesView, walked: walkedFolder } =
+    useAtomValue(tabSurfaceAtom)[up.id] ?? {};
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.
@@ -96,7 +103,7 @@ export function GroupItem({
   );
   const targetId =
     up.kind === "page"
-      ? encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(up.id))
+      ? browserTargetOf(StoreId.SessionSchema.parse(up.id))
       : undefined;
   const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
@@ -123,6 +130,22 @@ export function GroupItem({
       stepPage(direction);
     });
   }, [targetId]);
+  // With the keyboard in what is up here, back and forward are its steps
+  // rather than the window's, the way they are for a page holding it.
+  const anchorRef = useRef<HTMLDivElement>(null);
+  useEffect(
+    () =>
+      registerHistorySurface({
+        anchor: () => anchorRef.current,
+        step: (direction) => {
+          stepPage(direction);
+        },
+      }),
+    [],
+  );
+
+  // The router of a screen that is up; read before the early returns, as a hook.
+  const router = useGroupTabRouter(up.id);
 
   /**
    * The row over what is up, the one the pane beside a chat draws: its
@@ -199,6 +222,7 @@ export function GroupItem({
     const filePath = hostPathOfFileUrl(up.url);
     return (
       <Frame
+        anchorRef={anchorRef}
         head={row(
           filePath === undefined
             ? { kind: "page", url: up.url ?? "" }
@@ -218,7 +242,10 @@ export function GroupItem({
   // with the draft's tabs: the web's start, whose page takes its place.
   if (isHomeTab(up)) {
     return (
-      <Frame head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}>
+      <Frame
+        anchorRef={anchorRef}
+        head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
+      >
         <WebStart
           onOpenPage={(url) => {
             browser?.open(url, { group, replacing: up });
@@ -229,14 +256,19 @@ export function GroupItem({
   }
   // Every other screen is a route of the window's own tree, under a router
   // of the tab's own; the folder says where it stands as its Finder reads it.
-  const router = getGroupTabRouter(up.id);
   const location = screenLocation(up.href, { appsBySlug, taskTitles });
   const shown =
     location.kind === "folder" && filesView?.folder
-      ? { ...location, path: filesView.folder.display }
+      ? {
+          ...location,
+          ...(walkedFolder
+            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+            : { path: filesView.folder.display }),
+        }
       : location;
   return (
     <Frame
+      anchorRef={anchorRef}
       head={row(shown, { isFileScreen: computerTabOf(up.href) !== undefined })}
     >
       <GroupTabContext
@@ -254,6 +286,11 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
+            // Beside a chat, a screen's Ask would only open a draft over the
+            // chat that is already there to ask.
+            ...(chatOfGroup(group) === undefined
+              ? {}
+              : { askAbout: undefined }),
             // A chat's tasks and each task's page walk this tab in place.
             openScreen: (href, options) => {
               if (tasksOfHref(href) && !options?.newTab && router) {
@@ -274,9 +311,17 @@ export function GroupItem({
 }
 
 /** What a card holds, edge to edge with nothing around it: the pane's own look. */
-function Bare({ children, head }: { children: ReactNode; head?: ReactNode }) {
+function Bare({
+  anchorRef,
+  children,
+  head,
+}: {
+  anchorRef?: Ref<HTMLDivElement>;
+  children: ReactNode;
+  head?: ReactNode;
+}) {
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-background" ref={anchorRef}>
       {head}
       <div className="min-h-0 flex-1">{children}</div>
     </div>
@@ -284,9 +329,17 @@ function Bare({ children, head }: { children: ReactNode; head?: ReactNode }) {
 }
 
 /** The band's white card, for a thing drawn large in it. */
-function Card({ children, head }: { children: ReactNode; head?: ReactNode }) {
+function Card({
+  anchorRef,
+  children,
+  head,
+}: {
+  anchorRef?: Ref<HTMLDivElement>;
+  children: ReactNode;
+  head?: ReactNode;
+}) {
   return (
-    <div className="h-full px-2 pb-2">
+    <div className="h-full px-2 pb-2" ref={anchorRef}>
       <div className="flex h-full flex-col overflow-hidden rounded-lg bg-card">
         {head}
         <div className="min-h-0 flex-1">{children}</div>

@@ -10,7 +10,7 @@ import {
 import { routeTree } from "../routeTree.gen";
 import { shouldRestoreScroll } from "./scroll-restoration";
 import { routerEntries } from "./tab-router-history";
-import { captureException } from "./telemetry";
+import { captureException } from "./capture-exception";
 
 /**
  * One QueryClient shared by every per-tab router in the app window so tabs

@@ -27,14 +27,14 @@ import {
   MenubarSubTrigger,
 } from "@/client/components/ui/menubar";
 import { Spinner } from "@/client/components/ui/spinner";
-import { TOPIC_COLORS } from "@/client/components/window/topic-colors";
+import { WORKSPACE_COLOR_HEX } from "@/client/components/window/app-identity-chip";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * The dev panel's workspaces: switch between them, make a new one, and clear
@@ -44,22 +44,6 @@ import { toast } from "sonner";
 
 type WorkspaceColor = RPCOutput["workspaces"]["current"]["color"];
 type WorkspaceRow = RPCOutput["workspaces"]["list"]["workspaces"][number];
-
-/**
- * Each workspace color as the deep tier of the topic palette, so a workspace
- * reads in the same hues the app already uses to tell things apart. Hex rather
- * than utility classes: the app's theme defines no hue scales beyond its own.
- */
-export const WORKSPACE_COLOR_HEX: Record<WorkspaceColor, string> = {
-  blue: TOPIC_COLORS[13] ?? "#007fc3",
-  gray: "var(--color-gray-400)",
-  green: TOPIC_COLORS[11] ?? "#218b30",
-  orange: TOPIC_COLORS[9] ?? "#b85300",
-  pink: TOPIC_COLORS[15] ?? "#b2468a",
-  purple: TOPIC_COLORS[14] ?? "#765fca",
-  red: TOPIC_COLORS[8] ?? "#c0434c",
-  teal: TOPIC_COLORS[12] ?? "#009178",
-};
 
 const COLORS = Object.keys(WORKSPACE_COLOR_HEX) as WorkspaceColor[];
 
@@ -85,10 +69,12 @@ export function ManageWorkspacesDialog({
   const { mutate: remove } = useMutation(
     rpcClient.workspaces.remove.mutationOptions({
       onError: (error) => {
-        toast.error(error.message);
+        toast.dev("Couldn't move the workspace to the Trash", {
+          description: error.message,
+        });
       },
       onSuccess: () => {
-        toast("Moved to the Trash");
+        toast.dev("Moved the workspace to the Trash");
         void refresh();
       },
     }),
@@ -96,7 +82,7 @@ export function ManageWorkspacesDialog({
   const { mutate: register } = useMutation(
     rpcClient.workspaces.register.mutationOptions({
       onError: (error) => {
-        toast.error(error.message);
+        toast.dev("Couldn't add the workspace", { description: error.message });
       },
       onSuccess: () => {
         void refresh();
@@ -200,7 +186,9 @@ export function NewWorkspaceDialog({
   const { isPending, mutate: create } = useMutation(
     rpcClient.workspaces.create.mutationOptions({
       onError: (error) => {
-        toast.error(error.message);
+        toast.dev("Couldn't make the workspace", {
+          description: error.message,
+        });
       },
     }),
   );
@@ -488,16 +476,18 @@ function useSwitchWorkspace() {
       {
         ...options,
         onError: (error, ...more) => {
-          toast.error(error.message);
+          toast.dev("Couldn't switch workspaces", {
+            description: error.message,
+          });
           options?.onError?.(error, ...more);
         },
         onSuccess: (result, ...more) => {
           if (result.outcome === "canceled") {
-            toast("Switch canceled");
+            toast.dev("Switch canceled");
           } else if (result.outcome === "unsupported") {
-            toast(
-              `${name} opens the next time the app starts: this run cannot restart itself`,
-            );
+            toast.dev(`${name} opens the next time the app starts`, {
+              description: "This run can't restart itself.",
+            });
           }
           options?.onSuccess?.(result, ...more);
         },

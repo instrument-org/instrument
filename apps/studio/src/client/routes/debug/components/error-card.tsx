@@ -1,3 +1,4 @@
+import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { ErrorCard } from "@/client/components/error-card";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -20,18 +21,6 @@ const errorWithCause = Object.assign(
   { cause: new Error("ECONNREFUSED 127.0.0.1:4000") },
 );
 
-const errorWithStack = new Error("Unexpected null reference in render().");
-
-const multipleErrors = [
-  Object.assign(new Error("Model provider returned an error."), {
-    code: "PROVIDER_ERROR",
-  }),
-  Object.assign(new Error("Retry limit exceeded after 3 attempts."), {
-    cause: "Provider returned 503 on all attempts",
-    code: "RETRY_EXHAUSTED",
-  }),
-];
-
 const variants: { description?: string; error: unknown; title: string }[] = [
   {
     error: simpleError,
@@ -45,15 +34,6 @@ const variants: { description?: string; error: unknown; title: string }[] = [
     error: errorWithCause,
     title: "Error with cause",
   },
-  {
-    error: errorWithStack,
-    title: "Error with stack trace",
-  },
-  {
-    description: "Multiple errors can be passed as an array.",
-    error: multipleErrors,
-    title: "Multiple errors",
-  },
 ];
 
 function RouteComponent() {
@@ -66,8 +46,8 @@ function RouteComponent() {
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">Error card</h1>
           <p className="text-sm text-muted-foreground">
-            Shown when an operation fails. Supports single errors, error codes,
-            causes, stack traces, and arrays.
+            A screen shows this card in its place when it fails to load. Every
+            error carries its stack trace under a toggle.
           </p>
         </header>
 
@@ -82,9 +62,19 @@ function RouteComponent() {
                   </p>
                 )}
               </div>
-              <ErrorCard description={v.description} error={v.error} />
+              <ErrorCard error={v.error} />
             </section>
           ))}
+          <section className="flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-medium">Window crash</p>
+              <p className="text-xs text-muted-foreground">
+                The whole app window shows this when it crashes, and reloading
+                is the only way back.
+              </p>
+            </div>
+            <AppErrorFallback error={simpleError} />
+          </section>
         </div>
       </div>
     </div>

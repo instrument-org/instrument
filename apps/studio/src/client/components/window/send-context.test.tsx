@@ -9,21 +9,19 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { TabIdSchema } from "@/shared/tabs";
 import {
-  FolderAttachment,
+  MountedFolder,
   type SessionMessageDataPart,
   ChatIdSchema,
-  TaskIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { contextReaders, type SendContextWindow } from "./send-context";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
-const HOME = FolderAttachment.Schema.parse({
+const HOME = MountedFolder.Schema.parse({
   access: "read-write",
   createdAt: 0,
   id: "home",
-  mountName: "Home",
   path: "/Users/casey",
   source: "user",
 });
@@ -72,20 +70,19 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
           tabs: [
             { id: "other", title: "Other", url: "https://other.example/" },
           ],
-          text: "Words on the page",
+          selection: "Words on the page",
           title: "Example",
           url: "https://example.com/",
         }),
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
-    finders: {},
     href: "/browser",
     hrefOfAppTab: vi.fn(),
     paneOpenByGroup: {},
     screenView: null,
-    state: { attachedFolders: { home: HOME } },
-    viewsById: {},
+    state: { folders: { home: HOME } },
+    surfaces: {},
     windowTabs: tabsOf([]),
     ...over,
   };
@@ -101,9 +98,9 @@ describe("sendContext", () => {
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
     await expect(
-      sendContext({ chatId: CHAT, isViewOpen: true }),
+      sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }),
     ).resolves.toMatchObject({
-      page: { text: "Words on the page" },
+      page: { selection: "Words on the page" },
       screen: "browser",
       url: "https://example.com/",
     });
@@ -113,10 +110,10 @@ describe("sendContext", () => {
     const { sendContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: false })).resolves
-      .toMatchInlineSnapshot(`
+    await expect(sendContext({ chatId: CHAT, isViewOpen: false, leftOut: [] }))
+      .resolves.toMatchInlineSnapshot(`
       {
-        "screen": "home",
+        "screen": "conversation",
         "tabs": [
           {
             "at": "https://example.com/",
@@ -124,7 +121,6 @@ describe("sendContext", () => {
             "title": "Example",
           },
         ],
-        "url": "/browser",
       }
     `);
   });
@@ -137,23 +133,22 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: other, isViewOpen: false })).resolves
-      .toMatchInlineSnapshot(`
+    await expect(sendContext({ chatId: other, isViewOpen: false, leftOut: [] }))
+      .resolves.toMatchInlineSnapshot(`
       {
-        "page": {
-          "text": "Words on the page",
-          "title": "Example",
-          "url": "https://example.com/",
-        },
-        "screen": "browser",
-        "tabs": [
+        "attached": [
           {
-            "at": "https://example.com/",
-            "id": "guest",
-            "title": "Example",
+            "id": "2026-10-01-lisbon",
+            "kind": "chat",
+            "title": "Lisbon",
           },
         ],
-        "url": "https://example.com/",
+        "chat": {
+          "id": "2026-10-01-lisbon",
+          "title": "Lisbon",
+        },
+        "screen": "chat",
+        "tabs": [],
       }
     `);
   });
@@ -167,7 +162,7 @@ describe("sendContext", () => {
       }),
     );
     await expect(
-      sendContext({ chatId: CHAT, isViewOpen: true }),
+      sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }),
     ).resolves.toBeUndefined();
   });
 
@@ -184,11 +179,19 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE, chat], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: true })).resolves
-      .toMatchInlineSnapshot(`
+    await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
+      .resolves.toMatchInlineSnapshot(`
       {
         "page": {
-          "text": "Words on the page",
+          "selection": "Words on the page",
+          "tab": "guest",
+          "tabs": [
+            {
+              "id": "chat",
+              "title": "Lisbon",
+              "url": "/chats/2026-10-01-lisbon",
+            },
+          ],
           "title": "Example",
           "url": "https://example.com/",
         },
@@ -226,11 +229,11 @@ describe("sendContext", () => {
         windowTabs: tabsOf([file], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: true })).resolves
-      .toMatchInlineSnapshot(`
+    await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
+      .resolves.toMatchInlineSnapshot(`
       {
         "file": {
-          "mount": "/mnt/Home/Downloads/receipt.pdf",
+          "mount": "/Users/casey/Downloads/receipt.pdf",
           "name": "receipt.pdf",
           "path": "/Users/casey/Downloads/receipt.pdf",
         },
@@ -257,7 +260,7 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    const sent = sendContext({ chatId: CHAT, isViewOpen: true });
+    const sent = sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
@@ -288,7 +291,7 @@ describe("sendContext", () => {
           screen: "tasks",
           tasks: [
             {
-              id: TaskIdSchema.parse("scan"),
+              id: ChatIdSchema.parse("scan"),
               status: "working",
               step: "Reading Downloads",
               title: "Scan the receipts",
@@ -298,8 +301,8 @@ describe("sendContext", () => {
         windowTabs: tabsOf([tasksTab, SITE], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: true })).resolves
-      .toMatchInlineSnapshot(`
+    await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
+      .resolves.toMatchInlineSnapshot(`
       {
         "screen": "tasks",
         "tabs": [
@@ -367,22 +370,28 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        viewsById: { [GROUP]: { screen: "browser" } },
         windowTabs: tabsOf([band, chat]),
       }),
     );
     await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
       {
+        "attached": [
+          {
+            "kind": "page",
+            "title": "Hotels",
+            "url": "https://hotels.example/",
+          },
+        ],
         "page": {
+          "selection": "Words on the page",
           "tab": "band",
           "tabs": [
             {
-              "id": "other",
-              "title": "Other",
-              "url": "https://other.example/",
+              "id": "chat",
+              "title": "Lisbon",
+              "url": "/chats/2026-10-01-lisbon",
             },
           ],
-          "text": "Words on the page",
           "title": "Example",
           "url": "https://example.com/",
         },
@@ -407,8 +416,6 @@ describe("draftContext", () => {
   const FOLDER = folderHref("/Users/casey/Documents");
   const FILE = fileHref("/Users/casey/Downloads/receipt.pdf");
   const APP = "/apps/notion";
-  /** The band's face as the chat is told it, ahead of the thing included. */
-  const NEW_TAB = { at: NEW_TAB_HREF, id: "home", title: "New tab" };
 
   it.each<[string, WindowTab, SessionMessageDataPart.ViewContextDataPart]>([
     [
@@ -417,11 +424,11 @@ describe("draftContext", () => {
       {
         folder: {
           display: "/Users/casey/Documents",
-          mount: "/mnt/Home/Documents",
+          mount: "/Users/casey/Documents",
           selected: [],
         },
         screen: "computer",
-        tabs: [NEW_TAB, { at: FOLDER, title: "Documents" }],
+        tabs: [],
         url: FOLDER,
       },
     ],
@@ -430,12 +437,12 @@ describe("draftContext", () => {
       { group: "place:files", href: FILE, id: "over", kind: "screen" },
       {
         file: {
-          mount: "/mnt/Home/Downloads/receipt.pdf",
+          mount: "/Users/casey/Downloads/receipt.pdf",
           name: "receipt.pdf",
           path: "/Users/casey/Downloads/receipt.pdf",
         },
         screen: "file",
-        tabs: [NEW_TAB, { at: FILE, title: "receipt.pdf" }],
+        tabs: [],
         url: FILE,
       },
     ],
@@ -450,7 +457,7 @@ describe("draftContext", () => {
           standing: "unknown",
         },
         screen: "apps",
-        tabs: [NEW_TAB, { at: APP, title: "Notion" }],
+        tabs: [],
         url: APP,
       },
     ],
@@ -466,12 +473,12 @@ describe("draftContext", () => {
       },
       {
         page: {
-          text: "Words on the page",
+          selection: "Words on the page",
           title: "Example",
           url: "https://example.com/",
         },
         screen: "browser",
-        tabs: [NEW_TAB, { at: "https://example.com/", title: "Example" }],
+        tabs: [],
         url: "https://example.com/",
       },
     ],
@@ -485,11 +492,10 @@ describe("draftContext", () => {
       const { draftContext } = contextReaders(
         windowOf({
           drafts: [draft],
-          viewsById: { [GROUP]: { screen: "home" } },
           windowTabs: tabsOf([HOME_TAB, over]),
         }),
       );
-      await expect(draftContext(DRAFT.id)).resolves.toEqual(expected);
+      await expect(draftContext(DRAFT.id)).resolves.toMatchObject(expected);
     },
   );
 
@@ -502,7 +508,6 @@ describe("draftContext", () => {
         windowOf({
           drafts: [{ ...DRAFT, ...draft }],
           hrefOfAppTab: (id) => ({ [APPS_TAB]: APP, [FILES_TAB]: FOLDER })[id],
-          viewsById: { [GROUP]: { screen: "home" } },
           windowTabs: tabsOf([HOME_TAB]),
           ...over,
         }),
@@ -527,10 +532,12 @@ describe("draftContext", () => {
           { included: { appTabId: FILES_TAB } },
           {
             appTabId: FILES_TAB,
-            finders: {
+            surfaces: {
               [FILES_TAB]: {
-                folder: "/Users/casey/Documents",
-                selected: [{ kind: "file", path: NOTES }],
+                finder: {
+                  folder: "/Users/casey/Documents",
+                  selected: [{ kind: "file", path: NOTES }],
+                },
               },
             },
             href: FOLDER,
@@ -540,7 +547,7 @@ describe("draftContext", () => {
         chosen: [
           {
             kind: "file",
-            mount: "/mnt/Home/Documents/notes.md",
+            mount: "/Users/casey/Documents/notes.md",
             name: "notes.md",
             path: NOTES,
           },
@@ -554,10 +561,12 @@ describe("draftContext", () => {
         { included: { appTabId: APPS_TAB } },
         {
           appTabId: FILES_TAB,
-          finders: {
+          surfaces: {
             [FILES_TAB]: {
-              folder: "/Users/casey/Documents",
-              selected: [{ kind: "file", path: NOTES }],
+              finder: {
+                folder: "/Users/casey/Documents",
+                selected: [{ kind: "file", path: NOTES }],
+              },
             },
           },
           href: FOLDER,
@@ -566,7 +575,7 @@ describe("draftContext", () => {
       expect(context?.chosen).toEqual([
         {
           kind: "file",
-          mount: "/mnt/Home/Documents/notes.md",
+          mount: "/Users/casey/Documents/notes.md",
           name: "notes.md",
           path: NOTES,
         },
@@ -575,34 +584,26 @@ describe("draftContext", () => {
 
     it("leaves out the tab the person left out", async () => {
       const context = await drafted(
-        { included: { appTabId: APPS_TAB }, leftBehind: [FILES_TAB] },
+        {
+          included: { appTabId: APPS_TAB },
+          leftOut: [`tab:${FILES_TAB} ${FOLDER}`],
+        },
         { appTabId: FILES_TAB, href: FOLDER },
       );
       expect(context?.chosen).toBeUndefined();
     });
   });
 
-  it("sends the band's own screen when nothing was included", async () => {
+  it("sends nothing for a band that shows only a new tab", async () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        viewsById: { [GROUP]: { screen: "home" } },
         windowTabs: tabsOf([HOME_TAB]),
       }),
     );
-    await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
-      {
-        "screen": "home",
-        "tabs": [
-          {
-            "at": "/new-tab",
-            "id": "home",
-            "title": "New tab",
-          },
-        ],
-        "url": "/new-tab",
-      }
-    `);
+    await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(
+      `undefined`,
+    );
   });
 
   it("sends what the draft was opened on by name, reached through its grant", async () => {
@@ -621,10 +622,30 @@ describe("draftContext", () => {
     );
     await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
       {
+        "attached": [
+          {
+            "items": [
+              {
+                "kind": "file",
+                "path": "/Users/casey/Notes/plan.md",
+              },
+            ],
+            "kind": "paths",
+          },
+          {
+            "items": [
+              {
+                "kind": "folder",
+                "path": "/Volumes/Backup",
+              },
+            ],
+            "kind": "paths",
+          },
+        ],
         "chosen": [
           {
             "kind": "file",
-            "mount": "/mnt/Home/Notes/plan.md",
+            "mount": "/Users/casey/Notes/plan.md",
             "name": "plan.md",
             "path": "/Users/casey/Notes/plan.md",
           },
@@ -662,19 +683,24 @@ describe("draftContext", () => {
     await expect(behindFile.draftContext(DRAFT.id)).resolves
       .toMatchInlineSnapshot(`
       {
+        "attached": [
+          {
+            "items": [
+              {
+                "kind": "file",
+                "path": "/Users/casey/Notes/plan.md",
+              },
+            ],
+            "kind": "paths",
+          },
+        ],
         "file": {
-          "mount": "/mnt/Home/Notes/plan.md",
+          "mount": "/Users/casey/Notes/plan.md",
           "name": "plan.md",
           "path": "/Users/casey/Notes/plan.md",
         },
         "screen": "file",
-        "tabs": [
-          {
-            "at": "/files?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
-            "id": "file",
-            "title": "plan.md",
-          },
-        ],
+        "tabs": [],
         "url": "/files?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
       }
     `);
@@ -689,26 +715,25 @@ describe("draftContext", () => {
     await expect(behindPage.draftContext(DRAFT.id)).resolves
       .toMatchInlineSnapshot(`
       {
-        "page": {
-          "text": "Words on the page",
-          "title": "Example",
-          "url": "https://example.com/",
-        },
-        "screen": "browser",
-        "tabs": [
+        "attached": [
           {
-            "at": "https://hotels.example/",
-            "id": "page",
-            "title": "Hotels",
+            "id": "2026-10-01-lisbon",
+            "kind": "chat",
+            "title": "Lisbon",
           },
         ],
-        "url": "https://hotels.example/",
+        "chat": {
+          "id": "2026-10-01-lisbon",
+          "title": "Lisbon",
+        },
+        "screen": "chat",
+        "tabs": [],
       }
     `);
 
     const leftOut = contextReaders(
       windowOf({
-        drafts: [{ ...DRAFT, leftBehind: ["page"] }],
+        drafts: [{ ...DRAFT, leftOut: [`chat:${CHAT}`] }],
         paneOpenByGroup: { [CHAT]: true },
         windowTabs: tabsOf([page], CHAT),
       }),
@@ -716,8 +741,40 @@ describe("draftContext", () => {
     await expect(leftOut.draftContext(DRAFT.id)).resolves.toBeUndefined();
 
     const paneShut = contextReaders(
+      windowOf({
+        drafts: [DRAFT],
+        paneOpenByGroup: { [CHAT]: false },
+        windowTabs: tabsOf([page], CHAT),
+      }),
+    );
+    // The chat is on screen with its pane shut: still the chat.
+    await expect(paneShut.draftContext(DRAFT.id)).resolves.toMatchObject({
+      chat: { id: CHAT },
+    });
+  });
+
+  it("names nothing for a chat trashed since the draft was opened over it", async () => {
+    const gone = ChatIdSchema.parse("2026-10-02-gone");
+    const { draftContext } = contextReaders(
+      windowOf({ drafts: [{ ...DRAFT, included: { chat: gone } }] }),
+    );
+    await expect(draftContext(DRAFT.id)).resolves.toBeUndefined();
+  });
+
+  it("counts a chat's pane the toggle never touched as open", async () => {
+    const page: WindowTab = {
+      group: CHAT,
+      id: "page",
+      kind: "page",
+      openedAt: 1,
+      title: "Hotels",
+      url: "https://hotels.example/",
+    };
+    const { draftContext } = contextReaders(
       windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
     );
-    await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
+    await expect(draftContext(DRAFT.id)).resolves.toMatchObject({
+      chat: { id: CHAT },
+    });
   });
 });

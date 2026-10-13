@@ -84,9 +84,8 @@ export class ReadOnlyBaseFs implements IFileSystem {
     this.refuseWrite("writeFile", path);
 }
 
+// What the rules make of the write goes beside the command's output, from
+// `onWrite`.
 function erofs(op: string, path: string) {
-  return new Error(
-    `EROFS: read-only file system, ${op} '${path}' -- only this ` +
-      `conversation's folder and the folders you reach can be changed`,
-  );
+  return new Error(`EROFS: read-only file system, ${op} '${path}'`);
 }

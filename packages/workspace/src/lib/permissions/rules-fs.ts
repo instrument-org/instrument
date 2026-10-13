@@ -203,11 +203,12 @@ export function rulesFs({
         spell,
       });
       if (refusal) {
+        // The refusal goes beside the command's output, whole; inside the
+        // error some commands would print it a second time, with its paths
+        // sanitized away.
         onRefusal?.(refusal);
         throw Object.assign(
-          new Error(
-            `EACCES: permission denied, ${syscall} '${shown}' -- ${refusal}`,
-          ),
+          new Error(`EACCES: permission denied, ${syscall} '${shown}'`),
           { code: "EACCES" },
         );
       }

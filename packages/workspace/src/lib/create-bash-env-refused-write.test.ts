@@ -135,7 +135,7 @@ it("reports tee and cp into a refused place and goes on", async () => {
     {
       "exitCode": 0,
       "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
-    cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt' -- only this conversation's folder and the folders you reach can be changed
+    cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt'
     Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
     <tmp>/closed/copy.txt is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
     ",

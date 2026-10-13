@@ -98,17 +98,7 @@ export function resolveCommandContext(
   },
 ) {
   const uvEnv = uvSubprocessEnv({ chatId });
-  const shellEnv: Record<string, string> = {
-    ...Object.fromEntries(ctx.env),
-    ...uvEnv,
-  };
-  // The shell's TZ is an IANA name (America/Chicago), which Windows' C
-  // runtime does not read: it takes TZ as `CST6CDT` or nothing, and a name
-  // it cannot parse puts a program's local time hours off. Without one it
-  // uses the system's zone, which is the same zone.
-  if (process.platform === "win32" && shellEnv.TZ?.includes("/")) {
-    delete shellEnv.TZ;
-  }
+  const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
   // A task-local temp dir keeps tempfile, os.tmpdir(), and mktemp inside the
   // sandbox instead of the host temp dir; created here if absent (recursive
   // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points

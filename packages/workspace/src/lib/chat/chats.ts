@@ -646,16 +646,19 @@ function digestOf(
   // Whether the last thing the agent did, after the newest message that
   // started a turn, ended in an error: a turn that never got its reply out.
   // A retry that went on to answer, or anything sent after that starts a
-  // turn, leaves it behind. A stop is no error.
+  // turn, leaves it behind. A reply cut off is an error only when its
+  // request timed out: any other stop was asked for, and one cut off before
+  // the reason was kept says nothing either way.
   const endsLastTurn =
     lastAssistant !== undefined &&
     messages.lastIndexOf(lastAssistant) >
       (lastOpener ? messages.lastIndexOf(lastOpener) : -1);
+  const error = lastAssistant?.metadata.error;
   const failed =
     endsLastTurn &&
-    lastAssistant.metadata.error?.kind !== "aborted" &&
-    (lastAssistant.metadata.error !== undefined ||
-      lastAssistant.metadata.finishReason === "error");
+    (error === undefined
+      ? lastAssistant.metadata.finishReason === "error"
+      : error.kind !== "aborted" || error.reason === "timeout");
   // The user's Stop, rather than what it left behind: a turn stopped before
   // it began left only the message no turn took up, and one stopped between
   // steps left nothing at all.

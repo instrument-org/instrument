@@ -1356,6 +1356,53 @@ describe("sessionMachine", () => {
     expect(unhandled).toEqual([]);
   });
 
+  /** Why each reply a session's turn cut off was cut off, oldest first. */
+  function abortReasons(
+    session: Awaited<ReturnType<typeof Store.getSessionWithMessagesAndParts>>,
+  ) {
+    return session
+      ._unsafeUnwrap()
+      .messages.flatMap((message) =>
+        message.role === "assistant" &&
+        message.metadata.error?.kind === "aborted"
+          ? [message.metadata.error.reason]
+          : [],
+      );
+  }
+
+  it("says a reply the user stopped was cut off by their stop", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+      initialChunkDelaysMs: [5000],
+    });
+    result.actor.start();
+    // The reply is stored as its request goes out, before any of it arrives.
+    await vi.waitFor(async () => {
+      const session = await Store.getSessionWithMessagesAndParts(
+        result.sessionId,
+        result.chatId,
+      );
+      expect(
+        session
+          ._unsafeUnwrap()
+          .messages.some((message) => message.role === "assistant"),
+      ).toBe(true);
+    });
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+
+    await vi.waitFor(async () => {
+      expect(
+        abortReasons(
+          await Store.getSessionWithMessagesAndParts(
+            result.sessionId,
+            result.chatId,
+          ),
+        ),
+      ).toEqual(["manual"]);
+    });
+  });
+
   it("should retry and fail on timeout", async () => {
     const chunkTimeoutMs = 500;
     const session = await createAndRunTestMachine({
@@ -1364,6 +1411,8 @@ describe("sessionMachine", () => {
       initialChunkDelaysMs: [chunkTimeoutMs * 2, chunkTimeoutMs * 2, 1, 1],
       llmRequestChunkTimeoutMs: chunkTimeoutMs,
     });
+    // Cut off by its request timing out, which nobody asked for.
+    expect(abortReasons(session)).toEqual(["timeout", "timeout"]);
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
       "<session title="Test session" count="7">

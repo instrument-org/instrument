@@ -48,6 +48,20 @@ export namespace SessionMessage {
   // optional because messages recorded before it existed do not have it.
   const ClassificationSchema = ProviderErrorKindSchema.optional();
 
+  /**
+   * Why a request was let go: a stop someone asked for (the user's or the
+   * chat's, a newer message superseding the reply, the app quitting), its
+   * chunk timeout, or nothing the session could name.
+   */
+  const AbortReasonSchema = z.enum([
+    "manual",
+    "quit",
+    "superseded",
+    "timeout",
+    "unknown",
+  ]);
+  export type AbortReason = z.output<typeof AbortReasonSchema>;
+
   const ErrorSchema = z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("api-key"),
@@ -56,6 +70,8 @@ export namespace SessionMessage {
     z.object({
       kind: z.literal("aborted"),
       message: z.string(),
+      /** Absent on a reply cut off before the reason was kept. */
+      reason: AbortReasonSchema.optional(),
     }),
     // A write failed because the disk has no space left.
     z.object({

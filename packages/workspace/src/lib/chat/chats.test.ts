@@ -609,6 +609,48 @@ describe("listChats", () => {
     expect(chat?.state).not.toBe("failed");
   });
 
+  // A reply cut off by its request timing out never got out, which nobody
+  // asked for; one cut off by a stop someone asked for is no error, and nor
+  // is one cut off before the reason was kept.
+  it.each([
+    { reason: "timeout", state: "failed" },
+    { reason: "manual", state: "idle" },
+    { reason: undefined, state: "idle" },
+  ] as const)(
+    "reads a reply cut off for $reason as $state",
+    async ({ reason, state }) => {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Documents", 1);
+      await userSays(chatId, sessionId, "what's in my Documents?", 1);
+      const replyId = StoreId.newMessageId();
+      const reply = await Store.saveMessageWithParts(
+        {
+          id: replyId,
+          metadata: {
+            createdAt: at(2),
+            error: {
+              kind: "aborted",
+              message: "Aborted",
+              ...(reason ? { reason } : {}),
+            },
+            finishReason: "aborted",
+            finishedAt: at(2),
+            modelId: "glm-5.3-flash",
+            providerId: "openai-compatible",
+            sessionId,
+          },
+          parts: [],
+          role: "assistant",
+        },
+        chatFor(sessionId),
+      );
+      expect(reply.isOk()).toBe(true);
+
+      const [chat] = await listChats();
+      expect(chat?.state).toBe(state);
+    },
+  );
+
   it("carries the topics a chat is tagged with, dropping ids that are not topics", async () => {
     const chatId = await freshChat();
     const home = await createTopic({ name: "Home" });

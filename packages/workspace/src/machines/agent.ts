@@ -351,6 +351,8 @@ export const agentMachine = setup({
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
       pendingToolCalls: SessionMessagePart.ToolPartInputAvailable[];
+      /** The request in flight went past its chunk timeout, which lets it go; cleared as each starts. */
+      requestTimedOut: boolean;
       retryCount: number;
       /** Children of `ExecutingToolCalls` that have not finished yet. */
       runningToolCallActorIds: ToolCallActorId[];
@@ -398,6 +400,7 @@ export const agentMachine = setup({
     parentMessageId: input.parentMessageId,
     parentRef: input.parentRef,
     pendingToolCalls: [],
+    requestTimedOut: false,
     retryCount: 0,
     runningToolCallActorIds: [],
     savedSteerIds: [],
@@ -610,6 +613,7 @@ export const agentMachine = setup({
 
     LLMStreaming: {
       entry: assign({
+        requestTimedOut: false,
         unaccountedStreamCount: ({ context }) =>
           context.unaccountedStreamCount + 1,
       }),
@@ -617,6 +621,13 @@ export const agentMachine = setup({
       invoke: {
         input: ({ context, self }) => {
           return {
+            // Asked as the request is let go, by which point whatever let it
+            // go has been recorded: a stop, or its chunk timeout.
+            abortReason: () => {
+              const { requestTimedOut, stopReason } =
+                self.getSnapshot().context;
+              return stopReason ?? (requestTimedOut ? "timeout" : "unknown");
+            },
             agent: context.agent,
             model: context.model,
             self,
@@ -728,7 +739,10 @@ export const agentMachine = setup({
         PendingTimeout: {
           after: {
             llmRequestChunkTimeoutMs: {
-              actions: raise({ type: "retry" }),
+              actions: [
+                assign({ requestTimedOut: true }),
+                raise({ type: "retry" }),
+              ],
             },
           },
           on: {

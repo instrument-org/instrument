@@ -238,8 +238,14 @@ export function windowsDriveName({
   const named = (name: string) => `${name} (${letter})`;
   // `\\server\share\folder` is listed as "folder (\\server\share)".
   const segments = share?.replace(/\\+$/, "").split("\\") ?? [];
-  if (kind === "network" && share?.startsWith("\\\\") && segments.length > 3) {
-    return named(`${segments.at(-1)} (${segments.slice(0, -1).join("\\")})`);
+  const folder = segments.at(-1);
+  if (
+    kind === "network" &&
+    share?.startsWith("\\\\") &&
+    segments.length > 3 &&
+    folder
+  ) {
+    return named(`${folder} (${segments.slice(0, -1).join("\\")})`);
   }
   const trimmed = label.trim();
   if (trimmed !== "") {

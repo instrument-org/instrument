@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { type Os } from "@/shared/os-conventions";
+
 import {
   listingCommandOf,
   NO_TYPE_AHEAD,
@@ -76,7 +78,7 @@ describe("listingCommandOf", () => {
     expect(listingCommandOf(press("⌃a"), "mac")).toBeNull();
   });
 
-  it.each([
+  it.each<[Os, string, { type: "trash" } | null]>([
     // The Finder's Move to Trash, and only that.
     ["mac", "⌘Backspace", { type: "trash" }],
     ["mac", "Backspace", null],

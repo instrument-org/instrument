@@ -10,7 +10,7 @@ export const CALENDAR_COMMAND = {
     "Read and add to Calendar and Reminders on this Mac through Apple's own interface, in well under a second; prefer it to osascript for either app. " +
     "`calendar events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]` lists events (today when no dates are given); " +
     "`calendar reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]` lists incomplete reminders, or every one with --all; " +
-    "`calendar calendars` names every calendar and reminder list with its account and whether it takes additions; " +
+    "`calendar calendars` names every calendar, and `calendar lists` every reminder list, with its account and whether it takes additions; " +
     "`calendar add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]` and " +
     "`calendar add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]` add one. " +
     "When two accounts share a calendar or list name, --account names which. " +

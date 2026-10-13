@@ -9,6 +9,7 @@ import Foundation
 //   instrument-mac contacts [--search <words>] [--limit <n>]
 //   instrument-mac access calendars|reminders|contacts [--request]
 //   instrument-mac calendars
+//   instrument-mac lists
 //   instrument-mac events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]
 //   instrument-mac reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]
 //   instrument-mac add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]
@@ -202,24 +203,24 @@ func limited<T>(_ items: [T]) -> [T] {
 
 let args = CommandLine.arguments.dropFirst()
 guard let command = args.first else {
-  fail("Usage: instrument-mac calendars | events | reminders | add-event | add-reminder")
+  fail("Usage: instrument-mac calendars | lists | events | reminders | add-event | add-reminder")
 }
 // `access` names its kind outright; every other command takes --name value.
 let given = command == "access" ? [:] : options(args.dropFirst())
 
 switch command {
-case "calendars":
-  await requireAccess(to: .event)
-  await requireAccess(to: .reminder)
-  let describe = { (calendar: EKCalendar, kind: String) -> [String: Any] in
-    [
-      "account": calendar.source.title, "kind": kind, "name": calendar.title,
-      "writable": calendar.allowsContentModifications,
-    ]
-  }
+// Calendars and reminder lists are listed apart, so a question about one
+// asks macOS only for that one.
+case "calendars", "lists":
+  let entity: EKEntityType = command == "calendars" ? .event : .reminder
+  await requireAccess(to: entity)
   emit(
-    store.calendars(for: .event).map { describe($0, "calendar") }
-      + store.calendars(for: .reminder).map { describe($0, "list") })
+    store.calendars(for: entity).map {
+      [
+        "account": $0.source.title, "name": $0.title,
+        "writable": $0.allowsContentModifications,
+      ]
+    })
 
 case "events":
   await requireAccess(to: .event)
@@ -434,6 +435,6 @@ case "icloud-folders":
 
 default:
   fail(
-    "\(command) is not a command: calendars, events, reminders, add-event, add-reminder, contacts, icloud-folders, or access."
+    "\(command) is not a command: calendars, lists, events, reminders, add-event, add-reminder, contacts, icloud-folders, or access."
   )
 }

@@ -7,8 +7,14 @@ const chatId = StoreId.newSessionId();
 
 const title = "Lisbon trip";
 type ChatAt = Parameters<typeof statusLine>[0]["chat"];
-const idle: ChatAt = { runningTasks: [], state: "idle", title };
+const idle: ChatAt = {
+  lastUserMessageAt: 1,
+  runningTasks: [],
+  state: "idle",
+  title,
+};
 const at = (state: ChatAt["state"], over: Partial<ChatAt> = {}): ChatAt => ({
+  lastUserMessageAt: 1,
   runningTasks: [],
   state,
   title,
@@ -144,6 +150,28 @@ describe("statusLine", () => {
       "a chat stopped on an error",
       { chat: at("failed"), listed: [] },
       { text: "Stopped on an error", tone: "failed" },
+    ],
+    [
+      "that its work is done once the user wrote after the task they stopped, though its reply took no step",
+      {
+        chat: at("idle", {
+          lastStep: lastStep("Running the requested waits"),
+          lastUserMessageAt: 10,
+        }),
+        listed: [{ ...done(5), stoppedBy: "user" }],
+      },
+      { text: "Done", tone: "done" },
+    ],
+    [
+      "a task that woke the chat by name after the reply it woke, until the user writes",
+      {
+        chat: at("idle", {
+          lastStep: lastStep("Starting a task"),
+          lastUserMessageAt: 1,
+        }),
+        listed: [done(5)],
+      },
+      { text: "Lisbon fares and hotels", tone: "done" },
     ],
     [
       "the task the user stopped last beside a stop mark, not a check",

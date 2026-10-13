@@ -150,9 +150,10 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
  * first, then a task at work), or the plain line. Stalled, which the record
  * says over anything still running: what the user is waited on for. Stopped
  * by the user: that they stopped it, until the next turn starts. At
- * rest, whichever came later of the chat's own last step and the task that
- * finished last: the task's name, or that the chat's work is done, with a
- * check. Nothing in a chat that has done no work. Never the chat's own title
+ * rest, the task that finished last, while it ended after both the chat's
+ * own last step and the user's newest message: its name beside a check, or
+ * a stop mark when the user stopped it. Otherwise that the chat's work is
+ * done, with a check. Nothing in a chat that has done no work. Never the chat's own title
  * again, right under it: a task named like the chat says it is done, or the
  * step it stopped on when it failed.
  */
@@ -160,7 +161,15 @@ export function statusLine({
   chat,
   listed,
 }: {
-  chat: Pick<Chat, "lastStep" | "latest" | "runningTasks" | "state" | "title">;
+  chat: Pick<
+    Chat,
+    | "lastStep"
+    | "lastUserMessageAt"
+    | "latest"
+    | "runningTasks"
+    | "state"
+    | "title"
+  >;
   listed:
     | {
         standing: { kind: string };
@@ -199,7 +208,12 @@ export function statusLine({
     .toSorted((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
   const differs = (text: string | undefined) =>
     text?.trim() && text.trim() !== chat.title.trim() ? text : undefined;
-  if (task && (!own || task.updatedAt.getTime() >= own.at)) {
+  // A task is named while it ended after the chat's own last step and after
+  // the user last wrote: their message moved on from it, even when the reply
+  // to it was words alone and took no step. The reply its finish woke does
+  // not, so a finished task stays named under the report of it.
+  const since = Math.max(own?.at ?? 0, chat.lastUserMessageAt);
+  if (task && task.updatedAt.getTime() >= since) {
     const failed = task.standing.kind === "failed";
     // A task the user stopped ended no more on its own than a failed one did.
     const halted = !failed && task.stoppedBy === "user";
@@ -210,5 +224,5 @@ export function statusLine({
       ? { text, tone: failed ? "stopped" : halted ? "halted" : "done" }
       : undefined;
   }
-  return own ? { text: DONE, tone: "done" } : undefined;
+  return own || task ? { text: DONE, tone: "done" } : undefined;
 }

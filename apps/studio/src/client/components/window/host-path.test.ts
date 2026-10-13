@@ -4,6 +4,7 @@ import {
   folderOf,
   homeRelative,
   isInside,
+  nameOf,
   parentFolderOf,
   segmentsOf,
   separatorOf,
@@ -75,6 +76,21 @@ describe("isInside", () => {
     ["/Volumes/Backup/photos", "/Volumes/Backup", true],
   ])("%s inside %s is %s", (hostPath, folder, expected) => {
     expect(isInside(hostPath, folder)).toBe(expected);
+  });
+});
+
+describe("nameOf", () => {
+  it.each([
+    ["/Users/sam/chat/output/report.md", "report.md"],
+    ["/Users/sam/home/notes/", "notes"],
+    ["report.md", "report.md"],
+    // What the main process hands back on Windows: a new folder, a copy,
+    // and a folder a chat holds.
+    ["C:\\Users\\sam\\Documents\\New folder", "New folder"],
+    ["C:\\Users\\sam\\Documents\\notes - Copy.txt", "notes - Copy.txt"],
+    ["\\\\server\\share\\Reports\\", "Reports"],
+  ])("calls %s %s", (hostPath, name) => {
+    expect(nameOf(hostPath)).toBe(name);
   });
 });
 

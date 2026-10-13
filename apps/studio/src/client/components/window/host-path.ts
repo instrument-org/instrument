@@ -63,6 +63,11 @@ export function joinHostPath(base: string, ...below: string[]) {
   return [base.replace(/[/\\]+$/, ""), ...names].join(separatorOf(base));
 }
 
+/** What a thing is called: the last name along its path, whichever way the path is spelled. */
+export function nameOf(hostPath: string) {
+  return segmentsOf(hostPath).at(-1) ?? hostPath;
+}
+
 /** Every name along a path, in order, whichever way the path is spelled. */
 export function segmentsOf(hostPath: string) {
   return hostPath.split(/[/\\]/).filter(Boolean);

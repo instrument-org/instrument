@@ -19,7 +19,7 @@ import { type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
 
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
-import { basename } from "./chats";
+import { nameOf } from "./host-path";
 
 /** One thing a chat made or used, with the mark it is drawn as and where it opens. */
 interface Hold {
@@ -77,10 +77,10 @@ export function HoldMarks({
       icon: path.endsWith("/") ? (
         <MacFolderIcon className="size-4" />
       ) : (
-        <FileTypeIcon className="size-4" fileName={basename(path)} />
+        <FileTypeIcon className="size-4" fileName={nameOf(path)} />
       ),
       key: `file:${path}`,
-      name: basename(path),
+      name: nameOf(path),
       named: namedFiles,
       target: { kind: "path" as const, path },
     })),

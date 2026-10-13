@@ -125,6 +125,7 @@ import {
   folderOf,
   homeRelative,
   joinHostPath,
+  nameOf,
   parentFolderOf,
   segmentsOf,
 } from "./host-path";
@@ -599,7 +600,7 @@ export function ComputerPage({
       // Made and named in one move, the way the Finder does it: the field
       // opens on the row as soon as the re-read puts the folder there.
       fileSystemRef.current?.startRename(
-        `${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`,
+        `${parent.prefix}${nameOf(made.path)}/`,
       );
     } catch (error) {
       fileActionFailed("Couldn't make a new folder", error);
@@ -637,9 +638,7 @@ export function ComputerPage({
         // The copy is what the Finder leaves selected, and where the keyboard
         // carries on from. Several copied leave the several selected.
         if (picked.length === 1) {
-          setSelectedPath(
-            siblingPath(item.path, copy.path.split("/").at(-1) ?? ""),
-          );
+          setSelectedPath(siblingPath(item.path, nameOf(copy.path)));
         }
       }
       focusBrowser();

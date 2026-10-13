@@ -30,7 +30,7 @@ import {
   stepVisit,
   tabsIn,
   selectedTabIn,
-  visitScreen,
+  tabToScreen,
   type WindowTabs,
 } from "./tab-model";
 import { sameHref } from "./window-href";
@@ -142,11 +142,16 @@ export function useWindowTabs() {
     return value;
   };
 
-  /** Sends a screen tab to another address, a step on in its history: its router walks, and the tab follows it as it lands. */
+  /**
+   * Sends a tab to a screen, a step on in its history: a screen tab's router
+   * walks, and the tab follows it as it lands; a page becomes the screen.
+   */
   const visitHref = (id: string, href: string) => {
     const router = getGroupTabRouter(id);
     if (!router) {
-      apply((current) => visitScreen(current, id, href));
+      apply((current) =>
+        tabToScreen(current, { href, id, newId: newScreenId() }),
+      );
     } else if (!sameHref(router.history.location.href, href)) {
       router.history.push(href);
     }

@@ -8,12 +8,15 @@ import {
 } from "@/client/hooks/use-dictation";
 import {
   appendDictatedText,
+  appendDictatedTextWithin,
   formatDictationClock,
 } from "@/client/lib/dictation-text";
+import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { type DictationSurface } from "@/shared/dictation";
 import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { StopIcon } from "@phosphor-icons/react/Stop";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * The microphone, then Stop while recording. It never stands in for Send:
@@ -191,27 +194,55 @@ function LevelBars({ levels }: { levels: number[] }) {
 }
 
 /**
- * A textarea with dictation along its foot, inside the box: the microphone at
- * the right, and while recording, Cancel and the meter at the left. Dictated
- * words go at the end, on a line of their own, and nothing typed meanwhile is
- * lost.
+ * Dictation for a plain text field: the words go at the end of `value`, on a
+ * line of their own, and nothing typed meanwhile is lost. With `maxLength`,
+ * words that don't fit are cut at the limit and a toast says so. The form
+ * reads `isDictating(phase)` to hold its submit until the words land.
  */
-export function DictatedTextarea({
-  className,
-  onDictated,
+export function useDictatedText({
+  maxLength,
+  onChange,
   surface,
-  ...props
-}: React.ComponentProps<typeof Textarea> & {
-  /** The words, for the field to append with `appendDictatedText`. */
-  onDictated: (append: (existing: string) => string) => void;
+  value,
+}: {
+  maxLength?: number;
+  onChange: (value: string) => void;
   surface: DictationSurface;
-}) {
-  const dictation = useDictation({
+  value: string;
+}): Dictation {
+  // The words land after any typing done while they were transcribed.
+  const latest = useRef({ onChange, value });
+  useLayoutEffect(() => {
+    latest.current = { onChange, value };
+  });
+  return useDictation({
     onText: (text) => {
-      onDictated((existing) => appendDictatedText(existing, text));
+      const { onChange: change, value: current } = latest.current;
+      if (maxLength === undefined) {
+        change(appendDictatedText(current, text));
+        return;
+      }
+      const fitted = appendDictatedTextWithin(current, text, maxLength);
+      change(fitted.text);
+      if (fitted.trimmed) {
+        toast.info("Some of what you said didn't fit", {
+          description: `This box holds up to ${maxLength.toLocaleString("en-US")} characters, so the rest was left out.`,
+        });
+      }
     },
     surface,
   });
+}
+
+/**
+ * A textarea with dictation along its foot, inside the box: the microphone at
+ * the right, and while recording, Cancel and the meter at the left.
+ */
+export function DictatedTextarea({
+  className,
+  dictation,
+  ...props
+}: React.ComponentProps<typeof Textarea> & { dictation: Dictation }) {
   return (
     <div className="relative">
       <Textarea className={cn("pb-10", className)} {...props} />

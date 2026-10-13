@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { appendDictatedText, formatDictationClock } from "./dictation-text";
+import {
+  appendDictatedText,
+  appendDictatedTextWithin,
+  formatDictationClock,
+} from "./dictation-text";
 
 describe("appendDictatedText", () => {
   it.each([
@@ -45,5 +49,48 @@ describe("formatDictationClock", () => {
     [600_000, "10:00"],
   ])("shows %i ms as %s", (ms, clock) => {
     expect(formatDictationClock(ms)).toBe(clock);
+  });
+});
+
+describe("appendDictatedTextWithin", () => {
+  it.each([
+    [
+      "words that fit go in whole",
+      "Note",
+      "short words",
+      40,
+      "Note\nshort words",
+      false,
+    ],
+    [
+      "the end is left out at a word boundary",
+      "Note",
+      "one two three",
+      13,
+      "Note\none two",
+      true,
+    ],
+    [
+      "a cut that lands between words keeps the last whole one",
+      "Note",
+      "one two three",
+      12,
+      "Note\none two",
+      true,
+    ],
+    ["a full box is left as it was", "Full", "more", 4, "Full", true],
+    [
+      "one long word is cut where it has to be",
+      "",
+      "abcdefgh",
+      5,
+      "abcde",
+      true,
+    ],
+  ])("%s", (_case, existing, dictated, max, text, trimmed) => {
+    expect(appendDictatedTextWithin(existing, dictated, max)).toEqual({
+      text,
+      trimmed,
+    });
   });
 });

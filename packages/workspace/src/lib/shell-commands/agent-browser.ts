@@ -29,10 +29,10 @@ import { agentBrowserGuide } from "../agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { liveHeldTabs } from "../chat/window-tab";
+import { askWindow } from "../chat/window-tab";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import { getDownloadsDir, getScreenshotsDir } from "../chat-dir-utils";
-import { chatDir } from "../record-folders";
+import { chatDir, resolveChat } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -719,6 +719,7 @@ export function createAgentBrowserCommand({
       // Uncomment this to enable debug mode.
       // AGENT_BROWSER_DEBUG:
       //   process.env.NODE_ENV === "development" ? "1" : undefined,
+      AGENT_BROWSER_EXECUTABLE_PATH: undefined,
       AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
       AGENT_BROWSER_IDLE_TIMEOUT_MS,
       AGENT_BROWSER_NAMESPACE: undefined,
@@ -900,35 +901,54 @@ async function refuseBrowserFor(
   sessionId: StoreId.Session,
 ): Promise<string | undefined> {
   const held = await heldTabs(id, sessionId);
-  const live = await liveHeldTabs(id, held);
-  if (live.length > 0) {
-    if (live.length < held.length) {
-      // Tabs closed since: the browser already told the agent they are gone.
-      await updateHeldTabs(id, sessionId, (tabs) =>
-        tabs.filter((tab) => live.some((alive) => alive.id === tab.id)),
-      );
-    }
+  if (held.length === 0) {
+    // None yet: agent-browser asks a browser with no pages for one, which
+    // the endpoint makes as a page with no tab until it goes somewhere.
     return undefined;
   }
+  const { browser } = getWorkspaceConfig();
+  const answer = await askWindow({
+    action: { kind: "list" },
+    askedBy: id,
+    group: resolveChat(id),
+  });
+  if (!answer?.tabs) {
+    // No window answered; nothing is known to be gone.
+    return undefined;
+  }
+  const listed = new Set(answer.tabs.map((tab) => tab.id));
+  // A tab is still held while the window lists it, its page discarded or
+  // not (it comes back as it is attached to); a page with no tab while its
+  // guest is up.
+  const kept = held.filter((tab) =>
+    tab.inWindow ? listed.has(tab.id) : browser.getTargetMeta(tab.id) !== null,
+  );
+  if (kept.length < held.length) {
+    await updateHeldTabs(id, sessionId, (tabs) =>
+      tabs.filter((tab) => kept.some((alive) => alive.id === tab.id)),
+    );
+  }
+  if (kept.length > 0) {
+    return undefined;
+  }
+  // A page with no tab that went with a relaunch was never the user's to see.
+  const closed = held.filter((tab) => tab.inWindow);
   // A task handed tabs works in those alone; the chat, which gets them back
   // when the task finishes, goes on with a new one.
   if (
     sessionRole(id, sessionId) === "task" &&
-    held.some((tab) => tab.openedBy === "handed")
+    closed.some((tab) => tab.openedBy === "handed")
   ) {
     // The user closed the tabs, or the window they were in, since the task
     // was handed them.
     return "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n";
   }
-  if (held.length > 0) {
-    // The task's own tabs, closed by the user or by the conversation: said
-    // once, so the task knows the pages it was on are gone rather than
+  if (closed.length > 0) {
+    // The session's own tabs, closed by the user or by the conversation:
+    // said once, so it knows the pages it was on are gone rather than
     // finding a blank one, and the next command opens a new tab.
-    await updateHeldTabs(id, sessionId, () => []);
-    return "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n";
+    return "agent-browser: the tabs you opened were closed by the user or the conversation, and the pages in them are gone. The next command opens a new tab; start again from the page's address.\n";
   }
-  // None yet: agent-browser asks a browser with no pages for one, which the
-  // task's browser opens as a tab of the chat behind whatever is up.
   return undefined;
 }
 

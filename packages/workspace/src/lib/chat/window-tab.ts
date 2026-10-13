@@ -2,15 +2,12 @@ import { ulid } from "ulid";
 
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
-import { type HeldTab } from "../../schemas/chat-state";
 import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
-import { resolveChat, chatDir } from "../record-folders";
-import { getBrowserSessionDir } from "../chat-dir-utils";
+import { chatDir } from "../record-folders";
 import { getChatState } from "../chat-record";
-import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
 import { type ChatId } from "../../schemas/chat-id";
@@ -68,38 +65,6 @@ export async function askWindow({
     controller.abort();
   }
   return undefined;
-}
-
-/**
- * The tabs a task holds with a live guest, after asking the window to bring
- * back any that are still in its list but have not been shown since a
- * launch. A tab the window no longer has stays out: it was closed.
- */
-export async function liveHeldTabs(
-  chatId: ChatId,
-  heldTabs: HeldTab[],
-): Promise<HeldTab[]> {
-  const { browser } = getWorkspaceConfig();
-  const live: HeldTab[] = [];
-  for (const held of heldTabs) {
-    if (browser.getTargetMeta(held.id)) {
-      live.push(held);
-      continue;
-    }
-    const answer = await askWindow({
-      action: { kind: "restore", tabId: held.id },
-      askedBy: chatId,
-      group: resolveChat(chatId),
-    });
-    if (answer?.tabId === undefined) {
-      continue;
-    }
-    // The window opens the guest; asking here as well waits for it to
-    // attach, and asking twice for one tab makes one guest.
-    await browser.createTarget(held.id, getBrowserSessionDir());
-    live.push(held);
-  }
-  return live;
 }
 
 /**

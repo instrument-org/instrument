@@ -74,7 +74,7 @@ import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
-import { matchScreen } from "./window-href";
+import { chatOfGroup, matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
@@ -281,6 +281,7 @@ export function ComposeWindow({
   const contextItems = draftContextItems({
     allTabs: windowTabs.allTabs,
     bandUp: up,
+    chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
     draft,
     finderOf: (id) => surfaces[id]?.finder ?? null,
     group,

@@ -29,7 +29,7 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
 import { isFreshTab, isHomeTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
-import { matchScreen } from "./window-href";
+import { chatOfGroup, matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** The longest a send waits on a page's words: a guest that never answers (mid-navigation, parked, hung) costs the conversation the page's text, not the send. */
@@ -294,6 +294,10 @@ export function contextReaders({
         continue;
       }
       if (item.kind === "chat") {
+        // A chat trashed since the draft was opened over it names nothing.
+        if (chatTitles.size > 0 && !chatTitles.has(item.chat)) {
+          continue;
+        }
         chat ??= {
           id: item.chat,
           title: chatTitles.get(item.chat) ?? "a chat",
@@ -334,12 +338,25 @@ export function contextReaders({
     if (!shown && !chat && chosen.length === 0 && own.length === 0) {
       return;
     }
-    const attached = items.map(sentChipOf);
+    // The chips the composer drew: a chat's own tab goes without one.
+    const attached = items
+      .filter(
+        (item) =>
+          !(isReply && item.kind === "tab" && item.owned) &&
+          !(
+            item.kind === "chat" &&
+            chatTitles.size > 0 &&
+            !chatTitles.has(item.chat)
+          ),
+      )
+      .map(sentChipOf);
     return {
       ...(shown ??
         (chat
           ? { screen: "chat" as const }
-          : { screen: "home" as const, ...(isReply ? { url: href } : {}) })),
+          : isReply
+            ? { screen: "conversation" as const }
+            : { screen: "home" as const })),
       ...(attached.length > 0 ? { attached } : {}),
       ...(chat ? { chat } : {}),
       ...(chosen.length > 0 ? { chosen } : {}),
@@ -353,6 +370,7 @@ export function contextReaders({
     return draftContextItems({
       allTabs: windowTabs.allTabs,
       bandUp,
+      chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
       draft,
       finderOf,
       group,
@@ -388,6 +406,7 @@ export function contextReaders({
       chatId,
       chatContextItems({
         chatId,
+        chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
         finderOf,
         inView: isViewOpen ? undefined : inView,
         leftOut,

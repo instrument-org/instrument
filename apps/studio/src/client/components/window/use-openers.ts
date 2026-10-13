@@ -443,6 +443,7 @@ export function useOpeners({
                   ? {
                       id: entry.id,
                       kind: "page" as const,
+                      title: entry.title ?? "",
                       url: entry.url ?? "about:blank",
                     }
                   : { id: entry.id, kind: "screen" as const },

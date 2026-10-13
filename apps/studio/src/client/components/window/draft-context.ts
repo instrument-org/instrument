@@ -83,7 +83,7 @@ export function includedTabOf(
   hrefOfAppTab: (id: TabId) => string | undefined,
 ): undefined | WindowTab {
   const { included } = draft;
-  if (!included) {
+  if (!included || "chat" in included) {
     return;
   }
   if ("appTabId" in included) {
@@ -167,7 +167,7 @@ export function tabInView({
 /** The id of the tab the draft was opened over, whichever kind of tab it is. */
 function includedIdOf(draft: Draft): string | undefined {
   const { included } = draft;
-  if (!included) {
+  if (!included || "chat" in included) {
     return;
   }
   return "appTabId" in included ? included.appTabId : included.tabId;

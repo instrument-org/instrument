@@ -58,7 +58,7 @@ export function createStandInWindow() {
       return {
         tabs: [...tabs.values()].map((tab) =>
           tab.kind === "page"
-            ? { id: tab.id, kind: "page" as const, url: tab.at }
+            ? { id: tab.id, kind: "page" as const, title: "", url: tab.at }
             : { id: tab.id, kind: "screen" as const },
         ),
       };

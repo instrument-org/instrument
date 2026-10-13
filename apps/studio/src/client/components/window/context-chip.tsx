@@ -79,7 +79,7 @@ export function heldChipOf(
  * the words and does not ask to be read; what it is for is in its tooltip.
  * Nothing of the thing itself is drawn in the draft, which stands over it.
  */
-export function IncludedChip({
+function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,
@@ -180,6 +180,10 @@ function ChatChip({
       input: { id: chatId },
     }),
   );
+  // A chat trashed since is not there to name, and goes with nothing.
+  if (info.isError) {
+    return null;
+  }
   return (
     <ContextChip
       label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
@@ -192,7 +196,7 @@ function ChatChip({
 }
 
 /** A file or folder the draft was opened on by name, held for the chat until it is left out. */
-export function ChosenChip({
+function ChosenChip({
   item,
   onLeaveOut,
 }: {

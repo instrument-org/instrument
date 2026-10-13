@@ -81,9 +81,13 @@ export interface Draft {
    * copy or a tab of the draft's own, so the draft says what the screen
    * already gives it and the chat is told about it as it starts. A folder,
    * file, or app's front on one of the window's own tabs is that tab, by its
-   * id.
+   * id. A chat on screen is the chat, whether or not its pane is open: what
+   * is in it is the chat's, so the draft names the chat and nothing in it.
    */
-  included?: { appTabId: TabId } | { group: string; tabId: string };
+  included?:
+    | { appTabId: TabId }
+    | { chat: ChatId }
+    | { group: string; tabId: string };
   /** The chips the person left out of the draft, by their keys (see `ContextItem`). */
   leftOut?: string[];
   topicId?: string;

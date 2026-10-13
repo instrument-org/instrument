@@ -17,8 +17,13 @@ vi.mock(import("../../chat/window-tab"), async (importOriginal) => ({
     Promise.resolve({
       requestId: "r",
       tabs: [
-        { id: OWN, kind: "page", url: "https://example.com/" },
-        { id: FILE, kind: "page", url: "file:///Users/casey/notes.html" },
+        { id: OWN, kind: "page", title: "", url: "https://example.com/" },
+        {
+          id: FILE,
+          kind: "page",
+          title: "",
+          url: "file:///Users/casey/notes.html",
+        },
         { id: "screen-1", kind: "screen" },
       ],
     }),

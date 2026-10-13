@@ -113,7 +113,7 @@ describe("sendContext", () => {
     await expect(sendContext({ chatId: CHAT, isViewOpen: false, leftOut: [] }))
       .resolves.toMatchInlineSnapshot(`
       {
-        "screen": "home",
+        "screen": "conversation",
         "tabs": [
           {
             "at": "https://example.com/",
@@ -121,7 +121,6 @@ describe("sendContext", () => {
             "title": "Example",
           },
         ],
-        "url": "/browser",
       }
     `);
   });
@@ -183,13 +182,6 @@ describe("sendContext", () => {
     await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
       .resolves.toMatchInlineSnapshot(`
       {
-        "attached": [
-          {
-            "kind": "page",
-            "title": "Example",
-            "url": "https://example.com/",
-          },
-        ],
         "page": {
           "selection": "Words on the page",
           "tab": "guest",
@@ -240,17 +232,6 @@ describe("sendContext", () => {
     await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
       .resolves.toMatchInlineSnapshot(`
       {
-        "attached": [
-          {
-            "items": [
-              {
-                "kind": "file",
-                "path": "/Users/casey/Downloads/receipt.pdf",
-              },
-            ],
-            "kind": "paths",
-          },
-        ],
         "file": {
           "mount": "/Users/casey/Downloads/receipt.pdf",
           "name": "receipt.pdf",
@@ -283,13 +264,6 @@ describe("sendContext", () => {
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
-        "attached": [
-          {
-            "kind": "page",
-            "title": "Example",
-            "url": "https://example.com/",
-          },
-        ],
         "screen": "browser",
         "tabs": [
           {
@@ -330,13 +304,6 @@ describe("sendContext", () => {
     await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
       .resolves.toMatchInlineSnapshot(`
       {
-        "attached": [
-          {
-            "kind": "screen",
-            "title": "Tasks",
-            "url": "/tasks?chat=2026-10-01-lisbon",
-          },
-        ],
         "screen": "tasks",
         "tabs": [
           {
@@ -766,7 +733,7 @@ describe("draftContext", () => {
 
     const leftOut = contextReaders(
       windowOf({
-        drafts: [{ ...DRAFT, leftOut: ["tab:page"] }],
+        drafts: [{ ...DRAFT, leftOut: [`chat:${CHAT}`] }],
         paneOpenByGroup: { [CHAT]: true },
         windowTabs: tabsOf([page], CHAT),
       }),
@@ -780,7 +747,18 @@ describe("draftContext", () => {
         windowTabs: tabsOf([page], CHAT),
       }),
     );
-    await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
+    // The chat is on screen with its pane shut: still the chat.
+    await expect(paneShut.draftContext(DRAFT.id)).resolves.toMatchObject({
+      chat: { id: CHAT },
+    });
+  });
+
+  it("names nothing for a chat trashed since the draft was opened over it", async () => {
+    const gone = ChatIdSchema.parse("2026-10-02-gone");
+    const { draftContext } = contextReaders(
+      windowOf({ drafts: [{ ...DRAFT, included: { chat: gone } }] }),
+    );
+    await expect(draftContext(DRAFT.id)).resolves.toBeUndefined();
   });
 
   it("counts a chat's pane the toggle never touched as open", async () => {

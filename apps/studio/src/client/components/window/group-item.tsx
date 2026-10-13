@@ -172,7 +172,15 @@ export function GroupItem({
           }
         }}
         onVisit={(href) => {
-          windowTabs.visitHref(up.id, href);
+          // A site at the window's level is the window tab's page, so the
+          // window's tab goes to the screen the way the command menu sends
+          // it, and back returns to the page; in a chat's or a draft's
+          // group the tab up becomes the screen in its place.
+          if (before) {
+            appWindow.openScreen(href);
+          } else {
+            windowTabs.visitHref(up.id, href);
+          }
         }}
         {...(up.kind === "page"
           ? {

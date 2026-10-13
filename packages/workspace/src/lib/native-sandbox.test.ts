@@ -247,6 +247,10 @@ describe("refusedPathIn", () => {
       "~/newproj",
     ],
     [
+      "mkdir: cannot create directory ‘/Users/someone/newproj’: Read-only file system",
+      "~/newproj",
+    ],
+    [
       "touch: cannot touch '/Users/someone/newproj/x': Read-only file system",
       "~/newproj",
     ],

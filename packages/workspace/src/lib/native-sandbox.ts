@@ -894,7 +894,8 @@ export function refusedPathIn(
     // first (`/bin/sh: 1: cannot create <path>`). A program names a path
     // the way it was given, so `closed/a.txt` is read against the cwd.
     for (const match of [
-      ...line.matchAll(/(?<=^|[\s:'"`(=[])[^\s:'"`]*\/[^\s:'"`]*/g),
+      // GNU tools quote a path in curly quotes (‘/home/x’) in a UTF-8 locale.
+      ...line.matchAll(/(?<=^|[\s:'"`(=[‘“])[^\s:'"`‘’“”]*\/[^\s:'"`‘’“”]*/g),
     ].toReversed()) {
       const named = match[0];
       if (!path.isAbsolute(named) && cwd === undefined) {

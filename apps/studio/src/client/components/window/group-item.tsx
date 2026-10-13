@@ -45,6 +45,7 @@ export function GroupItem({
   closeTab,
   group,
   isFramed = true,
+  isShown = true,
   onClose,
   onExpand,
   onPageChrome,
@@ -57,6 +58,8 @@ export function GroupItem({
   group: string;
   /** Whether it stands on a card inset in its band, as in a draft; a grown popped-out chat draws it edge to edge, as the pane beside a chat does. */
   isFramed?: boolean;
+  /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
+  isShown?: boolean;
   /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
   onClose?: () => void;
   /** Grows it into the larger view, from Expand beside the ×, for a surface that only peeks at it. */
@@ -278,6 +281,7 @@ export function GroupItem({
             closeTab(up.id);
           },
           id: up.id,
+          isShown,
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },

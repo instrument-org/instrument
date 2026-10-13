@@ -118,6 +118,11 @@ describe("statusLine", () => {
       { chat: at("failed"), listed: [] },
       { text: "Stopped on an error", tone: "failed" },
     ],
+    [
+      "a chat stopped at a usage limit, calmly",
+      { chat: at("limited"), listed: [] },
+      { text: "Stopped at a usage limit", tone: "limited" },
+    ],
   ])("says %s", (_, input, expected) => {
     expect(statusLine(input)).toEqual(expected);
   });

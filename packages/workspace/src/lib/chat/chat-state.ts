@@ -1,5 +1,5 @@
 /** Where a chat stands, as its row and its line say it. */
-export type ChatState = "failed" | "idle" | "waiting" | "working";
+export type ChatState = "failed" | "idle" | "limited" | "waiting" | "working";
 
 /**
  * Where a chat stands, from what is known of it this moment: its own agent,
@@ -17,6 +17,7 @@ export type ChatState = "failed" | "idle" | "waiting" | "working";
 export function chatStateOf({
   failed,
   hasAsk,
+  limited,
   ownAlive,
   ownAsking,
   pendingWake,
@@ -27,6 +28,8 @@ export function chatStateOf({
   failed: boolean;
   /** Something of the chat's, its own agent or a task, waits on the user. */
   hasAsk: boolean;
+  /** The chat's last turn stopped at a usage limit with nothing said after it. */
+  limited: boolean;
   ownAlive: boolean;
   /** The chat's own newest reply asks the user something. */
   ownAsking: boolean;
@@ -43,6 +46,8 @@ export function chatStateOf({
       ? "waiting"
       : failed
         ? "failed"
-        : "idle";
+        : limited
+          ? "limited"
+          : "idle";
   return { ownWorking, state };
 }

@@ -2,6 +2,7 @@ import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { cn } from "@/client/lib/utils";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -13,8 +14,14 @@ import { type Chat } from "./chats";
 /** What the line under a chat's title says, and in which voice. */
 type StatusLine = {
   text: string;
-  tone: "done" | "failed" | "run" | "stopped" | "wait";
+  tone: "done" | "failed" | "limited" | "run" | "stopped" | "wait";
 };
+
+/**
+ * Said once a usage limit stopped the chat's last turn, which is not an error:
+ * the notice over its reply box says what to do.
+ */
+export const LIMITED = "Stopped at a usage limit";
 
 /** Said while the chat works and nothing has named the step yet. */
 const WORKING = "Instrument is working";
@@ -53,7 +60,9 @@ export function ChatStatusLine({
           line.tone === "run" && "brand-shiny-text",
           line.tone === "wait" && "text-foreground/80",
           line.tone === "failed" && "text-error-700 dark:text-error-300",
-          (line.tone === "done" || line.tone === "stopped") &&
+          (line.tone === "done" ||
+            line.tone === "limited" ||
+            line.tone === "stopped") &&
             "text-muted-foreground",
         )}
       >
@@ -109,6 +118,11 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
         />
       );
     }
+    case "limited": {
+      return (
+        <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     case "stopped": {
       return (
         <XIcon className="size-3.5 shrink-0 text-error-700 dark:text-error-300" />
@@ -159,6 +173,9 @@ export function statusLine({
   }
   if (chat.state === "failed") {
     return { text: "Stopped on an error", tone: "failed" };
+  }
+  if (chat.state === "limited") {
+    return { text: LIMITED, tone: "limited" };
   }
   const own = chat.lastStep;
   const task = listed

@@ -5,6 +5,7 @@ import { chatStateOf } from "./chat-state";
 const resting = {
   failed: false,
   hasAsk: false,
+  limited: false,
   ownAlive: false,
   ownAsking: false,
   pendingWake: false,
@@ -46,6 +47,8 @@ describe("chatStateOf", () => {
     ["a wake on its way", { pendingWake: true }, "working", false],
     ["a turn that ended in an error", { failed: true }, "failed", false],
     ["an ask over an error", { failed: true, hasAsk: true }, "waiting", false],
+    ["a turn stopped at a usage limit", { limited: true }, "limited", false],
+    ["an ask over a usage limit", { hasAsk: true, limited: true }, "waiting", false],
   ])("%s", (_name, over, state, ownWorking) => {
     expect(chatStateOf({ ...resting, ...over })).toEqual({
       ownWorking,

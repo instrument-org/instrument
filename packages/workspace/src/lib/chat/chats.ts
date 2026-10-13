@@ -107,9 +107,11 @@ export const ChatSchema = z.object({
    * Working while the chat's own agent is alive or a task filed from it is
    * moving; waiting while a task filed from it is stopped on an ask, or its
    * own last turn ended on one; failed while its last turn ended in an error
-   * and nothing has been said since; idle otherwise.
+   * and nothing has been said since; limited the same, when what stopped it
+   * was a usage limit (a plan, a usage window) rather than something going
+   * wrong; idle otherwise.
    */
-  state: z.enum(["failed", "idle", "waiting", "working"]),
+  state: z.enum(["failed", "idle", "limited", "waiting", "working"]),
   title: z.string(),
   /**
    * Whether the agent has named the chat. Until it has, `title` is the
@@ -360,6 +362,8 @@ interface ChatDigest {
   madeFiles: string[];
   /** Whether the chat's last turn ended in an error with nothing said after it. */
   failed: boolean;
+  /** Whether that error was a usage limit, which `failed` then leaves out. */
+  limited: boolean;
   /** The newest user or assistant message's role and time, which says whether a turn is starting. */
   newestTurn?: { at: number; role: "assistant" | "user" };
   openedHosts: string[];
@@ -617,12 +621,21 @@ function digestOf(
   // The last thing the agent did ended in an error, after the user's
   // newest message: a turn that never got its reply out. A retry that went
   // on to answer, or anything the user sends after, leaves it behind.
-  const failed =
+  const endedInError =
     lastAssistant !== undefined &&
     messages.lastIndexOf(lastAssistant) >
       (lastUser ? messages.lastIndexOf(lastUser) : -1) &&
     (lastAssistant.metadata.error !== undefined ||
       lastAssistant.metadata.finishReason === "error");
+  // A plan or usage window that ran out stopped the turn without anything
+  // going wrong, so it is told apart from a failure.
+  const error = lastAssistant?.metadata.error;
+  const limited =
+    endedInError &&
+    error !== undefined &&
+    "classification" in error &&
+    error.classification === "usage-limit";
+  const failed = endedInError && !limited;
   return {
     calledApps: commands.flatMap(appSlugsIn),
     ...(lastAssistant && {
@@ -630,6 +643,7 @@ function digestOf(
     }),
     failed,
     lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
+    limited,
     ...(lastMessageAt !== undefined && { lastMessageAt }),
     ...(lastReplyAt !== undefined && { lastReplyAt }),
     ...(lastUserMessage && {
@@ -947,6 +961,7 @@ function stateOf(
     ...chatStateOf({
       failed: digest.failed,
       hasAsk: ask !== undefined,
+      limited: digest.limited,
       ownAlive: chatIsAlive(chatId),
       ownAsking: digest.ownAsk !== undefined,
       pendingWake: hasPendingWake(chatId),

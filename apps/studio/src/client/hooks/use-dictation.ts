@@ -57,6 +57,29 @@ export type Dictation = {
   stop: (options?: { onLanded?: () => void }) => void;
 };
 
+/**
+ * What a send does while dictation is in play, for a box whose Send and
+ * Enter must never leave dictated words behind: send now when idle, stop and
+ * send once the words land while recording, and wait while the mic opens or
+ * the words are on their way.
+ */
+export function sendDuringDictation(
+  phase: DictationPhase,
+): "send" | "stop-then-send" | "wait" {
+  switch (phase.kind) {
+    case "idle": {
+      return "send";
+    }
+    case "recording": {
+      return "stop-then-send";
+    }
+    case "starting":
+    case "transcribing": {
+      return "wait";
+    }
+  }
+}
+
 /** Whether a dictation is in progress, from the press until its words land. */
 export function isDictating(phase: DictationPhase): boolean {
   return phase.kind !== "idle";

@@ -23,7 +23,11 @@ import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { isDictating, useDictation } from "@/client/hooks/use-dictation";
+import {
+  isDictating,
+  sendDuringDictation,
+  useDictation,
+} from "@/client/hooks/use-dictation";
 import {
   type DroppedFolder,
   useFileDropRegion,
@@ -759,16 +763,27 @@ export const PromptInput = ({
   const sendPressed =
     dictation.phase.kind === "transcribing" &&
     dictation.phase.pressed === "send";
+  // The Send button and Enter alike. While recording, the words are
+  // transcribed and appended first; while the mic opens or the words are on
+  // their way, nothing goes, so a send never leaves them behind.
   const send = () => {
-    if (dictation.phase.kind === "recording") {
-      dictation.stop({
-        onLanded: () => {
-          sendWhenLanded.current = true;
-        },
-      });
-      return;
+    switch (sendDuringDictation(dictation.phase)) {
+      case "send": {
+        handleSubmit();
+        break;
+      }
+      case "stop-then-send": {
+        dictation.stop({
+          onLanded: () => {
+            sendWhenLanded.current = true;
+          },
+        });
+        break;
+      }
+      case "wait": {
+        break;
+      }
     }
-    handleSubmit();
   };
 
   // A long paste made an attachment goes back to being words in the
@@ -1148,7 +1163,7 @@ export const PromptInput = ({
           key={draftKeyString(draftKey)}
           onChange={setValue}
           onPaste={handlePaste}
-          onSubmit={handleSubmit}
+          onSubmit={send}
           placeholder={placeholder}
           ref={promptEditorRef}
           skills={userInvocableSkills}

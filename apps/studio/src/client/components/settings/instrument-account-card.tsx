@@ -6,9 +6,11 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import {
+  describeDate,
   hasPaymentFailed,
   isAccessRevoked,
   subscribedPlan,
+  subscriptionEndsAt,
 } from "@/client/lib/billing";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
@@ -87,6 +89,10 @@ function planLine(
   }
   if (status.subscription) {
     const plan = subscribedPlan(status, offer);
+    const endsAt = subscriptionEndsAt(status);
+    if (plan && endsAt) {
+      return `Your ${plan.name} plan ends ${describeDate(endsAt, new Date())}.`;
+    }
     return plan
       ? `You're on the ${plan.name} plan.`
       : "You have a subscription.";

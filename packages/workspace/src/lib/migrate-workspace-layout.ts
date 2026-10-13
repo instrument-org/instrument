@@ -39,20 +39,16 @@ const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
 // suffix is the db file itself. Harmless if a given sidecar is absent.
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 
-// Presence = legacy projects/ already drained. Empty-by-design; only existence matters.
-const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
-
-// Marker holding this value = a sweep at this version has visited every task
-// under tasks/ and made every 1.x task into a chat and every project into a
-// topic, so boot skips both walks (their cost grows with the task count, and
-// they are a no-op for every task a current build touched). Bump the version
-// when a normalization step is added, so existing workspaces run the sweep
-// once more. Between bumps, tasks must enter the workspace only through code
-// that leaves them in the current shape, as initializeTask does. A task folder
-// hand-copied into tasks/, or one a 1.x build writes after the sweep, stays as
-// it is until the next version bump.
+// The layoutVersion mark holding this value = a sweep at this version has
+// visited every task under tasks/ and made every 1.x task into a chat and
+// every project into a topic, so boot skips both walks (their cost grows with
+// the task count, and they are a no-op for every task a current build
+// touched). Bump the version when a normalization step is added, so existing
+// workspaces run the sweep once more. Between bumps, tasks must enter the
+// workspace only through code that leaves them in the current shape, as
+// initializeTask does. A task folder hand-copied into tasks/, or one a 1.x
+// build writes after the sweep, stays as it is until the next version bump.
 const WORKSPACE_LAYOUT_VERSION = 4;
-const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
 // inherited it as TMPDIR. Each is a copy of the user's real profile -- cookies,
@@ -61,6 +57,23 @@ const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 // builds clone outside the task entirely (getExternalBrowserTmpDir); a task
 // written by an older build can still carry one.
 const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
+
+/** How far this migration has brought a workspace. */
+export interface LayoutMarks {
+  /** The layout version the last sweep that finished with nothing left over ran at. */
+  layoutVersion?: number;
+  /** Set once legacy `projects/` has been drained into `tasks/`. */
+  legacyProjectsMigrated?: boolean;
+}
+
+/**
+ * Where the marks are kept, by whoever owns the workspace's own record (the
+ * app keeps them in its `workspace.json`). A write names only what changed.
+ */
+export interface LayoutMarkStore {
+  read(): LayoutMarks;
+  write(change: LayoutMarks): void;
+}
 
 export interface WorkspaceLayoutMigration {
   // Task folder ids left in place because a task with the same id already
@@ -77,20 +90,22 @@ export interface WorkspaceLayoutMigration {
 }
 
 // Boot migration: two passes.
-// 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: sentinel
-//    runs the pass at most once; isProjectFolder skips any real project folder
-//    (load-bearing — survives a lost marker).
+// 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: the
+//    legacyProjectsMigrated mark runs the pass at most once; isProjectFolder
+//    skips any real project folder (load-bearing: it survives a lost mark).
 // 2. Normalize tasks under tasks/ to current layout, then make 1.x tasks into
-//    chats and projects into topics. Idempotent. Guard: the layout-version
-//    marker skips it once a sweep at the current version has completed, and
+//    chats and projects into topics. Idempotent. Guard: the layoutVersion
+//    mark skips it once a sweep at the current version has completed, and
 //    is written only after one completes with nothing left over, so a sweep a
 //    crash cut short retries on the next boot. It also runs whenever pass 1
 //    did, since the tasks that pass moves in are legacy-shaped.
 // Synchronous, and renames rather than copies except for the browser-profile
 // clones it deletes outright; no db handle open.
 export function migrateWorkspaceLayout({
+  marks,
   rootDir,
 }: {
+  marks: LayoutMarkStore;
   rootDir: string;
 }): WorkspaceLayoutMigration {
   let migration: Omit<WorkspaceLayoutMigration, "legacyTasks"> = {
@@ -98,13 +113,14 @@ export function migrateWorkspaceLayout({
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
   };
-  const legacyMigrationRan = !legacyProjectsMigrationDone(rootDir);
+  const { layoutVersion, legacyProjectsMigrated } = marks.read();
+  const legacyMigrationRan = legacyProjectsMigrated !== true;
   if (legacyMigrationRan) {
     migration = migrateLegacyProjectsDir(rootDir);
-    markLegacyProjectsMigrationDone(rootDir);
+    marks.write({ legacyProjectsMigrated: true });
   }
 
-  if (!legacyMigrationRan && workspaceLayoutCurrent(rootDir)) {
+  if (!legacyMigrationRan && layoutVersion === WORKSPACE_LAYOUT_VERSION) {
     return {
       ...migration,
       legacyTasks: {
@@ -126,7 +142,7 @@ export function migrateWorkspaceLayout({
   // A task or project left over, or a chat left staged with its task inside,
   // is finished by the next boot's sweep.
   if (legacyTasks.leftOver === 0) {
-    markWorkspaceLayoutCurrent(rootDir);
+    marks.write({ layoutVersion: WORKSPACE_LAYOUT_VERSION });
   }
 
   return { ...migration, legacyTasks, removedBrowserProfileCloneCount };
@@ -150,30 +166,6 @@ function isProjectFolder(folderPath: string): boolean {
     return false;
   }
   return ProjectIdSchema.safeParse(parsed.id).success;
-}
-
-function legacyProjectsMarkerPath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    PRIVATE_FOLDER_NAME,
-    LEGACY_PROJECTS_MIGRATED_MARKER_NAME,
-  );
-}
-
-function legacyProjectsMigrationDone(rootDir: string): boolean {
-  return fs.existsSync(legacyProjectsMarkerPath(rootDir));
-}
-
-function markLegacyProjectsMigrationDone(rootDir: string) {
-  const marker = legacyProjectsMarkerPath(rootDir);
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.writeFileSync(marker, "");
-}
-
-function markWorkspaceLayoutCurrent(rootDir: string) {
-  const marker = workspaceLayoutMarkerPath(rootDir);
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.writeFileSync(marker, String(WORKSPACE_LAYOUT_VERSION));
 }
 
 // Moves every top-level entry of source into destination (per-entry, so a
@@ -252,7 +244,7 @@ function moveIfMissingTarget(source: string, destination: string) {
 
 // Normalizes one task folder to the current layout. Each step is idempotent
 // and no-ops on a task already in the current shape. Called for every task by
-// the marker-gated boot sweep. Returns the number of browser profile clones
+// the mark-gated boot sweep. Returns the number of browser profile clones
 // deleted.
 function normalizeTask(taskFolder: string): number {
   normalizeTaskPrivateFiles(taskFolder);
@@ -471,24 +463,4 @@ function stampTaskTimestamps(taskFolder: string) {
     createdAt: current.createdAt ?? observed.createdAt,
     lastActivityAt: current.lastActivityAt ?? observed.lastActivityAt,
   }));
-}
-
-// A missing or unreadable marker reads as stale, which just costs one sweep.
-function workspaceLayoutCurrent(rootDir: string): boolean {
-  try {
-    return (
-      fs.readFileSync(workspaceLayoutMarkerPath(rootDir), "utf8") ===
-      String(WORKSPACE_LAYOUT_VERSION)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function workspaceLayoutMarkerPath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    PRIVATE_FOLDER_NAME,
-    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
-  );
 }

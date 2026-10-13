@@ -107,7 +107,7 @@
 // `workspaceConfig.chatsDir` to the `ELECTRON_USER_DATA_DIR` it sets.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -252,20 +252,15 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
 
   reapWorkArtifacts(path.join(userDataDir, "workspace"));
 
-  // The window's tabs, panes and chat groups live in the workspace's
-  // layout.json, which the seeder never writes, so without this every tab a
-  // run opens comes back on every later boot of the fixture.
-  if (!keepTabs) {
-    rmSync(
-      path.join(
-        userDataDir,
-        "workspace",
-        ".instrument",
-        "settings",
-        "layout.json",
-      ),
-      { force: true },
-    );
+  // The window's tabs, panes and chat groups live in the layout.json of the
+  // workspace's machine folder, which the seeder never writes, so without this
+  // every tab a run opens comes back on every later boot of the fixture.
+  const machineDir = workspaceMachineDir(
+    userDataDir,
+    path.join(userDataDir, "workspace"),
+  );
+  if (!keepTabs && machineDir) {
+    rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
   }
 
   return { tasks: result.tasks, userDataDir };
@@ -276,11 +271,48 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
 const CLEAN_ROOMS_ROOT = path.join(WORKSPACE_CACHE_ROOT, "clean-rooms");
 
 // The sign-in stores a clean room can start from, as the app names them in a
-// workspace's settings folder (workspace-management.ts in Studio). Not the
+// workspace's keys folder (workspace-management.ts in Studio). Not the
 // ChatGPT account: its refresh token rotates on every use, so a clean room holding
 // a copy would sign the developer's own instance out the first time either
 // refreshed.
 const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
+
+/**
+ * The app's folder on this computer for the workspace at `workspaceDir`, where
+ * its keys, browser profiles and window state are: `workspace-storage/<id>/`
+ * in the application data, by the id in the workspace's own workspace.json
+ * (workspaceMachineDirOf in Studio). Undefined until the workspace has one.
+ */
+function workspaceMachineDir(userDataDir, workspaceDir) {
+  const { id } = readIdentity(workspaceDir);
+  return typeof id === "string"
+    ? path.join(userDataDir, "workspace-storage", id)
+    : undefined;
+}
+
+function readIdentity(workspaceDir) {
+  try {
+    return JSON.parse(
+      readFileSync(
+        path.join(workspaceDir, ".instrument", "workspace.json"),
+        "utf8",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Where a workspace's sign-ins are: in its machine folder once the app moved
+ * them there (format 1), and in its settings folder before.
+ */
+function keysDirOf(userDataDir, workspaceDir) {
+  const machineDir = workspaceMachineDir(userDataDir, workspaceDir);
+  return machineDir && readIdentity(workspaceDir).formatVersion >= 1
+    ? path.join(machineDir, "keys")
+    : path.join(workspaceDir, ".instrument", "settings");
+}
 
 /**
  * The shared dev application-data directory, where the app keeps the
@@ -318,14 +350,17 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
   const dir = path.join(CLEAN_ROOMS_ROOT, name);
   const privateDir = path.join(dir, ".instrument");
   const identity = path.join(privateDir, "workspace.json");
-  mkdirSync(path.join(privateDir, "settings"), { recursive: true });
+  mkdirSync(privateDir, { recursive: true });
   if (!existsSync(identity)) {
+    // Its own id from the start, so the sign-ins below have a machine folder
+    // to go in before the app first opens it; the app keeps an id it finds.
     writeFileSync(
       identity,
       `${JSON.stringify(
         {
           color: "purple",
           createdBy: { kind: "agent", purpose },
+          id: randomUUID(),
           name: `Clean room: ${name}`,
           settingsVersion: 1,
         },
@@ -335,21 +370,22 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     );
     // Developer mode on from the start, so the dev panel and `rpc` work.
     writeFileSync(
-      path.join(privateDir, "settings", "preferences.json"),
+      path.join(privateDir, "preferences.json"),
       `${JSON.stringify({ developerMode: true })}\n`,
     );
   }
 
-  if (withSignIns) {
-    const from = path.join(
+  const machineDir = workspaceMachineDir(devUserDataDir(), dir);
+  if (withSignIns && machineDir) {
+    const from = keysDirOf(
       devUserDataDir(),
-      "workspace",
-      ".instrument",
-      "settings",
+      path.join(devUserDataDir(), "workspace"),
     );
+    const keysDir = path.join(machineDir, "keys");
+    mkdirSync(keysDir, { recursive: true });
     let copied = 0;
     for (const file of SIGN_IN_FILES) {
-      const target = path.join(privateDir, "settings", file);
+      const target = path.join(keysDir, file);
       if (existsSync(path.join(from, file)) && !existsSync(target)) {
         copyFileSync(path.join(from, file), target);
         copied++;
@@ -357,7 +393,7 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     }
     if (copied > 0) {
       writeFileSync(
-        path.join(privateDir, "settings", "state.json"),
+        path.join(machineDir, "state.json"),
         `${JSON.stringify({ hasCompletedProviderSetup: true })}\n`,
       );
     }
@@ -369,7 +405,16 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
 }
 
 function reapStaleCleanRooms() {
-  reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS);
+  reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS, {
+    // Its machine folder in the shared application data, whose sign-ins would
+    // otherwise outlive it there.
+    beforeRemove: (dir) => {
+      const machineDir = workspaceMachineDir(devUserDataDir(), dir);
+      if (machineDir) {
+        rmSync(machineDir, { force: true, recursive: true });
+      }
+    },
+  });
 }
 
 function reapStaleWorkspaces() {
@@ -380,7 +425,11 @@ function reapStaleWorkspaces() {
   });
 }
 
-function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
+function reapOlderThan(
+  root,
+  maxAgeMs,
+  { beforeRemove = () => {}, keep = new Set() } = {},
+) {
   let entries;
   try {
     entries = readdirSync(root, { withFileTypes: true });
@@ -395,6 +444,7 @@ function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
     const dir = path.join(root, entry.name);
     try {
       if (Date.now() - statSync(dir).mtimeMs > maxAgeMs) {
+        beforeRemove(dir);
         rmSync(dir, { force: true, recursive: true });
       }
     } catch {

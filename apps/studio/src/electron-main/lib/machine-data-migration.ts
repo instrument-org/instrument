@@ -1,0 +1,386 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
+import {
+  pageThumbnailsDirOf,
+  workspaceSettingsDirOf,
+} from "./settings-migration";
+import {
+  openElsewhereBy,
+  readWorkspaceIdentity,
+  type ResolvedWorkspace,
+  settleWorkspaceId,
+  workspaceMachineDirOf,
+  workspacePrivateDir,
+  writeJsonAtomic,
+  writeWorkspaceIdentity,
+} from "./workspaces";
+
+/**
+ * The format this build keeps a workspace folder in
+ * (`WorkspaceIdentity.formatVersion`). 1: what is this computer's own lives in
+ * the workspace's machine folder.
+ */
+export const WORKSPACE_FORMAT_VERSION = 1;
+
+/**
+ * Present in the machine folder while a move runs, removed once every entry
+ * moved, so a boot that finds it knows the last move stopped partway.
+ */
+const UNFINISHED_MARKER = ".move-unfinished";
+
+/**
+ * The secret stores, by both their names: dev builds write plaintext, packaged
+ * builds safeStorage ciphertext. With them the record of which apps are
+ * connected, which means nothing without their credentials, and the ChatGPT
+ * sign-in under the name it had before it was the ChatGPT account, which
+ * nothing reads but is still a token.
+ */
+const KEY_FILES = [
+  "app-connections.json",
+  "app-credentials.json",
+  "app-credentials.json.enc",
+  "app-oauth.json",
+  "app-oauth.json.enc",
+  "chatgpt-account.json",
+  "chatgpt-account.json.enc",
+  "chatgpt-plan.json",
+  "chatgpt-plan.json.enc",
+  "providers.json",
+  "providers.json.enc",
+  "session-dev.json",
+  "session.json.enc",
+];
+
+/** The stores that follow the person, from the settings folder to the top of `.instrument/`. */
+const TRAVELING_FILES = ["bookmarks.json", "features.json", "preferences.json"];
+
+/** The window's stores: its size and place, where the person left off, how they lay things out. */
+const WINDOW_FILES = ["layout.json", "view.json", "window-state.json"];
+
+/** The in-app browser's lists, which name this computer's files and apps. */
+const BROWSER_FILES = ["downloads.json", "external-app-links.json"];
+
+/** How many times a rename is tried on Windows, 100ms apart. */
+const RENAME_ATTEMPTS = 10;
+
+/** A SQLite file and the files beside it that must travel with it. */
+const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
+
+/**
+ * Takes what is this computer's own out of the resolved workspace folder and
+ * into its machine folder, `<userData>/workspace-storage/<workspace id>/`:
+ * secrets encrypted with this computer's key, the Chromium profiles and
+ * browser history, the window's state, the folder rules (whose paths are this
+ * computer's), installed app servers and the index. What follows the person
+ * stays and moves up out of `.instrument/settings/`, and the layout sweep's
+ * marker files become fields of `workspace.json`.
+ *
+ * Runs after `settings-migration.ts`, before any store opens, once per
+ * workspace: `formatVersion` in `workspace.json` says it is done. Each entry
+ * is renamed (copied, then removed, across volumes) only where its new place
+ * is empty, so nothing is ever made again in place of what it moves, and an
+ * entry that cannot be moved stays where it was and is retried on the next
+ * boot. Never throws: the returned machine folder is where the stores open
+ * either way. A move that stopped partway leaves the stores to open at the
+ * new places and write their defaults there, so the retry puts what is still
+ * at an old place over them, as the settings take-in does.
+ */
+export function moveMachineData({
+  userDataDir,
+  workspace,
+}: {
+  userDataDir: string;
+  workspace: ResolvedWorkspace;
+}): { done: string[]; machineDir: string } {
+  const done: string[] = [];
+  let id: string;
+  try {
+    id = settleWorkspaceId({ userDataDir, workspacePath: workspace.path });
+  } catch (error) {
+    // A workspace whose identity cannot be written keeps its data under the
+    // id it has, or under its registry id, until one can.
+    id = readWorkspaceIdentity(workspace.path).id ?? workspace.id;
+    done.push(
+      `could not settle the workspace's id (${String(error)}); using ${id}`,
+    );
+  }
+  const machineDir = workspaceMachineDirOf(userDataDir, id);
+
+  try {
+    if (
+      readWorkspaceIdentity(workspace.path).formatVersion >=
+      WORKSPACE_FORMAT_VERSION
+    ) {
+      return { done, machineDir };
+    }
+    const marker = path.join(machineDir, UNFINISHED_MARKER);
+    const overwrite = fs.existsSync(marker);
+    writeJsonAtomic(marker, { pid: process.pid });
+    // An older build still running on this workspace has its stores and
+    // profiles open where they are, and moving them from under it would split
+    // each in two. They move on a boot that finds it gone, and the marker
+    // has that move put them over whatever this one writes in the meantime.
+    const holder = openElsewhereBy(workspacePrivateDir(workspace.path));
+    if (holder !== null) {
+      done.push(
+        `left the machine data where it is while process ${holder.toString()} has the workspace open`,
+      );
+      return { done, machineDir };
+    }
+
+    let failed = 0;
+    for (const [from, to] of plannedMoves({
+      machineDir,
+      userDataDir,
+      workspacePath: workspace.path,
+    })) {
+      try {
+        moveEntry({ done, from, overwrite, to });
+      } catch (error) {
+        failed++;
+        done.push(`could not move ${from} (${String(error)}); left it there`);
+      }
+    }
+    foldLayoutMarkers(workspace.path, done);
+    removeLeftovers({ done, userDataDir, workspacePath: workspace.path });
+
+    if (failed === 0) {
+      writeWorkspaceIdentity(workspace.path, {
+        ...readWorkspaceIdentity(workspace.path),
+        formatVersion: WORKSPACE_FORMAT_VERSION,
+      });
+      fs.rmSync(marker, { force: true });
+      done.push(
+        `workspace at format version ${WORKSPACE_FORMAT_VERSION.toString()}, machine data in ${machineDir}`,
+      );
+    }
+  } catch (error) {
+    done.push(`machine data move stopped: ${String(error)}`);
+  }
+  return { done, machineDir };
+}
+
+function entryExists(entry: string): boolean {
+  try {
+    fs.lstatSync(entry);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `.layout-version` and `.legacy-projects-migrated`, which the layout sweep
+ * left in `.instrument/`, as the fields it now keeps in `workspace.json`
+ * (`workspaceLayoutMarks`). Written before the files go, so a crash between
+ * the two leaves both rather than neither.
+ */
+function foldLayoutMarkers(workspacePath: string, done: string[]) {
+  const dataDir = workspacePrivateDir(workspacePath);
+  const versionFile = path.join(dataDir, ".layout-version");
+  const projectsFile = path.join(dataDir, ".legacy-projects-migrated");
+  const change: { layoutVersion?: number; legacyProjectsMigrated?: true } = {};
+  try {
+    const version = Number(fs.readFileSync(versionFile, "utf8").trim());
+    if (Number.isInteger(version) && version >= 0) {
+      change.layoutVersion = version;
+    }
+  } catch {
+    // No sweep finished yet, or a file it cut short: the next one says.
+  }
+  if (fs.existsSync(projectsFile)) {
+    change.legacyProjectsMigrated = true;
+  }
+  if (Object.keys(change).length > 0) {
+    writeWorkspaceIdentity(workspacePath, {
+      ...readWorkspaceIdentity(workspacePath),
+      ...change,
+    });
+    done.push("folded the layout markers into workspace.json");
+  }
+  fs.rmSync(versionFile, { force: true });
+  fs.rmSync(projectsFile, { force: true });
+}
+
+function isErrorCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
+/**
+ * Move `from` to `to` where `to` is free. With `overwrite`, `from` replaces
+ * what is at `to`: the stores' defaults, written there after an earlier move
+ * stopped partway. Without it, an entry already at `to` is kept and `from`
+ * left where it is.
+ */
+function moveEntry({
+  done,
+  from,
+  overwrite,
+  to,
+}: {
+  done: string[];
+  from: string;
+  overwrite: boolean;
+  to: string;
+}) {
+  if (!entryExists(from)) {
+    return;
+  }
+  if (entryExists(to)) {
+    if (!overwrite) {
+      done.push(`left ${from}: ${to} is already there`);
+      return;
+    }
+    fs.rmSync(to, { force: true, recursive: true });
+  }
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  try {
+    renameRetrying(from, to);
+  } catch (error) {
+    if (!isErrorCode(error, "EXDEV")) {
+      throw error;
+    }
+    // Through a sibling, so a copy cut short is never taken for a finished
+    // one by the "already there" check.
+    const partial = `${to}.partial-${process.pid.toString()}`;
+    fs.rmSync(partial, { force: true, recursive: true });
+    fs.cpSync(from, partial, {
+      preserveTimestamps: true,
+      recursive: true,
+      verbatimSymlinks: true,
+    });
+    fs.renameSync(partial, to);
+    fs.rmSync(from, { force: true, recursive: true });
+  }
+  done.push(`moved ${from} to ${to}`);
+}
+
+/**
+ * A rename, tried again for a moment on Windows, where a file another program
+ * has open (an antivirus scan, the search indexer) refuses one until it lets
+ * go.
+ */
+function renameRetrying(from: string, to: string) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      fs.renameSync(from, to);
+      return;
+    } catch (error) {
+      if (
+        process.platform !== "win32" ||
+        attempt >= RENAME_ATTEMPTS ||
+        !["EACCES", "EBUSY", "EPERM"].some((code) => isErrorCode(error, code))
+      ) {
+        throw error;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+}
+
+/** Every entry that moves, from where it was to where it goes. */
+function plannedMoves({
+  machineDir,
+  userDataDir,
+  workspacePath,
+}: {
+  machineDir: string;
+  userDataDir: string;
+  workspacePath: string;
+}): [from: string, to: string][] {
+  const dataDir = workspacePrivateDir(workspacePath);
+  const settingsDir = workspaceSettingsDirOf(workspacePath);
+  const keysDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
+  const browserDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.browser);
+  const windowDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.window);
+  // Any other encrypted store goes with the keys: whatever it is, it was
+  // encrypted with this computer's key.
+  const keyFiles = new Set(KEY_FILES);
+  try {
+    for (const name of fs.readdirSync(settingsDir)) {
+      if (name.endsWith(".enc")) {
+        keyFiles.add(name);
+      }
+    }
+  } catch {
+    // No settings folder: nothing to move out of it.
+  }
+  // The index was named by a hash of the workspace's folder in a folder
+  // every workspace shared.
+  const index = `${createHash("sha256").update(workspacePath).digest("hex").slice(0, 16)}.db`;
+  const into = (from: string, toDir: string, names: Iterable<string>) =>
+    [...names].map((name): [string, string] => [
+      path.join(from, name),
+      path.join(toDir, name),
+    ]);
+  return [
+    ...into(settingsDir, keysDir, keyFiles),
+    [
+      path.join(settingsDir, "state.json"),
+      path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.state),
+    ],
+    ...into(settingsDir, browserDir, BROWSER_FILES),
+    ...into(dataDir, browserDir, ["app-session", "browser-session"]),
+    ...into(
+      dataDir,
+      browserDir,
+      SQLITE_FILES.map((suffix) => `history.db${suffix}`),
+    ),
+    [
+      pageThumbnailsDirOf(workspacePath),
+      path.join(browserDir, "page-thumbnails"),
+    ],
+    ...into(settingsDir, windowDir, WINDOW_FILES),
+    [
+      path.join(workspacePath, "permissions.json"),
+      path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.permissions),
+    ],
+    [
+      path.join(workspacePath, ".app-servers"),
+      path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.appServers),
+    ],
+    ...into(
+      path.join(userDataDir, "indexes"),
+      path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.index),
+      SQLITE_FILES.map((suffix) => `${index}${suffix}`),
+    ),
+    ...into(settingsDir, dataDir, TRAVELING_FILES),
+  ];
+}
+
+/**
+ * What nothing reads any more: `window.json`, retired with what it held; the
+ * open mark, now kept on this computer's side, which no live process holds by
+ * the time this runs; and the folders the moves emptied.
+ */
+function removeLeftovers({
+  done,
+  userDataDir,
+  workspacePath,
+}: {
+  done: string[];
+  userDataDir: string;
+  workspacePath: string;
+}) {
+  const dataDir = workspacePrivateDir(workspacePath);
+  if (entryExists(path.join(dataDir, "window.json"))) {
+    fs.rmSync(path.join(dataDir, "window.json"), { force: true });
+    done.push("removed window.json, which nothing reads");
+  }
+  fs.rmSync(path.join(dataDir, WORKSPACE_MACHINE_ENTRIES.openMark), {
+    force: true,
+  });
+  for (const dir of [
+    workspaceSettingsDirOf(workspacePath),
+    path.join(userDataDir, "indexes"),
+  ]) {
+    try {
+      fs.rmdirSync(dir);
+    } catch {
+      // Not empty, or not there: either way it stays as it is.
+    }
+  }
+}

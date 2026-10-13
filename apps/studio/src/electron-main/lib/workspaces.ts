@@ -1,15 +1,23 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import {
+  PRIVATE_FOLDER_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
+import type { LayoutMarkStore } from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import path from "node:path";
+import { ulid } from "ulid";
 import { z } from "zod";
 
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
  *
  * A workspace is a folder: chats, tasks, and the rest at the top level, and
- * what the app keeps for it under `.instrument/` (its database, its settings
- * stores, its Chromium profiles). The machine keeps a list of them in
- * `workspaces.json` at the root of userData, with the one to open next.
+ * what the app keeps for it that travels with it under `.instrument/` (its
+ * identity, its preferences). What is this computer's own about it (keys,
+ * Chromium profiles, window state, folder rules) is in its machine folder,
+ * `<userData>/workspace-storage/<workspace id>/`, under the id in its
+ * `workspace.json`. The machine keeps a list of them in `workspaces.json` at
+ * the root of userData, with the one to open next.
  *
  * Everything here is synchronous and never throws, because it runs in
  * `setup-environment.ts` before any store opens: a damaged registry has to
@@ -24,9 +32,16 @@ const DEFAULT_WORKSPACE_DIR_NAME = "workspace";
 /** Where workspaces created after the default one are put. */
 const WORKSPACES_DIR_NAME = "workspaces";
 
+/**
+ * Where this computer keeps each workspace's own data, one folder per
+ * workspace id. Not `workspaces/`, which holds whole workspaces made from the
+ * dev panel: one folder name meaning two kinds of thing would let a listing
+ * or a delete take the wrong one.
+ */
+const WORKSPACE_STORAGE_DIR_NAME = "workspace-storage";
+
 const REGISTRY_FILENAME = "workspaces.json";
 const IDENTITY_FILENAME = "workspace.json";
-const OPEN_PID_FILENAME = "open.pid";
 
 const WORKSPACE_COLORS = [
   "gray",
@@ -53,6 +68,27 @@ const WorkspaceCreatorSchema = z.discriminatedUnion("kind", [
 export const WorkspaceIdentitySchema = z.object({
   color: WorkspaceColorSchema.catch("gray"),
   createdBy: WorkspaceCreatorSchema.catch({ kind: "person" }),
+  /**
+   * The format the workspace folder is in. 1: what is this computer's own
+   * (keys, browser profiles, window state, folder rules) lives in its
+   * machine folder, not here.
+   */
+  formatVersion: z.number().int().nonnegative().catch(0),
+  /**
+   * The workspace's own id, a ULID minted the first time a build that keeps
+   * its machine data apart opens it, and what that data is kept under. It
+   * names a folder, so anything but letters, digits, `-` and `_` reads as
+   * none and a new one is minted.
+   */
+  id: z
+    .string()
+    .regex(/^[\dA-Za-z][\w-]{0,63}$/)
+    .optional()
+    .catch(undefined),
+  /** The layout version the last finished sweep of `migrateWorkspaceLayout` left. */
+  layoutVersion: z.number().int().nonnegative().optional().catch(undefined),
+  /** Set once that sweep has taken in a 1.x `projects/` folder. */
+  legacyProjectsMigrated: z.boolean().optional().catch(undefined),
   name: z.string().min(1).catch("Workspace"),
   /** How far `settings-migration.ts` has brought this workspace. */
   settingsVersion: z.number().int().nonnegative().catch(0),
@@ -88,6 +124,12 @@ export interface ResolvedWorkspace {
    */
   pinned: boolean;
 }
+
+/** The workspace this process runs, once its machine data is in place. */
+export type OpenWorkspace = ResolvedWorkspace & {
+  /** This computer's folder for it (`workspaceMachineDirOf`). */
+  machineDir: string;
+};
 export type WorkspaceIdentity = z.output<typeof WorkspaceIdentitySchema>;
 export type WorkspaceRegistry = z.output<typeof RegistrySchema>;
 
@@ -208,6 +250,106 @@ export function updateRegistry(
     });
     return next;
   });
+}
+
+/**
+ * The machine folder of the workspace at `workspacePath`, when it has one: it
+ * has an id, and that id's folder says it belongs to this workspace.
+ * Undefined for a workspace no build that keeps machine data apart has opened
+ * yet, and for a copy of another still carrying its original's id.
+ */
+export function machineDirOwnedBy(
+  userDataDir: string,
+  workspacePath: string,
+): string | undefined {
+  const { id } = readWorkspaceIdentity(workspacePath);
+  if (id === undefined) {
+    return undefined;
+  }
+  const machineDir = workspaceMachineDirOf(userDataDir, id);
+  const owner = readOwner(userDataDir, machineDir);
+  return owner !== undefined && samePath(owner, workspacePath)
+    ? machineDir
+    : undefined;
+}
+
+/**
+ * The workspace's id from its `workspace.json`, settled before its machine
+ * folder is first used. Minted where it has none, and minted again for a copy
+ * of a workspace whose folder is still there with the same id, so the copy
+ * starts with machine data of its own (signed out, a fresh browser) rather
+ * than sharing the original's keys and profiles. A workspace whose folder
+ * moved finds its id's folder recorded for a path that no longer holds it,
+ * and takes it over. Under the registry's lock, so two processes opening one
+ * workspace at once settle on one id.
+ */
+export function settleWorkspaceId({
+  newId = ulid,
+  userDataDir,
+  workspacePath,
+}: {
+  newId?: () => string;
+  userDataDir: string;
+  workspacePath: string;
+}): string {
+  return withRegistryLock(userDataDir, () => {
+    const identity = readWorkspaceIdentity(workspacePath);
+    if (identity.id !== undefined) {
+      const machineDir = workspaceMachineDirOf(userDataDir, identity.id);
+      const owner = readOwner(userDataDir, machineDir);
+      if (owner !== undefined && samePath(owner, workspacePath)) {
+        return identity.id;
+      }
+      if (
+        owner === undefined ||
+        readWorkspaceIdentity(owner).id !== identity.id
+      ) {
+        writeOwner(userDataDir, machineDir, workspacePath);
+        return identity.id;
+      }
+    }
+    const id = newId();
+    writeWorkspaceIdentity(workspacePath, { ...identity, id });
+    writeOwner(
+      userDataDir,
+      workspaceMachineDirOf(userDataDir, id),
+      workspacePath,
+    );
+    return id;
+  });
+}
+
+/**
+ * Where `migrateWorkspaceLayout` keeps how far it has brought the workspace:
+ * two fields of its `workspace.json`, so the record travels with the folders
+ * it describes.
+ */
+export function workspaceLayoutMarks(workspacePath: string): LayoutMarkStore {
+  return {
+    read: () => {
+      const { layoutVersion, legacyProjectsMigrated } =
+        readWorkspaceIdentity(workspacePath);
+      return { layoutVersion, legacyProjectsMigrated };
+    },
+    write: (change) => {
+      writeWorkspaceIdentity(workspacePath, {
+        ...readWorkspaceIdentity(workspacePath),
+        ...change,
+      });
+    },
+  };
+}
+
+/**
+ * This computer's folder for the workspace with this id: what is secret,
+ * means something only here, or is rebuilt here (`WORKSPACE_MACHINE_ENTRIES`),
+ * none of which travels with the workspace folder.
+ */
+export function workspaceMachineDirOf(
+  userDataDir: string,
+  workspaceId: string,
+): string {
+  return path.join(userDataDir, WORKSPACE_STORAGE_DIR_NAME, workspaceId);
 }
 
 export function workspacePrivateDir(workspacePath: string): string {
@@ -430,13 +572,13 @@ function withRegistryLock<T>(userDataDir: string, run: () => T): T {
   }
 }
 
-let resolvedWorkspace: ResolvedWorkspace | undefined;
+let resolvedWorkspace: OpenWorkspace | undefined;
 
 /**
  * The workspace this process runs. Resolved once in `setup-environment.ts`; a
  * read before that would put a store in the wrong folder, so it throws instead.
  */
-export function getResolvedWorkspace(): ResolvedWorkspace {
+export function getResolvedWorkspace(): OpenWorkspace {
   if (!resolvedWorkspace) {
     throw new Error(
       "The workspace was read before setup-environment resolved it",
@@ -446,30 +588,35 @@ export function getResolvedWorkspace(): ResolvedWorkspace {
 }
 
 /**
- * Mark the workspace open in this process, until `releaseOpenMark`. Advisory:
- * it does not stop a second process opening the same workspace (worktrees
- * share the default one), only a delete from under a running one.
+ * Mark the workspace whose machine folder this is open in this process, until
+ * `releaseOpenMark`. Advisory: it does not stop a second process opening the
+ * same workspace (worktrees share the default one), only a delete from under
+ * a running one. On this computer's side, since a process id means nothing
+ * on another.
  */
-export function markWorkspaceOpen(workspacePath: string): void {
+export function markWorkspaceOpen(machineDir: string): void {
   // A live process already holding it keeps its mark: a second process (a
   // single-instance lock loser on its way out, a second worktree) would
   // otherwise take the mark and then remove it on exit.
-  if (openElsewhereBy(workspacePath) !== null) {
+  if (openElsewhereBy(machineDir) !== null) {
     return;
   }
   try {
-    fs.mkdirSync(workspacePrivateDir(workspacePath), { recursive: true });
-    fs.writeFileSync(openPidPath(workspacePath), process.pid.toString());
+    fs.mkdirSync(machineDir, { recursive: true });
+    fs.writeFileSync(openPidPath(machineDir), process.pid.toString());
   } catch {
     // Advisory; a workspace that cannot be marked still opens.
   }
 }
 
-/** The pid of another live process holding the workspace open, if any. */
-export function openElsewhereBy(workspacePath: string): null | number {
+/**
+ * The pid of another live process holding open the workspace marked in
+ * `markDir` (its machine folder), if any.
+ */
+export function openElsewhereBy(markDir: string): null | number {
   let pid: number;
   try {
-    pid = Number(fs.readFileSync(openPidPath(workspacePath), "utf8").trim());
+    pid = Number(fs.readFileSync(openPidPath(markDir), "utf8").trim());
   } catch {
     return null;
   }
@@ -484,23 +631,57 @@ export function openElsewhereBy(workspacePath: string): null | number {
   }
 }
 
-export function releaseOpenMark(workspacePath: string): void {
+export function releaseOpenMark(machineDir: string): void {
   try {
     if (
-      fs.readFileSync(openPidPath(workspacePath), "utf8").trim() ===
+      fs.readFileSync(openPidPath(machineDir), "utf8").trim() ===
       process.pid.toString()
     ) {
-      fs.rmSync(openPidPath(workspacePath));
+      fs.rmSync(openPidPath(machineDir));
     }
   } catch {
     // Already gone, or another process took it over.
   }
 }
 
-export function setResolvedWorkspace(workspace: ResolvedWorkspace): void {
+export function setResolvedWorkspace(workspace: OpenWorkspace): void {
   resolvedWorkspace = workspace;
 }
 
-function openPidPath(workspacePath: string) {
-  return path.join(workspacePrivateDir(workspacePath), OPEN_PID_FILENAME);
+function openPidPath(markDir: string) {
+  return path.join(markDir, WORKSPACE_MACHINE_ENTRIES.openMark);
+}
+
+/** The workspace folder a machine folder's record says it belongs to. */
+function readOwner(
+  userDataDir: string,
+  machineDir: string,
+): string | undefined {
+  const parsed = z
+    .object({ path: z.string().min(1) })
+    .safeParse(
+      readJson(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner)),
+    );
+  return parsed.success
+    ? path.resolve(userDataDir, parsed.data.path)
+    : undefined;
+}
+
+function samePath(a: string, b: string) {
+  return path.resolve(a) === path.resolve(b);
+}
+
+/**
+ * Record which workspace folder a machine folder belongs to, relative to
+ * userData when it is inside it, as the registry stores it, so a copied
+ * application-data directory finds its own workspace there.
+ */
+function writeOwner(
+  userDataDir: string,
+  machineDir: string,
+  workspacePath: string,
+) {
+  writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner), {
+    path: storedPath(path.resolve(workspacePath), userDataDir),
+  });
 }

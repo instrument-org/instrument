@@ -1,9 +1,13 @@
 import { revokeSession } from "@/electron-main/auth/client";
 import { logger } from "@/electron-main/lib/electron-logger";
+import {
+  machineDir,
+  workspaceKeysDir,
+} from "@/electron-main/lib/get-workspace-folder";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
-import { workspaceSettingsDirOf } from "@/electron-main/lib/settings-migration";
 import {
   createWorkspace,
+  keysDirOf,
   listWorkspaces,
   registerStray,
   unregisterWorkspace,
@@ -11,6 +15,7 @@ import {
 } from "@/electron-main/lib/workspace-management";
 import {
   getResolvedWorkspace,
+  machineDirOwnedBy,
   readRegistry,
   readWorkspaceIdentity,
   updateRegistry,
@@ -20,7 +25,7 @@ import {
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
-import { app, shell } from "electron";
+import { shell } from "electron";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -48,7 +53,7 @@ async function sizeOnDisk(dir: string): Promise<null | number> {
   }
 }
 
-const userDataDir = () => app.getPath("userData");
+const userDataDir = machineDir;
 
 const WorkspaceRowSchema = z.object({
   /** Why Delete is unavailable, or null when it is offered. */
@@ -145,7 +150,7 @@ const create = devOnly
   .handler(({ input }) => {
     const { id } = createWorkspace({
       color: input.color,
-      copySignInsFrom: input.copySignIns ? getResolvedWorkspace().path : null,
+      copySignInsFrom: input.copySignIns ? workspaceKeysDir() : null,
       developerMode: isDeveloperMode(),
       name: input.name,
       userDataDir: userDataDir(),
@@ -207,18 +212,24 @@ const remove = devOnly
     // ends too, unless another workspace holds the same one (a workspace made
     // with the sign-in copied shares its session), which would be signed out
     // with it.
-    const token = readBearerTokenIn(workspaceSettingsDirOf(listing.path));
+    const token = readBearerTokenIn(keysDirOf(userDataDir(), listing.path));
     const sharedWith = listings.some(
       (other) =>
         other !== listing &&
-        readBearerTokenIn(workspaceSettingsDirOf(other.path)) === token,
+        readBearerTokenIn(keysDirOf(userDataDir(), other.path)) === token,
     );
     if (token !== null && !sharedWith) {
       await revokeSession(token).catch((error: unknown) => {
         logger.warn("Could not end the deleted workspace's session", error);
       });
     }
+    // Read before the folder goes, since its id is in the folder. Its keys
+    // and browser profiles go to the Trash with it.
+    const ownMachineDir = machineDirOwnedBy(userDataDir(), listing.path);
     await shell.trashItem(listing.path);
+    if (ownMachineDir !== undefined) {
+      await shell.trashItem(ownMachineDir);
+    }
     unregisterWorkspace({ dir: listing.path, userDataDir: userDataDir() });
   });
 

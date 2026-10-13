@@ -136,6 +136,34 @@ export const SETTINGS_FILE_NAME = `settings.json`;
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
 export const PRIVATE_FOLDER_NAME = `.instrument`;
 
+/**
+ * What this computer keeps for one workspace, in a folder of its own under
+ * the workspace's id and outside the workspace: what is secret, means
+ * something only on this computer, or is rebuilt here, so the workspace
+ * folder never carries it to another one. Named here because the app and the
+ * agent's package both reach into it.
+ */
+export const WORKSPACE_MACHINE_ENTRIES = {
+  /** The local servers of connected apps, as installed. */
+  appServers: "app-servers",
+  /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */
+  browser: "browser",
+  /** The index of the workspace's chats, rebuilt from them whenever it is missing. */
+  index: "index",
+  /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
+  keys: "keys",
+  /** The process that has the workspace open. */
+  openMark: "open.pid",
+  /** The workspace folder this one belongs to, so a copy of that folder never shares it. */
+  owner: "workspace-folder.json",
+  /** Settings › Permissions, whose folder rules name this computer's paths. */
+  permissions: "permissions.json",
+  /** What the app remembers about the workspace on this computer. */
+  state: "state.json",
+  /** The window's size and place, and where the person left off in it. */
+  window: "window",
+} as const;
+
 // 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below
 // the OS ephemeral range (49152+). Env suffixes (prod/dev/test) allow all
 // three to run side-by-side.

@@ -1,4 +1,4 @@
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { screen } from "electron";
 import Store from "electron-store";
 
@@ -54,7 +54,7 @@ let STORE: null | Store<StoredWindowState> = null;
  */
 function getStore(): Store<StoredWindowState> {
   STORE ??= new Store<StoredWindowState>({
-    cwd: workspaceSettingsDir(),
+    cwd: workspaceWindowDir(),
     name: "window-state",
   });
   return STORE;

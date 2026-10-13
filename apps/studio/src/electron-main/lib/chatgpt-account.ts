@@ -1,7 +1,7 @@
 import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
@@ -297,7 +297,7 @@ function getStore(): Store<StoreShape> {
   if (!STORE) {
     const defaults: StoreShape = { registrations: {} };
     STORE = new Store<StoreShape>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceKeysDir(),
       defaults,
       deserialize: (value) => {
         try {

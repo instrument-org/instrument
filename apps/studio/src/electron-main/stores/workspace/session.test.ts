@@ -17,7 +17,7 @@ vi.mock("electron", () => ({
   },
 }));
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  workspaceSettingsDir: () => dir.value,
+  workspaceKeysDir: () => dir.value,
 }));
 vi.mock("@/electron-main/lib/electron-logger", () => ({
   logger: { error: vi.fn() },

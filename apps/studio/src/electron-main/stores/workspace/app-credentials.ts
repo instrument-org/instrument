@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
 import { type StoredAppCredential } from "@instrument-org/workspace/electron";
 import { safeStorage } from "electron";
@@ -31,7 +31,7 @@ const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
     const defaultStore: AppCredentialsStore = { credentials: {} };
 
     APP_CREDENTIALS_STORE = new Store<AppCredentialsStore>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceKeysDir(),
       defaults: defaultStore,
       deserialize: (value) => {
         if (is.dev) {

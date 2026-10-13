@@ -1,11 +1,15 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import Store from "electron-store";
 import { z } from "zod";
 
 import { getProviderConfigsStore } from "./provider-configs";
 
-/** What the app remembers about this workspace. Machine-wide state is in `machine/state.ts`. */
+/**
+ * What the app remembers about this workspace on this computer: whether its
+ * providers are set up, which holds only with this computer's keys. Kept in
+ * the workspace's machine folder; machine-wide state is in `machine/state.ts`.
+ */
 const WorkspaceStateSchema = z.object({
   hasCompletedProviderSetup: z.boolean().catch(false),
 });
@@ -18,7 +22,7 @@ export const getWorkspaceState = (): Store<WorkspaceState> => {
   if (STORE === null) {
     const defaults = WorkspaceStateSchema.parse({});
     STORE = new Store<WorkspaceState>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceMachineDir(),
       defaults,
       deserialize: (value) => {
         const parsed = WorkspaceStateSchema.safeParse(JSON.parse(value));

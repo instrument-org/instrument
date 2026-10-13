@@ -51,11 +51,14 @@ beforeAll(async () => {
   await fs.mkdir(closed);
   await fs.mkdir(path.join(docs, "asks"));
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
-  // Settings live in the workspace's root, which the mock chats share across
+  // Settings live in the workspace's machine folder, which the app hands the
+  // bash worker with the rest of the config, so the worker's cases fail if
+  // it reads them anywhere else. The mock chats share their workspace across
   // test files, so this file keeps its own.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(tmpDir, "machine")),
   });
   await updatePermissionSettings((settings) => ({
     ...settings,
@@ -152,6 +155,13 @@ describe.each(Object.entries(shells))(
       expect(listed.stderr).toContain(
         `Waiting on the person to allow ${path.join(docs, "asks")}.`,
       );
+    });
+
+    it("finds the workspace's machine folder missing, its folder rules with it", async () => {
+      const bash = await shell();
+      const result = await bash.exec(`cat ${tmpDir}/machine/permissions.json`);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("No such file or directory");
     });
 
     it("still says a missing file is missing", async () => {

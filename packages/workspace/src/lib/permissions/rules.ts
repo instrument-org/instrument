@@ -1,3 +1,4 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -11,7 +12,7 @@ import {
 } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "./asks";
-import { getWorkspaceConfig } from "../workspace-config";
+import { workspaceMachineDir } from "../workspace-machine-dir";
 import {
   type Level,
   LevelSchema,
@@ -62,9 +63,15 @@ const PermissionSettingsSchema = z.object({
 });
 export type PermissionSettings = z.output<typeof PermissionSettingsSchema>;
 
-/** Where the workspace keeps Settings › Permissions. */
+/**
+ * Where Settings › Permissions is kept: on this computer's side of the
+ * workspace, since its folder rules name this computer's paths.
+ */
 function permissionsFile(): string {
-  return path.join(getWorkspaceConfig().rootDir, "permissions.json");
+  return path.join(
+    workspaceMachineDir(),
+    WORKSPACE_MACHINE_ENTRIES.permissions,
+  );
 }
 
 export async function readPermissionSettings(): Promise<PermissionSettings> {

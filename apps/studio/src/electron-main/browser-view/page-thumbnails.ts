@@ -1,5 +1,4 @@
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { pageThumbnailsDirOf } from "@/electron-main/lib/settings-migration";
+import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { captureFrame } from "@/electron-main/browser-view/capture-frame";
 import { webContents } from "electron";
 import { createHash } from "node:crypto";
@@ -122,9 +121,12 @@ function asDataUrl(jpeg: Buffer) {
   return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
 }
 
-/** In the workspace: these are pictures of what its signed-in pages showed. */
+/**
+ * Beside the browser profile the pages were signed in on: these are pictures
+ * of what they showed, and stay on this computer with it.
+ */
 function folder() {
-  return pageThumbnailsDirOf(getWorkspaceFolder());
+  return path.join(workspaceBrowserDir(), "page-thumbnails");
 }
 
 function hold(key: string, url: string) {

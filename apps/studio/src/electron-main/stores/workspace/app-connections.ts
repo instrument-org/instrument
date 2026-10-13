@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   type AppConnection,
   AppConnectionSchema,
@@ -10,10 +10,10 @@ import { z } from "zod";
 
 /**
  * Where every app stands, keyed by slug: connected on which manifest, or what
- * is missing. Not a secret, so plain JSON, but deliberately in the
- * workspace's private `.instrument/` folder, which the agent's file tools
- * mask: a call goes through on this record and never on the manifest's
- * say-so.
+ * is missing. Not a secret, so plain JSON, but deliberately beside the app
+ * credentials it describes, in the workspace's keys on this computer, which
+ * the agent never reaches: a call goes through on this record and never on
+ * the manifest's say-so, and a connection means nothing without those keys.
  */
 const AppConnectionsStoreSchema = z
   .object({
@@ -29,7 +29,7 @@ function getStore(): Store<AppConnectionsStoreShape> {
   if (!STORE) {
     const defaults: AppConnectionsStoreShape = { connections: {} };
     STORE = new Store<AppConnectionsStoreShape>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceKeysDir(),
       defaults,
       deserialize: (value) => {
         const parsed = AppConnectionsStoreSchema.safeParse(JSON.parse(value));

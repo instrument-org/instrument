@@ -360,7 +360,7 @@ export function wrapNativeCommand(
   }
   if (bwrapAvailable()) {
     return {
-      args: [...bwrapArgs(reach), "--", file, ...args],
+      args: [...bwrapArgs(reach), "--", ...closingInheritedFds(), file, ...args],
       file: BWRAP,
       reach,
     };
@@ -369,6 +369,28 @@ export function wrapNativeCommand(
 }
 
 const BWRAP = "/usr/bin/bwrap";
+
+/**
+ * A step inside the sandbox that closes every file descriptor the command
+ * would inherit but its standard streams and Node's IPC channel, then runs
+ * it. On Linux a spawned program inherits whatever the app holds open
+ * without close-on-exec (Chromium's databases, its IPC sockets, the debug
+ * port), and an open descriptor reaches past every folder bubblewrap
+ * closes. `-p` keeps bash from reading BASH_ENV or functions from the
+ * environment, so nothing runs before the descriptors are closed. macOS
+ * needs none: libuv spawns there with every descriptor closed on exec.
+ */
+function closingInheritedFds(): string[] {
+  return existsSync("/bin/bash")
+    ? [
+        "/bin/bash",
+        "-p",
+        "-c",
+        'for f in /proc/self/fd/*; do f=${f##*/}; case $f in 0|1|2|"$NODE_CHANNEL_FD") ;; *) eval "exec $f>&-" 2>/dev/null ;; esac; done; exec "$@"',
+        "bash",
+      ]
+    : [];
+}
 
 let bwrapWorks: boolean | undefined;
 
@@ -462,6 +484,10 @@ export function bwrapArgs(reach: NativeReach): string[] {
     "--bind",
     "/tmp",
     "/tmp",
+    // Its own process namespace, so a program the command starts and leaves
+    // behind dies with it when the app quits, rather than being handed to
+    // the session's init still holding what it inherited.
+    "--unshare-pid",
     "--die-with-parent",
   ];
   const ordered = entries.toSorted(

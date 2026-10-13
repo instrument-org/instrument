@@ -5,6 +5,7 @@ import { omit, pick } from "radashi";
 
 import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
+import { recheckCommandLineTools } from "../command-line-tools-env";
 import { ensureChatVenv } from "../ensure-chat-venv";
 import {
   currentShellOutputSink,
@@ -295,6 +296,12 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       } else {
         instance.trees.delete(message.pid);
       }
+      return;
+    }
+    case "command-line-tools": {
+      // This thread's own `process.env` holds its own guard; it asks the
+      // disk itself rather than take the worker's word for it.
+      await recheckCommandLineTools();
       return;
     }
     case "venv": {

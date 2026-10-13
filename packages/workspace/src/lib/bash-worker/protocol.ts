@@ -67,7 +67,9 @@ export type FromWorker =
   | { pid: number; state: "settled" | "started"; type: "tree" }
   /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; chatId: ChatId; type: "venv" };
+  | { requestId: number; chatId: ChatId; type: "venv" }
+  /** A recheck here found the Command Line Tools installed since launch. */
+  | { type: "command-line-tools" };
 
 export type ToWorker =
   | {

@@ -152,10 +152,23 @@ export function commandLineToolsMissing(): boolean {
 }
 
 /**
+ * Who else holds the guard: in the bash worker, the main thread, whose
+ * `process.env` is its own, and whose spawns (a skill's install) keep the
+ * guard until told.
+ */
+let toolsArrived: () => void = () => {};
+
+/** Sets who is told once a recheck finds the tools installed. */
+export function setCommandLineToolsArrivedForwarder(forward: () => void) {
+  toolsArrived = forward;
+}
+
+/**
  * Asks again whether the tools are installed, for a Mac that had none when the
  * probe first ran: the person may have installed them since. Once they are
  * there, the guard comes off this process, so every later spawn reaches the
- * tools without a restart. Resolves whether they are still missing.
+ * tools without a restart, and whoever else holds it is told. Resolves
+ * whether they are still missing.
  */
 export async function recheckCommandLineTools(): Promise<boolean> {
   if (!commandLineToolsMissing()) {
@@ -184,6 +197,7 @@ export async function recheckCommandLineTools(): Promise<boolean> {
   if (process.env.CXX === NOOP_COMPILER) {
     delete process.env.CXX;
   }
+  toolsArrived();
   return false;
 }
 

@@ -9,6 +9,7 @@ import { parentPort } from "node:worker_threads";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
+import { setCommandLineToolsArrivedForwarder } from "../command-line-tools-env";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setChatVenvCreator, type ChatVenvError } from "../ensure-chat-venv";
 import { handChat } from "../record-folders";
@@ -96,6 +97,9 @@ setSubprocessTreeObserver({
   started: (pid) => {
     post({ pid, state: "started", type: "tree" });
   },
+});
+setCommandLineToolsArrivedForwarder(() => {
+  post({ type: "command-line-tools" });
 });
 setChatVenvCreator(
   (chatId: ChatId) =>

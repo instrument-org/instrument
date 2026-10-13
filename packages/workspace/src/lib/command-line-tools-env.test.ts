@@ -202,10 +202,14 @@ describe("recheckCommandLineTools", () => {
     applyEnv({ CC: GUARDED.CC, DEVELOPER_DIR: GUARDED.DEVELOPER_DIR });
     try {
       const module = await import("./command-line-tools-env");
+      const arrived = vi.fn();
+      module.setCommandLineToolsArrivedForwarder(arrived);
       const missing = await module.recheckCommandLineTools();
       return {
         env: module.commandLineToolsEnv(),
         missing,
+        // Told to whatever holds the guard besides this thread.
+        told: arrived.mock.calls.length,
         onProcess: {
           CC: process.env.CC,
           DEVELOPER_DIR: process.env.DEVELOPER_DIR,
@@ -229,6 +233,7 @@ describe("recheckCommandLineTools", () => {
       onProcess: { CC: undefined, DEVELOPER_DIR: undefined },
       // The guard would answer for itself, so the probe runs without it.
       probedWith: [undefined],
+      told: 1,
     });
   });
 
@@ -238,6 +243,7 @@ describe("recheckCommandLineTools", () => {
       missing: true,
       onProcess: { CC: GUARDED.CC, DEVELOPER_DIR: GUARDED.DEVELOPER_DIR },
       probedWith: [undefined],
+      told: 0,
     });
   });
 });

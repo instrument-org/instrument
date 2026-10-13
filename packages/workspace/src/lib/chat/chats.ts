@@ -31,6 +31,7 @@ import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
+import { hasPendingJobWake } from "./job-wake";
 import { hasPendingWake } from "./wake";
 import { isStopNote } from "./wake-event";
 import { chatStateOf } from "./chat-state";
@@ -1014,7 +1015,7 @@ function stateOf(
       failed: digest.failed,
       ownAlive: chatIsAlive(chatId),
       ownAsking: digest.ownAsk !== undefined,
-      pendingWake: hasPendingWake(chatId),
+      pendingWake: hasPendingWake(chatId) || hasPendingJobWake(chatId),
       spokeAt: digest.lastUserMessageAt ?? 0,
       stopped: digest.stopped,
       tasks: running,

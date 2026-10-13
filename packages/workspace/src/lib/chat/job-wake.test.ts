@@ -23,7 +23,7 @@ import { jobEventModelNote } from "../job-event-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
-import { startJobWake } from "./job-wake";
+import { hasPendingJobWake, startJobWake } from "./job-wake";
 
 vi.mock(import("../session-store-storage"));
 
@@ -284,5 +284,51 @@ describe("a background process that ends while a turn runs", () => {
       expect(wakesOf(owner.sessionId)).toHaveLength(1);
     }, 5000);
     expect(wakesOf(owner.sessionId)[0]?.events[0]?.id).toBe(job.id);
+  });
+});
+
+describe("a chat with a command's wake on its way", () => {
+  it("reads as at work from the turn's end until the wake is sent", async () => {
+    const owner = await chat();
+    vi.mocked(isWorking).mockReturnValue(true);
+    const job = promote(owner, "pnpm build");
+    job.exit(0);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    vi.mocked(isWorking).mockReturnValue(false);
+    publisher.publish("session.done", {
+      id: owner.chatId,
+      sessionId: owner.sessionId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(hasPendingJobWake(owner.chatId)).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(wakesOf(owner.sessionId)).toHaveLength(1);
+    }, 5000);
+    expect(hasPendingJobWake(owner.chatId)).toBe(false);
+  });
+
+  it("is not one when the turn ends on nothing unread, or on the user's Stop", async () => {
+    const quiet = await chat();
+    publisher.publish("session.done", {
+      id: quiet.chatId,
+      sessionId: quiet.sessionId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(hasPendingJobWake(quiet.chatId)).toBe(false);
+
+    const halted = await chat();
+    vi.mocked(isWorking).mockReturnValue(true);
+    promote(halted, "sleep 40").exit(0);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    vi.mocked(isWorking).mockReturnValue(false);
+    publisher.publish("session.done", {
+      id: halted.chatId,
+      notice: { by: "user", wakesChat: false },
+      sessionId: halted.sessionId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(hasPendingJobWake(halted.chatId)).toBe(false);
   });
 });

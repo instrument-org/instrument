@@ -20,7 +20,10 @@ import { wakeSessionForJobs } from "./wake";
  */
 const JOB_WAKE_DEBOUNCE_MS = 1500;
 
-const pending = new Map<StoreId.Session, NodeJS.Timeout>();
+const pending = new Map<
+  StoreId.Session,
+  { chatId: ChatId; timer: NodeJS.Timeout }
+>();
 
 /**
  * Sessions whose last turn was stopped by the user or by the chat. What they
@@ -70,7 +73,7 @@ function schedule(
   sessionId: StoreId.Session,
   workspaceRef: WorkspaceActorRef,
 ) {
-  clearTimeout(pending.get(sessionId));
+  clearTimeout(pending.get(sessionId)?.timer);
   const timer = setTimeout(() => {
     pending.delete(sessionId);
     deliver(chatId, sessionId, workspaceRef).catch((error: unknown) => {
@@ -78,7 +81,7 @@ function schedule(
     });
   }, JOB_WAKE_DEBOUNCE_MS);
   timer.unref();
-  pending.set(sessionId, timer);
+  pending.set(sessionId, { chatId, timer });
 }
 
 async function deliver(
@@ -129,6 +132,25 @@ async function deliver(
     chatId,
     sessionId,
   );
+}
+
+/**
+ * Whether a session of the chat has a wake waiting out the debounce that will
+ * start a turn: something it left running ended unread, and no stop holds
+ * the news back. The chat is still at work in that gap, the way it is while
+ * a task's finish waits to wake it.
+ */
+export function hasPendingJobWake(chatId: ChatId): boolean {
+  for (const [sessionId, entry] of pending) {
+    if (
+      entry.chatId === chatId &&
+      !stopped.has(sessionId) &&
+      unreportedBackgroundProcesses(sessionId).length > 0
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Whether the session has a turn running, or false where no workspace is running to ask. */

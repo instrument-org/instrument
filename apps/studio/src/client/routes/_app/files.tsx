@@ -14,16 +14,21 @@ export const Route = createFileRoute("/_app/files")({
     /** What the folder opens with selected, as a path under the root: `report.pdf`. */
     select: z.string().optional(),
     /** A page's file shown as its text rather than as the page: view source. */
-    source: z.boolean().optional(),
+    source: z.boolean().optional().catch(undefined),
     /** The folder a file tab's own tree is rooted at: where the Finder stood when the file was opened. */
     tree: z.string().optional(),
     /**
      * The layout this step of the tab's history shows the folder in, so back
      * and forward show each folder the way it looked. Absent on an address
      * that arrives at a folder directly (a place, a new tab, a typed path),
-     * which opens in the folder's own layout and is then written here.
+     * which opens in the folder's own layout and is then written here. A
+     * layout this build does not know, from an old bookmark or a typed
+     * address, reads as absent rather than failing the route.
      */
-    view: z.enum(["columns", "gallery", "icons", "list"]).optional(),
+    view: z
+      .enum(["columns", "gallery", "icons", "list"])
+      .optional()
+      .catch(undefined),
   }),
 });
 

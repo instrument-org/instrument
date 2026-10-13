@@ -58,7 +58,7 @@ function useAnswer(chatId: ChatId, ask: Ask) {
 }
 
 /** The folder as a reader names it, or the app by its own name. */
-export function permissionTargetName(kind: Ask["kind"], target: string) {
+function permissionTargetName(kind: Ask["kind"], target: string) {
   return kind === "folder" ? folderLabel(target) : target;
 }
 
@@ -84,14 +84,11 @@ const SIGN_IN_LINES: Record<string, string> = {
 
 /** What a folder of sign-ins holds, said plainly; undefined for any other folder. */
 function signInLine(target: string): string | undefined {
-  const home = window.api.homeDir.replace(/[\\/]+$/, "");
-  if (!target.startsWith(home)) {
+  const home = window.api.homeDir;
+  if (!isInside(target, home)) {
     return undefined;
   }
-  const inHome = target
-    .slice(home.length)
-    .replaceAll("\\", "/")
-    .replace(/^\/+/, "");
+  const inHome = segmentsOf(target).slice(segmentsOf(home).length).join("/");
   return SIGN_IN_LINES[inHome];
 }
 

@@ -1,3 +1,5 @@
+import { isWindowsPath } from "@instrument-org/shared";
+
 /** The folder a path on the computer sits in. */
 export function folderOf(hostPath: string) {
   const separator = separatorOf(hostPath);
@@ -83,13 +85,4 @@ export function segmentsOf(hostPath: string) {
  */
 export function separatorOf(hostPath: string) {
   return isWindowsPath(hostPath) && hostPath.includes("\\") ? "\\" : "/";
-}
-
-/**
- * Whether a path is spelled the Windows way, from a drive (`C:\`) or a
- * network share (`\\server\share`). Only there is a backslash a separator;
- * on a Mac or Linux it is a character a name can hold.
- */
-function isWindowsPath(hostPath: string) {
-  return /^(?:[A-Za-z]:(?:[/\\]|$)|\\\\)/.test(hostPath);
 }

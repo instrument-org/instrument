@@ -423,6 +423,11 @@ describe("isAccessRevoked", () => {
     },
     { expected: false, name: "a plan in effect", status: onPlan("basic") },
     { expected: false, name: "no subscription", status: noPlan },
+    {
+      expected: true,
+      name: "no subscription left and Checkout refused",
+      status: { ...noPlan, canSubscribe: false },
+    },
   ])("$name: $expected", ({ expected, status }) => {
     expect(isAccessRevoked(status)).toBe(expected);
   });

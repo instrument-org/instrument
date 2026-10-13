@@ -159,11 +159,38 @@ function requestFrom(
 ) {
   return Request.fromRawDetails({
     requestId: `${details.id}`,
-    sourceUrl: details.referrer,
+    sourceUrl: sourceUrlOf(details),
     tabId: details.webContentsId,
     type: details.resourceType,
     url: details.url,
   });
+}
+
+/**
+ * The page a request was made from, which decides whether it is third-party
+ * and which site's exceptions apply. For what a document loads, that is the
+ * document's own address: the referrer is often only its origin, or empty
+ * under a `no-referrer` policy, and an empty one reads as first-party. A
+ * document itself is a navigation of its frame, whose address is still the
+ * page it is leaving, so it keeps the referrer.
+ */
+function sourceUrlOf(
+  details: OnBeforeRequestListenerDetails | OnHeadersReceivedListenerDetails,
+) {
+  if (
+    details.resourceType === "mainFrame" ||
+    details.resourceType === "subFrame"
+  ) {
+    return details.referrer;
+  }
+  try {
+    // A frame at about:blank or srcdoc has no site of its own to go by.
+    const url = details.frame?.url;
+    return url?.startsWith("http") ? url : details.referrer;
+  } catch {
+    // The frame went with its page while the request was on its way.
+    return details.referrer;
+  }
 }
 
 /**
@@ -214,11 +241,21 @@ function injectCosmeticFilters(
   if (styles.length > 0) {
     void event.sender.insertCSS(styles, { cssOrigin: "user" });
   }
-  for (const script of scripts) {
-    event.sender.executeJavaScript(script, true).catch((error: unknown) => {
-      log.warn("scriptlet failed", error);
-    });
+  if (scripts.length === 0) {
+    return;
   }
+  // One script per frame, the way uBlock Origin injects them: each scriptlet
+  // carries its own copy of the helpers it shares with the others, and run
+  // apart, the copies wrap `Function.prototype.toString` around one another
+  // until every call of it overflows the stack, which a site that fingerprints
+  // its own functions (x.com's sign-in) reads as a bot. Into the frame that
+  // asked, and at once: the web contents' own `executeJavaScript` waits for
+  // the whole page to finish loading.
+  event.senderFrame
+    ?.executeJavaScript(`(() => {\n${scripts.join("\n;\n")}\n})();`, true)
+    .catch((error: unknown) => {
+      log.warn("scriptlets failed", error);
+    });
 }
 
 /** Whether the person has blocking on for this workspace. */

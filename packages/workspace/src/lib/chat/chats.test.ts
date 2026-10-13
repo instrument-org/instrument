@@ -27,6 +27,7 @@ import {
   type Chat,
   listChats,
   markChatRead,
+  markChatStopped,
   markChatUnread,
   startChatUnreadOnSettle,
   renameChat,
@@ -768,9 +769,11 @@ describe("listChats", () => {
     expect(chat?.latest?.text).toBe("Running a command");
   });
 
-  // A message is written before the agent it starts is running, so a list
-  // read in between must not call the chat idle and show its last reply.
-  it("is working while a message it was just sent waits for its agent, for a while", async () => {
+  // A message reaches its session as it is written, and the turn it starts
+  // is the session's from then until it ends. How new the message is says
+  // nothing: one no turn took up, as a Stop before it began leaves, is not
+  // work.
+  it("works while its session has a turn, however old its message, and not on a message none took up", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       const chatId = await freshChat();
@@ -778,17 +781,56 @@ describe("listChats", () => {
       await userSays(chatId, sessionId, "make me a grocery list", 1);
       await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
       await userSays(chatId, sessionId, "add eggs", 3);
-
       vi.setSystemTime(at(3).getTime() + 5000);
-      const soon = await listChats();
-      expect(soon[0]?.state).toBe("working");
+
+      const [untaken] = await listChats();
+      expect(untaken?.state).toBe("idle");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
-      const later = await listChats();
-      expect(later[0]?.state).toBe("idle");
+      alive.value = new Set([sessionId]);
+      const [taken] = await listChats();
+      expect(taken?.state).toBe("working");
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // A note a stop leaves is written into the chat while its own turn may
+  // still be going, and starts nothing: the turn's step is still its step.
+  it("names its turn's step past a note a stopped task leaves mid-turn", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Counts", 1);
+    await userSays(chatId, sessionId, "count to a million", 1);
+    await agentSays(chatId, sessionId, "", {
+      commands: ["task list"],
+      finished: false,
+      minute: 2,
+    });
+    await noteSays(sessionId, 3, (metadata) => ({
+      data: {
+        events: [
+          {
+            ended: "Stopped while counting",
+            handle: "t1",
+            sessionId: StoreId.newSessionId(),
+            status: "done",
+            stoppedBy: "user",
+            title: "Count the lines",
+          },
+        ],
+      },
+      metadata,
+      type: "data-taskEvent",
+    }));
+    alive.value = new Set([sessionId]);
+
+    const [chat] = await listChats();
+
+    expect(chat?.state).toBe("working");
+    expect(chat?.latest).toMatchObject({
+      kind: "step",
+      text: "Running a command",
+    });
   });
 
   it("is working while a task filed from it has finished and its wake waits to be written", async () => {
@@ -927,199 +969,116 @@ describe("listChats", () => {
     }
   });
 
-  it("works through the turn a background job's wake starts, then settles", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      const chatId = await freshChat();
-      const sessionId = await session(chatId, "Documents", 1);
-      await userSays(chatId, sessionId, "what's in my Documents folder?", 1);
-      await agentSays(chatId, sessionId, "Still listing it.", {
-        commands: ["ls ~/Documents"],
-        minute: 2,
-      });
-      await noteSays(sessionId, 3, (metadata) => ({
-        data: {
-          events: [
-            {
-              command: "ls ~/Documents",
-              durationMs: 40_000,
-              exitCode: 0,
-              id: "bg_1",
-              logFilePath: ".instrument/processes/bg_1.log",
-              status: "exited",
-            },
-          ],
-        },
-        metadata,
-        type: "data-jobEvent",
-      }));
+  it("works while a background job's wake is on its way and through the turn it starts, then settles", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Documents", 1);
+    await userSays(chatId, sessionId, "what's in my Documents folder?", 1);
+    await agentSays(chatId, sessionId, "Still listing it.", {
+      commands: ["ls ~/Documents"],
+      minute: 2,
+    });
+    await noteSays(sessionId, 3, (metadata) => ({
+      data: {
+        events: [
+          {
+            command: "ls ~/Documents",
+            durationMs: 40_000,
+            exitCode: 0,
+            id: "bg_1",
+            logFilePath: ".instrument/processes/bg_1.log",
+            status: "exited",
+          },
+        ],
+      },
+      metadata,
+      type: "data-jobEvent",
+    }));
 
-      vi.setSystemTime(at(3).getTime() + 1000);
-      const [woken] = await listChats();
-      expect(woken?.state).toBe("working");
+    // Written, and on its way to the session.
+    pendingWakes.value = new Set([chatFor(sessionId)]);
+    const [woken] = await listChats();
+    expect(woken?.state).toBe("working");
 
-      await agentSays(chatId, sessionId, "Your Documents folder holds Taxes.", {
-        minute: 4,
-      });
-      vi.setSystemTime(at(4).getTime() + 1000);
-      const [settled] = await listChats();
-      expect(settled?.state).toBe("idle");
-    } finally {
-      vi.useRealTimers();
-    }
+    pendingWakes.value = new Set();
+    alive.value = new Set([sessionId]);
+    const [answering] = await listChats();
+    expect(answering?.state).toBe("working");
+
+    await agentSays(chatId, sessionId, "Your Documents folder holds Taxes.", {
+      minute: 4,
+    });
+    alive.value = new Set();
+    const [settled] = await listChats();
+    expect(settled?.state).toBe("idle");
   });
 
-  // Stopping a task writes the chat a note and starts no turn, so the note is
-  // neither a turn starting nor something sent after the chat's own stop.
-  it("stays stopped when the user stops its task after stopping it, past the note that leaves", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      const chatId = await freshChat();
-      const sessionId = await session(chatId, "Counts", 1);
-      await userSays(chatId, sessionId, "count to a million", 1);
-      const callId = StoreId.newMessageId();
-      const call = await Store.saveMessageWithParts(
-        {
-          id: callId,
-          metadata: {
-            createdAt: at(2),
-            finishReason: "tool-calls",
-            finishedAt: at(2),
-            modelId: "glm-5.3-flash",
-            providerId: "openai-compatible",
-            sessionId,
+  // The person's Stop is what says so, however the turn ended: before it
+  // began, as here, with the message no turn took up; mid-call; or
+  // mid-reply. A note a task's stop leaves starts no turn, so it is not
+  // something happening after the Stop.
+  it("says the person stopped its turn from their Stop until a turn starts after it", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Documents", 1);
+    await userSays(chatId, sessionId, "what's in my Documents?", 1);
+    await markChatStopped(chatFor(sessionId), at(2));
+
+    const [beforeStart] = await listChats();
+    expect(beforeStart?.state).toBe("stopped");
+
+    await noteSays(sessionId, 3, (metadata) => ({
+      data: {
+        events: [
+          {
+            ended: "Stopped while waiting",
+            handle: "t1",
+            sessionId: StoreId.newSessionId(),
+            status: "done",
+            stoppedBy: "user",
+            title: "Sleep 150 seconds",
           },
-          parts: [
-            {
-              errorText: "This action was stopped by you.",
-              input: {
-                command: "sleep 120",
-                explanation: "Waiting",
-                yieldMs: 150_000,
-              },
-              metadata: {
-                ...partMetadata({ messageId: callId, sessionId }),
-                endedAt: at(2),
-              },
-              state: "output-error",
-              toolCallId: "call_sleep",
-              type: "tool-bash",
-            },
-          ],
-          role: "assistant",
-        },
-        chatFor(sessionId),
-      );
-      expect(call.isOk()).toBe(true);
-      await noteSays(sessionId, 3, (metadata) => ({
-        data: {
-          events: [
-            {
-              ended: "Stopped while waiting",
-              handle: "t1",
-              sessionId: StoreId.newSessionId(),
-              status: "done",
-              stoppedBy: "user",
-              title: "Sleep 150 seconds",
-            },
-          ],
-        },
-        metadata,
-        type: "data-taskEvent",
-      }));
+        ],
+      },
+      metadata,
+      type: "data-taskEvent",
+    }));
+    const [pastNote] = await listChats();
+    expect(pastNote?.state).toBe("stopped");
 
-      vi.setSystemTime(at(3).getTime() + 5000);
-      const [chat] = await listChats();
-      expect(chat?.state).toBe("stopped");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+    // The next turn starting is what ends it.
+    await userSays(chatId, sessionId, "try Desktop instead", 4);
+    alive.value = new Set([sessionId]);
+    const [next] = await listChats();
+    expect(next?.state).toBe("working");
 
-  it("says the user stopped its turn, mid-call or mid-reply, until the next one starts", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      const chatId = await freshChat();
-      const sessionId = await session(chatId, "Documents", 1);
-      await userSays(chatId, sessionId, "what's in my Documents?", 1);
-      const callId = StoreId.newMessageId();
-      const call = await Store.saveMessageWithParts(
-        {
-          id: callId,
-          metadata: {
-            createdAt: at(2),
-            finishReason: "tool-calls",
-            finishedAt: at(2),
-            modelId: "glm-5.3-flash",
-            providerId: "openai-compatible",
-            sessionId,
+    // A reply cut off with no Stop of the person's behind it is not theirs.
+    alive.value = new Set();
+    const replyId = StoreId.newMessageId();
+    const reply = await Store.saveMessageWithParts(
+      {
+        id: replyId,
+        metadata: {
+          createdAt: at(5),
+          error: { kind: "aborted", message: "Aborted" },
+          finishReason: "aborted",
+          finishedAt: at(5),
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        parts: [
+          {
+            metadata: partMetadata({ messageId: replyId, sessionId }),
+            text: "Your Desktop holds",
+            type: "text",
           },
-          parts: [
-            {
-              errorText: "This action was stopped by you.",
-              input: {
-                command: "ls ~/Documents",
-                explanation: "Listing Documents",
-                yieldMs: 1000,
-              },
-              metadata: {
-                ...partMetadata({ messageId: callId, sessionId }),
-                endedAt: at(2),
-              },
-              state: "output-error",
-              toolCallId: "call_ls",
-              type: "tool-bash",
-            },
-          ],
-          role: "assistant",
-        },
-        chatFor(sessionId),
-      );
-      expect(call.isOk()).toBe(true);
-
-      vi.setSystemTime(at(2).getTime() + 60_000);
-      const [midCall] = await listChats();
-      expect(midCall?.state).toBe("stopped");
-
-      // The next turn starting is what ends it.
-      await userSays(chatId, sessionId, "try Desktop instead", 3);
-      vi.setSystemTime(at(3).getTime() + 1000);
-      const [next] = await listChats();
-      expect(next?.state).toBe("working");
-
-      // A reply cut off as it was written is the user's stop too, not an
-      // error.
-      const replyId = StoreId.newMessageId();
-      const reply = await Store.saveMessageWithParts(
-        {
-          id: replyId,
-          metadata: {
-            createdAt: at(4),
-            error: { kind: "aborted", message: "Aborted" },
-            finishReason: "aborted",
-            finishedAt: at(4),
-            modelId: "glm-5.3-flash",
-            providerId: "openai-compatible",
-            sessionId,
-          },
-          parts: [
-            {
-              metadata: partMetadata({ messageId: replyId, sessionId }),
-              text: "Your Desktop holds",
-              type: "text",
-            },
-          ],
-          role: "assistant",
-        },
-        chatFor(sessionId),
-      );
-      expect(reply.isOk()).toBe(true);
-      vi.setSystemTime(at(4).getTime() + 60_000);
-      const [midReply] = await listChats();
-      expect(midReply?.state).toBe("stopped");
-    } finally {
-      vi.useRealTimers();
-    }
+        ],
+        role: "assistant",
+      },
+      chatFor(sessionId),
+    );
+    expect(reply.isOk()).toBe(true);
+    const [cutOff] = await listChats();
+    expect(cutOff?.state).not.toBe("stopped");
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
@@ -1370,9 +1329,8 @@ describe("liveChatList", () => {
   });
 
   // The quit leaves the chat a note naming the tasks it cut off, written as a
-  // user message that starts no turn. A relaunch inside the grace a sent
-  // message gets must not read it as a turn starting: nothing would run it,
-  // and nothing re-reads the row when the grace runs out.
+  // user message that starts no turn. A relaunch right after it must not read
+  // it as a turn starting: nothing would run it.
   it("says a chat is idle on its first answer after a relaunch, past the note the quit left", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

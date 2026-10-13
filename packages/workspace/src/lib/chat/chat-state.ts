@@ -2,53 +2,59 @@
 export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
 
 /**
- * Where a chat stands, from what is known of it this moment: its own agent,
- * its newest turn, the tasks it filed, what waits on the user, and a wake on
- * its way. The one rule for what a chat's row and line say, and, through
- * `working`, for whether anything of it still moves, which marking it unread
- * and naming it as it settles read.
+ * Where a chat stands: the one rule every reader of a chat's state goes
+ * through.
  *
- * Something waiting on the user (a card, a question of a task's or of its
- * own) is what the chat says while it is open, whatever else still moves:
- * that is the part only the user can move along. A task stopped on an ask is
- * running to the machine and stalled to the user, so it does not count as
- * work; the chat's own agent stopped on an ask of its own is the same. The
- * exception is an ask the user has spoken past: their newer message starts
- * a turn, and the chat says that turn's work until it ends and the ask is
- * all that is left. A message is written before the agent it starts is
- * running, so a turn starting counts as the chat's own work, and a wake
- * waiting out its debounce is work about to happen. At rest, a turn the user
- * stopped says so until the next turn starts.
+ * - **working**: something of the chat's is moving. Its own turn, from the
+ *   moment a message reaches its session until that turn ends, unless the
+ *   turn stands on a question of its own the user has not written past; a
+ *   task at work, unless it stands on an ask; or a wake on its way to start a
+ *   turn.
+ * - **waiting**: a card or a question waits on the user. It outranks work,
+ *   being the part only the user can move along, unless they have written
+ *   since it was asked: the turn their message starts is what the chat is on
+ *   until it ends.
+ * - **stopped**: the user's last action was a Stop of the chat's own turn,
+ *   and no turn has started since.
+ * - **failed**: the chat's last turn ended in an error, and nothing has been
+ *   sent since.
+ * - **idle**: none of these.
+ *
+ * `working` comes back beside `state`, which waiting outranks it in: whether
+ * anything still moves is what marking the chat unread, naming it, and
+ * telling the user it is done each read as it settles.
  */
 export function chatStateOf({
   askedAt,
   failed,
-  ownAlive,
-  ownAsking,
-  pendingWake,
+  ownAskedAt,
+  ownTurn,
   spokeAt,
   stopped,
   tasks,
-  turnStarting,
+  wakeOnItsWay,
 }: {
   /** When the newest of what waits on the user was asked, in ms; none when nothing does. */
   askedAt: number | undefined;
-  /** The chat's last turn ended in an error with nothing said after it. */
+  /** The chat's last turn ended in an error with nothing sent after it. */
   failed: boolean;
-  ownAlive: boolean;
-  /** The chat's own newest reply asks the user something. */
-  ownAsking: boolean;
-  pendingWake: boolean;
+  /** When the chat's own newest reply asked the user something, in ms; none when it asks nothing. */
+  ownAskedAt: number | undefined;
+  /** The chat's own session has a turn: a message has reached it, and the turn it starts has not ended. */
+  ownTurn: boolean;
   /** When the user last sent a message, in ms. */
   spokeAt: number;
-  /** The chat's last turn ended on the user's Stop. */
+  /** The user stopped the chat's own turn, and no turn has started since. */
   stopped: boolean;
+  /** The tasks of the chat's at work, each with what it stands on asking, if anything. */
   tasks: { waiting?: string }[];
-  turnStarting: boolean;
+  /** A wake is on its way to start a turn in one of the chat's sessions. */
+  wakeOnItsWay: boolean;
 }): { ownWorking: boolean; state: ChatState; working: boolean } {
-  const ownWorking = (ownAlive && !ownAsking) || turnStarting;
+  const ownStandsOnAsk = ownAskedAt !== undefined && ownAskedAt > spokeAt;
+  const ownWorking = ownTurn && !ownStandsOnAsk;
   const working =
-    ownWorking || tasks.some((task) => !task.waiting) || pendingWake;
+    ownWorking || tasks.some((task) => !task.waiting) || wakeOnItsWay;
   const hasAsk = askedAt !== undefined;
   const state =
     hasAsk && askedAt > spokeAt
@@ -57,10 +63,10 @@ export function chatStateOf({
         ? "working"
         : hasAsk
           ? "waiting"
-          : failed
-            ? "failed"
-            : stopped
-              ? "stopped"
+          : stopped
+            ? "stopped"
+            : failed
+              ? "failed"
               : "idle";
   return { ownWorking, state, working };
 }

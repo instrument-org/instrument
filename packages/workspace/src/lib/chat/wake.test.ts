@@ -1,4 +1,4 @@
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,7 +19,12 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { leftRunning } from "./activity";
 import { childTask } from "./children";
 import { taskStanding } from "./standing";
-import { noteTasksInterruptedByQuit, startChatWake } from "./wake";
+import {
+  hasPendingWake,
+  noteTasksInterruptedByQuit,
+  startChatWake,
+  wakeSessionForPermission,
+} from "./wake";
 
 vi.mock(import("../session-store-storage"));
 
@@ -34,7 +39,7 @@ vi.mock(import("./activity"), async (importOriginal) => {
 // itself is the machine's, which records what it was sent.
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
-  fetchModel: () => Promise.resolve({ ok: true, value: {} } as never),
+  fetchModel: vi.fn(() => Promise.resolve({ ok: true, value: {} } as never)),
 }));
 
 const sent: unknown[] = [];
@@ -118,8 +123,8 @@ describe("a stopped task", () => {
       title: "Audit the vault",
     });
     expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("user");
-    // Past the debounce a wake would wait out: still no turn.
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Nothing is on its way to start a turn, and nothing was sent.
+    expect(hasPendingWake(chatId)).toBe(false);
     expect(wakesOf(chatId)).toEqual([]);
   });
 
@@ -141,6 +146,55 @@ describe("a stopped task", () => {
     }, 5000);
     expect(wakesOf(chatId)[0]).not.toHaveProperty("stoppedBy");
     expect((await childTask(chatId, taskSession))?.stoppedBy).toBeUndefined();
+  });
+});
+
+describe("a wake on its way", () => {
+  // A wake writes its note before it has the chat's model to start a turn
+  // with, which can take a few tries. The chat is at work all that time, and
+  // its row is read again once nothing is on its way.
+  it("counts from its note until it reaches the session, then has the chat's row read again", async () => {
+    const { chatId } = await chatWithTask();
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("expected the chat's session");
+    }
+    let found = () => {};
+    vi.mocked(fetchModel).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          found = () => {
+            resolve({ ok: true, value: {} } as never);
+          };
+        }),
+    );
+    const changes: string[] = [];
+    const unsubscribe = publisher.subscribe("record.changed", (change) => {
+      if (change.id === chatId) {
+        changes.push(change.kind);
+      }
+    });
+
+    const woken = wakeSessionForPermission(
+      {
+        data: { answer: "allowed", kind: "folder", target: "/Users/me/Pantry" },
+        type: "data-permissionAnswer",
+      },
+      workspaceRef,
+      chatId,
+      sessionId,
+    );
+    await vi.waitFor(async () => {
+      const messages = await Store.getMessagesWithParts({ chatId, sessionId });
+      expect(messages._unsafeUnwrap()).toHaveLength(1);
+    });
+    expect(hasPendingWake(chatId)).toBe(true);
+
+    found();
+    await woken;
+    unsubscribe();
+    expect(hasPendingWake(chatId)).toBe(false);
+    expect(changes.at(-1)).toBe("agent");
   });
 });
 

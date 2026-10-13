@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { recordChanged } from "../record-changes";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -125,12 +126,44 @@ const pending = new Map<
 >();
 
 /**
- * Whether any of a chat's tasks has a finish waiting out the debounce before
- * its wake is written. The chat is still at work in that gap: its task has
- * stopped and its own agent has not started on the news yet.
+ * How many wakes each chat has on their way to a session of its: past any
+ * debounce, and not yet handed to the session whose turn they start.
+ */
+const delivering = new Map<ChatId, number>();
+
+/**
+ * Whether a wake is on its way to start a turn in one of the chat's
+ * sessions: a task's finish waiting out the debounce, or any wake between
+ * that and reaching its session, which writes its note first and may then
+ * spend a while finding the chat's model. The chat is still at work all
+ * that time: something of it has moved, and its agent has not started on
+ * the news yet.
  */
 export function hasPendingWake(chatId: ChatId) {
-  return (pending.get(chatId)?.events.size ?? 0) > 0;
+  return (pending.get(chatId)?.events.size ?? 0) > 0 || delivering.has(chatId);
+}
+
+/**
+ * Delivers a wake counted as on its way, and once none of the chat's is,
+ * has its row read again: a wake that never reached its session leaves the
+ * chat as it was, which nothing else would say.
+ */
+async function onItsWay<Value>(
+  chatId: ChatId,
+  delivery: () => Promise<Value>,
+): Promise<Value> {
+  delivering.set(chatId, (delivering.get(chatId) ?? 0) + 1);
+  try {
+    return await delivery();
+  } finally {
+    const left = (delivering.get(chatId) ?? 1) - 1;
+    if (left > 0) {
+      delivering.set(chatId, left);
+    } else {
+      delivering.delete(chatId);
+      recordChanged(chatId, "agent");
+    }
+  }
 }
 
 /**
@@ -548,11 +581,11 @@ function schedule(
   events.set(event.sessionId, event);
   const timer = setTimeout(() => {
     pending.delete(chatId);
-    deliver(chatId, [...events.values()], workspaceRef).catch(
-      (error: unknown) => {
-        getWorkspaceConfig().captureException(error);
-      },
-    );
+    onItsWay(chatId, () =>
+      deliver(chatId, [...events.values()], workspaceRef),
+    ).catch((error: unknown) => {
+      getWorkspaceConfig().captureException(error);
+    });
   }, WAKE_DEBOUNCE_MS);
   pending.set(chatId, { events, timer });
 }
@@ -644,40 +677,42 @@ async function stillWorkingEvent({
   };
 }
 
-async function wakeWith(
+function wakeWith(
   chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
   /** The session to wake: a task that asked, else the chat's own. */
   askingSessionId?: StoreId.Session,
 ) {
-  const modelURI = await chatModelURI(chatId);
-  if (!modelURI) {
-    throw new Error(
-      `Chat ${chatId} has no model to wake with; it has never been messaged.`,
-    );
-  }
-  const sessionId = askingSessionId ?? sessionOfChat(chatId);
-  if (!sessionId) {
-    throw new Error(`${chatId} is not a chat.`);
-  }
-  const message = await saveNote(chatId, sessionId, part);
+  return onItsWay(chatId, async () => {
+    const modelURI = await chatModelURI(chatId);
+    if (!modelURI) {
+      throw new Error(
+        `Chat ${chatId} has no model to wake with; it has never been messaged.`,
+      );
+    }
+    const sessionId = askingSessionId ?? sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error(`${chatId} is not a chat.`);
+    }
+    const message = await saveNote(chatId, sessionId, part);
 
-  // Looked up after the note is written, so a model the chat cannot resolve
-  // yet still leaves the news in the conversation, where the user's next
-  // message carries it to the agent.
-  const model = await wakeModel(modelURI);
-  workspaceRef.send({
-    type: "addMessage",
-    value: {
-      id: chatId,
-      message,
-      model,
-      saved: true,
-      sessionId,
-    },
+    // Looked up after the note is written, so a model the chat cannot resolve
+    // yet still leaves the news in the conversation, where the user's next
+    // message carries it to the agent.
+    const model = await wakeModel(modelURI);
+    workspaceRef.send({
+      type: "addMessage",
+      value: {
+        id: chatId,
+        message,
+        model,
+        saved: true,
+        sessionId,
+      },
+    });
+    await recordChatActivity(chatId);
   });
-  await recordChatActivity(chatId);
 }
 
 /**

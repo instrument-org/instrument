@@ -6,7 +6,6 @@ import {
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
-import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { publisher } from "../../rpc/publisher";
 import { type PermissionAsk } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
@@ -17,7 +16,6 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
-import { isToolPart } from "../is-tool-part";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { openAsks } from "../permissions/asks";
 import { sessionOfChat } from "../record-folders";
@@ -113,15 +111,7 @@ export const ChatSchema = z.object({
   ),
   /** The chat's session, which its transcript is read and its messages are sent through. */
   sessionId: StoreId.SessionSchema,
-  /**
-   * Waiting while a card is open in it, a task filed from it is stopped on
-   * an ask, or its own last turn ended on one, whatever else still moves,
-   * unless the user has sent a message since; working while the chat's own
-   * agent is alive or a task filed from it is moving; failed while its last
-   * turn ended in an error and nothing has been said since; stopped while
-   * its last turn ended on the user's Stop and nothing has been sent since;
-   * idle otherwise. See `chatStateOf`.
-   */
+  /** Where the chat stands, by the one rule in `chatStateOf`. */
   state: z.enum(["failed", "idle", "stopped", "waiting", "working"]),
   title: z.string(),
   /**
@@ -338,6 +328,17 @@ export async function setChatTopics(
   }));
 }
 
+/**
+ * Records that the user stopped the chat's own turn at `at`, the moment they
+ * pressed Stop: the chat reads as stopped until a turn starts after it.
+ */
+export async function markChatStopped(
+  chatId: ChatId,
+  at: Date,
+): Promise<boolean> {
+  return saveMark(chatId, (session) => ({ ...session, stoppedAt: at }));
+}
+
 /** Records that the app is done naming a chat, leaving any rename after it to the user. */
 export async function settleChatTitle(chatId: ChatId): Promise<boolean> {
   return saveMark(chatId, (session) => ({
@@ -375,8 +376,6 @@ interface ChatDigest {
   madeFiles: string[];
   /** Whether the chat's last turn ended in an error with nothing said after it. */
   failed: boolean;
-  /** The newest user or assistant message's role and time, which says whether a turn is starting. */
-  newestTurn?: { at: number; role: "assistant" | "user" };
   openedHosts: string[];
   /** What the chat's own last turn asked the user, if it ended on an ask. */
   ownAsk?: string;
@@ -387,9 +386,9 @@ interface ChatDigest {
   spoken?: { at: number; text: string };
   /** The chat's own newest labeled step, in any turn, and when its message was sent. */
   lastStep?: { at: number; text: string };
-  /** The step the chat's current turn is on, from its own calls since the user's newest message. */
+  /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
   stepInTurn?: string;
-  /** Whether the chat's last turn ended on the user's Stop, with nothing sent after it. */
+  /** Whether the user stopped the chat's own turn, and no turn has started since. */
   stopped: boolean;
 }
 
@@ -609,23 +608,10 @@ function digestOf(
   const lastAssistant = messages.findLast(
     (message) => message.role === "assistant",
   );
-  // The note a quit or the user's stop of a task leaves starts no turn, so it
-  // is no sign of one starting: read as one, the chat would show as working.
-  const newestTurn = messages.findLast(
-    (
-      message,
-    ): message is
-      | SessionMessage.AssistantWithParts
-      | SessionMessage.UserWithParts =>
-      (message.role === "user" || message.role === "assistant") &&
-      !isStopNote(message),
-  );
   const lastUser = messages.findLast((message) => message.role === "user");
-  // The newest message that started a turn of the chat's own: a stop note
-  // started none, so the chat's last turn is still the one before it.
-  const lastOpener = messages.findLast(
-    (message) => message.role === "user" && !isStopNote(message),
-  );
+  // The newest message that started a turn of the chat's own, which every
+  // reading of where its turn stands is measured from.
+  const lastOpener = messages.findLast(startsTurn);
   // A wake note is written as a user message but carries only task, app,
   // or background-process news; everything else the user sent, asks on a
   // file alone included.
@@ -650,39 +636,33 @@ function digestOf(
   );
   const commands = bashCommandsIn(messages);
   const ownAsk = askIn(messages);
-  // Only this turn's calls, so a new turn never names the last one's step;
-  // a message that joined the turn under way does not start one.
-  const turnStart = messages.findLastIndex(
-    (message) => message.role === "user" && !joinedMidTurn(message),
+  // Only this turn's calls, so a new turn never names the last one's step.
+  const stepInTurn = latestStepIn(
+    messages.slice(lastOpener ? messages.lastIndexOf(lastOpener) + 1 : 0),
   );
-  const stepInTurn = latestStepIn(messages.slice(turnStart + 1));
   const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
-  // How the last thing the agent did ended, after the newest message that
-  // started a turn. In an error: a turn that never got its reply out. On the
-  // user's Stop: its reply cut off as it was written, or a call it was
-  // making ended by the stop. A retry that went on to answer, or anything
-  // sent after that starts a turn, leaves either behind.
+  // Whether the last thing the agent did, after the newest message that
+  // started a turn, ended in an error: a turn that never got its reply out.
+  // A retry that went on to answer, or anything sent after that starts a
+  // turn, leaves it behind. A stop is no error.
   const endsLastTurn =
     lastAssistant !== undefined &&
     messages.lastIndexOf(lastAssistant) >
       (lastOpener ? messages.lastIndexOf(lastOpener) : -1);
-  const aborted = lastAssistant?.metadata.error?.kind === "aborted";
   const failed =
     endsLastTurn &&
-    !aborted &&
+    lastAssistant.metadata.error?.kind !== "aborted" &&
     (lastAssistant.metadata.error !== undefined ||
       lastAssistant.metadata.finishReason === "error");
+  // The user's Stop, rather than what it left behind: a turn stopped before
+  // it began left only the message no turn took up, and one stopped between
+  // steps left nothing at all.
+  const { stoppedAt } = session;
   const stopped =
-    endsLastTurn &&
-    (aborted ||
-      lastAssistant.parts.some(
-        (part) =>
-          isToolPart(part) &&
-          part.state === "output-error" &&
-          part.errorText === STOPPED_TOOL_CALL_ERROR_TEXT,
-      ));
+    stoppedAt !== undefined &&
+    (lastOpener === undefined || stoppedAt >= lastOpener.metadata.createdAt);
   return {
     calledApps: commands.flatMap(appSlugsIn),
     ...(lastAssistant && {
@@ -696,12 +676,6 @@ function digestOf(
       lastUserMessageAt: lastUserMessage.metadata.createdAt.getTime(),
     }),
     madeFiles: filesHeld(messages),
-    ...(newestTurn && {
-      newestTurn: {
-        at: newestTurn.metadata.createdAt.getTime(),
-        role: newestTurn.role,
-      },
-    }),
     openedHosts: commands.flatMap(openedHostsIn),
     ...(ownAsk !== undefined && { ownAsk }),
     ...(root && { root }),
@@ -1013,35 +987,34 @@ function stateOf(
     ...chatStateOf({
       askedAt,
       failed: digest.failed,
-      ownAlive: chatIsAlive(chatId),
-      ownAsking: digest.ownAsk !== undefined,
-      pendingWake: hasPendingWake(chatId) || hasPendingJobWake(chatId),
+      ownAskedAt:
+        digest.ownAsk === undefined ? undefined : digest.lastAssistantAt,
+      ownTurn: hasOwnTurn(chatId),
       spokeAt: digest.lastUserMessageAt ?? 0,
       stopped: digest.stopped,
       tasks: running,
-      turnStarting: turnIsStarting(digest),
+      wakeOnItsWay: hasPendingWake(chatId) || hasPendingJobWake(chatId),
     }),
   };
 }
 
 /**
- * How long a message with no reply yet counts as its turn starting. A message
- * is written before the agent it starts is running, so a list read between the
- * two would otherwise call the chat idle and show its last reply for a
- * moment; one that never starts an agent stops counting after this.
+ * Whether the chat's own session has a turn this moment. Its agent is alive
+ * from the moment a message reaches the session, which a sender does as it
+ * writes the message, until the turn that message starts has ended.
  */
-const TURN_START_GRACE_MS = 30_000;
-
-/** Whether the chat's own agent is at work this moment. */
-function chatIsAlive(chatId: ChatId): boolean {
+function hasOwnTurn(chatId: ChatId): boolean {
   const sessionId = sessionOfChat(chatId);
   return sessionId !== undefined && isWorking(chatId, sessionId);
 }
 
-/** The newest message is the user's or a wake's, recent, and not yet answered. */
-function turnIsStarting({ newestTurn }: ChatDigest): boolean {
+/**
+ * Whether a message started a turn of the chat's own: one the user sent, or
+ * a wake's. One that joined a turn already under way started none, and nor
+ * did a note a stop left, which wakes nothing.
+ */
+function startsTurn(message: SessionMessage.WithParts): boolean {
   return (
-    newestTurn?.role === "user" &&
-    Date.now() - newestTurn.at < TURN_START_GRACE_MS
+    message.role === "user" && !isStopNote(message) && !joinedMidTurn(message)
   );
 }

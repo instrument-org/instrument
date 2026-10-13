@@ -13,6 +13,8 @@ import {
   startBackgroundRun,
 } from "../../lib/background-processes";
 import { updateChatSettings } from "../../lib/chat-settings";
+import { isWorking } from "../../lib/chat/activity";
+import { chatById } from "../../lib/chat/chats";
 import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
 import { startChatWake } from "../../lib/chat/wake";
 import { openAsks, recordAsk } from "../../lib/permissions/asks";
@@ -34,9 +36,11 @@ import { session } from "./session";
 vi.mock(import("../../lib/session-store-storage"));
 
 // Whether a session has a turn running is the workspace machine's to say,
-// which a test has none of: none is, so a wake would start one.
+// which a test has none of: none is, so a wake would start one, and no task
+// is at work.
 vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
+  chatActivity: vi.fn(() => Promise.resolve({ running: [] })),
   isWorking: vi.fn(() => false),
 }));
 
@@ -263,6 +267,53 @@ describe("session.stop", () => {
       sent.slice(sentBefore).filter((event) => event.type === "addMessage"),
     ).toEqual([]);
   });
+
+  // A Stop before the turn began leaves only the message no turn took up,
+  // and the chat still says the person stopped it.
+  it.each([
+    { running: true, state: "stopped" },
+    { running: false, state: "idle" },
+  ])(
+    "says the chat was stopped once the person stops its own turn (turn running: $running)",
+    async ({ running: turnRunning, state }) => {
+      const { chatId, own } = await chatWithTask();
+      const messageId = StoreId.newMessageId();
+      const createdAt = new Date();
+      await Store.saveSession(
+        { createdAt, id: own, title: "Documents" },
+        chatId,
+      );
+      await Store.saveMessageWithParts(
+        {
+          id: messageId,
+          metadata: { createdAt, sessionId: own },
+          parts: [
+            {
+              metadata: {
+                createdAt,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: own,
+              },
+              text: "What's in my Documents?",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+        chatId,
+      );
+      vi.mocked(isWorking).mockReturnValueOnce(turnRunning);
+
+      await call(
+        session.stop,
+        { id: chatId, sessionId: own },
+        { context: context() },
+      );
+
+      expect((await chatById(chatId))?.state).toBe(state);
+    },
+  );
 
   it("leaves the chat's own processes running when the person stops its turn", async () => {
     const { chatId, own } = await chatWithTask();

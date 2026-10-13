@@ -5,13 +5,12 @@ import { chatStateOf } from "./chat-state";
 const resting = {
   askedAt: undefined,
   failed: false,
-  ownAlive: false,
-  ownAsking: false,
-  pendingWake: false,
+  ownAskedAt: undefined,
+  ownTurn: false,
   spokeAt: 1,
   stopped: false,
   tasks: [],
-  turnStarting: false,
+  wakeOnItsWay: false,
 };
 
 describe("chatStateOf", () => {
@@ -28,18 +27,18 @@ describe("chatStateOf", () => {
       { ownWorking: false, state: "idle", working: false },
     ],
     [
-      "its own agent at work",
-      { ownAlive: true },
+      "its own turn under way",
+      { ownTurn: true },
       { ownWorking: true, state: "working", working: true },
     ],
     [
-      "its own agent stopped on its own ask",
-      { askedAt: 5, ownAlive: true, ownAsking: true },
+      "its own turn standing on its own question",
+      { askedAt: 5, ownAskedAt: 5, ownTurn: true },
       { ownWorking: false, state: "waiting", working: false },
     ],
     [
-      "a message sent and not yet started",
-      { turnStarting: true },
+      "its own question the user wrote past, while the turn they started runs",
+      { askedAt: 3, ownAskedAt: 3, ownTurn: true, spokeAt: 4 },
       { ownWorking: true, state: "working", working: true },
     ],
     [
@@ -58,8 +57,8 @@ describe("chatStateOf", () => {
       { ownWorking: false, state: "waiting", working: true },
     ],
     [
-      "a card its own agent raised, while the turn that met it winds down",
-      { askedAt: 5, ownAlive: true },
+      "a card its own turn raised, while that turn winds down",
+      { askedAt: 5, ownTurn: true },
       { ownWorking: true, state: "waiting", working: true },
     ],
     [
@@ -69,7 +68,7 @@ describe("chatStateOf", () => {
     ],
     [
       "an ask the user spoke past, while the turn they started runs",
-      { askedAt: 3, ownAlive: true, spokeAt: 4 },
+      { askedAt: 3, ownTurn: true, spokeAt: 4 },
       { ownWorking: true, state: "working", working: true },
     ],
     [
@@ -79,7 +78,7 @@ describe("chatStateOf", () => {
     ],
     [
       "a wake on its way",
-      { pendingWake: true },
+      { wakeOnItsWay: true },
       { ownWorking: false, state: "working", working: true },
     ],
     [
@@ -95,6 +94,11 @@ describe("chatStateOf", () => {
     [
       "a turn the user stopped",
       { stopped: true },
+      { ownWorking: false, state: "stopped", working: false },
+    ],
+    [
+      "the user's Stop after the turn's error",
+      { failed: true, stopped: true },
       { ownWorking: false, state: "stopped", working: false },
     ],
     [

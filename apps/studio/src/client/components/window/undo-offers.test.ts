@@ -9,13 +9,14 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-it("takes down the toast whose move was undone another way", () => {
+it("takes down the toast once each move on it is undone another way", () => {
   holdUndoOffer("moved-two", ["first", "second"]);
 
   withdrawUndoOffer("second");
-  // The rest of that toast's offer goes with it.
-  withdrawUndoOffer("first");
+  // The toast's Undo still puts back the first.
+  expect(toast.dismiss).not.toHaveBeenCalled();
 
+  withdrawUndoOffer("first");
   expect(vi.mocked(toast.dismiss).mock.calls).toEqual([["moved-two"]]);
 });
 

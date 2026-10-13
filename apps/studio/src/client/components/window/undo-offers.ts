@@ -2,8 +2,9 @@ import { toast } from "@/client/lib/toast";
 
 /**
  * The toast offering Undo for each journal entry it would take back. An undo
- * by any route (the toast's own button, ⌘Z in any Files tab) takes that toast
- * down, so no Undo is left on screen for something already put back.
+ * by any route (the toast's own button, ⌘Z in any Files tab) withdraws that
+ * entry from its toast, and the toast goes once nothing on it is left to
+ * undo, so no Undo is left on screen for something already put back.
  */
 const offers = new Map<string, number | string>();
 
@@ -26,12 +27,17 @@ export function dropUndoOffer(toastId: number | string) {
   }
 }
 
-/** Takes down the toast offering to undo `journalId`, which has just been undone. */
+/**
+ * Withdraws the offer to undo `journalId`, which has just been undone, and
+ * takes its toast down once the toast offers nothing else.
+ */
 export function withdrawUndoOffer(journalId: string) {
   const toastId = offers.get(journalId);
   if (toastId === undefined) {
     return;
   }
-  dropUndoOffer(toastId);
-  toast.dismiss(toastId);
+  offers.delete(journalId);
+  if (![...offers.values()].includes(toastId)) {
+    toast.dismiss(toastId);
+  }
 }

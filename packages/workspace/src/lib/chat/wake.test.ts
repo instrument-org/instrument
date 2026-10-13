@@ -208,4 +208,90 @@ describe("a task the app's quit cut off", () => {
       ]
     `);
   });
+
+  // A loop writing a line a second for two minutes is one call open the
+  // whole time: the run is the step that asked for it and the call, up to
+  // the quit, not the step alone.
+  it("counts the call the quit cut off in how long the task worked", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const now = Date.now();
+    const stepAt = new Date(now - 120_000);
+    const callAt = new Date(now - 118_000);
+    await Store.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: {
+          createdAt: stepAt,
+          finishedAt: callAt,
+          finishReason: "tool-calls",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId: taskSession,
+        },
+        parts: [
+          {
+            input: {
+              activity: "Writing the log",
+              command:
+                "for i in $(seq 200); do echo $i >> log.txt; sleep 1; done",
+              explanation: "Write a line a second",
+              yieldMs: 300_000,
+            },
+            metadata: {
+              createdAt: callAt,
+              id: partId,
+              messageId,
+              sessionId: taskSession,
+              startedAt: callAt,
+            },
+            state: "input-available",
+            toolCallId: "call_1",
+            type: "tool-bash",
+          },
+        ],
+        role: "assistant",
+      },
+      chatId,
+    );
+
+    await noteTasksInterruptedByQuit([{ chatId, sessionId: taskSession }]);
+
+    const notes = (
+      await Store.getMessagesWithParts({
+        chatId,
+        sessionId: sessionOfChat(chatId) ?? taskSession,
+      })
+    )
+      ._unsafeUnwrap()
+      .flatMap((message) => message.parts)
+      .flatMap((part) =>
+        part.type === "data-taskEvent" ? [taskEventModelNote(part.data)] : [],
+      );
+    expect(notes).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      The app closed while a task you created was working:
+      - t1 ("Audit the vault") did not finish: the app closed while writing the log (2 minutes of work, 0 tokens so far).
+      The app has been opened again since, and nothing ran while it was closed.
+      </instrument-system-note>",
+      ]
+    `);
+    const call = (
+      await Store.getMessageWithParts({
+        chatId,
+        messageId,
+        sessionId: taskSession,
+      })
+    )
+      ._unsafeUnwrap()
+      .parts.find((part) => part.metadata.id === partId);
+    expect(call).toMatchObject({
+      errorText: "This action was interrupted when the app closed.",
+      metadata: { endedAt: expect.any(Date) },
+      state: "output-error",
+    });
+  });
 });

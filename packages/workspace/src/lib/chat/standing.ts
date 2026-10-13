@@ -1,11 +1,13 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { z } from "zod";
 
-import { AGENT_FILES_LANGUAGE } from "../../constants";
+import {
+  AGENT_FILES_LANGUAGE,
+  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+} from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../interrupted-tool-calls";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";

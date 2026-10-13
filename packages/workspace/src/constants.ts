@@ -76,6 +76,15 @@ export const TOOL_ACTIVITY_PARAM_NAME = "activity";
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
 
 /**
+ * What a tool call reads when the app closed while it ran: written by the quit
+ * on a task's call it cut off, and by the next launch's sweep on any call a
+ * process left in flight. Matched by what reads a call as cut off rather than
+ * failed.
+ */
+export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
+  "This action was interrupted when the app closed.";
+
+/**
  * What a chat is called until it is named: its session's title, and its
  * settings' name, until the first exchange retitles it.
  */

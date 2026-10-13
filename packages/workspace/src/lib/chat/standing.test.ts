@@ -4,7 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../interrupted-tool-calls";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { Store } from "../store";
 import { touchTask } from "./children";
 import { taskStanding } from "./standing";

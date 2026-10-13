@@ -2,10 +2,12 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StopNotice } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
 import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
@@ -21,9 +23,17 @@ import { taskFsLayout } from "../resolve-workspace-file-path";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
+import { getCurrentDate } from "../get-current-date";
+import { isToolPart } from "../is-tool-part";
 import { closeAgentBrowserSessionsForSessions } from "../agent-browser-cleanup";
 import { getWorkspaceConfig } from "../workspace-config";
-import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
+import {
+  isWorking,
+  latestStep,
+  leftRunning,
+  ownMessages,
+  turnStartedAt,
+} from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
 import {
@@ -239,9 +249,10 @@ export async function interruptTasksForQuit(
 }
 
 /**
- * The record half of {@link interruptTasksForQuit}: marks each of these
- * sessions that is a task as stopped by the app and writes its chat the
- * note, one per chat. Returns the tasks among them.
+ * The record half of {@link interruptTasksForQuit}: settles the call each of
+ * these sessions that is a task had in flight as cut off now, marks the task
+ * as stopped by the app, and writes its chat the note, one per chat. Returns
+ * the tasks among them.
  */
 export async function noteTasksInterruptedByQuit(
   sessions: { chatId: ChatId; sessionId: StoreId.Session }[],
@@ -257,6 +268,13 @@ export async function noteTasksInterruptedByQuit(
   }
   await Promise.all(
     [...byChat].map(async ([chatId, chatTasks]) => {
+      // Ahead of the note, which says how long each task worked: a call
+      // still open has no end, and the run it cut off would be counted
+      // without it. The stop that follows finds the call already settled.
+      const closedAt = getCurrentDate();
+      await Promise.all(
+        chatTasks.map((task) => settleCutOffCalls(task, closedAt)),
+      );
       const events = await Promise.all(chatTasks.map(interruptedEvent));
       await Promise.all(
         chatTasks.map((task) =>
@@ -273,6 +291,50 @@ export async function noteTasksInterruptedByQuit(
     }),
   );
   return tasks;
+}
+
+/**
+ * Ends the calls a task's last step left open as cut off by the app closing
+ * at `closedAt`, in the words the stop and the next launch's sweep write. A
+ * call that settles first is left as it is.
+ */
+async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
+  const ref = { chatId: task.chatId, sessionId: task.id };
+  const last = (await ownMessages(ref)).findLast(
+    (message) => message.role === "assistant",
+  );
+  for (const part of last?.parts.filter(isToolPart) ?? []) {
+    if (!isOpenCall(part)) {
+      continue;
+    }
+    const written = await Store.updatePart(
+      {
+        messageId: part.metadata.messageId,
+        partId: part.metadata.id,
+        sessionId: part.metadata.sessionId,
+      },
+      (current) =>
+        isToolPart(current) && isOpenCall(current)
+          ? // The part union is discriminated by tool type as well as by
+            // state, so a spread that moves only the state lands on no
+            // member of it; these are the fields an errored call carries.
+            ({
+              ...current,
+              errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+              metadata: { ...current.metadata, endedAt: closedAt },
+              state: "output-error",
+            } as SessionMessagePart.Type)
+          : current,
+      task.chatId,
+    );
+    if (written.isErr()) {
+      getWorkspaceConfig().captureException(written.error);
+    }
+  }
+}
+
+function isOpenCall(part: SessionMessagePart.ToolPart): boolean {
+  return part.state === "input-available" || part.state === "input-streaming";
 }
 
 /** What the chat is told about one task the quit cut off. */

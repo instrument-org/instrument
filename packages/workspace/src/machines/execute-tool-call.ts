@@ -2,7 +2,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
 import { getCurrentDate } from "../lib/get-current-date";
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../lib/interrupted-tool-calls";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../constants";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
 import { Store } from "../lib/store";

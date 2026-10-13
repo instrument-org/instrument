@@ -271,6 +271,28 @@ describe("refusedPathIn", () => {
     ).toBe(level);
   });
 
+  it.each([
+    "cp: /Users/someone/Documents/Acme Corp/a.csv: Operation not permitted",
+    "cat: '/Users/someone/Documents/Acme Corp/a.csv': Operation not permitted",
+    "PermissionError: [Errno 1] Operation not permitted: '/Users/someone/Documents/Acme Corp/a.csv'",
+    "cp: cannot open ‘/Users/someone/Documents/Acme Corp/a.csv’ for reading: Permission denied",
+    "/bin/sh: 1: cannot create /Users/someone/Documents/Acme Corp/a.csv: Permission denied",
+  ])("keeps the spaces in the path %s names", (output) => {
+    expect(refusedPathIn(output, reach)?.hostPath).toBe(
+      "/Users/someone/Documents/Acme Corp/a.csv",
+    );
+  });
+
+  it.each([
+    `cat: "/Users/someone/Documents/Bob's Files/a.txt": Operation not permitted`,
+    "cat: /Users/someone/Documents/Bob's Files/a.txt: Operation not permitted",
+    `PermissionError: [Errno 1] Operation not permitted: "/Users/someone/Documents/Bob's Files/a.txt"`,
+  ])("keeps the apostrophe in the path %s names", (output) => {
+    expect(refusedPathIn(output, reach)?.hostPath).toBe(
+      "/Users/someone/Documents/Bob's Files/a.txt",
+    );
+  });
+
   it("asks for the folder one level into the place", () => {
     const refused = refusedPathIn(
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",

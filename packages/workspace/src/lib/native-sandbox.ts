@@ -1013,6 +1013,40 @@ const REFUSALS = [
   "Read-only file system",
 ];
 
+/**
+ * The paths a line refusing a path names, the likeliest first. A path in
+ * quotes is whole, spaces and apostrophes included (`'Acme Corp/a.csv'`,
+ * `"Bob's Files"`, GNU's `‘/home/x’`), and the last one quoted is the one
+ * refused. Unquoted, the path runs from the first word with a slash up to
+ * the `: <refusal>` that ends the line (`cp: /Users/s/Acme Corp/a.csv:
+ * Operation not permitted`), past what a shell names first
+ * (`/bin/sh: 1: cannot create <path>`). Failing both, each word with a
+ * slash, last first.
+ */
+function pathsNamedIn(line: string, refusal: string): string[] {
+  const quoted = [
+    ...line.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`|‘([^’]*)’|“([^”]*)”/g),
+  ]
+    .map((match) => match.slice(1).find((group) => group !== undefined) ?? "")
+    .filter((span) => span.includes("/"));
+  if (quoted.length > 0) {
+    return quoted.toReversed();
+  }
+  const end = line.lastIndexOf(": ", line.indexOf(refusal));
+  if (end !== -1) {
+    const words = (line.slice(0, end).split(": ").at(-1) ?? "").split(" ");
+    const first = words.findIndex((word) => word.includes("/"));
+    if (first !== -1) {
+      return [words.slice(first).join(" ")];
+    }
+  }
+  return [
+    ...line.matchAll(/(?<=^|[\s:'"`(=[‘“])[^\s:'"`‘’“”]*\/[^\s:'"`‘’“”]*/g),
+  ]
+    .map((match) => match[0])
+    .toReversed();
+}
+
 /** A path the rules kept a native command from, and how it was used. */
 interface Refused {
   hostPath: string;
@@ -1038,17 +1072,13 @@ export function refusedPathIn(
     // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
     // closed folder empty and a home folder read-only, so the same refusal
     // reads as a missing file or a read-only disk there.
-    if (!REFUSALS.some((refusal) => line.includes(refusal))) {
+    const refusal = REFUSALS.find((each) => line.includes(each));
+    if (refusal === undefined) {
       continue;
     }
-    // The path refused is the last one a line names: a shell names itself
-    // first (`/bin/sh: 1: cannot create <path>`). A program names a path
-    // the way it was given, so `closed/a.txt` is read against the cwd.
-    for (const match of [
-      // GNU tools quote a path in curly quotes (‘/home/x’) in a UTF-8 locale.
-      ...line.matchAll(/(?<=^|[\s:'"`(=[‘“])[^\s:'"`‘’“”]*\/[^\s:'"`‘’“”]*/g),
-    ].toReversed()) {
-      const named = match[0];
+    // A program names a path the way it was given, so `closed/a.txt` is
+    // read against the cwd.
+    for (const named of pathsNamedIn(line, refusal)) {
       if (!path.isAbsolute(named) && cwd === undefined) {
         continue;
       }

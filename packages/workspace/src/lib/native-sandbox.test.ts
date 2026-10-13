@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { execa } from "execa";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import {
   type NativeReach,
@@ -650,6 +650,67 @@ describe("bwrapArgs", () => {
     expect(bwrapArgs(reachOver("/nope/home", [])).join(" ")).not.toContain(
       "--bind /tmp /tmp",
     );
+  });
+});
+
+describe("bwrapArgs over the login session's sockets", () => {
+  const scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+  afterAll(() => {
+    rmSync(scratch, { force: true, recursive: true });
+  });
+  const home = path.join(scratch, "home");
+  const runtimeDir = path.join(scratch, "run-user");
+  mkdirSync(path.join(home, ".ssh"), { recursive: true });
+  mkdirSync(path.join(runtimeDir, "gnupg"), { recursive: true });
+  for (const socket of ["bus", "ssh-agent", "gnupg/S.gpg-agent"]) {
+    writeFileSync(path.join(runtimeDir, socket), "");
+  }
+  mkdirSync(path.join(scratch, "tmp-ssh"));
+  writeFileSync(path.join(scratch, "tmp-ssh", "agent.1"), "");
+  const sshRule = (level: "allow" | "ask"): Rule => ({
+    level,
+    path: path.join(home, ".ssh"),
+    place: "passwords",
+    source: "place",
+  });
+  const sessionArgs = (level: "allow" | "ask", agentSocket: string) =>
+    bwrapArgs(reachOver(home, [sshRule(level)]), undefined, {
+      agentSocket,
+      runtimeDir,
+    })
+      .join(" ")
+      .replaceAll(scratch, "<s>")
+      .replace(/--ro-bind \S*\/closed-file/, "--ro-bind <closed-file>")
+      .split(/ (?=--)/)
+      .filter((arg) => arg.includes("<s>/run-user") || arg.includes("tmp-ssh"));
+
+  it("empties the runtime folder, and keeps the ssh-agent in it closed while ~/.ssh asks", () => {
+    expect(sessionArgs("ask", path.join(runtimeDir, "ssh-agent")))
+      .toMatchInlineSnapshot(`
+      [
+        "--tmpfs <s>/run-user",
+      ]
+    `);
+  });
+
+  it("binds the ssh-agent back once ~/.ssh is allowed", () => {
+    expect(sessionArgs("allow", path.join(runtimeDir, "ssh-agent")))
+      .toMatchInlineSnapshot(`
+      [
+        "--tmpfs <s>/run-user",
+        "--bind <s>/run-user/ssh-agent <s>/run-user/ssh-agent",
+      ]
+    `);
+  });
+
+  it("covers an ssh-agent outside the runtime folder while ~/.ssh asks", () => {
+    expect(sessionArgs("ask", path.join(scratch, "tmp-ssh", "agent.1")))
+      .toMatchInlineSnapshot(`
+      [
+        "--tmpfs <s>/run-user",
+        "--ro-bind <closed-file> <s>/tmp-ssh/agent.1",
+      ]
+    `);
   });
 });
 

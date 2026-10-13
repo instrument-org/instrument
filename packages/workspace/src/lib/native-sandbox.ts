@@ -610,6 +610,16 @@ export function bwrapAvailable(): boolean {
 export function bwrapArgs(
   reach: NativeReach,
   walk: WalkLimits = WALK_LIMITS,
+  session: {
+    /** The ssh-agent's socket the app was started with, if any. */
+    agentSocket?: string;
+    /** The login session's runtime folder, `/run/user/<uid>`. */
+    runtimeDir?: string;
+  } = {
+    agentSocket: appEnv.SSH_AUTH_SOCK,
+    runtimeDir:
+      appEnv.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.() ?? 0}`,
+  },
 ): string[] {
   const { home, rules, withoutAsking } = reach.rules;
   /** "empty" is a read-only empty folder made where nothing is yet. */
@@ -737,6 +747,32 @@ export function bwrapArgs(
     // terminal the app was started from (TIOCSTI).
     "--new-session",
   ];
+  // The login session's runtime folder holds sockets that act outside the
+  // sandbox: the session bus, through which `systemd-run --user` starts a
+  // command outside it, and the ssh and gpg agents, which sign with keys
+  // the rules may keep closed. An empty folder stands in for it, and the
+  // ssh-agent's socket is bound back once the rules reach ~/.ssh, as the
+  // Seatbelt profile opens it. A socket in the abstract namespace has no
+  // path to cover; the session bus is found by its path.
+  const { agentSocket, runtimeDir } = session;
+  const emptied =
+    runtimeDir && path.isAbsolute(runtimeDir) && existsSync(runtimeDir)
+      ? resolveReal(runtimeDir)
+      : undefined;
+  if (emptied) {
+    args.push("--tmpfs", emptied);
+  }
+  const sessionSockets: string[] = [];
+  if (agentSocket && path.isAbsolute(agentSocket) && existsSync(agentSocket)) {
+    const socket = resolveReal(agentSocket);
+    if (reachesSshKeys(reach)) {
+      sessionSockets.push("--bind", socket, socket);
+    } else if (!emptied || hostPathWithin(emptied, socket) === null) {
+      // A socket elsewhere (`/tmp/ssh-…/agent.<pid>`) is covered by the
+      // file that stands in for a closed one.
+      sessionSockets.push("--ro-bind", standIn, socket);
+    }
+  }
   // Of the entries for one path, the last mounts over the others, so it is
   // the only one kept: a closed folder's read-only remount, which comes last
   // of all, would otherwise land on the allow bound over it.
@@ -814,7 +850,7 @@ export function bwrapArgs(
       args.push("--ro-bind", standIn, real);
     }
   }
-  return [...args, ...remountLater];
+  return [...args, ...sessionSockets, ...remountLater];
 }
 
 /**

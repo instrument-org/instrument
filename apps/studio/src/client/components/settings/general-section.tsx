@@ -782,6 +782,9 @@ function Notifications() {
   const openNotificationSettingsMutation = useMutation(
     rpcClient.preferences.openNotificationSettings.mutationOptions(),
   );
+  const { data: canOpenNotificationSettings = false } = useQuery(
+    rpcClient.preferences.canOpenNotificationSettings.queryOptions(),
+  );
   // What macOS says about the app's notifications, read again each time the
   // window takes focus, which is when someone returns from System Settings
   // having changed it. Switching apps leaves the page visible, so the query
@@ -840,12 +843,16 @@ function Notifications() {
         return;
       }
       toast.success("Test notification sent", {
-        action: {
-          label: "Open settings",
-          onClick: () => {
-            openNotificationSettingsMutation.mutate(undefined);
-          },
-        },
+        // Where the system has no notification settings to open, the
+        // description alone says what to look for.
+        action: canOpenNotificationSettings
+          ? {
+              label: "Open settings",
+              onClick: () => {
+                openNotificationSettingsMutation.mutate(undefined);
+              },
+            }
+          : undefined,
         description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
       });
     } catch (error) {

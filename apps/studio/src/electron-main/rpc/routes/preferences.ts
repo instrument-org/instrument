@@ -1,5 +1,9 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
+import {
+  notificationSettingsTarget,
+  openNotificationSettings as openSystemNotificationSettings,
+} from "@/electron-main/lib/notification-settings";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -23,9 +27,8 @@ import {
   unpinPlace,
 } from "@/shared/sidebar-places";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
-import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
-import { app, shell } from "electron";
+import { app } from "electron";
 import { z } from "zod";
 
 /** Both halves, as one settings screen reads them. */
@@ -61,34 +64,18 @@ const sendTestNotification = base
     return showAgentCompletionTestNotification();
   });
 
-// The OS notification settings deep link. macOS won't let apps prompt for
-// notification permission, so surfacing the settings pane is the best we can
-// offer when a user isn't seeing notifications. The macOS `?id=` bundle hint
-// selects this app's row (honored on Ventura+, otherwise it lands on the
-// Notifications list).
-function notificationSettingsUrl(): string | undefined {
-  switch (process.platform) {
-    case "darwin": {
-      return `x-apple.systempreferences:com.apple.preference.notifications?id=${APP_BUNDLE_ID}`;
-    }
-    case "win32": {
-      return "ms-settings:notifications";
-    }
-    default: {
-      return undefined;
-    }
-  }
-}
+/** Whether this computer has notification settings the app can open. */
+const canOpenNotificationSettings = base.output(z.boolean()).handler(
+  async () =>
+    (await notificationSettingsTarget({
+      env: process.env,
+      platform: process.platform,
+    })) !== undefined,
+);
 
 const openNotificationSettings = base
   .output(z.object({ opened: z.boolean() }))
-  .handler(async () => {
-    const url = notificationSettingsUrl();
-    if (url) {
-      await shell.openExternal(url);
-    }
-    return { opened: url !== undefined };
-  });
+  .handler(async () => ({ opened: await openSystemNotificationSettings() }));
 
 /** The Files sidebar's Pinned section, changed by `change` and kept. */
 function changeSidebarPlaces(change: (places: SidebarPlaces) => SidebarPlaces) {
@@ -190,6 +177,7 @@ const live = {
 };
 
 export const preferences = {
+  canOpenNotificationSettings,
   checkForUpdates,
   get,
   getAppVersion,

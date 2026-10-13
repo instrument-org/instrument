@@ -121,7 +121,13 @@ import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
 import { FolderMark } from "./folder-mark";
 import { GlyphButton } from "./glyph-button";
-import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
+import {
+  folderOf,
+  homeRelative,
+  joinHostPath,
+  parentFolderOf,
+  segmentsOf,
+} from "./host-path";
 
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
@@ -1184,6 +1190,22 @@ export function ComputerPage({
       to: "/files",
     });
   };
+  // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac): the folder
+  // the root sits in, with the root selected in it. Nothing is above a disk.
+  const leaveRoot = () => {
+    const above = rootHostPath && parentFolderOf(rootHostPath);
+    if (!rootHostPath || !above) {
+      return;
+    }
+    void navigate({
+      search: {
+        path: "",
+        root: above,
+        select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
+      },
+      to: "/files",
+    });
+  };
 
   if (!places.data) {
     return (
@@ -1633,6 +1655,17 @@ export function ComputerPage({
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
+                onLeaveRoot={isRecents ? undefined : leaveRoot}
+                onNewFolder={
+                  folderOnScreenPath === undefined
+                    ? undefined
+                    : () => {
+                        void newFolderIn({
+                          hostPath: folderOnScreenPath,
+                          prefix: onScreen,
+                        });
+                      }
+                }
                 onTrash={(picked) => void trash(picked)}
                 onViewChange={(next) => {
                   setDefaultView(next);

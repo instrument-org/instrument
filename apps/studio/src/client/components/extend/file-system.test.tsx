@@ -380,6 +380,77 @@ describe("FileSystem", () => {
   });
 });
 
+describe("the file manager's keys for going up and making a folder", () => {
+  const NESTED: FileSystemItem[] = [
+    { hasChildren: true, kind: "folder", path: "docs/" },
+    { kind: "file", path: "docs/a.txt" },
+    { kind: "file", path: "b.txt" },
+  ];
+
+  describe.each([
+    {
+      newFolder: { ctrlKey: false, key: "N", metaKey: true, shiftKey: true },
+      platform: "darwin",
+      up: { altKey: false, key: "ArrowUp", metaKey: true },
+    },
+    {
+      newFolder: { ctrlKey: true, key: "N", metaKey: false, shiftKey: true },
+      platform: "win32",
+      up: { altKey: true, key: "ArrowUp", metaKey: false },
+    },
+  ])("on $platform", ({ newFolder, platform, up }) => {
+    beforeEach(() => {
+      Object.defineProperty(window, "electron", {
+        configurable: true,
+        value: { process: { platform } },
+      });
+    });
+    afterEach(() => {
+      installWindowStubs();
+    });
+
+    it("goes up with the folder left selected, then past the top to the page", () => {
+      const onLeaveRoot = vi.fn();
+      const onPathChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultPath="docs/"
+          defaultView="list"
+          items={NESTED}
+          onLeaveRoot={onLeaveRoot}
+          onPathChange={onPathChange}
+        />,
+      );
+
+      fireEvent.keyDown(screen.getByRole("option", { name: "a.txt" }), up);
+      expect(onPathChange).toHaveBeenLastCalledWith("");
+      const docs = screen.getByRole("option", { name: "docs" });
+      expect(docs.getAttribute("aria-selected")).toBe("true");
+      expect(onLeaveRoot).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(docs, up);
+      expect(onLeaveRoot).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks the page for a new folder", () => {
+      const onNewFolder = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          items={NESTED}
+          onNewFolder={onNewFolder}
+        />,
+      );
+
+      fireEvent.keyDown(
+        screen.getByRole("option", { name: "b.txt" }),
+        newFolder,
+      );
+      expect(onNewFolder).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
 describe("renaming in place", () => {
   /** A list of five files that can be renamed, with the saves it was asked for. */
   function renderRenamable({

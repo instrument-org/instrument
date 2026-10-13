@@ -18,7 +18,7 @@ function press(chord: string) {
     ctrlKey: chord.includes("⌃"),
     key: key === "Space" ? " " : key,
     metaKey: chord.includes("⌘"),
-    shiftKey: chord.includes("⇧") && key.length > 1,
+    shiftKey: chord.includes("⇧"),
   };
 }
 
@@ -31,6 +31,10 @@ describe("listingCommandOf", () => {
     ["⌃ArrowDown", { type: "open" }],
     ["⌘o", { type: "open" }],
     ["⌘a", { type: "select-all" }],
+    // The Finder's Enclosing Folder and New Folder.
+    ["⌘ArrowUp", { type: "parent" }],
+    ["⇧⌘N", { type: "new-folder" }],
+    ["⌥ArrowUp", { direction: "up", extend: false, type: "move" }],
     ["Enter", { type: "return" }],
     ["Space", { type: "space" }],
     ["q", { char: "q", type: "type-ahead" }],
@@ -38,7 +42,8 @@ describe("listingCommandOf", () => {
     ["7", { char: "7", type: "type-ahead" }],
     ["é", { char: "é", type: "type-ahead" }],
     // Left to whoever else wants them.
-    ["⌘ArrowUp", null],
+    ["⇧⌘ArrowUp", null],
+    ["⌘N", null],
     ["⌘ArrowLeft", null],
     ["⌘Enter", null],
     ["⌥Enter", null],
@@ -53,7 +58,8 @@ describe("listingCommandOf", () => {
     expect(listingCommandOf(press(chord), "mac")).toEqual(command);
   });
 
-  // File Explorer, GNOME Files and Dolphin open on Enter and rename on F2.
+  // File Explorer, GNOME Files and Dolphin open on Enter, rename on F2, go up
+  // on Alt+↑ and make a folder on Ctrl+Shift+N.
   it.each(
     (["windows", "linux"] as const).flatMap((os) =>
       (
@@ -63,6 +69,10 @@ describe("listingCommandOf", () => {
           ["⌃F2", null],
           ["⇧F2", null],
           ["⌃o", { type: "open" }],
+          ["⌥ArrowUp", { type: "parent" }],
+          ["⌃⇧N", { type: "new-folder" }],
+          ["⌘ArrowUp", null],
+          ["⌃ArrowUp", null],
         ] as const
       ).map(([chord, command]) => [os, chord, command] as const),
     ),

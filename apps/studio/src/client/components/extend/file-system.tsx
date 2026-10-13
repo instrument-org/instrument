@@ -64,7 +64,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { cn, currentOs, isMacOS } from "@/client/lib/utils";
+import { cn, commandKeyHeld, currentOs, isMacOS } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
@@ -278,6 +278,17 @@ export type FileSystemProps = {
     widths: Partial<Record<FileSystemListColumn, number>>,
   ) => void;
   /**
+   * The folder above the browser's root asked for, by ⌘↑ or Alt+↑ at the top
+   * of the tree: the page re-roots there. Left out, the top is as far up as
+   * the keys go.
+   */
+  onLeaveRoot?: () => void;
+  /**
+   * A new folder asked for by ⇧⌘N or Ctrl+Shift+N, made by the page in the
+   * folder on screen. Left out, the key is nobody's here.
+   */
+  onNewFolder?: () => void;
+  /**
    * Several selected opened at once, by a double-click or ⌘O on one of them.
    * Left out, each file among them opens as `onFileOpen` would, and the
    * folders are left where they are.
@@ -425,7 +436,7 @@ function selectionModeOf(event: {
   shiftKey: boolean;
 }): null | SelectionMode {
   if (event.shiftKey) return "extend";
-  if (isMacOS() ? event.metaKey : event.ctrlKey) return "toggle";
+  if (commandKeyHeld(event)) return "toggle";
   return null;
 }
 /** A Control-click, which on a Mac is the right click and selects nothing. */
@@ -1644,6 +1655,8 @@ export function FileSystem({
   onItemContextMenu,
   onListColumnsChange,
   onListColumnWidthsChange,
+  onLeaveRoot,
+  onNewFolder,
   onOpenSeveral,
   onPathChange,
   onRenameCommit,
@@ -2772,10 +2785,27 @@ export function FileSystem({
         nav.reveal(moved.entry);
         return true;
       }
+      case "new-folder":
+        if (!onNewFolder) return false;
+        onNewFolder();
+        return true;
       case "open":
         if (!lead) return false;
         openEntry(lead);
         return true;
+      case "parent": {
+        if (currentPath === "") {
+          if (!onLeaveRoot) return false;
+          onLeaveRoot();
+          return true;
+        }
+        // The folder left behind is what is selected above it, the way the
+        // Finder and File Explorer both go up.
+        const left = index.folders.get(currentPath) ?? null;
+        navigateTo(pathParent(currentPath));
+        selectEntry(left);
+        return true;
+      }
       case "rename":
       case "return":
         if (!lead) return false;

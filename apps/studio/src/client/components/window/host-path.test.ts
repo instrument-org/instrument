@@ -4,6 +4,7 @@ import {
   folderOf,
   homeRelative,
   isInside,
+  parentFolderOf,
   segmentsOf,
   separatorOf,
 } from "./host-path";
@@ -27,6 +28,19 @@ describe("folderOf", () => {
     ["C:\\Users\\sam\\Desktop\\notes.txt", "C:\\Users\\sam\\Desktop"],
   ])("puts %s in %s", (hostPath, folder) => {
     expect(folderOf(hostPath)).toBe(folder);
+  });
+});
+
+describe("parentFolderOf", () => {
+  it.each([
+    ["/Users/sam/Desktop", "/Users/sam"],
+    ["/Users", "/"],
+    ["/", null],
+    ["C:\\Users\\sam", "C:\\Users"],
+    ["C:\\Users", "C:\\"],
+    ["C:\\", null],
+  ])("goes up from %s to %s", (hostPath, parent) => {
+    expect(parentFolderOf(hostPath)).toBe(parent);
   });
 });
 

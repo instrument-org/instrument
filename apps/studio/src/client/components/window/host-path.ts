@@ -6,6 +6,23 @@ export function folderOf(hostPath: string) {
 }
 
 /**
+ * The folder a folder sits in, or null at the top of a disk (`/`, `C:\`),
+ * which nothing is above. A Windows drive's top keeps its backslash, as the
+ * drive is written.
+ */
+export function parentFolderOf(hostPath: string): null | string {
+  const names = segmentsOf(hostPath);
+  if (separatorOf(hostPath) === "\\") {
+    const above = names.slice(0, -1);
+    if (above.length === 0) {
+      return null;
+    }
+    return above.length === 1 ? `${above.join("")}\\` : above.join("\\");
+  }
+  return names.length === 0 ? null : `/${names.slice(0, -1).join("/")}`;
+}
+
+/**
  * A folder on the computer the way a person writes it, the home folder as `~`.
  *
  * Only where a person would: `~` is how a Mac and a Linux desktop spell it, and

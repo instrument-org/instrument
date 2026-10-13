@@ -16,8 +16,12 @@ export type ListingDirection = "down" | "left" | "right" | "up";
 export type ListingCommand =
   /** An arrow; with Shift it reaches from where the selection began. */
   | { direction: ListingDirection; extend: boolean; type: "move" }
+  /** ⇧⌘N, or Ctrl+Shift+N off the Mac: a new folder in the one on screen. */
+  | { type: "new-folder" }
   /** ⌘O or ⌘↓, or Enter where F2 renames: open what is selected. */
   | { type: "open" }
+  /** ⌘↑, or Alt+↑ off the Mac: the folder above the one on screen. */
+  | { type: "parent" }
   /** F2 where Enter opens: rename what is selected, where it can be. */
   | { type: "rename" }
   /** Return on the Mac: rename what is selected, or open it where nothing can be renamed. */
@@ -75,11 +79,35 @@ function isTrashPress(
   );
 }
 
+/** ⇧⌘N, or Ctrl+Shift+N off the Mac, as every system's file manager has it. */
+function isNewFolderPress(press: KeyPress, { commandKey }: OsConventions) {
+  return (
+    press.key.toLowerCase() === "n" &&
+    press.shiftKey &&
+    !press.altKey &&
+    press[commandKey]
+  );
+}
+
+/** ↑ with the Finder's ⌘ or the others' Alt, and nothing else held. */
+function isParentPress(
+  press: KeyPress,
+  { files: { parentFolderKey } }: OsConventions,
+) {
+  const held = (["altKey", "ctrlKey", "metaKey", "shiftKey"] as const).filter(
+    (flag) => press[flag],
+  );
+  return (
+    press.key === "ArrowUp" && held.length === 1 && held[0] === parentFolderKey
+  );
+}
+
 /**
  * The command a press is, or null for one the listing leaves to whoever else
  * wants it: shortcuts it does not know, and arrows with ⌘ or Ctrl other than
- * ⌘↓, which the Finder keeps for going up and down folders. Which key renames
- * and which one trashes are the system's file manager's (`os-conventions.ts`).
+ * the ones the system's file manager keeps for going up and down folders.
+ * Which keys rename, trash and go up are that file manager's
+ * (`os-conventions.ts`).
  */
 export function listingCommandOf(
   press: KeyPress,
@@ -88,6 +116,8 @@ export function listingCommandOf(
   const conventions = OS_CONVENTIONS[os];
   if (isSelectAllPress(press, conventions)) return { type: "select-all" };
   if (isTrashPress(press, conventions)) return { type: "trash" };
+  if (isNewFolderPress(press, conventions)) return { type: "new-folder" };
+  if (isParentPress(press, conventions)) return { type: "parent" };
   const command = press.metaKey || press.ctrlKey;
   if (command && (press.key === "o" || press.key === "ArrowDown")) {
     return { type: "open" };

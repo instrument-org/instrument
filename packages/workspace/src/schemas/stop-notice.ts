@@ -4,7 +4,8 @@
  * the one it describes.
  */
 export interface StopNotice {
-  by: "chat" | "user";
+  /** The chat's `task stop`, the user's Stop, or the app quitting. */
+  by: "app" | "chat" | "user";
   /** Whether the chat is woken with the stopped task's news. */
   wakesChat: boolean;
 }

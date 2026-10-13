@@ -43,6 +43,7 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
+import { type StopReason } from "../execute-tool-call";
 import {
   type SessionActorRef,
   sessionMachine,
@@ -117,8 +118,13 @@ export type WorkspaceEvent =
     }
   | {
       type: "stopSessions";
-      /** Every session of the record, or the one named, with whose stop it is. */
-      value: { id: ChatId; notice?: StopNotice; sessionId?: StoreId.Session };
+      /** Every session of the record, or the one named, with whose stop it is and why. */
+      value: {
+        id: ChatId;
+        notice?: StopNotice;
+        reason?: StopReason;
+        sessionId?: StoreId.Session;
+      };
     }
   | {
       type: "updateInteractiveToolCall";
@@ -540,7 +546,7 @@ export const workspaceMachine = setup({
         const sessionActorRefs = context.sessionRefsByChatId.get(
           event.value.id,
         );
-        const { notice, sessionId } = event.value;
+        const { notice, reason, sessionId } = event.value;
         for (const sessionActorRef of sessionActorRefs ?? []) {
           if (
             sessionId === undefined ||
@@ -548,6 +554,7 @@ export const workspaceMachine = setup({
           ) {
             sessionActorRef.send({
               ...(notice ? { notice } : {}),
+              ...(reason ? { reason } : {}),
               type: "stop",
             });
           }

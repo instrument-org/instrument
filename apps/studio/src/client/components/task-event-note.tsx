@@ -26,18 +26,22 @@ export function TaskEventNote({
             <CheckCircleIcon className="size-3.5 shrink-0" />
           )}
           <span>
-            {event.stoppedBy
-              ? "You stopped: "
-              : event.status === "error"
-                ? "Stopped: "
-                : event.status === "overdue"
-                  ? "Still working: "
-                  : "Finished: "}
+            {event.stoppedBy === "app"
+              ? "Interrupted when the app closed: "
+              : event.stoppedBy === "user"
+                ? "You stopped: "
+                : event.status === "error"
+                  ? "Stopped: "
+                  : event.status === "overdue"
+                    ? "Still working: "
+                    : "Finished: "}
             {event.title}
             {/* Past tense on purpose: the note is written once, and what was
                 left running then may have been stopped since. */}
             {event.running && event.running.length > 0
-              ? ` · left ${event.running.length} running`
+              ? event.stoppedBy === "app"
+                ? ` · ended ${event.running.length} running`
+                : ` · left ${event.running.length} running`
               : null}
           </span>
         </p>

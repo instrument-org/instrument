@@ -53,7 +53,7 @@ export function ChildTranscript({
   isWorking: boolean;
   sessionId: StoreId.Session;
   /** Who stopped its last turn, which the transcript ends by saying. */
-  stoppedBy?: "chat" | "user";
+  stoppedBy?: "app" | "chat" | "user";
 }) {
   // The chat's record, which the task runs in: its folder, model and apps.
   const record = useQuery(
@@ -113,9 +113,11 @@ export function ChildTranscript({
               {stoppedBy && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <StopCircleIcon className="size-3.5 shrink-0" />
-                  {stoppedBy === "user"
-                    ? "You stopped this task."
-                    : "The chat stopped this task."}
+                  {stoppedBy === "app"
+                    ? "The app closed before this task finished."
+                    : stoppedBy === "user"
+                      ? "You stopped this task."
+                      : "The chat stopped this task."}
                 </p>
               )}
             </MessageScrollerContent>

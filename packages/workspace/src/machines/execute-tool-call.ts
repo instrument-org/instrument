@@ -2,6 +2,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
 import { getCurrentDate } from "../lib/get-current-date";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../lib/interrupted-tool-calls";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
 import { Store } from "../lib/store";
@@ -11,15 +12,19 @@ import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 
 /**
- * Why a run was stopped: the user stopped it, or the user wrote again while
- * the conversation was still replying, which starts the reply over.
+ * Why a run was stopped: the user stopped it, the user wrote again while
+ * the conversation was still replying, which starts the reply over, or the
+ * app is quitting.
  */
-export type StopReason = "manual" | "superseded";
+export type StopReason = "manual" | "quit" | "superseded";
 
 type CancellationReason = "timeout" | "unknown" | StopReason;
 
 const STOPPED_BECAUSE: Record<CancellationReason, string> = {
   manual: "This action was stopped by you.",
+  // The words the next launch's sweep writes on a call the quit left in
+  // flight, so a call reads the same whichever of the two settled it.
+  quit: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
   superseded:
     "This action was interrupted by a newer message from the user, and may not have finished.",
   timeout: "This action was stopped because it took too long.",

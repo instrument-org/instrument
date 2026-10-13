@@ -5,6 +5,7 @@ import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../interrupted-tool-calls";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
@@ -46,7 +47,11 @@ export interface TaskStanding {
   line: string;
 }
 
-/** Where a task stands, in the four words the list can say it in. */
+/**
+ * Where a task stands, in the four words the list can say it in. A turn that
+ * did not finish on its own and was nobody's decision is `failed`: a model
+ * error, or the app quitting while the task worked.
+ */
 export const TaskStandingKindSchema = z.enum([
   "done",
   "failed",
@@ -67,6 +72,17 @@ type TaskStandingKind = z.output<typeof TaskStandingKindSchema>;
  */
 export async function endedWithoutWords(ref: SessionRef): Promise<TaskEnding> {
   return endingIn(ref, await ownMessages(ref));
+}
+
+/**
+ * The line for a turn the app's quitting ended, naming what the task was in
+ * the middle of when that is known. Read by the task list and by the note
+ * the chat gets as the app quits, so the two say the same thing.
+ */
+export function appClosedLine(step: string | undefined): string {
+  return step
+    ? `The app closed while ${asClause(step)}`
+    : "The app closed before it finished";
 }
 
 /**
@@ -183,7 +199,19 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
     inherited: false,
   });
   const transcript = messages.isOk() ? messages.value : [];
-  const settle = messages.isOk() ? kept : unkept;
+  const session = await Store.getSession(ref.sessionId, ref.chatId);
+  const settle = messages.isOk() && session.isOk() ? kept : unkept;
+  // Ahead of the rest: a turn the app's quitting cut off may have said words
+  // or asked something on an earlier step, and neither is where it ended.
+  if (
+    (session.isOk() && session.value.stoppedBy === "app") ||
+    endedByAppClosing(transcript)
+  ) {
+    return settle({
+      kind: "failed",
+      line: appClosedLine(await latestStep(ref)),
+    });
+  }
   // A turn that ended on an ask rather than on words is waiting on the user.
   const waiting = askIn(transcript);
   if (waiting) {
@@ -197,4 +225,20 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   }
   const ending = await endingIn(ref, transcript);
   return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });
+}
+
+/**
+ * Whether the last turn ended on a call the app's closing cut off, which is
+ * what the store's open-time sweep writes on a call left in flight. Covers a
+ * process that ended without marking its tasks, as a crash does.
+ */
+function endedByAppClosing(messages: SessionMessage.WithParts[]): boolean {
+  const last = messages.findLast((message) => message.role === "assistant");
+  return (
+    last?.parts.some(
+      (part) =>
+        "errorText" in part &&
+        part.errorText === INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+    ) ?? false
+  );
 }

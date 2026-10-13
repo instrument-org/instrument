@@ -26,10 +26,15 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
-import { childTask, listChildTasks, touchTask } from "./children";
+import {
+  type ChatTask,
+  childTask,
+  listChildTasks,
+  touchTask,
+} from "./children";
 import { stepInFlight } from "./in-flight";
 import { cutForNote, lastAssistantText } from "./latest-session";
-import { endedWithoutWords } from "./standing";
+import { appClosedLine, endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
@@ -194,6 +199,98 @@ export async function wakeSessionForPermission(
     return;
   }
   await wakeWith(chatId, part, workspaceRef, sessionId);
+}
+
+/**
+ * Ends every task at work as the app quits, and leaves each chat a note
+ * naming the tasks the quit cut off and what they had running in the
+ * background, which the quit kills next. Run before those processes are
+ * killed: their list lives only in this process, and a task whose command
+ * dies under it would otherwise go on to its next step. The note starts no
+ * turn, since nothing would run it; it is in the conversation for the person
+ * to see after relaunch, and reaches the chat's agent with its next turn,
+ * the way a chat's own interrupted turn is found then. Each task's row keeps
+ * that the app stopped it, which the task list reads.
+ */
+export async function interruptTasksForQuit(
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const { sessionRefsByChatId } = workspaceRef.getSnapshot().context;
+  const alive = [...sessionRefsByChatId].flatMap(([chatId, refs]) =>
+    refs.flatMap((ref) => {
+      const snapshot = ref.getSnapshot();
+      return snapshot.hasTag("agent.alive")
+        ? [{ chatId, sessionId: snapshot.context.sessionId }]
+        : [];
+    }),
+  );
+  const interrupted = await noteTasksInterruptedByQuit(alive);
+  for (const task of interrupted) {
+    workspaceRef.send({
+      type: "stopSessions",
+      value: {
+        id: task.chatId,
+        notice: { by: "app", wakesChat: false },
+        reason: "quit",
+        sessionId: task.id,
+      },
+    });
+  }
+}
+
+/**
+ * The record half of {@link interruptTasksForQuit}: marks each of these
+ * sessions that is a task as stopped by the app and writes its chat the
+ * note, one per chat. Returns the tasks among them.
+ */
+export async function noteTasksInterruptedByQuit(
+  sessions: { chatId: ChatId; sessionId: StoreId.Session }[],
+): Promise<ChatTask[]> {
+  const tasks = (
+    await Promise.all(
+      sessions.map(({ chatId, sessionId }) => childTask(chatId, sessionId)),
+    )
+  ).filter((task) => task !== undefined);
+  const byChat = new Map<ChatId, ChatTask[]>();
+  for (const task of tasks) {
+    byChat.set(task.chatId, [...(byChat.get(task.chatId) ?? []), task]);
+  }
+  await Promise.all(
+    [...byChat].map(async ([chatId, chatTasks]) => {
+      const events = await Promise.all(chatTasks.map(interruptedEvent));
+      await Promise.all(
+        chatTasks.map((task) =>
+          touchTask(chatId, task.id, { stoppedBy: "app" }),
+        ),
+      );
+      const sessionId = sessionOfChat(chatId);
+      if (sessionId !== undefined) {
+        await saveNote(chatId, sessionId, {
+          data: { events },
+          type: "data-taskEvent",
+        });
+      }
+    }),
+  );
+  return tasks;
+}
+
+/** What the chat is told about one task the quit cut off. */
+async function interruptedEvent(task: ChatTask): Promise<TaskEvent> {
+  const ref = { sessionId: task.id, chatId: task.chatId };
+  const usage = await getUsageSummary(task.chatId, { sessionId: task.id });
+  const running = leftRunning(task.id);
+  return {
+    activeMs: usage.activeMs,
+    ended: appClosedLine(await latestStep(ref)),
+    handle: task.handle,
+    ...(running.length > 0 ? { running } : {}),
+    sessionId: task.id,
+    status: "done",
+    stoppedBy: "app",
+    title: task.title,
+    tokens: usage.inputTokens + usage.outputTokens,
+  };
 }
 
 async function checkOverdue(workspaceRef: WorkspaceActorRef) {
@@ -475,7 +572,35 @@ async function wakeWith(
   if (!sessionId) {
     throw new Error(`${chatId} is not a chat.`);
   }
+  const message = await saveNote(chatId, sessionId, part);
 
+  // Looked up after the note is written, so a model the chat cannot resolve
+  // yet still leaves the news in the conversation, where the user's next
+  // message carries it to the agent.
+  const model = await wakeModel(modelURI);
+  workspaceRef.send({
+    type: "addMessage",
+    value: {
+      id: chatId,
+      message,
+      model,
+      saved: true,
+      sessionId,
+    },
+  });
+  await recordChatActivity(chatId);
+}
+
+/**
+ * Writes a wake's part as a text-less user message in a session, which shows
+ * in the conversation at once and reaches the agent with the session's next
+ * turn, whatever starts it.
+ */
+async function saveNote(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  part: WakePart,
+): Promise<SessionMessage.UserWithParts> {
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
   const message: SessionMessage.UserWithParts = {
@@ -501,22 +626,7 @@ async function wakeWith(
   if (written.isErr()) {
     throw new Error(written.error.message);
   }
-
-  // Looked up after the note is written, so a model the chat cannot resolve
-  // yet still leaves the news in the conversation, where the user's next
-  // message carries it to the agent.
-  const model = await wakeModel(modelURI);
-  workspaceRef.send({
-    type: "addMessage",
-    value: {
-      id: chatId,
-      message,
-      model,
-      saved: true,
-      sessionId,
-    },
-  });
-  await recordChatActivity(chatId);
+  return message;
 }
 
 /**

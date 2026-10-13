@@ -14,6 +14,10 @@ describe("TaskEventNote", () => {
       event: { status: "done" as const, stoppedBy: "user" as const },
       text: "You stopped: Audit the vault",
     },
+    {
+      event: { status: "done" as const, stoppedBy: "app" as const },
+      text: "Interrupted when the app closed: Audit the vault",
+    },
   ])("says $text", ({ event, text }) => {
     renderWithProviders(
       <TaskEventNote

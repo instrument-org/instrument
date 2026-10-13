@@ -11,11 +11,23 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { updateChatSettings } from "../chat-settings";
+import { sessionOfChat } from "../record-folders";
+import { Store } from "../store";
+import { taskEventModelNote } from "../task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { leftRunning } from "./activity";
 import { childTask } from "./children";
-import { startChatWake } from "./wake";
+import { taskStanding } from "./standing";
+import { noteTasksInterruptedByQuit, startChatWake } from "./wake";
 
 vi.mock(import("../session-store-storage"));
+
+// What a task has running lives in this process's process table, which a
+// test has none of; a case names it.
+vi.mock(import("./activity"), async (importOriginal) => {
+  const original = await importOriginal();
+  return { ...original, leftRunning: vi.fn(original.leftRunning) };
+});
 
 // The chat's model is looked up to start the turn a wake writes; the turn
 // itself is the machine's, which records what it was sent.
@@ -111,5 +123,89 @@ describe("a stopped task", () => {
     }, 5000);
     expect(wakesOf(chatId)[0]).not.toHaveProperty("stoppedBy");
     expect((await childTask(chatId, taskSession))?.stoppedBy).toBeUndefined();
+  });
+});
+
+describe("a task the app's quit cut off", () => {
+  it("reads as cut off after relaunch, and leaves the chat a note naming what the quit ended, without starting a turn", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    // Mid-turn as the quit lands: a step labeled, its command still going.
+    const messageId = StoreId.newMessageId();
+    const now = new Date();
+    await Store.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: {
+          createdAt: now,
+          finishReason: "tool-calls",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId: taskSession,
+        },
+        parts: [
+          {
+            input: {
+              activity: "Counting to a million",
+              command: "fg bg_1",
+              yieldMs: 30_000,
+              explanation: "Wait for the count",
+            },
+            metadata: {
+              createdAt: now,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId: taskSession,
+            },
+            state: "input-available",
+            toolCallId: "call_1",
+            type: "tool-bash",
+          },
+        ],
+        role: "assistant",
+      },
+      chatId,
+    );
+    vi.mocked(leftRunning).mockReturnValueOnce([
+      { command: "python count.py", id: "bg_1", runningForMs: 600_000 },
+    ]);
+    const sentBefore = sent.length;
+
+    await noteTasksInterruptedByQuit([
+      { chatId, sessionId: taskSession },
+      // The chat's own session is alive too, and is no task to report.
+      { chatId, sessionId: sessionOfChat(chatId) ?? taskSession },
+    ]);
+
+    // The relaunched app reads the task from its store alone.
+    expect(
+      await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
+    ).toMatchInlineSnapshot(`
+      {
+        "kind": "failed",
+        "line": "The app closed while counting to a million",
+      }
+    `);
+    expect(sent.slice(sentBefore)).toEqual([]);
+    const chatMessages = await Store.getMessagesWithParts({
+      chatId,
+      sessionId: sessionOfChat(chatId) ?? taskSession,
+    });
+    const notes = chatMessages
+      ._unsafeUnwrap()
+      .flatMap((message) => message.parts)
+      .flatMap((part) =>
+        part.type === "data-taskEvent" ? [taskEventModelNote(part.data)] : [],
+      );
+    expect(notes).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      The app closed while a task you created was working:
+      - t1 ("Audit the vault") did not finish: the app closed while counting to a million (1 second of work, 0 tokens so far).
+        The app's closing also ended what it had running in the background: bg_1 \`python count.py\` (10 minutes). None of it is running now.
+      The app has been opened again since, and nothing ran while it was closed.
+      </instrument-system-note>",
+      ]
+    `);
   });
 });

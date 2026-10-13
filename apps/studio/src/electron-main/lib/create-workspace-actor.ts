@@ -22,6 +22,7 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
+  interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
@@ -298,8 +299,18 @@ export function createWorkspaceActor() {
           await Promise.all([
             stopWorkspaceSkillWatcher().catch(noop),
             // Agent-started servers and watchers outlive the turn that started
-            // them, so quitting is what ends them.
-            killAllBackgroundProcesses().catch(noop),
+            // them, so quitting is what ends them. The tasks at work are
+            // stopped and their chats told first, while what each has running
+            // can still be named.
+            interruptTasksForQuit(actor)
+              .catch((error: unknown) => {
+                captureServerException(
+                  error instanceof Error ? error : new Error(String(error)),
+                  { scopes: ["studio"] },
+                );
+              })
+              .then(() => killAllBackgroundProcesses())
+              .catch(noop),
           ]);
         }),
       },

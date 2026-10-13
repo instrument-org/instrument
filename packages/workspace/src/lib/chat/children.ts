@@ -18,7 +18,7 @@ export const ChatTaskSchema = z.object({
   handle: z.string(),
   id: StoreId.SessionSchema,
   /** Who stopped its last turn, when a stop ended it. */
-  stoppedBy: z.enum(["chat", "user"]).optional(),
+  stoppedBy: z.enum(["app", "chat", "user"]).optional(),
   title: z.string(),
   updatedAt: z.date(),
 });

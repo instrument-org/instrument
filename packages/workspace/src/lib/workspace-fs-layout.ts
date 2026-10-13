@@ -16,7 +16,11 @@ import { isClosedDiskRoot } from "./disk-root";
 import { ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { raiseAsk, waitingNote } from "./permissions/asks";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
-import { type AbsolutePath, type ChatDir } from "../schemas/paths";
+import {
+  type AbsolutePath,
+  AbsolutePathSchema,
+  type ChatDir,
+} from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
   canonicalizeThroughMissing,
@@ -77,6 +81,12 @@ export interface WorkspaceFsLayout {
    */
   skills: WorkspaceFsMount[];
   task: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
+  /**
+   * The system's temp folders, writable, where any program keeps scratch
+   * files (the config's, or {@link tempFolders}). Listed whether or not each exists;
+   * `buildBashFs` skips the ones that are not there.
+   */
+  temp: WorkspaceFsMount[];
 }
 
 /** A single mount in the workspace filesystem. */
@@ -107,10 +117,10 @@ export interface WorkspaceFsMount {
 
 /**
  * Build the just-bash filesystem the bash interpreter runs against, from the
- * layout: an empty read-only base holds the root (so stray writes like
- * /tmp/x fail loudly instead of evaporating with the per-call filesystem), the
- * chat's folder mounts writable at its own path, and the other folders mount
- * with the access each gets.
+ * layout: an empty read-only base holds the root (so a stray write outside
+ * every folder fails loudly instead of evaporating with the per-call
+ * filesystem), the chat's folder and the temp folders mount writable at their
+ * own paths, and the other folders mount with the access each gets.
  */
 export async function buildBashFs(
   layout: WorkspaceFsLayout,
@@ -176,14 +186,17 @@ export async function buildBashFs(
   const workspaceSkills = layout.skills.find((mount) => !mount.readOnly);
   for (const mount of await mountRoots(layout)) {
     const readOnly = mount.readOnly && !holdsWritable(layout, mount);
+    // Where the folder really is, which a filesystem over the disk compares
+    // every path it is handed against: `/tmp` is a link on macOS.
+    const root = canonicalizeThroughMissing(mount.hostRoot) ?? mount.hostRoot;
     let mounted: IFileSystem = readOnly
       ? new OverlayFs({
           maxFileReadSize,
           mountPoint: "/",
           readOnly: true,
-          root: mount.hostRoot,
+          root,
         })
-      : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot });
+      : new ReadWriteFs({ maxFileReadSize, root });
     if (workspaceSkills) {
       const skillsWithin = hostPathWithin(
         mount.hostRoot,
@@ -278,6 +291,14 @@ export function buildWorkspaceFsLayout({
       shellRoot: shellPath(taskHostRoot),
       readOnly: false,
     },
+    temp: (getWorkspaceConfig().tempFolders ?? tempFolders()).map(
+      (hostRoot) => ({
+        hostRoot,
+        maskedEntries: [],
+        shellRoot: shellPath(hostRoot),
+        readOnly: false,
+      }),
+    ),
   };
   // Every consumer of the layout (the shell, the file tools, the native
   // sandbox) holds to the same rules, the app's own over its folders among
@@ -541,7 +562,28 @@ export function classifyHostPath(
 
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [layout.task, ...otherFolders(layout)];
+  return [layout.task, ...otherFolders(layout), ...layout.temp];
+}
+
+/**
+ * The system's temp folders, where any program keeps scratch files: `/tmp`
+ * and `/var/tmp` on macOS and Linux, and this process's own (`TMPDIR` on
+ * macOS, `%TEMP%` on Windows), each as spelled and where it really is.
+ */
+function tempFolders(): AbsolutePath[] {
+  const spelled = [
+    ...(process.platform === "win32" ? [] : ["/tmp", "/var/tmp"]),
+    os.tmpdir(),
+  ];
+  const folders = new Set<string>();
+  for (const folder of spelled) {
+    folders.add(nodePath.resolve(folder));
+    const real = canonicalizeThroughMissing(folder);
+    if (real !== null) {
+      folders.add(real);
+    }
+  }
+  return [...folders].map((folder) => AbsolutePathSchema.parse(folder));
 }
 
 /**
@@ -680,6 +722,7 @@ function layoutRules(
       system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
     ),
     ...(layout.apps ? [system("allow", layout.apps.hostRoot)] : []),
+    ...layout.temp.map((mount) => system("allow", mount.hostRoot)),
   ];
   return { ...given, rules: [...given.rules, ...own] };
 }

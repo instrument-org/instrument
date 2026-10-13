@@ -190,3 +190,24 @@ describe("folderToAskFor", () => {
     ).toBe(`${home}/Projects`);
   });
 });
+
+describe.runIf(process.platform !== "win32")("an allow above the home", () => {
+  const plantedHome = "/scratch/run/home";
+  const base = rulesFor({ home: plantedHome, settings });
+  const rules = {
+    ...base,
+    rules: [
+      ...base.rules,
+      { level: "allow", path: "/scratch", source: "system" } as const,
+    ],
+  };
+
+  it.each([
+    ["write", "/scratch/notes.md", "allow"],
+    ["read", `${plantedHome}/notes.md`, "allow"],
+    ["write", `${plantedHome}/notes.md`, "ask"],
+    ["write", `${plantedHome}/Documents/a.md`, "ask"],
+  ] as const)("%s %s is %s", (op, target, level) => {
+    expect(reachOf(rules, target, op).level).toBe(level);
+  });
+});

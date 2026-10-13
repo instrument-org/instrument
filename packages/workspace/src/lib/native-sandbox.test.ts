@@ -258,6 +258,27 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
   });
 
+  it("writes the temp folder an allow opens, and still closes the home inside it", async () => {
+    const temp = realpathSync(os.tmpdir());
+    const withTemp = reachOver(home, [
+      ...reach.rules.rules,
+      { level: "allow", path: temp, source: "system" },
+    ]);
+    const write = (target: string) => {
+      const spawned = wrapNativeCommand(
+        "/bin/sh",
+        ["-c", `echo x > ${target}`],
+        withTemp,
+      );
+      return execa(spawned.file, spawned.args, { reject: false });
+    };
+    const scratch = path.join(temp, `native-sandbox-scratch-${process.pid}`);
+    expect((await write(scratch)).exitCode).toBe(0);
+    rmSync(scratch, { force: true });
+    expect((await write(path.join(home, "new"))).exitCode).not.toBe(0);
+    expect((await write(path.join(asks, "new"))).exitCode).not.toBe(0);
+  });
+
   it("keeps a closed folder from being carried out by renaming the one above it", async () => {
     const inside = path.join(granted, "Clients");
     const closedInside = path.join(inside, "Payroll");

@@ -8,6 +8,7 @@ import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
  * `~` in the shell is the home the rules hold, so a path the agent spells
@@ -38,6 +39,9 @@ beforeAll(async () => {
   originalHome = process.env.HOME;
   process.env.HOME = home;
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  // The system's own temp folders, which hold this test's planted home.
+  const { tempFolders: _tests, ...system } = getWorkspaceConfig();
+  setWorkspaceConfig(system);
 });
 
 afterAll(async () => {
@@ -58,3 +62,35 @@ it("asks for Documents when the agent lists ~/Documents", async () => {
   expect(said).not.toContain("taxes.txt");
   expect(said).not.toContain("//Documents");
 });
+
+it.skipIf(process.platform === "win32")(
+  "writes /tmp and the process's temp folder without asking",
+  async () => {
+    const name = `bash-home-scratch-${process.pid}`;
+    const own = path.join(await fs.realpath(os.tmpdir()), name);
+    const result = await run(
+      `echo x > /tmp/${name} && cat /tmp/${name} && rm /tmp/${name} && echo y > ${own}.own && cat ${own}.own && rm ${own}.own`,
+    );
+    await fs.rm(`/tmp/${name}`, { force: true });
+    await fs.rm(`${own}.own`, { force: true });
+    expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "x\ny\n" });
+  },
+);
+
+it("asks before changing the home folder a temp folder holds", async () => {
+  const result = await run("touch ~/notes.txt");
+  expect(result.exitCode).not.toBe(0);
+  await expect(fs.stat(path.join(home, "notes.txt"))).rejects.toThrow();
+});
+
+it.skipIf(process.platform === "win32")(
+  "keeps the workspace a temp folder holds hidden",
+  async () => {
+    const result = await run(
+      "ls /tmp/workspace; touch /tmp/workspace/leak.txt",
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("No such file or directory");
+    await expect(fs.stat("/tmp/workspace/leak.txt")).rejects.toThrow();
+  },
+);

@@ -27,6 +27,7 @@ export const WORKER_CONFIG_KEYS = [
   "rootDir",
   "systemSkillsDir",
   "legacyTasksDir",
+  "tempFolders",
   "toolBinDir",
   "uvBinPath",
   "uvDataDir",

@@ -219,6 +219,13 @@ export interface WorkspaceConfig {
   // migration reads, and names a new chat stays clear of while a folder
   // there waits to move.
   legacyTasksDir: AbsolutePath;
+  /**
+   * The system's temp folders, which the agent writes with no card. Absent,
+   * they are the system's own (`/tmp`, `/var/tmp` and `os.tmpdir()`). A test
+   * names none: its fixtures live in the system's temp folder and stand for
+   * folders outside every one the agent reaches.
+   */
+  tempFolders?: readonly AbsolutePath[];
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;

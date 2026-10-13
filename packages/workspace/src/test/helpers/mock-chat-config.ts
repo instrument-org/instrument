@@ -133,6 +133,7 @@ export function createMockChatConfig(
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     legacyTasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
+    tempFolders: [],
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
     uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),

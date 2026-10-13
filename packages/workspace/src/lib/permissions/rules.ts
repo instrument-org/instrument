@@ -277,6 +277,18 @@ export function reachOf(
       best = { depth: held, rule };
     }
   }
+  // An allow on a folder that holds the home folder (a temp folder holding
+  // a test's planted home) opens nothing in the home to change, as the
+  // native profiles close the home to changes beneath every rule above it;
+  // the home's own default, asking, holds there.
+  if (
+    op === "write" &&
+    best?.rule.level === "allow" &&
+    best.depth < homeDepth(rules) &&
+    hostPathWithin(rules.home, hostPath) !== null
+  ) {
+    best = undefined;
+  }
   // A name that runs code when its folder is used is closed to changes
   // anywhere but the app's own folders.
   if (
@@ -293,6 +305,10 @@ export function reachOf(
     level: levelWithoutAsking(level, best?.rule, rules.withoutAsking),
     rule: best?.rule,
   };
+}
+
+function homeDepth(rules: Rules): number {
+  return path.resolve(rules.home).split(path.sep).filter(Boolean).length;
 }
 
 function namesDangerous(foldedPath: string): boolean {

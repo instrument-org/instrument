@@ -226,14 +226,19 @@ export const SOURCE_RANK = {
 /**
  * A rule's level with "Use folders without asking" applied: every Ask first
  * becomes a yes but the passwords place's, which holds sign-ins rather than
- * work and keeps asking.
+ * work and keeps asking. A change where no rule holds the path still asks:
+ * the switch is for the person's folders, and the native profiles keep
+ * such a path closed to changes whatever it says.
  */
 export function levelWithoutAsking<L extends Access>(
   level: L,
   rule: Rule | undefined,
   withoutAsking: boolean,
 ): "allow" | L {
-  return level === "ask" && withoutAsking && rule?.place !== "passwords"
+  return level === "ask" &&
+    withoutAsking &&
+    rule !== undefined &&
+    rule.place !== "passwords"
     ? "allow"
     : level;
 }

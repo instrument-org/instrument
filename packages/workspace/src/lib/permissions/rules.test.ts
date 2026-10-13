@@ -62,6 +62,11 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
       reachOf(relaxed, `${home}/Library/Cookies/Cookies.binarycookies`, "read")
         .level,
     ).toBe("never");
+    // A change no rule holds still asks, as the native profiles keep it.
+    expect(reachOf(relaxed, `${home}/newproj/a.txt`, "write").level).toBe(
+      "ask",
+    );
+    expect(reachOf(relaxed, "/opt/thing", "write").level).toBe("ask");
   });
 
   it.each([

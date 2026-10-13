@@ -95,6 +95,18 @@ const PASSWORD_PLACES = [
   ".config/microsoft-edge",
   ".config/vivaldi",
   ".mozilla",
+  // The same browsers installed as a snap (Ubuntu's Firefox) or a Flatpak.
+  "snap/firefox",
+  "snap/chromium",
+  "snap/brave",
+  "snap/opera",
+  ".var/app/org.mozilla.firefox",
+  ".var/app/org.chromium.Chromium",
+  ".var/app/com.google.Chrome",
+  ".var/app/com.brave.Browser",
+  ".var/app/com.microsoft.Edge",
+  ".var/app/com.vivaldi.Vivaldi",
+  ".var/app/io.github.ungoogled_software.ungoogled_chromium",
   // Windows browsers, under AppData.
   "AppData/Local/Google/Chrome/User Data",
   "AppData/Local/Microsoft/Edge/User Data",

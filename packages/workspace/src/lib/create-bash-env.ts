@@ -45,13 +45,12 @@ import {
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
-import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
-import { type Rules } from "./permissions/rules";
+import { type Listings } from "./permissions/rules-fs";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -107,14 +106,10 @@ import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
 import { chatVenvPython, getUvBinPath } from "./uv";
-import {
-  buildBashFs,
-  buildWorkspaceFsLayout,
-  type WorkspaceFsLayout,
-} from "./workspace-fs-layout";
+import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createWalkBudget, type WalkBudget } from "./walk-budget";
-import { workDir } from "./work-dir";
+import { roleLayout } from "./session-layout";
 
 /**
  * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
@@ -191,10 +186,6 @@ function stubCommand(
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // searches only the shell's own PATH; replaced below
-  // Writes under /tmp rather than the chat's own `.tmp`, where the native
-  // commands' TMPDIR points. Every shell gets ours (shell-commands/mktemp.ts)
-  // instead.
-  "mktemp",
 ]);
 
 const STATIC_STUB_COMMANDS = [
@@ -420,12 +411,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: GIT_COMMAND.name,
   },
   {
-    description: MKTEMP_COMMAND.description,
-    factory: () => createMktempCommand(),
-    listInDescription: true,
-    name: MKTEMP_COMMAND.name,
-  },
-  {
     description: NODE_COMMAND.description,
     factory: ({ chatId, invokeTool }) => createNodeCommand(chatId, invokeTool),
     listInDescription: true,
@@ -637,7 +622,7 @@ export function createBashDescription() {
 
     IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the real interpreter in this conversation's virtualenv, and \`${NODE_COMMAND.name}\` is a real Node with this conversation's packages. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Writing outside the folders you reach fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -692,28 +677,6 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a shell built with these options mounts, each folder at its real path:
- * the chat's own folder (the working directory), the folders the chat
- * reaches, the skills, and for the chat its apps, held to the chat's rules.
- * rg, du, and the output a promoted command streams all take it from here.
- */
-function shellLayout({
-  folders,
-  role,
-  chatId,
-  rules,
-}: Pick<BashEnvOptions, "folders" | "role" | "chatId"> & { rules?: Rules }) {
-  return buildWorkspaceFsLayout({
-    // The chat authors apps, so it gets their folders; a task reaches
-    // the apps it was handed through the command alone.
-    apps: role === "chat",
-    folders,
-    rules,
-    taskHostRoot: workDir(chatId),
-  });
-}
-
-/**
  * The agent's shell: in the bash worker when the host set one up (see
  * `bashWorkerEnabled`), otherwise on this thread.
  */
@@ -752,15 +715,19 @@ export async function createLocalBashEnv({
     partId: callPartId,
     sessionId,
   });
-  const layout = shellLayout({ folders, role, chatId, rules });
+  // What the shell mounts, held to the chat's rules. rg, du, agent-browser
+  // and the output a promoted command streams all take it from here.
+  const layout = roleLayout({ chatId, folders, role, rules });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
   // Refusals heard during one exec, told to the agent after its output with
   // the host path spelled out, which an error from a script worker loses.
   const refusals = new Set<string>();
+  const listings: Listings = { count: 0 };
   const fs = await buildBashFs(layout, {
     homeWalkBudget,
+    listings,
     maxFileReadSize: SANDBOX_MAX_BYTES,
     onRefusal: (refusal) => refusals.add(refusal),
   });
@@ -799,7 +766,7 @@ export async function createLocalBashEnv({
     customCommands: [
       // The tabs the chat or task holds, opening its own behind whatever the
       // user has up.
-      createAgentBrowserCommand({ sessionId, chatId }),
+      createAgentBrowserCommand({ chatId, layout, sessionId }),
       // Registered after the bundled commands, which is what lets it shadow
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
@@ -819,7 +786,7 @@ export async function createLocalBashEnv({
         ? standIn(command.name)
         : command,
     ),
-    cwd: layout.task.shellRoot,
+    cwd: layout.chat.shellRoot,
     executionLimits: {
       maxArrayElements: SANDBOX_MAX_RECORDS,
       maxAwkIterations: SANDBOX_MAX_RECORDS,
@@ -851,15 +818,22 @@ export async function createLocalBashEnv({
       HOME: shellPath(rules.home),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
-      // Git Bash's, where /tmp is the temp folder.
-      ...(process.platform === "win32" && { TEMP: "/tmp", TMP: "/tmp" }),
+      // The system's temp folder, which every program it runs gets too.
+      TEMP: shellPath(os.tmpdir()),
+      TMP: shellPath(os.tmpdir()),
+      TMPDIR: shellPath(os.tmpdir()),
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
       USER: os.userInfo().username,
     },
     fs,
     // The shell's filesystem is the real disk, so each of our commands is
     // described by the program it runs, or as part of the shell.
-    registeredCommandPath: (name) => commandProgram(chatId, name),
+    // The shell asks this as each of our commands and its builtins starts,
+    // so a folder the command lists first is the one it was asked for.
+    registeredCommandPath: (name) => {
+      listings.count = 0;
+      return commandProgram(chatId, name);
+    },
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
     resolveExternalCommand: createPathProgramResolver(chatId),
@@ -880,8 +854,8 @@ export async function createLocalBashEnv({
     try {
       result = await withNativeReach(reach, () => exec(...execArgs));
     } catch (error) {
-      // A write outside every mount throws out of the whole call rather
-      // than failing its command; what the rules said still goes with it.
+      // An error that escapes the shell ends the whole call; what the rules
+      // said still goes with it.
       await asksWritten();
       if (refusals.size > 0 && error instanceof Error) {
         error.message = `${error.message}\n${[...refusals].join("\n")}`;

@@ -245,8 +245,8 @@ describe("An inline link in a browser", () => {
 
   // The typography styles underline every anchor and carry the same
   // specificity as the utility turning that off, so this is where the two of
-  // them meet. The anchor has to lose: a rule declared out there paints over
-  // the parts inside it, in the label's color and through the icon.
+  // them meet. The anchor has to lose: a rule declared out there runs through
+  // the icon.
   it.each([
     ["a reply", renderReply],
     ["a sent message", renderMessage],
@@ -263,29 +263,19 @@ describe("An inline link in a browser", () => {
     expect(getComputedStyle(link).textDecorationLine).toBe("none");
   });
 
-  // A decoration is painted in the color of whatever declares it, and a
-  // descendant cannot repaint one it inherited. Declared on the anchor, the
-  // rule under the muted destination came out in the label's much brighter
-  // color.
-  it("underlines each part of a link in that part's own color", async () => {
+  // With the anchor drawing no rule, the label's own underline is the only
+  // thing setting a link apart from the sentence around it.
+  it("underlines a link's label", async () => {
     await renderReply(
       "Rotation is on [the channels doc](https://channels.finalpoint.org/x).",
     );
 
     const label = document.querySelector("a bdi");
-    const disclosure = document.querySelector('[data-slot="link-origin"]');
-    if (!label || !disclosure) {
-      throw new Error("the link rendered without a label and a destination");
+    if (!label) {
+      throw new Error("the link rendered without a label");
     }
-    const [labelStyle, disclosureStyle] = [label, disclosure].map((element) =>
-      getComputedStyle(element),
-    );
 
-    expect(labelStyle?.textDecorationLine).toBe("underline");
-    expect(disclosureStyle?.textDecorationLine).toBe("underline");
-    expect(labelStyle?.textDecorationColor).toBe(labelStyle?.color);
-    expect(disclosureStyle?.textDecorationColor).toBe(disclosureStyle?.color);
-    expect(disclosureStyle?.color).not.toBe(labelStyle?.color);
+    expect(getComputedStyle(label).textDecorationLine).toBe("underline");
   });
 
   // The icon leads the link rather than sitting inside the run of text the

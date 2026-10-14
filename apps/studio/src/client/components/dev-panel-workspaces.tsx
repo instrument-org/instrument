@@ -28,7 +28,7 @@ import {
 } from "@/client/components/ui/menubar";
 import { Spinner } from "@/client/components/ui/spinner";
 import { WORKSPACE_COLOR_HEX } from "@/client/components/window/app-identity-chip";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -69,12 +69,15 @@ export function ManageWorkspacesDialog({
   const { mutate: remove } = useMutation(
     rpcClient.workspaces.remove.mutationOptions({
       onError: (error) => {
-        toast.dev("Couldn't move the workspace to the Trash", {
-          description: error.message,
-        });
+        toast.dev(
+          `Couldn't move the workspace to the ${osConventions().trash}`,
+          {
+            description: error.message,
+          },
+        );
       },
       onSuccess: () => {
-        toast.dev("Moved the workspace to the Trash");
+        toast.dev(`Moved the workspace to the ${osConventions().trash}`);
         void refresh();
       },
     }),
@@ -96,7 +99,7 @@ export function ManageWorkspacesDialog({
         <DialogHeader>
           <DialogTitle>Workspaces</DialogTitle>
           <DialogDescription>
-            Delete moves the folder to the Trash.
+            Delete moves the folder to the {osConventions().trash}.
           </DialogDescription>
         </DialogHeader>
         {/* `min-w-0` because the dialog is a grid: without it a long path sets

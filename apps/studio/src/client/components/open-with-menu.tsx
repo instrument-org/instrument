@@ -1,11 +1,11 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import {
   useFileManagerApp,
   useSharedFileOpenCandidates,
 } from "@/client/hooks/use-file-open-target";
 import { useOpenFileWith } from "@/client/hooks/use-open-file";
 import { hasFilesView, revealInFileManager } from "@/client/lib/show-in-files";
-import { getFileManagerName } from "@/client/lib/utils";
+import { osConventions } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { type ReactElement } from "react";
 
@@ -148,7 +148,7 @@ function FileManagerItem({
       }}
     >
       <RevealInFolderIcon className="size-5" />
-      <span className="truncate">{getFileManagerName()}</span>
+      <span className="truncate">{osConventions().fileManager}</span>
     </Item>
   );
 }

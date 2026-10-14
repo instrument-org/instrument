@@ -21,7 +21,7 @@ import {
 const chatLayout = () =>
   Promise.resolve(
     buildWorkspaceFsLayout({
-      taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
+      chatHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
     }),
   );
 
@@ -152,7 +152,7 @@ describe("createMainFrameLoadGate", () => {
 
 describe("createLocalFileGate", () => {
   const layout = buildWorkspaceFsLayout({
-    taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
+    chatHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
   });
   const own = "file:///Users/me/Tasks/t1/work/page.html";
   const outside = "file:///Users/me/Desktop/private.html";

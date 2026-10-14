@@ -3,17 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 import { createShortcutsCommand } from "./shortcuts";
 
 vi.mock("execa");
 
 describe("shortcuts", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("shortcuts-test"));
-  const layout = taskLayout(chatId);
+  const layout = chatLayout(chatId);
   const command = createShortcutsCommand(chatId, layout);
   const ctx = createCommandContext({
-    cwd: layout.task.shellRoot,
+    cwd: layout.chat.shellRoot,
     env: new Map<string, string>(),
     fs: new InMemoryFs(),
     stdin: EMPTY_BYTES,
@@ -45,13 +45,13 @@ describe("shortcuts", () => {
     vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
 
     await command.execute(
-      ["run", "Resize", "-o", `${layout.task.shellRoot}/out.png`],
+      ["run", "Resize", "-o", `${layout.chat.shellRoot}/out.png`],
       ctx,
     );
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/shortcuts",
-      ["run", "Resize", "-o", `${layout.task.shellRoot}/out.png`],
+      ["run", "Resize", "-o", `${layout.chat.shellRoot}/out.png`],
       expect.anything(),
     );
   });

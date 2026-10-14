@@ -12,6 +12,7 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useMemo, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
+import { isCutOff } from "../lib/is-cut-off";
 import { useChatSession } from "../hooks/use-chat-session";
 import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
@@ -44,6 +45,7 @@ import {
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
 import { SentReplyQuote } from "./reply-quote";
+import { StoppedLine } from "./stopped-line";
 import {
   type TranscriptExpansion,
   TranscriptExpansionContext,
@@ -809,6 +811,23 @@ export function ChatStream({
         // the height is that being wrong costs nothing.
         const hasFooter =
           assistantMessages.length > 0 && visibleAssistantContentCount > 0;
+
+        // A turn the app's closing cut off keeps saying so once the work goes
+        // on after it; while it is still the last, the task's page ends by
+        // saying the same.
+        if (
+          presentation !== "chat" &&
+          !isLastMessage &&
+          assistantMessages.some((m) =>
+            m.parts.some((part) => isToolPart(part) && isCutOff(part)),
+          )
+        ) {
+          messageElements.push(
+            <StoppedLine key={`cut-off-${message.id}`}>
+              The app closed before this turn finished.
+            </StoppedLine>,
+          );
+        }
 
         if (
           hasFooter && // The conversation's replies stand on their own: no footer of times and tokens under each.

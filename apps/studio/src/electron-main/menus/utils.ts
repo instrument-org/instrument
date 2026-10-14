@@ -1,10 +1,14 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
+import { resolveAccelerator } from "@/shared/shortcuts";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
 import { shortcutMenuItem } from "./shortcuts";
+
+const IS_MAC = process.platform === "darwin";
 
 export function createAppMenu(): MenuItemConstructorOptions {
   return {
@@ -16,18 +20,32 @@ export function createAppMenu(): MenuItemConstructorOptions {
         click: () => {
           publisher.publish("updates.trigger-check", null);
         },
-        label: "Check for Updates...",
+        label: "Check for Updates…",
       },
       { type: "separator" },
       shortcutMenuItem("settings"),
       { type: "separator" },
-      { role: "services" as const },
-      { type: "separator" },
-      { role: "hide" as const },
-      { role: "hideOthers" as const },
-      { role: "unhide" as const },
-      { type: "separator" },
-      { role: "quit" as const },
+      // Services and hiding are the Mac's alone; Electron binds Hide to the
+      // Super key elsewhere, which the desktop takes for itself.
+      ...(IS_MAC
+        ? ([
+            { role: "services" as const },
+            { type: "separator" },
+            { role: "hide" as const },
+            { role: "hideOthers" as const },
+            { role: "unhide" as const },
+            { type: "separator" },
+          ] satisfies MenuItemConstructorOptions[])
+        : []),
+      {
+        accelerator: resolveAccelerator(
+          WINDOW_MENU_SHORTCUTS.quit.accelerator,
+          {
+            isMac: IS_MAC,
+          },
+        ),
+        role: "quit" as const,
+      },
     ],
   };
 }
@@ -105,9 +123,13 @@ export function createHelpMenu({
   };
 }
 
-export function createWindowMenu(): MenuItemConstructorOptions {
-  return {
-    label: "Window",
-    role: "windowMenu" as const,
-  };
+/**
+ * The Window menu, on a Mac alone. Elsewhere the window draws its own
+ * minimize, maximize and close buttons, the system has its own keys for
+ * them, and Electron's Window menu would bind Ctrl+M to minimize and Ctrl+W
+ * to close the window, which wins over Close Tab for a key a focused page
+ * leaves to the menu.
+ */
+export function createWindowMenu(): MenuItemConstructorOptions[] {
+  return IS_MAC ? [{ label: "Window", role: "windowMenu" as const }] : [];
 }

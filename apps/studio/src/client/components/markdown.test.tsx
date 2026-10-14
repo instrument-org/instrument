@@ -32,11 +32,11 @@ vi.mock("./files-grid", () => ({
   FilesGrid: ({
     files,
   }: {
-    files: { hostPath: string; taskFile?: { filePath: string } }[];
+    files: { hostPath: string; chatFile?: { filePath: string } }[];
   }) => (
     <ul>
       {files.map((file) => (
-        <li key={file.hostPath}>{file.taskFile?.filePath}</li>
+        <li key={file.hostPath}>{file.chatFile?.filePath}</li>
       ))}
     </ul>
   ),
@@ -89,8 +89,8 @@ vi.mock("@/client/rpc/client", () => ({
 // below it: a `vi.mock` factory runs before the module's own bindings exist.
 const FILE_BASE = vi.hoisted(() => "instrument://computer-test");
 
-// Where the task's files are, answered without a task: every path under the
-// task's own folder, which is what a message's image needs to be drawn at all.
+// Where the chat's files are, answered without a chat: every path under the
+// chat's own folder, which is what a message's image needs to be drawn at all.
 vi.mock("@/client/hooks/use-host-paths", () => ({
   useHostPaths: (chatId: unknown, filePaths: readonly string[]) =>
     chatId === undefined
@@ -137,7 +137,7 @@ function withFileDragBridge() {
 }
 
 describe("Markdown links", () => {
-  it("opens a file: link to a shared folder, which the task file index never holds", () => {
+  it("opens a file: link to a shared folder, which the chat file index never holds", () => {
     renderMarkdown(
       "Created [`August.md`](file:///Users/sam/Documents-Test%202/August.md) in Test 2.",
     );
@@ -159,6 +159,20 @@ describe("Markdown links", () => {
     );
   });
 
+  // A Windows file URL keeps its drive as the path's first segment
+  // (`/C:/Users/...`), which names nothing; the conversation's folders are
+  // reached by the shell's spelling of a drive, `/c/Users/...`.
+  it.each([
+    "file:///C:/Users/sam/show/2024",
+    "instrument://file/C:/Users/sam/show/2024",
+  ])("opens a link to a Windows file by its shell path: %s", (href) => {
+    renderMarkdown(`[Open the file](${href})`);
+
+    expect(screen.getByRole("button", { name: "Open the file" }).title).toBe(
+      "/c/Users/sam/show/2024",
+    );
+  });
+
   it("opens a task-relative link", () => {
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 
@@ -169,7 +183,7 @@ describe("Markdown links", () => {
 
   // The chip names a file on disk, so it is a handle for dragging that file out
   // to the desktop, the same as the file grid's cards and the pane's header.
-  it("makes a chip for a task file draggable", () => {
+  it("makes a chip for a chat file draggable", () => {
     withFileDragBridge();
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 
@@ -180,9 +194,9 @@ describe("Markdown links", () => {
     ).toBe("true");
   });
 
-  // Reasoning and a previewed markdown file render without the ambient task, so
+  // Reasoning and a previewed markdown file render without the ambient chat, so
   // the same chip names a path belonging to nothing anyone could be handed.
-  it("leaves a chip drawn outside a task undraggable", () => {
+  it("leaves a chip drawn outside a chat undraggable", () => {
     renderWithProviders(
       <Markdown markdown="Wrote [`notes.md`](output/notes.md)." />,
     );
@@ -226,31 +240,23 @@ describe("Markdown links", () => {
   it("still hands an http link to the browser", () => {
     renderMarkdown("See [the docs](https://example.com/a).");
 
-    // The origin is inside the anchor rather than beside it, so it is part of
-    // the link's name: a reader who cannot see the label is the one with the
-    // least other way to know where it goes.
-    expect(
-      screen.getByRole("link", { name: /the docs.*example\.com/ }),
-    ).toHaveProperty("href", "https://example.com/a");
+    expect(screen.getByRole("link", { name: "the docs" })).toHaveProperty(
+      "href",
+      "https://example.com/a",
+    );
   });
 
-  it("says where a link goes when its label does not", () => {
+  // Where it goes is in the tooltip and the site's icon, so the sentence reads
+  // the way it was written.
+  it("draws a link as its label alone", () => {
     const { container } = renderMarkdown(
       "See [the docs](https://example.com/a).",
     );
 
-    expect(container.textContent).toBe("See the docs (example.com).");
+    expect(container.textContent).toBe("See the docs.");
   });
 
-  it("leaves a link alone when its label already names the origin", () => {
-    const { container } = renderMarkdown(
-      "See [example.com](https://example.com/a).",
-    );
-
-    expect(container.textContent).toBe("See example.com.");
-  });
-
-  it("draws an address as a chip rather than an origin", () => {
+  it("draws an address as a chip", () => {
     renderMarkdown(
       "Send it to [neil@finalpoint.co](mailto:neil@finalpoint.co).",
     );
@@ -777,7 +783,7 @@ describe("Markdown raw HTML", () => {
  * Which image sources reach the page.
  *
  * Markdown arrives from three places that are not the person reading it -- the
- * agent, a `.md` file in the task folder, and a cell of a notebook someone else
+ * agent, a `.md` file in the chat's folder, and a cell of a notebook someone else
  * wrote -- and an `<img>` is fetched the moment it renders, with no click in
  * between. So what the allow-list admits is a question about the network, not
  * about layout, which is what makes it worth a test rather than an eye.
@@ -907,11 +913,11 @@ describe("Markdown image sources", () => {
  *
  * A file sits in a directory, so its images mean what a browser would mean by
  * them: resolved against the document's own URL rather than joined from the
- * task root. The exact URL is the assertion, because a chart beside a report in
+ * chat's folder. The exact URL is the assertion, because a chart beside a report in
  * `output/` is precisely the case a join from the root gets wrong while still
  * producing a URL that looks right.
  */
-function taskFileImageSources(markdown: string, documentUrl: string): string[] {
+function chatFileImageSources(markdown: string, documentUrl: string): string[] {
   const { container } = renderWithProviders(
     <Markdown
       documentUrl={documentUrl}
@@ -931,16 +937,19 @@ const TASK_ROOT = `${FILE_BASE}/Users/casey/tasks/a-task`;
 const ROOT_DOCUMENT_URL = `${TASK_ROOT}/report.md`;
 const NESTED_DOCUMENT_URL = `${TASK_ROOT}/output/report.md`;
 
-describe("Markdown images in a task's own file", () => {
+describe("Markdown images in a chat's own file", () => {
   it.each([
     ["a bare name", "chart.png", `${TASK_ROOT}/chart.png`],
     ["an explicit ./", "./chart.png", `${TASK_ROOT}/chart.png`],
     ["a subfolder", "figures/chart.png", `${TASK_ROOT}/figures/chart.png`],
-  ])("resolves %s beside a file at the task root", (_case, src, resolved) => {
-    expect(taskFileImageSources(`![a](${src})`, ROOT_DOCUMENT_URL)).toEqual([
-      resolved,
-    ]);
-  });
+  ])(
+    "resolves %s beside a file at the root of the chat's folder",
+    (_case, src, resolved) => {
+      expect(chatFileImageSources(`![a](${src})`, ROOT_DOCUMENT_URL)).toEqual([
+        resolved,
+      ]);
+    },
+  );
 
   it.each([
     ["a bare name", "chart.png", `${TASK_ROOT}/output/chart.png`],
@@ -961,7 +970,7 @@ describe("Markdown images in a task's own file", () => {
       `${TASK_ROOT}/figures/chart.png`,
     ],
   ])("resolves %s beside a file in a subfolder", (_case, src, resolved) => {
-    expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
+    expect(chatFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
       resolved,
     ]);
   });
@@ -972,7 +981,7 @@ describe("Markdown images in a task's own file", () => {
   // never bytes the document gets to read.
   it("cannot climb off the channel", () => {
     expect(
-      taskFileImageSources(
+      chatFileImageSources(
         "![a](../../../../../../../etc/passwd.png)",
         NESTED_DOCUMENT_URL,
       ),
@@ -998,7 +1007,7 @@ describe("Markdown images in a task's own file", () => {
       `${FILE_BASE}/%5Cevil.test/p.png`,
     ],
   ])("keeps %s on the file's own origin", (_case, src, resolved) => {
-    expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
+    expect(chatFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
       resolved,
     ]);
   });
@@ -1015,7 +1024,7 @@ describe("Markdown images in a task's own file", () => {
       /raw\.githubusercontent\.com/,
     ],
   ])("draws nothing for %s named in the file", (_case, src, host) => {
-    expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual(
+    expect(chatFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual(
       [],
     );
     // Offered as a click out to the system browser, and fetched by nothing
@@ -1148,7 +1157,7 @@ describe("Markdown while a message is still arriving", () => {
  * A file's YAML front matter, which without a parser for it reads as markdown:
  * the closing `---` underlines every line above it into one heading.
  */
-describe("Markdown front matter in a task's own file", () => {
+describe("Markdown front matter in a chat's own file", () => {
   const FRONT_MATTER = [
     "---",
     "title: Field notes",

@@ -1,7 +1,7 @@
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
-import { thisComputer } from "@/client/components/window/computer-name";
+import { osConventions } from "@/client/lib/utils";
 import { WindowContext } from "@/client/components/window/context";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
@@ -170,7 +170,8 @@ export function ConnectControls({
       <div className="flex flex-col gap-2">
         {runs ? (
           <p className="text-xs text-muted-foreground">
-            Instrument will install and run {runs} on {thisComputer()}.
+            Instrument will install and run {runs} on{" "}
+            {osConventions().thisComputer}.
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">

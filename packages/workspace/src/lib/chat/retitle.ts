@@ -4,12 +4,8 @@ import { alphabetical } from "radashi";
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
-import { askDecisionModel } from "../decision-model";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
-import {
-  generateTitleFromUserMessage,
-  titleSourceText,
-} from "../generate-title-from-user-message";
+import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
 import { chatModelURI } from "../chat-settings";
@@ -24,22 +20,12 @@ import { type ChatId } from "../../schemas/chat-id";
 const REPLY_MAX = 600;
 
 /**
- * Below this chance that the subject has moved, an agent-given title is kept
- * without asking the title model. Chats that stayed on their subject came
- * back near 0.07 and chats that moved near 0.75, so 0.3 leaves room on both
- * sides and leans toward asking: a wrong keep leaves a stale title for good,
- * while a wrong ask only spends the call this exists to save.
- */
-const MOVED_BELOW = 0.3;
-
-/**
  * Names a chat again from its root and its latest reply, and says what it
  * is called now: the new title, the one it already had when the call agreed
  * with it, or nothing when the chat has no reply to be named from or no
  * model to ask. `keep` asks the call to hold on to an agent-given title
- * unless the subject has moved, and asks the decision model first, so a
- * title it is confident still fits is kept without the call; without `keep`,
- * as on the user's own ask, the call names the chat afresh.
+ * unless the subject has moved; without it, as on the user's own ask, the
+ * call names the chat afresh.
  */
 export async function retitleChat({
   id,
@@ -74,19 +60,6 @@ export async function retitleChat({
       ? session.value.title
       : undefined;
   const workspaceConfig = getWorkspaceConfig();
-  if (
-    currentTitle !== undefined &&
-    (await titleStillFits({
-      ask: askDecisionModel,
-      configs: workspaceConfig.getAIProviderConfigs(),
-      currentTitle,
-      opening: titleSourceText(root),
-      reply,
-      chatId: id,
-    }))
-  ) {
-    return currentTitle;
-  }
   const modelURI = await chatModelURI(id);
   if (!modelURI) {
     return undefined;
@@ -148,60 +121,6 @@ export function startChatRetitle(): void {
       }
     }
   })();
-}
-
-/**
- * Whether a title the agent gave still names the chat, asked of the
- * decision model before the title model is: one yes-or-no on whether the
- * subject has moved, a few hundred milliseconds and a fraction of a cent
- * against a full title call. Only a confident no keeps the title. No
- * provider for the decision model, a failure, or an unsure answer all say
- * false, which leaves the title model to decide as it would without this.
- */
-export async function titleStillFits({
-  ask,
-  configs,
-  currentTitle,
-  opening,
-  reply,
-  chatId,
-}: {
-  ask: typeof askDecisionModel;
-  configs: Parameters<typeof askDecisionModel>[0]["configs"];
-  currentTitle: string;
-  opening: string;
-  reply: string;
-  chatId: ChatId;
-}): Promise<boolean> {
-  try {
-    const asked = await ask({
-      body: {
-        questions: {
-          moved: {
-            criteria: {
-              false:
-                "The title still fits the chat, even if the work narrowed or progressed",
-              true: "The title names something the chat has moved on from, or misses what it is now mainly about",
-            },
-            instructions:
-              "Has the conversation's subject moved away from what `current_title` names, so that the title no longer describes it?",
-            type: "noul",
-          },
-        },
-        state: {
-          current_title: currentTitle,
-          latest_reply: reply,
-          opening_message: opening,
-        },
-      },
-      configs,
-      usage: { purpose: "title-check", chatId },
-    });
-    const moved = asked?.response.answers.moved?.noul;
-    return moved !== undefined && moved < MOVED_BELOW;
-  } catch {
-    return false;
-  }
 }
 
 function isRoot(

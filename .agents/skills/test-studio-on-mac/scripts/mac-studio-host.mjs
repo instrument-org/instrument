@@ -121,12 +121,19 @@ preview_app() {
   [ -n "$app" ] && [ -d "$app" ] || { echo "No preview is installed $1. Run install-preview first." >&2; exit 1; }
   printf '%s' "$app"
 }
+# Processes whose command line starts with a prefix, matched as plain text:
+# an app's name holds parentheses, which a pgrep pattern would read as a group.
+pids_with_prefix() {
+  ps -axo pid=,args= | awk -v prefix="$1" '{ pid = $1; sub(/^[ ]*[0-9]+[ ]+/, ""); if (index($0, prefix) == 1) print pid }'
+}
 main_pids() {
   # Processes running the app's own executable: the main process. Helpers
   # live under Contents/Frameworks and are left to exit with it.
-  pgrep -f "^$1/Contents/MacOS/" || true
+  pids_with_prefix "$1/Contents/MacOS/"
 }
-json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1" 2>/dev/null || printf '"%s"' "$1"; }
+# A JSON string, in plain shell: /usr/bin/python3 on a Mac without Apple's
+# developer tools raises a dialog offering to install them.
+json_escape() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }
 `;
 
 function installPreview(host, run) {
@@ -231,12 +238,12 @@ for app in /Applications/Instrument\\ Preview\\ \\(*\\).app; do
   for pid in $(main_pids "$app"); do kill -TERM "$pid" 2>/dev/null && signaled="$signaled $pid"; done
 done
 for i in $(seq 1 20); do
-  left=$(pgrep -f "^/Applications/Instrument Preview \\(" || true)
+  left=$(pids_with_prefix "/Applications/Instrument Preview (")
   [ -z "$left" ] && break
   sleep 0.5
 done
 killed=""
-for pid in $(pgrep -f "^/Applications/Instrument Preview \\(" || true); do kill -KILL "$pid" 2>/dev/null && killed="$killed $pid"; done
+for pid in $(pids_with_prefix "/Applications/Instrument Preview ("); do kill -KILL "$pid" 2>/dev/null && killed="$killed $pid"; done
 # A program a task started can outlive the app holding the CDP socket.
 holder=$(lsof -nP -iTCP:${CDP_PORT} -sTCP:LISTEN -t 2>/dev/null | head -1 || true)
 [ -n "$holder" ] && kill -KILL "$holder" 2>/dev/null && killed="$killed $holder"
@@ -316,6 +323,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * with its base until it diverges, so this costs seconds and little space.
  */
 async function resetVm(host, base, vm) {
+  if (base === vm)
+    fail(
+      `--vm must name the clone, not the base: resetting ${vm} would delete the clean copy.`,
+    );
   if (vmStatus(base) !== "stopped")
     fail(`${base} must stay stopped; it is the clean copy.`);
   // The clone is thrown away, so it is powered off rather than shut down.
@@ -323,6 +334,8 @@ async function resetVm(host, base, vm) {
     utm("stop", vm, "--force");
     for (let i = 0; i < 12 && vmStatus(vm) !== "stopped"; i++)
       await sleep(2500);
+    if (vmStatus(vm) !== "stopped")
+      fail(`${vm} did not stop within 30 seconds, so it was not deleted.`);
   }
   if (!/not found|Error/u.test(vmStatus(vm))) utm("delete", vm);
   const cloned = utm("clone", base, "--name", vm);
@@ -334,10 +347,31 @@ async function resetVm(host, base, vm) {
       ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", host, "echo up"],
       { encoding: "utf8" },
     );
-    if (probe.stdout.trim() === "up") return { base, host, ready: true, vm };
+    if (probe.stdout.trim() === "up") {
+      quietDesktop(host);
+      return { base, host, ready: true, vm };
+    }
     await sleep(5000);
   }
   fail(`${vm} started but ${host} did not answer SSH within three minutes.`);
+}
+
+/**
+ * Keeps the clone's desktop drivable for a long run: the base's screen saver
+ * starts after about 20 idle minutes and covers privacy prompts, and a click
+ * on the wallpaper slides every window away to show the desktop.
+ */
+function quietDesktop(host) {
+  spawnSync(
+    "ssh",
+    [
+      "-o",
+      "BatchMode=yes",
+      host,
+      "defaults -currentHost write com.apple.screensaver idleTime -int 0; defaults write com.apple.WindowManager EnableStandardClickToShowDesktop -bool false; killall WindowManager 2>/dev/null; true",
+    ],
+    { encoding: "utf8" },
+  );
 }
 
 // Last, so every constant above is defined before main reads it.

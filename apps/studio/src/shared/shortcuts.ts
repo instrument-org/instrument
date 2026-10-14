@@ -34,7 +34,7 @@ export const SHORTCUTS = {
   settings: {
     accelerator: "CmdOrCtrl+,",
     group: "General",
-    label: "Settings...",
+    label: "Settings…",
   },
   themeDark: {
     accelerator: "CmdOrCtrl+Shift+D",

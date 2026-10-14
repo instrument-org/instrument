@@ -5,7 +5,7 @@ import "./markdown-editor.css";
 
 import { FileLoading } from "@/client/components/file-loading";
 import { MarkdownDocument } from "@/client/components/markdown-outline";
-import { MarkdownTaskContext } from "@/client/components/markdown-task-context";
+import { MarkdownChatContext } from "@/client/components/markdown-chat-context";
 import { MermaidDiagram } from "@/client/components/mermaid-diagram";
 import { MessageActions, MessageCard } from "@/client/components/message-card";
 import { messageKindOf } from "@/client/components/message-kind";
@@ -206,7 +206,7 @@ function FenceView({
   // reach is what can place them on this computer.
   const appWindow = useContext(WindowContext);
   return (
-    <MarkdownTaskContext value={{ chatId: appWindow ? WINDOW_ID : undefined }}>
+    <MarkdownChatContext value={{ chatId: appWindow ? WINDOW_ID : undefined }}>
       <div className="group/fence relative">
         {language === AGENT_MESSAGE_LANGUAGE ? (
           <MessageCard message={parseMessage(content)} />
@@ -228,7 +228,7 @@ function FenceView({
           Edit source
         </button>
       </div>
-    </MarkdownTaskContext>
+    </MarkdownChatContext>
   );
 }
 

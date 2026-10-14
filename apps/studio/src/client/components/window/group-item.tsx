@@ -172,16 +172,21 @@ export function GroupItem({
           }
         }}
         onVisit={(href) => {
-          windowTabs.visitHref(up.id, href);
+          // A site at the window's level is the window tab's page, so the
+          // window's tab goes to the screen the way the command menu sends
+          // it, and back returns to the page; in a chat's or a draft's
+          // group the tab up becomes the screen in its place.
+          if (before) {
+            appWindow.openScreen(href);
+          } else {
+            windowTabs.visitHref(up.id, href);
+          }
         }}
         {...(up.kind === "page"
           ? {
-              fieldEnd: (
-                <div
-                  className="flex shrink-0 items-center empty:hidden"
-                  ref={setFieldSlot}
-                />
-              ),
+              // No box of its own, so the page's load line inside it is
+              // drawn against the field.
+              fieldEnd: <div className="contents" ref={setFieldSlot} />,
               reload: (
                 <div
                   className="flex shrink-0 items-center empty:hidden"

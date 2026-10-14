@@ -786,6 +786,9 @@ function Notifications() {
   const openNotificationSettingsMutation = useMutation(
     rpcClient.preferences.openNotificationSettings.mutationOptions(),
   );
+  const { data: canOpenNotificationSettings = false } = useQuery(
+    rpcClient.preferences.canOpenNotificationSettings.queryOptions(),
+  );
   // What macOS says about the app's notifications, read again each time the
   // window takes focus, which is when someone returns from System Settings
   // having changed it. Switching apps leaves the page visible, so the query
@@ -844,12 +847,16 @@ function Notifications() {
         return;
       }
       toast.success("Test notification sent", {
-        action: {
-          label: "Open settings",
-          onClick: () => {
-            openNotificationSettingsMutation.mutate(undefined);
-          },
-        },
+        // Where the system has no notification settings to open, the
+        // description alone says what to look for.
+        action: canOpenNotificationSettings
+          ? {
+              label: "Open settings",
+              onClick: () => {
+                openNotificationSettingsMutation.mutate(undefined);
+              },
+            }
+          : undefined,
         description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
       });
     } catch (error) {
@@ -948,6 +955,7 @@ function Notifications() {
   );
 }
 
+// oxlint-disable studio/no-os-words -- shown only on macOS, the one system that asks before an app may notify
 /**
  * Notifications before macOS lets the app show any: what they are for and
  * the one thing that gets them going, asking macOS the first time and
@@ -995,6 +1003,7 @@ function NotificationsPermission({
     </Card>
   );
 }
+// oxlint-enable studio/no-os-words
 
 /**
  * Split the log into lines tagged by severity.

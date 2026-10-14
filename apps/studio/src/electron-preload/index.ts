@@ -1,4 +1,5 @@
 import {
+  CODE_EDITOR_FOCUS_CHANNEL,
   RESOLVE_THEME_CHANNEL,
   START_FILE_DRAG_CHANNEL,
 } from "@/shared/constants";
@@ -83,6 +84,11 @@ function loadKeptState(): KeptSnapshot {
 }
 
 const api: Window["api"] = {
+  // Sent, not invoked: the main process only keeps the latest word, and
+  // reads it as each key press arrives.
+  codeEditorFocus: (focused) => {
+    ipcRenderer.send(CODE_EDITOR_FOCUS_CHANNEL, focused);
+  },
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   homeDir: os.homedir(),
   keptState: {

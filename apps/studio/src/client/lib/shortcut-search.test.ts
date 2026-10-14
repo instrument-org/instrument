@@ -1,4 +1,4 @@
-import { formatAcceleratorFor } from "@/client/lib/format-accelerator";
+import { formatAcceleratorFor } from "@/shared/format-accelerator";
 import {
   SHORTCUT_GUIDE_ENTRIES,
   SHORTCUT_GUIDE_GROUPS,
@@ -34,7 +34,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         .toSorted((a, b) => a.label.localeCompare(b.label))
         .map(
           ({ accelerator, label }) =>
-            `${group}: ${label}  ${formatAcceleratorFor({ accelerator, isMac: true }).join("")}`,
+            `${group}: ${label}  ${formatAcceleratorFor({ accelerator, os: "mac" }).join("")}`,
         ),
     );
     expect(lines).toMatchInlineSnapshot(`
@@ -47,8 +47,9 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Go to Files  ⌃⌘2",
         "General: Keyboard Shortcuts  ?",
         "General: New Chat  ⌘N",
+        "General: Quit  ⌘Q",
         "General: Search or Ask  ⌘L",
-        "General: Settings...  ⌘,",
+        "General: Settings…  ⌘,",
         "Chats: Next Chat  ⌥⌘↓",
         "Chats: Paste as Text  ⇧⌘V",
         "Chats: Previous Chat  ⌥⌘↑",

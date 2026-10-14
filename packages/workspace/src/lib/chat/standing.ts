@@ -1,11 +1,15 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { z } from "zod";
 
-import { AGENT_FILES_LANGUAGE } from "../../constants";
+import {
+  AGENT_FILES_LANGUAGE,
+  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+} from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
+import { cardLine, openAsksOf } from "../permissions/asks";
 import { Store } from "../store";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
 import {
@@ -46,7 +50,11 @@ export interface TaskStanding {
   line: string;
 }
 
-/** Where a task stands, in the four words the list can say it in. */
+/**
+ * Where a task stands, in the four words the list can say it in. A turn that
+ * did not finish on its own and was nobody's decision is `failed`: a model
+ * error, a request that timed out, or the app quitting while the task worked.
+ */
 export const TaskStandingKindSchema = z.enum([
   "done",
   "failed",
@@ -58,15 +66,26 @@ type TaskStandingKind = z.output<typeof TaskStandingKindSchema>;
 
 /**
  * How a turn that ended before the agent wrote any words ended. That happens
- * three ways, each of which leaves the last assistant message text-less: the
- * step limit, a model error, or a stop, whether the user's or the
- * chat's, which lands either in the message the model was streaming
- * or in the tool call it was waiting on. The line names the one it was and,
- * for a stop, what the task was in the middle of. Read by the task list and
+ * four ways, each of which leaves the last assistant message text-less: the
+ * step limit, a model error, a request that timed out, or a stop, whether the
+ * user's or the chat's, which lands either in the message the model was
+ * streaming or in the tool call it was waiting on. The line names the one it
+ * was and, for a timeout or a stop, what the task was in the middle of. Read by the task list and
  * by the note that wakes the chat, so the two say the same thing.
  */
 export async function endedWithoutWords(ref: SessionRef): Promise<TaskEnding> {
   return endingIn(ref, await ownMessages(ref));
+}
+
+/**
+ * The line for a turn the app's quitting ended, naming what the task was in
+ * the middle of when that is known. Read by the task list and by the note
+ * the chat gets as the app quits, so the two say the same thing.
+ */
+export function appClosedLine(step: string | undefined): string {
+  return step
+    ? `The app closed while ${asClause(step)}`
+    : "The app closed before it finished";
 }
 
 /**
@@ -120,7 +139,9 @@ export function excerptOf(text: string, maxLength: number): string {
  *
  * A running task can be waiting too: its agent stays alive while an ask of
  * its own sits unanswered, and the list says what it is waiting for rather
- * than showing a step that is not moving.
+ * than showing a step that is not moving. So is one whose turn ended with a
+ * card it ran into still up, whatever it last said: the person's answer
+ * wakes it, and until they answer or stop it, it is waiting on them.
  */
 export async function taskStanding({
   isRunning,
@@ -133,6 +154,12 @@ export async function taskStanding({
     return waiting
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
+  }
+  // Read apart from the rest, which holds until the task's store is written:
+  // a card is in the chat's state, and goes without a write to the store.
+  const [card] = await openAsksOf(chatId, sessionId);
+  if (card) {
+    return { kind: "waiting", line: cardLine(card) };
   }
   return settledStanding(chatId, sessionId, () => standingAtRest(ref));
 }
@@ -168,6 +195,15 @@ async function endingIn(
     return { failed: true, line: describeMessageError(error).summary };
   }
   const step = await latestStep(ref);
+  // A request let go for going quiet past its timeout ended the turn the way
+  // a model error does: nobody decided it, and sending the task on picks it
+  // up again.
+  if (error?.reason === "timeout") {
+    return {
+      failed: true,
+      line: step ? `Timed out while ${asClause(step)}` : "Timed out",
+    };
+  }
   return {
     failed: false,
     line: step ? `Stopped while ${asClause(step)}` : "Stopped",
@@ -183,7 +219,19 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
     inherited: false,
   });
   const transcript = messages.isOk() ? messages.value : [];
-  const settle = messages.isOk() ? kept : unkept;
+  const session = await Store.getSession(ref.sessionId, ref.chatId);
+  const settle = messages.isOk() && session.isOk() ? kept : unkept;
+  // Ahead of the rest: a turn the app's quitting cut off may have said words
+  // or asked something on an earlier step, and neither is where it ended.
+  if (
+    (session.isOk() && session.value.stoppedBy === "app") ||
+    endedByAppClosing(transcript)
+  ) {
+    return settle({
+      kind: "failed",
+      line: appClosedLine(await latestStep(ref)),
+    });
+  }
   // A turn that ended on an ask rather than on words is waiting on the user.
   const waiting = askIn(transcript);
   if (waiting) {
@@ -197,4 +245,20 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   }
   const ending = await endingIn(ref, transcript);
   return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });
+}
+
+/**
+ * Whether the last turn ended on a call the app's closing cut off, which is
+ * what the store's open-time sweep writes on a call left in flight. Covers a
+ * process that ended without marking its tasks, as a crash does.
+ */
+function endedByAppClosing(messages: SessionMessage.WithParts[]): boolean {
+  const last = messages.findLast((message) => message.role === "assistant");
+  return (
+    last?.parts.some(
+      (part) =>
+        "errorText" in part &&
+        part.errorText === INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+    ) ?? false
+  );
 }

@@ -22,7 +22,7 @@ const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
 let attachedDir: string;
-let taskRoot: string;
+let chatRoot: string;
 let chatId: ChatId;
 
 async function run(command: string) {
@@ -45,13 +45,13 @@ async function run(command: string) {
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "rmdir-"));
-  taskRoot = path.join(tmpDir, "tasks", "test");
+  chatRoot = path.join(tmpDir, "tasks", "test");
   attachedDir = path.join(tmpDir, "Docs");
-  await fs.mkdir(path.join(taskRoot, "work", "empty"), { recursive: true });
-  await fs.mkdir(path.join(taskRoot, "work", "full"), { recursive: true });
-  await fs.writeFile(path.join(taskRoot, "work", "full", "a.txt"), "a");
+  await fs.mkdir(path.join(chatRoot, "work", "empty"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work", "full"), { recursive: true });
+  await fs.writeFile(path.join(chatRoot, "work", "full", "a.txt"), "a");
   await fs.mkdir(path.join(attachedDir, "empty"), { recursive: true });
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
 });
 
 afterEach(async () => {
@@ -63,7 +63,7 @@ describe("rmdir on a writable mount", () => {
     [
       "the chat's folder",
       "work/empty",
-      () => path.join(taskRoot, "work", "empty"),
+      () => path.join(chatRoot, "work", "empty"),
     ],
     [
       "a granted folder",
@@ -77,10 +77,10 @@ describe("rmdir on a writable mount", () => {
   });
 
   it("removes nested empty directories with -p", async () => {
-    await fs.mkdir(path.join(taskRoot, "work", "a", "b"), { recursive: true });
+    await fs.mkdir(path.join(chatRoot, "work", "a", "b"), { recursive: true });
 
     expect(await run("rmdir -p work/a/b")).toEqual({ exitCode: 0, stderr: "" });
-    await expect(fs.stat(path.join(taskRoot, "work", "a"))).rejects.toThrow(
+    await expect(fs.stat(path.join(chatRoot, "work", "a"))).rejects.toThrow(
       "ENOENT",
     );
   });
@@ -93,7 +93,7 @@ describe("rmdir on a writable mount", () => {
       ",
       }
     `);
-    expect(await fs.readdir(path.join(taskRoot, "work", "full"))).toEqual([
+    expect(await fs.readdir(path.join(chatRoot, "work", "full"))).toEqual([
       "a.txt",
     ]);
   });
@@ -110,7 +110,7 @@ describe("rmdir on a writable mount", () => {
       exitCode: 0,
       stderr: "",
     });
-    await expect(fs.stat(path.join(taskRoot, "work", "empty"))).rejects.toThrow(
+    await expect(fs.stat(path.join(chatRoot, "work", "empty"))).rejects.toThrow(
       "ENOENT",
     );
   });

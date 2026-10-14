@@ -13,21 +13,21 @@ describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
   let root: string;
   let chatId: ChatId;
-  let taskModifiedAt: number;
+  let chatFileModifiedAt: number;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "file-info-"));
-    const taskRoot = path.join(root, "tasks", "file-info-task");
+    const chatRoot = path.join(root, "tasks", "file-info-task");
     const photosRoot = path.join(root, "Photos");
-    chatId = createMockChatConfigForDir(taskRoot);
+    chatId = createMockChatConfigForDir(chatRoot);
 
-    await fs.mkdir(taskRoot, { recursive: true });
+    await fs.mkdir(chatRoot, { recursive: true });
     await fs.mkdir(photosRoot);
-    await fs.writeFile(path.join(taskRoot, "notes.txt"), "task file");
+    await fs.writeFile(path.join(chatRoot, "notes.txt"), "chat file");
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted file");
-    const taskStats = await fs.stat(path.join(taskRoot, "notes.txt"));
+    const chatFileStats = await fs.stat(path.join(chatRoot, "notes.txt"));
     const mountedStats = await fs.stat(path.join(photosRoot, "cat.png"));
-    taskModifiedAt = taskStats.mtimeMs;
+    chatFileModifiedAt = chatFileStats.mtimeMs;
     mountedModifiedAt = mountedStats.mtimeMs;
 
     await grantFolder({ chatId, path: photosRoot, source: "attached" });
@@ -43,7 +43,7 @@ describe("getCurrentFileInfo", () => {
       (): string => "notes.txt",
       "notes.txt",
       "text/plain",
-      (): number => taskModifiedAt,
+      (): number => chatFileModifiedAt,
       (): string => path.join(root, "tasks", "file-info-task", "notes.txt"),
     ],
     [

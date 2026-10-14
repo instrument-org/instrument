@@ -45,6 +45,15 @@ export const publisher = new EventPublisher<{
     id: ChatId;
   };
   /**
+   * A session's background process ended without anyone asking it to: it
+   * exited, failed, or hit the age cap. What wakes that session when it is
+   * no longer working (`lib/chat/job-wake.ts`).
+   */
+  "backgroundProcess.settled": {
+    id: ChatId;
+    sessionId: StoreId.Session;
+  };
+  /**
    * An agent sent a command to a guest. One per command rather than a
    * start/stop pair: the agent's browser work arrives as separate tool calls
    * seconds apart, so where one stretch of it ends is a question for whoever

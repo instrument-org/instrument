@@ -5,9 +5,9 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
 import { FilesLayoutContext } from "./files-layout-context";
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 
-// Where the task's files are, answered without a task: every path under one
+// Where the chat's files are, answered without a chat: every path under one
 // folder, so the fence has somewhere to read a file from.
 vi.mock("@/client/hooks/use-host-paths", () => ({
   useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
@@ -57,7 +57,7 @@ function drawFence(
 ) {
   return renderInBrowser(
     <div style={{ width }}>
-      <MarkdownTaskContext
+      <MarkdownChatContext
         value={{
           isStreaming,
           chatId: ChatIdSchema.parse("quarterly-numbers"),
@@ -66,7 +66,7 @@ function drawFence(
         <FilesLayoutContext.Provider value={layout}>
           <AgentFilesBlock content={content} />
         </FilesLayoutContext.Provider>
-      </MarkdownTaskContext>
+      </MarkdownChatContext>
     </div>,
   );
 }

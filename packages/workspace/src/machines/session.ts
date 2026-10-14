@@ -1,5 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { alphabetical, isEqual } from "radashi";
+import { alphabetical, isEqual, unique } from "radashi";
 import invariant from "tiny-invariant";
 import {
   type ActorRef,
@@ -77,10 +77,15 @@ export const sessionMachine = setup({
 
     clearAgentRef: assign({ agentRef: undefined }),
 
+    // The person's Stop outranks one that lands after it, such as the chat's
+    // own `task stop` on the same task a moment later: theirs is the one the
+    // chat is told of.
     rememberStopNotice: assign({
       stopNotice: ({ context, event }) =>
-        (event.type === "stop" ? event.notice : undefined) ??
-        context.stopNotice,
+        context.stopNotice?.by === "user"
+          ? context.stopNotice
+          : ((event.type === "stop" ? event.notice : undefined) ??
+            context.stopNotice),
     }),
 
     dropFirstQueued: assign({
@@ -88,6 +93,14 @@ export const sessionMachine = setup({
     }),
 
     forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
+
+    holdQueued: assign(({ context }) => heldQueue(context)),
+
+    holdQueuedOnPersonsStop: assign(({ context, event }) =>
+      event.type === "stop" && event.notice?.by === "user"
+        ? heldQueue(context)
+        : {},
+    ),
 
     spawnAgentMachine: assign({
       agentRef: (
@@ -213,6 +226,8 @@ export const sessionMachine = setup({
       agentRef?: AgentMachineActorRef;
       baseLLMRetryDelayMs: number;
       error?: unknown;
+      /** Queued messages a stop held; see `holdQueued`. */
+      heldMessageIds: StoreId.Message[];
       llmRequestChunkTimeoutMs: number;
       maxStepCount: number;
       model: AIGatewayModel.Type;
@@ -224,8 +239,6 @@ export const sessionMachine = setup({
       sessionId: StoreId.Session;
       /** Whose stop ended a turn of this session; goes out with `session.done`. */
       stopNotice?: StopNotice;
-      /** A stop arrived before a turn began: what is queued is saved, and no turn starts. */
-      stoppedBeforeStart: boolean;
       subscription?: { unsubscribe: () => void };
       chatId: ChatId;
     },
@@ -264,6 +277,7 @@ export const sessionMachine = setup({
     return {
       agent: input.agent,
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
+      heldMessageIds: [],
       llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
       maxStepCount: input.maxStepCount ?? 200,
       model: input.model,
@@ -272,7 +286,6 @@ export const sessionMachine = setup({
       runRequested: input.runRequested ?? false,
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
-      stoppedBeforeStart: false,
       subscription,
       chatId: input.chatId,
     };
@@ -347,8 +360,12 @@ export const sessionMachine = setup({
             });
           }
           agentRef.send({ saved, type: "steer", value: message });
-          // The next step may be minutes away inside a wait; end it.
-          interruptWaits(context.sessionId);
+          // The next step may be minutes away inside a wait, an `fg` or a
+          // foreground command; end it. The command itself keeps running in
+          // the background (tools/bash.ts).
+          interruptWaits(context.sessionId, {
+            from: typedIntoChat ? "user" : "other",
+          });
         }),
       ],
     },
@@ -363,10 +380,10 @@ export const sessionMachine = setup({
     runTurn: {
       actions: assign({ runRequested: true }),
     },
-    // Before the agent runs, a stop is held: what is queued is saved, and
-    // no turn starts.
+    // Before the agent runs, any stop holds what is queued, so no turn
+    // starts.
     stop: {
-      actions: ["rememberStopNotice", assign({ stoppedBeforeStart: true })],
+      actions: ["rememberStopNotice", "holdQueued"],
     },
     updateInteractiveToolCall: [
       {
@@ -402,13 +419,25 @@ export const sessionMachine = setup({
           },
           target: ".AgentDone",
         },
+        // The person's Stop of a running turn holds what waits behind it too,
+        // a message or a wake note, which would otherwise start the agent
+        // again as soon as it winds down. Any other stop of a running turn
+        // leaves the queue to run: a newer message superseding the reply is
+        // the one that has to.
         stop: [
           {
-            actions: ["rememberStopNotice", "stopAgent"],
+            actions: [
+              "rememberStopNotice",
+              "holdQueuedOnPersonsStop",
+              "stopAgent",
+            ],
             guard: "isAgentRefActive",
             target: ".Stopping",
           },
-          { actions: "rememberStopNotice", target: ".AgentDone" },
+          {
+            actions: ["rememberStopNotice", "holdQueuedOnPersonsStop"],
+            target: ".AgentDone",
+          },
         ],
       },
 
@@ -488,8 +517,7 @@ export const sessionMachine = setup({
           target: "SavingMessageAndSpawningAgent",
         },
         {
-          guard: ({ context }) =>
-            context.runRequested && !context.stoppedBeforeStart,
+          guard: ({ context }) => context.runRequested,
           target: "SpawningAgentOverStoredMessages",
         },
         { target: "Done" },
@@ -511,9 +539,10 @@ export const sessionMachine = setup({
         },
         onDone: [
           {
-            // Stopped before its turn began: the message stays, unanswered.
+            // Held by a stop: the message stays, unanswered.
             actions: "dropFirstQueued",
-            guard: ({ context }) => context.stoppedBeforeStart,
+            guard: ({ context, event }) =>
+              context.heldMessageIds.includes(event.output.id),
             target: "ProcessingQueuedMessages",
           },
           {
@@ -558,7 +587,7 @@ export const sessionMachine = setup({
               assign({ runRequested: false }),
             ],
             guard: ({ context, event }) =>
-              event.output !== undefined && !context.stoppedBeforeStart,
+              event.output !== undefined && context.runRequested,
             target: "Agent",
           },
           { target: "Done" },
@@ -593,6 +622,24 @@ export const sessionMachine = setup({
 });
 
 export type SessionActorRef = ActorRefFrom<typeof sessionMachine>;
+
+/**
+ * What is queued as a stop lands is held: saved, and left unanswered rather
+ * than run, and a run asked for over the stored session is called off.
+ * Whatever arrives after the stop runs as usual.
+ */
+function heldQueue(context: {
+  heldMessageIds: StoreId.Message[];
+  queuedMessages: SessionMessage.UserWithParts[];
+}) {
+  return {
+    heldMessageIds: unique([
+      ...context.heldMessageIds,
+      ...context.queuedMessages.map((message) => message.id),
+    ]),
+    runRequested: false,
+  };
+}
 
 /**
  * A message with a note for the agent beside the user's words, as an intent

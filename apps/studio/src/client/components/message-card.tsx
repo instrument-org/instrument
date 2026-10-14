@@ -30,7 +30,7 @@ import { ExportIcon } from "@phosphor-icons/react/Export";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
 
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 import { messageKindOf } from "./message-kind";
 
 const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
@@ -226,7 +226,7 @@ export function MessageCard({
 
 /** A ```message fence in a reply, drawn as the card while it streams in. */
 export function MessageFence({ code }: { code: string }) {
-  const { isStreaming } = useContext(MarkdownTaskContext);
+  const { isStreaming } = useContext(MarkdownChatContext);
   return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
 }
 

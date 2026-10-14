@@ -32,6 +32,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import { osConventionsFor } from "@/shared/os-conventions";
 import { eventIterator } from "@orpc/server";
 import {
   app,
@@ -563,8 +564,8 @@ function readWindowState(webContentsId: number) {
   };
 }
 
-/** Where a task's folder is on the computer, for the window to show it in its own folder view. */
-const taskFolderPath = base
+/** Where a chat's folder is on the computer, for the window to show it in its own folder view. */
+const chatFolderPath = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(({ input }) => chatDir(input.id));
 
@@ -639,12 +640,13 @@ const showFolderPicker = base
     // never on one that is not on screen: a dialog owned by a hidden window is a
     // question nobody can answer, and reads as the app having stopped.
     const parentWindow = getCallingWindow(context.webContentsId);
+    const title =
+      input.message ?? osConventionsFor(process.platform).folderPickerTitle;
     const options = {
       ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
       ...(input.startingAt ? { defaultPath: input.startingAt } : {}),
-      ...(input.message
-        ? { message: input.message, title: input.message }
-        : {}),
+      ...(input.message ? { message: input.message } : {}),
+      ...(title ? { title } : {}),
       properties: ["openDirectory", "createDirectory"] as const,
     } satisfies Electron.OpenDialogOptions;
     const result = await (parentWindow
@@ -684,6 +686,6 @@ export const utils = {
   showFileInFolder,
   showFolderPicker,
   syncZoom,
-  taskFolderPath,
+  chatFolderPath,
   toggleMaximizeWindow,
 };

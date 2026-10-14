@@ -23,6 +23,7 @@ import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
+import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
@@ -71,12 +72,12 @@ import {
 } from "@/client/lib/computer-file-url";
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import {
   cn,
-  getFileManagerName,
-  getRevealInFolderLabel,
+  commandKeyHeld,
+  currentOs,
   isMacOS,
+  osConventions,
 } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -107,6 +108,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { ORPCError } from "@orpc/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import ms from "ms";
@@ -126,7 +128,15 @@ import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
 import { FolderMark } from "./folder-mark";
 import { GlyphButton } from "./glyph-button";
-import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
+import {
+  folderOf,
+  homeRelative,
+  joinHostPath,
+  nameOf,
+  parentFolderOf,
+  segmentsOf,
+} from "./host-path";
+import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
@@ -598,7 +608,7 @@ export function ComputerPage({
       // Made and named in one move, the way the Finder does it: the field
       // opens on the row as soon as the re-read puts the folder there.
       fileSystemRef.current?.startRename(
-        `${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`,
+        `${parent.prefix}${nameOf(made.path)}/`,
       );
     } catch (error) {
       fileActionFailed("Couldn't make a new folder", error);
@@ -636,9 +646,7 @@ export function ComputerPage({
         // The copy is what the Finder leaves selected, and where the keyboard
         // carries on from. Several copied leave the several selected.
         if (picked.length === 1) {
-          setSelectedPath(
-            siblingPath(item.path, copy.path.split("/").at(-1) ?? ""),
-          );
+          setSelectedPath(siblingPath(item.path, nameOf(copy.path)));
         }
       }
       focusBrowser();
@@ -648,16 +656,16 @@ export function ComputerPage({
       reread();
     }
   };
-  // Where the thing sits on the Mac, as a terminal, a Finder window or another
-  // app takes it. The browser's own path names a place inside the browser and
-  // is no use anywhere else.
-  const copyPath = async (item: FileSystemItem | undefined) => {
-    const hostPath = hostPathOfItem(item);
-    if (!hostPath) {
+  // Where each thing sits on the Mac, as a terminal, a Finder window or
+  // another app takes it, one to a line. The browser's own path names a place
+  // inside the browser and is no use anywhere else.
+  const copyPaths = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
       return;
     }
     try {
-      await navigator.clipboard.writeText(hostPath);
+      await navigator.clipboard.writeText(hostPaths.join("\n"));
       focusBrowser();
     } catch (error) {
       fileActionFailed("Couldn't copy the path", error);
@@ -671,6 +679,7 @@ export function ComputerPage({
     // What went, by the journal entries that bring each back: the toast's
     // Undo is about these whatever is done after them.
     const undoable: string[] = [];
+    let moved = 0;
     try {
       // One at a time, so a failure stops short of the rest rather than
       // leaving which of them went to chance.
@@ -678,6 +687,7 @@ export function ComputerPage({
         const { journalId } = await rpcClient.files.trash.call({
           path: hostPath,
         });
+        moved += 1;
         if (journalId !== null) {
           undoable.push(journalId);
         }
@@ -694,36 +704,53 @@ export function ComputerPage({
       focusBrowser();
     } catch (error) {
       fileActionFailed(
-        `Couldn't move that to the ${getTrashTerminology()}`,
+        `Couldn't move that to the ${osConventions().trash}`,
         error,
       );
     } finally {
       reread();
-      if (undoable.length > 0) {
+      if (moved > 0) {
         const [only] = hostPaths;
-        toast(
-          undoable.length === 1 && only
-            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
-            : `Moved ${undoable.length} items to the ${getTrashTerminology()}`,
-          {
-            action: {
-              label: "Undo",
-              onClick: () => {
-                void undoTrash(undoable);
-              },
-            },
-          },
+        // Offered only when the app found every one of them in the Trash
+        // and so can put them all back.
+        toastWithUndo(
+          moved === 1 && only
+            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${osConventions().trash}`
+            : `Moved ${moved} items to the ${osConventions().trash}`,
+          undoable.length === moved
+            ? {
+                journalIds: undoable,
+                undo: () => {
+                  void undoTrash(undoable);
+                },
+              }
+            : null,
         );
       }
     }
   };
   // The toast's Undo: each of them back, the last trashed first, stopping at
-  // the first that cannot come back and saying why.
+  // the first that cannot come back and saying why. One already put back
+  // another way, by ⌘Z say, is passed over quietly.
   const undoTrash = async (journalIds: string[]) => {
     let first: null | RPCOutput["files"]["undo"] = null;
     try {
       for (const journalId of journalIds.toReversed()) {
-        first = await rpcClient.files.undo.call({ journalId });
+        const undone = await rpcClient.files.undo
+          .call({ journalId })
+          .catch((error: unknown) => {
+            if (
+              error instanceof ORPCError &&
+              error.code === "NOTHING_TO_UNDO"
+            ) {
+              return null;
+            }
+            throw error;
+          });
+        if (undone) {
+          withdrawUndoOffer(undone.journalId);
+          first = undone;
+        }
       }
     } catch (error) {
       fileActionFailed("Couldn't put that back", error);
@@ -1082,7 +1109,7 @@ export function ComputerPage({
         event.key.toLowerCase() !== "z" ||
         event.shiftKey ||
         event.altKey ||
-        !(isMacOS() ? event.metaKey : event.ctrlKey) ||
+        !commandKeyHeld(event) ||
         isTypingTarget(event.target)
       ) {
         return;
@@ -1091,6 +1118,7 @@ export function ComputerPage({
       void rpcClient.files.undo
         .call()
         .then((undone) => {
+          withdrawUndoOffer(undone.journalId);
           reread();
           selectUndone(undone);
         })
@@ -1134,13 +1162,7 @@ export function ComputerPage({
         return;
       }
       event.preventDefault();
-      row.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          bubbles: true,
-          cancelable: true,
-          key: event.key,
-        }),
-      );
+      row.dispatchEvent(rowPress(event));
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
@@ -1181,6 +1203,13 @@ export function ComputerPage({
       search: { path: prefix, root: folder },
       to: "/files",
     });
+  };
+  // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac).
+  const leaveRoot = () => {
+    const search = rootParentSearch(rootHostPath, view);
+    if (search) {
+      void navigate({ search, to: "/files" });
+    }
   };
 
   if (!places.data) {
@@ -1305,7 +1334,7 @@ export function ComputerPage({
       }
       return isApp(tab) ? "app" : "file";
     })(),
-    onCopyPath: () => void copyPath(item),
+    onCopyPath: () => void copyPaths(item ? [item] : []),
     onNewFolder:
       folderOnScreenPath === undefined
         ? undefined
@@ -1371,7 +1400,7 @@ export function ComputerPage({
         .call({ filepath: hostPathOfItem(item) })
         .catch((error: unknown) => {
           fileActionFailed(
-            `Couldn't show it in ${getFileManagerName()}`,
+            `Couldn't show it in ${osConventions().inFileManager}`,
             error,
           );
         }),
@@ -1631,6 +1660,19 @@ export function ComputerPage({
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
+                onLeaveRoot={isRecents ? undefined : leaveRoot}
+                onNewFolder={
+                  folderOnScreenPath === undefined
+                    ? undefined
+                    : () => {
+                        void newFolderIn({
+                          hostPath: folderOnScreenPath,
+                          prefix: onScreen,
+                        });
+                      }
+                }
+                onCopyPath={(picked) => void copyPaths(picked)}
+                onDuplicate={(picked) => void duplicate(picked)}
                 onTrash={(picked) => void trash(picked)}
                 onViewChange={(next) => {
                   setDefaultView(next);
@@ -1820,6 +1862,7 @@ export function ComputerPage({
   );
 }
 
+// oxlint-disable studio/no-os-words -- shown only on macOS, the one system with iCloud Drive's app folders
 /**
  * Under the top of iCloud Drive while macOS keeps its app folders from
  * Instrument. The first read asks for the iCloud Drive permission, and macOS
@@ -1849,6 +1892,7 @@ function ICloudAccessBanner() {
     </div>
   );
 }
+// oxlint-enable studio/no-os-words
 
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
@@ -2030,7 +2074,8 @@ function FolderMenuItems({
   /** New Folder at the head whatever the menu is about, the way the Finder's ⋯ has it. */
   newFolderFirst?: boolean;
 }) {
-  const { Item, Separator } = menuComponents;
+  const { Item, Separator, Shortcut } = menuComponents;
+  const keys = listingKeys(currentOs());
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
   const several = group?.length;
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
@@ -2055,6 +2100,7 @@ function FolderMenuItems({
           <Item onClick={onNewFolder}>
             <FolderPlusIcon className="size-4" />
             <span>New Folder</span>
+            <Shortcut>{keys.newFolder}</Shortcut>
           </Item>
           <Separator />
         </>
@@ -2089,9 +2135,9 @@ function FolderMenuItems({
               ) : (
                 <AppWindowIcon className="size-4" />
               )}
-              <span>
-                {opensOutside === "file" ? openLabel : "Open"}
-              </span>
+              <span>{opensOutside === "file" ? openLabel : "Open"}</span>
+              {/* The key opens the one row the keyboard is on. */}
+              {several ? null : <Shortcut>{keys.open}</Shortcut>}
             </Item>
           )}
           <Item onClick={onOpenInNewTab}>
@@ -2129,23 +2175,27 @@ function FolderMenuItems({
           <Separator />
           <Item onClick={onTrash} variant="destructive">
             <TrashIcon className="size-4" />
-            <span>Move to {getTrashTerminology()}</span>
+            <span>Move to {osConventions().trash}</span>
+            <Shortcut>{keys.trash}</Shortcut>
           </Item>
           <Separator />
           {onRename ? (
             <Item onClick={onRename}>
               <PencilSimpleIcon className="size-4" />
               <span>Rename</span>
+              <Shortcut>{keys.rename}</Shortcut>
             </Item>
           ) : null}
           <Item onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
+            {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
           {file && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />
-              <span>Quick Look</span>
+              <span>Preview</span>
+              <Shortcut>{keys.preview}</Shortcut>
             </Item>
           ) : null}
           {/* Where one thing is has no answer for several. */}
@@ -2155,13 +2205,14 @@ function FolderMenuItems({
               <Item onClick={onCopyPath}>
                 <ClipboardTextIcon className="size-4" />
                 <span>Copy Path</span>
+                {keys.copyPath ? <Shortcut>{keys.copyPath}</Shortcut> : null}
               </Item>
               {/* The Open in list already offers the Finder, so a row of its
                     own would name it twice. */}
               {openIn ? null : (
                 <Item onClick={onReveal}>
                   <RevealInFolderIcon className="size-4" />
-                  <span>{getRevealInFolderLabel()}</span>
+                  <span>{osConventions().showInFileManager}</span>
                 </Item>
               )}
               {pin ? (
@@ -2186,6 +2237,7 @@ function FolderMenuItems({
               <Item onClick={onNewFolder}>
                 <FolderPlusIcon className="size-4" />
                 <span>New Folder</span>
+                <Shortcut>{keys.newFolder}</Shortcut>
               </Item>
               <Separator />
             </>
@@ -2230,9 +2282,59 @@ function relativeHostPath(root: string, hostPath: string) {
     : null;
 }
 
+/**
+ * Where up from the top of a tab's tree goes: the folder the root sits in,
+ * with the root selected in it, in the layout on screen. Going up is a step
+ * of the tab's own, as walking into a folder is, so it keeps the tab's
+ * layout. Nothing is above a disk.
+ */
+export function rootParentSearch(
+  rootHostPath: string | undefined,
+  view: FileSystemView,
+) {
+  const above = rootHostPath && parentFolderOf(rootHostPath);
+  if (!rootHostPath || !above) {
+    return undefined;
+  }
+  return {
+    path: "",
+    root: above,
+    select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
+    view,
+  };
+}
+
+/**
+ * A press Quick Look holds, made again for the listing's selected row with
+ * the keys held with it: ↑ with the parent folder's key goes up a folder,
+ * and Shift widens the selection.
+ */
+export function rowPress({
+  altKey,
+  ctrlKey,
+  key,
+  metaKey,
+  shiftKey,
+}: KeyboardEvent): KeyboardEvent {
+  return new KeyboardEvent("keydown", {
+    altKey,
+    bubbles: true,
+    cancelable: true,
+    ctrlKey,
+    key,
+    metaKey,
+    shiftKey,
+  });
+}
+
 // The files routes' errors that come with a sentence written for people. The
 // rest carry the system's own message, which only developer mode shows.
-const SPOKEN_FILE_ERRORS = ["NAME_IN_USE", "NAME_INVALID", "NOTHING_TO_UNDO"];
+const SPOKEN_FILE_ERRORS = [
+  "CANNOT_UNDO",
+  "NAME_IN_USE",
+  "NAME_INVALID",
+  "NOTHING_TO_UNDO",
+];
 
 /** Says a file action didn't happen, with the reason when it is one a person can use. */
 export function fileActionFailed(title: string, error: unknown) {
@@ -2275,7 +2377,10 @@ function NotPermitted({
   onGranted: (hostPath: string) => void;
   refusal: ComputerRefusal;
 }) {
-  const name = segmentsOf(refusal.path).at(-1) ?? refusal.path;
+  // The folder that refused, which is one above this when the account cannot
+  // pass through it.
+  const shut = refusal.refusedBy ?? refusal.path;
+  const name = segmentsOf(shut).at(-1) ?? shut;
   const choose = useMutation({
     mutationFn: () =>
       rpcClient.utils.showFolderPicker.call({
@@ -2331,7 +2436,8 @@ function NotPermitted({
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {isSystem
-              ? "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
+              ? // oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it
+                "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
               : "Its permissions keep this account out. Whoever owns it can change them."}
           </p>
         </div>
@@ -2352,6 +2458,7 @@ function NotPermitted({
               size="sm"
               variant="outline"
             >
+              {/* oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it */}
               Open System Settings
             </Button>
           </div>
@@ -2692,14 +2799,14 @@ function PlaceMenu({
               .call({ filepath: hostPath })
               .catch((error: unknown) => {
                 fileActionFailed(
-                  `Couldn't show it in ${getFileManagerName()}`,
+                  `Couldn't show it in ${osConventions().inFileManager}`,
                   error,
                 );
               })
           }
         >
           <RevealInFolderIcon className="size-4" />
-          <span>{getRevealInFolderLabel()}</span>
+          <span>{osConventions().showInFileManager}</span>
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />

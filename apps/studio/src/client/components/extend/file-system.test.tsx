@@ -1,7 +1,22 @@
 import { renderWithProviders } from "@/tests/render";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { installWindowStubs } from "@/tests/window-stubs";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import * as React from "react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import {
   FileSystem,
@@ -87,6 +102,119 @@ describe("FileSystem", () => {
     renderWithProviders(<FileSystem defaultView="list" items={[]} />);
 
     expect(screen.getByText("This folder is empty")).toBeTruthy();
+  });
+
+  // A file's kind reads the same whether its extension or only its type
+  // says what it is, and never as the type itself.
+  it("names each file's kind in the list in words", () => {
+    // The list drops columns it has no room for, and nothing is laid out here.
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+    onTestFinished(() => {
+      width.mockRestore();
+    });
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          { contentType: "text/plain", kind: "file", path: "task.txt" },
+          { contentType: "text/plain", kind: "file", path: "2024" },
+          { contentType: "text/plain", kind: "file", path: "empty", size: 0 },
+          { contentType: "text/html", kind: "file", path: "page.html" },
+          { contentType: "text/html", kind: "file", path: "a\\b.html" },
+          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
+          { contentType: "video/mp4", kind: "file", path: "clip.mp4" },
+          {
+            contentType: "application/octet-stream",
+            kind: "file",
+            path: "blob",
+          },
+        ]}
+        listColumns={["kind"]}
+      />,
+    );
+
+    expect(
+      screen
+        .getAllByRole("option")
+        .map(
+          (row) =>
+            `${row.querySelector("[data-file-system-name]")?.textContent ?? ""}: ${row.lastElementChild?.textContent ?? ""}`,
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "2024: Plain Text",
+        "a\\b.html: HTML Document",
+        "blob: Document",
+        "clip.mp4: Video",
+        "empty: Plain Text",
+        "page.html: HTML Document",
+        "song.mp3: Audio",
+        "task.txt: Plain Text",
+      ]
+    `);
+  });
+
+  // The file type filter offers the kinds the Kind column shows, one each,
+  // and a kind picked there takes every file of that kind.
+  it("filters by the kinds the list names", () => {
+    // The type list keeps its highlighted row in view, and jsdom has no
+    // scrolling.
+    Element.prototype.scrollIntoView = () => {};
+    onTestFinished(() => {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    });
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          { contentType: "text/plain", kind: "file", path: "task.txt" },
+          { contentType: "text/plain", kind: "file", path: "2024" },
+          { contentType: "text/html", kind: "file", path: "page.html" },
+          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
+          { contentType: "audio/wav", kind: "file", path: "voice.wav" },
+          {
+            contentType: "application/octet-stream",
+            kind: "file",
+            path: "blob",
+          },
+        ]}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Filter" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "File type" }));
+    const kinds = screen.getByRole("listbox", { name: "Suggestions" });
+
+    expect(
+      within(kinds)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toMatchInlineSnapshot(`
+      [
+        "Plain Text",
+        "Audio",
+        "Document",
+        "HTML Document",
+      ]
+    `);
+
+    fireEvent.click(within(kinds).getByRole("option", { name: "Audio" }));
+
+    // Read off the page, since the open menu hides the list from roles.
+    expect(
+      [...document.querySelectorAll("[data-file-system-name]")].map(
+        (name) => name.textContent,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "song.mp3",
+        "voice.wav",
+      ]
+    `);
   });
 
   describe("a folder the caller cannot list", () => {
@@ -379,6 +507,77 @@ describe("FileSystem", () => {
   });
 });
 
+describe("the file manager's keys for going up and making a folder", () => {
+  const NESTED: FileSystemItem[] = [
+    { hasChildren: true, kind: "folder", path: "docs/" },
+    { kind: "file", path: "docs/a.txt" },
+    { kind: "file", path: "b.txt" },
+  ];
+
+  describe.each([
+    {
+      newFolder: { ctrlKey: false, key: "N", metaKey: true, shiftKey: true },
+      platform: "darwin",
+      up: { altKey: false, key: "ArrowUp", metaKey: true },
+    },
+    {
+      newFolder: { ctrlKey: true, key: "N", metaKey: false, shiftKey: true },
+      platform: "win32",
+      up: { altKey: true, key: "ArrowUp", metaKey: false },
+    },
+  ])("on $platform", ({ newFolder, platform, up }) => {
+    beforeEach(() => {
+      Object.defineProperty(window, "electron", {
+        configurable: true,
+        value: { process: { platform } },
+      });
+    });
+    afterEach(() => {
+      installWindowStubs();
+    });
+
+    it("goes up with the folder left selected, then past the top to the page", () => {
+      const onLeaveRoot = vi.fn();
+      const onPathChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultPath="docs/"
+          defaultView="list"
+          items={NESTED}
+          onLeaveRoot={onLeaveRoot}
+          onPathChange={onPathChange}
+        />,
+      );
+
+      fireEvent.keyDown(screen.getByRole("option", { name: "a.txt" }), up);
+      expect(onPathChange).toHaveBeenLastCalledWith("");
+      const docs = screen.getByRole("option", { name: "docs" });
+      expect(docs.getAttribute("aria-selected")).toBe("true");
+      expect(onLeaveRoot).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(docs, up);
+      expect(onLeaveRoot).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks the page for a new folder", () => {
+      const onNewFolder = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          items={NESTED}
+          onNewFolder={onNewFolder}
+        />,
+      );
+
+      fireEvent.keyDown(
+        screen.getByRole("option", { name: "b.txt" }),
+        newFolder,
+      );
+      expect(onNewFolder).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
 describe("renaming in place", () => {
   /** A list of five files that can be renamed, with the saves it was asked for. */
   function renderRenamable({
@@ -500,6 +699,42 @@ describe("renaming in place", () => {
     expect(field()).toBeNull();
     await waitFor(() => expect(onFileOpen).toHaveBeenCalledTimes(1));
     expect(onFileOpen.mock.lastCall?.[0]).toMatchObject({ path: "b.txt" });
+  });
+
+  describe.each(["win32", "linux"])("on %s", (platform) => {
+    beforeEach(() => {
+      Object.defineProperty(window, "electron", {
+        configurable: true,
+        value: { process: { platform } },
+      });
+    });
+    afterEach(() => {
+      installWindowStubs();
+    });
+
+    it("opens on Enter and renames on F2, as File Explorer does", async () => {
+      const { field, onFileOpen, openField, row } = renderRenamable();
+
+      fireEvent.click(row("b.txt"));
+      fireEvent.keyDown(row("b.txt"), { key: "Enter" });
+      expect(field()).toBeNull();
+      await waitFor(() => expect(onFileOpen).toHaveBeenCalledTimes(1));
+      expect(onFileOpen.mock.lastCall?.[0]).toMatchObject({ path: "b.txt" });
+
+      fireEvent.keyDown(row("b.txt"), { key: "F2" });
+      expect(openField().value).toBe("b.txt");
+    });
+
+    it("opens nothing on F2 in the gallery, which has no name to type over", () => {
+      const { field, onFileOpen } = renderRenamable({ view: "gallery" });
+      const tile = screen.getByTitle("b.txt");
+
+      fireEvent.click(tile);
+      fireEvent.keyDown(tile, { key: "F2" });
+
+      expect(field()).toBeNull();
+      expect(onFileOpen).not.toHaveBeenCalled();
+    });
   });
 
   // Named to sort first: jsdom has no layout, so the list's virtual window

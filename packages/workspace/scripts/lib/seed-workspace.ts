@@ -26,7 +26,7 @@ import { TASKS_DIR_NAME } from "../../src/constants";
 import { copyChatFolder } from "../../src/lib/copy-chat-folder";
 import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
-import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task-dir";
+import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
@@ -192,12 +192,12 @@ async function copyFixtureFiles({
   const dir = chatDir(id);
 
   for (const file of files) {
-    const destination = resolvePathWithinTaskDir({
+    const destination = resolvePathWithinChatDir({
       dir,
       filePath: RelativePathSchema.parse(file.to),
     });
     if (!destination) {
-      throw new Error(`"${file.to}" resolves outside the task directory`);
+      throw new Error(`"${file.to}" resolves outside the chat's folder`);
     }
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await fs.copyFile(file.from, destination);

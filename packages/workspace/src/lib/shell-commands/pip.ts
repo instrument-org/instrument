@@ -10,7 +10,7 @@ import { ensureVenvForCommand, runUv } from "./uv";
 // task venv (.venv) without needing pip seeded into the env. `uv pip`
 // honors VIRTUAL_ENV, set by the uv env overlay.
 export const PIP_COMMAND = {
-  description: `Install Python packages into the per-task virtualenv (.venv) via uv, where \`${PYTHON_COMMAND.name}\` runs. Use like pip, e.g. \`pip install <package>\`.`,
+  description: `Install Python packages into the chat's virtualenv (.venv) via uv, where \`${PYTHON_COMMAND.name}\` runs. Use like pip, e.g. \`pip install <package>\`.`,
   name: "pip",
 } as const;
 
@@ -33,12 +33,12 @@ function createPipCommandNamed(chatId: ChatId, name: string) {
     // pip-compatible version string so agents that probe with `pip --version`
     // get a useful response rather than a confusing uv usage error.
     if (args[0] === "--version" || args[0] === "-V") {
-      const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+      const { env, hostCwd } = resolveCommandContext(chatId, ctx);
       const uvResult = await runUv({
         args: ["--version"],
         ctx,
         env,
-        taskCwd,
+        hostCwd,
       });
       const uvVersion = uvResult.stdout.trim();
       return {
@@ -48,7 +48,7 @@ function createPipCommandNamed(chatId: ChatId, name: string) {
       };
     }
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
 
     const venvError = await ensureVenvForCommand({ ctx, chatId });
     if (venvError !== undefined) {
@@ -59,7 +59,7 @@ function createPipCommandNamed(chatId: ChatId, name: string) {
       args: ["pip", ...hostPathArgs(args)],
       ctx,
       env,
-      taskCwd,
+      hostCwd,
     });
   });
 }

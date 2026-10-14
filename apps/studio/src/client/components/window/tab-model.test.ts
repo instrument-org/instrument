@@ -28,6 +28,7 @@ import {
   stepTrail,
   stepVisit,
   selectedTabIn,
+  tabToScreen,
   visitScreen,
   type WindowTabs,
 } from "./tab-model";
@@ -325,6 +326,26 @@ describe("crossing between a page and a screen", () => {
     expect(forward.state.tabs[0]).toMatchObject({
       href: "/files",
       kind: "screen",
+    });
+  });
+
+  it("sends a page tab named by its id to a screen, the page a step back", () => {
+    const page = pageTab("guest", "https://example.com", CHAT);
+    const other = screenTab("beside", "/apps", CHAT);
+    const onScreen = tabToScreen(windowOf([page, other]), {
+      href: "/files?path=&root=%7E%2FDocuments",
+      id: "guest",
+      newId: "screen",
+    });
+    expect(onScreen.tabs[0]).toMatchObject({
+      href: "/files?path=&root=%7E%2FDocuments",
+      id: "screen",
+      kind: "screen",
+    });
+    expect(onScreen.tabs[1]).toBe(other);
+    expect(stepVisit(onScreen, "screen", -1).state.tabs[0]).toMatchObject({
+      id: "guest",
+      kind: "page",
     });
   });
 

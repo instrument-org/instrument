@@ -78,6 +78,7 @@ function chat(): Chat {
     unread: false,
     unreadByUser: false,
     updatedAt: at.getTime(),
+    working: false,
   };
 }
 

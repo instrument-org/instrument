@@ -9,13 +9,8 @@ import { type ChatId } from "../../schemas/chat-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
-import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
-import {
-  buildWorkspaceFsLayout,
-  effectiveFolderAccess,
-  type WorkspaceFsLayout,
-} from "../workspace-fs-layout";
+import { effectiveFolderAccess, shellPath } from "../workspace-fs-layout";
 import {
   type FinderEntry,
   finderEntriesOf,
@@ -131,6 +126,13 @@ const ComputerRefusalSchema = z.object({
   /** The host path asked for, `~` expanded. */
   path: z.string(),
   reason: z.enum(["account", "system"]) satisfies z.ZodType<ReadRefusal>,
+  /**
+   * The folder above the one asked for whose permissions keep the account
+   * from passing through it, which refuses everything under it whether it
+   * is there or not; absent when the folder asked for is the one that
+   * refused.
+   */
+  refusedBy: z.string().optional(),
 });
 export type ComputerRefusal = z.output<typeof ComputerRefusalSchema>;
 
@@ -222,12 +224,15 @@ export async function listComputerFolder({
     const isPackage = (await finderEntriesOf(path.dirname(hostPath))).get(
       path.basename(hostPath).normalize("NFC"),
     )?.package;
+    const refusedBy =
+      reason === "account" ? await shutFolderAbove(hostPath) : undefined;
     return {
       display: displayHostPath(hostPath),
       kind: "refused",
       ...(isPackage ? { package: true } : {}),
       path: hostPath,
       reason,
+      ...(refusedBy === undefined ? {} : { refusedBy }),
     };
   }
   const truncated = dirents.length > MAX_ENTRIES;
@@ -487,38 +492,36 @@ async function exists(hostPath: string) {
 }
 
 /**
- * The chat's own view of the filesystem: its folder and the folders it
- * reaches. Beside the layout, the same folders as host roots with the grant
- * each carries, which is what a folder's access is judged from.
+ * The first folder from the top down that the account may not pass through
+ * on the way to a path, or undefined when it reaches the path and only the
+ * path itself is shut.
  */
-async function chatView(chatId: ChatId) {
-  const taskHostRoot = chatDir(chatId);
-  const folders = await folderReach(chatId);
-  const layout = buildWorkspaceFsLayout({ folders, taskHostRoot });
-  return { layout, roots: reachableRoots(layout, folders) };
+async function shutFolderAbove(hostPath: string): Promise<string | undefined> {
+  const { root } = path.parse(hostPath);
+  const names = path.relative(root, hostPath).split(path.sep).filter(Boolean);
+  let at = root;
+  for (const name of names.slice(0, -1)) {
+    at = path.join(at, name);
+    try {
+      await fs.access(at, fs.constants.X_OK);
+    } catch (error) {
+      return readRefusalOf(error) === undefined ? undefined : at;
+    }
+  }
+  return undefined;
 }
 
 /**
  * What a chat can reach outside its own folder, each resolved to a host
- * root: the folders `folderReach` answers.
+ * root with the grant it carries, which is what a folder's access is judged
+ * from: the folders `folderReach` answers.
  */
-function reachableRoots(
-  layout: WorkspaceFsLayout,
-  folders: Record<string, MountedFolder.Type>,
-): FolderRoot[] {
-  const grants = new Map(
-    Object.values(folders).map((folder) => [
-      path.resolve(folder.path),
-      folder.access,
-    ]),
-  );
-  return layout.folders.map((folder) => {
-    const root = path.resolve(folder.hostRoot);
-    return {
-      // A folder with no grant behind it is one the layout holds read-only.
-      grant: grants.get(root) ?? (folder.readOnly ? "read-only" : "read-write"),
-      shellRoot: folder.shellRoot,
-      root,
-    };
-  });
+async function chatView(chatId: ChatId): Promise<{ roots: FolderRoot[] }> {
+  return {
+    roots: Object.values(await folderReach(chatId)).map((folder) => ({
+      grant: folder.access,
+      shellRoot: shellPath(folder.path),
+      root: path.resolve(folder.path),
+    })),
+  };
 }

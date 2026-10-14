@@ -3,8 +3,9 @@
  * the dock are placed in viewport coordinates, which are the page's own.
  */
 import { icon, mark } from "./icons";
+import { type EditorKeys } from "./keys";
 
-export const UI_HTML = `
+export const uiHtml = (keys: EditorKeys) => `
 <div id="ui">
   <div id="overlay">
     <div id="hover" class="box" hidden><span class="tag"></span></div>
@@ -25,7 +26,7 @@ export const UI_HTML = `
       <div class="pop-head"><span class="kind"></span><span class="where"></span></div>
       <p class="note" hidden></p>
       <textarea rows="3" placeholder="What should change?"></textarea>
-      <div class="pop-foot"><span class="hint"><kbd>↵</kbd> add</span><button type="button" class="ghost" data-cancel>Cancel</button><button type="submit" class="primary agent">Add</button></div>
+      <div class="pop-foot"><span class="hint"><kbd>${keys.submit}</kbd> add</span><button type="button" class="ghost" data-cancel>Cancel</button><button type="submit" class="primary agent">Add</button></div>
     </form>
 
     <div id="img-pop" class="pop" hidden>
@@ -50,10 +51,10 @@ export const UI_HTML = `
   <div id="dock">
     <div id="panel" hidden><ol id="req-list"></ol></div>
     <div class="dock-row">
-    <button id="done-btn" class="done" title="Back to the page (⌘E)"><span class="dot"></span>Editing<span class="done-label">Done</span></button>
+    <button id="done-btn" class="done" title="Back to the page (${keys.done})"><span class="dot"></span>Editing<span class="done-label">Done</span></button>
     <span class="dock-sep pill-only"></span>
-    <button id="undo-btn" class="icon-btn" title="Undo (⌘Z)" disabled>${icon("undo", 16)}</button>
-    <button id="redo-btn" class="icon-btn" title="Redo (⇧⌘Z)" disabled>${icon("redo", 16)}</button>
+    <button id="undo-btn" class="icon-btn" title="Undo (${keys.undo})" disabled>${icon("undo", 16)}</button>
+    <button id="redo-btn" class="icon-btn" title="Redo (${keys.redo})" disabled>${icon("redo", 16)}</button>
     <span class="dock-sep"></span>
     <button id="page-btn" class="plain" title="Page colors, corners and type" hidden>${icon("palette", 16)}Page</button>
     <span id="dock-asks" hidden>

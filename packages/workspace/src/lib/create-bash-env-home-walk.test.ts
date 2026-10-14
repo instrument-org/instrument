@@ -46,19 +46,19 @@ async function run(command: string) {
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-home-walk-"));
   const home = path.join(tmpDir, "Home");
-  const taskRoot = path.join(home, "workspace", "tasks", "walker");
+  const chatRoot = path.join(home, "workspace", "tasks", "walker");
   const wide = path.join(home, "wide");
-  await fs.mkdir(path.join(taskRoot, "work", "wide"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work", "wide"), { recursive: true });
   await fs.mkdir(wide, { recursive: true });
   await Promise.all(
     Array.from({ length: WIDE_FILES }, (_, index) =>
       Promise.all([
         fs.writeFile(path.join(wide, `f${index}`), ""),
-        fs.writeFile(path.join(taskRoot, "work", "wide", `f${index}`), ""),
+        fs.writeFile(path.join(chatRoot, "work", "wide", `f${index}`), ""),
       ]),
     ),
   );
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // The home folder holds the workspace, which is what marks it as home.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),

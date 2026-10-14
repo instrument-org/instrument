@@ -7,7 +7,7 @@ import {
   isWebPage,
   type OpenTarget,
 } from "@/client/lib/open-target";
-import { isMacOS } from "@/client/lib/utils";
+import { commandKeyHeld } from "@/client/lib/utils";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { useContext } from "react";
 import { toast } from "@/client/lib/toast";
@@ -152,7 +152,7 @@ export function openClickGestures({
  * from the menu it belongs to.
  */
 export function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
-  return isMacOS() ? event.metaKey : event.ctrlKey;
+  return commandKeyHeld(event);
 }
 
 /**

@@ -50,6 +50,21 @@ export function shouldShowAgentCompletionNotification({
   return mode === "always" || !isAppWindowFocused;
 }
 
+/**
+ * Whether a turn's end leaves the chat at rest, which is when a notification
+ * is news. A task of the chat's runs in its store, and its turn ending is
+ * news the chat's own reply carries. A reply while anything of the chat's
+ * still moves is a step on the way (the line said before a hand-off, a task
+ * sent back), even when a card waits on the user beside it. A chat that
+ * could not be read is told of anyway.
+ */
+export function settlesChat(
+  chat: Pick<Chat, "sessionId" | "working"> | undefined,
+  sessionId: StoreId.Session,
+): boolean {
+  return chat === undefined || (!chat.working && chat.sessionId === sessionId);
+}
+
 // Shows a native notification on demand, bypassing focus/mode gating, so the
 // user can verify delivery. Whether it actually appears depends on the OS
 // notification permission, which Electron cannot query.
@@ -113,15 +128,7 @@ export function startAgentCompletionNotifications({
       return;
     }
     const chat = await chatOf({ context, id });
-    // A task of the chat's runs in its store, and its turn ending is news
-    // the chat's own reply carries. A reply while a task of the chat's is
-    // still at work is a step on the way: the line said before a hand-off,
-    // a task sent back. The news is the reply that leaves the chat at
-    // rest, with nothing of its own running and the next move the user's.
-    if (
-      chat?.state === "working" ||
-      (chat !== undefined && chat.sessionId !== sessionId)
-    ) {
+    if (!settlesChat(chat, sessionId)) {
       return;
     }
 

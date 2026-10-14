@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
@@ -27,7 +27,7 @@ import { ImageWithFallback } from "./image-with-fallback";
 import { type MediaCardShape } from "./media-card-shape";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
-import { OpenTaskFileButton } from "./open-task-file-button";
+import { OpenFileButton } from "./open-file-button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -376,7 +376,7 @@ function ImagePreviewCard({
                 }}
               />
             )}
-            <OpenTaskFileButton
+            <OpenFileButton
               className="max-w-44"
               control={openControl}
               dropdownClassName="h-6 rounded-lg"
@@ -511,7 +511,7 @@ function VideoPreviewCard({
                 }}
               />
             )}
-            <OpenTaskFileButton
+            <OpenFileButton
               className="max-w-44"
               control={openControl}
               dropdownClassName="h-6 rounded-lg"

@@ -22,6 +22,12 @@
 //
 // And it builds the Mac bridge when it is missing or stale (`mac-bridge.ts`),
 // so every dev run has it however it was started.
+//
+// With STUDIO_OWN_PRIVACY set (studio-drive's `boot --own-privacy`), a Mac run
+// starts Electron through `own-privacy.c`, so macOS answers it with the app's
+// own privacy grants instead of those of the terminal that started it, which
+// otherwise pass on Full Disk Access and hide every refusal. Electron stays in
+// this process's group either way, so stopping the group stops it.
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import {
@@ -30,6 +36,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -117,10 +124,42 @@ function namedElectron(name: string) {
 
 ensureMacBridge();
 
+/**
+ * The launcher that starts a program as responsible for its own privacy
+ * grants (`own-privacy.c`), built beside the dependencies whenever the source
+ * is newer. Undefined anywhere it cannot be built, which fails the run rather
+ * than quietly leaving it on the terminal's grants it was asked to be without.
+ */
+function ownPrivacyLauncher() {
+  const source = path.resolve(import.meta.dirname, "own-privacy.c");
+  const launcher = path.resolve(
+    import.meta.dirname,
+    "../node_modules/.cache/dev-electron/own-privacy",
+  );
+  try {
+    if (
+      !existsSync(launcher) ||
+      statSync(launcher).mtimeMs < statSync(source).mtimeMs
+    ) {
+      mkdirSync(path.dirname(launcher), { recursive: true });
+      execFileSync("clang", ["-O2", "-Wall", "-o", launcher, source]);
+    }
+    return launcher;
+  } catch (error) {
+    process.stderr.write(
+      `[dev-supervisor] could not build the launcher for a run with its own privacy grants: ${String(error)}\n`,
+    );
+    process.exit(1);
+  }
+}
+
 const purpose = process.env.STUDIO_DRIVE_PURPOSE;
 const electronExecPath = namedElectron(
   purpose ? `Instrument ${purpose}` : "Instrument (Dev)",
 );
+const ownPrivacy =
+  process.platform === "darwin" && process.env.STUDIO_OWN_PRIVACY === "1";
+const launcher = ownPrivacy ? ownPrivacyLauncher() : undefined;
 
 function start() {
   child = spawn(ELECTRON_VITE, process.argv.slice(2), {
@@ -129,6 +168,17 @@ function start() {
       INSTRUMENT_DEV_SUPERVISOR: "1",
       // electron-vite launches whatever this names in place of its own lookup.
       ...(electronExecPath && { ELECTRON_EXEC_PATH: electronExecPath }),
+      ...(launcher && {
+        ELECTRON_EXEC_PATH: launcher,
+        OWN_PRIVACY_EXEC:
+          electronExecPath ??
+          path.join(
+            path.dirname(
+              createRequire(import.meta.url).resolve("electron/package.json"),
+            ),
+            "dist/Electron.app/Contents/MacOS/Electron",
+          ),
+      }),
     },
     // A .cmd shim only runs through a shell.
     shell: process.platform === "win32",

@@ -15,7 +15,7 @@ export const CHAT_FOLDER_NAMES = {
   private: PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
-  // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the task so tempfile spill
+  // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the chat's folder so tempfile spill
   // and mktemp scratch land here instead of the host temp dir. Dot-prefixed
   // because what accumulates is interpreter caches rather than anything the
   // user would recognize, and the file index excludes it on that basis.
@@ -74,6 +74,23 @@ export const AGENT_NEEDS_LANGUAGE = "needs";
 export const TOOL_ACTIVITY_PARAM_NAME = "activity";
 
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
+
+/**
+ * What a tool call reads when the app closed while it ran: written by the quit
+ * on a task's call it cut off, and by the next launch's sweep on any call a
+ * process left in flight. Matched by what reads a call as cut off rather than
+ * failed.
+ */
+export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
+  "This action was interrupted when the app closed.";
+
+/**
+ * What a tool call reads when the user's Stop, or the chat's `task stop` on
+ * a task, ended it. Matched by what reads the chat's turn as stopped by the
+ * user rather than finished. The person reads it; the model reads words of
+ * its own in its place (`SessionMessage.toUIMessages`).
+ */
+export const STOPPED_TOOL_CALL_ERROR_TEXT = "This action was stopped by you.";
 
 /**
  * What a chat is called until it is named: its session's title, and its

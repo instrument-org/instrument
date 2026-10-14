@@ -17,11 +17,17 @@ import {
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
 import { PlaceIcon } from "@/client/components/window/place-icons";
+import { useComputerVolumes } from "@/client/components/window/computer-volumes";
 import { FolderMark } from "@/client/components/window/folder-mark";
+import {
+  isInside,
+  nameOf,
+  segmentsOf,
+} from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isLinux, isWindows } from "@/client/lib/utils";
+import { isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -48,28 +54,12 @@ const LEVEL_LABELS = {
 
 const LEVELS = ["allow", "ask", "never"] satisfies Level[];
 
-function lastSegment(path: string) {
-  return path.split(/[\\/]/).findLast((part) => part !== "") ?? path;
-}
-
 /** A path from the home folder down, with the folder's own name left off when it is home. */
 function fromHome(path: string, home: string) {
-  const prefix = home.replace(/[\\/]+$/, "");
-  const rest =
-    path === prefix ||
-    path.startsWith(`${prefix}/`) ||
-    path.startsWith(`${prefix}\\`)
-      ? path.slice(prefix.length)
-      : path;
-  const parts = rest.split(/[\\/]/).filter((part) => part !== "");
-  return parts.join(SEPARATOR);
-}
-
-function computerKind() {
-  if (isWindows()) {
-    return "PC";
-  }
-  return isLinux() ? "computer" : "Mac";
+  const names = segmentsOf(path);
+  return (
+    isInside(path, home) ? names.slice(segmentsOf(home).length) : names
+  ).join(SEPARATOR);
 }
 
 export function PermissionsSection() {
@@ -223,11 +213,12 @@ export function PermissionsSection() {
             ) : (
               view.folders.map((folder) => {
                 const isHome = folder.path === view.home;
+                const where = fromHome(folder.path, view.home);
                 return (
                   <PermissionRow
                     control={
                       <LevelSelect
-                        label={lastSegment(folder.path)}
+                        label={nameOf(folder.path)}
                         level={folder.level}
                         onRemove={() => {
                           removeFolder.mutate({ path: folder.path });
@@ -238,7 +229,13 @@ export function PermissionsSection() {
                       />
                     }
                     key={folder.path}
-                    line={isHome ? undefined : fromHome(folder.path, view.home)}
+                    // A folder directly in the home folder has no more to say
+                    // than its name.
+                    line={
+                      isHome || where === nameOf(folder.path)
+                        ? undefined
+                        : where
+                    }
                     mark={
                       isHome ? (
                         <HouseIcon className="size-4 text-muted-foreground" />
@@ -246,7 +243,7 @@ export function PermissionsSection() {
                         <FolderMark large path={folder.path} />
                       )
                     }
-                    name={lastSegment(folder.path)}
+                    name={nameOf(folder.path)}
                   />
                 );
               })
@@ -301,7 +298,7 @@ export function PermissionsSection() {
         <Collapsible className="space-y-2">
           <CollapsibleTrigger className="group flex items-center gap-1 text-sm font-medium text-muted-foreground">
             <CaretRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-            {`Places on your ${computerKind()}`}
+            {`Places on your ${osConventions().computerKind}`}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="divide-y overflow-hidden rounded-lg border">
@@ -360,6 +357,7 @@ function PlaceRow({
   place: Place;
 }) {
   const className = "size-4 text-muted-foreground";
+  const volumes = useComputerVolumes();
   const details = (() => {
     switch (place.id) {
       case "output": {
@@ -390,12 +388,18 @@ function PlaceRow({
         };
       }
       case "drives": {
-        // Windows names every drive but the system one, inside or plugged in.
+        // Windows names every drive but the system one, inside or plugged in,
+        // each the way File Explorer does.
         return isWindows()
           ? {
               line:
-                place.paths.map((root) => root.replace(/\\$/, "")).join(", ") ||
-                undefined,
+                place.paths
+                  .map(
+                    (root) =>
+                      volumes?.find((volume) => volume.path === root)?.name ??
+                      root.replace(/\\$/, ""),
+                  )
+                  .join(", ") || undefined,
               mark: <HardDriveIcon className={className} />,
               name: "Other drives",
             }
@@ -407,20 +411,22 @@ function PlaceRow({
       }
       case "appFiles": {
         return {
-          line: "Library and hidden folders",
+          line: osConventions().appFiles,
           mark: <PlaceIcon className={className} place="apps" />,
           name: "Other apps' files",
         };
       }
       case "passwords": {
         // Asking first covers the sign-in folders alone; the browsers and
-        // the Keychain open only when the whole place is allowed.
+        // the system's password store open only when the whole place is
+        // allowed.
+        const { passwordStore } = osConventions();
         return {
           line:
             place.level === "ask"
-              ? isWindows() || isLinux()
-                ? "Folders like .ssh ask first; your browsers stay closed"
-                : "Folders like .ssh ask first; your browsers and Keychain stay closed"
+              ? passwordStore
+                ? `Folders like .ssh ask first; your browsers and ${passwordStore} stay closed`
+                : "Folders like .ssh ask first; your browsers stay closed"
               : "Keys, sign-ins and browser cookies",
           mark: <KeyIcon className={className} />,
           name: "Passwords and keys",

@@ -14,7 +14,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
 import { createUvCommand } from "./uv";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 const mockCtx = createCommandContext({
   cwd: "/",
@@ -29,7 +29,7 @@ describe("createUvCommand", () => {
   );
 
   it("blocks `uv self update`", async () => {
-    const result = await createUvCommand(chatId, taskLayout(chatId)).execute(
+    const result = await createUvCommand(chatId, chatLayout(chatId)).execute(
       ["self", "update"],
       mockCtx,
     );
@@ -74,13 +74,13 @@ describe.skipIf(!runSmoke)("uv python/pip integration", () => {
       ),
     });
 
-    const install = await createPipCommand(chatId, taskLayout(chatId)).execute(
+    const install = await createPipCommand(chatId, chatLayout(chatId)).execute(
       ["install", "cowsay"],
       mockCtx,
     );
     expect(install.exitCode).toBe(0);
 
-    const run = await createPythonCommand(chatId, taskLayout(chatId)).execute(
+    const run = await createPythonCommand(chatId, chatLayout(chatId)).execute(
       ["-c", "import cowsay; print('ok')"],
       mockCtx,
     );

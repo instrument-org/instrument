@@ -1,4 +1,4 @@
-import { definePlugin, defineRule } from "@oxlint/plugins";
+import { definePlugin, defineRule, type ESTree } from "@oxlint/plugins";
 
 /**
  * Bans that describe the shape of the running app. Each one names the
@@ -167,9 +167,190 @@ const noShellOpenPath = defineRule({
   },
 });
 
+/**
+ * Names that end in `Library` and are not the Mac's folder. Any other
+ * `Library` in text can be the folder, "Photos Library" included.
+ */
+const LIBRARY_NAMES = ["Skill"];
+
+/**
+ * Words and keys that belong to one operating system: its file manager and
+ * its places, its stores, the computer itself, and how its keys are written,
+ * as symbols or as words ("Cmd+K", "hold Option"). Text that writes one
+ * itself shows it on every system, so each is defined in
+ * `shared/os-conventions.ts` and read from there for the system the app runs
+ * on.
+ */
+const osWord = new RegExp(
+  [
+    String.raw`\b(?:Finder|Quick\s+Look|Recycle\s+Bin|(?:File|Windows)\s+Explorer|Explorer|Keychain|System\s+(?:Settings|Preferences)|macOS\s+[Ss]ettings|AppData|[Tt]his\s+(?:Mac|PC)|[Yy]our\s+(?:Mac|PC)|Cmd|[Hh]old(?:ing)?\s+(?:down\s+)?Option|Option(?=[-+]\w))\b`,
+    String.raw`(?<!\b(?:${LIBRARY_NAMES.join("|")})\s+)\bLibrary\b`,
+    "[⌘⌥⌃⇧↩⌫]",
+  ].join("|"),
+  "u",
+);
+
+/** A path names a place on disk; it is never prose, even when it reads `Library`. */
+const pathLike = /^(?:~|\.{1,2})?\/|^[A-Za-z]:\\|^\\\\|^\S*\w[\\/]\w\S*$/;
+
+const comparisons = new Set(["!=", "!==", "==", "==="]);
+const logger = /^(?:console|log|\w*[Ll]ogger)$/;
+
+/** Node types a string passes through on its way into a call. */
+const passThrough = new Set([
+  "BinaryExpression",
+  "ConditionalExpression",
+  "LogicalExpression",
+  "ParenthesizedExpression",
+  "TemplateLiteral",
+]);
+
+/**
+ * Whether the string at `node` is code rather than text a person reads: a
+ * module path, a key, a type, a value compared against, or a log line. An
+ * error's message is read as text, since many reach the person.
+ */
+function isCode(node: ESTree.Node): boolean {
+  const { parent } = node;
+  switch (parent?.type) {
+    case undefined: {
+      return false;
+    }
+    case "BinaryExpression": {
+      if (comparisons.has(parent.operator)) {
+        return true;
+      }
+      break;
+    }
+    case "ExportAllDeclaration":
+    case "ExportNamedDeclaration":
+    case "ImportDeclaration":
+    case "ImportExpression":
+    case "SwitchCase":
+    case "TSEnumMember":
+    case "TSLiteralType":
+    case "TSTemplateLiteralType": {
+      return true;
+    }
+    case "MethodDefinition":
+    case "Property":
+    case "PropertyDefinition":
+    case "TSPropertySignature": {
+      if (parent.key === node && !parent.computed) {
+        return true;
+      }
+      break;
+    }
+  }
+  let carried: ESTree.Node = node;
+  while (carried.parent && passThrough.has(carried.parent.type)) {
+    carried = carried.parent;
+  }
+  const holder = carried.parent;
+  return (
+    holder?.type === "CallExpression" &&
+    holder.callee.type === "MemberExpression" &&
+    holder.callee.object.type === "Identifier" &&
+    logger.test(holder.callee.object.name)
+  );
+}
+
+const isConcatenation = (node: ESTree.Node | null | undefined) =>
+  node?.type === "BinaryExpression" && node.operator === "+";
+
+/** Whether `node` is an operand of a `+` around it, parentheses or not. */
+function isConcatenated(node: ESTree.Node): boolean {
+  const { parent } = node;
+  return parent?.type === "ParenthesizedExpression"
+    ? isConcatenated(parent)
+    : isConcatenation(parent);
+}
+
+/** The operands of a `+` chain, left to right, out of their parentheses. */
+function concatenated(node: ESTree.Node): ESTree.Node[] {
+  if (node.type === "ParenthesizedExpression") {
+    return concatenated(node.expression);
+  }
+  return node.type === "BinaryExpression" && node.operator === "+"
+    ? [...concatenated(node.left), ...concatenated(node.right)]
+    : [node];
+}
+
+/** The text a string or a template with no expressions in it always is. */
+function constantText(node: ESTree.Node): string | undefined {
+  if (node.type === "Literal") {
+    return typeof node.value === "string" ? node.value : undefined;
+  }
+  if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
+    return node.quasis[0]?.value.cooked ?? undefined;
+  }
+  return undefined;
+}
+
+const noOsWords = defineRule({
+  create(context) {
+    // A template is checked a piece of text at a time, but whether it is
+    // code is a question about the whole template.
+    const check = (node: ESTree.Node, text: string, whole = node) => {
+      const word = osWord.exec(text)?.[0];
+      if (word && !pathLike.test(text) && !isCode(whole)) {
+        context.report({
+          data: { word: word.replaceAll(/\s+/g, " ") },
+          messageId: "osWord",
+          node,
+        });
+      }
+    };
+    return {
+      // Strings joined with `+` read as one ("Quick " + "Look"), so each run
+      // of them is checked whole, from the outermost `+`. A run with a word
+      // in one string alone was reported at that string.
+      BinaryExpression(node) {
+        if (!isConcatenation(node) || isConcatenated(node)) {
+          return;
+        }
+        const runs: string[][] = [[]];
+        for (const operand of concatenated(node)) {
+          const text = constantText(operand);
+          if (text === undefined) {
+            runs.push([]);
+          } else {
+            runs.at(-1)?.push(text);
+          }
+        }
+        for (const run of runs) {
+          if (run.length > 1 && !run.some((text) => osWord.test(text))) {
+            check(node, run.join(""));
+          }
+        }
+      },
+      JSXText(node) {
+        check(node, node.value);
+      },
+      Literal(node) {
+        if (typeof node.value === "string") {
+          check(node, node.value);
+        }
+      },
+      TemplateElement(node) {
+        check(node, node.value.cooked ?? node.value.raw, node.parent);
+      },
+    };
+  },
+  meta: {
+    messages: {
+      osWord:
+        "“{{word}}” belongs to one operating system, so this text says it on all of them. Read the word for the system the app runs on from shared/os-conventions.ts, adding it there if it is new. Text only ever shown on one system keeps it under `// oxlint-disable-next-line studio/no-os-words -- <where it shows>`.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
+    "no-os-words": noOsWords,
     "no-raw-anchor": noRawAnchor,
     "no-raw-webview": noRawWebview,
     "no-router-link": noRouterLink,

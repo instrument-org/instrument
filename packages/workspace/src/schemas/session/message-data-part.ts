@@ -10,7 +10,8 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `fromChat`, `intent`, `maxSteps`, `reply`,
+   *   `attachments`, `contextRollover`, `fromChat`, `intent`, `jobEvent`,
+   *   `maxSteps`, `reply`,
    *   `skillChanges`, and `skillMentions`. A repeat is impossible by
    *   construction; nothing to guard.
    * - **Diff**: what changed since last time -- `folderChanges`,
@@ -42,6 +43,7 @@ export namespace SessionMessageDataPart {
     "fileChanges",
     "fromChat",
     "intent",
+    "jobEvent",
     "skillChanges",
     "skillMentions",
     "maxSteps",
@@ -425,12 +427,15 @@ export namespace SessionMessageDataPart {
            */
           status: z.enum(["done", "error", "overdue"]),
           /**
-           * Set when the user stopped the task, from its page or the chat's
-           * task list: the turn did not finish, and it is not the chat's to
-           * start again unless the user asks. A stop the chat made itself
-           * wakes nothing.
+           * Set when the turn did not finish because something stopped it.
+           * `user`: the user stopped the task, from its page or the chat's
+           * task list, and it is not the chat's to start again unless the
+           * user asks. `app`: the app quit while the task worked, which
+           * ended its turn and everything it had running in the background;
+           * that note is written as the app quits and starts no turn. A stop
+           * the chat made itself wakes nothing.
            */
-          stoppedBy: z.literal("user").optional(),
+          stoppedBy: z.enum(["app", "user"]).optional(),
           /**
            * The activities the child's agent set this turn, oldest first and
            * capped to the latest few. On an overdue event, so the conversation
@@ -466,6 +471,42 @@ export namespace SessionMessageDataPart {
   });
 
   export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
+
+  /**
+   * Background processes a session started that ended on their own while it
+   * was not working: what woke it, so the agent can say what came of a
+   * command it left running when its turn ended. Written on a user message
+   * with no text, like a task event, and only for an ending nobody asked for
+   * (an exit, a failure, the age cap), never for a stop.
+   *
+   * Event cadence: one part per wake, naming every process that ended in the
+   * same moment.
+   */
+  export const JobEventDataPartSchema = z.object({
+    events: z
+      .array(
+        z.object({
+          command: z.string(),
+          durationMs: z.number().nonnegative(),
+          /** Absent for a process that ended without reporting one. */
+          exitCode: z.number().optional(),
+          /** The process id `fg`, `jobs` and `kill` take, `bg_1`. */
+          id: z.string(),
+          /** Chat-folder-relative, holding everything it wrote. */
+          logFilePath: z.string(),
+          status: z.enum([
+            "exited",
+            "expired",
+            "failed",
+            "killed",
+            "termination-uncertain",
+          ]),
+        }),
+      )
+      .min(1),
+  });
+
+  export type JobEventDataPart = z.output<typeof JobEventDataPartSchema>;
 
   /**
    * Words the chat's agent wrote to one of its tasks, rather than the user's:
@@ -909,6 +950,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
+    [NameSchema.enum.jobEvent]: JobEventDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,

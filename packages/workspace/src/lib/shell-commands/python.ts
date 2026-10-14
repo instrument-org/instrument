@@ -15,7 +15,7 @@ import { ensureVenvForCommand } from "./uv";
  * installed.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python as a real process in the per-task virtualenv (.venv), with the standard library and whatever \`pip\` installed. It reads and writes the folders you reach where they sit.`,
+  description: `Run Python as a real process in the chat's virtualenv (.venv), with the standard library and whatever \`pip\` installed. It reads and writes the folders you reach where they sit.`,
   name: "python",
 } as const;
 
@@ -44,7 +44,7 @@ function createPythonCommandNamed(chatId: ChatId, name: string) {
   );
 }
 
-/** Run the interpreter in the task's virtualenv as a real subprocess. */
+/** Run the interpreter in the chat's virtualenv as a real subprocess. */
 async function runNativePython(
   chatId: ChatId,
   name: string,
@@ -62,7 +62,7 @@ async function runNativePython(
     };
   }
 
-  const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+  const { env, hostCwd } = resolveCommandContext(chatId, ctx);
   const finalArgs = hostPathArgs(args);
   const stdin = latin1FromBytes(ctx.stdin);
 
@@ -73,7 +73,7 @@ async function runNativePython(
 
   const result = await execShim(chatVenvPython(chatId), finalArgs, {
     cancelSignal: ctx.signal,
-    cwd: taskCwd,
+    cwd: hostCwd,
     env,
     // Buffer, not the latin1-packed string: execa UTF-8 encodes string
     // input, which would double-encode every non-ASCII byte.

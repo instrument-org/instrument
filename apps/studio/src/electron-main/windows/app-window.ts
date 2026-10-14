@@ -16,6 +16,11 @@ import {
   getWindowState,
 } from "@/electron-main/stores/workspace/window-state";
 import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
+import {
+  isDrivenInstance,
+  isHeldOffScreen,
+  putOnScreen,
+} from "@/electron-main/windows/on-screen";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
@@ -119,7 +124,9 @@ export function openAppWindow({
     if (isWarming && !hidden) {
       revealAppWindow(onShow);
     } else if (!isWarming) {
-      appWindow.focus();
+      if (!isHeldOffScreen(appWindow)) {
+        appWindow.focus();
+      }
       onShow?.();
     }
     return appWindow;
@@ -144,6 +151,9 @@ export function openAppWindow({
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {
       additionalArguments: ["--windowType=app"],
+      // An agent's instance keeps drawing, and taking input, off screen or
+      // behind other windows.
+      backgroundThrottling: !isDrivenInstance(),
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
@@ -314,13 +324,7 @@ function revealAppWindow(onShow?: () => void) {
     if (!window) {
       return;
     }
-    // Maximized only once there is a window to maximize: on Windows and Linux
-    // maximizing one that has not been shown is itself what shows it, which
-    // would put this window up before its first paint.
-    if (showsMaximized) {
-      window.maximize();
-    }
-    window.show();
+    putOnScreen(window, { maximized: showsMaximized });
     onShow?.();
     // What was asked while it waited off screen, for a page already listening.
     if (isTakingAsks) {
@@ -369,7 +373,9 @@ export function updateAppWindowBackgroundColor() {
 function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
   if (window && !isWarming) {
-    window.focus();
+    if (!isHeldOffScreen(window)) {
+      window.focus();
+    }
     if (isTakingAsks) {
       publisher.publish("window.command", ask);
     } else {

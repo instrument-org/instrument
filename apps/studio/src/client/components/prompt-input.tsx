@@ -157,6 +157,8 @@ interface PromptInputProps {
   autoFocus?: boolean;
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
+  /** Drawn just ahead of a pill's Send: a control for the turn the conversation is running, such as its Stop. */
+  beforeSend?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
@@ -195,6 +197,7 @@ export const PromptInput = ({
   attachmentsLead,
   autoFocus = false,
   autoResizeMaxHeight,
+  beforeSend,
   className,
   disabled = false,
   draftKey,
@@ -1133,6 +1136,7 @@ export const PromptInput = ({
                 disabled={disabled || isLoading}
                 size="sm"
               />
+              {beforeSend}
               <Button
                 aria-label="Send"
                 className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"

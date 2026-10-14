@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";

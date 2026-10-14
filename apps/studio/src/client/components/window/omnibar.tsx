@@ -11,7 +11,6 @@ import {
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { useChatTasks } from "@/client/components/window/child-tasks-query";
-import { computerName } from "@/client/components/window/computer-name";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
 import {
@@ -21,7 +20,6 @@ import {
   matchEntries,
   matchNames,
   matchPages,
-  pathFromWords,
   pathQuery,
 } from "@/client/components/window/omnibar-match";
 import {
@@ -34,11 +32,24 @@ import {
   type TabLocation,
   taskHref,
 } from "@/client/components/window/tab-location";
-import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import {
+  locateTypedPath,
+  type MissedPath,
+  missedPathNotice,
+  shownTypedPath,
+  typedPathHere,
+} from "@/client/lib/locate-typed-path";
+import {
+  type TypedPath,
+  withoutTrailingSeparators,
+} from "@/client/lib/typed-path";
+import {
+  webSearchLabel,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
@@ -46,17 +57,11 @@ import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import {
-  keepPreviousData,
-  skipToken,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
-import { toast } from "@/client/lib/toast";
 import {
   type ReactNode,
   use,
@@ -184,7 +189,6 @@ export function Omnibar({
   const mode = omnibarModeOf(location);
   const { openPage } = useWindow();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
   });
@@ -276,43 +280,75 @@ export function Omnibar({
     );
     leave();
   };
+  // A path pressed Return on that led nowhere, kept until the words in the
+  // field change: it answers that Return alone, so the same words typed
+  // again later are looked for again.
+  const [missed, setMissed] = useState<
+    undefined | { outcome: MissedPath; typed: string }
+  >();
+  if (missed !== undefined && missed.typed !== typed.trim()) {
+    setMissed(undefined);
+  }
+  // A path still being looked for, once the look has gone on long enough
+  // to say so.
+  const [looking, setLooking] = useState<string>();
   /**
-   * Opens a path where the field is: a folder in this tab, a file as its tab.
-   * Whether it is a folder is learned by asking for it as one, which is the
-   * read the folder view is about to make anyway.
+   * Opens a typed path where the field is: a folder in this tab, a file as
+   * its tab, and a place the system would not let the app read as the folder
+   * view saying so, which is where it is undone. A path with nothing at it
+   * stays in the field, which says so under the words.
    */
-  const openPath = async (host: string) => {
-    try {
-      await queryClient.fetchQuery(
-        rpcClient.workspace.computer.list.queryOptions({
-          input: { id: WINDOW_ID, path: host },
-          retry: false,
-        }),
-      );
-    } catch {
-      // Not a folder: a file, if one is there. Asked of the channel first,
-      // since opening a tab on nothing would close the tab this field sits in
-      // once the viewer found the file missing.
-      if (await fileExists(host)) {
-        visit(fileHref(host));
+  const openPath = async (path: TypedPath) => {
+    if (looking === path.typed) {
+      return;
+    }
+    const located = await locateTypedPath(path, {
+      onSlow: () => {
+        setLooking(path.typed);
+      },
+    });
+    setLooking(undefined);
+    switch (located.kind) {
+      case "file": {
+        visit(fileHref(located.path));
         leave();
         return;
       }
-      toast(`Nothing at “${displayHostPath(host, window.api.homeDir)}”`, {
-        description: "No folder or file there.",
-      });
-      return;
+      case "folder":
+      case "refused": {
+        openFolder(located.path);
+        return;
+      }
+      case "failed":
+      case "missing": {
+        setMissed({ outcome: located, typed: path.typed });
+        send({ index: 0, type: "highlight" });
+      }
     }
-    openFolder(host);
   };
 
-  const { completion, empty, rows } = useRows({
+  const found = useRows({
     canComplete,
     location,
     mode,
     open: { openFolder, openPath, openSite, visit },
     typed,
   });
+  const notice =
+    missed !== undefined && missed.typed === typed.trim() ? missed : undefined;
+  const shownRows = notice
+    ? missedRows(notice.outcome, notice.typed, {
+        openFolder,
+        openSite,
+      })
+    : found;
+  const { completion, empty } = shownRows;
+  const rows =
+    looking === typed.trim()
+      ? shownRows.rows.map((row) =>
+          row.id === "path" ? { ...row, detail: "Looking…" } : row,
+        )
+      : shownRows.rows;
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
   const isListShown = isEditing && typed.trim() !== "";
   const picked = current > 0 ? rows[current] : undefined;
@@ -424,9 +460,9 @@ export function Omnibar({
                 // is still opened as typed.
                 const typedPath = rows[current]
                   ? undefined
-                  : pathFromWords(typed.trim());
+                  : typedPathHere(typed);
                 if (typedPath) {
-                  void openPath(expandHomePath(typedPath, window.api.homeDir));
+                  void openPath(typedPath);
                 } else {
                   run(rows[current]);
                 }
@@ -437,9 +473,9 @@ export function Omnibar({
               // stands, goes there again the way a browser's address does: a
               // path is opened afresh, and anything else hands the field
               // back to the place.
-              const again = pathFromWords(query.trim());
+              const again = typedPathHere(query);
               if (again) {
-                void openPath(expandHomePath(again, window.api.homeDir));
+                void openPath(again);
               } else if (resting !== undefined) {
                 event.currentTarget.blur();
               }
@@ -477,7 +513,7 @@ export function Omnibar({
         type="text"
         value={shown}
       />
-      {isListShown && (rows.length > 0 || empty) ? (
+      {isListShown && (rows.length > 0 || empty || notice) ? (
         // A press on a row must not take the caret first: the box would blur,
         // the list would go, and the click would land on nothing.
         <div
@@ -488,6 +524,11 @@ export function Omnibar({
           }}
           role="listbox"
         >
+          {notice ? (
+            <p className="px-3 py-2 text-sm text-muted-foreground">
+              {missedPathNotice(notice.outcome)}
+            </p>
+          ) : null}
           {rows.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">{empty}</p>
           ) : (
@@ -551,7 +592,7 @@ function useRows({
   mode: OmnibarMode;
   open: {
     openFolder: (host: string) => void;
-    openPath: (host: string) => Promise<void>;
+    openPath: (path: TypedPath) => Promise<void>;
     openSite: (url: string) => void;
     visit: (href: string) => void;
   };
@@ -605,7 +646,11 @@ function useRows({
 
   // On the computer: the folder the words are in, and the start of a name.
   const here = hereOf(location, home);
-  const path = pathQuery(typed, { here, home });
+  // A pasted path is listed as the path it names, out of its quotes.
+  const path = pathQuery(typedPathHere(typed)?.written ?? typed, {
+    here,
+    home,
+  });
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({
       input:
@@ -628,17 +673,28 @@ function useRows({
 
   if (mode === "web") {
     const completion =
-      canComplete && pathFromWords(words) === undefined
+      canComplete && typedPathHere(words) === undefined
         ? addressCompletion(typed, pages)
         : "";
     const whole = `${typed}${completion}`.trim();
-    const typedPath = pathFromWords(whole);
+    const typedPath = typedPathHere(whole);
     const site = typedPath ? undefined : siteFromWords(whole);
     const known = site
       ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
       : undefined;
+    const searchRow: OmniRow = {
+      fill: whole,
+      icon: <MagnifyingGlassIcon className="size-4" />,
+      id: "search",
+      name: webSearchLabel(whole),
+      run: () => {
+        open.openSite(webSearchUrl(whole));
+      },
+    };
     const first: OmniRow = typedPath
-      ? pathRow(expandHomePath(typedPath, home), open.openPath)
+      ? pathRow(shownTypedPath(typedPath), () => {
+          void open.openPath(typedPath);
+        })
       : site
         ? {
             detail: known?.title,
@@ -652,16 +708,7 @@ function useRows({
               open.openSite(known?.url ?? site.url);
             },
           }
-        : {
-            detail: "Search DuckDuckGo",
-            fill: whole,
-            icon: <MagnifyingGlassIcon className="size-4" />,
-            id: "search",
-            name: whole,
-            run: () => {
-              open.openSite(webSearchUrl(whole));
-            },
-          };
+        : searchRow;
     const pageRows = matchPages(words, pages)
       .filter((page) => page.url !== known?.url)
       .slice(0, PAGES_SHOWN)
@@ -702,7 +749,12 @@ function useRows({
       : [];
     return {
       completion,
-      rows: [first, ...pageRows, ...suggestionRows],
+      rows: [
+        first,
+        ...(typedPath?.alsoSearch ? [searchRow] : []),
+        ...pageRows,
+        ...suggestionRows,
+      ],
     };
   }
 
@@ -710,7 +762,7 @@ function useRows({
     // Only what is there: the folder's own entries, and the folder itself
     // once the words end in it. Nothing is offered at a path with nothing at
     // it, and words that are not a path find names in the folder on screen.
-    const isWhole = pathFromWords(words) !== undefined;
+    const isWhole = typedPathHere(words) !== undefined;
     // A folder the system refused is still a folder, and opens to say so; it
     // just has no names in it to offer.
     const listed = listing.data;
@@ -727,7 +779,15 @@ function useRows({
         : undefined;
     const completion = finished ? finished.name.slice(path.prefix.length) : "";
     const whole = `${typed}${completion}`;
+    // A whole path's names are in a folder other than the one on screen,
+    // which each row says, or a name the folder on screen has too (its
+    // Documents) reads as that one.
+    const elsewhere =
+      isWhole &&
+      withoutTrailingSeparators(path.folder) !==
+        withoutTrailingSeparators(here);
     const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
+      ...(elsewhere ? { detail: displayHostPath(path.folder, home) } : {}),
       fill:
         entry === finished
           ? `${whole}${entry.kind === "folder" ? "/" : ""}`
@@ -752,12 +812,9 @@ function useRows({
     const folderRows: OmniRow[] =
       listed && path.prefix === ""
         ? [
-            {
-              ...pathRow(path.folder, open.openPath),
-              run: () => {
-                open.openFolder(path.folder);
-              },
-            },
+            pathRow(displayHostPath(path.folder, home), () => {
+              open.openFolder(path.folder);
+            }),
           ]
         : [];
     const rows = [
@@ -774,7 +831,9 @@ function useRows({
       ...(listing.isError
         ? { empty: `Nothing at “${folderName}”` }
         : listed?.kind === "refused"
-          ? { empty: `Instrument can’t read “${folderName}”` }
+          ? {
+              empty: `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
+            }
           : listed
             ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
             : {}),
@@ -783,11 +842,15 @@ function useRows({
   }
 
   // Anywhere else, a path pasted in is still a path, and opens on Enter.
-  const typedPath = pathFromWords(words);
+  const typedPath = typedPathHere(words);
   if (typedPath) {
     return {
       completion: "",
-      rows: [pathRow(expandHomePath(typedPath, home), open.openPath)],
+      rows: [
+        pathRow(shownTypedPath(typedPath), () => {
+          void open.openPath(typedPath);
+        }),
+      ],
     };
   }
   const matches = ((): OmniRow[] => {
@@ -855,17 +918,53 @@ function useRows({
 }
 
 /** The row that opens a path on the computer, which says it before looking. */
-function pathRow(host: string, openPath: (host: string) => Promise<void>) {
+function pathRow(name: string, run: () => void) {
   return {
-    detail: `Open on ${computerName()}`,
+    detail: `Open on ${osConventions().computer}`,
     icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
     id: "path",
     leavesItself: true,
-    name: displayHostPath(host, window.api.homeDir),
-    run: () => {
-      void openPath(host);
-    },
+    name,
+    run,
   } satisfies OmniRow;
+}
+
+/**
+ * The rows under a path that led nowhere: the closest folder above it that
+ * opens, and the words as a search, in case they were meant for the web.
+ */
+function missedRows(
+  missed: MissedPath,
+  typed: string,
+  open: { openFolder: (host: string) => void; openSite: (url: string) => void },
+): { completion: string; empty?: string; rows: OmniRow[] } {
+  const nearest = missed.kind === "missing" ? missed.nearest : undefined;
+  return {
+    completion: "",
+    rows: [
+      ...(nearest === undefined
+        ? []
+        : [
+            {
+              detail: "Closest folder",
+              icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+              id: "nearest",
+              name: displayHostPath(nearest, window.api.homeDir),
+              run: () => {
+                open.openFolder(nearest);
+              },
+            } satisfies OmniRow,
+          ]),
+      {
+        icon: <MagnifyingGlassIcon className="size-4" />,
+        id: "search",
+        name: webSearchLabel(typed),
+        run: () => {
+          open.openSite(webSearchUrl(typed));
+        },
+      },
+    ],
+  };
 }
 
 /**
@@ -882,20 +981,4 @@ function hereOf(location: TabLocation, home: string) {
     return cut > 0 ? host.slice(0, cut) : host.slice(0, cut + 1) || home;
   }
   return home;
-}
-
-/**
- * Whether there is a file at a path on the computer. A channel that is not
- * up, or a request cut off, is not the file's absence, so those count as
- * present and the viewer says what it finds.
- */
-async function fileExists(hostPath: string) {
-  try {
-    const response = await fetch(getComputerFileUrl({ hostPath }), {
-      headers: { Range: "bytes=0-0" },
-    });
-    return response.status !== 404;
-  } catch {
-    return true;
-  }
 }

@@ -2,9 +2,8 @@ import { MarkdownCodeBlock } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { Markdown } from "@/client/components/markdown";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { thisComputer } from "@/client/components/window/computer-name";
 import { useWindow } from "@/client/components/window/context";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
@@ -110,7 +109,7 @@ export function AppInspector({
             <p className="text-sm font-medium">Couldn’t reach {name}</p>
             <p className="mt-1 max-w-sm text-[13px] leading-5 text-muted-foreground">
               {runsHere
-                ? `Open ${name} on ${thisComputer()}, then try again.`
+                ? `Open ${name} on ${osConventions().thisComputer}, then try again.`
                 : `${name} didn’t answer. Try again in a moment.`}
             </p>
           </div>

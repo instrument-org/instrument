@@ -3,13 +3,14 @@ import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import {
   createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
 import { browserTargetOf } from "../../types";
 import { updateHeldTabs } from "../held-tabs";
+import { sessionLayout } from "../session-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   agentBrowserCommandDescription,
@@ -28,6 +29,21 @@ import {
 
 vi.mock("execa");
 
+/**
+ * The command as a shell of the session's builds it, its layout read when it
+ * runs, after the test has made the chat.
+ */
+function commandFor(chatId: ChatId, sessionId: StoreId.Session) {
+  return {
+    execute: async (args: string[], ctx: typeof mockCtx) =>
+      createAgentBrowserCommand({
+        chatId,
+        layout: await sessionLayout({ chatId, sessionId }),
+        sessionId,
+      }).execute(args, ctx),
+  };
+}
+
 const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
@@ -38,7 +54,7 @@ const mockCtx = createCommandContext({
 describe("createAgentBrowserCommand", () => {
   const chatId = ChatIdSchema.parse("test");
   const sessionId = StoreId.newSessionId();
-  const command = createAgentBrowserCommand({ sessionId, chatId });
+  const command = commandFor(chatId, sessionId);
 
   beforeEach(() => {
     createMockChatConfig(chatId);
@@ -311,7 +327,10 @@ describe("resolveAgentBrowserPathArgs", () => {
   });
 
   it.each([
-    { name: "missing task file", path: "attachments/missing.png" },
+    {
+      name: "missing file in the chat's folder",
+      path: "attachments/missing.png",
+    },
     { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
   ])("refuses an upload of a $name", async ({ path }) => {
     const result = await resolveAgentBrowserPathArgs(["upload", "@e1", path], {
@@ -392,8 +411,8 @@ describe("resolveAgentBrowserPathArgs", () => {
 describe("agent-browser routing", () => {
   const chatId = ChatIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
-  const command = createAgentBrowserCommand({ sessionId, chatId });
-  const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
+  const command = commandFor(chatId, sessionId);
+  const chatRoot = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
   let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
@@ -541,18 +560,10 @@ describe("agent-browser routing", () => {
     },
   );
 
-  it("keeps the in-app browser's downloads inside the task", async () => {
+  it("keeps the in-app browser's downloads inside the chat's folder", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
-    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${taskDirPath}/downloads`);
-  });
-
-  it("keeps the in-app browser's temp files inside the task", async () => {
-    const { env } = await spawnedWith(["open", "https://example.com"]);
-
-    for (const key of ["TEMP", "TMP", "TMPDIR"]) {
-      expect(env[key]).toContain(taskDirPath);
-    }
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${chatRoot}/downloads`);
   });
 
   it("keeps the host environment away from the in-app browser", async () => {
@@ -593,7 +604,7 @@ describe("agent-browser routing", () => {
 describe("agent-browser and browsers outside the app", () => {
   const chatId = ChatIdSchema.parse("gated");
   const sessionId = StoreId.newSessionId();
-  const command = createAgentBrowserCommand({ sessionId, chatId });
+  const command = commandFor(chatId, sessionId);
 
   beforeEach(() => {
     createMockChatConfig(chatId);

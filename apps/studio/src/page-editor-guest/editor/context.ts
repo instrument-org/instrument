@@ -15,6 +15,7 @@ import {
   type StaticVerdict,
   type StructureVerdict,
 } from "./classify";
+import { type EditorKeys } from "./keys";
 import { type PageWatch } from "./observer";
 import { type AskVerdict, type RequestPayload, type TextEdit } from "./payload";
 import { type AppliedRegion, type Placed, type Region } from "./regions";
@@ -78,6 +79,8 @@ export interface Editor {
   input: InputApi;
   /** Whether an event passed through the editor's own UI. */
   isOurs: (e: Event) => boolean;
+  /** The keys its hints name, written the way the system the app runs on writes them. */
+  keys: EditorKeys;
   live: LiveApi;
   overlay: OverlayApi;
   /** The file's name. */

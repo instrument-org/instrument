@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,

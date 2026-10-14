@@ -9,7 +9,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { createNodeCommand } from "./node";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 
@@ -24,9 +24,9 @@ const mockCtx = createCommandContext({
 
 describe("nodeCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const layout = taskLayout(chatId);
+  const layout = chatLayout(chatId);
   const command = createNodeCommand(chatId);
-  const taskPath = layout.task.shellRoot;
+  const chatRoot = layout.chat.shellRoot;
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -172,14 +172,14 @@ describe("nodeCommand", () => {
       exitCode: 0,
     } as never);
 
-    await command.execute([`--env-file=${taskPath}/work/.env`, "./work/a.js"], {
+    await command.execute([`--env-file=${chatRoot}/work/.env`, "./work/a.js"], {
       ...mockCtx,
-      cwd: taskPath,
+      cwd: chatRoot,
     });
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      [`--env-file=${taskPath}/work/.env`, "./work/a.js"],
+      [`--env-file=${chatRoot}/work/.env`, "./work/a.js"],
       expect.any(Object),
     );
   });
@@ -278,8 +278,8 @@ describe("nodeCommand", () => {
 
     await command.execute([], {
       ...mockCtx,
-      cwd: taskPath,
-      stdin: unsafeBytesFromLatin1(`fs.readFileSync("${taskPath}/work/a.txt")`),
+      cwd: chatRoot,
+      stdin: unsafeBytesFromLatin1(`fs.readFileSync("${chatRoot}/work/a.txt")`),
     });
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
@@ -287,7 +287,7 @@ describe("nodeCommand", () => {
       [],
       expect.objectContaining({
         input: Buffer.from(
-          `fs.readFileSync("${taskPath}/work/a.txt")`,
+          `fs.readFileSync("${chatRoot}/work/a.txt")`,
           "latin1",
         ),
       }),
@@ -344,13 +344,13 @@ describe("nodeCommand", () => {
     } as never);
 
     await command.execute(
-      ["-e", `fs.readFileSync("${taskPath}/attachments/chart.svg")`],
-      { ...mockCtx, cwd: taskPath },
+      ["-e", `fs.readFileSync("${chatRoot}/attachments/chart.svg")`],
+      { ...mockCtx, cwd: chatRoot },
     );
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-e", `fs.readFileSync("${taskPath}/attachments/chart.svg")`],
+      ["-e", `fs.readFileSync("${chatRoot}/attachments/chart.svg")`],
       expect.any(Object),
     );
   });
@@ -362,10 +362,10 @@ describe("nodeCommand", () => {
       exitCode: 0,
     } as never);
 
-    await command.execute([`${taskPath}/scripts/run.js`], mockCtx);
+    await command.execute([`${chatRoot}/scripts/run.js`], mockCtx);
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).toBe(`${taskPath}/scripts/run.js`);
+    expect(calledArgs[0]).toBe(`${chatRoot}/scripts/run.js`);
   });
 });

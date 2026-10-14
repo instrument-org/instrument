@@ -18,17 +18,20 @@ export function taskEventModelNote(
   const lines = data.events.map((event) => {
     // What the `task` command takes for it.
     const id = event.handle ?? event.sessionId;
-    const outcome = event.stoppedBy
-      ? `was ${asClause(event.ended ?? "Stopped").replace(/^stopped/, "stopped by the user")} and did not finish`
-      : event.status === "error"
-        ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
-        : event.status === "overdue"
-          ? "is still working"
-          : event.needs && event.needs.length > 0
-            ? "is waiting on you"
-            : event.ended
-              ? `was ${asClause(event.ended)}`
-              : "finished a turn";
+    const outcome =
+      event.stoppedBy === "app"
+        ? `did not finish: ${asClause(event.ended ?? "The app closed before it finished")}`
+        : event.stoppedBy === "user"
+          ? `was ${asClause(event.ended ?? "Stopped").replace(/^stopped/, "stopped by the user")} and did not finish`
+          : event.status === "error"
+            ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
+            : event.status === "overdue"
+              ? "is still working"
+              : event.needs && event.needs.length > 0
+                ? "is waiting on you"
+                : event.ended
+                  ? `was ${asClause(event.ended)}`
+                  : "finished a turn";
     // Cache reads are named beside the total because they are most of a long
     // task's tokens and cost a fraction of the rest; the bare total reads as
     // money spent at full price, and a task stopped for its bill was measured
@@ -82,14 +85,23 @@ export function taskEventModelNote(
       event.tabs && event.tabs.length > 0
         ? `\n  Its pages still open in the window: ${event.tabs.map((tab) => `${tab.url ?? "a blank page"} (tab ${tab.id}${tab.openedBy === "handed" ? ", handed to it" : ""})`).join(", ")}.`
         : "";
-    const running =
+    const background =
       event.running && event.running.length > 0
-        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`
-        : "";
+        ? event.running
+            .map((process) => describeLeftRunning(process))
+            .join(", ")
+        : undefined;
+    const running =
+      background === undefined
+        ? ""
+        : event.stoppedBy === "app"
+          ? `\n  The app's closing also ended what it had running in the background: ${background}. None of it is running now.`
+          : `\n  It left running in the background: ${background}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`;
     // The user's stop is a decision, not a turn to pick up again.
-    const leave = event.stoppedBy
-      ? ` Leave it stopped unless they ask for it again.`
-      : "";
+    const leave =
+      event.stoppedBy === "user"
+        ? ` Leave it stopped unless they ask for it again.`
+        : "";
     return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${needs}${tabs}${running}`;
   });
 
@@ -104,23 +116,37 @@ export function taskEventModelNote(
     `;
   }
 
+  // Written as the app quit and read with the chat's next turn after
+  // relaunch, which is why it starts none.
+  if (data.events.every((event) => event.stoppedBy === "app")) {
+    return systemNote`
+      ${data.events.length === 1 ? "The app closed while a task you created was working:" : "The app closed while tasks you created were working:"}
+      ${lines.join("\n")}
+      The app has been opened again since, and nothing ran while it was closed.
+    `;
+  }
+
+  // Written as the user stopped a task, and read with their next message,
+  // which is why it starts none.
+  if (data.events.every((event) => event.stoppedBy === "user")) {
+    return systemNote`
+      ${data.events.length === 1 ? "The user stopped a task you created:" : "The user stopped tasks you created:"}
+      ${lines.join("\n")}
+    `;
+  }
+
   const waiting = data.events.every(
     (event) => event.needs && event.needs.length > 0,
   );
-  const stopped = data.events.every((event) => event.stoppedBy === "user");
   return systemNote`
     ${
-      stopped
+      waiting
         ? data.events.length === 1
-          ? "The user stopped a task you created:"
-          : "The user stopped tasks you created:"
-        : waiting
-          ? data.events.length === 1
-            ? "A task you created is waiting on you:"
-            : "Tasks you created are waiting on you:"
-          : data.events.length === 1
-            ? "A task you created has finished:"
-            : "Tasks you created have finished:"
+          ? "A task you created is waiting on you:"
+          : "Tasks you created are waiting on you:"
+        : data.events.length === 1
+          ? "A task you created has finished:"
+          : "Tasks you created have finished:"
     }
     ${lines.join("\n")}
     Nobody typed anything; this note is why you are awake.

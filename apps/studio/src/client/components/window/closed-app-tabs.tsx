@@ -101,6 +101,11 @@ export function useClosedAppTabs(names: {
     closed: reopenable.map(({ tab }) =>
       presentationOf(tab.pathname || INBOX_HREF),
     ),
+    /**
+     * Whether the first of `closed` is the tab Reopen Closed Tab brings back,
+     * which takes the newest closed whether or not it is listed.
+     */
+    firstIsReopenedByKey: reopenable[0]?.entry === 0,
     /** Brings one back, up, by its place in `closed`. */
     reopen: (row: number) => {
       const entry = reopenable[row]?.entry;

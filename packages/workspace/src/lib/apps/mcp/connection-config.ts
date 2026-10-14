@@ -1,3 +1,4 @@
+import { commandLineToolsEnv } from "../../command-line-tools-env";
 import { type LocalMcpAppManifest, type McpAppManifest } from "../manifest";
 import { type McpConnectionConfig } from "./client";
 import { type LocalServerLaunch } from "./local-server";
@@ -21,6 +22,10 @@ export function localLaunchConfig(
       ...(manifest.auth.kind === "env" && credential !== null
         ? { [manifest.auth.envVar]: credential }
         : {}),
+      // A local server runs outside the native sandbox, so on a Mac without
+      // the developer tools this guard is what keeps a stub it reaches from
+      // opening their installer, and no manifest replaces it.
+      ...commandLineToolsEnv(),
     },
   };
 }

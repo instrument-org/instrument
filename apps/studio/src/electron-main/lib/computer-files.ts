@@ -1,4 +1,8 @@
-import { APP_PROTOCOL, PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import {
+  APP_PROTOCOL,
+  isWindowsPath,
+  PRIVATE_FOLDER_NAME,
+} from "@instrument-org/shared";
 import {
   resolveThroughAliases,
   serveStaticFile,
@@ -47,8 +51,14 @@ const HOST_PREFIX = "computer-";
 
 const token = randomBytes(16).toString("hex");
 
-/** Blocks `.`/`..` segments, doubled separators, and backslashes. */
-const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
+/** Blocks `.`/`..` segments and doubled separators where `/` alone separates. */
+const UNSAFE_POSIX_PATH_REGEX = /(?:^|\/)\.{1,2}(?:$|\/)|\/{2,}/;
+
+/**
+ * Blocks the same where a backslash separates too, and any backslash at all:
+ * the renderer spells a Windows path with the URL's own separators.
+ */
+const UNSAFE_WINDOWS_PATH_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
 
 const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
   `(?:^|/)${PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:/|$)`,
@@ -74,6 +84,7 @@ export function computerFileBase() {
 export function hostPathOfComputerFileUrl(
   url: URL,
   expectedToken = token,
+  hostPaths: path.PlatformPath = path,
 ): string | undefined {
   if (url.hostname !== `${HOST_PREFIX}${expectedToken}`) {
     return;
@@ -84,17 +95,24 @@ export function hostPathOfComputerFileUrl(
   } catch {
     return;
   }
-  if (UNSAFE_PATH_SEGMENT_REGEX.test(decoded)) {
+  const hostPath = /^\/[A-Z]:\//i.test(decoded) ? decoded.slice(1) : decoded;
+  // A backslash separates names in a Windows path, and in every path on
+  // Windows. Anywhere else it is a character a name can hold, and the system
+  // reads `..\` as a name of three characters rather than a step up.
+  const unsafe =
+    hostPaths.sep === "\\" || isWindowsPath(hostPath)
+      ? UNSAFE_WINDOWS_PATH_REGEX
+      : UNSAFE_POSIX_PATH_REGEX;
+  if (unsafe.test(decoded)) {
     return;
   }
   if (PRIVATE_DIR_SEGMENT_REGEX.test(decoded)) {
     return;
   }
-  const hostPath = /^\/[A-Z]:\//i.test(decoded) ? decoded.slice(1) : decoded;
-  if (!path.isAbsolute(hostPath)) {
+  if (!hostPaths.isAbsolute(hostPath)) {
     return;
   }
-  return path.resolve(hostPath);
+  return hostPaths.resolve(hostPath);
 }
 
 /** Whether a request on the app scheme is for this channel, whatever its token. */

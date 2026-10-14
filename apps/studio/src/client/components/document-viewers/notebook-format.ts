@@ -269,7 +269,7 @@ export function parseNotebook(text: string): Notebook {
  * Replaces `attachment:` image references with the data the cell carries.
  *
  * An image pasted into a markdown cell is stored on the cell rather than in the
- * task folder, so the reference resolves against nothing once that markdown
+ * chat's folder, so the reference resolves against nothing once that markdown
  * leaves the notebook. Rewriting it here means the shared markdown renderer
  * needs to know nothing about notebooks.
  */

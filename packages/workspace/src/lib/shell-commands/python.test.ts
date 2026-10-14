@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { createPythonCommand } from "./python";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 vi.mock("./uv", () => ({
@@ -20,11 +20,11 @@ const realFs = new InMemoryFs();
 
 describe("python", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const layout = taskLayout(chatId);
+  const layout = chatLayout(chatId);
   const command = createPythonCommand(chatId, layout);
-  const taskPath = layout.task.shellRoot;
+  const chatRoot = layout.chat.shellRoot;
   const mockCtx = createCommandContext({
-    cwd: taskPath,
+    cwd: chatRoot,
     env: new Map<string, string>(),
     fs: realFs,
     stdin: EMPTY_BYTES,
@@ -40,7 +40,7 @@ describe("python", () => {
       all: "",
       exitCode: 0,
     } as never);
-    const code = `open("${taskPath}/attachments/chart.svg")`;
+    const code = `open("${chatRoot}/attachments/chart.svg")`;
 
     await command.execute(["-c", code], mockCtx);
 
@@ -54,7 +54,7 @@ describe("python", () => {
       all: "",
       exitCode: 0,
     } as never);
-    const program = `print(open("${taskPath}/work/data.csv").read())`;
+    const program = `print(open("${chatRoot}/work/data.csv").read())`;
 
     await command.execute([], {
       ...mockCtx,

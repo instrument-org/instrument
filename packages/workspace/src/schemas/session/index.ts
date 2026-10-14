@@ -69,10 +69,18 @@ export namespace Session {
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     /**
      * Who ended a task's last turn with a stop: the user, from the task or
-     * the chat's Stop, or the chat's agent with `task stop`. Absent when
-     * the turn ended on its own, and on the chat's own session.
+     * the chat's Stop, the chat's agent with `task stop`, or the app, which
+     * quit while the task worked. Absent when the turn ended on its own, and
+     * on the chat's own session.
      */
-    stoppedBy: z.enum(["chat", "user"]).optional(),
+    stoppedBy: z.enum(["app", "chat", "user"]).optional(),
+    /**
+     * When the user last stopped the chat's own turn, whether it was under
+     * way or had not begun. The chat reads as stopped until a turn starts
+     * after it. Absent until the user first does, and on a task's session,
+     * which keeps `stoppedBy` instead.
+     */
+    stoppedAt: z.date().optional(),
     title: z.string(),
     /**
      * When the chat's title stopped being the app's to change: its one

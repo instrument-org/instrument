@@ -9,6 +9,10 @@ declare module "*.md" {
 declare global {
   interface Window {
     api: {
+      // Tells the main process whether a code editor holds the keyboard, so
+      // the window's chords that are also the editor's keys reach it first.
+      // Absent outside Electron.
+      codeEditorFocus?: (focused: boolean) => void;
       getFilePath: (file: File) => string;
       // Where the user's home directory is, for shortening displayed paths.
       // Fixed for the life of the process, so the preload hands it over once

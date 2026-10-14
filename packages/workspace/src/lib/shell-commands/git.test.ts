@@ -21,7 +21,7 @@ import {
 import { gitBinaryPath, gitSubprocessEnv } from "../git";
 import { collapseProgress } from "./exec-shim";
 import { createGitCommand } from "./git";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 const ctxIn = (cwd: string) =>
   createCommandContext({
@@ -34,9 +34,9 @@ const ctxIn = (cwd: string) =>
 describe("createGitCommand arg policy", () => {
   const chatDir = `${MOCK_WORKSPACE_DIRS.chats}/git-policy`;
   const chatId = createMockChatConfigForDir(chatDir);
-  const layout = taskLayout(chatId);
+  const layout = chatLayout(chatId);
   const command = createGitCommand({ layout, chatId });
-  const mockCtx = ctxIn(layout.task.shellRoot);
+  const mockCtx = ctxIn(layout.chat.shellRoot);
   // The later blocks point the workspace elsewhere as they are collected.
   beforeAll(() => {
     createMockChatConfigForDir(chatDir);
@@ -139,8 +139,48 @@ describe("createGitCommand arg policy", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside this conversation's folder");
+    expect(result.stderr).toContain(
+      "points outside this conversation's folder",
+    );
   });
+
+  it.each([
+    [["init", "newproj"], "newproj needs the person's yes first."],
+    [
+      ["clone", "https://example.com/r.git", "newproj"],
+      "newproj needs the person's yes first.",
+    ],
+    [
+      ["add", "notes.txt"],
+      "notes.txt is directly in ~, which no card can open whole.",
+    ],
+  ])(
+    "asks for a new repository directly in the home folder: %j",
+    async (args, refusal) => {
+      const home = realpathSync(mkdtempSync(path.join(tmpdir(), "git-home-")));
+      const homeCommand = createGitCommand({
+        chatId,
+        layout: {
+          ...layout,
+          rules: {
+            home,
+            rules: [
+              { level: "allow", path: layout.chat.hostRoot, source: "system" },
+            ],
+            withoutAsking: false,
+          },
+        },
+      });
+      const named = args.at(-1) ?? "";
+      const result = await homeCommand.execute(
+        [...args.slice(0, -1), path.join(home, named)],
+        mockCtx,
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.replaceAll(home, "~")).toContain(`~/${refusal}`);
+    },
+  );
 });
 
 // Runs the bundled dugite git for real. No network: `init` + `commit` is enough
@@ -152,12 +192,12 @@ describe("createGitCommand", () => {
   );
   mkdirSync(dir, { recursive: true });
   const smokeChatId = createMockChatConfigForDir(dir);
-  const smokeLayout = taskLayout(smokeChatId);
+  const smokeLayout = chatLayout(smokeChatId);
   const command = createGitCommand({
     layout: smokeLayout,
     chatId: smokeChatId,
   });
-  const mockCtx = ctxIn(smokeLayout.task.shellRoot);
+  const mockCtx = ctxIn(smokeLayout.chat.shellRoot);
   beforeAll(() => {
     createMockChatConfigForDir(dir);
   });
@@ -286,21 +326,21 @@ describe("createGitCommand", () => {
 // where git can reach and what it prints.
 describe("createGitCommand over folder mounts", () => {
   const root = mkdtempSync(path.join(tmpdir(), "instrument-git-mounts-"));
-  const taskRoot = path.join(root, "task");
+  const chatRoot = path.join(root, "task");
   const repoDir = path.join(root, "Repo");
   const workDir = path.join(root, "Work");
-  mkdirSync(taskRoot, { recursive: true });
+  mkdirSync(chatRoot, { recursive: true });
   mkdirSync(repoDir, { recursive: true });
   mkdirSync(workDir, { recursive: true });
   // Built when the tests run rather than when the file loads: the mock task
   // config sets one tasks directory for the whole process, and the describe
   // above resolves its own task through it until its tests have finished.
   let command: ReturnType<typeof createGitCommand>;
-  let inTask: ReturnType<typeof ctxIn>;
+  let inChat: ReturnType<typeof ctxIn>;
 
   beforeAll(async () => {
-    const mountedChatId = createMockChatConfigForDir(taskRoot);
-    const layout = taskLayout(mountedChatId, {
+    const mountedChatId = createMockChatConfigForDir(chatRoot);
+    const layout = chatLayout(mountedChatId, {
       repo: {
         access: "read-only",
         id: MountedFolder.IdSchema.parse("repo-id"),
@@ -313,7 +353,7 @@ describe("createGitCommand over folder mounts", () => {
       },
     });
     command = createGitCommand({ layout, chatId: mountedChatId });
-    inTask = ctxIn(layout.task.shellRoot);
+    inChat = ctxIn(layout.chat.shellRoot);
     // Seeded with the real binary directly.
     for (const dir of [repoDir, workDir]) {
       await fs.writeFile(path.join(dir, "note.md"), "hello\n");
@@ -333,7 +373,7 @@ describe("createGitCommand over folder mounts", () => {
   it("reads history in a folder through -C", async () => {
     const result = await command.execute(
       ["-C", repoDir, "log", "--oneline"],
-      inTask,
+      inChat,
     );
 
     expect(result.exitCode).toBe(0);
@@ -353,7 +393,7 @@ describe("createGitCommand over folder mounts", () => {
   it("prints the folder's real path", async () => {
     const result = await command.execute(
       ["-C", repoDir, "rev-parse", "--show-toplevel"],
-      inTask,
+      inChat,
     );
 
     expect(result.exitCode).toBe(0);
@@ -369,7 +409,7 @@ describe("createGitCommand over folder mounts", () => {
 
     const log = await command.execute(
       ["-C", workDir, "log", "--format=%s", "-1"],
-      inTask,
+      inChat,
     );
     expect(log.stdout.trim()).toBe("from the task");
   });
@@ -381,17 +421,21 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside this conversation's folder");
+    expect(result.stderr).toContain(
+      "points outside this conversation's folder",
+    );
   });
 
   it("refuses a folder that is not attached", async () => {
     const result = await command.execute(
       ["-C", path.join(root, "Other"), "log"],
-      inTask,
+      inChat,
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside this conversation's folder");
+    expect(result.stderr).toContain(
+      "points outside this conversation's folder",
+    );
   });
 });
 

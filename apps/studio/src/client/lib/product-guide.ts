@@ -3,7 +3,7 @@ import {
   SETTINGS_PAGES,
   type SettingsEntry,
 } from "@/client/components/settings/settings-index";
-import { formatAcceleratorFor } from "@/client/lib/format-accelerator";
+import { formatAcceleratorFor } from "@/shared/format-accelerator";
 import { SCREENS } from "@/shared/instrument-screens";
 import {
   SHORTCUT_GUIDE_ENTRIES,
@@ -34,6 +34,7 @@ function settingsSection() {
   const lines = [
     "## Settings",
     "",
+    // oxlint-disable-next-line studio/no-os-words -- tells the agent each system's key
     `Link a page or a row as \`[Label](${APP_NAME_SLUG}://settings/<name>)\`, with the name in backticks below. Settings opens at it, and a row is scrolled to and lit. Settings opens with ⌘, on a Mac (Ctrl+, elsewhere).`,
     "",
   ];
@@ -101,11 +102,12 @@ function shortcutsSection() {
     ).toSorted((a, b) => a.label.localeCompare(b.label))) {
       const mac = formatAcceleratorFor({
         accelerator: entry.accelerator,
-        isMac: true,
+        os: "mac",
       }).join("");
+      // Windows and Linux write every chord here alike, which a test holds.
       const other = formatAcceleratorFor({
         accelerator: entry.accelerator,
-        isMac: false,
+        os: "windows",
       }).join("+");
       lines.push(`- ${entry.label}: ${mac} / ${other}`);
     }

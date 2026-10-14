@@ -178,7 +178,7 @@ async function installNodePackage({
         pnpm_config_loglevel: "error",
         // Outside a workspace pnpm fails an install over any dependency with
         // an install script it was not told to allow. The scripts stay
-        // unrun, as in a task folder (templates/default/pnpm-workspace.yaml),
+        // unrun, as in a chat's folder (templates/default/pnpm-workspace.yaml),
         // and a server that needed one fails the entry check below instead.
         pnpm_config_strict_dep_builds: "false",
       },
@@ -220,7 +220,7 @@ function packageName(spec: string): string {
 
 /**
  * uv pinned to the app's own dirs and its managed interpreter, the same way
- * the sandbox's python runs it, minus the per-task virtualenv: a local MCP
+ * the sandbox's python runs it, minus the chat's virtualenv: a local MCP
  * server belongs to the workspace rather than to whichever task calls it.
  */
 function uvEnv(): Record<string, string> {

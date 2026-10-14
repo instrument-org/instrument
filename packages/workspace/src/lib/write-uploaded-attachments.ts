@@ -27,9 +27,9 @@ interface PreparedUploadedFile {
   filename: string;
   filePath: AbsolutePath;
   input: FileUpload.Type;
-  // A source the task already holds is attached where it lies, so there is
+  // A source the chat's folder already holds is attached where it lies, so there is
   // nothing to write and `filePath` names the file itself.
-  isInTask: boolean;
+  isInChatFolder: boolean;
   mimeType: string;
   relativePath: RelativePath;
 }
@@ -56,7 +56,7 @@ export async function writeUploadedAttachments({
       });
 
       for (const preparedFile of preparedFiles) {
-        if (!preparedFile.isInTask) {
+        if (!preparedFile.isInChatFolder) {
           if ("path" in preparedFile.input) {
             // A copy-on-write clone where the filesystem has them (APFS,
             // Btrfs, XFS), so a file handed from one task to another takes
@@ -96,7 +96,7 @@ export async function writeUploadedAttachments({
         );
 
         if (
-          !preparedFile.isInTask &&
+          !preparedFile.isInChatFolder &&
           "path" in preparedFile.input &&
           stats.size !== preparedFile.input.size
         ) {
@@ -179,18 +179,18 @@ function prepareUploadedFiles({
       if ("path" in file) {
         yield* await validatePathUpload({ file });
 
-        // A file the task already holds is attached where it lies. Copying it
+        // A file the chat's folder already holds is attached where it lies. Copying it
         // into `attachments/` would fork it: the agent would work on the copy
         // while the original the user pointed at silently went stale.
-        const inTaskPath = taskAttachmentPath({ dir, filePath: file.path });
-        if (inTaskPath) {
+        const inChatPath = chatAttachmentPath({ dir, filePath: file.path });
+        if (inChatPath) {
           preparedFiles.push({
             filename: file.filename,
             filePath: file.path,
             input: file,
-            isInTask: true,
+            isInChatFolder: true,
             mimeType: file.mimeType,
-            relativePath: inTaskPath,
+            relativePath: inChatPath,
           });
           continue;
         }
@@ -212,7 +212,7 @@ function prepareUploadedFiles({
         filename: uniqueFilename,
         filePath: absolutePathJoin(dir, relativePath),
         input: file,
-        isInTask: false,
+        isInChatFolder: false,
         mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
         relativePath,
       });
@@ -223,11 +223,11 @@ function prepareUploadedFiles({
 }
 
 /**
- * The task-relative spelling of a path already inside the task, or undefined
+ * The relative spelling of a path already inside the chat's folder, or undefined
  * for one outside it. The private dir counts as outside: the agent may not read
  * it, so a file dragged out of there is copied in like any other outside file.
  */
-function taskAttachmentPath({
+function chatAttachmentPath({
   dir,
   filePath,
 }: {

@@ -11,6 +11,41 @@ vi.mock(import("node:fs"), () => ({
 vi.mock(import("./run-uv"));
 
 describe("ensureChatVenv", () => {
+  it("has the app install the managed Python before the chat's uv makes the venv", async () => {
+    const { ensureManagedPython, runUvCommand } = await import("./run-uv");
+    vi.mocked(ensureManagedPython).mockClear();
+    vi.mocked(runUvCommand).mockClear();
+    vi.mocked(runUvCommand).mockResolvedValueOnce({
+      combined: "",
+      exitCode: 0,
+      stdout: "",
+    });
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("cold-python"));
+
+    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    expect(
+      vi.mocked(ensureManagedPython).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(runUvCommand).mock.invocationCallOrder[0] ?? 0);
+  });
+
+  it("makes no venv when the managed Python could not be installed", async () => {
+    const { ensureManagedPython, runUvCommand } = await import("./run-uv");
+    vi.mocked(runUvCommand).mockClear();
+    vi.mocked(ensureManagedPython).mockResolvedValueOnce({
+      exitCode: 2,
+      output: "download failed",
+    });
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("python-offline"));
+
+    await expect(ensureChatVenv({ chatId })).resolves.toEqual({
+      exitCode: 2,
+      output: "download failed",
+    });
+    expect(runUvCommand).not.toHaveBeenCalled();
+  });
+
   it("recreates a venv when its interpreter lacks venv metadata", async () => {
     const { existsSync } = await import("node:fs");
     const { runUvCommand } = await import("./run-uv");
@@ -55,7 +90,9 @@ describe("ensureChatVenv", () => {
       chatId,
     });
 
-    expect(runUvCommand).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(runUvCommand).toHaveBeenCalledTimes(1);
+    });
     const firstCall = vi.mocked(runUvCommand).mock.calls[0];
     expect(firstCall).toBeDefined();
     expect(firstCall?.[0].signal).toBeUndefined();

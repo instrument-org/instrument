@@ -14,6 +14,7 @@ import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
@@ -33,8 +34,8 @@ import { z } from "zod";
  * answers, so `undo` can take it back.
  */
 
-/** The name the Finder gives a new folder, and how it counts the next one. */
-const UNTITLED = "untitled folder";
+/** The system this runs on, whose file manager names new folders and copies. */
+const OS = osOf(process.platform);
 
 /** Whether anything is at a path, without caring why not. */
 function exists(at: string) {
@@ -45,21 +46,22 @@ function exists(at: string) {
 }
 
 /**
- * A path in `parent` named `name`, made unique the way the Finder does: the
- * name, then the name and 2, then 3, up to a bound so a wedged loop cannot run
- * forever.
+ * The first free path in `parent` among the names `nameFor` counts out, the
+ * way the system's file manager counts them (`os-conventions.ts`), up to a
+ * bound so a wedged loop cannot run forever.
  */
-async function freePath(parent: string, name: string, extension = "") {
+async function freePath(
+  parent: string,
+  nameFor: (n: number) => string,
+  extension = "",
+) {
   for (let n = 1; n < 1000; n += 1) {
-    const candidate = path.join(
-      parent,
-      n === 1 ? `${name}${extension}` : `${name} ${n}${extension}`,
-    );
+    const candidate = path.join(parent, `${nameFor(n)}${extension}`);
     if (!(await exists(candidate))) {
       return candidate;
     }
   }
-  throw new Error(`No free name for ${name} in ${parent}`);
+  throw new Error(`No free name for ${nameFor(1)} in ${parent}`);
 }
 
 /**
@@ -93,7 +95,7 @@ const newFolder = base
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
     try {
-      const made = await freePath(input.parent, UNTITLED);
+      const made = await freePath(input.parent, (n) => newFolderName(OS, n));
       await fs.mkdir(made);
       await record(made, (identity) => ({
         identity,
@@ -145,14 +147,14 @@ const duplicate = base
   .input(z.object({ path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
-    // The Finder's naming: `notes copy.txt`, then `notes copy 2.txt`, with the
-    // extension kept on the end where the Mac expects to find it.
+    // Named the way the system's file manager names a copy, with the
+    // extension kept on the end where every system expects to find it.
     const extension = path.extname(input.path);
     const stem = path.basename(input.path, extension);
     try {
       const copy = await freePath(
         path.dirname(input.path),
-        `${stem} copy`,
+        (n) => copyName(OS, stem, n),
         extension,
       );
       await fs.cp(input.path, copy, { recursive: true });
@@ -187,19 +189,22 @@ const trash = base
         message: error instanceof Error ? error.message : undefined,
       });
     }
-    // The Trash keeps no record of where a thing came from that an app can
-    // read, so where it landed is found by its identity now, while it is
-    // still the newest thing there.
+    // Where it landed is found by its identity now, while it is still the
+    // newest thing there.
     if (!identity) {
       return { journalId: null };
     }
+    const trashed = await findInTrash(identity, { from: input.path });
     const entry = getFileJournal().record({
       from: input.path,
       identity,
       kind: "trash",
-      trashed: await findInTrash(identity),
+      trashed,
     });
-    return { journalId: entry.id };
+    // One that was not found is still journaled, so undoing from the keyboard
+    // says once where to look rather than quietly taking back something
+    // older, but there is no Undo to offer for it.
+    return { journalId: trashed === null ? null : entry.id };
   });
 
 /**
@@ -229,8 +234,12 @@ async function record(
 /**
  * Takes back the newest action in the journal: a rename, a duplicate, a new
  * folder, or a move to the Trash. One that cannot be taken back safely is
- * refused with the reason and stays in the journal, so nothing older is
- * undone out of order behind it.
+ * refused with the reason. While the person can still clear the way
+ * (something has taken its name, a new folder has been filled) it stays in
+ * the journal, so nothing older is undone out of order behind it; one that
+ * can never be taken back is dropped once it has said why, so the next undo
+ * reaches the action before it. A move to the Trash already put back by hand
+ * is dropped quietly, and the action before it is taken back instead.
  *
  * `journalId` takes back that one entry instead, as the Undo on the toast an
  * action raised does: it is about those items whatever was done since, and
@@ -247,44 +256,60 @@ const undo = base
       kind: z.enum(["duplicate", "new-folder", "rename", "trash"]),
       /** Whether what was put back is a folder. */
       isFolder: z.boolean(),
+      /** The entry taken back, so whatever offered to undo it can go. */
+      journalId: z.string(),
       /** Where the thing is now, for whatever was put back rather than removed. */
       path: z.string().nullable(),
     }),
   )
   .handler(async ({ errors, input }) => {
     const journal = getFileJournal();
-    const entry =
-      input?.journalId === undefined
-        ? journal.latest()
-        : journal.byId(input.journalId);
-    if (!entry) {
-      throw errors.NOTHING_TO_UNDO();
-    }
-    try {
-      const restored = await undoEntry(entry, {
-        trash: (at) => shell.trashItem(at),
-      });
-      journal.remove(entry.id);
-      if (entry.kind === "rename") {
-        followMove(entry.to, entry.from);
+    // Each pass drops an entry, so this ends when the journal does.
+    for (;;) {
+      const entry =
+        input?.journalId === undefined
+          ? journal.latest()
+          : journal.byId(input.journalId);
+      if (!entry) {
+        throw errors.NOTHING_TO_UNDO();
       }
-      const isFolder =
-        restored !== null &&
-        (await fs.lstat(restored).then(
-          (stats) => stats.isDirectory(),
-          () => false,
-        ));
-      return { isFolder, kind: entry.kind, path: restored };
-    } catch (error) {
-      // A refusal is the undo's answer (the file changed since, say); any
-      // other failure is a fault worth seeing, though the person is told
-      // the same thing either way.
-      if (!(error instanceof UndoRefusedError)) {
-        captureServerException(error, { scopes: ["studio"] });
+      try {
+        const undone = await undoEntry(entry, {
+          trash: (at) => shell.trashItem(at),
+        });
+        journal.remove(entry.id);
+        if (undone.already && input?.journalId === undefined) {
+          continue;
+        }
+        if (entry.kind === "rename") {
+          followMove(entry.to, entry.from);
+        }
+        const isFolder =
+          undone.path !== null &&
+          (await fs.lstat(undone.path).then(
+            (stats) => stats.isDirectory(),
+            () => false,
+          ));
+        return {
+          isFolder,
+          journalId: entry.id,
+          kind: entry.kind,
+          path: undone.path,
+        };
+      } catch (error) {
+        // A refusal is the undo's answer (the file changed since, say); any
+        // other failure is a fault worth seeing, though the person is told
+        // the same thing either way.
+        if (!(error instanceof UndoRefusedError)) {
+          captureServerException(error, { scopes: ["studio"] });
+        } else if (error.permanent) {
+          journal.remove(entry.id);
+        }
+        throw errors.CANNOT_UNDO({
+          message:
+            error instanceof UndoRefusedError ? error.message : undefined,
+        });
       }
-      throw errors.CANNOT_UNDO({
-        message: error instanceof UndoRefusedError ? error.message : undefined,
-      });
     }
   });
 

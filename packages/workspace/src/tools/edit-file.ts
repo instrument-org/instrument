@@ -14,20 +14,17 @@ import {
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
-import { chatReach } from "../lib/permissions/chat-rules";
+import { sessionLayout } from "../lib/session-layout";
 import { pathExists } from "../lib/path-exists";
-import { sessionRole } from "../lib/chat/children";
 import {
   applyUnicodeFallbacks,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
 import { ReadFile } from "./read-file";
-import { workDir } from "../lib/work-dir";
 
 const MAX_FILE_SIZE = 250 * 1024; // 250KB
 
@@ -755,7 +752,7 @@ export const EditFile = setupTool({
   name: "edit_file",
   outputSchema: z.object({
     diff: z.string().optional(),
-    // Task-relative, or the absolute path in a writable folder.
+    // Relative to the chat's folder, or the absolute path in a writable folder.
     filePath: z.string(),
     modifiedAt: z.number(),
   }),
@@ -775,11 +772,7 @@ export const EditFile = setupTool({
       return executeError("oldString and newString must be different");
     }
 
-    const layout = buildWorkspaceFsLayout({
-      apps: sessionRole(chatId, sessionId) === "chat",
-      ...(await chatReach(chatId, sessionId, partId)),
-      taskHostRoot: workDir(chatId),
-    });
+    const layout = await sessionLayout({ chatId, partId, sessionId });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,
       layout,

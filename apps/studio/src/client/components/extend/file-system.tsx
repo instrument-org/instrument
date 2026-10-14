@@ -64,7 +64,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn, commandKeyHeld, currentOs, isMacOS } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
@@ -259,6 +259,17 @@ export type FileSystemProps = {
   moveFocusWithSelection?: boolean;
   onColumnWidthChange?: (columnWidth: number) => void;
   /**
+   * The paths of what is selected, to the clipboard, by the system's key for
+   * it: ⌥⌘C on the Mac, Ctrl+Shift+C on Windows. Left out, the key is
+   * nobody's here.
+   */
+  onCopyPath?: (items: FileSystemItem[]) => void;
+  /**
+   * A copy of what is selected beside it, by ⌘D on the Mac. Left out, the
+   * key is nobody's here.
+   */
+  onDuplicate?: (items: FileSystemItem[]) => void;
+  /**
    * Called on file open (double-click), replacing the built-in behavior. By
    * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
    * other files open their resolved URL in a new tab.
@@ -277,6 +288,17 @@ export type FileSystemProps = {
   onListColumnWidthsChange?: (
     widths: Partial<Record<FileSystemListColumn, number>>,
   ) => void;
+  /**
+   * The folder above the browser's root asked for, by ⌘↑ or Alt+↑ at the top
+   * of the tree: the page re-roots there. Left out, the top is as far up as
+   * the keys go.
+   */
+  onLeaveRoot?: () => void;
+  /**
+   * A new folder asked for by ⇧⌘N or Ctrl+Shift+N, made by the page in the
+   * folder on screen. Left out, the key is nobody's here.
+   */
+  onNewFolder?: () => void;
   /**
    * Several selected opened at once, by a double-click or ⌘O on one of them.
    * Left out, each file among them opens as `onFileOpen` would, and the
@@ -425,7 +447,7 @@ function selectionModeOf(event: {
   shiftKey: boolean;
 }): null | SelectionMode {
   if (event.shiftKey) return "extend";
-  if (isMacOS() ? event.metaKey : event.ctrlKey) return "toggle";
+  if (commandKeyHeld(event)) return "toggle";
   return null;
 }
 /** A Control-click, which on a Mac is the right click and selects nothing. */
@@ -494,6 +516,8 @@ const FILE_KIND_LABELS: Record<string, string> = {
   docx: "Word Document",
   gif: "GIF Image",
   go: "Go Source",
+  htm: "HTML Document",
+  html: "HTML Document",
   jpeg: "JPEG Image",
   jpg: "JPEG Image",
   js: "JavaScript Source",
@@ -530,12 +554,21 @@ function entryKindLabel(entry: FileSystemEntry) {
 function shownName(entry: FileSystemEntry) {
   return entry.kind === "file" ? (entry.displayName ?? entry.name) : entry.name;
 }
+// A file's kind in words, never its MIME type: by the system's name for it,
+// then its extension, then its type, which names a file with no extension
+// (`2024`, read as text) the way a file of that type with one is named.
 function fileKindLabel(file: FileEntry) {
   if (file.typeName) return file.typeName;
   const byExtension = FILE_KIND_LABELS[fileExtension(file.name)];
   if (byExtension) return byExtension;
-  if (file.contentType?.startsWith("image/")) return "Image";
-  return file.contentType ?? "Document";
+  const type = file.contentType ?? "";
+  const byType = KIND_LABELS_BY_MIME_TYPE.get(type);
+  if (byType) return byType;
+  if (type.startsWith("image/")) return "Image";
+  if (type.startsWith("audio/")) return "Audio";
+  if (type.startsWith("video/")) return "Video";
+  if (type.startsWith("text/")) return "Text Document";
+  return "Document";
 }
 // MIME types inferred from the extension when a file carries no
 // `contentType`, so the file-type filter can classify every manifest entry.
@@ -573,42 +606,15 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   yml: "text/yaml",
   zip: "application/zip",
 };
+const KIND_LABELS_BY_MIME_TYPE = new Map(
+  Object.entries(EXTENSION_MIME_TYPES).flatMap(
+    ([extension, mime]): [string, string][] => {
+      const label = FILE_KIND_LABELS[extension];
+      return label ? [[mime, label]] : [];
+    },
+  ),
+);
 const FALLBACK_MIME_TYPE = "application/octet-stream";
-const MIME_TYPE_LABELS: Record<string, string> = {
-  "application/json": "JSON",
-  "application/msword": "Word document (legacy)",
-  "application/pdf": "PDF",
-  "application/sql": "SQL",
-  "application/vnd.ms-excel": "Excel workbook (legacy)",
-  "application/vnd.ms-powerpoint": "PowerPoint (legacy)",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-    "PowerPoint",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-    "Excel workbook",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-    "Word document",
-  "application/x-sh": "Shell script",
-  "application/zip": "ZIP archive",
-  [FALLBACK_MIME_TYPE]: "Binary",
-  "image/gif": "GIF image",
-  "image/jpeg": "JPEG image",
-  "image/png": "PNG image",
-  "image/svg+xml": "SVG image",
-  "image/webp": "WebP image",
-  "text/css": "CSS",
-  "text/csv": "CSV",
-  "text/javascript": "JavaScript",
-  "text/jsx": "JSX",
-  "text/markdown": "Markdown",
-  "text/mdx": "MDX",
-  "text/plain": "Plain text",
-  "text/tab-separated-values": "TSV",
-  "text/x-go": "Go",
-  "text/x-python": "Python",
-  "text/x-rust": "Rust",
-  "text/x-typescript": "TypeScript",
-  "text/yaml": "YAML",
-};
 export type FileSystemViewerKind = "docx" | "image" | "pdf" | "pptx" | "xlsx";
 function fileTypeFilterGroup(mime: string): FileTypeFilterGroup {
   if (
@@ -787,7 +793,6 @@ type FileTypeFilterOption = {
   /** Sample file name so the option icon reuses the file-type sprite. */
   iconFileName: string;
   label: string;
-  mime: string;
 };
 // Primary key per the active sort; ties (and missing metadata) fall back to
 // the name order so results stay stable. The name tiebreak ignores the
@@ -1000,7 +1005,7 @@ function dateFilterPresetCutoff(preset: string) {
 function fileMatchesFilter(file: FileEntry, filter: FileSystemFilter) {
   if (filter.value.length === 0) return true;
   if (filter.type === "fileType") {
-    const matches = filter.value.includes(mimeTypeForFile(file));
+    const matches = filter.value.includes(fileKindLabel(file));
     return filter.operator === "is-not" ? !matches : matches;
   }
   const timestamp =
@@ -1640,10 +1645,14 @@ export function FileSystem({
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
   onColumnWidthChange,
+  onCopyPath,
+  onDuplicate,
   onFileOpen,
   onItemContextMenu,
   onListColumnsChange,
   onListColumnWidthsChange,
+  onLeaveRoot,
+  onNewFolder,
   onOpenSeveral,
   onPathChange,
   onRenameCommit,
@@ -1995,30 +2004,30 @@ export function FileSystem({
         : { direction: defaultSortDirection(key), key },
     );
   };
-  // Distinct MIME types across the loaded manifest, labeled for the filter
-  // menu; the first file seen per type lends its name to the option icon.
+  // Distinct kinds across the loaded manifest, named as the Kind column names
+  // them, so two types of one kind are one option; the first file seen per
+  // kind lends its name to the option icon and its type to the group.
   const fileTypeOptions = React.useMemo(() => {
-    const byMime = new Map<string, FileTypeFilterOption>();
+    const byKind = new Map<string, FileTypeFilterOption>();
     for (const file of index.files.values()) {
-      const mime = mimeTypeForFile(file);
-      if (!byMime.has(mime)) {
+      const kind = fileKindLabel(file);
+      if (!byKind.has(kind)) {
         // The leading-dot check keeps dotfiles (.gitignore) whole.
         const dotIndex = file.name.lastIndexOf(".");
         const extension =
           dotIndex > 0 ? file.name.slice(dotIndex + 1).toLowerCase() : "";
-        byMime.set(mime, {
-          group: fileTypeFilterGroup(mime),
+        byKind.set(kind, {
+          group: fileTypeFilterGroup(mimeTypeForFile(file)),
           // A synthesized generic name, so files with branded icons
           // (biome.json, next.config.ts, CLAUDE.md, …) don't lend them to
           // the whole type; extensionless names keep their own icon
           // (Dockerfile, Makefile).
           iconFileName: extension ? `file.${extension}` : file.name,
-          label: MIME_TYPE_LABELS[mime] ?? mime,
-          mime,
+          label: kind,
         });
       }
     }
-    return [...byMime.values()].sort((left, right) =>
+    return [...byKind.values()].sort((left, right) =>
       left.label.localeCompare(right.label),
     );
   }, [index]);
@@ -2031,7 +2040,7 @@ export function FileSystem({
     type: FileSystemDateFilterType;
   }>(null);
   const toggleFileTypeFilterValue = React.useCallback(
-    (mime: string, checked: boolean) => {
+    (kind: string, checked: boolean) => {
       const id = `filter-${++filterIdRef.current}`;
       setFilters((previous) => {
         const existing = previous.find((filter) => filter.type === "fileType");
@@ -2043,13 +2052,13 @@ export function FileSystem({
               id,
               operator: "is" as const,
               type: "fileType" as const,
-              value: [mime],
+              value: [kind],
             },
           ];
         }
         const value = checked
-          ? [...new Set([mime, ...existing.value])]
-          : existing.value.filter((entry) => entry !== mime);
+          ? [...new Set([kind, ...existing.value])]
+          : existing.value.filter((entry) => entry !== kind);
         if (value.length === 0) {
           return previous.filter((filter) => filter !== existing);
         }
@@ -2759,7 +2768,20 @@ export function FileSystem({
     const nav = listingNavRef.current;
     if (!nav) return false;
     const lead = entryOf(selectionRef.current.lead);
+    const picked = () =>
+      selectedPathsOf(selectionRef.current).flatMap((path) => {
+        const each = entryOf(path);
+        return each ? [each] : [];
+      });
     switch (command.type) {
+      case "copy-path":
+      case "duplicate": {
+        const handler = command.type === "duplicate" ? onDuplicate : onCopyPath;
+        const chosen = picked();
+        if (!handler || chosen.length === 0) return false;
+        handler(chosen);
+        return true;
+      }
       case "move": {
         const moved = nav.move(command.direction);
         if (typeof moved === "boolean") return moved;
@@ -2772,17 +2794,35 @@ export function FileSystem({
         nav.reveal(moved.entry);
         return true;
       }
+      case "new-folder":
+        if (!onNewFolder) return false;
+        onNewFolder();
+        return true;
       case "open":
         if (!lead) return false;
         openEntry(lead);
         return true;
+      case "parent": {
+        if (currentPath === "") {
+          if (!onLeaveRoot) return false;
+          onLeaveRoot();
+          return true;
+        }
+        // The folder left behind is what is selected above it, the way the
+        // Finder and File Explorer both go up.
+        const left = index.folders.get(currentPath) ?? null;
+        navigateTo(pathParent(currentPath));
+        selectEntry(left);
+        return true;
+      }
+      case "rename":
       case "return":
         if (!lead) return false;
         // Several selected are renamed one at a time or not at all.
         if (selectedPathsOf(selectionRef.current).length > 1) return true;
         if (canRename && nav.renames) {
           startRename(lead.path);
-        } else {
+        } else if (command.type === "return") {
           openEntry(lead);
         }
         return true;
@@ -2792,12 +2832,9 @@ export function FileSystem({
       case "space":
         return true;
       case "trash": {
-        const picked = selectedPathsOf(selectionRef.current).flatMap((path) => {
-          const each = entryOf(path);
-          return each ? [each] : [];
-        });
-        if (!onTrash || picked.length === 0) return false;
-        onTrash(picked);
+        const chosen = picked();
+        if (!onTrash || chosen.length === 0) return false;
+        onTrash(chosen);
         return true;
       }
       case "type-ahead": {
@@ -2938,7 +2975,7 @@ export function FileSystem({
         ) {
           return;
         }
-        const command = listingCommandOf(event, isMacOS());
+        const command = listingCommandOf(event, currentOs());
         if (!command) return;
         // On the rows, or on the browser itself (empty space clicked, a name
         // field just put away), every key is the listing's. On the toolbar
@@ -3284,15 +3321,15 @@ export const TOOLBAR_ICON_BUTTON_CLASSNAME = cn(
   "flex size-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
 );
 // Searchable file-type list (cmdk) rendered inside a menu popup, so the
-// long MIME list can be filtered by typing. Selection toggles stay open for
+// long list of kinds can be filtered by typing. Selection toggles stay open for
 // multi-select; ArrowUp/Down and Enter come from cmdk's combobox semantics.
 function FileSystemFileTypeCommand({
-  checkedMimes,
+  checkedKinds,
   onToggle,
   options,
 }: {
-  checkedMimes: string[];
-  onToggle: (mime: string, checked: boolean) => void;
+  checkedKinds: string[];
+  onToggle: (kind: string, checked: boolean) => void;
   options: FileTypeFilterOption[];
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -3331,12 +3368,11 @@ function FileSystemFileTypeCommand({
             return (
               <CommandGroup heading={group} key={group}>
                 {groupOptions.map((option) => {
-                  const isChecked = checkedMimes.includes(option.mime);
+                  const isChecked = checkedKinds.includes(option.label);
                   return (
                     <CommandItem
-                      key={option.mime}
-                      keywords={[option.mime]}
-                      onSelect={() => onToggle(option.mime, !isChecked)}
+                      key={option.label}
+                      onSelect={() => onToggle(option.label, !isChecked)}
                       value={option.label}
                     >
                       <Check
@@ -3378,7 +3414,7 @@ function FileSystemFilterMenu({
   onOpenCustomRange: (type: FileSystemDateFilterType) => void;
   onSelectDatePreset: (type: FileSystemDateFilterType, preset: string) => void;
   onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
-  onToggleFileType: (mime: string, checked: boolean) => void;
+  onToggleFileType: (kind: string, checked: boolean) => void;
   showHiddenFiles: boolean;
 }) {
   const fileTypeFilter = filters.find((filter) => filter.type === "fileType");
@@ -3407,7 +3443,7 @@ function FileSystemFilterMenu({
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-60">
             <FileSystemFileTypeCommand
-              checkedMimes={fileTypeFilter?.value ?? []}
+              checkedKinds={fileTypeFilter?.value ?? []}
               onToggle={onToggleFileType}
               options={fileTypeOptions}
             />
@@ -3640,18 +3676,10 @@ function FileSystemFilterPill({
   onOperatorChange: (operator: FileSystemFilterOperator) => void;
   onRemove: () => void;
   onSelectDatePreset: (preset: string) => void;
-  onToggleFileType: (mime: string, checked: boolean) => void;
+  onToggleFileType: (kind: string, checked: boolean) => void;
 }) {
   const isCustomRange =
     filter.type !== "fileType" && isCustomDateRangeValue(filter.value);
-  const selectedTypeLabels =
-    filter.type === "fileType"
-      ? filter.value.map(
-          (mime) =>
-            fileTypeOptions.find((option) => option.mime === mime)?.label ??
-            mime,
-        )
-      : [];
   return (
     <div className="flex items-center text-xs">
       <span
@@ -3692,17 +3720,17 @@ function FileSystemFilterPill({
           <DropdownMenuTrigger asChild>
             <button
               className={FILTER_PILL_BUTTON_CLASSNAME}
-              title={selectedTypeLabels.join(", ")}
+              title={filter.value.join(", ")}
               type="button"
             >
               {filter.value.length === 1
-                ? selectedTypeLabels[0]
+                ? filter.value[0]
                 : `${filter.value.length} selected`}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-60">
             <FileSystemFileTypeCommand
-              checkedMimes={filter.value}
+              checkedKinds={filter.value}
               onToggle={onToggleFileType}
               options={fileTypeOptions}
             />

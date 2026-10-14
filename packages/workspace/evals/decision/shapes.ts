@@ -1,4 +1,3 @@
-import { ChatIdSchema } from "../../src/schemas/chat-id";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -8,7 +7,6 @@ import {
   getAppCatalog,
   pickMeant,
 } from "../../src/lib/apps/catalog";
-import { titleStillFits } from "../../src/lib/chat/retitle";
 import { type Answer, type Asked, ask, type Question } from "./client";
 import appCases from "./corpus/apps.json";
 import backfillCases from "./corpus/backfill.json";
@@ -16,7 +14,6 @@ import realChats from "./corpus/chats.json";
 import draftSets from "./corpus/drafts.json";
 import emojiCases from "./corpus/emoji.json";
 import padding from "./corpus/padding.json";
-import retitleChats from "./corpus/retitle.json";
 import searchCases from "./corpus/searches.json";
 import settingsCorpus from "./corpus/settings.json";
 import { type DecisionModel } from "./models";
@@ -486,77 +483,6 @@ function topicBackfill(): Shape {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Retitle: titleStillFits in src/lib/chat/retitle.ts, called as shipped
-// ---------------------------------------------------------------------------
-
-function retitle(): Shape {
-  // Each chat against its own title, and against another chat's title, which
-  // has moved by construction.
-  const cases = retitleChats.flatMap((chat, index) => [
-    { chat, moved: chat.drifted, title: chat.title, which: "own" },
-    {
-      chat,
-      moved: true,
-      title: retitleChats[(index + 7) % retitleChats.length]?.title ?? "",
-      which: "other",
-    },
-  ]);
-  return {
-    about: `${cases.length} chats each asked whether its title still fits`,
-    cases: cases.map(({ chat, moved, title, which }) => ({
-      label: `${chat.title} (${which} title)`,
-      run: async (model) => {
-        let asked: Asked | undefined;
-        let failure: unknown;
-        const kept = await titleStillFits({
-          ask: async ({ body }) => {
-            try {
-              asked = await ask(model, body);
-            } catch (error) {
-              failure = error;
-              throw error;
-            }
-            return {
-              ms: asked.ms,
-              provider: model.id,
-              response: { answers: asked.answers, model: model.id },
-            };
-          },
-          configs: [],
-          currentTitle: title,
-          opening: chat.opening,
-          reply: chat.reply,
-          chatId: ChatIdSchema.parse("2026-10-10-decision-eval"),
-        });
-        if (!asked) {
-          throw failure instanceof Error
-            ? failure
-            : new Error("No decision was asked");
-        }
-        const chance = asked.answers.moved?.noul ?? 0;
-        return {
-          asked,
-          metrics: {
-            counts: {
-              fitting: moved ? 0 : 1,
-              keptFitting: !moved && kept ? 1 : 0,
-              keptStale: moved && kept ? 1 : 0,
-            },
-            negatives: moved ? [] : [chance],
-            positives: moved ? [chance] : [],
-          },
-        };
-      },
-    })),
-    columns: [
-      { header: "kept fitting", value: ratio("keptFitting", "fitting") },
-      { header: "kept stale", value: count("keptStale") },
-    ],
-    name: "retitle",
-  };
-}
-
 export function allShapes(): Shape[] {
   const paddedTitles = [...realTitles, ...padding.map((chat) => chat.title)];
   return [
@@ -575,6 +501,5 @@ export function allShapes(): Shape[] {
     emojiShape(),
     draftTopic(),
     topicBackfill(),
-    retitle(),
   ];
 }

@@ -1,7 +1,7 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
+import { showInFolderLabel, showChatFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
@@ -185,7 +185,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       label: showInFolderLabel("folder"),
       menuOnly: true,
       run: () => {
-        void showTaskFolder(chat.id);
+        void showChatFolder(chat.id);
       },
     };
     return [put, mark, starred, ...(isDeveloperMode ? [save] : []), show];

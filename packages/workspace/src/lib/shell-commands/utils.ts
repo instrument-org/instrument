@@ -1,15 +1,12 @@
 import { type ByteString, latin1FromBytes } from "just-bash";
-import { mkdirSync } from "node:fs";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { gitSubprocessEnv } from "../git";
-import { getChatTmpDir } from "../chat-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { hostPathOf } from "../workspace-fs-layout";
-import { workDir } from "../work-dir";
 
 /**
  * Arguments for a native subprocess. Paths pass through as written; on
@@ -98,33 +95,54 @@ export function resolveCommandContext(
   },
 ) {
   const uvEnv = uvSubprocessEnv({ chatId });
-  const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
-  // A task-local temp dir keeps tempfile, os.tmpdir(), and mktemp inside the
-  // sandbox instead of the host temp dir; created here if absent (recursive
-  // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
-  // at a missing dir.
-  const tmpDir = getChatTmpDir(workDir(chatId));
-  mkdirSync(tmpDir, { recursive: true });
+  const shellEnv: Record<string, string> = {
+    ...Object.fromEntries(ctx.env),
+    ...uvEnv,
+  };
+  // The shell's TZ is an IANA name (America/Chicago), which Windows' C
+  // runtime does not read: it takes TZ as `CST6CDT` or nothing, and a name
+  // it cannot parse puts a program's local time hours off. Without one it
+  // uses the system's zone, which is the same zone.
+  if (process.platform === "win32" && shellEnv.TZ?.includes("/")) {
+    delete shellEnv.TZ;
+  }
+  // The shell's temp folder, the system's unless the agent set another, in
+  // the spelling a program on this computer reads.
+  for (const name of ["TEMP", "TMP", "TMPDIR"]) {
+    const value = shellEnv[name];
+    if (value !== undefined) {
+      shellEnv[name] = hostPathOf(value);
+    }
+  }
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
     // ffmpeg, uv, python, pip) all resolve `uv`/`python` on PATH and share the
-    // task venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
+    // chat's venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
     // gitSubprocessEnv comes last and is handed the env it has to correct, so
     // it can drop every GIT_* the agent exported into the bash env rather than
     // only overriding the ones it sets. It extends the PATH uv just built.
-    // TEMP/TMP/TMPDIR win over anything the agent exported so temp files stay
-    // inside the task.
-    env: {
-      ...shellEnv,
-      ...gitSubprocessEnv(shellEnv),
-      TEMP: tmpDir,
-      TMP: tmpDir,
-      TMPDIR: tmpDir,
-    },
-    taskCwd: AbsolutePathSchema.parse(
+    env: withGitEnv(shellEnv),
+    hostCwd: AbsolutePathSchema.parse(
       hostPathOf(ctx.fs.resolvePath(ctx.cwd, ".")),
     ),
   };
+}
+
+/**
+ * The env with git's on top. An undefined value from gitSubprocessEnv
+ * removes a variable the agent exported (a stray GIT_DIR) rather than
+ * setting it.
+ */
+function withGitEnv(shellEnv: Record<string, string>): Record<string, string> {
+  const env = { ...shellEnv };
+  for (const [name, value] of Object.entries(gitSubprocessEnv(shellEnv))) {
+    if (value === undefined) {
+      delete env[name];
+    } else {
+      env[name] = value;
+    }
+  }
+  return env;
 }
 
 /** Extract a string array from a parseArgs multi-value option. */

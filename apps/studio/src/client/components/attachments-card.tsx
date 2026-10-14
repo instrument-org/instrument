@@ -41,7 +41,7 @@ export function AttachmentsCard({ files, chatId }: FileAttachmentsCardProps) {
         hostPath,
         mimeType: file.mimeType,
         modifiedAt: file.modifiedAt,
-        taskFile: { filePath: file.filePath, chatId },
+        chatFile: { filePath: file.filePath, chatId },
         url: getComputerFileUrl({ hostPath, version: file.modifiedAt }),
       },
     ];

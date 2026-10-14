@@ -109,6 +109,14 @@ if grep -qx 'pnpm-lock.yaml' <<< "$changed"; then
   echo "land: installed the new lockfile in $main_root"
 fi
 
+# A worktree Claude Code made for a subagent stays locked while the subagent
+# runs, and the harness removes it once the subagent is done.
+if [[ "$keep" == false ]] &&
+  git worktree list --porcelain | grep -A5 -Fx "worktree $worktree_root" | grep -q '^locked'; then
+  echo "land: $worktree_root is locked by the harness, which removes it later"
+  keep=true
+fi
+
 if [[ "$keep" == false ]]; then
   cd "$main_root"
   # --force because git refuses to remove a worktree holding a submodule

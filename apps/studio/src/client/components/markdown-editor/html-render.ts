@@ -16,6 +16,7 @@
 //   that structure from the plugin's node decorations.
 // - A source popover: clicking a rendered node (or its "HTML" tab) edits that
 //   node's source, and only that node's.
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { logger } from "@/client/lib/logger";
 import {
   autoUpdate,
@@ -561,7 +562,11 @@ export function openSourcePopover(
   const head = el("div", "md-html-popover-head");
   head.append(
     el("span", "md-html-popover-title", title),
-    el("span", "md-html-popover-hint", "⌘↩ to save · Esc to cancel"),
+    el(
+      "span",
+      "md-html-popover-hint",
+      `${formatAcceleratorText("CmdOrCtrl+Enter")} to save · Esc to cancel`,
+    ),
   );
   const area = el("textarea");
   area.spellcheck = false;

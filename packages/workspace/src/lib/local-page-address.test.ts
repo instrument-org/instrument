@@ -13,7 +13,7 @@ import {
 } from "./local-page-address";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
-function layoutFor(taskRoot: string, docsRoot: string) {
+function layoutFor(chatRoot: string, docsRoot: string) {
   return buildWorkspaceFsLayout({
     folders: {
       docs: {
@@ -22,7 +22,7 @@ function layoutFor(taskRoot: string, docsRoot: string) {
         path: AbsolutePathSchema.parse(docsRoot),
       },
     },
-    taskHostRoot: ChatDirSchema.parse(taskRoot),
+    chatHostRoot: ChatDirSchema.parse(chatRoot),
   });
 }
 

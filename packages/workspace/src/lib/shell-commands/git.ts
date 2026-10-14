@@ -202,19 +202,27 @@ export function createGitCommand({
       return fail(rejection);
     }
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
 
     // What git may do in a folder is what the rules let the agent do there:
     // where they keep changes out, git may only read; see `readsOnly`.
     const resolvedArgs = hostPathArgs(args);
     let refusal: string | undefined;
     if (layout.rules && !readsOnly(args)) {
-      for (const target of [".", ...args.map(pathValueOf)]) {
+      // The path `init` or `clone` is given is the repository's folder, which
+      // may not be there yet.
+      const subcommand = findSubcommand(args);
+      const makesFolder =
+        subcommand !== undefined &&
+        (subcommand.name === "init" || subcommand.name === "clone");
+      for (const [index, target] of [".", ...args.map(pathValueOf)].entries()) {
         if (!target.startsWith("/") && target !== ".") {
           continue;
         }
         refusal ??= ruleRefusal({
           hostPath: hostPathOf(ctx.fs.resolvePath(ctx.cwd, target)),
+          // Index 0 is the working folder, so an argument sits one later.
+          isDirectory: makesFolder && index - 1 > subcommand.index,
           op: "write",
           rules: layout.rules,
           spell: shellPath,
@@ -227,7 +235,7 @@ export function createGitCommand({
       );
     }
 
-    const escape = findEscapingPathValue(resolvedArgs, taskCwd, layout);
+    const escape = findEscapingPathValue(resolvedArgs, hostCwd, layout);
     if (escape) {
       return fail(
         `${escape} points outside this conversation's folder and every folder you reach. ` +
@@ -244,7 +252,7 @@ export function createGitCommand({
       ],
       {
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
+        cwd: hostCwd,
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
@@ -294,7 +302,7 @@ function findEscapingPathValue(
   layout: WorkspaceFsLayout,
 ): string | undefined {
   const roots = [
-    layout.task.hostRoot,
+    layout.chat.hostRoot,
     ...otherFolders(layout).map((folder) => folder.hostRoot),
   ];
   const escapes = (value: string, from: string) => {

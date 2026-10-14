@@ -1,9 +1,3 @@
-import { isWindows } from "./utils";
-
-export function getTrashTerminology(): string {
-  return isWindows() ? "Recycle Bin" : "Trash";
-}
-
 export const PROGRESS_MESSAGES = [
   "Still trashing...",
   "Who knew deleting node_modules was so slow...",

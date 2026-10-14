@@ -27,10 +27,10 @@ async function run(command: string) {
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-capabilities-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  const chatRoot = path.join(tmpDir, "tasks", "test");
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, ".instrument"), { recursive: true });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
 });
 
 afterAll(async () => {

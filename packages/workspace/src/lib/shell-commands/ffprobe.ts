@@ -18,7 +18,7 @@ export function createFfprobeCommand(
   _layout: WorkspaceFsLayout,
 ) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
@@ -27,7 +27,7 @@ export function createFfprobeCommand(
       ["-hide_banner", ...hostPathArgs(args)],
       {
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
+        cwd: hostCwd,
         env: {
           ...getWorkspaceConfig().nodeExecEnv,
           ...env,

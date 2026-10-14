@@ -86,14 +86,15 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Go to Files: ⌃⌘2 / Alt+2
 - Keyboard Shortcuts: ? / ?
 - New Chat: ⌘N / Ctrl+N
+- Quit: ⌘Q / Ctrl+Q
 - Search or Ask: ⌘L / Ctrl+L
-- Settings...: ⌘, / Ctrl+,
+- Settings…: ⌘, / Ctrl+,
 
 ### Chats
 
-- Next Chat: ⌥⌘↓ / Ctrl+Alt+↓
+- Next Chat: ⌥⌘↓ / Alt+Shift+↓
 - Paste as Text: ⇧⌘V / Ctrl+Shift+V
-- Previous Chat: ⌥⌘↑ / Ctrl+Alt+↑
+- Previous Chat: ⌥⌘↑ / Alt+Shift+↑
 - Toggle Inbox: ⌘B / Ctrl+B
 
 ### Tabs
@@ -108,15 +109,15 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### Pages
 
-- Back: ⌘[ / Ctrl+[
+- Back: ⌘[ / Alt+←
 - Edit Page: ⌘E / Ctrl+E
 - Find in Page: ⌘F / Ctrl+F
-- Forward: ⌘] / Ctrl+]
+- Forward: ⌘] / Alt+→
 - Reload Page: ⌘R / Ctrl+R
 
 ### View
 
 - Actual Size: ⌘0 / Ctrl+0
 - Toggle Full Screen: ⌃⌘F / F11
-- Zoom In: ⌘+ / Ctrl++
+- Zoom In: ⌘+ / Ctrl+=
 - Zoom Out: ⌘- / Ctrl+-

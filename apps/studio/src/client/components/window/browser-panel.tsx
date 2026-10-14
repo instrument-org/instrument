@@ -13,11 +13,14 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
   InputGroup,
   InputGroupAddon,
@@ -27,6 +30,7 @@ import {
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { WindowContext } from "@/client/components/window/context";
+import { LoadProgress } from "@/client/components/window/load-progress";
 import { TabRowControl } from "@/client/components/window/tab-location-row";
 import {
   ZoomLevelMenu,
@@ -49,7 +53,21 @@ import {
   EMULATED_DEVICES,
   type EmulatedDevice,
 } from "@/client/lib/emulated-devices";
-import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
+import {
+  type LocatedPath,
+  locateTypedPath,
+  missedPathNotice,
+  typedPathHere,
+} from "@/client/lib/locate-typed-path";
+import {
+  resolveUrlOrSearch,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
+import { showInFolder } from "@/client/lib/show-in-files";
+import { segmentsOf } from "@/client/components/window/host-path";
+import { type TypedPath } from "@/client/lib/typed-path";
+import { fileHref } from "@/shared/computer-href";
+import { displayHostPath } from "@instrument-org/shared";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
@@ -74,7 +92,9 @@ import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
@@ -182,9 +202,16 @@ export function BrowserPanel({
   // both park it behind a notice and name the previous session's URL. Filtered
   // on read rather than cleared in an effect, so it costs no extra render and
   // no failed page is briefly shown as fine.
+  //
+  // A failure on the computer rather than the web carries what is at the
+  // path (`located`), learned after the fact, so the notice can say there is
+  // nothing there and offer the closest folder that opens. `typed` marks one
+  // the address field asked for, which never reached the guest at all.
   const [failure, setFailure] = useState<null | {
+    located?: LocatedPath;
     message: string;
     targetId: BrowserTargetId;
+    typed?: TypedPath;
     url: string;
   }>(null);
   const loadError = failure?.targetId === targetId ? failure : null;
@@ -241,6 +268,11 @@ export function BrowserPanel({
   const setBlockAds = useMutation(
     rpcClient.preferences.setBlockAds.mutationOptions(),
   );
+  // The blocker reads the choice per request, so the page reloads to show
+  // it the way it looks under the new one.
+  const setBlocking = (enabled: boolean) => {
+    setBlockAds.mutate({ enabled }, { onSuccess: () => guestNow()?.reload() });
+  };
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
@@ -309,6 +341,19 @@ export function BrowserPanel({
         targetId,
         url: detail.validatedURL,
       });
+      const filePath = detail.validatedURL.startsWith("file:")
+        ? typedPathHere(detail.validatedURL)
+        : undefined;
+      if (filePath) {
+        void locateTypedPath(filePath).then((located) => {
+          setFailure((current) =>
+            current?.targetId === targetId &&
+            current.url === detail.validatedURL
+              ? { ...current, located }
+              : current,
+          );
+        });
+      }
       if (!editingUrlRef.current && detail.validatedURL) {
         setDraftUrl(detail.validatedURL);
       }
@@ -375,6 +420,31 @@ export function BrowserPanel({
       });
   };
 
+  /**
+   * A path typed into the bar, which the page has no business showing: a
+   * file opens in the window's own view of it, a folder or a place the system
+   * would not let the app read in Files, and a path with nothing at it says
+   * so here, over the page the person was on.
+   */
+  const openTypedPath = async (typedPath: TypedPath) => {
+    const located = await locateTypedPath(typedPath);
+    if (located.kind === "file" && windowContext) {
+      windowContext.openScreen(fileHref(located.path));
+    } else if (located.kind !== "failed" && located.kind !== "missing") {
+      await showInFolder(located.path, {
+        kind: located.kind === "file" ? "file" : "folder",
+      });
+    } else {
+      setFailure({
+        located,
+        message: "",
+        targetId,
+        typed: typedPath,
+        url: typedPath.typed,
+      });
+    }
+  };
+
   const applyZoom = (factor: number) => {
     const current = guestNow();
     if (!current) {
@@ -407,7 +477,8 @@ export function BrowserPanel({
 
   // Bookmarks are the window's, shown on its browser's starting view; a
   // task's own browser has no such view to keep them on.
-  const inWindow = useContext(WindowContext) !== null;
+  const windowContext = useContext(WindowContext);
+  const inWindow = windowContext !== null;
   const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
   const toggleBookmark = () => {
@@ -543,6 +614,11 @@ export function BrowserPanel({
               >
                 <MagnifyingGlassIcon className="size-4" />
                 Find in page
+                <DropdownMenuShortcut>
+                  {formatAcceleratorText(
+                    WINDOW_SHORTCUTS.findInPage.accelerator,
+                  )}
+                </DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
@@ -554,14 +630,7 @@ export function BrowserPanel({
               </DropdownMenuItem>
               <DropdownMenuCheckboxItem
                 checked={preferences?.blockAds ?? true}
-                onCheckedChange={(enabled) => {
-                  // The blocker reads the choice per request, so the page
-                  // reloads to show it the way it looks under the new one.
-                  setBlockAds.mutate(
-                    { enabled },
-                    { onSuccess: () => guestNow()?.reload() },
-                  );
-                }}
+                onCheckedChange={setBlocking}
               >
                 <ShieldCheckIcon className="size-4" />
                 Block ads
@@ -684,7 +753,32 @@ export function BrowserPanel({
             </DropdownMenuContent>
           </DropdownMenu>
         );
-        const rowReload = (
+        // Reload becomes Stop for as long as the page loads, which is also
+        // how a reload that changes nothing on the page still shows it ran.
+        // Said in the address field only while ads are let through, since
+        // the choice holds for every page from then on and is easy to forget
+        // once the page that needed it is gone. A press turns blocking back on.
+        const fieldShield = preferences?.blockAds === false && (
+          <ToolbarTooltip label="Turn on ad blocking">
+            <button
+              className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+              onClick={() => {
+                setBlocking(true);
+              }}
+              type="button"
+            >
+              <ShieldSlashIcon className="size-3.5" />
+            </button>
+          </ToolbarTooltip>
+        );
+        const rowReload = nav.isLoading ? (
+          <TabRowControl
+            disabled={!active}
+            icon={<XIcon className="size-4" />}
+            label="Stop"
+            onClick={() => guestNow()?.stop()}
+          />
+        ) : (
           <TabRowControl
             chord="reloadPage"
             disabled={!active}
@@ -695,20 +789,39 @@ export function BrowserPanel({
         );
         const bar = (
           <>
-            <ToolbarTooltip chord="reloadPage">
-              <Button
-                disabled={!active}
-                onClick={() => guestNow()?.reload()}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <ArrowClockwiseIcon className="size-4" />
-              </Button>
-            </ToolbarTooltip>
+            {nav.isLoading ? (
+              <ToolbarTooltip label="Stop">
+                <Button
+                  disabled={!active}
+                  onClick={() => guestNow()?.stop()}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </ToolbarTooltip>
+            ) : (
+              <ToolbarTooltip chord="reloadPage">
+                <Button
+                  disabled={!active}
+                  onClick={() => guestNow()?.reload()}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <ArrowClockwiseIcon className="size-4" />
+                </Button>
+              </ToolbarTooltip>
+            )}
             <form
               className="min-w-0 flex-1"
               onSubmit={(event) => {
                 event.preventDefault();
+                const typedPath = typedPathHere(draftUrl);
+                if (typedPath) {
+                  void openTypedPath(typedPath);
+                  inputRef.current?.blur();
+                  return;
+                }
                 const target = resolveUrlOrSearch(draftUrl);
                 if (target) {
                   navigateTo(target);
@@ -737,6 +850,12 @@ export function BrowserPanel({
                   spellCheck={false}
                   value={draftUrl}
                 />
+                <LoadProgress isLoading={nav.isLoading} />
+                {fieldShield && (
+                  <InputGroupAddon align="inline-end">
+                    {fieldShield}
+                  </InputGroupAddon>
+                )}
                 <InputGroupAddon
                   align="inline-end"
                   className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
@@ -766,7 +885,15 @@ export function BrowserPanel({
             <>
               {chrome.reloadInto && createPortal(rowReload, chrome.reloadInto)}
               {chrome.into && createPortal(controls, chrome.into)}
-              {chrome.fieldInto && createPortal(fieldZoom, chrome.fieldInto)}
+              {chrome.fieldInto &&
+                createPortal(
+                  <>
+                    {fieldShield}
+                    {fieldZoom}
+                    <LoadProgress isLoading={nav.isLoading} />
+                  </>,
+                  chrome.fieldInto,
+                )}
             </>
           );
         }
@@ -819,29 +946,19 @@ export function BrowserPanel({
             />
           )}
           {loadError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
-              <WarningCircleIcon className="size-8 text-muted-foreground" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium">
-                  This site can’t be reached
-                </p>
-                <p className="max-w-xs truncate text-xs text-muted-foreground">
-                  {loadError.url}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {loadError.message}
-                </p>
-              </div>
-              <Button
-                onClick={() => {
+            <LoadErrorNotice
+              failure={loadError}
+              onRetry={() => {
+                if (loadError.typed) {
+                  void openTypedPath(loadError.typed);
+                } else {
                   navigateTo(loadError.url);
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Try again
-              </Button>
-            </div>
+                }
+              }}
+              onSearch={(words) => {
+                navigateTo(webSearchUrl(words));
+              }}
+            />
           )}
         </div>
       ) : (
@@ -900,4 +1017,95 @@ function PageLease({ targetId }: { targetId: BrowserTargetId }) {
     }),
   );
   return null;
+}
+
+/**
+ * What the panel says over a page that did not load. A page on the web says
+ * it could not be reached; a path on the computer says what is there once
+ * that is known: nothing, with the closest folder above it that opens, or a
+ * place the system would not let the app read, opened in Files where that is
+ * undone.
+ */
+function LoadErrorNotice({
+  failure,
+  onRetry,
+  onSearch,
+}: {
+  failure: {
+    located?: LocatedPath;
+    message: string;
+    typed?: TypedPath;
+    url: string;
+  };
+  onRetry: () => void;
+  onSearch: (words: string) => void;
+}) {
+  const { located, typed } = failure;
+  const home = window.api.homeDir;
+  const missed =
+    located?.kind === "missing" || located?.kind === "failed"
+      ? located
+      : undefined;
+  const nearest = located?.kind === "missing" ? located.nearest : undefined;
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
+      <WarningCircleIcon className="size-8 text-muted-foreground" />
+      {missed ? (
+        <p className="max-w-sm text-sm font-medium">
+          {missedPathNotice(missed)}
+        </p>
+      ) : located?.kind === "refused" ? (
+        <p className="max-w-sm text-sm font-medium">
+          Instrument can’t read “{displayHostPath(located.path, home)}”.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">This site can’t be reached</p>
+          <p className="max-w-xs truncate text-xs text-muted-foreground">
+            {failure.url}
+          </p>
+          <p className="text-xs text-muted-foreground">{failure.message}</p>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {nearest !== undefined && (
+          <Button
+            onClick={() => {
+              void showInFolder(nearest, { kind: "folder" });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Open “{segmentsOf(nearest).at(-1) ?? displayHostPath(nearest, home)}
+            ”
+          </Button>
+        )}
+        {located?.kind === "refused" && (
+          <Button
+            onClick={() => {
+              void showInFolder(located.path, { kind: "folder" });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Open in Files
+          </Button>
+        )}
+        {typed && (
+          <Button
+            onClick={() => {
+              onSearch(typed.typed);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Search the web
+          </Button>
+        )}
+        <Button onClick={onRetry} size="sm" variant="outline">
+          Try again
+        </Button>
+      </div>
+    </div>
+  );
 }

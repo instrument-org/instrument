@@ -26,6 +26,8 @@ function fakeGuest(url: string, targetId: BrowserTargetId = FIRST) {
       events.dispatchEvent(new Event(event));
     },
     forward: false,
+    isLoading: () => guest.loading,
+    loading: false,
     on: (event: string, listener: () => void) => {
       events.addEventListener(event, listener);
       return () => {
@@ -55,6 +57,7 @@ describe("useGuestNavigation", () => {
       {
         "canGoBack": false,
         "canGoForward": false,
+        "isLoading": false,
         "url": "https://a.test/",
       }
     `);
@@ -68,6 +71,7 @@ describe("useGuestNavigation", () => {
       {
         "canGoBack": true,
         "canGoForward": false,
+        "isLoading": false,
         "url": "https://b.test/",
       }
     `);
@@ -89,6 +93,25 @@ describe("useGuestNavigation", () => {
     });
     expect(result.current.canGoBack).toBe(true);
     expect(result.current.url).toBe("https://a.test/");
+  });
+
+  it("says the page is loading from the start of a load to its end", () => {
+    const guest = fakeGuest("https://a.test/");
+    useGuest.mockReturnValue(guest);
+    const { result } = renderHook(() => useGuestNavigation(FIRST));
+    expect(result.current.isLoading).toBe(false);
+
+    guest.loading = true;
+    act(() => {
+      guest.emit("did-start-loading");
+    });
+    expect(result.current.isLoading).toBe(true);
+
+    guest.loading = false;
+    act(() => {
+      guest.emit("did-stop-loading");
+    });
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("stays unknown until its guest is ready", () => {
@@ -126,6 +149,7 @@ describe("useGuestNavigation", () => {
     expect(result.current).toEqual({
       canGoBack: false,
       canGoForward: false,
+      isLoading: false,
       url: null,
     });
 

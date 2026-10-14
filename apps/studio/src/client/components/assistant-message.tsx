@@ -13,7 +13,7 @@ import { memo, useContext } from "react";
 import { AgentFilesBlock } from "./agent-files-block";
 import { BubbleActions } from "./bubble-actions";
 import { FollowedBubblesContext } from "./bubble-run-context";
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 import { MessageCard } from "./message-card";
 import { ReplyContext } from "./reply-context";
 import { SessionMarkdown } from "./session-markdown";
@@ -165,7 +165,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           ),
         )}
         {fences.length > 0 && (
-          <MarkdownTaskContext
+          <MarkdownChatContext
             value={{
               assetVersion: part.metadata.id,
               isStreaming,
@@ -187,7 +187,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 />
               ))}
             </div>
-          </MarkdownTaskContext>
+          </MarkdownChatContext>
         )}
       </div>
     );

@@ -1,48 +1,72 @@
 /** Where a chat stands, as its row and its line say it. */
-export type ChatState = "failed" | "idle" | "waiting" | "working";
+export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
 
 /**
- * Where a chat stands, from what is known of it this moment: its own agent,
- * its newest turn, the tasks it filed, and a wake on its way. The one rule
- * for whether a chat is working, which its row, marking it unread as it
- * settles, and naming it all read.
+ * Where a chat stands: the one rule every reader of a chat's state goes
+ * through.
  *
- * A task stopped on an ask is running to the machine and stalled to the
- * user, so it does not make the chat work; it makes it wait, unless
- * something else in the chat is moving. The chat's own agent stopped on an
- * ask of its own is the same. A message is written before the agent it
- * starts is running, so a turn starting counts as the chat's own work, and
- * a wake waiting out its debounce is work about to happen.
+ * - **working**: something of the chat's is moving. Its own turn, from the
+ *   moment a message reaches its session until that turn ends, unless the
+ *   turn stands on a question of its own the user has not written past; a
+ *   task at work, unless it stands on an ask; or a wake on its way to start a
+ *   turn.
+ * - **waiting**: a card or a question waits on the user. It outranks work,
+ *   being the part only the user can move along, unless they have written
+ *   since it was asked: the turn their message starts is what the chat is on
+ *   until it ends.
+ * - **stopped**: the user's last action was a Stop of the chat's own turn,
+ *   and no turn has started since.
+ * - **failed**: the chat's last turn ended in an error, and nothing has been
+ *   sent since.
+ * - **idle**: none of these.
+ *
+ * `working` comes back beside `state`, which waiting outranks it in: whether
+ * anything still moves is what marking the chat unread, naming it, and
+ * telling the user it is done each read as it settles.
  */
 export function chatStateOf({
+  askedAt,
   failed,
-  hasAsk,
-  ownAlive,
-  ownAsking,
-  pendingWake,
+  ownAskedAt,
+  ownTurn,
+  spokeAt,
+  stopped,
   tasks,
-  turnStarting,
+  wakeOnItsWay,
 }: {
-  /** The chat's last turn ended in an error with nothing said after it. */
+  /** When the newest of what waits on the user was asked, in ms; none when nothing does. */
+  askedAt: number | undefined;
+  /** The chat's last turn ended in an error with nothing sent after it. */
   failed: boolean;
-  /** Something of the chat's, its own agent or a task, waits on the user. */
-  hasAsk: boolean;
-  ownAlive: boolean;
-  /** The chat's own newest reply asks the user something. */
-  ownAsking: boolean;
-  pendingWake: boolean;
+  /** When the chat's own newest reply asked the user something, in ms; none when it asks nothing. */
+  ownAskedAt: number | undefined;
+  /** The chat's own session has a turn: a message has reached it, and the turn it starts has not ended. */
+  ownTurn: boolean;
+  /** When the user last sent a message, in ms. */
+  spokeAt: number;
+  /** The user stopped the chat's own turn, and no turn has started since. */
+  stopped: boolean;
+  /** The tasks of the chat's at work, each with what it stands on asking, if anything. */
   tasks: { waiting?: string }[];
-  turnStarting: boolean;
-}): { ownWorking: boolean; state: ChatState } {
-  const ownWorking = (ownAlive && !ownAsking) || turnStarting;
+  /** A wake is on its way to start a turn in one of the chat's sessions. */
+  wakeOnItsWay: boolean;
+}): { ownWorking: boolean; state: ChatState; working: boolean } {
+  const ownStandsOnAsk = ownAskedAt !== undefined && ownAskedAt > spokeAt;
+  const ownWorking = ownTurn && !ownStandsOnAsk;
   const working =
-    ownWorking || tasks.some((task) => !task.waiting) || pendingWake;
-  const state = working
-    ? "working"
-    : hasAsk
+    ownWorking || tasks.some((task) => !task.waiting) || wakeOnItsWay;
+  const hasAsk = askedAt !== undefined;
+  const state =
+    hasAsk && askedAt > spokeAt
       ? "waiting"
-      : failed
-        ? "failed"
-        : "idle";
-  return { ownWorking, state };
+      : working
+        ? "working"
+        : hasAsk
+          ? "waiting"
+          : stopped
+            ? "stopped"
+            : failed
+              ? "failed"
+              : "idle";
+  return { ownWorking, state, working };
 }

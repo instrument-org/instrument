@@ -562,10 +562,31 @@ describe("executeToolCallMachine", () => {
         chatId: taskConfig,
       });
 
-      expect(await readStoredPart(part.metadata.id)).toMatchObject({
+      const stored = await readStoredPart(part.metadata.id);
+      expect(stored).toMatchObject({
         errorText: "This action was stopped by you.",
         state: "output-error",
       });
+      expect(stored?.metadata).not.toHaveProperty("stoppedBy");
+    });
+
+    // The person reads the same words either way; the model is told which.
+    it("keeps that the chat's `task stop` was what stopped a call", async () => {
+      const part = createShellCommandPart("sleep 30");
+      await Store.savePart(part, taskConfig);
+
+      await saveStoppedToolCallPart({
+        part,
+        reason: "chat",
+        chatId: taskConfig,
+      });
+
+      const stored = await readStoredPart(part.metadata.id);
+      expect(stored).toMatchObject({
+        errorText: "This action was stopped by you.",
+        state: "output-error",
+      });
+      expect(stored?.metadata).toMatchObject({ stoppedBy: "chat" });
     });
 
     it("leaves a call that answered first exactly as it answered", async () => {

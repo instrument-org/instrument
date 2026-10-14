@@ -10,6 +10,10 @@ import {
   describeComputerFiles,
   listComputerFolder,
 } from "../../lib/chat/computer";
+import {
+  LocatedPathSchema,
+  locateComputerPath,
+} from "../../lib/chat/locate-computer-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
 
@@ -58,6 +62,16 @@ function errorCode(error: unknown) {
   return error instanceof Error && "code" in error ? error.code : undefined;
 }
 
+/**
+ * What is at a path a person typed or pasted into an address field, asked
+ * when they press Return rather than as they type, since the first read of a
+ * protected folder is the moment the system asks about it.
+ */
+const locate = base
+  .input(z.object({ path: z.string() }))
+  .output(LocatedPathSchema)
+  .handler(({ input }) => locateComputerPath(input.path));
+
 /** The folders the computer is entered from, and its volumes. */
 const places = base
   .output(ComputerPlacesSchema)
@@ -77,5 +91,6 @@ const describe = base
 export const computer = {
   describe,
   list,
+  locate,
   places,
 };

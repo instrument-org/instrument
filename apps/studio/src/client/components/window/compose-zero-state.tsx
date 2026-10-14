@@ -18,7 +18,7 @@ import { type ReactNode, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { AppIcon } from "./app-icon";
-import { computerName } from "./computer-name";
+import { osConventions } from "@/client/lib/utils";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageSection } from "./page-section";
 import { VisitedPageRows } from "./visited-page-rows";
@@ -62,7 +62,7 @@ export function ComposeZeroState({
         <Tile icon={GlobeIcon} name="Browser" onOpen={onOpenBrowser} />
         <Tile
           icon={DesktopIcon}
-          name={computerName()}
+          name={osConventions().computer}
           onOpen={() => {
             onOpenFolder(OUTPUT_FOLDER);
           }}

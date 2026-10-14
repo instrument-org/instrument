@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";

@@ -1,12 +1,12 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useComposerDraft } from "@/client/components/composer-draft-context";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
-import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
+import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
@@ -15,9 +15,9 @@ import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  isAddressableTaskFilePath,
-  isTaskFileHref,
-  taskFilePathFromHref,
+  isAddressableChatFilePath,
+  isChatFileHref,
+  chatFilePathFromHref,
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -25,7 +25,6 @@ import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
   type ComponentProps,
-  isValidElement,
   memo,
   type ReactNode,
   useCallback,
@@ -85,7 +84,7 @@ import {
   InlineLink,
 } from "./inline-link";
 import { MarkdownTable } from "./markdown-table";
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
 import {
@@ -101,16 +100,16 @@ import { WindowContext } from "./window/context";
 
 interface MarkdownProps {
   // Which bytes this text's file references are about; see
-  // `MarkdownTaskContext`.
+  // `MarkdownChatContext`.
   assetVersion?: string;
   /**
-   * This markdown's own asset URL, when it is a file in the task rather than a
-   * message.
+   * This markdown's own asset URL, when it is a file in the chat's folder rather
+   * than a message.
    *
    * A file sits in a directory, so a relative image source in it means what a
    * browser would mean by it: `./chart.png` beside `work/report.md` is the
    * chart in `work/`. A message sits in no directory, so it passes nothing
-   * here and its relative sources join from the task root instead.
+   * here and its relative sources join from the chat's folder instead.
    */
   documentUrl?: string;
   // Drops the images the allow-list rejects instead of standing a chip in for
@@ -123,7 +122,7 @@ interface MarkdownProps {
    * Where an image in this markdown may point; see `lib/image-policy`.
    *
    * Defaults to everything markdown the agent wrote or the user did may reach,
-   * remote hosts and the task's own files included. Markdown that
+   * remote hosts and the chat's own files included. Markdown that
    * arrived inside a file someone else authored passes
    * `UNTRUSTED_FILE_IMAGE_KINDS` instead: an image is fetched the moment the
    * file is opened, with no click in between, which discloses an IP, confirms
@@ -134,10 +133,10 @@ interface MarkdownProps {
    */
   imageKinds?: readonly ImageSourceKind[];
   // Fades each word in as it arrives, and is passed through to the constructs
-  // that resolve their own contents; see `MarkdownTaskContext`.
+  // that resolve their own contents; see `MarkdownChatContext`.
   isStreaming?: boolean;
   markdown: string;
-  // Present only when rendered inside a task chat. Enables the task-file
+  // Present only when rendered inside a chat. Enables the file's
   // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
   // opens the file without it.
   chatId?: ChatId;
@@ -173,7 +172,7 @@ function containsMathSyntax(markdown: string) {
  *
  * Four departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
- * `TaskFileLink` then judges against the chat's folder and the folders it
+ * `ChatFileLink` then judges against the chat's folder and the folders it
  * reaches. The app's own
  * scheme is how a reply links a thing inside the app, a task or a memory,
  * which `InlineLink` draws as a chip and opens in the window rather than
@@ -405,7 +404,7 @@ const markdownParagraph: Components["p"] = ({ className, node, ...props }) => {
 // all, while a chip that reports itself missing when clicked says what
 // happened -- and is the only answer that can be right about a file deleted a
 // minute after the message was written.
-const TaskFileLink = ({
+const ChatFileLink = ({
   children,
   className,
   href,
@@ -414,19 +413,19 @@ const TaskFileLink = ({
   className?: string;
   href: string;
 }) => {
-  const { chatId } = useContext(MarkdownTaskContext);
-  const filePath = taskFilePathFromHref(href);
+  const { chatId } = useContext(MarkdownChatContext);
+  const filePath = chatFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
   // A window with tabs gives the file a tab of its own on a middle or
   // modified click, and offers one in the menu.
   const hasTabs = useContext(WindowContext) !== null;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   const composerDraft = useComposerDraft();
   // Where the file is on the computer, which the drag and the menu act on.
-  // Before the guard below, so the chip that turns out not to name a task file
+  // Before the guard below, so the chip that turns out not to name a chat file
   // still asks in the same order every render.
-  const isAddressable = isAddressableTaskFilePath(filePath);
+  const isAddressable = isAddressableChatFilePath(filePath);
   const hostPath = useHostPaths(chatId, isAddressable ? [filePath] : [])[
     filePath
   ];
@@ -440,12 +439,12 @@ const TaskFileLink = ({
     <ChipButton
       className={className}
       onActivate={(event) => {
-        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
+        showChatFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
       }}
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
-          showTaskFile(filePath, { newTab: hasTabs });
+          showChatFile(filePath, { newTab: hasTabs });
         }
       }}
       title={filePath}
@@ -464,8 +463,8 @@ const TaskFileLink = ({
     </ChipButton>
   );
 
-  // The file-action menu needs the task and where the file is; without the
-  // ambient task context (e.g. reasoning or a previewed markdown file), or
+  // The file-action menu needs the chat and where the file is; without the
+  // ambient chat context (e.g. reasoning or a previewed markdown file), or
   // before the place is known, the chip still opens the file on a left click,
   // just without a right-click menu.
   if (!chatId || !hostPath) {
@@ -475,7 +474,7 @@ const TaskFileLink = ({
   const viewerFile: ViewerFile = {
     filename,
     hostPath,
-    taskFile: { filePath, chatId },
+    chatFile: { filePath, chatId },
     url: getComputerFileUrl({ hostPath }),
   };
 
@@ -487,14 +486,14 @@ const TaskFileLink = ({
           <>
             <ContextMenuItem
               onSelect={() => {
-                showTaskFile(filePath);
+                showChatFile(filePath);
               }}
             >
               Open
             </ContextMenuItem>
             <ContextMenuItem
               onSelect={() => {
-                showTaskFile(filePath, { behind: true, newTab: true });
+                showChatFile(filePath, { behind: true, newTab: true });
               }}
             >
               Open in New Tab
@@ -516,27 +515,6 @@ const TaskFileLink = ({
       </ContextMenuContent>
     </ContextMenu>
   );
-};
-
-// The label as text, which is what the destination is compared against.
-//
-// Walked rather than read off the top, because the markup a label carries is
-// not the reader's problem: a model writing a host in backticks or bold has
-// still written the host, and comparing against an element instead would put a
-// redundant origin after every one of them. Anything with no text in it at all
-// comes back empty and is disclosed, which is the same answer a label that says
-// nothing gets.
-const plainText = (children: ReactNode): string => {
-  if (typeof children === "string") {
-    return children;
-  }
-  if (Array.isArray(children)) {
-    return children.map((child: ReactNode) => plainText(child)).join("");
-  }
-  if (isValidElement<{ children?: ReactNode }>(children)) {
-    return plainText(children.props.children);
-  }
-  return "";
 };
 
 // The elements a link written in markdown can never hold. An anchor holding one
@@ -691,21 +669,16 @@ const MarkdownLink = ({
     }
   }
 
-  if (isTaskFileHref(href)) {
+  if (isChatFileHref(href)) {
     return (
-      <TaskFileLink className={className} href={href}>
+      <ChatFileLink className={className} href={href}>
         {children}
-      </TaskFileLink>
+      </ChatFileLink>
     );
   }
 
   return (
-    <InlineLink
-      {...props}
-      className={className}
-      href={href}
-      label={plainText(children)}
-    >
+    <InlineLink {...props} className={className} href={href}>
       {children}
     </InlineLink>
   );
@@ -723,7 +696,7 @@ const MarkdownLink = ({
 //
 // `file:` is how a model spells a link to a file it just wrote, and the default
 // transform drops the href whole rather than pass a scheme it does not know.
-// Reduce such a URL to its path so it reaches `TaskFileLink` on the same terms
+// Reduce such a URL to its path so it reaches `ChatFileLink` on the same terms
 // as any other file reference. Passing it through instead only ever reaches
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
@@ -733,7 +706,7 @@ const MarkdownLink = ({
 // goes, so one with a noun the app has no screen for is dropped as any unknown
 // scheme is, rather than reaching the OS as a link to nothing. The one noun
 // that names no screen, `file`, is reduced to its path the way a `file:` URL
-// is, so it reaches `TaskFileLink` too.
+// is, so it reaches `ChatFileLink` too.
 const markdownUrlTransform: UrlTransform = (url, key, node) => {
   if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
     return url;
@@ -743,17 +716,26 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
   }
   const filePath = key === "href" ? filePathOfInstrumentLink(url) : undefined;
   if (filePath !== undefined) {
-    return filePath;
+    return shellSpelledDrive(filePath);
   }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
   }
   try {
-    return new URL(url).pathname;
+    return shellSpelledDrive(new URL(url).pathname);
   } catch {
     return "";
   }
 };
+
+// A file URL to a Windows file keeps the drive as its path's first segment,
+// `/C:/Users/sam/a.md`, which no folder a conversation reaches is named by:
+// those go by the shell's spelling of the drive, `/c/Users/sam/a.md`.
+const shellSpelledDrive = (path: string) =>
+  path.replace(
+    /^\/([A-Za-z]):(?=\/|$)/,
+    (_, drive: string) => `/${drive.toLowerCase()}`,
+  );
 
 // What a chip prints beside its label: the host for a URL, the path itself for
 // a path. A source too long to read inline (a rejected `data:` URI, mostly)
@@ -873,7 +855,7 @@ const MarkdownImage = ({
     hostPath?: string,
   ) => void;
 }) => {
-  const { assetVersion, isStreaming, chatId } = useContext(MarkdownTaskContext);
+  const { assetVersion, isStreaming, chatId } = useContext(MarkdownChatContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
   const hostPath = useHostPaths(chatId, filePath ? [filePath] : [])[
     filePath ?? ""
@@ -924,9 +906,9 @@ const MarkdownImage = ({
  *
  * A source naming an origin is left as it is for the allow-list to read: an
  * http, https, data, or blob URL, and a protocol-relative one. Everything else
- * is a path inside the task, resolved either against the document this markdown
+ * is a path inside the chat's folder, resolved either against the document this markdown
  * is (`documentUrl`, the browser's own semantics for a relative URL) or from
- * the task root, which is where a message's file references start. Both cover
+ * the chat's folder, which is where a message's file references start. Both cover
  * a bare `work/x.png` as well as `./` and `../`.
  *
  * The kind of a source the document resolved is read before it is resolved,
@@ -957,15 +939,15 @@ const resolveImageSource = (
 };
 
 /**
- * The task file an `![](...)` embed points at, for the surfaces that act on the
+ * The chat file an `![](...)` embed points at, for the surfaces that act on the
  * file rather than on the picture.
  *
  * Written against the source as authored rather than the resolved asset URL:
  * the path is what the rest of the app names a file by, and reading it back out
  * of a URL means re-deriving something we were handed.
  */
-const taskFilePathFromImageSrc = (src: string | undefined) =>
-  src && !isAbsoluteImageSrc(src) && isAddressableTaskFilePath(src)
+const chatFilePathFromImageSrc = (src: string | undefined) =>
+  src && !isAbsoluteImageSrc(src) && isAddressableChatFilePath(src)
     ? src
     : undefined;
 
@@ -1174,10 +1156,10 @@ export const Markdown = memo(
           }
           // A document's source is written against the directory the
           // document is in, so it names no path the rest of the app could
-          // resolve; only a message's is a task-root path.
+          // resolve; only a message's is a path in the chat's folder.
           const filePath = documentUrl
             ? undefined
-            : taskFilePathFromImageSrc(src);
+            : chatFilePathFromImageSrc(src);
           return (
             <MarkdownImage
               {...props}
@@ -1211,7 +1193,7 @@ export const Markdown = memo(
     );
 
     return (
-      <MarkdownTaskContext value={{ assetVersion, isStreaming, chatId }}>
+      <MarkdownChatContext value={{ assetVersion, isStreaming, chatId }}>
         {blocks === undefined ? (
           <MarkdownBlock
             components={components}
@@ -1240,7 +1222,7 @@ export const Markdown = memo(
             />
           ))
         )}
-      </MarkdownTaskContext>
+      </MarkdownChatContext>
     );
   },
 );

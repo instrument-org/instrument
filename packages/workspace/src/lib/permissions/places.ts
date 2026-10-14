@@ -133,7 +133,13 @@ const STARTUP_PLACES = [
   ".bash_login",
   ".profile",
   ".config/fish/config.fish",
+  ".config/fish/conf.d",
+  // A function fish loads the first time its name is typed.
+  ".config/fish/functions",
   ".config/autostart",
+  // User units systemd starts, and the environment it gives every one.
+  ".config/systemd/user",
+  ".config/environment.d",
   "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup",
 ];
 
@@ -153,6 +159,8 @@ export function startupPaths(home = os.homedir()): string[] {
 export const DANGEROUS_NAMES = [
   ".git/hooks",
   ".gitconfig",
+  // Git's other global config (`core.fsmonitor`, `core.hooksPath`).
+  ".config/git/config",
   ".gitmodules",
   ".vscode",
   ".idea",

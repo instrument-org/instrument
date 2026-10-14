@@ -39,17 +39,18 @@ let chatId: ChatId;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "permission-denied-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  const chatRoot = path.join(tmpDir, "tasks", "test");
   docs = path.join(tmpDir, "Docs");
   elsewhere = path.join(tmpDir, "Elsewhere");
   closed = path.join(tmpDir, "Closed");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(docs, "locked"), { recursive: true });
   await fs.writeFile(path.join(docs, "locked", "secret.txt"), "secret\n");
   await fs.mkdir(elsewhere);
   await fs.writeFile(path.join(elsewhere, "open.txt"), "open\n");
   await fs.mkdir(closed);
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  await fs.mkdir(path.join(docs, "asks"));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // Settings live in the workspace's root, which the mock chats share across
   // test files, so this file keeps its own.
   setWorkspaceConfig({
@@ -68,6 +69,11 @@ beforeAll(async () => {
         addedAt: new Date(),
         level: "never",
         path: AbsolutePathSchema.parse(closed),
+      },
+      {
+        addedAt: new Date(),
+        level: "ask",
+        path: AbsolutePathSchema.parse(path.join(docs, "asks")),
       },
     ],
   }));
@@ -136,6 +142,16 @@ describe.each(Object.entries(shells))(
       const result = await bash.exec(`cat ${elsewhere}/open.txt; ls ${closed}`);
       expect(result.stdout).toBe("open\n");
       expect(result.stderr).toContain(`ls: ${closed}: Permission denied\n`);
+    });
+
+    it("raises a card for a folder a later command lists, and none for one a walk passes", async () => {
+      const bash = await shell();
+      const walked = await bash.exec(`find ${docs} -name x`);
+      expect(walked.stderr).not.toContain("Waiting on the person");
+      const listed = await bash.exec(`ls ${docs}; ls ${docs}/asks`);
+      expect(listed.stderr).toContain(
+        `Waiting on the person to allow ${path.join(docs, "asks")}.`,
+      );
     });
 
     it("still says a missing file is missing", async () => {

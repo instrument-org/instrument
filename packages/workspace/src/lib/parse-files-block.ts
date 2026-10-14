@@ -1,5 +1,5 @@
 import { AGENT_FILES_LANGUAGE } from "../constants";
-import { normalizeTaskFilePath } from "./normalize-task-file-path";
+import { normalizeChatFilePath } from "./normalize-chat-file-path";
 
 /**
  * A ```files fence in a message, its body captured. Global, so a message with
@@ -66,7 +66,7 @@ function readPath(line: string): string | undefined {
   const link = MARKDOWN_LINK.exec(withoutMarker);
   const value = unwrap((link?.[1] ?? withoutMarker).trim());
 
-  return value === "" ? undefined : normalizeTaskFilePath(value);
+  return value === "" ? undefined : normalizeChatFilePath(value);
 }
 
 function unwrap(value: string): string {

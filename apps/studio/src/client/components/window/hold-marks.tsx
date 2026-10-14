@@ -14,12 +14,12 @@ import {
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { iconHostOf, useIconlessHosts } from "@/client/lib/favicon-url";
 import { type OpenTarget } from "@/client/lib/open-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
 
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
-import { basename } from "./chats";
+import { nameOf } from "./host-path";
 
 /** One thing a chat made or used, with the mark it is drawn as and where it opens. */
 interface Hold {
@@ -77,10 +77,10 @@ export function HoldMarks({
       icon: path.endsWith("/") ? (
         <MacFolderIcon className="size-4" />
       ) : (
-        <FileTypeIcon className="size-4" fileName={basename(path)} />
+        <FileTypeIcon className="size-4" fileName={nameOf(path)} />
       ),
       key: `file:${path}`,
-      name: basename(path),
+      name: nameOf(path),
       named: namedFiles,
       target: { kind: "path" as const, path },
     })),
@@ -280,5 +280,5 @@ function stopHere(event: SyntheticEvent) {
 
 /** Whether a click asks for a tab of its own: the platform's one modifier for it, since Ctrl and a click is the secondary click on macOS. */
 function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
-  return isMacOS() ? event.metaKey : event.ctrlKey;
+  return commandKeyHeld(event);
 }

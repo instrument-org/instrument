@@ -13,7 +13,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
-import { computerName } from "./computer-name";
+import { osConventions } from "@/client/lib/utils";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
@@ -251,5 +251,5 @@ function folderTitle(
     { kind: "folder", path },
     { home, ...(volumes ? { volumes } : {}) },
   );
-  return crumbs.at(-1)?.label ?? computerName();
+  return crumbs.at(-1)?.label ?? osConventions().computer;
 }

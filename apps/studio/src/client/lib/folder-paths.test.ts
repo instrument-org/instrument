@@ -3,6 +3,7 @@ import {
   expandHomePath,
   folderLabelFromPath,
   folderNameFromPath,
+  parentSegmentFromPath,
   shortenHomePath,
 } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
@@ -23,8 +24,31 @@ describe("folderNameFromPath", () => {
       path: "/Users/sam/Docs/test/",
     },
     { expected: "/", label: "the filesystem root", path: "/" },
+    // A backslash is a character a name can hold on a Mac or Linux.
+    {
+      expected: String.raw`a\b`,
+      label: "a posix name holding a backslash",
+      path: String.raw`/Users/sam/a\b`,
+    },
+    {
+      expected: "Reports",
+      label: "a network share",
+      path: String.raw`\\server\share\Reports`,
+    },
   ])("names $label", ({ expected, path }) => {
     expect(folderNameFromPath(path)).toBe(expected);
+  });
+});
+
+describe("parentSegmentFromPath", () => {
+  it.each([
+    { expected: "Docs", path: "/Users/sam/Docs/test" },
+    { expected: "sam", path: String.raw`C:\Users\sam\test` },
+    { expected: undefined, path: "/Users" },
+    { expected: "sam", path: String.raw`/Users/sam/a\b` },
+    { expected: String.raw`a\b`, path: String.raw`/Users/sam/a\b/c` },
+  ])("puts $path in $expected", ({ expected, path }) => {
+    expect(parentSegmentFromPath(path)).toBe(expected);
   });
 });
 
@@ -82,6 +106,13 @@ describe("shortenHomePath", () => {
       home: undefined,
       label: "an unknown home directory",
     },
+    {
+      // On a Mac or Linux this is a folder called `sam\Documents` beside home.
+      expected: String.raw`/Users/sam\Documents`,
+      filePath: String.raw`/Users/sam\Documents`,
+      home: "/Users/sam",
+      label: "a sibling whose name holds a backslash",
+    },
   ])("shortens $label", ({ expected, filePath, home }) => {
     expect(shortenHomePath(filePath, home)).toBe(expected);
   });
@@ -127,6 +158,14 @@ describe("folderLabelFromPath", () => {
       home: undefined,
       label: "the home folder with no home directory known",
     },
+    {
+      // A trailing backslash is part of the name on a Mac or Linux, so this
+      // is a folder beside home rather than home itself.
+      expected: "sam\\",
+      folderPath: "/Users/sam\\",
+      home: "/Users/sam",
+      label: "a sibling whose name ends in a backslash",
+    },
   ])("calls $label $expected", ({ expected, folderPath, home }) => {
     expect(folderLabelFromPath(folderPath, home)).toBe(expected);
   });
@@ -170,6 +209,25 @@ describe("displayHostPath", () => {
       label: "a path outside home",
       path: "/Volumes/Backup",
     },
+    // A backslash is a character a name can hold on a Mac or Linux.
+    {
+      expected: String.raw`sam/Documents/a\b`,
+      home: "/Users/sam",
+      label: "a posix name holding a backslash",
+      path: String.raw`/Users/sam/Documents/a\b`,
+    },
+    {
+      expected: String.raw`/Users/sam\Documents`,
+      home: "/Users/sam",
+      label: "a sibling whose name holds a backslash",
+      path: String.raw`/Users/sam\Documents`,
+    },
+    {
+      expected: String.raw`sam\Documents`,
+      home: String.raw`C:\Users\sam`,
+      label: "a Windows path written from `~`",
+      path: String.raw`~\Documents`,
+    },
   ])("reads $label as $expected", ({ expected, home, path }) => {
     expect(displayHostPath(path, home)).toBe(expected);
   });
@@ -193,6 +251,28 @@ describe("expandHomePath", () => {
       expected: "/Volumes/Backup",
       home: "/Users/sam",
       path: "/Volumes/Backup",
+    },
+    // A backslash is a character a name can hold on a Mac or Linux, and a
+    // separator where home is a Windows path.
+    {
+      expected: String.raw`/Users/sam/a\b`,
+      home: "/Users/sam",
+      path: String.raw`~/a\b`,
+    },
+    {
+      expected: String.raw`/Users/a\b/Documents`,
+      home: String.raw`/Users/a\b`,
+      path: "~/Documents",
+    },
+    {
+      expected: String.raw`~\Documents`,
+      home: "/Users/sam",
+      path: String.raw`~\Documents`,
+    },
+    {
+      expected: String.raw`C:\Users\sam\Documents\a`,
+      home: String.raw`C:\Users\sam`,
+      path: String.raw`~\Documents/a`,
     },
   ])("writes $path out as $expected", ({ expected, home, path }) => {
     expect(expandHomePath(path, home)).toBe(expected);

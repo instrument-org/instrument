@@ -236,8 +236,13 @@ export function createHistory(ed: Editor): HistoryApi {
     const lastRedo = redoStack.at(-1);
     ui.undoBtn.disabled = !lastUndo;
     ui.redoBtn.disabled = !lastRedo;
-    ui.undoBtn.title = lastUndo ? `Undo ${lastUndo.label} (⌘Z)` : "Undo (⌘Z)";
-    ui.redoBtn.title = lastRedo ? `Redo ${lastRedo.label} (⇧⌘Z)` : "Redo (⇧⌘Z)";
+    const { keys } = ed;
+    ui.undoBtn.title = lastUndo
+      ? `Undo ${lastUndo.label} (${keys.undo})`
+      : `Undo (${keys.undo})`;
+    ui.redoBtn.title = lastRedo
+      ? `Redo ${lastRedo.label} (${keys.redo})`
+      : `Redo (${keys.redo})`;
   }
 
   function init() {

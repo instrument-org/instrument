@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   activityLabel,
   askOf,
-  basename,
   byActivity,
   byLastUserMessage,
   type ChatFilters,
@@ -467,12 +466,6 @@ describe("the ask", () => {
         },
       }),
     ).toBe("Find the receipt\nand file it");
-  });
-
-  it("names a file by its last segment", () => {
-    expect(basename("/Users/sam/chat/output/report.md")).toBe("report.md");
-    expect(basename("report.md")).toBe("report.md");
-    expect(basename("/Users/sam/home/notes/")).toBe("notes");
   });
 });
 

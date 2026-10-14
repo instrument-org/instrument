@@ -57,7 +57,7 @@ jobs:
         working-directory: packages/workspace
         run: |
           pnpm --silent script:clt-shim-audit -- --mode shadow
-          pnpm --silent script:clt-shim-audit -- --mode guarded
+          pnpm --silent script:clt-shim-audit -- --mode sandboxed
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
       - name: Upload smoke test screenshots

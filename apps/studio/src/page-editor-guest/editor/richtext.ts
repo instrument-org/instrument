@@ -21,6 +21,7 @@ import { StarterKit } from "@tiptap/starter-kit";
 
 import { findAs } from "./dom";
 import { icon } from "./icons";
+import { type EditorKeys } from "./keys";
 
 const attrsOf = (el: Element) =>
   Object.fromEntries(
@@ -261,12 +262,18 @@ export function mountRich(
   srcInner: string,
   {
     at,
+    keys,
     layer,
     onDone,
-  }: { at: CaretAt; layer: HTMLElement; onDone: () => void },
+  }: {
+    at: CaretAt;
+    keys: EditorKeys;
+    layer: HTMLElement;
+    onDone: () => void;
+  },
 ): null | RichText {
   const saved = [...el.childNodes];
-  const bubble = buildBubble();
+  const bubble = buildBubble(keys);
   const linkRow = findAs(bubble, ".link-row", HTMLFormElement);
   const marksRow = findAs(bubble, ".marks", HTMLElement);
   const input = findAs(linkRow, "input", HTMLInputElement);
@@ -538,15 +545,15 @@ export function mountRich(
   };
 }
 
-function buildBubble() {
+function buildBubble(keys: EditorKeys) {
   const el = document.createElement("div");
   el.className = "bubble";
   el.innerHTML = `
     <div class="bubble-row marks">
-      <button type="button" data-cmd="bold" title="Bold (⌘B)">${ICON.bold}</button>
-      <button type="button" data-cmd="italic" title="Italic (⌘I)">${ICON.italic}</button>
+      <button type="button" data-cmd="bold" title="Bold (${keys.bold})">${ICON.bold}</button>
+      <button type="button" data-cmd="italic" title="Italic (${keys.italic})">${ICON.italic}</button>
       <span class="sep"></span>
-      <button type="button" data-cmd="link" title="Link (⌘K)">${ICON.link}<span>Link</span></button>
+      <button type="button" data-cmd="link" title="Link (${keys.link})">${ICON.link}<span>Link</span></button>
     </div>
     <form class="bubble-row link-row" hidden>
       <span class="link-ico">${ICON.link}</span>

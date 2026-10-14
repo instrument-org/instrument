@@ -2,10 +2,14 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { recordChanged } from "../record-changes";
+import { type PermissionAsk } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StopNotice } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
 import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
@@ -16,20 +20,36 @@ import {
 } from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
+import { openAsksOf } from "../permissions/asks";
 import { resolveChat, sessionOfChat } from "../record-folders";
-import { taskFsLayout } from "../resolve-workspace-file-path";
+import { shellPath } from "../workspace-fs-layout";
+import { sessionLayout } from "../session-layout";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
+import { getCurrentDate } from "../get-current-date";
+import { isToolPart } from "../is-tool-part";
 import { closeAgentBrowserSessionsForSessions } from "../agent-browser-cleanup";
+import { processStopsSettled } from "../background-processes";
 import { getWorkspaceConfig } from "../workspace-config";
-import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
+import {
+  isWorking,
+  latestStep,
+  leftRunning,
+  ownMessages,
+  turnStartedAt,
+} from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
-import { childTask, listChildTasks, touchTask } from "./children";
+import {
+  type ChatTask,
+  childTask,
+  listChildTasks,
+  touchTask,
+} from "./children";
 import { stepInFlight } from "./in-flight";
 import { cutForNote, lastAssistantText } from "./latest-session";
-import { endedWithoutWords } from "./standing";
+import { appClosedLine, endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
@@ -42,6 +62,7 @@ export type WakePart =
       data: SessionMessageDataPart.PermissionAnswerDataPart;
       type: "data-permissionAnswer";
     }
+  | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -83,9 +104,11 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
 /**
  * Who stopped a task's working turn, and whether the chat hears of it.
  * The chat's own `task stop` is a step it took, and the user's Stop on the
- * whole chat stops the chat too, so neither wakes it. The user stopping one
- * task while the chat carries on does, so the chat knows the task did not
- * finish and leaves it stopped.
+ * whole chat stops the chat too, so the chat hears of neither. The user
+ * stopping one task while the chat carries on is written into the chat as a
+ * note, so its agent knows the task did not finish and leaves it stopped,
+ * but wakes nothing: the person who stopped it knows already, and the agent
+ * reads the note with their next message, the way a quit's note is read.
  */
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
@@ -106,12 +129,44 @@ const pending = new Map<
 >();
 
 /**
- * Whether any of a chat's tasks has a finish waiting out the debounce before
- * its wake is written. The chat is still at work in that gap: its task has
- * stopped and its own agent has not started on the news yet.
+ * How many wakes each chat has on their way to a session of its: past any
+ * debounce, and not yet handed to the session whose turn they start.
+ */
+const delivering = new Map<ChatId, number>();
+
+/**
+ * Whether a wake is on its way to start a turn in one of the chat's
+ * sessions: a task's finish waiting out the debounce, or any wake between
+ * that and reaching its session, which writes its note first and may then
+ * spend a while finding the chat's model. The chat is still at work all
+ * that time: something of it has moved, and its agent has not started on
+ * the news yet.
  */
 export function hasPendingWake(chatId: ChatId) {
-  return (pending.get(chatId)?.events.size ?? 0) > 0;
+  return (pending.get(chatId)?.events.size ?? 0) > 0 || delivering.has(chatId);
+}
+
+/**
+ * Delivers a wake counted as on its way, and once none of the chat's is,
+ * has its row read again: a wake that never reached its session leaves the
+ * chat as it was, which nothing else would say.
+ */
+async function onItsWay<Value>(
+  chatId: ChatId,
+  delivery: () => Promise<Value>,
+): Promise<Value> {
+  delivering.set(chatId, (delivering.get(chatId) ?? 0) + 1);
+  try {
+    return await delivery();
+  } finally {
+    const left = (delivering.get(chatId) ?? 1) - 1;
+    if (left > 0) {
+      delivering.set(chatId, left);
+    } else {
+      delivering.delete(chatId);
+      recordChanged(chatId, "agent");
+    }
+  }
 }
 
 /**
@@ -179,21 +234,183 @@ export async function wakeChatForApp(
 }
 
 /**
- * Wakes the session that ran into a folder or an app with the person's
- * answer to its card, or joins that session's turn at its next step when it
- * is still going: a task's own session when a task asked, the chat's when
- * the chat did.
+ * Wakes every session that ran into a folder or an app with the person's
+ * answer to its card, or joins each one's turn at its next step when it is
+ * still going: a task's own session for each task that asked, the chat's
+ * when the chat did. The wakes run side by side, so one that fails does not
+ * hold back the others.
  */
 export async function wakeSessionForPermission(
   part: Extract<WakePart, { type: "data-permissionAnswer" }>,
   workspaceRef: WorkspaceActorRef,
   chatId: ChatId,
-  sessionId: StoreId.Session,
+  askingSessionIds: StoreId.Session[],
 ): Promise<void> {
   if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
     return;
   }
+  await Promise.all(
+    askingSessionIds.map((sessionId) =>
+      wakeWith(chatId, part, workspaceRef, sessionId),
+    ),
+  );
+}
+
+/**
+ * Wakes a session, a task's or the chat's own, with the background processes
+ * it left running that have since ended on their own (`job-wake.ts`).
+ */
+export async function wakeSessionForJobs(
+  part: Extract<WakePart, { type: "data-jobEvent" }>,
+  workspaceRef: WorkspaceActorRef,
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
   await wakeWith(chatId, part, workspaceRef, sessionId);
+}
+
+/**
+ * Ends every task at work as the app quits, and leaves each chat a note
+ * naming the tasks the quit cut off and what they had running in the
+ * background, which the quit kills next. Run before those processes are
+ * killed: their list lives only in this process, and a task whose command
+ * dies under it would otherwise go on to its next step. The note starts no
+ * turn, since nothing would run it; it is in the conversation for the person
+ * to see after relaunch, and reaches the chat's agent with its next turn,
+ * the way a chat's own interrupted turn is found then. Each task's row keeps
+ * that the app stopped it, which the task list reads.
+ */
+export async function interruptTasksForQuit(
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const { sessionRefsByChatId } = workspaceRef.getSnapshot().context;
+  const alive = [...sessionRefsByChatId].flatMap(([chatId, refs]) =>
+    refs.flatMap((ref) => {
+      const snapshot = ref.getSnapshot();
+      return snapshot.hasTag("agent.alive")
+        ? [{ chatId, sessionId: snapshot.context.sessionId }]
+        : [];
+    }),
+  );
+  const interrupted = await noteTasksInterruptedByQuit(alive);
+  for (const task of interrupted) {
+    workspaceRef.send({
+      type: "stopSessions",
+      value: {
+        id: task.chatId,
+        notice: { by: "app", wakesChat: false },
+        reason: "quit",
+        sessionId: task.id,
+      },
+    });
+  }
+}
+
+/**
+ * The record half of {@link interruptTasksForQuit}: settles the call each of
+ * these sessions that is a task had in flight as cut off now, marks the task
+ * as stopped by the app, and writes its chat the note, one per chat. Returns
+ * the tasks among them.
+ */
+export async function noteTasksInterruptedByQuit(
+  sessions: { chatId: ChatId; sessionId: StoreId.Session }[],
+): Promise<ChatTask[]> {
+  const tasks = (
+    await Promise.all(
+      sessions.map(({ chatId, sessionId }) => childTask(chatId, sessionId)),
+    )
+  ).filter((task) => task !== undefined);
+  const byChat = new Map<ChatId, ChatTask[]>();
+  for (const task of tasks) {
+    byChat.set(task.chatId, [...(byChat.get(task.chatId) ?? []), task]);
+  }
+  await Promise.all(
+    [...byChat].map(async ([chatId, chatTasks]) => {
+      // Ahead of the note, which says how long each task worked: a call
+      // still open has no end, and the run it cut off would be counted
+      // without it. The stop that follows finds the call already settled.
+      const closedAt = getCurrentDate();
+      await Promise.all(
+        chatTasks.map((task) => settleCutOffCalls(task, closedAt)),
+      );
+      const events = await Promise.all(chatTasks.map(interruptedEvent));
+      await Promise.all(
+        chatTasks.map((task) =>
+          touchTask(chatId, task.id, { stoppedBy: "app" }),
+        ),
+      );
+      const sessionId = sessionOfChat(chatId);
+      if (sessionId !== undefined) {
+        await saveNote(chatId, sessionId, {
+          data: { events },
+          type: "data-taskEvent",
+        });
+      }
+    }),
+  );
+  return tasks;
+}
+
+/**
+ * Ends the calls a task's last step left open as cut off by the app closing
+ * at `closedAt`, in the words the stop and the next launch's sweep write. A
+ * call that settles first is left as it is.
+ */
+async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
+  const ref = { chatId: task.chatId, sessionId: task.id };
+  const last = (await ownMessages(ref)).findLast(
+    (message) => message.role === "assistant",
+  );
+  for (const part of last?.parts.filter(isToolPart) ?? []) {
+    if (!isOpenCall(part)) {
+      continue;
+    }
+    const written = await Store.updatePart(
+      {
+        messageId: part.metadata.messageId,
+        partId: part.metadata.id,
+        sessionId: part.metadata.sessionId,
+      },
+      (current) =>
+        isToolPart(current) && isOpenCall(current)
+          ? // The part union is discriminated by tool type as well as by
+            // state, so a spread that moves only the state lands on no
+            // member of it; these are the fields an errored call carries.
+            ({
+              ...current,
+              errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+              metadata: { ...current.metadata, endedAt: closedAt },
+              state: "output-error",
+            } as SessionMessagePart.Type)
+          : current,
+      task.chatId,
+    );
+    if (written.isErr()) {
+      getWorkspaceConfig().captureException(written.error);
+    }
+  }
+}
+
+function isOpenCall(part: SessionMessagePart.ToolPart): boolean {
+  return part.state === "input-available" || part.state === "input-streaming";
+}
+
+/** What the chat is told about one task the quit cut off. */
+async function interruptedEvent(task: ChatTask): Promise<TaskEvent> {
+  const ref = { sessionId: task.id, chatId: task.chatId };
+  const usage = await getUsageSummary(task.chatId, { sessionId: task.id });
+  const running = leftRunning(task.id);
+  return {
+    activeMs: usage.activeMs,
+    ended: appClosedLine(await latestStep(ref)),
+    handle: task.handle,
+    ...(running.length > 0 ? { running } : {}),
+    sessionId: task.id,
+    status: "done",
+    stoppedBy: "app",
+    title: task.title,
+    tokens: usage.inputTokens + usage.outputTokens,
+  };
 }
 
 async function checkOverdue(workspaceRef: WorkspaceActorRef) {
@@ -278,7 +495,10 @@ async function onSessionDone(
   }
   const ref = { sessionId, chatId };
   // Read as the turn ends rather than at delivery, a debounce later: a process
-  // that exits in between was the task's own doing and is not news.
+  // that exits in between was the task's own doing and is not news. A stop of
+  // its processes already under way, as the person's Stop of the task sends
+  // beside the turn's, is waited out first, so what it ends is not named.
+  await processStopsSettled(sessionId);
   const running = leftRunning(sessionId);
   // What the task's agent said, never what the chat said before it.
   const said = await lastAssistantText(ref);
@@ -288,8 +508,13 @@ async function onSessionDone(
   const ending = said === undefined ? await endedWithoutWords(ref) : undefined;
   // What the task cannot go on without, read the same way and listed apart
   // from its words, so a turn that ended blocked reads as waiting rather than
-  // finished and the fence is not said twice.
-  const needs = said === undefined ? [] : needsNamedIn(said);
+  // finished and the fence is not said twice. A card it ran into that is still
+  // up is one too, whatever it said; a stopped turn waits on none, since the
+  // person's Stop takes it off its cards.
+  const needs = [
+    ...(said === undefined ? [] : needsNamedIn(said)),
+    ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
+  ];
   await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
@@ -325,23 +550,59 @@ async function onSessionDone(
           needs.length > 0 ? withoutNeedsFences(receipt) : receipt,
           WAKE_SUMMARY_MAX_LENGTH,
         );
-  schedule(
-    chatId,
-    {
-      activeMs: usage.activeMs,
-      ...(ending ? { ended: ending.line } : {}),
-      ...(files.length > 0 ? { files } : {}),
-      handle: task.handle,
-      ...(needs.length > 0 ? { needs } : {}),
-      ...(running.length > 0 ? { running } : {}),
-      status: ending?.failed ? "error" : "done",
-      ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
-      summary,
-      sessionId,
-      ...(tabs.length > 0 ? { tabs } : {}),
-      title: task.title,
-      tokens: usage.inputTokens + usage.outputTokens,
-    },
+  const event: TaskEvent = {
+    activeMs: usage.activeMs,
+    ...(ending ? { ended: ending.line } : {}),
+    ...(files.length > 0 ? { files } : {}),
+    handle: task.handle,
+    ...(needs.length > 0 ? { needs } : {}),
+    ...(running.length > 0 ? { running } : {}),
+    status: ending?.failed ? "error" : "done",
+    ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
+    summary,
+    sessionId,
+    ...(tabs.length > 0 ? { tabs } : {}),
+    title: task.title,
+    tokens: usage.inputTokens + usage.outputTokens,
+  };
+  if (stop?.by === "user") {
+    const chatSessionId = sessionOfChat(chatId);
+    if (chatSessionId !== undefined) {
+      await saveNote(chatId, chatSessionId, {
+        data: { events: [event] },
+        type: "data-taskEvent",
+      });
+    }
+    return;
+  }
+  schedule(chatId, event, workspaceRef);
+}
+
+/**
+ * A card a task's turn ended on, as the note lists what the task cannot go
+ * on without: the kind and what it names, in the chat's spelling of a folder,
+ * and that the person's answer wakes the task, so the chat need not.
+ */
+function cardNeed(card: PermissionAsk): string {
+  const what = card.kind === "folder" ? shellPath(card.target) : card.target;
+  return `${card.kind}: ${what}, on the card in this chat waiting for the person's answer, which wakes it`;
+}
+
+/**
+ * Says a task that was waiting on a card was stopped, as the end of a turn
+ * stopped the same way does: its row keeps who stopped it, and when the
+ * person did, its chat gets the note, which starts no turn. The chat's own
+ * `task stop` says so in its output instead. Such a task has no turn for the
+ * stop to end, so no session's end says it.
+ */
+export async function noteTaskStoppedOnCard(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  workspaceRef: WorkspaceActorRef,
+  by: "chat" | "user",
+): Promise<void> {
+  await onSessionDone(
+    { id: chatId, notice: { by, wakesChat: by === "user" }, sessionId },
     workspaceRef,
   );
 }
@@ -362,11 +623,11 @@ function schedule(
   events.set(event.sessionId, event);
   const timer = setTimeout(() => {
     pending.delete(chatId);
-    deliver(chatId, [...events.values()], workspaceRef).catch(
-      (error: unknown) => {
-        getWorkspaceConfig().captureException(error);
-      },
-    );
+    onItsWay(chatId, () =>
+      deliver(chatId, [...events.values()], workspaceRef),
+    ).catch((error: unknown) => {
+      getWorkspaceConfig().captureException(error);
+    });
   }, WAKE_DEBOUNCE_MS);
   pending.set(chatId, { events, timer });
 }
@@ -414,7 +675,7 @@ export async function chatSpellingOfUrl(
   if (!isLocalAddress(url)) {
     return url;
   }
-  const layout = await taskFsLayout(chatId);
+  const layout = await sessionLayout({ chatId });
   const agentPath = agentPathOfFileUrl(layout, url);
   if (agentPath === null) {
     return agentSpellingOfFileUrls(url, layout);
@@ -458,24 +719,54 @@ async function stillWorkingEvent({
   };
 }
 
-async function wakeWith(
+function wakeWith(
   chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
   /** The session to wake: a task that asked, else the chat's own. */
   askingSessionId?: StoreId.Session,
 ) {
-  const modelURI = await chatModelURI(chatId);
-  if (!modelURI) {
-    throw new Error(
-      `Chat ${chatId} has no model to wake with; it has never been messaged.`,
-    );
-  }
-  const sessionId = askingSessionId ?? sessionOfChat(chatId);
-  if (!sessionId) {
-    throw new Error(`${chatId} is not a chat.`);
-  }
+  return onItsWay(chatId, async () => {
+    const modelURI = await chatModelURI(chatId);
+    if (!modelURI) {
+      throw new Error(
+        `Chat ${chatId} has no model to wake with; it has never been messaged.`,
+      );
+    }
+    const sessionId = askingSessionId ?? sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error(`${chatId} is not a chat.`);
+    }
+    const message = await saveNote(chatId, sessionId, part);
 
+    // Looked up after the note is written, so a model the chat cannot resolve
+    // yet still leaves the news in the conversation, where the user's next
+    // message carries it to the agent.
+    const model = await wakeModel(modelURI);
+    workspaceRef.send({
+      type: "addMessage",
+      value: {
+        id: chatId,
+        message,
+        model,
+        saved: true,
+        sessionId,
+      },
+    });
+    await recordChatActivity(chatId);
+  });
+}
+
+/**
+ * Writes a wake's part as a text-less user message in a session, which shows
+ * in the conversation at once and reaches the agent with the session's next
+ * turn, whatever starts it.
+ */
+async function saveNote(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  part: WakePart,
+): Promise<SessionMessage.UserWithParts> {
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
   const message: SessionMessage.UserWithParts = {
@@ -501,22 +792,7 @@ async function wakeWith(
   if (written.isErr()) {
     throw new Error(written.error.message);
   }
-
-  // Looked up after the note is written, so a model the chat cannot resolve
-  // yet still leaves the news in the conversation, where the user's next
-  // message carries it to the agent.
-  const model = await wakeModel(modelURI);
-  workspaceRef.send({
-    type: "addMessage",
-    value: {
-      id: chatId,
-      message,
-      model,
-      saved: true,
-      sessionId,
-    },
-  });
-  await recordChatActivity(chatId);
+  return message;
 }
 
 /**

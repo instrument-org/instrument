@@ -4,7 +4,7 @@ import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { unique } from "radashi";
 
 /**
- * Where the files a task named sit on the computer, by the path the task
+ * Where the files the agent named sit on the computer, by the path it
  * wrote: the translation every person-facing surface makes once, on the way
  * to the screen, since a viewer reads by the real path and a tab is addressed
  * by one. A path the task cannot reach maps to null; a path not yet answered

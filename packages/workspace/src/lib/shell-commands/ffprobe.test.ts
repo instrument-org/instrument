@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { createFfprobeCommand } from "./ffprobe";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 
@@ -28,7 +28,7 @@ async function mockExeca() {
 
 describe("ffprobeCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createFfprobeCommand(chatId, taskLayout(chatId));
+  const command = createFfprobeCommand(chatId, chatLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();

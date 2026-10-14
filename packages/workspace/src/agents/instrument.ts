@@ -364,10 +364,15 @@ function browserGuidance(): string {
 
 /**
  * A line that says a task is about to be made or sent, rather than one that
- * merely mentions tasks: a hand-off verb within a few words of the noun.
+ * merely mentions tasks or tells of one made before ("I started the
+ * background task"): a hand-off verb, not in the past tense, within a few
+ * words of the noun.
  */
 const PROMISES_A_TASK =
-  /\b(?:hand|send|start|creat|kick|spin|delegat|goes to|go to|off to)\w*\s+(?:\w+[,']?\s+){0,4}(?:a|an|the|one|new|another)\s+(?:\w+\s+)?task\b/i;
+  /\b(?:hand|send|start|creat|kick|spin|delegat|goes to|go to|off to)(?!ed\b)\w*\s+(?:\w+[,']?\s+){0,4}(?:a|an|the|one|new|another)\s+(?:\w+\s+)?task\b/i;
+
+/** Text whose last sentence is a question, past any closing quote or emphasis. */
+const ENDS_ASKING = /\?["'”’)*_\s]*$/;
 
 /**
  * The turn ends once a task has been created or steered, or the user has been
@@ -397,11 +402,19 @@ export async function shouldContinueAfterHandingOff({
       (part) =>
         part.type === "data-taskEvent" ||
         part.type === "data-appEvent" ||
+        part.type === "data-jobEvent" ||
         part.type === "data-permissionAnswer",
     ) &&
     !last.parts.some((part) => isToolPart(part)) &&
     last.parts.some(
       (part) => part.type === "text" && PROMISES_A_TASK.test(part.text),
+    ) &&
+    // A reply that ends on a question ("Want me to start the task again?")
+    // waits on the user's answer, whatever it said before it.
+    !ENDS_ASKING.test(
+      last.parts
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join("\n"),
     );
   if (promisedOnly) {
     return true;

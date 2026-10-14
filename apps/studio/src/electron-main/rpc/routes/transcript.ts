@@ -39,8 +39,8 @@ async function buildSystemFrontMatter(chatId: ChatId) {
 
   const env = app.isPackaged ? "production" : "development";
 
-  const taskDirPath = chatDir(chatId);
-  const settings = await getChatSettings(taskDirPath);
+  const dir = chatDir(chatId);
+  const settings = await getChatSettings(dir);
 
   return {
     appEnvironment: env,
@@ -53,12 +53,12 @@ async function buildSystemFrontMatter(chatId: ChatId) {
     runtimeOs: `${osName} ${os.release()} / ${os.arch()}`,
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
     taskName: (await chatTitle(chatId)) ?? "unknown",
-    // Absolute path to the task's on-disk folder so an agent reading this
+    // Absolute path to the chat's on-disk folder so an agent reading this
     // transcript can inspect its artifacts (screenshots, output, chat.db),
     // which is most of why a transcript gets handed to one. It names the
     // user's own machine in a file the user asked for and nothing sends it
     // anywhere, so where the file goes next is theirs to decide.
-    chatDir: taskDirPath,
+    chatDir: dir,
     transcriptGeneratedAt: new Date().toISOString(),
   };
 }

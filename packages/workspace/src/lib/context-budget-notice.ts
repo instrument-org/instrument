@@ -10,7 +10,7 @@ import { HANDOFF_NOTES_RELATIVE_PATH } from "./handoff-notes";
  * folded into the prompt, so a number that changes every turn cannot invalidate
  * the cached prefix.
  *
- * The task folder is the answer to "durable where?": it is the agent's working
+ * The chat's folder is the answer to "durable where?": it is the agent's working
  * directory, it is a real directory on disk, and it outlives any single context
  * window. Notes written there are readable by whatever continues the task,
  * which is what makes warning the agent worth doing at all.

@@ -412,6 +412,20 @@ print(json.dumps({"removed": removed, "skipped": skipped, "freeGB": free}))`,
       report(runPythonJson(host, stopScript(target)));
       break;
     }
+    case "vm-start":
+    case "vm-stop": {
+      const vm = takeFlag("--vm");
+      assertNoArguments();
+      if (!vm) {
+        fail("Pass --vm <UTM virtual machine name>.");
+      }
+      report(
+        command === "vm-start"
+          ? await startVm(host, vm)
+          : await stopVm(host, vm),
+      );
+      break;
+    }
     case "tunnel": {
       const remotePort = targetConfig(
         readProfile(host, target),
@@ -455,10 +469,75 @@ print(json.dumps({"removed": removed, "skipped": skipped, "freeGB": free}))`,
     }
     default: {
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, remove-preview, start, status, stop, or tunnel.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, remove-preview, start, status, stop, tunnel, vm-start, or vm-stop.`,
       );
     }
   }
+}
+
+function utm(...args) {
+  const result = spawnSync("utmctl", args, { encoding: "utf8" });
+  return {
+    ok: result.status === 0,
+    out: `${result.stdout}${result.stderr}`.trim(),
+  };
+}
+
+function answersSsh(host) {
+  const probe = spawnSync(
+    "ssh",
+    ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", host, "echo up"],
+    { encoding: "utf8" },
+  );
+  return probe.stdout.trim() === "up";
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Starts the UTM guest the host runs in, when this Mac hosts it, and waits for
+ * SSH. The guest keeps its state between runs (the signed-in browser, the
+ * installed release app), so unlike the Mac VM it is started, never replaced.
+ */
+async function startVm(host, vm) {
+  const status = utm("status", vm).out;
+  if (/not found|Error/u.test(status))
+    fail(`No UTM virtual machine named ${vm}.`);
+  if (answersSsh(host)) return { host, ready: true, started: false, vm };
+  if (status !== "started") utm("start", vm, "--hide");
+  for (let i = 0; i < 36; i++) {
+    if (answersSsh(host)) return { host, ready: true, started: true, vm };
+    await sleep(5000);
+  }
+  fail(`${vm} started but ${host} did not answer SSH within three minutes.`);
+}
+
+/**
+ * Shuts the guest down from inside, so its disk and the release app's data are
+ * left as a normal shutdown leaves them, and waits for UTM to report it
+ * stopped. Never forces: a guest that will not stop is reported instead.
+ */
+async function stopVm(host, vm) {
+  if (utm("status", vm).out === "stopped") return { stopped: true, vm };
+  spawnSync(
+    "ssh",
+    [
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "ConnectTimeout=5",
+      host,
+      "sudo -n systemctl poweroff",
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  for (let i = 0; i < 24; i++) {
+    if (utm("status", vm).out === "stopped") return { stopped: true, vm };
+    await sleep(5000);
+  }
+  fail(`${vm} did not stop within two minutes; it was left running.`);
 }
 
 function readProfile(hostName, selectedTarget) {
@@ -760,6 +839,9 @@ top = os.path.join(staging, entries[0]) if len(entries) == 1 else staging
 os.rename(top, dest)
 if top != staging:
     os.rmdir(staging)
+# The archive's folder carries the build's epoch-0 time, so it is stamped with
+# the install time: "the newest preview" is decided by that time.
+os.utime(dest, None)
 # Chromium's setuid sandbox helper has to be owned by root and setuid, which
 # an archive cannot carry; without it the app refuses to start.
 sandbox = os.path.join(dest, "chrome-sandbox")

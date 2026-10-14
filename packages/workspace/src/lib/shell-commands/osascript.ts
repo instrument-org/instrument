@@ -204,14 +204,14 @@ export function createOsascriptCommand(
         : undefined;
     if (outside) {
       return refuse(
-        `this script runs code outside the app it tells (\`${outside}\`), which an app you control may not do. Do that part with your own shell, where the folder rules hold, and keep the script to the app's own terms.`,
+        `this script reaches past the app it tells (\`${outside}\`), which a script to an app you control may not do. Do that part with your own shell, where the folder rules hold, and keep the script to the app's own terms.`,
       );
     }
     const hostArgs = args.flatMap((arg, index) =>
       isScript[index] ? [addressAppsById(arg)] : hostPathArgs([arg]),
     );
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     // A script piped in is ASCII where it names an app, so the rewrite reads
     // it as the latin1 bytes it arrives as and leaves every other byte be.
     const stdin = piped
@@ -220,7 +220,7 @@ export function createOsascriptCommand(
 
     const result = await execShim(OSASCRIPT_PATH, hostArgs, {
       cancelSignal: ctx.signal,
-      cwd: taskCwd,
+      cwd: hostCwd,
       env: {
         ...getWorkspaceConfig().nodeExecEnv,
         ...env,

@@ -70,7 +70,7 @@ That path is written down in more places than `load_skill`, and all of them have
 
 A reply names its files itself, in a fence and in links, and nothing walks the task to find them. That is what makes a skill path reach the renderer at all, and it lands on two surfaces built when everything outside the task was either an attached folder or the project:
 
-- `isAddressableTaskFilePath` accepts a relative path or one under the attached-folders mount, and nothing else. A skill path fails it, so the reply draws it as prose rather than something to click.
+- `isAddressableChatFilePath` accepts a relative path or one under the attached-folders mount, and nothing else. A skill path fails it, so the reply draws it as prose rather than something to click.
 - Opening a linked file maps its agent path to a host path and opens it at its real `file://` address; that mapping has to know the skills sources too, or a linked skill file resolves inside the task folder and reads as missing.
 
 Both need the skills mount added. Neither is load-bearing today, because `work/skills/` is task-relative and reaches both surfaces as an ordinary task path. The move is what surfaces them, and a skill file the agent cannot link to is a worse answer than the copy it replaces.

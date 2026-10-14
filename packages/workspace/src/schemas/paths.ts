@@ -31,9 +31,9 @@ export const RelativePathSchema =
 
 export type RelativePath = z.output<typeof RelativePathSchema>;
 
-// A relative path that must stay within the task dir: rejects ".." segments.
-// Use for RPC inputs naming real task files, where traversal is never valid.
-export const RelativeTaskPathSchema = RelativePathSchema.refine(
+// A relative path that must stay within the chat's folder: rejects ".." segments.
+// Use for RPC inputs naming real files in a chat's folder, where traversal is never valid.
+export const RelativeChatPathSchema = RelativePathSchema.refine(
   (val) => !val.split(/[/\\]/).includes(".."),
   "Path must not contain '..' segments",
 );
@@ -57,7 +57,7 @@ const AbsoluteFilePathSchema = z
 
 /** A path relative to the chat's folder, or an absolute path in the shell's spelling. */
 export const WorkspaceFilePathSchema = z.union([
-  RelativeTaskPathSchema,
+  RelativeChatPathSchema,
   AbsoluteFilePathSchema,
 ]);
 export type WorkspaceFilePath = z.output<typeof WorkspaceFilePathSchema>;

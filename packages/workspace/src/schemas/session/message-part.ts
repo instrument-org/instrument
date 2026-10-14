@@ -115,6 +115,12 @@ export namespace SessionMessagePart {
 
   export interface ToolPartOutputErrorMetadata extends ToolPartMetadata {
     endedAt: Date;
+    /**
+     * Set when the chat's `task stop` cut the call off, which reads the same
+     * to the person as their own Stop but not to the model. Absent on every
+     * other error, the person's Stop included.
+     */
+    stoppedBy?: "chat";
   }
 
   // Union of all part types

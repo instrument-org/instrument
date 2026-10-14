@@ -1,9 +1,7 @@
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
-import {
-  getTrashTerminology,
-  PROGRESS_MESSAGES,
-} from "@/client/lib/trash-terminology";
+import { PROGRESS_MESSAGES } from "@/client/lib/trash-terminology";
+import { osConventions } from "@/client/lib/utils";
 import { TimerIcon } from "@phosphor-icons/react/Timer";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -96,7 +94,7 @@ function DeleteWithProgressDialogBody<T>({
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
 }) {
-  const trashTerminology = getTrashTerminology();
+  const trashTerminology = osConventions().trash;
   // Held for as long as it is open; it can be left only while nothing is
   // being deleted.
   useModalBack(() => {

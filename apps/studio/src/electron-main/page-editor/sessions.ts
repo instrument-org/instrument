@@ -3,6 +3,7 @@ import {
   guests,
 } from "@/electron-main/browser-view/guest-registry";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
+import { osOf } from "@/shared/os-conventions";
 import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
 import { stampPageSource } from "@/shared/page-source";
 import { is } from "@electron-toolkit/utils";
@@ -144,6 +145,7 @@ export function servePageEditorBoot() {
     event.returnValue = {
       bundle,
       name: path.basename(session.path),
+      os: osOf(process.platform),
       src: session.src,
       state: session.state,
       version: session.version,

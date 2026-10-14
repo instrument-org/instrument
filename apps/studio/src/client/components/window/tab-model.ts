@@ -265,14 +265,25 @@ export function navigateScreen(
   { group, href, id }: { group: string; href: string; id: string },
 ): WindowTabs {
   const up = selectedTabIn(state, group);
-  if (up?.kind === "page") {
-    return replaceTab(
-      state,
-      up.id,
-      visitInTab(up, { href, id, kind: "screen" }),
-    );
-  }
-  return up ? visitScreen(state, up.id, href) : state;
+  return up ? tabToScreen(state, { href, id: up.id, newId: id }) : state;
+}
+
+/**
+ * A tab goes to a screen: a screen tab walks there, and a page becomes the
+ * screen, as a tab of its own (`newId`) with the page a step back.
+ */
+export function tabToScreen(
+  state: WindowTabs,
+  { href, id, newId }: { href: string; id: string; newId: string },
+): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  return tab?.kind === "page"
+    ? replaceTab(
+        state,
+        id,
+        visitInTab(tab, { href, id: newId, kind: "screen" }),
+      )
+    : visitScreen(state, id, href);
 }
 
 /** A different tab in one's place, keeping where it sits in the strip, whose group it is in, and whether it was up. */

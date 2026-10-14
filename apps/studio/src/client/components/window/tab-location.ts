@@ -235,10 +235,16 @@ function pathCrumbs(
       : namesFromHome(path, home);
   const volume = fromHome ? undefined : named;
   const separator = separatorOf(hostPath);
+  // The names below a disk are read off the whole path, which is what says
+  // whether a backslash separates them; the part past `C:\` alone starts with
+  // no drive, so it would read as one name.
   const names =
     fromHome ??
     (volume
-      ? [volume.name, ...segmentsOf(hostPath.slice(volume.path.length))]
+      ? [
+          volume.name,
+          ...segmentsOf(hostPath).slice(segmentsOf(volume.path).length),
+        ]
       : segmentsOf(hostPath));
   const first = names[0] ?? "";
   const rooted =

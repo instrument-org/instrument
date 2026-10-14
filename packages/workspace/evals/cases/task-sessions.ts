@@ -14,15 +14,29 @@
  * - **It hands the task the user's tab.** `task new --tab` makes the task
  *   the tab's one driver, and the tab goes back to the chat when the task
  *   finishes.
- * - **It leaves a task the user stopped alone.** Stop on t1 wakes the chat
- *   with a note saying the user stopped it; the chat says so and starts
- *   nothing again.
+ * - **It leaves a task the user stopped alone.** Stop on t1 writes the chat
+ *   a note saying the user stopped it and starts no turn, and nothing is
+ *   started again.
+ * - **It picks up a task whose model timed out.** Every request t1 makes
+ *   goes past its timeout until its turn ends: the chat is told it timed out,
+ *   as an error rather than the user's stop, and sends it on or offers to.
+ * - **It leaves the work alone when asked what happened.** The user stops
+ *   the chat's own turn mid-command, then its task, then asks what
+ *   happened: the chat explains, and runs none of the stopped work again,
+ *   even when its answer tells of starting the task or ends offering to.
+ * - **It reads a task's open card as waiting, not refused.** t1 reaches
+ *   for a folder the person keeps closed until asked, which shows them a
+ *   card nobody answers: neither t1 nor the chat calls the folder refused,
+ *   and the chat tells the user the task is waiting on them.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
+import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
+import { openAsks } from "../../src/lib/permissions/asks";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
@@ -216,10 +230,14 @@ function afterTheStop(sessions: Session.WithMessagesAndParts[]) {
   };
 }
 
-/** The wake said the user stopped t1, and the chat told them so. */
-const toldOfTheStop: Assertion = {
+/**
+ * The user's stop left a note in the chat and woke nothing: the person
+ * stopped it on purpose, and the chat learns of it with their next message
+ * (task-session-stopped-then-asked covers that turn).
+ */
+const notedTheStopQuietly: Assertion = {
   check: async (ctx: Context) => {
-    const text = "woke on the user's stop and said the task was stopped";
+    const text = "noted the user's stop without starting a turn";
     const after = afterTheStop(ctx.sessions);
     const [task] = await listChildTasks(ctx.chatId);
     if (!after) {
@@ -228,13 +246,12 @@ const toldOfTheStop: Assertion = {
         `no stop note; t1 stopped by ${task?.stoppedBy ?? "nobody"}`,
       );
     }
-    const said = /\bstop/i.test(after.reply);
-    return (said && task?.stoppedBy === "user" ? pass : fail)(
+    return (after.reply === "" && task?.stoppedBy === "user" ? pass : fail)(
       text,
-      `t1 stopped by ${task?.stoppedBy ?? "nobody"}; reply: ${after.reply.slice(0, 200) || "(none)"}`,
+      `t1 stopped by ${task?.stoppedBy ?? "nobody"}; reply after the note: ${after.reply.slice(0, 200) || "(none)"}`,
     );
   },
-  text: "woke on the user's stop and said the task was stopped",
+  text: "noted the user's stop without starting a turn",
 };
 
 /** Nothing the user stopped was started again. */
@@ -251,6 +268,309 @@ const leftItStopped: Assertion = {
     );
   },
   text: "started nothing again after the stop",
+};
+
+/** The question asked once the chat's turn and its task are both stopped. */
+const WHAT_HAPPENED = "what happened?";
+
+/**
+ * The chat's turn that answered `WHAT_HAPPENED`: its reply and the commands
+ * it ran.
+ */
+function afterTheQuestion(sessions: Session.WithMessagesAndParts[]) {
+  const chat = sessions[0];
+  const messages = chat?.messages ?? [];
+  const asked = messages.findIndex(
+    (message) =>
+      message.role === "user" &&
+      message.parts.some(
+        (part) => part.type === "text" && part.text === WHAT_HAPPENED,
+      ),
+  );
+  if (!chat || asked === -1) {
+    return undefined;
+  }
+  const after = messages.slice(asked + 1);
+  return {
+    commands: commandsIn([{ ...chat, messages: after }]),
+    reply: after
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      )
+      .join("\n"),
+  };
+}
+
+/**
+ * The setup held: a call of the chat's own was cut off by the user's Stop,
+ * and t1 was stopped by the user, before the question was asked.
+ */
+const stoppedTheTurnAndTheTask: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "the user stopped the chat's turn and then t1";
+    const cutOff = (ctx.sessions[0]?.messages ?? []).flatMap((message) =>
+      message.parts.filter(
+        (part) =>
+          "errorText" in part &&
+          part.errorText === STOPPED_TOOL_CALL_ERROR_TEXT,
+      ),
+    );
+    const task = (await listChildTasks(ctx.chatId)).find(
+      (child) => child.handle === "t1",
+    );
+    return (cutOff.length > 0 && task?.stoppedBy === "user" ? pass : fail)(
+      text,
+      `${String(cutOff.length)} chat calls cut off by the stop; t1 stopped by ${task?.stoppedBy ?? "nobody"}`,
+    );
+  },
+  text: "the user stopped the chat's turn and then t1",
+};
+
+/** Asked what happened, the chat said the work was stopped. */
+const explainedTheStop: Assertion = {
+  check: (ctx: Context) => {
+    const text = "explained that the work was stopped";
+    const after = afterTheQuestion(ctx.sessions);
+    const said = after !== undefined && /\bstop/i.test(after.reply);
+    return (said ? pass : fail)(
+      text,
+      after?.reply.slice(0, 300) || "(no reply)",
+    );
+  },
+  text: "explained that the work was stopped",
+};
+
+/**
+ * Asked what happened, the chat ran none of the stopped work again: no task
+ * started or resumed, no sleep run again, and still one task in the chat.
+ */
+const restartedNothing: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "started none of the stopped work again";
+    const after = afterTheQuestion(ctx.sessions);
+    const restarted = (after?.commands ?? []).filter(
+      (command) =>
+        /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command) ||
+        /\bsleep\s+\d/.test(command),
+    );
+    const children = await ctx.childSessions();
+    return (restarted.length === 0 && children.length === 1 ? pass : fail)(
+      text,
+      `${String(children.length)} tasks; ${restarted.join(" | ") || "no task new, task send, or sleep"}`,
+    );
+  },
+  text: "started none of the stopped work again",
+};
+
+/**
+ * The chat's turn t1's timed-out request woke: its reply, and the commands it
+ * ran, from the note on.
+ */
+function afterTheTimeout(sessions: Session.WithMessagesAndParts[]) {
+  const chat = sessions[0];
+  const messages = chat?.messages ?? [];
+  const woke = messages.findIndex((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === "data-taskEvent" &&
+        part.data.events.some((event) => event.ended?.startsWith("Timed out")),
+    ),
+  );
+  if (!chat || woke === -1) {
+    return undefined;
+  }
+  const after = messages.slice(woke + 1);
+  return {
+    commands: commandsIn([{ ...chat, messages: after }]),
+    reply: after
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      )
+      .join("\n"),
+  };
+}
+
+/**
+ * The setup held: t1's turn ended on a request that timed out, and the chat
+ * was woken with a note that says it timed out, as an error rather than the
+ * user's stop.
+ */
+const notedTheTimeout: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 timed out and the chat was told so, as an error";
+    const events = (ctx.sessions[0]?.messages ?? []).flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "data-taskEvent" ? part.data.events : [],
+      ),
+    );
+    const timedOut = events.find((event) =>
+      event.ended?.startsWith("Timed out"),
+    );
+    // Read from the note, not t1's row: a later turn, as a retry is, can be
+    // stopped for its own reasons, the run's caps among them.
+    return (
+      timedOut?.status === "error" && timedOut.stoppedBy === undefined
+        ? pass
+        : fail
+    )(
+      text,
+      `notes: ${events.map((event) => `${event.status} "${event.ended ?? event.summary ?? ""}"${event.stoppedBy ? ` by ${event.stoppedBy}` : ""}`).join("; ") || "(none)"}`,
+    );
+  },
+  text: "t1 timed out and the chat was told so, as an error",
+};
+
+/**
+ * Woken by the timeout, the chat sent the task on, started it again, or told
+ * the user it failed and offered to; it never read the timeout as the user's
+ * stop.
+ */
+const retriedOrOfferedTo: Assertion = {
+  check: (ctx: Context) => {
+    const text =
+      "picked the timed-out task up again or offered to, not as a stop";
+    const after = afterTheTimeout(ctx.sessions);
+    if (!after) {
+      return fail(text, "no timeout note");
+    }
+    const retried = after.commands.some((command) =>
+      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
+    );
+    const offered =
+      /\b(?:try(?:ing)? (?:it )?again|retry|re-?run|restart|resume|pick (?:it |that )?(?:back )?up|send it (?:back|again)|start (?:it )?(?:over|again))\b/i.test(
+        after.reply,
+      );
+    const readAsStop =
+      /\b(?:you stopped|stopped by you|by the user|you(?:'ve)? cancel)/i.test(
+        after.reply,
+      );
+    return ((retried || offered) && !readAsStop ? pass : fail)(
+      text,
+      `${after.commands.filter((command) => /\btask\b/.test(command)).join(" | ") || "no task command"}; reply: ${after.reply.slice(0, 300) || "(none)"}`,
+    );
+  },
+  text: "picked the timed-out task up again or offered to, not as a stop",
+};
+
+/**
+ * A folder under Documents, which the person keeps closed until asked: a
+ * folder directly in the home folder raises no card.
+ */
+const PANTRY = path.join(os.homedir(), "Documents", "Pantry");
+
+function seedPantry() {
+  fs.rmSync(PANTRY, { force: true, recursive: true });
+  fs.mkdirSync(PANTRY, { recursive: true });
+  fs.writeFileSync(
+    path.join(PANTRY, "inventory.md"),
+    "# Pantry\n\n- rice: plenty\n- olive oil: almost out\n- lentils: none\n- oats: half a bag\n",
+  );
+}
+
+/**
+ * Words that tell of access refused, or given up on, rather than a card
+ * still waiting: "I can't read it yet" waits, "I couldn't read it" is over.
+ */
+const REFUSED =
+  /\b(?:refused|denied|declined|rejected|inaccessible|not permitted|(?:is|was)n't allowed|(?:is|was) not allowed|(?:couldn't|could not|was unable to) (?:access|read|open))\b/i;
+
+/** The assistant words in a set of sessions, in order. */
+function wordsIn(sessions: Session.WithMessagesAndParts[]): string {
+  return sessions
+    .flatMap((session) => session.messages)
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "text" ? [part.text] : [],
+      ),
+    )
+    .join("\n");
+}
+
+/**
+ * The setup held: t1 raised the card for the Pantry folder or a folder
+ * holding it (Documents), nobody answered it, and the chat was woken with a
+ * note saying t1 waits on it.
+ */
+const t1WaitsOnTheCard: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 raised the Pantry card and the chat's note says it waits";
+    const task = (await listChildTasks(ctx.chatId)).find(
+      (child) => child.handle === "t1",
+    );
+    const card = (await openAsks(ctx.chatId)).find(
+      (ask) =>
+        ask.kind === "folder" &&
+        // By its end: a report read later runs under another home.
+        /[/\\]Documents(?:[/\\]Pantry)?$/.test(ask.target) &&
+        ask.askers.some((asker) => asker.sessionId === task?.id),
+    );
+    const events = (ctx.sessions[0]?.messages ?? []).flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "data-taskEvent" ? part.data.events : [],
+      ),
+    );
+    const waiting = events.some(
+      (event) => event.sessionId === task?.id && (event.needs?.length ?? 0) > 0,
+    );
+    return (card && waiting ? pass : fail)(
+      text,
+      `card ${card ? `open for ${card.target}` : "not open for t1"}; notes: ${events.map((event) => `${event.handle ?? event.sessionId} with ${String(event.needs?.length ?? 0)} needs`).join(", ") || "(none)"}`,
+    );
+  },
+  text: "t1 raised the Pantry card and the chat's note says it waits",
+};
+
+/** t1's own words never call the folder refused while its card is up. */
+const taskDidNotCallItRefused: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 did not call the folder refused";
+    const children = await ctx.childSessions();
+    const words = wordsIn(children.flatMap((child) => child.sessions));
+    const match = REFUSED.exec(words);
+    return (match ? fail : pass)(
+      text,
+      match
+        ? `said "${match[0]}": ${words.slice(Math.max(0, match.index - 120), match.index + 80)}`
+        : words.slice(-300) || "(t1 said nothing)",
+    );
+  },
+  text: "t1 did not call the folder refused",
+};
+
+/**
+ * Woken by t1's note, the chat told the user the task is waiting on them,
+ * and never that the folder was refused.
+ */
+const chatSaidItWaits: Assertion = {
+  check: (ctx: Context) => {
+    const text = "the chat said t1 waits on the user, not that it was refused";
+    const chat = ctx.sessions[0];
+    const messages = chat?.messages ?? [];
+    const woke = messages.findIndex((message) =>
+      message.parts.some((part) => part.type === "data-taskEvent"),
+    );
+    if (!chat || woke === -1) {
+      return fail(text, "no note woke the chat");
+    }
+    const reply = wordsIn([{ ...chat, messages: messages.slice(woke + 1) }]);
+    const refused = REFUSED.exec(reply);
+    const waits =
+      /\b(?:wait\w*|allow\w*|approv\w*|grant\w*|permission|access|card|ok(?:ay)?)\b/i.test(
+        reply,
+      );
+    return (waits && !refused ? pass : fail)(
+      text,
+      `${refused ? `said "${refused[0]}"; ` : ""}${reply.slice(0, 300) || "(no reply)"}`,
+    );
+  },
+  text: "the chat said t1 waits on the user, not that it was refused",
 };
 
 export const TASK_SESSION_EVALS = [
@@ -302,11 +622,44 @@ export const TASK_SESSION_EVALS = [
     },
   }),
   defineEval({
-    assertions: [startedOneTaskAsT1, toldOfTheStop, leftItStopped],
+    assertions: [startedOneTaskAsT1, notedTheStopQuietly, leftItStopped],
     followUps: [{ afterMs: 20_000, stopTask: "t1" }],
     kind: "chat",
     name: "task-session-user-stop",
     prompt:
       "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
+  }),
+  defineEval({
+    assertions: [notedTheTimeout, retriedOrOfferedTo],
+    followUps: [{ afterMs: 25_000, timeOutTask: "t1" }],
+    kind: "chat",
+    name: "task-session-timed-out",
+    prompt:
+      "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
+  }),
+  defineEval({
+    assertions: [stoppedTheTurnAndTheTask, explainedTheStop, restartedNothing],
+    followUps: [
+      "While that runs, run `sleep 120` right here in this chat, not as a task, and wait for it to end before you reply.",
+      {
+        duringWork: { afterToolCalls: 0, command: /\bsleep 120\b|\bfg\b/ },
+        stopChat: true,
+      },
+      { afterMs: 5000, stopTask: "t1" },
+      { prompt: WHAT_HAPPENED, settled: true },
+    ],
+    kind: "chat",
+    name: "task-session-stopped-then-asked",
+    prompt:
+      "Start a background task that runs `sleep 150` and then tells me it finished.",
+  }),
+  defineEval({
+    assertions: [t1WaitsOnTheCard, taskDidNotCallItRefused, chatSaidItWaits],
+    kind: "chat",
+    name: "task-session-folder-card",
+    get prompt() {
+      return `Start a background task for this, please: read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
+    },
+    setup: seedPantry,
   }),
 ];

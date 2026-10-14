@@ -192,7 +192,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       appsBySlug={appsBySlug}
       chatTitles={chatTitles}
       chosenId={showsPane ? up.id : undefined}
-      isChatWorking={chatRecord?.state === "working"}
+      isChatWorking={chatRecord?.working === true}
       onAddComputer={() => {
         windowTabs.openScreen(outputFolderHref(), {
           group: chat,

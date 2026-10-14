@@ -107,8 +107,8 @@ export function createRgCommand({
       return { exitCode: 2, stderr: `${bridged.error}\n`, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
-    const masked = maskSearchRoots(bridged.args, layout, taskCwd);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    const masked = maskSearchRoots(bridged.args, layout, hostCwd);
     if ("error" in masked) {
       return { exitCode: 2, stderr: `${masked.error}\n`, stdout: "" };
     }
@@ -123,7 +123,7 @@ export function createRgCommand({
       ],
       {
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
+        cwd: hostCwd,
         env,
         maxBuffer: { stdout: RG_MAX_STDOUT },
         // What it named was checked above; a folder its walk is refused is
@@ -132,7 +132,7 @@ export function createRgCommand({
         // ripgrep picks between reading stdin and walking the working directory
         // by stat'ing fd 0, so the piped bytes have to reach it as a real pipe.
         // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search
-        // the task folder and report those matches as if they came from the
+        // the chat's folder and report those matches as if they came from the
         // pipe. With no pipe, an ignored stdin is what selects the walk.
         //
         // The pipe has to be there even when it carried nothing: `false | rg
@@ -198,7 +198,7 @@ function bridgePathArgs(
   layout: WorkspaceFsLayout,
   resolvePath: (arg: string) => string,
 ): { args: string[] } | { error: string } {
-  const roots = [layout.task, ...otherFolders(layout)].map(
+  const roots = [layout.chat, ...otherFolders(layout)].map(
     (folder) => folder.shellRoot,
   );
 
@@ -326,8 +326,8 @@ function escapeGlob(literal: string): string {
  * rather than normalized, so `..` after a symlink resolves the way the
  * operating system resolves it.
  */
-function hostOperand(taskCwd: string, arg: string): string {
-  return nodePath.isAbsolute(arg) ? arg : `${taskCwd}${nodePath.sep}${arg}`;
+function hostOperand(hostCwd: string, arg: string): string {
+  return nodePath.isAbsolute(arg) ? arg : `${hostCwd}${nodePath.sep}${arg}`;
 }
 
 /** Two parts of a printed path, joined the way ripgrep joins them. */
@@ -371,15 +371,15 @@ function joinPrinted(parent: string, child: string): string {
 function maskSearchRoots(
   args: string[],
   layout: WorkspaceFsLayout,
-  taskCwd: string,
+  hostCwd: string,
 ): { args: string[]; globs: string[] } | { error: string } {
-  const maskedRoots = [layout.task, ...otherFolders(layout)]
+  const maskedRoots = [layout.chat, ...otherFolders(layout)]
     .filter((mount) => mount.maskedEntries.length > 0)
     .map((mount) => ({
       entries: mount.maskedEntries,
       root: canonicalPath(mount.hostRoot) ?? nodePath.resolve(mount.hostRoot),
     }));
-  const cwd = canonicalPath(taskCwd) ?? taskCwd;
+  const cwd = canonicalPath(hostCwd) ?? hostCwd;
 
   const denied = new Set<string>();
   const denyBelow = (spelling: string, reached: string) => {
@@ -408,7 +408,7 @@ function maskSearchRoots(
     // An empty argument names no path: it is the pattern that matches
     // every line.
     const reached =
-      isOperand && arg !== "" ? canonicalPath(hostOperand(taskCwd, arg)) : null;
+      isOperand && arg !== "" ? canonicalPath(hostOperand(hostCwd, arg)) : null;
     if (reached === null || !reachesMaskedRoot(reached)) {
       respelled.push(arg);
       continue;
@@ -423,7 +423,7 @@ function maskSearchRoots(
     const normalizedSpelling = printedSpelling(normalized);
     if (
       normalizedSpelling === null ||
-      canonicalPath(hostOperand(taskCwd, normalized)) !== reached
+      canonicalPath(hostOperand(hostCwd, normalized)) !== reached
     ) {
       return {
         error: `${RG_COMMAND.name}: ${arg}: path is not accessible; spell it without \`.\` or empty segments`,
@@ -445,7 +445,7 @@ function maskSearchRoots(
 }
 
 /**
- * Whether a shell path names a task folder's masked entry itself rather than
+ * Whether a shell path names a masked entry of the chat's folder itself rather than
  * something inside it.
  */
 function isMaskedDirItself(
@@ -455,7 +455,7 @@ function isMaskedDirItself(
 ): boolean {
   return (
     normalizePath(path).toLowerCase() ===
-    `${layout.task.shellRoot}/${entry}`.toLowerCase()
+    `${layout.chat.shellRoot}/${entry}`.toLowerCase()
   );
 }
 

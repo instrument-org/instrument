@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Kbd, KbdGroup } from "@/client/components/ui/kbd";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
-import { isMacOS } from "@/client/lib/utils";
+import { osConventions } from "@/client/lib/utils";
 import type { ShortcutAccelerator } from "@/shared/shortcuts";
 
 /**
@@ -14,7 +14,7 @@ export function ShortcutKeys({
 }: {
   accelerator: ShortcutAccelerator;
 }) {
-  const separated = !isMacOS();
+  const separated = osConventions().keyJoiner !== "";
   return (
     <KbdGroup>
       {formatAccelerator(accelerator).map((key, index) => (

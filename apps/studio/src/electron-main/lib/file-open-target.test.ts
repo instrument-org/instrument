@@ -11,7 +11,7 @@ const SAVE_DEBOUNCE_MS = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date("2026-01-01T00:00:00Z").getTime();
 // Matches CACHE_VERSION in the cache store.
-const CACHE_VERSION = 10;
+const CACHE_VERSION = 11;
 
 interface ExecCall {
   args: string[];

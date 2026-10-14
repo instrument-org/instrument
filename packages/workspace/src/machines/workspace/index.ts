@@ -43,6 +43,7 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
+import { type StopReason } from "../execute-tool-call";
 import {
   type SessionActorRef,
   sessionMachine,
@@ -117,8 +118,13 @@ export type WorkspaceEvent =
     }
   | {
       type: "stopSessions";
-      /** Every session of the record, or the one named, with whose stop it is. */
-      value: { id: ChatId; notice?: StopNotice; sessionId?: StoreId.Session };
+      /** Every session of the record, or the one named, with whose stop it is and why. */
+      value: {
+        id: ChatId;
+        notice?: StopNotice;
+        reason?: StopReason;
+        sessionId?: StoreId.Session;
+      };
     }
   | {
       type: "updateInteractiveToolCall";
@@ -263,6 +269,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureException: CaptureExceptionFunction;
       chatTemplateDir: string;
+      driveNames?: WorkspaceConfig["driveNames"];
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       finderEntries?: WorkspaceConfig["finderEntries"];
       resolveAlias?: WorkspaceConfig["resolveAlias"];
@@ -305,6 +312,7 @@ export const workspaceMachine = setup({
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
+      ...(input.driveNames ? { driveNames: input.driveNames } : {}),
       ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
       ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
@@ -472,9 +480,14 @@ export const workspaceMachine = setup({
           chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
 
+        // The user's doing, which wakes nothing: a task's turn this ends
+        // must not write into the chat being trashed or start its turn.
         enqueue.raise({
           type: "stopSessions",
-          value: { id: event.value.id },
+          value: {
+            id: event.value.id,
+            notice: { by: "user", wakesChat: false },
+          },
         });
       }),
     },
@@ -540,7 +553,7 @@ export const workspaceMachine = setup({
         const sessionActorRefs = context.sessionRefsByChatId.get(
           event.value.id,
         );
-        const { notice, sessionId } = event.value;
+        const { notice, reason, sessionId } = event.value;
         for (const sessionActorRef of sessionActorRefs ?? []) {
           if (
             sessionId === undefined ||
@@ -548,6 +561,7 @@ export const workspaceMachine = setup({
           ) {
             sessionActorRef.send({
               ...(notice ? { notice } : {}),
+              ...(reason ? { reason } : {}),
               type: "stop",
             });
           }

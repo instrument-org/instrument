@@ -110,6 +110,8 @@ node "$LINUX_HOST" stop --host "$HOST" --target installed
 
 Stopping reports `portReleased` and any surviving processes. Both matter here: the desktop environment can re-home a launched app into its own scope, outside the unit's control group, and then stopping the unit leaves children alive holding the debug port. Stop also stops the scopes those children are in, so treat a non-empty `survivingProcesses` or `portReleased: false` as something to investigate rather than retry through.
 
+When the host is a UTM guest on the Mac you run from, the helper also powers the guest itself: `vm-start --host "$HOST" --vm "<UTM name>"` starts it if needed and waits for SSH, and `vm-stop` shuts it down from inside (`sudo -n systemctl poweroff`) and waits for UTM to report it stopped, never forcing it. Unlike the Mac VM the guest is never replaced, because it carries a signed-in browser and the installed release app. Stop the preview first; a shutdown with the app running hits the 90-second hang above.
+
 ## Troubleshooting
 
 - CDP accepts connections but never answers, and `status` shows the unit active with `portListening: true`: the main thread is blocked. A desktop-modal secret prompt is the usual cause on this platform, because `/json/*` needs a UI-thread hop that never comes. Clear the prompt on the desktop, then retry. The tell is a read timeout rather than a connection refusal; refusal means the app is not up yet.

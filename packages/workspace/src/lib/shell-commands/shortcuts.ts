@@ -38,10 +38,10 @@ export function createShortcutsCommand(
     const hostArgs = args.flatMap((arg, index) =>
       PATH_FLAGS.has(args[index - 1] ?? "") ? hostPathArgs([arg]) : [arg],
     );
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const result = await execShim(SHORTCUTS_PATH, hostArgs, {
       cancelSignal: ctx.signal,
-      cwd: taskCwd,
+      cwd: hostCwd,
       env,
       stdin: "ignore",
     });

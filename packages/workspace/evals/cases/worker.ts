@@ -272,8 +272,14 @@ const checkedItsOwnWork: Assertion = {
             }
           }
           // A file made by a script rather than a file tool still counts as
-          // made, so a later read of it is still a check of its own work.
-          if (part.type === "tool-bash") {
+          // made, so a later read of it is still a check of its own work. Only
+          // a command that succeeded made it: the retry of one that failed is
+          // the making, not a look at what was made.
+          if (
+            part.type === "tool-bash" &&
+            part.state === "output-available" &&
+            part.output.exitCode === 0
+          ) {
             for (const [, name] of (part.input?.command ?? "").matchAll(
               /([\w-]+\.(?:docx|xlsx|pptx|png|pdf|csv|md))/g,
             )) {

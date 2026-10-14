@@ -69,6 +69,9 @@ import { startNotices } from "./lib/notices";
 import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
+import { getWorkspaceRefusal } from "./lib/workspace-refusal";
+import { showWorkspaceRefusal } from "./lib/workspace-refusal-window";
+import { machineDir } from "./lib/get-workspace-folder";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -107,6 +110,11 @@ if (gotTheLock) {
   registerCrashDiagnostics(app);
 
   app.on("second-instance", (_event, commandLine) => {
+    // A refused workspace's window is the only one, and takes nothing else.
+    if (getWorkspaceRefusal()) {
+      BrowserWindow.getAllWindows()[0]?.focus();
+      return;
+    }
     focusForegroundWindow();
 
     const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
@@ -125,13 +133,15 @@ if (gotTheLock) {
   // launches the app arrives before it is; the screen waits for the window.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    openAppFile(filePath);
+    if (!getWorkspaceRefusal()) {
+      openAppFile(filePath);
+    }
   });
 
   // The same hand-over on Windows and Linux, for a launch that starts the app.
-  for (const filePath of filesInArgv(process.argv, {
-    defaultApp: process.defaultApp,
-  })) {
+  for (const filePath of getWorkspaceRefusal()
+    ? []
+    : filesInArgv(process.argv, { defaultApp: process.defaultApp })) {
     openAppFile(filePath);
   }
 
@@ -143,6 +153,14 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  // A workspace this build will not open is said in a window of its own, and
+  // nothing else starts: no stores, no workspace, no other window.
+  const refusal = getWorkspaceRefusal();
+  if (refusal) {
+    await showWorkspaceRefusal({ refusal, userDataDir: machineDir() });
+    return;
+  }
+
   const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
   if (!canContinueLaunch) {
     app.quit();

@@ -17,6 +17,7 @@ import {
   isDirectorySync,
   mergeEntrySync,
   moveEntrySync,
+  removeEntrySync,
   removeIfEmptySync,
 } from "./move-entry";
 import { recordMovedPaths } from "./moved-paths";
@@ -93,6 +94,13 @@ export interface ChatRecordsSplit {
  * left in place and counted (`failed`), so the sweep is not marked done and
  * the next one tries it again. Records where the work went (`recordMovedPaths`), so a path stored
  * before is found where it went. Synchronous, with no store open.
+ *
+ * A link anywhere in an old chat folder is acted on as a link, never
+ * through: it moves with the work as a link, and one in place of what is
+ * dropped is unlinked, so nothing it points to outside the workspace is
+ * moved or deleted. The split never reads into a folder reached through a
+ * link (the chat's `.instrument/`, `tasks/`, `work/`, a skills folder), and
+ * a `chats/` folder that is itself a link is left whole.
  */
 export function splitChatRecords({
   machineDir,
@@ -113,8 +121,11 @@ export function splitChatRecords({
     { from: windowRecordDir, to: windowWorkDir },
   ]);
 
+  if (entryExists(chatsDir) && !isDirectorySync(chatsDir)) {
+    split.done.push(`left ${chatsDir}: it is a link`);
+  }
   const folders = [
-    ...readDirs(chatsDir)
+    ...(isDirectorySync(chatsDir) ? readDirs(chatsDir) : [])
       // A name with a dot is a chat the 1.x migration has not finished.
       .filter((name) => !name.startsWith("."))
       .map((name) => ({
@@ -154,6 +165,22 @@ function readEntries(dir: string): string[] {
   }
 }
 
+/**
+ * Whether each name below `dir` in turn is a folder, never a link, so what
+ * is done in the last one stays inside `dir`.
+ */
+function isFolderBelow(dir: string, ...names: string[]): boolean {
+  let at = dir;
+  for (const name of names) {
+    at = path.join(at, name);
+    if (!isDirectorySync(at)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** The folders in `dir`, leaving out links to folders. */
 function readDirs(dir: string): string[] {
   try {
     return fs
@@ -205,7 +232,114 @@ function splitOne({
   const moved: string[] = [];
   const privateDir = path.join(recordDir, PRIVATE_FOLDER_NAME);
 
-  // The records, up out of the private dir.
+  // The records, up out of the private dir, which a link is not.
+  if (entryExists(privateDir) && !isDirectorySync(privateDir)) {
+    split.done.push(`left ${privateDir}: it is a link`);
+  } else {
+    takeRecordsOut({ moved, privateDir, recordDir, split });
+  }
+
+  // The handoff notes are the conversation's, so they stay with its records.
+  const notes = path.join(recordDir, ...LEGACY_HANDOFF_NOTES_PATH);
+  const notesTo = path.join(recordDir, HANDOFF_NOTES_FILE_NAME);
+  if (
+    isFolderBelow(recordDir, ...LEGACY_HANDOFF_NOTES_PATH.slice(0, -1)) &&
+    entryExists(notes) &&
+    !entryExists(notesTo)
+  ) {
+    step(split, `move ${notes}`, () => {
+      moveEntrySync(notes, notesTo);
+      moved.push(LEGACY_HANDOFF_NOTES_PATH.join("/"));
+    });
+  }
+
+  dropAppSkillCopies({ dir: recordDir, moved, split });
+
+  // An earlier build's task folders keep their files, which go with the
+  // chat's work, but not their records or what rebuilds.
+  const tasksDir = path.join(recordDir, TASKS_DIR_NAME);
+  // A link moves with the rest as a link, nothing in it read.
+  const hasTasks = isFolderBelow(recordDir, TASKS_DIR_NAME);
+  for (const task of hasTasks ? readDirs(tasksDir) : []) {
+    const taskDir = path.join(tasksDir, task);
+    dropAppSkillCopies({
+      dir: taskDir,
+      label: `${TASKS_DIR_NAME}/${task}/`,
+      moved,
+      split,
+    });
+    const taskRecords = path.join(taskDir, PRIVATE_FOLDER_NAME);
+    if (entryExists(taskRecords)) {
+      const to = path.join(setAsideDir, task);
+      if (entryExists(to)) {
+        leave(split, taskRecords, to);
+      } else {
+        step(split, `set aside ${taskRecords}`, () => {
+          moveEntrySync(taskRecords, to);
+          moved.push(`tasks/${task}/.instrument (set aside)`);
+        });
+      }
+    }
+    for (const rebuilt of REBUILT_ENTRY_NAMES) {
+      const entry = path.join(taskDir, rebuilt);
+      if (entryExists(entry)) {
+        step(split, `remove ${entry}`, () => {
+          removeEntrySync(entry);
+        });
+      }
+    }
+    removeIfEmptySync(taskDir);
+  }
+  if (hasTasks) {
+    removeIfEmptySync(tasksDir);
+  }
+
+  for (const entry of readEntries(recordDir)) {
+    if (RECORD_ENTRY_NAMES.has(entry) || entry === PRIVATE_FOLDER_NAME) {
+      continue;
+    }
+    const from = path.join(recordDir, entry);
+    if (REBUILT_ENTRY_NAMES.has(entry)) {
+      step(split, `remove ${from}`, () => {
+        removeEntrySync(from);
+        moved.push(`${entry} (removed)`);
+      });
+      continue;
+    }
+    step(split, `move ${from}`, () => {
+      if (
+        mergeEntrySync(from, path.join(workDir, entry), (left, taken) => {
+          leave(split, left, taken);
+        })
+      ) {
+        moved.push(entry);
+      }
+    });
+  }
+
+  if (moved.length > 0) {
+    split.done.push(
+      `${name}: ${moved.join(", ")}, with its work in ${workDir}`,
+    );
+  }
+}
+
+/**
+ * Moves a chat's records (`chat.db` and the files beside it, then
+ * `settings.json`) up out of its own `.instrument/`, a folder, to the top
+ * of its record folder, and drops `agent-browser`'s old home there.
+ */
+function takeRecordsOut({
+  moved,
+  privateDir,
+  recordDir,
+  split,
+}: {
+  moved: string[];
+  privateDir: string;
+  recordDir: string;
+  split: ChatRecordsSplit;
+}) {
   let databaseMoved = true;
   for (const suffix of DB_FILE_SUFFIXES) {
     const file = `${CHAT_DB_FILE_NAME}${suffix}`;
@@ -240,89 +374,13 @@ function splitOne({
   const agentBrowserHome = path.join(privateDir, AGENT_BROWSER_HOME_DIR_NAME);
   if (entryExists(agentBrowserHome)) {
     step(split, `remove ${agentBrowserHome}`, () => {
-      fs.rmSync(agentBrowserHome, { force: true, recursive: true });
+      removeEntrySync(agentBrowserHome);
     });
   }
   removeIfEmptySync(privateDir);
   if (entryExists(privateDir)) {
     split.done.push(
       `left ${privateDir} holding ${readEntries(privateDir).join(", ")}`,
-    );
-  }
-
-  // The handoff notes are the conversation's, so they stay with its records.
-  const notes = path.join(recordDir, ...LEGACY_HANDOFF_NOTES_PATH);
-  const notesTo = path.join(recordDir, HANDOFF_NOTES_FILE_NAME);
-  if (entryExists(notes) && !entryExists(notesTo)) {
-    step(split, `move ${notes}`, () => {
-      moveEntrySync(notes, notesTo);
-      moved.push(LEGACY_HANDOFF_NOTES_PATH.join("/"));
-    });
-  }
-
-  dropAppSkillCopies({ dir: recordDir, moved, split });
-
-  // An earlier build's task folders keep their files, which go with the
-  // chat's work, but not their records or what rebuilds.
-  const tasksDir = path.join(recordDir, TASKS_DIR_NAME);
-  for (const task of readDirs(tasksDir)) {
-    const taskDir = path.join(tasksDir, task);
-    dropAppSkillCopies({
-      dir: taskDir,
-      label: `${TASKS_DIR_NAME}/${task}/`,
-      moved,
-      split,
-    });
-    const taskRecords = path.join(taskDir, PRIVATE_FOLDER_NAME);
-    if (entryExists(taskRecords)) {
-      const to = path.join(setAsideDir, task);
-      if (entryExists(to)) {
-        leave(split, taskRecords, to);
-      } else {
-        step(split, `set aside ${taskRecords}`, () => {
-          moveEntrySync(taskRecords, to);
-          moved.push(`tasks/${task}/.instrument (set aside)`);
-        });
-      }
-    }
-    for (const rebuilt of REBUILT_ENTRY_NAMES) {
-      const entry = path.join(taskDir, rebuilt);
-      if (entryExists(entry)) {
-        step(split, `remove ${entry}`, () => {
-          fs.rmSync(entry, { force: true, maxRetries: 3, recursive: true });
-        });
-      }
-    }
-    removeIfEmptySync(taskDir);
-  }
-  removeIfEmptySync(tasksDir);
-
-  for (const entry of readEntries(recordDir)) {
-    if (RECORD_ENTRY_NAMES.has(entry) || entry === PRIVATE_FOLDER_NAME) {
-      continue;
-    }
-    const from = path.join(recordDir, entry);
-    if (REBUILT_ENTRY_NAMES.has(entry)) {
-      step(split, `remove ${from}`, () => {
-        fs.rmSync(from, { force: true, maxRetries: 3, recursive: true });
-        moved.push(`${entry} (removed)`);
-      });
-      continue;
-    }
-    step(split, `move ${from}`, () => {
-      if (
-        mergeEntrySync(from, path.join(workDir, entry), (left, taken) => {
-          leave(split, left, taken);
-        })
-      ) {
-        moved.push(entry);
-      }
-    });
-  }
-
-  if (moved.length > 0) {
-    split.done.push(
-      `${name}: ${moved.join(", ")}, with its work in ${workDir}`,
     );
   }
 }
@@ -347,16 +405,23 @@ function dropAppSkillCopies({
   split: ChatRecordsSplit;
 }) {
   for (const copies of SKILL_COPY_DIRS) {
+    if (!isFolderBelow(dir, ...copies)) {
+      continue;
+    }
     const skillsDir = path.join(dir, ...copies);
     for (const source of APP_SKILL_SOURCES) {
+      if (!isFolderBelow(skillsDir, source)) {
+        continue;
+      }
       const sourceDir = path.join(skillsDir, source);
-      for (const name of readDirs(sourceDir)) {
+      // A copy that is a link is unlinked, leaving what it points to.
+      for (const name of readEntries(sourceDir)) {
         const copy = path.join(sourceDir, name);
         if (!entryExists(path.join(copy, "SKILL.md"))) {
           continue;
         }
         step(split, `remove ${copy}`, () => {
-          fs.rmSync(copy, { force: true, maxRetries: 3, recursive: true });
+          removeEntrySync(copy);
           moved.push(
             `${label}${[...copies, source, name].join("/")} (removed)`,
           );

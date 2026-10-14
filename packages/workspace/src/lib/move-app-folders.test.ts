@@ -8,6 +8,7 @@ import { readMovedPaths, remapMovedPath } from "./moved-paths";
 
 const workspace = withTempDir("move-app-folders-workspace");
 const machine = withTempDir("move-app-folders-machine");
+const outside = withTempDir("move-app-folders-outside");
 
 function write(file: string, contents = "") {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -107,6 +108,32 @@ describe("moveAppFoldersIntoDataDir", () => {
     expect(result.done).toEqual([`left ${at("memory")}: it is not a folder`]);
     expect(fs.readFileSync(at("memory"), "utf8")).toBe("not a folder");
     expect(readMovedPaths(machine.path)).toEqual([]);
+  });
+
+  it("never merges into a link in its place in .instrument/, or moves one at the top", () => {
+    write(at("drafts", "a", "draft.md"), "mine");
+    write(path.join(outside.path, "drafts", "b", "draft.md"), "theirs");
+    write(path.join(outside.path, "topics", "T", "instructions.md"), "theirs");
+    fs.mkdirSync(at(".instrument"), { recursive: true });
+    fs.symlinkSync(
+      path.join(outside.path, "drafts"),
+      at(".instrument", "drafts"),
+    );
+    fs.symlinkSync(path.join(outside.path, "topics"), at("topics"));
+
+    const result = move();
+
+    expect(result.failed).toBe(1);
+    expect(result.done).toEqual([
+      `left ${at("topics")}: it is not a folder`,
+      `left ${at("drafts")}: ${at(".instrument", "drafts")} is already there`,
+    ]);
+    expect(listing(path.join(outside.path))).toEqual([
+      path.join("drafts", "b", "draft.md"),
+      path.join("topics", "T", "instructions.md"),
+    ]);
+    expect(listing(at("drafts"))).toEqual([path.join("a", "draft.md")]);
+    expect(fs.lstatSync(at("topics")).isSymbolicLink()).toBe(true);
   });
 
   it("does nothing on a second run, and records nothing where nothing moved", () => {

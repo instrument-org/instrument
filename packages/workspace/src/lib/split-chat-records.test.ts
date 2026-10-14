@@ -11,6 +11,7 @@ import { withTempDir } from "../test/helpers/temp-dir";
 
 const workspace = withTempDir("split-chat-records-workspace");
 const machine = withTempDir("split-chat-records-machine");
+const outside = withTempDir("split-chat-records-outside");
 
 const CHAT = "2026-10-01-beta";
 
@@ -306,6 +307,124 @@ describe("splitChatRecords", () => {
     fs.rmSync(path.join(recordDir(), ".instrument", "chat.db"));
     expect(split().failed).toBe(0);
     expect(listing(recordDir())).toEqual(["chat.db", "settings.json"]);
+  });
+
+  it("acts on a link at any level of an old chat folder, never on what it points to", () => {
+    // Outside the workspace: a folder for each link to point at, each
+    // holding what the split would move or drop if it followed the link.
+    const target = (name: string) => path.join(outside.path, name);
+    for (const name of ["records", "tasks", "task", "work", "skills"]) {
+      write(path.join(target(name), ".instrument", "chat.db"), "theirs");
+      write(path.join(target(name), ".instrument", "settings.json"), "{}");
+      write(path.join(target(name), ".instrument", "agent-browser-home", "x"));
+      write(path.join(target(name), "handoff-notes.md"), "theirs");
+      write(path.join(target(name), "SKILL.md"), "theirs");
+      write(path.join(target(name), "some-skill", "SKILL.md"), "theirs");
+      write(path.join(target(name), "instrument", "pdf", "SKILL.md"), "theirs");
+      write(path.join(target(name), "t1", ".venv", "bin", "python"), "theirs");
+      write(path.join(target(name), "t1", "node_modules", "x.js"), "theirs");
+      write(path.join(target(name), "t1", ".instrument", "task.db"), "theirs");
+      write(
+        path.join(
+          target(name),
+          "t1",
+          "skills",
+          "instrument",
+          "zip",
+          "SKILL.md",
+        ),
+        "theirs",
+      );
+      write(path.join(target(name), ".venv", "bin", "python"), "theirs");
+      write(path.join(target(name), "node_modules", "x.js"), "theirs");
+    }
+    const before = listing(outside.path);
+    const link = (to: string, ...at: string[]) => {
+      fs.mkdirSync(path.join(recordDir(), ...at.slice(0, -1)), {
+        recursive: true,
+      });
+      fs.symlinkSync(to, path.join(recordDir(), ...at));
+    };
+    // In one chat, each place the split reads into or drops, as a link.
+    write(path.join(recordDir(), "chat.db"), "db");
+    link(target("records"), ".instrument");
+    link(target("work"), "work");
+    link(target("skills"), "skills", "instrument");
+    link(path.join(target("skills"), "some-skill"), "skills", "system", "copy");
+    link(target("tasks"), "tasks");
+    link(target("node_modules"), "node_modules");
+    link(target(".venv"), ".venv");
+    // In a second, a real tasks/ folder holding links.
+    const other = recordDir("2026-10-02-other");
+    write(path.join(other, "chat.db"), "db");
+    fs.mkdirSync(path.join(other, "tasks", "t2"), { recursive: true });
+    fs.symlinkSync(target("task"), path.join(other, "tasks", "t1"));
+    fs.symlinkSync(
+      path.join(target("task"), "t1", ".venv"),
+      path.join(other, "tasks", "t2", ".venv"),
+    );
+    fs.symlinkSync(
+      path.join(target("task"), "t1", ".instrument"),
+      path.join(other, "tasks", "t2", ".instrument"),
+    );
+    fs.symlinkSync(target("work"), path.join(other, "tasks", "t2", "skills"));
+    // And a chat folder that is a link itself.
+    fs.symlinkSync(target("records"), recordDir("2026-10-03-linked"));
+
+    split();
+
+    expect(listing(outside.path)).toEqual(before);
+    const isLink = (entry: string) => fs.lstatSync(entry).isSymbolicLink();
+    // Links in what moved went as links; links in place of what is
+    // dropped are gone, and so is the one in place of an app skill copy.
+    expect(isLink(path.join(workDir(), "work"))).toBe(true);
+    expect(isLink(path.join(workDir(), "tasks"))).toBe(true);
+    expect(isLink(path.join(workDir(), "skills", "instrument"))).toBe(true);
+    expect(fs.existsSync(path.join(workDir(), "skills", "system"))).toBe(false);
+    expect(fs.existsSync(path.join(workDir(), "node_modules"))).toBe(false);
+    expect(fs.existsSync(path.join(workDir(), ".venv"))).toBe(false);
+    expect(isLink(path.join(recordDir(), ".instrument"))).toBe(true);
+    expect(fs.existsSync(path.join(recordDir(), "settings.json"))).toBe(false);
+    expect(fs.existsSync(path.join(recordDir(), "handoff-notes.md"))).toBe(
+      false,
+    );
+    expect(isLink(path.join(workDir("2026-10-02-other"), "tasks", "t1"))).toBe(
+      true,
+    );
+    expect(
+      isLink(path.join(workDir("2026-10-02-other"), "tasks", "t2", "skills")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(workDir("2026-10-02-other"), "tasks", "t2", ".venv"),
+      ),
+    ).toBe(false);
+    expect(
+      isLink(
+        path.join(
+          workspaceLayout(workspace.path).setAsideDir,
+          "chat-task-records",
+          "2026-10-02-other",
+          "t2",
+        ),
+      ),
+    ).toBe(true);
+    expect(isLink(recordDir("2026-10-03-linked"))).toBe(true);
+  });
+
+  it("leaves a chats folder that is a link whole", () => {
+    write(path.join(outside.path, CHAT, ".instrument", "chat.db"), "theirs");
+    write(path.join(outside.path, CHAT, ".venv", "bin", "python"), "theirs");
+    fs.mkdirSync(path.join(workspace.path, ".instrument"), { recursive: true });
+    fs.symlinkSync(outside.path, workspaceLayout(workspace.path).chatsDir);
+    const before = listing(outside.path);
+
+    const result = split();
+
+    expect(result.done).toEqual([
+      `left ${workspaceLayout(workspace.path).chatsDir}: it is a link`,
+    ]);
+    expect(listing(outside.path)).toEqual(before);
   });
 
   it("leaves what it could not move for the next run, which finishes it", () => {

@@ -327,6 +327,48 @@ describe("moveMachineData", () => {
     ).toBe(false);
   });
 
+  it("leaves a link, and what is in a folder that is one, where it is", () => {
+    seedBeta();
+    const root = defaultWorkspacePath(userDataDir);
+    const outside = path.join(userDataDir, "outside");
+    write(path.join(outside, "settings", "providers.json.enc"), "theirs");
+    write(path.join(outside, "permissions.json"), "theirs");
+    const settings = path.join(root, ".instrument", "settings");
+    fs.rmSync(settings, { recursive: true });
+    fs.symlinkSync(path.join(outside, "settings"), settings);
+    fs.rmSync(path.join(root, "permissions.json"));
+    fs.symlinkSync(
+      path.join(outside, "permissions.json"),
+      path.join(root, "permissions.json"),
+    );
+
+    const { done, machineDir } = moveMachineData({
+      userDataDir,
+      workspace: workspace(),
+    });
+
+    expect(tree(outside)).toEqual([
+      "permissions.json",
+      path.join("settings", "providers.json.enc"),
+    ]);
+    expect(
+      fs.existsSync(path.join(machineDir, "keys", "providers.json.enc")),
+    ).toBe(false);
+    expect(fs.existsSync(path.join(machineDir, "permissions.json"))).toBe(
+      false,
+    );
+    expect(done).toContain(
+      `left ${path.join(settings, "providers.json.enc")}: it is a link, or in one`,
+    );
+    expect(done).toContain(
+      `left ${path.join(root, "permissions.json")}: it is a link, or in one`,
+    );
+    // The rest still moved.
+    expect(tree(path.join(machineDir, "browser", "app-session"))).toEqual([
+      "Cookies",
+    ]);
+  });
+
   it("keeps the shared index folder until the last registered workspace takes its index out", () => {
     seedBeta();
     const other: ResolvedWorkspace = {

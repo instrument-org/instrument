@@ -94,6 +94,12 @@ export function moveAppFoldersIntoDataDir({
       }
       continue;
     }
+    // Merged only into a folder: a link's entries are wherever it points.
+    if (!isDirectorySync(to)) {
+      move.failed++;
+      move.done.push(`left ${from}: ${to} is already there`);
+      continue;
+    }
     let moved = 0;
     for (const entry of fs.readdirSync(from)) {
       try {

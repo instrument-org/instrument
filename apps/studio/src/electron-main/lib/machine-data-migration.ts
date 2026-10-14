@@ -140,7 +140,13 @@ export function moveMachineData({
       workspacePath: workspace.path,
     })) {
       try {
-        moveEntry({ done, from, overwrite, to });
+        moveEntry({
+          done,
+          from,
+          overwrite,
+          to,
+          workspacePath: workspace.path,
+        });
       } catch (error) {
         failed++;
         done.push(`could not move ${from} (${String(error)}); left it there`);
@@ -204,20 +210,31 @@ function foldLayoutMarkers(workspacePath: string, done: string[]) {
  * Move `from` to `to` where `to` is free. With `overwrite`, `from` replaces
  * what is at `to`: the stores' defaults, written there after an earlier move
  * stopped partway. Without it, an entry already at `to` is kept and `from`
- * left where it is.
+ * left where it is. A link stays where it is, as does anything in a folder
+ * that is one.
  */
 function moveEntry({
   done,
   from,
   overwrite,
   to,
+  workspacePath,
 }: {
   done: string[];
   from: string;
   overwrite: boolean;
   to: string;
+  workspacePath: string;
 }) {
   if (!entryExists(from)) {
+    return;
+  }
+  // A link, or an entry in a folder that is one, is not the workspace's to
+  // take into this computer's data: it stays where it is. The workspace's
+  // own folder may be reached through a link the person made.
+  const holder = path.dirname(from);
+  if (isLink(from) || (holder !== workspacePath && isLink(holder))) {
+    done.push(`left ${from}: it is a link, or in one`);
     return;
   }
   if (entryExists(to)) {
@@ -383,6 +400,14 @@ function removeLegacyIndexes({
   done.push(
     `removed ${dir}, which held no index a workspace still has to move`,
   );
+}
+
+function isLink(entry: string) {
+  try {
+    return fs.lstatSync(entry).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 function fileStats(file: string): fs.Stats | undefined {

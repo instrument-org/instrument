@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
 
-const home = "/Users/someone";
+// A home on this disk's root, spelled as node:path spells it here
+// (`C:\Users\someone` on Windows), so a folder the rules name compares as is.
+const home = nodePath.resolve("/Users/someone");
+const inHome = (relative: string) => nodePath.join(home, relative);
 const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
 
 describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
@@ -180,18 +183,18 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
 describe("folderToAskFor", () => {
   const documents = {
     level: "ask",
-    path: `${home}/Documents`,
+    path: inHome("Documents"),
     source: "place",
   } as const;
 
   it.each([
     [
-      `${home}/Documents/Clients/Acme/a.pdf`,
+      inHome("Documents/Clients/Acme/a.pdf"),
       false,
-      `${home}/Documents/Clients`,
+      inHome("Documents/Clients"),
     ],
-    [`${home}/Documents/report.pdf`, false, `${home}/Documents`],
-    [`${home}/Documents/Clients`, true, `${home}/Documents/Clients`],
+    [inHome("Documents/report.pdf"), false, inHome("Documents")],
+    [inHome("Documents/Clients"), true, inHome("Documents/Clients")],
   ])("%s asks for %s", (hostPath, isDirectory, expected) => {
     expect(
       folderToAskFor({
@@ -204,11 +207,11 @@ describe("folderToAskFor", () => {
   });
 
   it.each([
-    [`${home}/.ssh/config`, `${home}/.ssh`],
-    [`${home}/.ssh/keys/work/id_ed25519`, `${home}/.ssh`],
-    [`${home}/.config/gh/hosts.yml`, `${home}/.config/gh`],
-    [`${home}/.netrc`, `${home}/.netrc`],
-    [`${home}/.docker/config.json`, `${home}/.docker/config.json`],
+    [inHome(".ssh/config"), inHome(".ssh")],
+    [inHome(".ssh/keys/work/id_ed25519"), inHome(".ssh")],
+    [inHome(".config/gh/hosts.yml"), inHome(".config/gh")],
+    [inHome(".netrc"), inHome(".netrc")],
+    [inHome(".docker/config.json"), inHome(".docker/config.json")],
   ])("asks for a sign-in place whole: %s asks for %s", (hostPath, expected) => {
     const rules = rulesFor({ home, settings });
     expect(
@@ -224,12 +227,12 @@ describe("folderToAskFor", () => {
   it("asks one level below home where no rule holds the path", () => {
     expect(
       folderToAskFor({
-        hostPath: `${home}/Projects/site/index.html`,
+        hostPath: inHome("Projects/site/index.html"),
         isDirectory: false,
         rule: undefined,
         rules: rulesFor({ home, settings }),
       }),
-    ).toBe(`${home}/Projects`);
+    ).toBe(inHome("Projects"));
   });
 
   // The app's own data in a place that asks, as the machine folder sits in
@@ -238,24 +241,24 @@ describe("folderToAskFor", () => {
   // folder that holds it, which ruleRefusal raises no card for.
   it.each([
     [
-      `${home}/Library/Application Support/Other/state.json`,
+      inHome("Library/Application Support/Other/state.json"),
       false,
-      `${home}/Library/Application Support/Other`,
+      inHome("Library/Application Support/Other"),
     ],
     [
-      `${home}/Library/Application Support/Other/cache/a`,
+      inHome("Library/Application Support/Other/cache/a"),
       true,
-      `${home}/Library/Application Support/Other`,
+      inHome("Library/Application Support/Other"),
     ],
     [
-      `${home}/Library/Application Support`,
+      inHome("Library/Application Support"),
       true,
-      `${home}/Library/Application Support`,
+      inHome("Library/Application Support"),
     ],
     [
-      `${home}/Library/Preferences/x.plist`,
+      inHome("Library/Preferences/x.plist"),
       false,
-      `${home}/Library/Preferences`,
+      inHome("Library/Preferences"),
     ],
   ])(
     "asks around the app's own data: %s asks for %s",
@@ -268,7 +271,7 @@ describe("folderToAskFor", () => {
           {
             appData: true,
             level: "never",
-            path: `${home}/Library/Application Support/Instrument`,
+            path: inHome("Library/Application Support/Instrument"),
             source: "system",
           } as const,
         ],
@@ -277,7 +280,7 @@ describe("folderToAskFor", () => {
         folderToAskFor({
           hostPath,
           isDirectory,
-          rule: { level: "ask", path: `${home}/Library`, source: "place" },
+          rule: { level: "ask", path: inHome("Library"), source: "place" },
           rules,
         }),
       ).toBe(expected);

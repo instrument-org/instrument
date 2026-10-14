@@ -1,5 +1,6 @@
 import { InMemoryFs } from "just-bash";
 import nodeFs from "node:fs";
+import nodePath from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -21,7 +22,19 @@ vi.mock("./asks", async (importOriginal) => ({
   raiseAsk: vi.fn(),
 }));
 
+/**
+ * A host path on this disk's root, spelled as node:path spells it here
+ * (`C:\Users\sam` on Windows), so the rules compare it as they would a
+ * real one.
+ */
+const onDisk = (posixPath: string) => nodePath.resolve(posixPath);
+
+/** A host path as a shell names it: from the root, with forward slashes. */
+const slashed = (hostPath: string) =>
+  `/${nodePath.relative(nodePath.parse(hostPath).root, hostPath).replaceAll(nodePath.sep, "/")}`;
+
 it("refuses what the rules close, reports it, and leaves the rest alone", async () => {
+  const sam = onDisk("/Users/sam");
   const delegate = new InMemoryFs({
     "/Documents/a.txt": "a",
     "/notes.md": "n",
@@ -29,14 +42,20 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   const refusals: string[] = [];
   const fs = rulesFs({
     delegate,
-    hostRoot: "/Users/sam",
+    hostRoot: sam,
     onRefusal: (refusal) => refusals.push(refusal),
     rules: {
-      home: "/Users/sam",
-      rules: [{ level: "ask", path: "/Users/sam/Documents", source: "place" }],
+      home: sam,
+      rules: [
+        {
+          level: "ask",
+          path: nodePath.join(sam, "Documents"),
+          source: "place",
+        },
+      ],
       withoutAsking: false,
     },
-    spell: (hostPath) => hostPath.replace("/Users/sam", "/c/Users/sam"),
+    spell: (hostPath) => `/c${slashed(hostPath)}`,
   });
 
   expect(await fs.readFile("/notes.md")).toBe("n");
@@ -54,23 +73,33 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
 });
 
 it("lets cd pass through the app's own data to a folder inside it the agent reaches, and refuses the rest plainly", async () => {
+  const tmp = onDisk("/tmp");
   const refusals: string[] = [];
   const fs = rulesFs({
     delegate: new InMemoryFs({
       "/ws/chats/a/work/x.txt": "x",
       "/ws/chats/b/secret.txt": "s",
     }),
-    hostRoot: "/tmp",
+    hostRoot: tmp,
     onRefusal: (refusal) => refusals.push(refusal),
     rules: {
-      home: "/Users/sam",
+      home: onDisk("/Users/sam"),
       rules: [
-        { appData: true, level: "never", path: "/tmp/ws", source: "system" },
-        { level: "allow", path: "/tmp/ws/chats/a", source: "system" },
+        {
+          appData: true,
+          level: "never",
+          path: nodePath.join(tmp, "ws"),
+          source: "system",
+        },
+        {
+          level: "allow",
+          path: nodePath.join(tmp, "ws", "chats", "a"),
+          source: "system",
+        },
       ],
       withoutAsking: false,
     },
-    spell: (hostPath) => hostPath,
+    spell: slashed,
   });
 
   expect((await fs.stat("/ws/chats")).isDirectory).toBe(true);

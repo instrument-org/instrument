@@ -46,6 +46,11 @@ type Place = View["places"][number];
 
 const SEPARATOR = " › ";
 
+// oxlint-disable studio/no-os-words -- shown only on macOS, where Seatbelt does not nest inside another sandbox
+const MAC_SANDBOX_OFF =
+  "On this Mac, Instrument can't use the system's sandbox, which happens when Instrument itself runs inside another one. Its own tools still follow this list, but a program the agent runs, like Python, could reach other folders.";
+// oxlint-enable studio/no-os-words
+
 const LEVEL_LABELS = {
   allow: "Allowed",
   ask: "Ask first",
@@ -170,12 +175,7 @@ export function PermissionsSection() {
               </button>
             </p>
           ) : isMacOS() ? (
-            <p>
-              On this Mac, Instrument can't use the system's sandbox, which
-              happens when Instrument itself runs inside another one. Its own
-              tools still follow this list, but a program the agent runs, like
-              Python, could reach other folders.
-            </p>
+            <p>{MAC_SANDBOX_OFF}</p>
           ) : (
             <p>
               On Linux, Instrument follows this list as closely as it can. Its

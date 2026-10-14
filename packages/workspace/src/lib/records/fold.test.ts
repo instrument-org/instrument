@@ -339,6 +339,34 @@ describe("foldChat", () => {
     expect(foldChat([fromA, fromB, fromC]).sessions[0]?.forked).toBe(false);
   });
 
+  it("says which device wrote the newest snapshot of each message and part", () => {
+    const chat = foldChat([
+      log(DEVICE_A, [
+        HEADER_A,
+        messageRecord(1, user(1)),
+        partRecord(2, text(1, 1, "a's")),
+        partRecord(3, text(1, 2, "a's only")),
+        messageRecord(4, user(2)),
+        partRecord(5, text(2, 3, "retracted")),
+      ]),
+      log(DEVICE_B, [
+        header(0, {
+          continues: { [DEVICE_A]: 5 },
+          device: DEVICE_B,
+          id: chatSession,
+        }),
+        partRecord(1, text(1, 1, "b's")),
+        { t: "retract", seq: 2, at: at(9), messages: [messageId(2)], why: "x" },
+      ]),
+    ]);
+
+    expect(Object.fromEntries(chat.sessions[0]?.writtenBy ?? [])).toEqual({
+      [messageId(1)]: DEVICE_A,
+      [partId(1)]: DEVICE_B,
+      [partId(2)]: DEVICE_A,
+    });
+  });
+
   it("folds a conflict copy's records once", () => {
     const original = log(DEVICE_A, [
       HEADER_A,
@@ -405,6 +433,68 @@ describe("foldChat", () => {
 });
 
 describe("ChatFold", () => {
+  it("builds again only the sessions something new was folded for", () => {
+    const fold = new ChatFold();
+    for (const { bytes, name } of [
+      log(DEVICE_A, [HEADER_A, messageRecord(1, user(1))]),
+      log(
+        DEVICE_A,
+        [
+          header(0, { device: DEVICE_A, id: taskSession }),
+          messageRecord(1, user(2, 2, taskSession)),
+        ],
+        { session: taskSession },
+      ),
+    ]) {
+      fold.add(name, bytes);
+    }
+    const first = fold.chat();
+    expect(fold.chat()).toBe(first);
+
+    const taskLog = logFileName(taskSession, DEVICE_A);
+    fold.add(
+      taskLog,
+      Buffer.from(recordLine(messageRecord(2, user(3, 3, taskSession)))),
+    );
+    const second = fold.chat();
+    expect(second.sessions[0]).toBe(first.sessions[0]);
+    expect(second.sessions[1]).not.toBe(first.sessions[1]);
+    expect(second.sessions[1]?.messages).toHaveLength(2);
+
+    fold.add(
+      marksFileName(DEVICE_A),
+      Buffer.from(
+        recordLine({
+          t: "mark",
+          seq: 0,
+          at: at(4),
+          session: chatSession,
+          field: "starred",
+          value: true,
+          device: DEVICE_A,
+        }),
+      ),
+    );
+    const third = fold.chat();
+    expect(third.sessions[0]).not.toBe(second.sessions[0]);
+    expect(third.sessions[0]?.marks.starred?.value).toBe(true);
+    expect(third.sessions[1]).toBe(second.sessions[1]);
+
+    // A copy of a record already folded changes nothing.
+    fold.add(
+      `${taskLog.replace(".jsonl", " 2.jsonl")}`,
+      log(
+        DEVICE_A,
+        [
+          header(0, { device: DEVICE_A, id: taskSession }),
+          messageRecord(1, user(2, 2, taskSession)),
+        ],
+        { session: taskSession },
+      ).bytes,
+    );
+    expect(fold.chat()).toBe(third);
+  });
+
   it("folds files fed a few bytes at a time to what it folds from scratch", () => {
     const files = [
       log(DEVICE_A, [

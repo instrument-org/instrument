@@ -1,6 +1,7 @@
 import fs, { type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { withTempDir } from "../../test/helpers/temp-dir";
 import { logFileName, marksFileName } from "./file-names";
@@ -121,6 +122,31 @@ describe("RecordWriter", () => {
     const { records, skipped } = await logRecords();
     expect(skipped).toBe(1);
     expect(records.map(({ seq }) => seq)).toEqual([0, 1, 2]);
+  });
+
+  it("tells its hook where each write went, the header and a repair included", async () => {
+    const writes: { bytes: Buffer; offset: number }[] = [];
+    const onWrite = (bytes: Uint8Array, offset: number) => {
+      writes.push({ bytes: Buffer.from(bytes), offset });
+    };
+    const log = await openLog({ dir: dir.path, header: HEADER, onWrite });
+    await log.append(message(1));
+    await fs.appendFile(log.path, '{"t":"message","seq":2,"at":"2026-');
+    const reopened = await openLog({ dir: dir.path, header: HEADER, onWrite });
+    await reopened.append(message(3));
+
+    const file = await fs.readFile(log.path);
+    for (const { bytes, offset } of writes) {
+      expect(file.subarray(offset, offset + bytes.length)).toEqual(bytes);
+    }
+    expect(
+      writes.map(({ bytes }) => {
+        const text = bytes.toString();
+        return text === "\n"
+          ? "repair"
+          : z.object({ t: z.string() }).parse(JSON.parse(text)).t;
+      }),
+    ).toEqual(["session", "message", "repair", "message"]);
   });
 
   it("loses only the lines a power cut took before they were synced", async () => {

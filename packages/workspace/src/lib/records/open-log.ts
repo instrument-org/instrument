@@ -12,6 +12,7 @@ import {
 } from "./record";
 import {
   type LogCursor,
+  type OnWrite,
   RecordWriter,
   tailHash,
   type Unsequenced,
@@ -46,6 +47,8 @@ export interface OpenLogOptions {
   header: Header;
   /** What the index last saw of this device's newest log of the session. */
   last?: { cursor: LogCursor; name: string };
+  /** Told of each write to the log, its header included when it starts one. */
+  onWrite?: OnWrite;
 }
 
 /**
@@ -70,6 +73,7 @@ export async function openLog({
   dir,
   header,
   last,
+  onWrite,
 }: OpenLogOptions): Promise<LogWriter> {
   await fs.mkdir(dir, { recursive: true });
   const { highest, newest } = await ownLogs(dir, header);
@@ -83,6 +87,7 @@ export async function openLog({
         Math.max(highest, lastLog?.generation ?? 0) + 1,
       ),
       { ...header, continues: withSeen(header.continues, seen) },
+      onWrite,
     );
   if (last && lastLog && lastLog.generation > (newest?.generation ?? 0)) {
     // The log the index last saw is gone.
@@ -104,21 +109,26 @@ export async function openLog({
       [newest.stem]: current.lastSeq,
     });
   }
-  return new RecordWriter(path.join(dir, newest.name), "log", current);
+  return new RecordWriter(path.join(dir, newest.name), "log", current, {
+    onWrite,
+  });
 }
 
 /** Opens this device's marks file to append to. */
 export async function openMarks(
   dir: string,
   device: DeviceId,
+  { onWrite }: { onWrite?: OnWrite } = {},
 ): Promise<MarksWriter> {
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, marksFileName(device));
   const bytes = await readIfThere(file);
-  return new RecordWriter(file, "marks", {
-    bytes,
-    lastSeq: readMarks(bytes).cursor.lastSeq,
-  });
+  return new RecordWriter(
+    file,
+    "marks",
+    { bytes, lastSeq: readMarks(bytes).cursor.lastSeq },
+    { onWrite },
+  );
 }
 
 type OwnLogName = { generation: number; name: string; stem: string };
@@ -213,15 +223,18 @@ async function startLog(
   dir: string,
   name: string,
   { continues, ...header }: Header,
+  onWrite: OnWrite | undefined,
 ): Promise<LogWriter> {
   const file = path.join(dir, name);
   // Exclusive, so a log is only ever started, never written over.
   await (await fs.open(file, "wx")).close();
   await syncDirectory(dir);
-  const writer = new RecordWriter(file, "log", {
-    bytes: new Uint8Array(),
-    lastSeq: -1,
-  });
+  const writer = new RecordWriter(
+    file,
+    "log",
+    { bytes: new Uint8Array(), lastSeq: -1 },
+    { onWrite },
+  );
   await writer.append({
     t: "session",
     at: new Date(),

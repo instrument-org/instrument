@@ -35,6 +35,13 @@ export function tailHash(bytes: Uint8Array): string {
     .digest("hex");
 }
 
+/**
+ * Told of each write a writer makes to its file once the bytes are in it:
+ * the bytes, and where in the file they start. A line is one write, and so
+ * is the newline a burst adds after a line a crash cut short.
+ */
+export type OnWrite = (bytes: Uint8Array, offset: number) => void;
+
 type Op =
   | {
       kind: "commit";
@@ -70,6 +77,7 @@ export class RecordWriter {
   #dirty = false;
   #draining = false;
   #lastSeq: number;
+  readonly #onWrite: OnWrite | undefined;
   #pending: Op[] = [];
   #size: number;
   /** The file's last bytes, to hash for its cursor without reading it back. */
@@ -83,10 +91,12 @@ export class RecordWriter {
     path: string,
     kind: "log" | "marks",
     file: { bytes: Uint8Array; lastSeq: number },
+    { onWrite }: { onWrite?: OnWrite } = {},
   ) {
     this.path = path;
     this.kind = kind;
     this.#lastSeq = file.lastSeq;
+    this.#onWrite = onWrite;
     this.#size = file.bytes.length;
     this.#tail = Buffer.from(file.bytes.subarray(-TAIL_BYTES));
   }
@@ -248,6 +258,7 @@ export class RecordWriter {
   }
 
   async #append(handle: FileHandle, bytes: Buffer): Promise<void> {
+    const offset = this.#size;
     const { bytesWritten } = await handle.write(bytes);
     if (bytesWritten !== bytes.length) {
       throw new Error(
@@ -261,5 +272,6 @@ export class RecordWriter {
       this.#tail,
       bytes.subarray(-TAIL_BYTES),
     ]).subarray(-TAIL_BYTES);
+    this.#onWrite?.(bytes, offset);
   }
 }

@@ -3,6 +3,7 @@ import {
   WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import type { LayoutMarkStore } from "@instrument-org/workspace/electron";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { ulid } from "ulid";
@@ -689,7 +690,10 @@ export function markWorkspaceOpen(machineDir: string): void {
 
 /**
  * The pid of another live process holding open the workspace marked in
- * `markDir` (its machine folder), if any.
+ * `markDir` (its machine folder), if any. A live process counts only when it
+ * runs this app's program: a mark left by a process that ended without
+ * removing it (a crash, the computer shutting down) names a pid the system
+ * may since have given to another program.
  */
 export function openElsewhereBy(markDir: string): null | number {
   let pid: number;
@@ -703,9 +707,74 @@ export function openElsewhereBy(markDir: string): null | number {
   }
   try {
     process.kill(pid, 0);
-    return pid;
   } catch {
     return null;
+  }
+  return runsThisApp(pid) ? pid : null;
+}
+
+/**
+ * Whether the live process `pid` runs the same program as this one, by the
+ * name of its executable. The name rather than the whole path, since each
+ * worktree's development build runs its own copy of Electron. Where the
+ * system will not say, it is taken to: trusting a mark too long only defers
+ * a move to a later boot, while dropping a live one lets two processes move
+ * one workspace's data at once.
+ */
+function runsThisApp(pid: number): boolean {
+  const name = executableNameOf(pid);
+  if (name === undefined) {
+    return true;
+  }
+  const own = path.basename(process.execPath);
+  switch (process.platform) {
+    // The kernel keeps a process's name to its first 15 bytes.
+    case "linux":
+      return name === Buffer.from(own).subarray(0, 15).toString();
+    case "win32":
+      return name.toLowerCase() === own.toLowerCase();
+    default:
+      return name === own;
+  }
+}
+
+/**
+ * The name the system gives the executable a process runs, "" when no
+ * process has that pid any more, and undefined when the system would not
+ * say. Read from `/proc` on Linux and asked of `ps` on a Mac and `tasklist`
+ * on Windows, each part of the system.
+ */
+function executableNameOf(pid: number): string | undefined {
+  const ask = (file: string, args: string[]) =>
+    execFileSync(file, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 5000,
+      windowsHide: true,
+    });
+  try {
+    switch (process.platform) {
+      case "linux":
+        return fs.readFileSync(`/proc/${pid.toString()}/comm`, "utf8").trim();
+      case "win32": {
+        const row = /^"([^"]*)","(\d+)"/m.exec(
+          ask("tasklist", [
+            "/FI",
+            `PID eq ${pid.toString()}`,
+            "/FO",
+            "CSV",
+            "/NH",
+          ]),
+        );
+        return row?.[2] === pid.toString() ? (row[1] ?? "") : "";
+      }
+      default:
+        return path.basename(
+          ask("ps", ["-p", pid.toString(), "-o", "comm="]).trim(),
+        );
+    }
+  } catch {
+    return undefined;
   }
 }
 

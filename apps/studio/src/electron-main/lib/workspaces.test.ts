@@ -1,3 +1,4 @@
+import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -423,5 +424,41 @@ describe("open marks", () => {
     fs.mkdirSync(markDir(), { recursive: true });
     fs.writeFileSync(path.join(markDir(), "open.pid"), process.ppid.toString());
     expect(openElsewhereBy(markDir())).toBe(process.ppid);
+  });
+
+  describe("a live process at the marked pid", () => {
+    let child: ChildProcess | undefined;
+
+    afterEach(() => {
+      child?.kill();
+      child = undefined;
+    });
+
+    // This test's own program stands in for the app's.
+    it.each([
+      {
+        args: ["-e", "setTimeout(() => {}, 30_000)"],
+        command: process.execPath,
+        holds: true,
+        label: "this app's program",
+      },
+      {
+        ...(process.platform === "win32"
+          ? { args: ["-n", "30", "127.0.0.1"], command: "ping" }
+          : { args: ["30"], command: "sleep" }),
+        holds: false,
+        label: "another program, given the pid after the app's process ended",
+      },
+    ])("running $label", ({ args, command, holds }) => {
+      child = spawn(command, args, { stdio: "ignore" });
+      const pid = child.pid;
+      if (pid === undefined) {
+        throw new Error(`could not start ${command}`);
+      }
+      fs.mkdirSync(markDir(), { recursive: true });
+      fs.writeFileSync(path.join(markDir(), "open.pid"), pid.toString());
+
+      expect(openElsewhereBy(markDir())).toBe(holds ? pid : null);
+    });
   });
 });

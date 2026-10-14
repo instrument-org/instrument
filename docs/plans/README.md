@@ -50,8 +50,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | --- | --- |
 | [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | index and search landed, storage not started |
 | [Legacy data migration](active/legacy-data-migration.md): bringing 1.x tasks and projects into chats | built, backfill and eval left |
-| [Skills mount instead of copy](active/skills-mount-instead-of-copy.md) | step 3 copy removal left |
-| [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, waits on skills mount |
+| [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, unblocked |
 
 ### Background work
 
@@ -97,6 +96,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Outcome |
 | --- | --- |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
+| [Skills mount instead of copy](completed/skills-mount-instead-of-copy.md): skills read where they are, dependencies built once | landed |
 | [External browsers behind a flag](completed/external-browser-behind-a-flag.md) | abandoned, removed |
 | [Honest browser context](completed/honest-browser-context.md): chips are the whole context, a chat names only its own tabs, and an agent-browser proxy that opens tabs only for pages | landed |
 | [One window browser](completed/single-window-browser.md): one browser, a guest named by its tab, and a lifetime per tab on Chromium's discard rules | landed |

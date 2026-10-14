@@ -28,8 +28,10 @@ export function runtimeLayout(runtimeDir: string) {
      */
     config: path.join(runtimeDir, "config"),
     /**
-     * One environment per skill dependency set, named by its lockfile's
-     * hash, which native commands only read.
+     * One environment per skill dependency set, which the app builds and
+     * native commands only read: a Python skill's per `uv.lock`, a Node
+     * skill's per version of the skill, each named by a hash of what
+     * defines it (`skill-environments.ts`).
      */
     environments: path.join(runtimeDir, "environments"),
     /**

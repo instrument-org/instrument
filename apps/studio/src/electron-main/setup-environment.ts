@@ -1,8 +1,10 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { installAISDKWarningLogger } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app } from "electron";
 import fixPath from "fix-path";
+import fs from "node:fs";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
@@ -22,6 +24,8 @@ import {
 } from "./lib/settings-migration";
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
+import { finishPendingMove, hideAppFolder } from "./lib/workspace-move";
+import { pathWithin } from "./lib/path-identity";
 import {
   markWorkspaceOpen,
   releaseOpenMark,
@@ -75,23 +79,36 @@ initializeElectronLogging();
 installAISDKWarningLogger();
 
 /**
- * Settles which workspace this process runs, brings its settings up to this
- * build, and moves what is this computer's own into its machine folder, before
- * any store opens: every workspace store reads its folder from the resolved
- * workspace when it is first asked for.
+ * Settles which workspace this process runs, makes a move to a folder the
+ * person picked, brings its settings up to this build, and moves what is
+ * this computer's own into its machine folder, before any store opens:
+ * every workspace store reads its folder from the resolved workspace when it
+ * is first asked for.
  */
 function openWorkspace() {
   const userDataDir = machineDir();
-  const { problems, workspace } = resolveWorkspace({
+  const resolved = resolveWorkspace({
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,
   });
-  for (const problem of problems) {
+  for (const problem of resolved.problems) {
     logger.warn(problem);
+  }
+  const { done: moveSteps, workspace } = finishPendingMove({
+    userDataDir,
+    workspace: resolved.workspace,
+  });
+  for (const step of moveSteps) {
+    logger.info(`Workspace move: ${step}`);
   }
   logger.info(
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
+  // A workspace made here for the first time outside the app's own data is
+  // hidden the way the app's part of one is on Windows, once it exists.
+  const dataDir = workspaceLayout(workspace.path).dataDir;
+  const createdOutsideAppData =
+    !fs.existsSync(dataDir) && !pathWithin(workspace.path, userDataDir);
 
   for (const step of [
     ...migrateMachineSettings(userDataDir),
@@ -111,6 +128,9 @@ function openWorkspace() {
     logger.info(`Machine data: ${step}`);
   }
   setResolvedWorkspace({ ...workspace, machineDir: moved.machineDir });
+  if (createdOutsideAppData) {
+    hideAppFolder(dataDir);
+  }
 
   markWorkspaceOpen(moved.machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in

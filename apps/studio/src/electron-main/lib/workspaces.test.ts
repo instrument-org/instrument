@@ -1,3 +1,4 @@
+import { readMovedPaths } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import os from "node:os";
@@ -11,6 +12,7 @@ import {
   openElsewhereBy,
   readRegistry,
   readWorkspaceIdentity,
+  registerWorkspaceFolder,
   releaseOpenMark,
   resolveWorkspace,
   settleWorkspace,
@@ -361,6 +363,62 @@ describe("workspace ids", () => {
     } finally {
       fs.rmSync(clone, { force: true, recursive: true });
     }
+  });
+});
+
+describe("registerWorkspaceFolder", () => {
+  const identity = (id: string) => ({
+    color: "gray" as const,
+    createdBy: { kind: "person" as const },
+    formatVersion: 1,
+    id,
+    name: "Lab",
+    settingsVersion: 2,
+  });
+
+  it("answers nothing for a folder holding no workspace", () => {
+    const dir = path.join(userDataDir, "elsewhere", "Empty");
+    fs.mkdirSync(dir, { recursive: true });
+    expect(registerWorkspaceFolder({ dir, userDataDir })).toBeUndefined();
+  });
+
+  it("adds a new workspace without opening it", () => {
+    const dir = path.join(userDataDir, "elsewhere", "Lab");
+    writeWorkspaceIdentity(dir, identity("01K000000000000000000000LAB"));
+    expect(registerWorkspaceFolder({ dir, userDataDir })).toEqual({
+      id: "lab",
+    });
+    expect(registerWorkspaceFolder({ dir, userDataDir })).toEqual({
+      id: "lab",
+    });
+    expect(readRegistry(userDataDir)).toMatchObject({
+      workspaces: [{ id: "default" }, { id: "lab", path: dir }],
+    });
+    expect(readRegistry(userDataDir).active).toBeUndefined();
+  });
+
+  it("points a workspace whose folder is gone at where it was found, recording the move", () => {
+    const gone = path.join(userDataDir, "elsewhere", "Old");
+    const found = path.join(userDataDir, "elsewhere", "Found");
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [
+        ...registry.workspaces,
+        { id: "old", path: gone, workspaceId: "01K000000000000000000000OLD" },
+      ],
+    }));
+    writeWorkspaceIdentity(found, identity("01K000000000000000000000OLD"));
+
+    expect(registerWorkspaceFolder({ dir: found, userDataDir })).toEqual({
+      id: "old",
+    });
+    expect(
+      readRegistry(userDataDir).workspaces.find((entry) => entry.id === "old")
+        ?.path,
+    ).toBe(found);
+    expect(readMovedPaths(workspaceMachineDirOf(userDataDir, "old"))).toEqual([
+      { from: gone, to: found },
+    ]);
   });
 });
 

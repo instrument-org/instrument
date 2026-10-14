@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
@@ -42,8 +41,8 @@ export interface Derived<Value> {
 
 interface OpenIndex {
   database: DatabaseSync;
+  file: string;
   read: Map<IndexTable, StatementSync>;
-  root: string;
   write: Map<IndexTable, StatementSync>;
 }
 
@@ -160,12 +159,6 @@ function guarded<T>(operation: () => T): T | undefined {
   }
 }
 
-/** The index file for a workspace: one per workspace root, named by a hash of it. */
-function indexPath(indexesDir: string, rootDir: string): string {
-  const name = createHash("sha256").update(rootDir).digest("hex").slice(0, 16);
-  return path.join(indexesDir, `${name}.db`);
-}
-
 /**
  * Whether SQLite said the file is not a database it can read: the one failure
  * deleting it fixes. Anything else (another process holding a lock, a full
@@ -223,11 +216,11 @@ function openIndex(): OpenIndex | undefined {
   if (!hasWorkspaceConfig()) {
     return undefined;
   }
-  const { indexesDir, rootDir } = getWorkspaceConfig();
-  if (!indexesDir) {
+  const file = getWorkspaceConfig().indexFile;
+  if (!file) {
     return undefined;
   }
-  if (opened !== undefined && opened?.root !== rootDir) {
+  if (opened !== undefined && opened?.file !== file) {
     closeWorkspaceIndex();
   }
   if (opened === null) {
@@ -236,7 +229,6 @@ function openIndex(): OpenIndex | undefined {
   if (opened) {
     return opened;
   }
-  const file = indexPath(indexesDir, rootDir);
   let database: DatabaseSync;
   try {
     database = open(file);
@@ -265,13 +257,13 @@ function openIndex(): OpenIndex | undefined {
   }
   opened = {
     database,
+    file,
     read: new Map(
       TABLES.map((table) => [
         table,
         database.prepare(`SELECT stamp, value FROM ${table} WHERE id = ?`),
       ]),
     ),
-    root: rootDir,
     write: new Map(
       TABLES.map((table) => [
         table,

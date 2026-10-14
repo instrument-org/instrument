@@ -185,13 +185,14 @@ export interface WorkspaceConfig {
    */
   getUser?: () => Promise<undefined | { email: string; name?: string }>;
   /**
-   * Where each workspace's index of its chats and tasks is kept: derived,
-   * rebuilt from the workspace whenever it is missing or out of date, and
-   * outside the workspace so a workspace in a synced folder never carries a
-   * live database. Absent where nothing should persist (tests, scripts), and
-   * then every read derives from the stores.
+   * The file the workspace's index of its chats and tasks is kept in:
+   * derived, rebuilt from the workspace whenever it is missing or out of
+   * date, and outside the workspace so a workspace in a synced folder never
+   * carries a live database. Named for the workspace rather than for its
+   * folder's path, so a moved workspace keeps it. Absent where nothing should
+   * persist (tests, scripts), and then every read derives from the stores.
    */
-  indexesDir?: AbsolutePath;
+  indexFile?: AbsolutePath;
   /**
    * This computer's own folder for the workspace, outside it: the folder
    * rules (`permissions.json`), the in-app browser's profile, the apps'

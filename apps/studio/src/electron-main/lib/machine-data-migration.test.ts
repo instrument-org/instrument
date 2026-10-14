@@ -10,6 +10,7 @@ import {
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   settleWorkspace,
+  updateRegistry,
   workspaceMachineDirOf,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -136,7 +137,7 @@ describe("moveMachineData", () => {
         "browser/history.db",
         "browser/history.db-wal",
         "browser/page-thumbnails/a.jpg",
-        `index/${indexName(root)}`,
+        "index/chats.db",
         "keys/app-connections.json",
         "keys/app-credentials.json.enc",
         "keys/app-oauth.json.enc",
@@ -172,11 +173,9 @@ describe("moveMachineData", () => {
         "chats/2026-10-01-chat/.instrument/chat.db",
       ].map((file) => file.replaceAll("/", path.sep)),
     );
-    // Another workspace's index stays where it was.
-    expect(tree(path.join(userDataDir, "indexes"))).toEqual([
-      "0123456789abcdef.db",
-    ]);
-    expect(done.at(-1)).toBe(
+    // The shared folder held only a workspace's that is not registered.
+    expect(fs.existsSync(path.join(userDataDir, "indexes"))).toBe(false);
+    expect(done).toContain(
       `workspace at format version 1, machine data in ${machineDir}`,
     );
   });
@@ -314,6 +313,42 @@ describe("moveMachineData", () => {
         .readdirSync(path.join(machineDir, "browser"))
         .some((name) => name.includes(".partial-")),
     ).toBe(false);
+  });
+
+  it("keeps the shared index folder until the last registered workspace takes its index out", () => {
+    seedBeta();
+    const other: ResolvedWorkspace = {
+      id: "other",
+      isDefault: false,
+      path: path.join(userDataDir, "workspaces", "other"),
+      pinned: false,
+    };
+    writeWorkspaceIdentity(other.path, {
+      color: "gray",
+      createdBy: { kind: "person" },
+      formatVersion: 0,
+      name: "Other",
+      settingsVersion: 2,
+    });
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [...registry.workspaces, { id: "other", path: other.path }],
+    }));
+    write(path.join(userDataDir, "indexes", indexName(other.path)), "other's");
+
+    moveMachineData({ userDataDir, workspace: workspace() });
+
+    expect(tree(path.join(userDataDir, "indexes"))).toEqual([
+      "0123456789abcdef.db",
+      indexName(other.path),
+    ]);
+
+    const { machineDir } = moveMachineData({ userDataDir, workspace: other });
+
+    expect(
+      fs.readFileSync(path.join(machineDir, "index", "chats.db"), "utf8"),
+    ).toBe("other's");
+    expect(fs.existsSync(path.join(userDataDir, "indexes"))).toBe(false);
   });
 
   describe("the key stores a development build left at the root", () => {

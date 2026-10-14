@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { AbsolutePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -25,15 +25,18 @@ const SESSION = StoreId.newSessionId();
 
 let root: string;
 let chatId: ChatId;
+/** The index's file, outside the workspace as the app keeps it. */
+let indexFile: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "workspace-index-test-"));
   chatId = createMockChatConfigForDir(
     path.join(root, TASKS_DIR_NAME, "2026-10-01-indexed-task"),
   );
+  indexFile = path.join(root, "machine", "index", "chats.db");
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    indexesDir: AbsolutePathSchema.parse(path.join(root, "indexes")),
+    indexFile: AbsolutePathSchema.parse(indexFile),
   });
   await fs.mkdir(chatDir(chatId), { recursive: true });
   // A store on disk, which is what a row stands for.
@@ -87,6 +90,25 @@ describe("indexedByStore", () => {
     });
   });
 
+  it("keeps its index when the workspace's folder moves", async () => {
+    let derived = 0;
+    const derive = () => {
+      derived += 1;
+      return Promise.resolve(kept({ said: "done" }));
+    };
+    await nextLaunch()(chatId, SESSION, derive);
+
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "moved")),
+    });
+
+    expect(await nextLaunch()(chatId, SESSION, derive)).toEqual({
+      said: "done",
+    });
+    expect(derived).toBe(1);
+  });
+
   it("starts over from an index of another version", async () => {
     let derived = 0;
     const derive = () => {
@@ -96,9 +118,8 @@ describe("indexedByStore", () => {
     await nextLaunch()(chatId, SESSION, derive);
     closeWorkspaceIndex();
 
-    const [file] = await fs.readdir(path.join(root, "indexes"));
     const { DatabaseSync } = await import("node:sqlite");
-    const database = new DatabaseSync(path.join(root, "indexes", file ?? ""));
+    const database = new DatabaseSync(indexFile);
     database.exec("UPDATE meta SET value = '0' WHERE key = 'version'");
     database.close();
 
@@ -139,9 +160,8 @@ describe("indexedByStore", () => {
     written._unsafeUnwrap();
     closeWorkspaceIndex();
 
-    const [file] = await fs.readdir(path.join(root, "indexes"));
     const { DatabaseSync } = await import("node:sqlite");
-    const holder = new DatabaseSync(path.join(root, "indexes", file ?? ""));
+    const holder = new DatabaseSync(indexFile);
     holder.exec("BEGIN EXCLUSIVE");
     try {
       expect(await nextLaunch()(chatId, SESSION, derive)).toEqual({
@@ -162,8 +182,6 @@ describe("indexedByStore", () => {
       Promise.resolve(kept({ said: "first" })),
     );
     closeWorkspaceIndex();
-    const [file] = await fs.readdir(path.join(root, "indexes"));
-    const indexFile = path.join(root, "indexes", file ?? "");
     for (const suffix of ["-wal", "-shm"]) {
       await fs.rm(`${indexFile}${suffix}`, { force: true });
     }

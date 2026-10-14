@@ -275,7 +275,7 @@ export const workspaceMachine = setup({
       resolveAlias?: WorkspaceConfig["resolveAlias"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
-      indexesDir?: string;
+      indexFile?: string;
       workspaceMachineDir?: string;
       modelCache: ModelCache;
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
@@ -316,8 +316,8 @@ export const workspaceMachine = setup({
       ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
-      ...(input.indexesDir && {
-        indexesDir: AbsolutePathSchema.parse(input.indexesDir),
+      ...(input.indexFile && {
+        indexFile: AbsolutePathSchema.parse(input.indexFile),
       }),
       ...(input.workspaceMachineDir && {
         workspaceMachineDir: AbsolutePathSchema.parse(

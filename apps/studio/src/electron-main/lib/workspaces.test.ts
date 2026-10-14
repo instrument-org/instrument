@@ -383,6 +383,22 @@ describe("registerWorkspaceFolder", () => {
     expect(registerWorkspaceFolder({ dir, userDataDir })).toBeUndefined();
   });
 
+  it("answers nothing for a folder whose .instrument is a link to a workspace's", () => {
+    const real = path.join(userDataDir, "elsewhere", "Lab");
+    writeWorkspaceIdentity(real, identity("01K000000000000000000000LAB"));
+    const dir = path.join(userDataDir, "elsewhere", "Linked");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.symlinkSync(
+      path.join(real, ".instrument"),
+      path.join(dir, ".instrument"),
+    );
+
+    expect(registerWorkspaceFolder({ dir, userDataDir })).toBeUndefined();
+    expect(
+      readRegistry(userDataDir).workspaces.map((entry) => entry.id),
+    ).toEqual(["default"]);
+  });
+
   it("adds a new workspace without opening it", () => {
     const dir = path.join(userDataDir, "elsewhere", "Lab");
     writeWorkspaceIdentity(dir, identity("01K000000000000000000000LAB"));

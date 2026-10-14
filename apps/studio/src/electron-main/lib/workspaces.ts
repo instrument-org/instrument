@@ -1,5 +1,6 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
+  isDirectorySync,
   type LayoutMarkStore,
   recordMovedPaths,
 } from "@instrument-org/workspace/electron";
@@ -295,7 +296,8 @@ export function resolveWorkspace({
  * after macOS stopped the app reading it), which keeps its local id and with
  * it its machine folder, its old folder recorded as moved so paths stored
  * in it are read back here, else a new entry. Undefined when `dir` holds no
- * workspace. Opening it is the caller's: `active` is left as it is.
+ * workspace, or only a link to one. Opening it is the caller's: `active` is
+ * left as it is.
  */
 export function registerWorkspaceFolder({
   dir,
@@ -304,7 +306,12 @@ export function registerWorkspaceFolder({
   dir: string;
   userDataDir: string;
 }): undefined | { id: string } {
-  if (!hasWorkspaceIdentity(dir)) {
+  // A linked `.instrument` is no workspace's: opening it would settle a new
+  // id through the link into the records it points to.
+  if (
+    !isDirectorySync(workspaceLayout(dir).dataDir) ||
+    !hasWorkspaceIdentity(dir)
+  ) {
     return undefined;
   }
   const moves: { from: string; id: string }[] = [];

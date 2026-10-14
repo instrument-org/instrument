@@ -136,32 +136,20 @@ export function checkMoveTarget({
   if (!stats.isDirectory()) {
     return refused("missing");
   }
-  if (samePath(target, workspace.path)) {
-    return refused("current");
+  const where = refusalOfPlace({
+    from: workspace.path,
+    id: workspace.id,
+    target,
+    userDataDir,
+  });
+  if (where !== undefined) {
+    return refused(where);
   }
-  if (samePath(target, os.homedir()) || isVolumeRoot(target)) {
-    return refused("home-or-drive");
-  }
-  if (pathWithin(target, userDataDir) || pathWithin(userDataDir, target)) {
-    return refused("app-data");
-  }
-  if (
-    pathWithin(target, workspace.path) ||
-    pathWithin(workspace.path, target)
-  ) {
-    return refused("current");
-  }
-  if (
-    readRegistry(userDataDir).workspaces.some(
-      (entry) =>
-        entry.id !== workspace.id &&
-        (pathWithin(target, entry.path) || pathWithin(entry.path, target)),
-    )
-  ) {
-    return refused("other-workspace");
-  }
-  if (entryExists(path.join(target, PRIVATE_FOLDER_NAME))) {
-    return hasWorkspaceIdentity(target)
+  const dataDir = workspaceLayout(target).dataDir;
+  if (entryExists(dataDir)) {
+    // A link is no workspace's: it would have the move or the open act on
+    // whatever it points to.
+    return isDirectorySync(dataDir) && hasWorkspaceIdentity(target)
       ? { kind: "workspace", name: readWorkspaceIdentity(target).name }
       : refused("taken");
   }
@@ -172,6 +160,49 @@ export function checkMoveTarget({
     return refused("unfinished");
   }
   return { kind: "movable" };
+}
+
+/**
+ * Why `target` cannot take the workspace with registry id `id`, now in
+ * `from`, by where it is, compared where the folders really are: the
+ * workspace's own folder or one around or inside it, the home folder or a
+ * disk's top, the app's data, or another workspace this computer knows.
+ * Asked when the person picks the folder and again when the move is made,
+ * since the folder can change in between.
+ */
+function refusalOfPlace({
+  from,
+  id,
+  target,
+  userDataDir,
+}: {
+  from: string;
+  id: string;
+  target: string;
+  userDataDir: string;
+}): MoveRefusal | undefined {
+  if (samePath(target, from)) {
+    return "current";
+  }
+  if (samePath(target, os.homedir()) || isVolumeRoot(target)) {
+    return "home-or-drive";
+  }
+  if (pathWithin(target, userDataDir) || pathWithin(userDataDir, target)) {
+    return "app-data";
+  }
+  if (pathWithin(target, from) || pathWithin(from, target)) {
+    return "current";
+  }
+  if (
+    readRegistry(userDataDir).workspaces.some(
+      (entry) =>
+        entry.id !== id &&
+        (pathWithin(target, entry.path) || pathWithin(entry.path, target)),
+    )
+  ) {
+    return "other-workspace";
+  }
+  return undefined;
 }
 
 /**
@@ -275,13 +306,17 @@ export function finishPendingMove({
   const toData = workspaceLayout(to).dataDir;
   const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
   const moved = { ...workspace, path: to };
-  let at = samePath(entry.path, to) ? moved : workspace;
+  // By the path the entry records, never through links: a target that
+  // became a link to the original is not a move already made.
+  const pointed = path.resolve(entry.path) === path.resolve(to);
+  let at = pointed ? moved : workspace;
   try {
     if (!pending.leftAside) {
-      if (!samePath(entry.path, to)) {
+      if (!pointed) {
         const placed =
-          isPlacedCopy(toData, pending.copyMark) ||
-          (!entryExists(fromData) && isRecordsOf(toData, entry.workspaceId));
+          !isSameFolder(fromData, toData) &&
+          (isPlacedCopy(toData, pending.copyMark) ||
+            (!entryExists(fromData) && isRecordsOf(toData, entry.workspaceId)));
         const holder = openElsewhereBy(machineDir);
         if (holder !== null) {
           done.push(
@@ -295,6 +330,26 @@ export function finishPendingMove({
             `found the whole copy at ${toData} a launch cut short made`,
           );
         } else {
+          // The folder may have changed since it was picked.
+          if (!isFolder(to)) {
+            done.push(
+              `left the move to ${to}, which is not a folder now; the next launch tries again`,
+            );
+            return { done, workspace };
+          }
+          const where = refusalOfPlace({
+            from,
+            id: workspace.id,
+            target: to,
+            userDataDir,
+          });
+          if (where !== undefined) {
+            clearPendingMove(userDataDir, workspace.id);
+            done.push(
+              `did not move to ${to}, which it refuses now (${where}); left everything where it was`,
+            );
+            return { done, workspace };
+          }
           if (entryExists(toData)) {
             clearPendingMove(userDataDir, workspace.id);
             done.push(
@@ -329,7 +384,9 @@ export function finishPendingMove({
       }
       // 3. The original aside.
       if (entryExists(fromData)) {
-        if (isRecordsOf(fromData, entry.workspaceId)) {
+        if (isSameFolder(fromData, toData)) {
+          done.push(`left ${fromData}, which is the target's own records`);
+        } else if (isRecordsOf(fromData, entry.workspaceId)) {
           setAsideSync(fromData);
         } else {
           done.push(
@@ -439,6 +496,26 @@ function isRecordsOf(dataDir: string, workspaceId: string | undefined) {
     (workspaceId === undefined ||
       readWorkspaceIdentity(workspacePath).id === workspaceId)
   );
+}
+
+/** Whether a path names a folder, through links. */
+function isFolder(dir: string) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Whether two paths reach one folder, by its device and file id. */
+function isSameFolder(a: string, b: string) {
+  try {
+    const first = fs.statSync(a, { bigint: true });
+    const second = fs.statSync(b, { bigint: true });
+    return first.dev === second.dev && first.ino === second.ino;
+  } catch {
+    return false;
+  }
 }
 
 /** Whether a `.instrument` is a folder (never a link) holding the copy a move marked. */

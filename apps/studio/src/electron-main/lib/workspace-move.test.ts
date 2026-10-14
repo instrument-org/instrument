@@ -121,6 +121,14 @@ describe("checkMoveTarget", () => {
     expect(check(dir)).toEqual({ kind: "refused", reason });
   });
 
+  it("refuses a folder whose .instrument is a link, even to a workspace's", () => {
+    fs.symlinkSync(
+      workspaceLayout(workspace.path).dataDir,
+      path.join(picked, ".instrument"),
+    );
+    expect(check(picked)).toEqual({ kind: "refused", reason: "taken" });
+  });
+
   it("refuses a folder inside a picked workspace's own, or holding it", () => {
     const at = { ...workspace, path: picked };
     fs.mkdirSync(path.join(picked, "sub"));
@@ -295,6 +303,108 @@ describe("finishPendingMove", () => {
       ).toBeUndefined();
     },
   );
+
+  it.each([
+    [
+      "a .instrument linked to the original",
+      () => {
+        fs.symlinkSync(
+          workspaceLayout(workspace.path).dataDir,
+          workspaceLayout(picked).dataDir,
+        );
+      },
+      "this move did not put there",
+    ],
+    [
+      "the folder replaced by a link into the app's data",
+      () => {
+        fs.rmSync(picked, { recursive: true });
+        const inside = path.join(userDataDir, "inside");
+        fs.mkdirSync(inside);
+        fs.symlinkSync(inside, picked);
+      },
+      "refuses now (app-data)",
+    ],
+    [
+      "the folder replaced by a link to the workspace's own",
+      () => {
+        fs.rmSync(picked, { recursive: true });
+        fs.symlinkSync(workspace.path, picked);
+      },
+      "refuses now (current)",
+    ],
+  ])(
+    "checks the folder again when it moves, and leaves everything for %s",
+    (_name, change, why) => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+      change();
+
+      const { done, workspace: kept } = finish();
+
+      expect(kept.path).toBe(workspace.path);
+      expect(done.join("\n")).toContain(why);
+      expect(
+        fs.readFileSync(
+          path.join(
+            workspaceLayout(workspace.path).chatsDir,
+            "c1",
+            "attachments",
+            "sent.png",
+          ),
+          "utf8",
+        ),
+      ).toBe("png");
+      expect(readRegistry(userDataDir).workspaces[0]).toMatchObject({
+        path: workspace.path,
+      });
+      expect(
+        readRegistry(userDataDir).workspaces[0]?.pendingMove,
+      ).toBeUndefined();
+    },
+  );
+
+  it("waits for a folder that is not there when it moves", () => {
+    requestWorkspaceMove({ target: picked, userDataDir, workspace });
+    fs.rmSync(picked, { recursive: true });
+
+    const { done, workspace: kept } = finish();
+
+    expect(kept.path).toBe(workspace.path);
+    expect(done.join("\n")).toContain("not a folder now");
+    expect(fs.existsSync(picked)).toBe(false);
+    expect(readRegistry(userDataDir).workspaces[0]?.pendingMove).toEqual({
+      from: workspace.path,
+      to: picked,
+    });
+  });
+
+  it("never sets aside records the target reaches as its own", () => {
+    const from = workspace.path;
+    requestWorkspaceMove({ target: picked, userDataDir, workspace });
+    // The entry already names the target, which became a link to the
+    // original folder before the launch that finishes the move.
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: registry.workspaces.map((entry) => ({
+        ...entry,
+        path: picked,
+      })),
+    }));
+    fs.rmSync(picked, { recursive: true });
+    fs.symlinkSync(from, picked);
+
+    const { done } = finishPendingMove({
+      hide,
+      userDataDir,
+      workspace: { ...workspace, path: picked },
+    });
+
+    expect(done.join("\n")).toContain("which is the target's own records");
+    expect(readWorkspaceIdentity(from).id).toBe(WORKSPACE_ID);
+    expect(fs.readdirSync(from).some((name) => name.includes(".moved-"))).toBe(
+      false,
+    );
+  });
 
   it("waits for another process holding the workspace, touching nothing", () => {
     requestWorkspaceMove({ target: picked, userDataDir, workspace });

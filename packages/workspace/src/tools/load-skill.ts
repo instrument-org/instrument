@@ -1,4 +1,5 @@
 import { APP_NAME } from "@instrument-org/shared";
+import nodeIgnore from "ignore";
 import ms from "ms";
 import { ok } from "neverthrow";
 import { dedent } from "radashi";
@@ -11,6 +12,7 @@ import { preparedBundledSkill } from "../lib/prepare-bundled-skills";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { PYTHON_COMMAND } from "../lib/shell-commands/python";
+import { SKILL_COPY_IGNORE } from "../lib/skill-artifact-ignore";
 import { renderSkillCatalog } from "../lib/skill-catalog";
 import {
   ensureNodeEnvironment,
@@ -39,6 +41,9 @@ import { type ChatId } from "../schemas/chat-id";
 import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
+
+/** A skill's files that a task never reads or runs. */
+const SKILL_DEVELOPMENT_FILES = nodeIgnore().add(SKILL_COPY_IGNORE);
 
 const TAGS = {
   file: "file",
@@ -162,7 +167,11 @@ export const LoadSkill = setupTool({
       contentTruncated: body.truncated,
       // SKILL.md is already inlined above as the skill's content, so listing
       // it again would just spend context restating what the agent is reading.
-      files: skillFiles.filter((f) => f !== "SKILL.md"),
+      // What only the skill's own development uses (its template, its tests)
+      // is no part of what the agent reads or runs.
+      files: skillFiles.filter(
+        (f) => f !== "SKILL.md" && !SKILL_DEVELOPMENT_FILES.ignores(f),
+      ),
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.id,
       origin,

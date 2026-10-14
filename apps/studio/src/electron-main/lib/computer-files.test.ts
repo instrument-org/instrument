@@ -39,7 +39,7 @@ beforeAll(async () => {
   mtimeMs = stats.mtimeMs;
 
   machine = path.join(folder, "machine");
-  vi.mocked(app.getPath).mockImplementation((name) =>
+  vi.spyOn(app, "getPath").mockImplementation((name) =>
     name === "userData" ? machine : "/mock/path",
   );
   const machineFiles = {

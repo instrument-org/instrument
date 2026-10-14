@@ -43,6 +43,8 @@ vi.mock("electron", () => ({
 }));
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => home.workspace,
+  // Beside the folders a download lands in, so it refuses none of them.
+  machineDir: () => `${home.dir}/machine`,
 }));
 // The download list's saved copy, in memory.
 const saved = vi.hoisted(() => ({ downloads: [] as unknown[] }));

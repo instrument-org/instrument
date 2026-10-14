@@ -2,7 +2,7 @@ import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
-import { machineDir } from "./get-workspace-folder";
+import { machineDir as appMachineDir } from "./get-workspace-folder";
 import {
   createdWorkspacesDir,
   defaultWorkspacePath,
@@ -120,7 +120,7 @@ let cached: undefined | { key: string; rule: ViewRule };
 
 /** The rule for this process's machine folder and open workspace. */
 function appViewRule(): ViewRule {
-  const machine = machineDir();
+  const machine = appMachineDir();
   let workspaceDir: string | undefined;
   try {
     workspaceDir = getResolvedWorkspace().path;

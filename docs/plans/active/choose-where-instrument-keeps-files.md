@@ -8,7 +8,7 @@ Instrument keeps what it makes in one folder every chat reaches, mounted as `Ins
 
 - **An onboarding step, blocking, that asks where Instrument keeps files.** It opens the system panel (`dialog.showSaveDialog`, opened at Documents with "Instrument" prefilled), so the user's choice is the consent: macOS raises no separate prompt for a folder picked in its own panel, and the consent covers only that folder, which is why the panel picks the folder itself rather than its parent. The folder is created from the panel's result, inside the step.
 - **`~/Instrument` as the fallback.** It sits outside the folders macOS guards, so it never prompts. There is no API that says whether Files & Folders access was granted, so the fallback is triggered by an EPERM on a real write, not by a check up front.
-- **One setting for the location.** `outputFolderPath()` (`packages/workspace/src/lib/chat/output-folder.ts`) and Studio's literals (`INSTRUMENT_FOLDER` in `shared/computer-href.ts`, `isWorkspaceFolder` in `client/lib/path-utils.ts`, `output-folder-icon.ts`, the delete-chat dialog copy, the eval sandbox home) all read it.
+- **The location is the workspace's.** The step moves the workspace to the folder picked (or opens the one already there) through the routes Settings › Storage uses, and the folder is then where finished work goes too (`outputFolderPath()`); it keeps no setting of its own. What it calls and what each answers: [workspace-layout.md](workspace-layout.md), "The onboarding folder step".
 - **Nothing touches the folder before the step.** `workspace.window.ensure` stops creating the folder and setting its icon while onboarding is still on screen.
 - **Settings shows the location**, with Show in Finder. Read-only at first.
 - **Existing workspaces keep `~/Documents/Instrument`**, recorded as their chosen location by a settings migration, so no one's files move.
@@ -16,7 +16,7 @@ Instrument keeps what it makes in one folder every chat reaches, mounted as `Ins
 
 ## Changing the location later
 
-Not in the first cut. Every chat recomputes its standing `Instrument` mount on every read (`folder-reach.ts`), so pointing the setting elsewhere silently moves every old chat's `Instrument` to a folder its history never wrote to, while a task that was handed the folder keeps the old absolute path on its record. A real change is one of two pieces of work: move the files and rewrite the records that hold the old path, or apply the change to new chats only and pin existing ones to the old path.
+Settings › Storage moves the Instrument folder: the app restarts and moves it before anything opens, and a path stored into the old place is read back in the new one (`moved-paths.json`). Finished work the old output folder holds stays where it is.
 
 ## Things to know while building it
 

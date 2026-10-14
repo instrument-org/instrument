@@ -51,7 +51,6 @@ import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
-import { type Listings } from "./permissions/rules-fs";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -111,19 +110,11 @@ import { outputFolderPath } from "./chat/output-folder";
 import { foundManagedPython } from "./run-uv";
 import { getUvBinPath, nearestVenv, venvPython } from "./uv";
 import { workDir } from "./work-dir";
-import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
+import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
-import { createWalkBudget, type WalkBudget } from "./walk-budget";
+import { type WalkBudget } from "./walk-budget";
 import { roleLayout } from "./session-layout";
-
-/**
- * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
- * (`maxOutputSize`); maxHeredocSize unchanged (64 MiB). Pipelines buffer
- * rather than stream, so a file passes through `cat big.csv | wc -l` whole, and
- * an output bound below the read bound fails a file the agent may read. The
- * shell runs in a worker thread, so carrying it costs the window nothing.
- */
-const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
+import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
 
 /**
  * Lines, records, and JSON values one command may hold, against just-bash's
@@ -155,16 +146,6 @@ const SANDBOX_MAX_COMMANDS = 10_000_000;
  * 107,000 files, and traversal charges upwards of one unit each.
  */
 const SANDBOX_MAX_TRAVERSAL = 300_000;
-
-/**
- * The same budget for walks over a folder that holds the app's own data
- * (the user's whole home folder), counted on their own (`WalkBudget`). A stray
- * `find` over the home folder is the likeliest runaway walk there is, and the
- * budget counts entries rather than time: 300,000 of them costs a few
- * seconds of `find` on macOS and over half a minute on Windows, all on the
- * thread that paints the window.
- */
-const HOME_MAX_TRAVERSAL = 20_000;
 
 function stubCommand(
   name: string,
@@ -762,19 +743,8 @@ export async function createLocalBashEnv({
   // What the shell mounts, held to the chat's rules. rg, du, agent-browser
   // and the output a promoted command streams all take it from here.
   const layout = roleLayout({ chatId, folders, role, rules });
-  // The working folder walks at the sandbox's budget, and the home folder at
-  // its own, smaller one.
-  const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
-  // Refusals heard during one exec, told to the agent after its output with
-  // the host path spelled out, which an error from a script worker loses.
-  const refusals = new Set<string>();
-  const listings: Listings = { count: 0 };
-  const fs = await buildBashFs(layout, {
-    homeWalkBudget,
-    listings,
-    maxFileReadSize: SANDBOX_MAX_BYTES,
-    onRefusal: (refusal) => refusals.add(refusal),
-  });
+  // Refusals heard during one exec are told to the agent after its output.
+  const { fs, homeWalkBudget, listings, refusals } = await shellFs(layout);
 
   const allowedCommands = [
     ...getCommandNames(),

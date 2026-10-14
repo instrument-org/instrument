@@ -122,7 +122,22 @@ const RegistryEntrySchema = z.object({
    * before anything opens it (`finishPendingMove`).
    */
   pendingMove: z
-    .object({ from: z.string().min(1), to: z.string().min(1) })
+    .object({
+      /**
+       * What the copy this move made across volumes carries, written here
+       * before the copy takes its place at the target, so a launch cut short
+       * after that tells its own whole copy from a `.instrument` anything
+       * else put there.
+       */
+      copyMark: z.string().min(1).optional().catch(undefined),
+      from: z.string().min(1),
+      /**
+       * Set once the move is made but for deleting the original records it
+       * renamed aside in `from`, which each launch tries again.
+       */
+      leftAside: z.literal(true).optional().catch(undefined),
+      to: z.string().min(1),
+    })
     .optional()
     .catch(undefined),
   /** The id in the workspace's own `workspace.json`, once a build has settled one. */

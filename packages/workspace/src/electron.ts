@@ -104,10 +104,17 @@ export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir } from "./lib/record-folders";
 export { workDir } from "./lib/work-dir";
 export {
+  ASIDE_INFIX,
+  asidesOf,
   entryExists,
+  isDirectorySync,
   mergeEntrySync,
   moveEntrySync,
+  PARTIAL_INFIX,
+  placeEntrySync,
+  removeEntrySync,
   removeIfEmptySync,
+  setAsideSync,
 } from "./lib/move-entry";
 export {
   readMovedPaths,

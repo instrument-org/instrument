@@ -281,7 +281,12 @@ describe("moveMachineData", () => {
     seedBeta();
     const rename = fs.renameSync.bind(fs);
     vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
-      if (String(from).endsWith(`${path.sep}app-session`)) {
+      // Only the move to the machine folder: the original's rename aside
+      // before its delete stays on its own volume.
+      if (
+        String(from).endsWith(`${path.sep}app-session`) &&
+        !String(to).includes(".moved-")
+      ) {
         throw Object.assign(new Error("cross-device link not permitted"), {
           code: "EXDEV",
         });
@@ -312,6 +317,13 @@ describe("moveMachineData", () => {
       fs
         .readdirSync(path.join(machineDir, "browser"))
         .some((name) => name.includes(".partial-")),
+    ).toBe(false);
+    expect(
+      fs
+        .readdirSync(
+          path.join(defaultWorkspacePath(userDataDir), ".instrument"),
+        )
+        .some((name) => name.includes(".moved-")),
     ).toBe(false);
   });
 

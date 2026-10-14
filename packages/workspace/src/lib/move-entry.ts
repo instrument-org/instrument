@@ -5,30 +5,115 @@ import path from "node:path";
 const RENAME_ATTEMPTS = 10;
 
 /**
+ * What an entry renamed aside to be deleted is called after its own name,
+ * before the process and time that make it unique (`setAsideSync`).
+ */
+export const ASIDE_INFIX = ".moved-";
+
+/**
+ * What a copy being made across volumes is called after the name it is
+ * renamed to once whole, before the process that makes it.
+ */
+export const PARTIAL_INFIX = ".partial-";
+
+/**
  * Moves a file or folder to a place that is free: renamed where both are on
- * one volume, and otherwise copied to a sibling of `to` and renamed into
- * place before the original goes, so a copy cut short is never taken for a
- * finished one. Throws when either step fails, leaving `from` where it was
- * or `to` whole. Synchronous, for the migrations that run before anything
- * opens what they move.
+ * one volume, and otherwise copied as {@link placeEntrySync} copies it, and
+ * the original then renamed aside and deleted (`setAsideSync`), so neither a
+ * copy cut short nor an original deleted part-way is ever found under its
+ * own name. A delete that fails leaves only the aside, which nothing reads.
+ * Throws when a copy or rename fails, leaving `from` where it was or `to`
+ * whole. Synchronous, for the migrations that run before anything opens
+ * what they move.
  */
 export function moveEntrySync(from: string, to: string): void {
+  if (placeEntrySync(from, to) === "copied") {
+    const aside = setAsideSync(from);
+    try {
+      removeEntrySync(aside);
+    } catch {
+      // Under a name nothing opens: left for good rather than read.
+    }
+  }
+}
+
+/**
+ * Puts a file or folder at a place that is free: renamed where both are on
+ * one volume, and otherwise copied, links as links, to a sibling of `to`
+ * (`<to>.partial-<pid>`) and renamed into place once whole, so a copy cut
+ * short is never taken for a finished one. `beforeRename` runs on the whole
+ * copy before it takes its place. Answers which it did: a copy leaves `from`
+ * where it was, for the caller to remove. Throws when a step fails, leaving
+ * `from` where it was and `to` free but for a partial copy.
+ */
+export function placeEntrySync(
+  from: string,
+  to: string,
+  beforeRename?: (copy: string) => void,
+): "copied" | "renamed" {
   fs.mkdirSync(path.dirname(to), { recursive: true });
   try {
     renameRetrying(from, to);
+    return "renamed";
   } catch (error) {
     if (!isErrorCode(error, "EXDEV")) {
       throw error;
     }
-    const partial = `${to}.partial-${process.pid.toString()}`;
-    fs.rmSync(partial, { force: true, recursive: true });
-    fs.cpSync(from, partial, {
-      preserveTimestamps: true,
-      recursive: true,
-      verbatimSymlinks: true,
-    });
-    renameRetrying(partial, to);
-    fs.rmSync(from, { force: true, recursive: true });
+  }
+  const partial = `${to}${PARTIAL_INFIX}${process.pid.toString()}`;
+  removeEntrySync(partial);
+  fs.cpSync(from, partial, {
+    preserveTimestamps: true,
+    recursive: true,
+    verbatimSymlinks: true,
+  });
+  beforeRename?.(partial);
+  renameRetrying(partial, to);
+  return "copied";
+}
+
+/**
+ * Renames an entry aside beside itself, on its own volume, which is one
+ * step: `<name>.moved-<pid>-<time>`, a name nothing opens. Answers where it
+ * went. The first half of deleting something whose delete may stop
+ * part-way, so what is left is never found under its own name.
+ */
+export function setAsideSync(entry: string): string {
+  const aside = `${entry}${ASIDE_INFIX}${process.pid.toString()}-${Date.now().toString()}`;
+  renameRetrying(entry, aside);
+  return aside;
+}
+
+/** The entries `setAsideSync` left beside `entry`, by their whole paths. */
+export function asidesOf(entry: string): string[] {
+  const prefix = `${path.basename(entry)}${ASIDE_INFIX}`;
+  try {
+    return fs
+      .readdirSync(path.dirname(entry))
+      .filter((name) => name.startsWith(prefix))
+      .map((name) => path.join(path.dirname(entry), name));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Deletes a file or folder. A link is unlinked, never followed, so what it
+ * points to is left as it is; a folder goes with everything in it, retried
+ * for a moment where Windows holds a file open. Nothing there is nothing to
+ * do. Throws when the delete fails, which may leave part of a folder.
+ */
+export function removeEntrySync(entry: string): void {
+  let stats: fs.Stats;
+  try {
+    stats = fs.lstatSync(entry);
+  } catch {
+    return;
+  }
+  if (stats.isDirectory()) {
+    fs.rmSync(entry, { force: true, maxRetries: 3, recursive: true });
+  } else {
+    fs.unlinkSync(entry);
   }
 }
 

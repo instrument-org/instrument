@@ -167,6 +167,7 @@ describe("checkMoveTarget", () => {
 describe("finishPendingMove", () => {
   const hide = vi.fn();
   const machineDir = () => workspaceMachineDirOf(userDataDir, "default");
+  const registryFile = () => path.join(userDataDir, "workspaces.json");
 
   beforeEach(() => {
     hide.mockClear();
@@ -214,21 +215,6 @@ describe("finishPendingMove", () => {
     ).toEqual({ done: [], workspace: again.workspace });
   });
 
-  it("finishes a copy that was whole but whose original was not removed yet", () => {
-    requestWorkspaceMove({ target: picked, userDataDir, workspace });
-    fs.cpSync(
-      workspaceLayout(workspace.path).dataDir,
-      workspaceLayout(picked).dataDir,
-      { recursive: true },
-    );
-
-    finish();
-
-    expect(fs.existsSync(workspaceLayout(workspace.path).dataDir)).toBe(false);
-    expect(readWorkspaceIdentity(picked).id).toBe(WORKSPACE_ID);
-    expect(readRegistry(userDataDir).workspaces[0]?.path).toBe(picked);
-  });
-
   it("tidies the old folder after a launch that stopped once the entry moved", () => {
     const from = workspace.path;
     requestWorkspaceMove({ target: picked, userDataDir, workspace });
@@ -258,35 +244,61 @@ describe("finishPendingMove", () => {
     ).toBeUndefined();
   });
 
-  it("leaves everything where it was when the folder holds another workspace's records", () => {
+  it.each([
+    [
+      "another workspace's records",
+      () => {
+        writeWorkspaceIdentity(picked, settled("01K00000000000000000OTHER"));
+      },
+    ],
+    [
+      "a copy of this workspace the move did not make (synced from elsewhere, say)",
+      () => {
+        fs.cpSync(
+          workspaceLayout(workspace.path).dataDir,
+          workspaceLayout(picked).dataDir,
+          { recursive: true },
+        );
+        fs.rmSync(path.join(workspaceLayout(picked).chatsDir, "c1"), {
+          recursive: true,
+        });
+      },
+    ],
+  ])(
+    "leaves everything where it was when the folder holds %s",
+    (_name, plant) => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+      plant();
+      const target = listing(workspaceLayout(picked).dataDir);
+
+      const { done, workspace: kept } = finish();
+
+      expect(kept.path).toBe(workspace.path);
+      expect(done.join("\n")).toContain("this move did not put there");
+      expect(readWorkspaceIdentity(workspace.path).id).toBe(WORKSPACE_ID);
+      expect(
+        fs.existsSync(
+          path.join(
+            workspaceLayout(workspace.path).chatsDir,
+            "c1",
+            "attachments",
+            "sent.png",
+          ),
+        ),
+      ).toBe(true);
+      expect(listing(workspaceLayout(picked).dataDir)).toEqual(target);
+      expect(readRegistry(userDataDir).workspaces[0]).toMatchObject({
+        path: workspace.path,
+      });
+      expect(
+        readRegistry(userDataDir).workspaces[0]?.pendingMove,
+      ).toBeUndefined();
+    },
+  );
+
+  it("waits for another process holding the workspace, touching nothing", () => {
     requestWorkspaceMove({ target: picked, userDataDir, workspace });
-    writeWorkspaceIdentity(picked, settled("01K00000000000000000OTHER"));
-
-    const { done, workspace: kept } = finish();
-
-    expect(kept.path).toBe(workspace.path);
-    expect(done.join("\n")).toContain("holds another workspace's records");
-    expect(readWorkspaceIdentity(workspace.path).id).toBe(WORKSPACE_ID);
-    expect(readRegistry(userDataDir).workspaces[0]).toMatchObject({
-      path: workspace.path,
-    });
-    expect(
-      readRegistry(userDataDir).workspaces[0]?.pendingMove,
-    ).toBeUndefined();
-  });
-
-  it("waits for another process holding the workspace, and drops a copy it will not open", () => {
-    requestWorkspaceMove({ target: picked, userDataDir, workspace });
-    fs.cpSync(
-      workspaceLayout(workspace.path).dataDir,
-      workspaceLayout(picked).dataDir,
-      { recursive: true },
-    );
-    fs.mkdirSync(machineDir(), { recursive: true });
-    fs.writeFileSync(
-      path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.openMark),
-      process.ppid.toString(),
-    );
+    holdOpen();
 
     const { workspace: kept } = finish();
 
@@ -298,6 +310,306 @@ describe("finishPendingMove", () => {
       to: picked,
     });
   });
+
+  it("opens the whole copy a launch cut short made while another process holds the workspace, deleting nothing", () => {
+    requestWorkspaceMove({ target: picked, userDataDir, workspace });
+    crossVolumes();
+    failWhen(
+      "renameSync",
+      (from, to) => to === registryFile() && commits(from),
+    );
+    finish();
+    vi.restoreAllMocks();
+    holdOpen();
+
+    const { workspace: opened } = finish();
+
+    expect(opened.path).toBe(picked);
+    expect(readWorkspaceIdentity(workspace.path).id).toBe(WORKSPACE_ID);
+    expect(readWorkspaceIdentity(picked).id).toBe(WORKSPACE_ID);
+    expect(readRegistry(userDataDir).workspaces[0]?.path).toBe(workspace.path);
+  });
+
+  describe("cut short or failing at any step", () => {
+    /** The records every launch must find whole, with what each holds. */
+    let records: Map<string, string>;
+
+    beforeEach(() => {
+      records = new Map([
+        ["chats/c1/attachments/sent.png", "png"],
+        ["chats/c1/chat.db", "c1"],
+        ["chats/c2/chat.db", "c2"],
+        ["skills/mine/SKILL.md", "mine"],
+        ["memory/likes.md", "tea"],
+      ]);
+      for (const [file, contents] of records) {
+        write(
+          path.join(workspaceLayout(workspace.path).dataDir, file),
+          contents,
+        );
+      }
+    });
+
+    /** A launch: resolve, finish the move, check what it opens, and work in it. */
+    function launch(n: number) {
+      const resolved = resolveWorkspace({ pin: undefined, userDataDir });
+      const result = finishPendingMove({
+        hide,
+        userDataDir,
+        workspace: resolved.workspace,
+      });
+      const opened = result.workspace.path;
+      const dataDir = workspaceLayout(opened).dataDir;
+      expect([workspace.path, picked]).toContain(opened);
+      expect(fs.lstatSync(dataDir).isDirectory()).toBe(true);
+      for (const [file, contents] of records) {
+        expect(
+          fs.readFileSync(path.join(dataDir, file), "utf8"),
+          `${file} in what launch ${n.toString()} opened`,
+        ).toBe(contents);
+      }
+      // What the person does in this launch lands in the copy it opened.
+      const file = `chats/n${n.toString()}/chat.db`;
+      write(path.join(dataDir, file), `launch ${n.toString()}`);
+      records.set(file, `launch ${n.toString()}`);
+      return { done: result.done, opened };
+    }
+
+    const original = () => workspaceLayout(workspace.path).dataDir;
+    const isAside = (entry: string) => entry.includes(".instrument.moved-");
+
+    it.each<{
+      fault: () => void;
+      launches: number;
+      name: string;
+      volumes: "across" | "one";
+    }>([
+      {
+        fault: () => {
+          failWhen("cpSync", (from) => from === original(), "part-way");
+        },
+        launches: 1,
+        name: "the copy stops part-way",
+        volumes: "across",
+      },
+      {
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from, to) => to === registryFile() && marks(from),
+          );
+        },
+        launches: 1,
+        name: "the copy's mark cannot be recorded",
+        volumes: "across",
+      },
+      {
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from, to) =>
+              from.includes(".instrument.partial-") &&
+              to === workspaceLayout(picked).dataDir,
+          );
+        },
+        launches: 1,
+        name: "the whole copy cannot be renamed into place",
+        volumes: "across",
+      },
+      {
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from, to) =>
+              from === original() && to === workspaceLayout(picked).dataDir,
+          );
+        },
+        launches: 1,
+        name: "the records cannot be renamed to the target",
+        volumes: "one",
+      },
+      ...(["one", "across"] as const).map((volumes) => ({
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from, to) => to === registryFile() && commits(from),
+          );
+        },
+        launches: 1,
+        name: "the entry cannot be pointed at the target",
+        volumes,
+      })),
+      {
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from, to) => from === original() && isAside(to),
+          );
+        },
+        launches: 2,
+        name: "the original cannot be renamed aside",
+        volumes: "across",
+      },
+      {
+        fault: () => {
+          failWhen("rmSync", (entry) => isAside(entry), "part-way");
+        },
+        launches: 2,
+        name: "the original's delete stops part-way",
+        volumes: "across",
+      },
+      ...(["one", "across"] as const).map((volumes) => ({
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from) => from === path.join(workspace.path, "downloads"),
+          );
+        },
+        launches: 1,
+        name: "the person's files cannot be moved",
+        volumes,
+      })),
+      {
+        fault: () => {
+          failWhen("renameSync", (_from, to) =>
+            to.endsWith("moved-paths.json"),
+          );
+        },
+        launches: 1,
+        name: "the moved paths cannot be recorded",
+        volumes: "across",
+      },
+      {
+        fault: () => {
+          failWhen(
+            "renameSync",
+            (from, to) => to === registryFile() && clears(from),
+          );
+        },
+        launches: 1,
+        name: "the pending move cannot be cleared",
+        volumes: "across",
+      },
+    ])(
+      "never opens a partial copy or loses a file when $name ($volumes volume)",
+      ({ fault, launches, volumes }) => {
+        requestWorkspaceMove({ target: picked, userDataDir, workspace });
+        const opened: string[] = [];
+        for (let n = 1; n <= launches + 2; n++) {
+          vi.restoreAllMocks();
+          if (volumes === "across") {
+            crossVolumes();
+          }
+          if (n <= launches) {
+            fault();
+          }
+          const { done, opened: at } = launch(n);
+          opened.push(at);
+          // The fault happened, and the launch said so.
+          expect(done.join("\n").includes("injected")).toBe(n <= launches);
+        }
+        vi.restoreAllMocks();
+
+        // Once a launch opened the target, none went back to the original.
+        expect(opened.slice(opened.indexOf(picked))).not.toContain(
+          workspace.path,
+        );
+        expect(opened.at(-1)).toBe(picked);
+        const [entry] = readRegistry(userDataDir).workspaces;
+        expect(entry?.path).toBe(picked);
+        expect(entry?.pendingMove).toBeUndefined();
+        expect(fs.existsSync(workspace.path)).toBe(false);
+        expect(fs.readdirSync(picked).toSorted()).toEqual([
+          ".instrument",
+          "downloads",
+          "report.pdf",
+        ]);
+      },
+    );
+
+    it("keeps the move pending while the original's aside cannot be deleted, and never reads it", () => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+      crossVolumes();
+      failWhen("rmSync", (entry) => isAside(entry), "part-way");
+
+      const { done } = launch(1);
+
+      expect(done.join("\n")).toContain("the next launch tries again");
+      expect(
+        readRegistry(userDataDir).workspaces[0]?.pendingMove,
+      ).toMatchObject({
+        leftAside: true,
+      });
+      expect(fs.readdirSync(workspace.path).filter(isAside)).toHaveLength(1);
+      // The old folder is not swept again on the launch that retries.
+      write(path.join(workspace.path, "later.txt"), "later");
+      vi.restoreAllMocks();
+
+      launch(2);
+
+      expect(fs.readdirSync(workspace.path)).toEqual(["later.txt"]);
+      expect(fs.existsSync(path.join(picked, "later.txt"))).toBe(false);
+      expect(
+        readRegistry(userDataDir).workspaces[0]?.pendingMove,
+      ).toBeUndefined();
+    });
+  });
+
+  /** As if the workspace and the picked folder were on two volumes. */
+  function crossVolumes() {
+    failWhen(
+      "renameSync",
+      (from, to) =>
+        from === workspaceLayout(workspace.path).dataDir &&
+        to === workspaceLayout(picked).dataDir,
+      "EXDEV",
+    );
+  }
+
+  /** The default workspace's entry as a registry write from `temporary` leaves it. */
+  function written(temporary: string) {
+    const registry = JSON.parse(fs.readFileSync(temporary, "utf8")) as {
+      workspaces: {
+        path: string;
+        pendingMove?: { copyMark?: string };
+      }[];
+    };
+    return registry.workspaces[0];
+  }
+
+  /** Whether the registry write from `temporary` points the entry at the target. */
+  function commits(temporary: string) {
+    return (
+      written(temporary)?.path === picked &&
+      readRegistry(userDataDir).workspaces[0]?.path !== picked
+    );
+  }
+
+  /** Whether the registry write from `temporary` records the copy's mark. */
+  function marks(temporary: string) {
+    return (
+      written(temporary)?.pendingMove?.copyMark !== undefined &&
+      readRegistry(userDataDir).workspaces[0]?.pendingMove?.copyMark ===
+        undefined
+    );
+  }
+
+  /** Whether the registry write from `temporary` drops the pending move. */
+  function clears(temporary: string) {
+    return (
+      written(temporary)?.pendingMove === undefined &&
+      readRegistry(userDataDir).workspaces[0]?.pendingMove !== undefined
+    );
+  }
+
+  /** Mark the workspace open in a live process of this program. */
+  function holdOpen() {
+    fs.mkdirSync(machineDir(), { recursive: true });
+    fs.writeFileSync(
+      path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.openMark),
+      process.ppid.toString(),
+    );
+  }
 });
 
 describe("resolveWorkspace after a move", () => {
@@ -318,3 +630,108 @@ describe("resolveWorkspace after a move", () => {
     });
   });
 });
+
+function write(file: string, contents = "") {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, contents);
+}
+
+/** Every file under a folder, sorted. */
+function listing(dir: string): string[] {
+  return fs
+    .readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
+    .toSorted();
+}
+
+type FaultyMethod = "cpSync" | "renameSync" | "rmSync";
+
+/** How an injected fault fails: as a move across volumes, part of the way, or outright. */
+type Failure = "EXDEV" | "part-way" | "refused";
+
+const real = {
+  cpSync: fs.cpSync,
+  renameSync: fs.renameSync,
+  rmSync: fs.rmSync,
+};
+let faults: {
+  failure: Failure;
+  method: FaultyMethod;
+  when: (from: string, to: string) => boolean;
+}[] = [];
+
+/**
+ * Make the next calls of `method` that `when` picks fail, until
+ * `vi.restoreAllMocks`. `part-way` copies or deletes a little first.
+ */
+function failWhen(
+  method: FaultyMethod,
+  when: (from: string, to: string) => boolean,
+  failure: Failure = "refused",
+) {
+  if (!vi.isMockFunction(fs[method])) {
+    faults = faults.filter((fault) => fault.method !== method);
+    spyOn(method);
+  }
+  faults.push({ failure, method, when });
+}
+
+function spyOn(method: FaultyMethod) {
+  const fault = (from: string, to = "") =>
+    faults.find(
+      (candidate) => candidate.method === method && candidate.when(from, to),
+    )?.failure;
+  const injected = (failure: Failure) =>
+    Object.assign(new Error(`injected ${failure}`), {
+      code: failure === "EXDEV" ? "EXDEV" : "EIO",
+    });
+  switch (method) {
+    case "cpSync": {
+      vi.spyOn(fs, "cpSync").mockImplementation((from, to, options) => {
+        const failure = fault(String(from), String(to));
+        if (failure === undefined) {
+          real.cpSync(from, to, options);
+          return;
+        }
+        let copied = 0;
+        real.cpSync(from, to, {
+          ...options,
+          filter: () => {
+            copied++;
+            if (copied > 4) {
+              throw injected(failure);
+            }
+            return true;
+          },
+        });
+      });
+      break;
+    }
+    case "renameSync": {
+      vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+        const failure = fault(String(from), String(to));
+        if (failure !== undefined) {
+          throw injected(failure);
+        }
+        real.renameSync(from, to);
+      });
+      break;
+    }
+    case "rmSync": {
+      vi.spyOn(fs, "rmSync").mockImplementation((entry, options) => {
+        const failure = fault(String(entry));
+        if (failure === undefined) {
+          real.rmSync(entry, options);
+          return;
+        }
+        const [first] = listing(String(entry));
+        if (first !== undefined) {
+          fs.unlinkSync(path.join(String(entry), first));
+        }
+        throw injected(failure);
+      });
+      break;
+    }
+  }
+}

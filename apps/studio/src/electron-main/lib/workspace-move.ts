@@ -1,14 +1,21 @@
 import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import {
+  ASIDE_INFIX,
+  asidesOf,
   entryExists,
+  isDirectorySync,
   mergeEntrySync,
-  moveEntrySync,
+  PARTIAL_INFIX,
+  placeEntrySync,
   recordMovedPaths,
+  removeEntrySync,
   removeIfEmptySync,
+  setAsideSync,
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -197,31 +204,53 @@ export function requestWorkspaceMove({
 }
 
 /**
+ * What the copy a move makes across volumes carries in its `.instrument`,
+ * holding the move's `copyMark`, until the entry names the target.
+ */
+const COPY_MARK_FILE = "move-copy-mark";
+
+/**
  * Make the move the registry entry records, before any store opens, and
  * answer the workspace where it now is.
  *
- * The order, each step safe to run again, so a launch cut short anywhere is
- * finished by the next and there is never a second live copy:
+ * The order is what keeps the records safe from a launch cut short (a
+ * crash, a forced quit) or a step that fails: at every point exactly one
+ * copy of the records is the live one, a launch opens only that one, and
+ * nothing a launch may open is ever deleted. Each step is safe to run
+ * again, so the next launch finishes what one left.
  *
- * 1. The records: `<from>/.instrument` is renamed into the target, or across
- *    volumes copied beside it, renamed into place once whole, and only then
- *    removed. Until step 2 the entry still names `<from>`, so that copy is
- *    the live one. Found in both places, the target's is a whole copy whose
- *    original was not yet removed, and nothing opened the original since (a
- *    launch that cannot make the move removes such a copy before it opens
- *    the original), so the original goes. A target holding another
- *    workspace's records stops the move and leaves everything where it was.
- * 2. The entry names the target: from here on that is the live copy.
- * 3. The rest of `<from>`'s top level, the person's own (the browser's
+ * 1. A whole copy at the target. On one volume, `<from>/.instrument` is
+ *    renamed to the target in a single step. Across volumes it is copied
+ *    beside the target (`.instrument.partial-<pid>`), marked with the
+ *    `copyMark` the entry records first, and renamed into place once whole;
+ *    a launch cut short leaves only the partial copy, which the next one
+ *    removes and makes again. From here on the target's copy is the live
+ *    one, and the original is never opened again, by this launch or any
+ *    other, even when a later step fails.
+ * 2. The entry names the target.
+ * 3. The original, still in `<from>` after a copy, is renamed aside there
+ *    (`.instrument.moved-<pid>-<time>`), a rename on its own volume, so no
+ *    launch and no folder pick finds records in `<from>` again.
+ * 4. The rest of `<from>`'s top level, the person's own (the browser's
  *    download fallback), moves in beside the records where its name is
- *    free; a file manager's records go. `<from>` is removed once empty.
- * 4. `<from>` → target is recorded in `moved-paths.json`, so a path stored
+ *    free; a file manager's records go.
+ * 5. `<from>` → target is recorded in `moved-paths.json`, so a path stored
  *    into the old folder is read back in the new one (`remapMovedPath`).
- * 5. On Windows the target's `.instrument` is made hidden.
- * 6. The pending move is cleared.
+ * 6. On Windows the target's `.instrument` is made hidden.
+ * 7. Last, the original set aside is deleted, and `<from>` removed once
+ *    empty. A delete that fails part-way (a file another program holds
+ *    open on Windows, a locked file) costs nothing, since nothing opens the
+ *    aside: the pending move is kept with only this step left
+ *    (`leftAside`), and each later launch tries it again.
+ * 8. The pending move is cleared.
  *
- * Another live process holding the workspace (a second development
- * instance) postpones the move to a launch that finds it closed. Never
+ * A `.instrument` found at the target before step 1 is this move's own
+ * copy only when it carries the move's mark, or when the original is gone
+ * (a launch cut short between a same-volume rename and step 2). Anything
+ * else there, another workspace's records or a link, stops the move and
+ * leaves everything where it was. Another live process holding the
+ * workspace (a second development instance) postpones the steps left to a
+ * launch that finds it closed, and this launch opens the live copy. Never
  * throws: a step that fails is reported and retried on the next launch.
  */
 export function finishPendingMove({
@@ -245,54 +274,97 @@ export function finishPendingMove({
   const fromData = workspaceLayout(from).dataDir;
   const toData = workspaceLayout(to).dataDir;
   const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
-  let at = workspace;
+  const moved = { ...workspace, path: to };
+  let at = samePath(entry.path, to) ? moved : workspace;
   try {
-    if (!samePath(entry.path, to)) {
-      const holder = openElsewhereBy(machineDir);
-      if (holder !== null) {
-        if (entryExists(fromData) && isOwnCopy(toData, entry.workspaceId)) {
-          fs.rmSync(toData, { force: true, recursive: true });
-        }
-        done.push(
-          `left the move to ${to} for a launch that finds process ${holder.toString()} gone`,
-        );
-        return { done, workspace };
-      }
-      // 1. The records.
-      if (entryExists(toData)) {
-        if (!isOwnCopy(toData, entry.workspaceId)) {
-          clearPendingMove(userDataDir, workspace.id);
+    if (!pending.leftAside) {
+      if (!samePath(entry.path, to)) {
+        const placed =
+          isPlacedCopy(toData, pending.copyMark) ||
+          (!entryExists(fromData) && isRecordsOf(toData, entry.workspaceId));
+        const holder = openElsewhereBy(machineDir);
+        if (holder !== null) {
           done.push(
-            `did not move to ${to}, which holds another workspace's records; left it where it was`,
+            `left the move to ${to} for a launch that finds process ${holder.toString()} gone`,
           );
-          return { done, workspace };
+          return { done, workspace: placed ? moved : workspace };
         }
-        fs.rmSync(fromData, { force: true, recursive: true });
-      } else if (entryExists(fromData)) {
-        removePartialCopies(to);
-        moveEntrySync(fromData, toData);
-      } else {
-        clearPendingMove(userDataDir, workspace.id);
-        done.push(`found no records at ${fromData} to move to ${to}`);
-        return { done, workspace };
+        // 1. A whole copy at the target.
+        if (placed) {
+          done.push(
+            `found the whole copy at ${toData} a launch cut short made`,
+          );
+        } else {
+          if (entryExists(toData)) {
+            clearPendingMove(userDataDir, workspace.id);
+            done.push(
+              `did not move to ${to}, which holds a ${PRIVATE_FOLDER_NAME} this move did not put there; left everything where it was`,
+            );
+            return { done, workspace };
+          }
+          if (!entryExists(fromData)) {
+            clearPendingMove(userDataDir, workspace.id);
+            done.push(`found no records at ${fromData} to move to ${to}`);
+            return { done, workspace };
+          }
+          removePartialCopies(toData);
+          const how = placeEntrySync(fromData, toData, (copy) => {
+            const copyMark = randomUUID();
+            updatePendingMove(userDataDir, workspace.id, { copyMark });
+            fs.writeFileSync(path.join(copy, COPY_MARK_FILE), copyMark);
+          });
+          done.push(
+            `${how === "renamed" ? "moved" : "copied"} ${fromData} to ${toData}`,
+          );
+        }
+        at = moved;
+        // 2. The entry names the target.
+        updateRegistry(userDataDir, (current) => ({
+          ...current,
+          workspaces: current.workspaces.map((other) =>
+            other.id === workspace.id ? { ...other, path: to } : other,
+          ),
+        }));
+        fs.rmSync(path.join(toData, COPY_MARK_FILE), { force: true });
       }
-      done.push(`moved ${fromData} to ${toData}`);
-      // 2. The entry names the target.
-      updateRegistry(userDataDir, (current) => ({
-        ...current,
-        workspaces: current.workspaces.map((other) =>
-          other.id === workspace.id ? { ...other, path: to } : other,
-        ),
-      }));
+      // 3. The original aside.
+      if (entryExists(fromData)) {
+        if (isRecordsOf(fromData, entry.workspaceId)) {
+          setAsideSync(fromData);
+        } else {
+          done.push(
+            `left ${fromData}, which is not this workspace's records any more`,
+          );
+        }
+      }
+      // 4. The rest of the old folder.
+      moveTheRest({ done, from, to });
+      // 5. Stored paths read back where they went.
+      recordMovedPaths(machineDir, [{ from, to }]);
+      // 6. Hidden on Windows.
+      hide(toData);
     }
-    at = { ...workspace, path: to };
-    // 3. The rest of the old folder.
-    moveTheRest({ done, from, to });
-    // 4. Stored paths read back where they went.
-    recordMovedPaths(machineDir, [{ from, to }]);
-    // 5. Hidden on Windows.
-    hide(toData);
-    // 6. Done.
+    // 7. The original's records deleted, and the old folder once empty.
+    const left = asidesOf(fromData).filter((aside) => {
+      try {
+        removeEntrySync(aside);
+        return false;
+      } catch (error) {
+        done.push(
+          `could not delete ${aside} (${String(error)}); the next launch tries again`,
+        );
+        return true;
+      }
+    });
+    if (left.length > 0) {
+      updatePendingMove(userDataDir, workspace.id, { leftAside: true });
+      return { done, workspace: at };
+    }
+    removeIfEmptySync(from);
+    if (!entryExists(from)) {
+      done.push(`removed ${from}`);
+    }
+    // 8. Done.
     clearPendingMove(userDataDir, workspace.id);
   } catch (error) {
     done.push(
@@ -326,6 +398,22 @@ export function hideAppFolder(dataDir: string): void {
   }
 }
 
+/** Change the pending move the registry entry `id` records, where it still has one. */
+function updatePendingMove(
+  userDataDir: string,
+  id: string,
+  change: { copyMark?: string; leftAside?: true },
+) {
+  updateRegistry(userDataDir, (current) => ({
+    ...current,
+    workspaces: current.workspaces.map((entry) =>
+      entry.id === id && entry.pendingMove
+        ? { ...entry, pendingMove: { ...entry.pendingMove, ...change } }
+        : entry,
+    ),
+  }));
+}
+
 function clearPendingMove(userDataDir: string, id: string) {
   updateRegistry(userDataDir, (current) => ({
     ...current,
@@ -339,12 +427,33 @@ function clearPendingMove(userDataDir: string, id: string) {
   }));
 }
 
-/** Whether a copy of the records is this workspace's own, by its id. */
-function isOwnCopy(dataDir: string, workspaceId: string | undefined) {
+/**
+ * Whether a `.instrument` is a folder (never a link) holding this
+ * workspace's records, by its id where the entry has one.
+ */
+function isRecordsOf(dataDir: string, workspaceId: string | undefined) {
+  const workspacePath = path.dirname(dataDir);
   return (
-    workspaceId !== undefined &&
-    readWorkspaceIdentity(path.dirname(dataDir)).id === workspaceId
+    isDirectorySync(dataDir) &&
+    hasWorkspaceIdentity(workspacePath) &&
+    (workspaceId === undefined ||
+      readWorkspaceIdentity(workspacePath).id === workspaceId)
   );
+}
+
+/** Whether a `.instrument` is a folder (never a link) holding the copy a move marked. */
+function isPlacedCopy(dataDir: string, copyMark: string | undefined) {
+  if (copyMark === undefined || !isDirectorySync(dataDir)) {
+    return false;
+  }
+  try {
+    return (
+      fs.readFileSync(path.join(dataDir, COPY_MARK_FILE), "utf8").trim() ===
+      copyMark
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -401,8 +510,8 @@ function isVolumeRoot(dir: string) {
 }
 
 /**
- * Everything at the old folder's top level but its records, into the target
- * where each name is free, and the old folder removed once empty.
+ * Everything at the old folder's top level but its records and their aside,
+ * into the target where each name is free.
  */
 function moveTheRest({
   done,
@@ -421,7 +530,10 @@ function moveTheRest({
   }
   for (const name of names) {
     const entry = path.join(from, name);
-    if (name === PRIVATE_FOLDER_NAME) {
+    if (
+      name === PRIVATE_FOLDER_NAME ||
+      name.startsWith(`${PRIVATE_FOLDER_NAME}${ASIDE_INFIX}`)
+    ) {
       continue;
     }
     if (FILE_MANAGER_RECORDS.has(name)) {
@@ -432,23 +544,19 @@ function moveTheRest({
       done.push(`left ${left}: ${taken} is already there`);
     });
   }
-  removeIfEmptySync(from);
-  if (!entryExists(from)) {
-    done.push(`removed ${from}`);
-  }
 }
 
 /** Copies a launch cut short left beside the target's records. */
-function removePartialCopies(to: string) {
+function removePartialCopies(toData: string) {
   let names: string[];
   try {
-    names = fs.readdirSync(to);
+    names = fs.readdirSync(path.dirname(toData));
   } catch {
     return;
   }
   for (const name of names) {
-    if (name.startsWith(`${PRIVATE_FOLDER_NAME}.partial-`)) {
-      fs.rmSync(path.join(to, name), { force: true, recursive: true });
+    if (name.startsWith(`${path.basename(toData)}${PARTIAL_INFIX}`)) {
+      removeEntrySync(path.join(path.dirname(toData), name));
     }
   }
 }

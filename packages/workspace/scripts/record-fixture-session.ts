@@ -48,6 +48,7 @@ import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
+import { workspaceOfRecord } from "./lib/workspace-of-record";
 import {
   fixtureChatSessionPath,
   fixtureSessionPath,
@@ -232,7 +233,7 @@ async function recordChat({
   chatKey: string;
   fixture: string;
 }) {
-  const rootDir = path.dirname(path.dirname(chatDir));
+  const rootDir = workspaceOfRecord(chatDir);
   setWorkspaceConfig(
     createStubWorkspaceConfig({
       rootDir: AbsolutePathSchema.parse(rootDir),

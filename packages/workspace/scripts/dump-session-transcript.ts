@@ -4,17 +4,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
-
 import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getChatSettings } from "../src/lib/chat-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { WORKSPACE_DATA_ENTRIES } from "../src/lib/workspace-layout";
 import { ChatDirSchema } from "../src/schemas/paths";
 import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
+import { workspaceOfRecord } from "./lib/workspace-of-record";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -41,14 +39,8 @@ if (!inputPath) {
 
 const dir = ChatDirSchema.parse(path.resolve(inputPath));
 
-// The workspace root is above `.instrument/chats/<chat>` or a 1.x
-// `tasks/<id>`, and chats are found by scanning its `.instrument/chats/`.
-const parts = dir.split(path.sep);
-const chatsAt = parts.lastIndexOf(WORKSPACE_DATA_ENTRIES.chats);
-const rootDir =
-  chatsAt > 1 && parts[chatsAt - 1] === PRIVATE_FOLDER_NAME
-    ? parts.slice(0, chatsAt - 1).join(path.sep)
-    : path.dirname(path.dirname(dir));
+// Chats are found by scanning the workspace's `.instrument/chats/`.
+const rootDir = workspaceOfRecord(dir);
 
 const settings = await getChatSettings(dir);
 const folderName = path.basename(dir);

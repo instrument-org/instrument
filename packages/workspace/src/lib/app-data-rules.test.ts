@@ -42,8 +42,8 @@ import { raiseAsk } from "./permissions/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { reachOf, type Rules, rulesFor } from "./permissions/rules";
-import { resolveAgentPath } from "./resolve-agent-path";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { toolFs } from "./tool-fs";
 import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 vi.mock("./permissions/asks", async (importOriginal) => ({
@@ -439,10 +439,13 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ["another chat's settings", `${paths.otherRecord}/settings.json`],
       ["its own chat.db", `${paths.record}/chat.db`],
     ])(
-      "refuse %s to a read, rather than finding it missing",
-      (_name, target) => {
-        const read = resolveAgentPath({ inputPath: target, layout });
-        expect(read.isErr() && read.error.message).toBe(
+      "refuse %s to a file tool's read, rather than finding it missing",
+      async (_name, target) => {
+        const files = await toolFs(layout);
+        const read = await files.fs
+          .readFileBuffer(target)
+          .then(() => "read", (error: unknown) => files.failure(error, target));
+        expect(typeof read !== "string" && read.error.message).toBe(
           `${JSON.stringify(target)} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
         );
       },

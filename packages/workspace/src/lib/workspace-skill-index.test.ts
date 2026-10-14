@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceLayout } from "./workspace-layout";
-import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
+import { WorkDirSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import {
@@ -20,7 +20,8 @@ import {
   readWorkspaceSkillIndex,
   recordWorkspaceSkillMutation,
 } from "./workspace-skill-index";
-import { writeFileWithDir } from "./write-file-with-dir";
+import { toolFs } from "./tool-fs";
+import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 createMockChatConfigForDir(
   `${MOCK_WORKSPACE_DIRS.chats}/workspace-skill-index`,
@@ -256,12 +257,17 @@ describe("consumeSkillChanges", () => {
     });
   });
 
-  it("attributes dedicated file writes through the shared write boundary", async () => {
+  it("attributes a file tool's write, which goes through the shell's filesystem", async () => {
     await beginSkillChangeTracking(turn);
+    const files = await toolFs(
+      buildWorkspaceFsLayout({
+        chatHostRoot: WorkDirSchema.parse(path.join(rootDir, "work")),
+      }),
+    );
 
     await withTurnContext(turn, () =>
-      writeFileWithDir(
-        AbsolutePathSchema.parse(path.join(skillsDir, "brief", "SKILL.md")),
+      files.fs.writeFile(
+        path.join(skillsDir, "brief", "SKILL.md"),
         "---\ndescription: Brief\n---\n\nBody.\n",
       ),
     );

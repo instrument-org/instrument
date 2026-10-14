@@ -1,17 +1,12 @@
 import ms from "ms";
 import { err, ok } from "neverthrow";
-import fs from "node:fs/promises";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/write.ts
 import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { executeError } from "../lib/execute-error";
-import { sessionLayout } from "../lib/session-layout";
-import { pathExists } from "../lib/path-exists";
-import { resolveWritableToolPath } from "../lib/resolve-agent-path";
-import { writeFileWithDir } from "../lib/write-file-with-dir";
+import { sessionToolFs } from "../lib/tool-fs";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
@@ -47,33 +42,29 @@ export const WriteFile = setupTool({
     - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./sales/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp site/foo.html <folder>/foo.html\`.  `,
-  execute: async ({ input, partId, sessionId, signal, chatId }) => {
-    const layout = await sessionLayout({ chatId, partId, sessionId });
-    const pathResult = resolveWritableToolPath({
-      inputPath: input.filePath,
-      layout,
-    });
-    if (pathResult.isErr()) {
-      return err(pathResult.error);
+  execute: async ({ input, partId, sessionId, chatId }) => {
+    const files = await sessionToolFs({ chatId, partId, sessionId });
+    const typed = files.resolve(input.filePath);
+    if (typed.isErr()) {
+      return err(typed.error);
     }
-    const { absolutePath, displayPath: fixedPath } = pathResult.value;
+    const target = typed.value;
 
-    const isNewFile = !(await pathExists(absolutePath));
+    const isNewFile = !(await files.fs.exists(target));
 
     try {
-      await writeFileWithDir(absolutePath, input.content, { signal });
-      const stats = await fs.stat(absolutePath);
+      // Makes the folders it needs, as `tee` does.
+      await files.fs.writeFile(target, input.content);
+      const stats = await files.fs.stat(target);
 
       return ok({
         content: input.content,
-        filePath: fixedPath,
+        filePath: files.shown(target),
         isNewFile,
-        modifiedAt: stats.mtimeMs,
+        modifiedAt: stats.mtime.getTime(),
       });
     } catch (error) {
-      return executeError(
-        `Failed to write file ${fixedPath}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
+      return files.failure(error, target);
     }
   },
   readOnly: false,

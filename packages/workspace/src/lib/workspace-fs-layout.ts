@@ -269,9 +269,9 @@ export async function buildBashFs(
 }
 
 /**
- * Build the layout for a chat. Synchronous so the dedicated file tools can
- * resolve a path inline; bash's buildBashFs skips any folder that is missing
- * on disk at mount time.
+ * Build the layout for a chat. Synchronous so a path can be resolved against
+ * it inline; bash's buildBashFs skips any folder that is missing on disk at
+ * mount time.
  *
  * Not pure: a read-write folder is checked against the workspace root, which
  * reads the workspace config and canonicalizes both paths. A caller with no
@@ -511,10 +511,11 @@ export function resolveReadOnlyHostPath(
  * Null when no mount holds it.
  *
  * The one place these are answered, for every consumer that holds a host
- * path: the file tools, the native hatches that reach mounts (`rg`, `du`,
- * `git`), and the agent's browser. The path is canonicalized once (through a
- * symlink, through missing segments, and without case on a disk that ignores
- * it), so two spellings of one file get one answer.
+ * path: the person's views of a chat's files, the native hatches that reach
+ * mounts (`rg`, `du`, `git`), and the agent's browser. The path is
+ * canonicalized once (through a symlink, through missing segments, and
+ * without case on a disk that ignores it), so two spellings of one file get
+ * one answer.
  *
  * `via` is the mount the path was reached through, when the caller resolved a
  * shell path to get it; without one the deepest mount holding the path is

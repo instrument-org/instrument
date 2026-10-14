@@ -69,6 +69,20 @@ describe("resolveWorkspaceFilePath", () => {
     expect(resolved).toBe(expected());
   });
 
+  it("resolves a screenshot's name kept with a plain space before PM", async () => {
+    const onDisk = path.join(chatRoot, "Screenshot 2026-10-14 at 9.41.03\u202FPM.png");
+    await fs.writeFile(onDisk, "shot");
+
+    const resolved = await resolveWorkspaceFilePath({
+      filePath: WorkspaceFilePathSchema.parse(
+        "Screenshot 2026-10-14 at 9.41.03 PM.png",
+      ),
+      chatId,
+    });
+
+    expect(resolved).toBe(onDisk);
+  });
+
   it("resolves a workspace skill's file by its full path", async () => {
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
@@ -97,7 +111,17 @@ describe("resolveWorkspaceFilePath", () => {
       filePath: (): string => path.join(root, "Unattached", "cat.png"),
       label: "a folder the chat does not reach",
     },
+    {
+      filePath: (): string => path.join(photosRoot, "escape", "secret.txt"),
+      label: "a file behind a symlink out of a granted folder",
+    },
   ])("returns null for $label", async ({ filePath }) => {
+    await fs.mkdir(path.join(root, "Unattached"), { recursive: true });
+    await fs.writeFile(path.join(root, "Unattached", "secret.txt"), "secret");
+    await fs.symlink(
+      path.join(root, "Unattached"),
+      path.join(photosRoot, "escape"),
+    );
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(filePath()),
       chatId,
@@ -136,6 +160,13 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     );
     await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
     await fs.writeFile(path.join(workDir(chatId), "work", "report.md"), "made");
+    await fs.mkdir(path.join(machineDir, "work", "other", "work"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(machineDir, "work", "other", "work", "theirs.md"),
+      "theirs",
+    );
     await fs.mkdir(path.join(workDir(chatId), "tasks", "t-build", "output"), {
       recursive: true,
     });
@@ -175,6 +206,12 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     [
       "the chat's settings",
       (): string => path.join(chatDir(chatId), "settings.json"),
+      (): null | string => null,
+    ],
+    [
+      "another chat's work, by its path before it moved",
+      (): string =>
+        path.join(path.dirname(chatDir(chatId)), "other", "work", "theirs.md"),
       (): null | string => null,
     ],
     [

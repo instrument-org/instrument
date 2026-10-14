@@ -224,8 +224,8 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
       migration.leftOver += 1;
     }
   }
-  // Only an empty folder goes: a file the user left beside the projects is
-  // theirs, and keeps the folder where it was.
+  // Only an empty folder goes: what else is in it, a file beside the
+  // projects, the layout sweep sets aside after this.
   if (fs.existsSync(projectsDir) && fs.readdirSync(projectsDir).length === 0) {
     fs.rmdirSync(projectsDir);
   }

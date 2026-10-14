@@ -315,13 +315,20 @@ describe("migrateWorkspaceLayout", () => {
 
     expect(result.conflictedTaskIds).toEqual(["abc"]);
     expect(result.movedTaskCount).toBe(0);
-    // existing data preserved; legacy copy left behind (projects/ retained)
+    // existing data preserved; the legacy copy is set aside as it was,
+    // out of the workspace's top level
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("current-db");
-    expect(exists("projects", "abc")).toBe(true);
-    // the abandoned legacy copy is left entirely untouched (not even renamed)
-    expect(read("projects", "abc", ".instrument", "sessions.db")).toBe(
-      "legacy-db",
-    );
+    expect(exists("projects")).toBe(false);
+    expect(
+      read(
+        ".instrument",
+        ".pre-chats",
+        "projects",
+        "abc",
+        ".instrument",
+        "sessions.db",
+      ),
+    ).toBe("legacy-db");
   });
 
   it("runs the legacy projects/ move at most once (mark gated)", () => {
@@ -361,6 +368,43 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
     expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
     expect(exists("tasks", "My Project")).toBe(false);
+  });
+
+  it("sets aside what 1.x left in projects/, never leaving it at the top level", () => {
+    writeProjectFolder("Waiting", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    fs.writeFileSync(path.join(rootDir, "projects", "notes.txt"), "mine");
+    fs.writeFileSync(path.join(rootDir, "projects", "desktop.ini"), "");
+    // One already set aside under the same name.
+    fs.mkdirSync(path.join(rootDir, ".instrument", ".pre-chats", "projects"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(rootDir, ".instrument", ".pre-chats", "projects", "notes.txt"),
+      "earlier",
+    );
+
+    const result = migrate();
+
+    expect(result.appFolders.failed).toBe(0);
+    // A project waiting for its topic stays for the 1.x migration.
+    expect(fs.readdirSync(path.join(rootDir, "projects"))).toEqual(["Waiting"]);
+    expect(
+      fs
+        .readdirSync(
+          path.join(rootDir, ".instrument", ".pre-chats", "projects"),
+        )
+        .toSorted(),
+    ).toEqual(["desktop.ini", "notes.txt", "notes.txt-2"]);
+    expect(read(".instrument", ".pre-chats", "projects", "notes.txt-2")).toBe(
+      "mine",
+    );
+    expect(marks.layoutVersion).toBeDefined();
+
+    // Once the project is a topic, the folder empties and goes.
+    fs.rmSync(path.join(rootDir, "projects", "Waiting"), { recursive: true });
+    marks = { ...marks, layoutVersion: 0 };
+    migrate();
+    expect(exists("projects")).toBe(false);
   });
 
   it("leaves the runnable package at the task root", () => {

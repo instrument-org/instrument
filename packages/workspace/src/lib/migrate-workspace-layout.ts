@@ -25,7 +25,13 @@ import {
   type AppFoldersMove,
   moveAppFoldersIntoDataDir,
 } from "./move-app-folders";
-import { removeIfEmptySync } from "./move-entry";
+import {
+  entryExists,
+  isDirectorySync,
+  moveEntrySync,
+  removeIfEmptySync,
+} from "./move-entry";
+import { recordMovedPaths } from "./moved-paths";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
 import { windowDir } from "./window-paths";
 import { workspaceLayout } from "./workspace-layout";
@@ -90,8 +96,8 @@ export interface LayoutMarkStore {
 }
 
 export interface WorkspaceLayoutMigration {
-  // What moving the app's folders into the workspace's `.instrument/` did,
-  // for the boot log.
+  // What moving the app's folders into the workspace's `.instrument/`, and
+  // setting aside what 1.x left in `projects/`, did, for the boot log.
   appFolders: AppFoldersMove;
   // What splitting each chat's records from its work did, for the boot log.
   chatRecords: ChatRecordsSplit;
@@ -164,7 +170,7 @@ export function migrateWorkspaceLayout({
     };
   }
 
-  const appFolders = moveAppFoldersIntoDataDir({ machineDir, rootDir });
+  const movedIn = moveAppFoldersIntoDataDir({ machineDir, rootDir });
   renameChatDatabases(rootDir);
   const removedBrowserProfileCloneCount = normalizeTasks(
     path.join(rootDir, TASKS_DIR_NAME),
@@ -172,6 +178,13 @@ export function migrateWorkspaceLayout({
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
   const legacyTasks = migrateLegacyTasks(rootDir);
+  // After the 1.x migration, which turns the projects in `projects/` into
+  // topics first.
+  const projectsLeft = setAsideLegacyProjectsDir({ machineDir, rootDir });
+  const appFolders = {
+    done: [...movedIn.done, ...projectsLeft.done],
+    failed: movedIn.failed + projectsLeft.failed,
+  };
   // 1.x kept its tasks there, and nothing else is: once they are chats, the
   // folder goes.
   removeIfEmptySync(path.join(rootDir, TASKS_DIR_NAME));
@@ -295,6 +308,60 @@ function migrateLegacyProjectsDir(
   }
 
   return migration;
+}
+
+/**
+ * What 1.x left in the workspace's top-level `projects/` once its tasks
+ * moved to `tasks/` and its projects became topics (a file beside them, a
+ * task copy whose id another task had), set aside with the projects already
+ * in `.instrument/.pre-chats/projects/`, and the folder removed once empty.
+ * The top level becomes the person's folder, and the output folder once
+ * the workspace moves, so it keeps none of 1.x's. An entry whose name is
+ * taken there goes beside it under a numbered name; a project still waiting
+ * for its topic stays for the 1.x migration, and a `projects` that is a
+ * link or a file stays as it is. An entry that cannot move is counted in
+ * `failed`, so the next sweep tries it again.
+ */
+function setAsideLegacyProjectsDir({
+  machineDir,
+  rootDir,
+}: {
+  machineDir: string;
+  rootDir: string;
+}): AppFoldersMove {
+  const move: AppFoldersMove = { done: [], failed: 0 };
+  const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
+  if (!isDirectorySync(legacyDir)) {
+    return move;
+  }
+  const asideDir = path.join(
+    workspaceLayout(rootDir).setAsideDir,
+    LEGACY_TASKS_DIR_NAME,
+  );
+  const names = fs
+    .readdirSync(legacyDir)
+    .filter((name) => !isProjectFolder(path.join(legacyDir, name)));
+  if (names.length > 0) {
+    recordMovedPaths(machineDir, [{ from: legacyDir, to: asideDir }]);
+  }
+  for (const name of names) {
+    const from = path.join(legacyDir, name);
+    let to = path.join(asideDir, name);
+    for (let suffix = 2; entryExists(to); suffix += 1) {
+      to = path.join(asideDir, `${name}-${suffix.toString()}`);
+    }
+    try {
+      moveEntrySync(from, to);
+      move.done.push(`set aside ${from} in ${to}`);
+    } catch (error) {
+      move.failed++;
+      move.done.push(
+        `could not set aside ${from} (${String(error)}); left it there`,
+      );
+    }
+  }
+  removeIfEmptySync(legacyDir);
+  return move;
 }
 
 function moveIfMissingTarget(source: string, destination: string) {

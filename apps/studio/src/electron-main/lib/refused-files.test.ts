@@ -66,6 +66,18 @@ describe("isRefusedByName", () => {
     expect(isRefusedByName(hostPath, rule)).toBe(refused);
   });
 
+  it("refuses a refused folder reached by a step up from a viewable one", () => {
+    const up = [
+      at("workspace"),
+      "..",
+      "workspaces-data",
+      "x",
+      "keys",
+      "new.json",
+    ].join(path.sep);
+    expect(isRefusedByName(up, rule)).toBe(true);
+  });
+
   it("refuses a folder named both refused and viewable", () => {
     expect(
       isRefusedByName(

@@ -102,13 +102,16 @@ export function isRecordPath(hostPath: string): boolean {
 }
 
 /**
- * Whether the file a resolved, absolute path names is refused by its name
- * alone. Where the name really leads is {@link isRefusedFile}.
+ * Whether the file an absolute path names is refused by its name alone,
+ * with its steps up and in place taken first, so a viewable folder spelled
+ * on the way to a refused one does not stand for it. Where the name really
+ * leads is {@link isRefusedFile}.
  */
 export function isRefusedByName(
-  hostPath: string,
+  asked: string,
   rule: ViewRule = appViewRule(),
 ): boolean {
+  const hostPath = path.resolve(asked);
   if (isRecordPath(hostPath)) {
     return true;
   }

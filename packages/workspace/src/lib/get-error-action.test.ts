@@ -117,6 +117,41 @@ describe("getErrorAction", () => {
 
   describe("api-call errors", () => {
     describe("our provider", () => {
+      // Too many of the user's own requests at once clears when one of them
+      // finishes, so the turn waits its place instead of spending retries.
+      it("waits when too many requests are running at once", () => {
+        const message = createMessage(
+          {
+            classification: "rate-limit",
+            kind: "api-call",
+            message: "Too many requests",
+            name: "APIError",
+            responseBody:
+              '{"error":{"code":"concurrency-limit","message":"Too many requests are running at once.","retryable":true}}',
+            statusCode: 429,
+            url: "https://example.com",
+          },
+          OUR_PROVIDER_CONFIG.type,
+        );
+        expect(getErrorAction(message)).toEqual({ type: "wait" });
+      });
+
+      it("retries another provider's concurrency code as a throttle", () => {
+        const message = createMessage(
+          {
+            classification: "rate-limit",
+            kind: "api-call",
+            message: "Too many requests",
+            name: "APIError",
+            responseBody: '{"error":{"code":"concurrency-limit"}}',
+            statusCode: 429,
+            url: "https://example.com",
+          },
+          "openai",
+        );
+        expect(getErrorAction(message)).toEqual({ type: "retry" });
+      });
+
       it("returns retry when no response body", () => {
         const message = createMessage(
           {

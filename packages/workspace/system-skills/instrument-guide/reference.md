@@ -18,6 +18,15 @@ Your account, how Instrument looks, notifications, updates, and the diagnostic l
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`).
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
+### Usage and billing (`usage and billing`)
+
+Your Instrument plan, how much of it you have used, and billing.
+
+- **Plan** (`plan`): Your free trial or subscription, and changing your plan. On it: Change plan (`change-plan`).
+- **Change plan** (`change-plan`): Switch to another plan.
+- **Payment method and invoices** (`billing-portal`): Your card and invoices, and canceling your subscription, in Stripe. On it: Manage billing (`manage-billing`).
+- **Manage billing** (`manage-billing`): Your card, invoices, and subscription, in Stripe.
+
 ### Memory (`memory`)
 
 What Instrument remembers about you, which you can search, forget, or add to from another AI.

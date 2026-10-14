@@ -4,6 +4,7 @@ import { aiUsage } from "./ai-usage";
 import { appCommands } from "./app-commands";
 import { apps } from "./apps";
 import { auth } from "./auth";
+import { billing } from "./billing";
 import { browser } from "./browser";
 import { browsingData } from "./browsing-data";
 import { chatgptAccount } from "./chatgpt-account";
@@ -18,12 +19,10 @@ import { mac } from "./mac";
 import { notices } from "./notices";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
-import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
-import { stripe } from "./stripe";
 import { syntax } from "./syntax";
 import { transcript } from "./transcript";
 import { updates } from "./updates";
@@ -37,6 +36,7 @@ export const router = {
   appCommands,
   apps,
   auth,
+  billing,
   browser,
   browsingData,
   chatgptAccount,
@@ -51,12 +51,10 @@ export const router = {
   notices,
   onboarding,
   pageEditor,
-  plans,
   preferences,
   problems,
   providerConfig,
   releases,
-  stripe,
   syntax,
   transcript,
   updates,

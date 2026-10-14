@@ -283,6 +283,7 @@ export const workspaceMachine = setup({
       preparedSkillsDir: string;
       refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
       registryDir: string;
+      reportPlatformRefusal?: WorkspaceConfig["reportPlatformRefusal"];
       rootDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
@@ -331,6 +332,9 @@ export const workspaceMachine = setup({
         ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
         : {}),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
+      ...(input.reportPlatformRefusal && {
+        reportPlatformRefusal: input.reportPlatformRefusal,
+      }),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
       ...(input.toolBinDir && {

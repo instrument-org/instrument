@@ -11,6 +11,7 @@ import { PermissionsSection } from "@/client/components/settings/permissions-sec
 import { ProvidersSection } from "@/client/components/settings/providers-section";
 import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
+import { UsageAndBillingSection } from "@/client/components/settings/usage-and-billing-section";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import {
   SETTINGS_PAGES,
@@ -48,6 +49,7 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
@@ -507,6 +509,9 @@ function SettingsSectionBody({
     case "Storage": {
       return <StorageSection />;
     }
+    case "Usage and billing": {
+      return <UsageAndBillingSection />;
+    }
     default: {
       tab satisfies never;
       return null;
@@ -525,6 +530,7 @@ const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
   Skills: CubeIcon,
   Storage: HardDrivesIcon,
   Usage: PulseIcon,
+  "Usage and billing": GaugeIcon,
 };
 
 function useNavItems(): NavItem[] {

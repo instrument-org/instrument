@@ -108,7 +108,7 @@ export const ChatSchema = z.object({
   /** The chat's session, which its transcript is read and its messages are sent through. */
   sessionId: StoreId.SessionSchema,
   /** Where the chat stands, by the one rule in `chatStateOf`. */
-  state: z.enum(["failed", "idle", "stopped", "waiting", "working"]),
+  state: z.enum(["failed", "idle", "limited", "stopped", "waiting", "working"]),
   title: z.string(),
   /**
    * Whether the agent has named the chat. Until it has, `title` is the
@@ -378,6 +378,8 @@ interface ChatDigest {
   madeFiles: string[];
   /** Whether the chat's last turn ended in an error with nothing said after it. */
   failed: boolean;
+  /** Whether that error was a usage limit, which `failed` then leaves out. */
+  limited: boolean;
   openedHosts: string[];
   /** What the chat's own last turn asked the user, if it ended on an ask. */
   ownAsk?: string;
@@ -651,11 +653,19 @@ function digestOf(
     messages.lastIndexOf(lastAssistant) >
       (lastOpener ? messages.lastIndexOf(lastOpener) : -1);
   const error = lastAssistant?.metadata.error;
-  const failed =
+  const endedInError =
     endsLastTurn &&
     (error === undefined
       ? lastAssistant.metadata.finishReason === "error"
       : error.kind !== "aborted" || error.reason === "timeout");
+  // A plan or usage window that ran out stopped the turn without anything
+  // going wrong, so it is told apart from a failure.
+  const limited =
+    endedInError &&
+    error !== undefined &&
+    "classification" in error &&
+    error.classification === "usage-limit";
+  const failed = endedInError && !limited;
   // The user's Stop, rather than what it left behind: a turn stopped before
   // it began left only the message no turn took up, and one stopped between
   // steps left nothing at all.
@@ -675,6 +685,7 @@ function digestOf(
     ...(lastUserMessage && {
       lastUserMessageAt: lastUserMessage.metadata.createdAt.getTime(),
     }),
+    limited,
     madeFiles: filesHeld(messages),
     openedHosts: commands.flatMap(openedHostsIn),
     ...(ownAsk !== undefined && { ownAsk }),
@@ -987,6 +998,7 @@ function stateOf(
     ...chatStateOf({
       askedAt,
       failed: digest.failed,
+      limited: digest.limited,
       ownAskedAt:
         digest.ownAsk === undefined ? undefined : digest.lastAssistantAt,
       ownTurn: hasOwnTurn(chatId),

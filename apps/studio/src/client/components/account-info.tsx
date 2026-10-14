@@ -10,7 +10,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { ContactErrorAlert } from "./contact-error-alert";
-import { SubscriptionCard } from "./subscription-card";
 import { UserInfoCard } from "./user-info-card";
 
 export function AccountInfo() {
@@ -29,10 +28,7 @@ export function AccountInfo() {
   return (
     <div className="space-y-3">
       {user?.id ? (
-        <>
-          <UserInfoCard />
-          <SubscriptionCard />
-        </>
+        <UserInfoCard />
       ) : (
         <Card className="p-4">
           <div className="space-y-3" {...settingAnchor("account")}>
@@ -94,8 +90,8 @@ export function AccountInfo() {
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p className="text-sm font-medium">Log in to {APP_NAME}</p>
                   <p className="text-xs text-muted-foreground">
-                    You&apos;re using {APP_NAME} without an account. Create an
-                    account to claim free AI usage and try the app.
+                    You&apos;re using {APP_NAME} without an account. Create one
+                    to start a free trial of {APP_NAME}&apos;s AI.
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

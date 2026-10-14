@@ -57,7 +57,6 @@ const RETRY_DELAY_MS = 250;
  */
 export type WebSearchResults =
   | {
-      costDollars: number;
       kind: "excerpts";
       sources: WebSearchResult[];
     }
@@ -269,7 +268,6 @@ async function requestPlatformSearch({
   }
 
   return ok({
-    costDollars: response.data.costDollars,
     kind: "excerpts",
     sources: response.data.results,
   });

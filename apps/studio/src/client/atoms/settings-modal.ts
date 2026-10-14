@@ -10,7 +10,8 @@ export type SettingsTab =
   | "Permissions"
   | "Providers"
   | "Skills"
-  | "Storage";
+  | "Storage"
+  | "Usage and billing";
 
 interface SettingsModalState {
   /** Expand the account's usage panel on the Providers tab. */

@@ -3,48 +3,126 @@ import { z } from "zod";
 
 const base = oc.errors({
   BAD_REQUEST: {},
+  CONFLICT: {},
   FORBIDDEN: {},
   INTERNAL_SERVER_ERROR: {},
   UNAUTHORIZED: {},
 });
 
-export const contract = {
-  plans: {
-    get: base.input(z.void()).output(
-      z.array(
-        z.object({
-          description: z.string(),
-          features: z.array(z.object({ text: z.string() })),
-          monthlyPrice: z.number(),
-          name: z.string(),
-          priceIds: z.object({
-            monthly: z.string().nullable(),
-            yearly: z.string().nullable(),
+/**
+ * What the platform says about a user's plan: percent and reset time per
+ * enabled window, never dollars. `binding` names the window closest to its
+ * limit.
+ */
+const BillingStatusSchema = z.object({
+  binding: z.string().optional(),
+  canSubscribe: z.boolean(),
+  plan: z.string(),
+  subscription: z
+    .object({
+      /** When it ends, if it is scheduled to: the period's end, or later. */
+      cancelAt: z.string().optional(),
+      cancelAtPeriodEnd: z.boolean(),
+      currentPeriodEnd: z.string().optional(),
+      /**
+       * The plan it pays for, which `plan` above stops naming once a payment
+       * fails and the subscription no longer entitles.
+       */
+      plan: z.string().optional(),
+      status: z.string(),
+    })
+    .optional(),
+  trial: z.object({
+    endsAt: z.string().optional(),
+    percentUsed: z.number().optional(),
+    state: z.enum(["active", "available", "ended"]),
+  }),
+  windows: z.array(
+    z.object({
+      key: z.string(),
+      percentUsed: z.number(),
+      resetsAt: z.string().optional(),
+    }),
+  ),
+});
+
+/** The one pricing document every surface renders. */
+const BillingOfferSchema = z.object({
+  offerVersion: z.string(),
+  plans: z.array(
+    z.object({
+      allowance: z.object({
+        multiple: z.number(),
+        windows: z.array(
+          z.object({
+            anchor: z.string(),
+            duration: z.string().optional(),
+            key: z.string(),
           }),
-          yearlyPrice: z.number(),
-        }),
-      ),
+        ),
+      }),
+      description: z.string().nullable(),
+      features: z.array(z.string()),
+      key: z.string(),
+      name: z.string(),
+      price: z
+        .object({
+          currency: z.string(),
+          interval: z.string().nullable(),
+          unitAmount: z.number().nullable(),
+        })
+        .nullable(),
+    }),
+  ),
+  trial: z
+    .object({
+      available: z.boolean().optional(),
+      cardRequired: z.boolean(),
+      days: z.number(),
+    })
+    .nullable(),
+  /**
+   * Free months of a plan this account can take at Checkout
+   * (`createCheckout` with `offer: "beta"`); null for everyone else, and
+   * absent from an API older than the offer.
+   */
+  beta: z
+    .object({ months: z.number(), plan: z.string() })
+    .nullable()
+    .optional(),
+});
+
+export const contract = {
+  billing: {
+    /**
+     * Moves a live subscription to another offered plan, charging the
+     * difference now; the new limits apply once that payment succeeds.
+     */
+    changePlan: base.input(z.object({ plan: z.string() })).output(
+      z.object({
+        /** Where the change's invoice is paid while it is pending. */
+        invoiceUrl: z.string().optional(),
+        /** The plan in effect now: the old one while the change is pending. */
+        plan: z.string().nullable(),
+        status: z.enum(["applied", "pending"]),
+      }),
     ),
+    createCheckout: base
+      .input(
+        z.object({ offer: z.literal("beta").optional(), plan: z.string() }),
+      )
+      .output(z.object({ url: z.string() })),
+    createPortal: base.input(z.void()).output(z.object({ url: z.string() })),
+    offer: base.input(z.void()).output(BillingOfferSchema),
+    /**
+     * Starts the free trial now rather than on the first message to
+     * Instrument's models; a no-op when there is none to start.
+     */
+    startTrial: base.input(z.void()).output(BillingStatusSchema),
+    status: base.input(z.void()).output(BillingStatusSchema),
   },
   root: {
     ping: base.input(z.void()).output(z.string()),
-  },
-  stripe: {
-    createCheckoutSession: base
-      .input(z.object({ priceId: z.string() }))
-      .output(z.object({ url: z.string().nullable() })),
-    createPortalSession: base
-      .input(z.void())
-      .output(z.object({ url: z.string() })),
-    getInvoicePreview: base.input(z.object({ priceId: z.string() })).output(
-      z.object({
-        amountDue: z.number(),
-        currency: z.string(),
-        endingBalance: z.number(),
-        prorationDate: z.number(),
-        subtotal: z.number(),
-      }),
-    ),
   },
   users: {
     getMe: base.input(z.void()).output(
@@ -55,16 +133,6 @@ export const contract = {
         image: z.string().nullable().optional(),
         name: z.string(),
         updatedAt: z.date(),
-      }),
-    ),
-    getSubscriptionStatus: base.input(z.void()).output(
-      z.object({
-        billingCycle: z.enum(["monthly", "yearly"]).nullable(),
-        freeUsagePercent: z.number(),
-        hasEnoughCredits: z.boolean(),
-        nextAllocation: z.date().nullable(),
-        plan: z.string().nullable(),
-        usagePercent: z.number(),
       }),
     ),
   },

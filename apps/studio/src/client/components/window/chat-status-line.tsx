@@ -2,6 +2,7 @@ import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { cn } from "@/client/lib/utils";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -19,11 +20,17 @@ import { type Chat } from "./chats";
  */
 type StatusLine = {
   text: string;
-  tone: "done" | "failed" | "halted" | "run" | "stopped" | "wait";
+  tone: "done" | "failed" | "halted" | "limited" | "run" | "stopped" | "wait";
 };
 
 /** Said while the chat works and nothing has named the step yet. */
 const WORKING = "Instrument is working";
+
+/**
+ * Said once a usage limit stopped the chat's last turn, which is not an error:
+ * the notice over its reply box says what to do.
+ */
+export const LIMITED = "Stopped at a usage limit";
 
 /** Said once the user stopped the chat's turn, until the next one starts, or a task named like the chat. */
 const HALTED = "You stopped Instrument";
@@ -77,6 +84,7 @@ export function ChatStatusLine({
           line.tone === "failed" && "text-error-700 dark:text-error-300",
           (line.tone === "done" ||
             line.tone === "halted" ||
+            line.tone === "limited" ||
             line.tone === "stopped") &&
             "text-muted-foreground",
         )}
@@ -146,6 +154,11 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
         <StopCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    case "limited": {
+      return (
+        <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
   }
 }
 
@@ -203,6 +216,9 @@ export function statusLine({
   }
   if (chat.state === "stopped") {
     return { text: HALTED, tone: "halted" };
+  }
+  if (chat.state === "limited") {
+    return { text: LIMITED, tone: "limited" };
   }
   const own = chat.lastStep;
   const task = listed

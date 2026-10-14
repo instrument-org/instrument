@@ -47,7 +47,7 @@ function renderExcerpts(
     WebSearch.toModelOutput({
       input: { query: "anything" },
       output: {
-        results: { costDollars: 0.007, kind: "excerpts", sources },
+        results: { kind: "excerpts", sources },
         state: "success",
       },
       toolCallId: "test",

@@ -19,6 +19,7 @@ import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -33,6 +34,7 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
+import { LIMITED } from "./chat-status-line";
 import { ChatTitleField } from "./chat-title";
 import { activityLabel, type Chat, type Topic, wordRanges } from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
@@ -552,10 +554,18 @@ function Peek({
   search?: string;
 }) {
   const isFailed = chat.state === "failed";
+  const isLimited = chat.state === "limited";
   const isStopped = chat.state === "stopped";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (!chat.latest && !isFailed && !isStopped && !isWaiting && !isWorking) {
+  if (
+    !chat.latest &&
+    !isFailed &&
+    !isLimited &&
+    !isStopped &&
+    !isWaiting &&
+    !isWorking
+  ) {
     return null;
   }
   return (
@@ -577,6 +587,13 @@ function Peek({
           />
           <span className="min-w-0 truncate text-error-700 dark:text-error-300">
             Stopped on an error
+          </span>
+        </>
+      ) : isLimited ? (
+        <>
+          <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate text-muted-foreground">
+            {LIMITED}
           </span>
         </>
       ) : isStopped ? (

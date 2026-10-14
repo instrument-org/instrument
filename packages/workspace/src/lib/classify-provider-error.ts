@@ -61,6 +61,22 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
 ]);
 
 /**
+ * Our own platform's refusals of a hosted request, by `error.code`. Read ahead
+ * of the status because two different answers share a 429: a spent usage
+ * window, which waiting a few seconds does not end, and too many requests
+ * running at once, which it does. A 402 here is no plan rather than a refused
+ * credential, so it stops the turn as a spent allowance rather than reading as
+ * a sign-in problem.
+ */
+const PLATFORM_KIND_BY_CODE = new Map<string, ProviderErrorKind>([
+  ["concurrency-limit", "rate-limit"],
+  ["meter-unavailable", "transient"],
+  ["rate-limit-exceeded", "rate-limit"],
+  ["subscription-required", "usage-limit"],
+  ["usage-limit-exceeded", "usage-limit"],
+]);
+
+/**
  * Content a provider refuses to accept, matched by message.
  *
  * Deliberately short. Each entry is here because a provider was seen producing
@@ -299,6 +315,12 @@ function weighEvidence({
     codes.includes("claude_account_usage_limit_exceeded")
   ) {
     return { evidence: "structured", kind: "usage-limit" };
+  }
+  for (const code of codes) {
+    const kind = PLATFORM_KIND_BY_CODE.get(code);
+    if (kind) {
+      return { evidence: "structured", kind };
+    }
   }
   if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
     return { evidence: "status", kind: "auth" };

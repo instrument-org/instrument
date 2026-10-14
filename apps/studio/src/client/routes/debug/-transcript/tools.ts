@@ -296,7 +296,6 @@ export function searched({
     input: { explanation, query },
     output: {
       results: {
-        costDollars: 0.01,
         kind: "excerpts",
         // A real host apiece, and enough of them to fill the summary chip's
         // stack. The chip draws one favicon per distinct hostname, so sources

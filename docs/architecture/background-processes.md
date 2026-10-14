@@ -114,7 +114,7 @@ Ownership moves in one case: when the chat hands work to a task partway, `task n
 |---|---|---|
 | Running per chat | 8 | Counted across the chat and its tasks; refusing the ninth names the ones the asking session owns and counts the rest |
 | Pending output per process | 256 KB | Held in memory between reads |
-| Process log | 16 MB | On disk at `.tool-output/bg_N.log` |
+| Process log | 16 MB | On disk at `.tool-output/bg_N.log`, opened following no link (`own-file.ts`) |
 | One `fg` wait | the call's remaining `yieldMs`, 10 min ceiling | A wait that outlived its call would promote the call itself, answering with a second id instead of output. An explicit `--timeout` can only lower it. A message arriving for the session ends the wait early (`lib/wait-interrupts.ts`), since a steer is heard at the next step and a step spent waiting would hold it for the whole window |
 | `yieldMs` | 250 ms – 10 min, default 30 s | Tool-call timeout is `yieldMs + 30 s` so promotion always wins |
 | Kill escalation | SIGTERM → 1 s → SIGKILL → 4 s | Then `uncertain` |

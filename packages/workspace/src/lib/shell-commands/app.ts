@@ -674,7 +674,7 @@ async function runGuide(
   const app = await requireApp(args[0], { connected: false });
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
-    await writeAppGuide(app.dir, written);
+    writeAppGuide(app.dir, written);
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
       left.length > 0

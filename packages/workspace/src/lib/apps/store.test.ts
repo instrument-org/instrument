@@ -1,11 +1,29 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
-import { AppSlugSchema } from "./manifest";
-import { loadApp, setWebAppAccount } from "./store";
+import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
+import { absolutePathJoin } from "../absolute-path-join";
+import { findAppIcon, writeAppIcon } from "./icon";
+import {
+  APP_GUIDE_FILE_NAME,
+  APP_MANIFEST_FILE_NAME,
+  AppManifestSchema,
+  AppSlugSchema,
+} from "./manifest";
+import {
+  loadApp,
+  readAppGuide,
+  setAppAccount,
+  setWebAppAccount,
+  writeAppFolder,
+  writeAppGuide,
+} from "./store";
+
+const svgIcon = new TextEncoder().encode(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>',
+);
 
 const drafts = {
   auth: { kind: "none" },
@@ -86,3 +104,115 @@ describe("setWebAppAccount", () => {
     `);
   });
 });
+
+// The apps folder is open to the programs a chat runs, which can put a link
+// at any name in it. The app reads and writes these files itself, outside
+// every sandbox, so it follows none: a link at a file's name or at the app's
+// folder leads nowhere.
+describe.skipIf(process.platform === "win32")(
+  "an app's files reached through a link",
+  () => {
+    let root: string;
+    let apps: AbsolutePath;
+    let secret: string;
+    const slug = AppSlugSchema.parse("drafts");
+
+    beforeEach(async () => {
+      root = await fs.realpath(
+        await fs.mkdtemp(path.join(os.tmpdir(), "apps-links-")),
+      );
+      apps = AbsolutePathSchema.parse(path.join(root, "apps"));
+      secret = path.join(root, "closed", "secret.json");
+      await fs.mkdir(path.dirname(secret), { recursive: true });
+      await fs.writeFile(secret, "SECRET-VALUE\n");
+      await fs.mkdir(path.join(apps, slug), { recursive: true });
+      await fs.writeFile(
+        path.join(apps, slug, APP_MANIFEST_FILE_NAME),
+        JSON.stringify(drafts),
+      );
+    });
+
+    afterEach(async () => {
+      await fs.rm(root, { force: true, recursive: true });
+    });
+
+    it.each([
+      {
+        label: "the guide",
+        name: APP_GUIDE_FILE_NAME,
+        touch: async (dir: AbsolutePath) => {
+          expect(await readAppGuide(dir)).toBeNull();
+          expect(() => {
+            writeAppGuide(dir, "overwritten");
+          }).toThrow(/symbolic link|ELOOP/);
+        },
+      },
+      {
+        label: "the manifest",
+        name: APP_MANIFEST_FILE_NAME,
+        touch: async () => {
+          const loaded = await loadApp(apps, slug);
+          expect(loaded.isErr() && loaded.error.message).not.toContain(
+            "SECRET",
+          );
+          await expect(
+            setAppAccount(apps, slug, "someone@example.com"),
+          ).rejects.toThrow();
+        },
+      },
+      {
+        label: "the icon",
+        name: "icon.svg",
+        touch: async (dir: AbsolutePath) => {
+          expect(await findAppIcon(dir)).toBeUndefined();
+          await expect(
+            writeAppIcon(dir, svgIcon, "icon.svg"),
+          ).rejects.toThrow(/ELOOP|symbolic link/);
+        },
+      },
+    ])(
+      "reads and writes nothing through a link at $label",
+      async ({ name, touch }) => {
+        const at = path.join(apps, slug, name);
+        await fs.rm(at, { force: true });
+        await fs.symlink(secret, at);
+
+        await touch(absolutePathJoin(apps, slug));
+
+        expect(await fs.readFile(secret, "utf8")).toBe("SECRET-VALUE\n");
+      },
+    );
+
+    it("reads, writes and removes nothing through a link at the app's folder", async () => {
+      const closed = path.dirname(secret);
+      await fs.writeFile(path.join(closed, APP_MANIFEST_FILE_NAME), "SECRET");
+      await fs.writeFile(path.join(closed, "icon.png"), "keep");
+      await fs.rm(path.join(apps, slug), { recursive: true });
+      await fs.symlink(closed, path.join(apps, slug));
+      const dir = absolutePathJoin(apps, slug);
+
+      const loaded = await loadApp(apps, slug);
+      expect(loaded.isErr() ? loaded.error.message : "").not.toContain(
+        "SECRET",
+      );
+      await expect(writeAppIcon(dir, svgIcon, "icon.svg")).rejects.toThrow();
+      await expect(
+        writeAppFolder({
+          appsDir: apps,
+          guide: "g",
+          manifest: AppManifestSchema.parse(drafts),
+          slug,
+        }),
+      ).rejects.toThrow();
+
+      expect(await fs.readdir(closed)).toEqual([
+        APP_MANIFEST_FILE_NAME,
+        "icon.png",
+        "secret.json",
+      ]);
+      expect(await fs.readFile(path.join(closed, "icon.png"), "utf8")).toBe(
+        "keep",
+      );
+    });
+  },
+);

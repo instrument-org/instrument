@@ -7,6 +7,7 @@ import { omit } from "radashi";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
+import { readOwnFile, writeOwnFile } from "../own-file";
 import { APP_COMMAND } from "../shell-commands/app-command";
 import { type AppCatalogEntry, catalogEntryForApp } from "./catalog";
 import {
@@ -82,7 +83,7 @@ export async function loadApp(
 
   let raw: string;
   try {
-    raw = await fs.readFile(manifestPath, "utf8");
+    raw = readOwnFile({ file: manifestPath, folder: appsDir }).toString("utf8");
   } catch {
     return err({
       message: `App "${slug}" has no ${APP_MANIFEST_FILE_NAME}.`,
@@ -122,22 +123,22 @@ export async function readAppGuide(
   appDir: AbsolutePath,
 ): Promise<null | string> {
   try {
-    const guide = await fs.readFile(
-      path.join(appDir, APP_GUIDE_FILE_NAME),
-      "utf8",
-    );
+    const guide = readOwnFile({
+      file: path.join(appDir, APP_GUIDE_FILE_NAME),
+      folder: path.dirname(appDir),
+    }).toString("utf8");
     return guide.trim() === "" ? null : guide;
   } catch {
     return null;
   }
 }
 
-export async function writeAppGuide(appDir: AbsolutePath, guide: string) {
-  await fs.writeFile(
-    path.join(appDir, APP_GUIDE_FILE_NAME),
-    `${guide.trimEnd()}\n`,
-    "utf8",
-  );
+export function writeAppGuide(appDir: AbsolutePath, guide: string) {
+  writeOwnFile({
+    data: `${guide.trimEnd()}\n`,
+    file: path.join(appDir, APP_GUIDE_FILE_NAME),
+    folder: path.dirname(appDir),
+  });
 }
 
 /**
@@ -218,11 +219,11 @@ export async function setAppAccount(
   const manifest = AppManifestSchema.parse(
     account === undefined ? rest : { ...rest, account },
   );
-  await fs.writeFile(
-    path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
+  writeOwnFile({
+    data: `${JSON.stringify(manifest, null, 2)}\n`,
+    file: path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
+    folder: appsDir,
+  });
   return manifest;
 }
 
@@ -253,11 +254,11 @@ export async function setWebAppAccount(
       ? { url: accountHome.replace("{account}", encodeURIComponent(account)) }
       : {}),
   });
-  await fs.writeFile(
-    path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
+  writeOwnFile({
+    data: `${JSON.stringify(manifest, null, 2)}\n`,
+    file: path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
+    folder: appsDir,
+  });
   return manifest;
 }
 
@@ -276,15 +277,14 @@ export async function writeAppFolder({
   slug: AppSlug;
 }): Promise<AbsolutePath> {
   const dir = absolutePathJoin(appsDir, slug);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(
-    path.join(dir, APP_MANIFEST_FILE_NAME),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
+  writeOwnFile({
+    data: `${JSON.stringify(manifest, null, 2)}\n`,
+    file: path.join(dir, APP_MANIFEST_FILE_NAME),
+    folder: appsDir,
+  });
   const guidePath = path.join(dir, APP_GUIDE_FILE_NAME);
   if (replacesGuide || (await readAppGuide(dir)) === null) {
-    await fs.writeFile(guidePath, guide, "utf8");
+    writeOwnFile({ data: guide, file: guidePath, folder: appsDir });
   }
   return dir;
 }

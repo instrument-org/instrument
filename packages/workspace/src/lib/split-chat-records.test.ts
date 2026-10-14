@@ -182,6 +182,44 @@ describe("splitChatRecords", () => {
     ]);
   });
 
+  it("drops the copies of the app's own skills, leaving the agent's to move", () => {
+    const dir = recordDir();
+    write(path.join(dir, ".instrument", "settings.json"), "{}");
+    for (const copy of [
+      ["work", "skills", "instrument", "pdf"],
+      ["work", "skills", "system", "skill-creator"],
+      ["skills", "instrument", "sharp-images"],
+      ["tasks", "old-task", "work", "skills", "instrument", "zip"],
+    ]) {
+      write(path.join(dir, ...copy, "SKILL.md"));
+      write(path.join(dir, ...copy, "scripts", "run.py"));
+      write(path.join(dir, ...copy, "node_modules", ".pnpm", "x", "index.js"));
+    }
+    write(path.join(dir, "work", "skills", "my-own", "SKILL.md"), "mine");
+    write(path.join(dir, "work", "skills", "instrument", "notes.md"), "mine");
+    write(path.join(dir, "skills", "workspace", "mine", "SKILL.md"), "mine");
+    write(path.join(dir, "work", "report.md"), "report");
+
+    const result = split();
+
+    expect(result.failed).toBe(0);
+    expect(listing(workDir())).toMatchInlineSnapshot(`
+      [
+        "skills/workspace/mine/SKILL.md",
+        "work/report.md",
+        "work/skills/instrument/notes.md",
+        "work/skills/my-own/SKILL.md",
+      ]
+    `);
+    expect(
+      result.done.map((line) => line.replace(workDir(), "<work>")),
+    ).toMatchInlineSnapshot(`
+      [
+        "2026-10-01-beta: .instrument/settings.json, skills/instrument/sharp-images (removed), work/skills/instrument/pdf (removed), work/skills/system/skill-creator (removed), tasks/old-task/work/skills/instrument/zip (removed), skills, work, with its work in <work>",
+      ]
+    `);
+  });
+
   it("moves nothing on a second run", () => {
     writeBetaChat();
     split();

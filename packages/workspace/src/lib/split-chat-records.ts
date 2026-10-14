@@ -27,6 +27,11 @@ import { workspaceLayout } from "./workspace-layout";
 const AGENT_BROWSER_HOME_DIR_NAME = "agent-browser-home";
 const LEGACY_HANDOFF_NOTES_PATH = ["work", "handoff-notes.md"];
 const TASK_RECORDS_SET_ASIDE_DIR_NAME = "chat-task-records";
+// Where earlier builds copied a skill a chat or a task loaded, below its
+// folder (`skills/<source>/<name>`), and the sources of the skills the app
+// ships, whose copies are the app's own.
+const SKILL_COPY_DIRS = [["skills"], ["work", "skills"]];
+const APP_SKILL_SOURCES = ["instrument", "system"];
 
 // A SQLite database and the files beside it, sidecars first: a move cut short
 // between them leaves the database where it was, with no sidecar the store
@@ -67,7 +72,11 @@ export interface ChatRecordsSplit {
  * file. The window's record folder is split the same way.
  *
  * A virtualenv, `node_modules` and the scratch folder are dropped rather than
- * moved, and so is `agent-browser`'s old home. A `tasks/` folder an earlier
+ * moved, and so are `agent-browser`'s old home and the copies of the app's
+ * own skills an earlier build made when one was loaded, whose packages'
+ * links break on a move and which the app reads where it keeps them now
+ * (a skill the agent wrote beside them under another name moves with the
+ * rest). A `tasks/` folder an earlier
  * build left in a chat goes to the work folder with the rest, but for each
  * old task's own records, which are set aside with what the migrations kept
  * (`setAsideDir`).
@@ -238,11 +247,19 @@ function splitOne({
     });
   }
 
+  dropAppSkillCopies({ dir: recordDir, moved, split });
+
   // An earlier build's task folders keep their files, which go with the
   // chat's work, but not their records or what rebuilds.
   const tasksDir = path.join(recordDir, TASKS_DIR_NAME);
   for (const task of readDirs(tasksDir)) {
     const taskDir = path.join(tasksDir, task);
+    dropAppSkillCopies({
+      dir: taskDir,
+      label: `${TASKS_DIR_NAME}/${task}/`,
+      moved,
+      split,
+    });
     const taskRecords = path.join(taskDir, PRIVATE_FOLDER_NAME);
     if (entryExists(taskRecords)) {
       const to = path.join(setAsideDir, task);
@@ -294,5 +311,49 @@ function splitOne({
     split.done.push(
       `${name}: ${moved.join(", ")}, with its work in ${workDir}`,
     );
+  }
+}
+
+/**
+ * Removes the copies of the app's own skills that an earlier build made in a
+ * chat's or a task's folder (`skills/instrument/<name>/`, under `work/` in
+ * older ones), each a folder holding a `SKILL.md`. Anything else there, a
+ * skill the agent wrote under another name among it, stays to move with the
+ * rest of the work.
+ */
+function dropAppSkillCopies({
+  dir,
+  label = "",
+  moved,
+  split,
+}: {
+  dir: string;
+  /** What `moved` names `dir` by. */
+  label?: string;
+  moved: string[];
+  split: ChatRecordsSplit;
+}) {
+  for (const copies of SKILL_COPY_DIRS) {
+    const skillsDir = path.join(dir, ...copies);
+    for (const source of APP_SKILL_SOURCES) {
+      const sourceDir = path.join(skillsDir, source);
+      for (const name of readDirs(sourceDir)) {
+        const copy = path.join(sourceDir, name);
+        if (!entryExists(path.join(copy, "SKILL.md"))) {
+          continue;
+        }
+        step(split, `remove ${copy}`, () => {
+          fs.rmSync(copy, { force: true, maxRetries: 3, recursive: true });
+          moved.push(
+            `${label}${[...copies, source, name].join("/")} (removed)`,
+          );
+        });
+      }
+      removeIfEmptySync(sourceDir);
+    }
+    // And the folders holding them, where nothing else was in them.
+    for (let depth = copies.length; depth > 0; depth--) {
+      removeIfEmptySync(path.join(dir, ...copies.slice(0, depth)));
+    }
   }
 }

@@ -10,6 +10,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
+import { remapMovedPath } from "./moved-paths";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import {
   parsedStoreWrite,
@@ -283,7 +284,11 @@ export namespace Store {
 
       const relaxedParts = yield* Result.combine(partResults);
 
-      return ok(relaxedParts.map((part) => SessionMessagePart.coerce(part)));
+      return ok(
+        relaxedParts.map((part) =>
+          withSentFoldersWhereTheyAre(SessionMessagePart.coerce(part)),
+        ),
+      );
     });
   }
 
@@ -655,4 +660,26 @@ export namespace Store {
       return ok(saved);
     });
   }
+}
+
+/**
+ * A part as read, with the folders its message sent read back where a move
+ * took them (`remapMovedPath`): a folder sent from inside the workspace
+ * before the workspace moved is shown, and opens, where it is now. What is
+ * stored stays as it was written.
+ */
+function withSentFoldersWhereTheyAre(
+  part: SessionMessagePart.Type,
+): SessionMessagePart.Type {
+  if (part.type !== "data-attachments" || !part.data.folders) {
+    return part;
+  }
+  const sent = part.data.folders;
+  const folders = sent.map((folder) => ({
+    ...folder,
+    path: remapMovedPath(folder.path),
+  }));
+  return folders.every((folder, index) => folder.path === sent[index]?.path)
+    ? part
+    : { ...part, data: { ...part.data, folders } };
 }

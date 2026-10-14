@@ -1,3 +1,5 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -19,12 +21,16 @@ import {
   parseCdpMessage,
 } from "./cdp-bridge";
 
+/** The chat's work folder, spelled as an absolute path is on this platform. */
+const TASK = path.resolve("/Users/me/Tasks/t1");
+
+/** A file's address as the guest shows it: `file:///C:/...` on Windows. */
+const fileUrl = (hostPath: string) => pathToFileURL(hostPath).href;
+
 /** The folders of the chat whose agent drives the page. */
 const chatLayout = () =>
   Promise.resolve(
-    buildWorkspaceFsLayout({
-      chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/t1"),
-    }),
+    buildWorkspaceFsLayout({ chatHostRoot: WorkDirSchema.parse(TASK) }),
   );
 
 /** Drain pending microtasks. */
@@ -154,13 +160,16 @@ describe("createMainFrameLoadGate", () => {
 
 describe("createLocalFileGate", () => {
   // The chat's record folder, in the workspace, which the rules keep hidden.
-  const record = `${workspaceLayout(getWorkspaceConfig().rootDir).chatsDir}/t1`;
+  const record = path.join(
+    workspaceLayout(getWorkspaceConfig().rootDir).chatsDir,
+    "t1",
+  );
   const layout = buildWorkspaceFsLayout({
-    chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/t1"),
+    chatHostRoot: WorkDirSchema.parse(TASK),
     recordHostRoot: ChatDirSchema.parse(record),
   });
-  const own = "file:///Users/me/Tasks/t1/work/page.html";
-  const outside = "file:///Users/me/Desktop/private.html";
+  const own = fileUrl(path.join(TASK, "work", "page.html"));
+  const outside = fileUrl(path.resolve("/Users/me/Desktop/private.html"));
 
   function gateAt(url: string | undefined, readLayout = true) {
     const at = { url };
@@ -185,7 +194,7 @@ describe("createLocalFileGate", () => {
     { expected: false, url: own },
     { expected: false, url: `${own}?instrument-edit=n1` },
     { expected: true, url: outside },
-    { expected: true, url: `file://${record}/chat.db` },
+    { expected: true, url: fileUrl(path.join(record, "chat.db")) },
   ])("judges a tab at $url closed: $expected", async ({ expected, url }) => {
     const { gate } = gateAt(url);
     await gate.load();
@@ -223,9 +232,8 @@ describe("createLocalFileGate", () => {
 });
 
 describe("openTargetSession on a local page", () => {
-  const TASK = "/Users/me/Tasks/t1";
-  const own = `file://${TASK}/output/confine.html`;
-  const secret = "file:///Users/me/other/secret.txt";
+  const own = fileUrl(path.join(TASK, "output", "confine.html"));
+  const secret = fileUrl(path.resolve("/Users/me/other/secret.txt"));
   const targetId = BrowserTargetIdSchema.parse(
     "ses_00000000018888888888888888",
   );
@@ -505,13 +513,13 @@ describe("openTargetSession on a local page", () => {
   });
 
   it.each([
-    " file:///Users/me/other/secret.txt",
-    "\tfile:///Users/me/other/secret.txt",
-    "file\n:///Users/me/other/secret.txt",
-    "\u0000file:///Users/me/other/secret.txt",
-    "FILE:///Users/me/other/secret.txt",
-    "view-source:file:///Users/me/other/secret.txt",
-    "view-source: file:///Users/me/other/secret.txt",
+    ` ${secret}`,
+    `\t${secret}`,
+    secret.replace("file:", "file\n:"),
+    `\u0000${secret}`,
+    secret.replace("file:", "FILE:"),
+    `view-source:${secret}`,
+    `view-source: ${secret}`,
   ])("refuses to open %j", async (url) => {
     const { command } = connect();
     const reply = await command("Page.navigate", { url });

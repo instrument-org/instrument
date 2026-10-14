@@ -10,6 +10,7 @@ import {
   at,
   DEVICE_A,
   DEVICE_B,
+  DEVICE_C,
   header,
   messageId,
   messageRecord,
@@ -308,6 +309,34 @@ describe("foldChat", () => {
     expect(foldChat([handOff, fromB, handedBack]).sessions[0]?.forked).toBe(
       false,
     );
+  });
+
+  it("reads what a log's writer had read through the headers of the logs it read", () => {
+    const fromA = log(DEVICE_A, [
+      HEADER_A,
+      messageRecord(1, user(1)),
+      messageRecord(2, user(2)),
+    ]);
+    const fromB = log(DEVICE_B, [
+      header(0, {
+        continues: { [DEVICE_A]: 2 },
+        device: DEVICE_B,
+        id: chatSession,
+      }),
+      messageRecord(1, user(3)),
+    ]);
+    // A header that names only the log it read last, not what that log's
+    // writer had read in turn.
+    const fromC = log(DEVICE_C, [
+      header(0, {
+        continues: { [DEVICE_B]: 1 },
+        device: DEVICE_C,
+        id: chatSession,
+      }),
+      messageRecord(1, user(4)),
+    ]);
+
+    expect(foldChat([fromA, fromB, fromC]).sessions[0]?.forked).toBe(false);
   });
 
   it("folds a conflict copy's records once", () => {

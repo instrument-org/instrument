@@ -11,6 +11,7 @@ export const CHAT = ChatIdSchema.parse("records-test");
 
 export const DEVICE_A = DeviceIdSchema.parse("dev_AAAAAAAA");
 export const DEVICE_B = DeviceIdSchema.parse("dev_BBBBBBBB");
+export const DEVICE_C = DeviceIdSchema.parse("dev_CCCCCCCC");
 
 const T0 = Date.parse("2026-10-14T12:00:00.000Z");
 

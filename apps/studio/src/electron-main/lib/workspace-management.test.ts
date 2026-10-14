@@ -11,6 +11,7 @@ import {
   keysDirOf,
   listWorkspaces,
   registerStray,
+  removeFolderIfEmpty,
   unregisterWorkspace,
   whyNotDeletable,
 } from "./workspace-management";
@@ -364,6 +365,24 @@ describe("deleting", () => {
       whyNotDeletable(listing, "/home/me/.config/Instrument") !== null,
     ).toBe(blocked);
   });
+
+  it.each([
+    [[], false],
+    [[".DS_Store"], false],
+    [["report.pdf"], true],
+    [["downloads"], true],
+  ])(
+    "removes the folder once its .instrument/ is gone and it holds %o: kept %s",
+    (left, kept) => {
+      const dir = path.join(userDataDir, "workspaces", "gone");
+      fs.mkdirSync(dir, { recursive: true });
+      for (const name of left) {
+        fs.writeFileSync(path.join(dir, name), "");
+      }
+      removeFolderIfEmpty(dir);
+      expect(fs.existsSync(dir)).toBe(kept);
+    },
+  );
 
   it("sends active back to the default workspace when the active one is unregistered", () => {
     const { id, path: dir } = createWorkspace({

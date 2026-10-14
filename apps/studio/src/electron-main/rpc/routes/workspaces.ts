@@ -10,6 +10,7 @@ import {
   keysDirOf,
   listWorkspaces,
   registerStray,
+  removeFolderIfEmpty,
   unregisterWorkspace,
   whyNotDeletable,
 } from "@/electron-main/lib/workspace-management";
@@ -26,6 +27,7 @@ import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { shell } from "electron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -226,13 +228,17 @@ const remove = devOnly
         logger.warn("Could not end the deleted workspace's session", error);
       });
     }
-    // Read before the folder goes, since the id that says the machine folder
-    // is its own is in it. Its keys and browser profiles go to the Trash too.
-    // A folder that cannot be reached is only taken off the list: nothing of
-    // it can be read to say what is its own.
+    // Read before its `.instrument/` goes, since the id that says the
+    // machine folder is its own is in it. Its keys and browser profiles go
+    // to the Trash too. Of the folder itself only the app's part goes: what
+    // else is in it is the person's (finished work, downloads), and the
+    // folder is removed only once that leaves it empty. A folder that cannot
+    // be reached is only taken off the list: nothing of it can be read to
+    // say what is its own.
     const ownMachineDir = machineDirOwnedBy(userDataDir(), listing);
     if (listing.isReachable) {
-      await shell.trashItem(listing.path);
+      await shell.trashItem(workspaceLayout(listing.path).dataDir);
+      removeFolderIfEmpty(listing.path);
     }
     if (ownMachineDir !== undefined) {
       await shell.trashItem(ownMachineDir);

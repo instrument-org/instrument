@@ -99,7 +99,8 @@ export function ManageWorkspacesDialog({
         <DialogHeader>
           <DialogTitle>Workspaces</DialogTitle>
           <DialogDescription>
-            Delete moves the folder to the {osConventions().trash}.
+            Delete moves a workspace&apos;s .instrument folder to the{" "}
+            {osConventions().trash} and leaves the rest of its folder.
           </DialogDescription>
         </DialogHeader>
         {/* `min-w-0` because the dialog is a grid: without it a long path sets

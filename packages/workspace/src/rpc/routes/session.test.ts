@@ -31,7 +31,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { chatTaskFor } from "../../test/helpers/chat-task";
+import { chatTaskFor, writtenIn } from "../../test/helpers/chat-task";
 import { publisher } from "../publisher";
 import { permissions } from "./permissions";
 import { session } from "./session";
@@ -129,6 +129,7 @@ async function chatWithTask() {
   if (!own) {
     throw new Error("expected the chat's session");
   }
+  await writtenIn(chatId);
   const task = await chatTaskFor(chatId, { title: "Sleep 300 seconds" });
   owners.push(own, task);
   return { chatId, own, task };

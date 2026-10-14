@@ -529,8 +529,9 @@ async function onSessionDone(
     return;
   }
   // A chat nobody has written in has no conversation to report to: the eval
-  // harness runs a task case in one (`evals/lib/start-run.ts`).
-  if (!(await chatModelURI(chatId))) {
+  // harness runs a task case in one (`evals/lib/start-run.ts`), with the
+  // model its task runs on and nothing said.
+  if (!(await hasConversation(chatId))) {
     return;
   }
 
@@ -576,6 +577,19 @@ async function onSessionDone(
     return;
   }
   schedule(chatId, event, workspaceRef);
+}
+
+/**
+ * Whether anything has been said in a chat's own session. A store that
+ * cannot be read counts as said, so a hiccup does not swallow a task's news.
+ */
+async function hasConversation(chatId: ChatId): Promise<boolean> {
+  const sessionId = sessionOfChat(chatId);
+  if (sessionId === undefined) {
+    return false;
+  }
+  const ids = await Store.getMessageIds(sessionId, chatId);
+  return ids.isErr() || ids.value.length > 0;
 }
 
 /**

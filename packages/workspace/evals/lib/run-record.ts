@@ -8,10 +8,8 @@ import path from "node:path";
  *
  * Read from nothing else, because nothing else holds it reliably. A chat's
  * title is the app's to change (the first exchange retitles it, a topic's
- * send titles it from the prompt), a task case's chat is woken when its task
- * finishes and so is no longer empty, and an assertion that reads a file
- * under the home reads the wrong one in a process whose home is not the
- * run's.
+ * send titles it from the prompt), and an assertion that reads a file under
+ * the home reads the wrong one in a process whose home is not the run's.
  *
  * Imports nothing of the app's, since `sandbox-home.ts` reads it before
  * anything else may read the home.

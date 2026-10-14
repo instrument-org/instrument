@@ -25,7 +25,7 @@ import {
   segmentsOf,
 } from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isWindows } from "@/client/lib/utils";
+import { isMacOS, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -168,6 +168,13 @@ export function PermissionsSection() {
               >
                 Learn more
               </button>
+            </p>
+          ) : isMacOS() ? (
+            <p>
+              On this Mac, Instrument can't use the system's sandbox, which
+              happens when Instrument itself runs inside another one. Its own
+              tools still follow this list, but a program the agent runs, like
+              Python, could reach other folders.
             </p>
           ) : (
             <p>

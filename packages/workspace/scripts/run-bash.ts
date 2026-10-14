@@ -5,9 +5,9 @@
  * Usage:
  *   pnpm script:run-bash                               # interactive REPL
  *   pnpm script:run-bash -- "echo hello"               # one-shot; exits with command's exit code
- *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one chat's work folder
+ *   pnpm script:run-bash -- "echo hello > a" "cat a"   # sequential commands in one chat's work folder
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
- *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against an existing chat
+ *   pnpm script:run-bash -- --task <id> "ls"           # one-shot against an existing chat
  *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
  *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead

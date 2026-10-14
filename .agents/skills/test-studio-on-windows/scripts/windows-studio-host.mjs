@@ -23,6 +23,10 @@ const PROFILE_KEYS = {
 const PREVIEW_INSTALLER_PATTERN =
   /^Instrument Preview \(([\da-z-]+)\)-win-.*\.exe$/u;
 const PREVIEW_NAME_PATTERN = /^[\da-z-]+$/u;
+const ISO_TIME_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/iu;
+// Milliseconds from 1601-01-01, where a Windows file time starts, to 1970-01-01.
+const FILETIME_EPOCH_OFFSET_MS = 11_644_473_600_000n;
 const TARGETS = new Set(Object.keys(PROFILE_KEYS));
 // Written by `pnpm workspace:seed` at the root of the workspace it built. It is
 // how a fixture name gets from that run to this one.
@@ -213,9 +217,24 @@ async function main() {
     }
     case "purge-recycled": {
       const folder = takeFlag("--path");
+      const since = takeFlag("--since");
       assertNoArguments();
       if (!folder) fail("Pass --path <the folder the deleted items were in>.");
-      report(runPowerShellJson(host, purgeRecycledScript(folder)));
+      if (!since) {
+        fail(
+          "Pass --since <ISO time from before the test deleted anything>. Only what was deleted from the folder at or after it is purged.",
+        );
+      }
+      // A zone is required: the host compares against deletion times it keeps
+      // in UTC, and a bare local time would be read in the driving machine's.
+      if (!ISO_TIME_PATTERN.test(since) || Number.isNaN(Date.parse(since))) {
+        fail(
+          `Invalid --since ${JSON.stringify(since)}. Use an ISO time with a zone, such as 2026-10-14T12:00:00Z.`,
+        );
+      }
+      report(
+        runPowerShellJson(host, purgeRecycledScript(folder, Date.parse(since))),
+      );
       break;
     }
     case "profile": {
@@ -547,32 +566,42 @@ foreach ($root in $roots) {
 
 /**
  * PowerShell that empties from the Recycle Bin only what was deleted from
- * inside one folder, so a test that deletes files can clean up after itself
- * without touching anything else there. Each deleted item is a `$R` file with
- * a `$I` record beside it, and the record holds the item's original path: an
- * 8-byte version, 8-byte size, 8-byte deletion time, then the path's length
- * in characters and the path in UTF-16. Nothing goes through Explorer, so no
- * confirmation dialog comes up on the person's screen.
+ * inside one folder at or after a given time, so a test that deletes files can
+ * clean up after itself without touching anything else there, including what
+ * was deleted from that same folder before the test began. Each deleted item
+ * is a `$R` file with a `$I` record beside it, and the record holds the item's
+ * original path: an 8-byte version, 8-byte size, 8-byte deletion time (a UTC
+ * file time), then the path's length in characters and the path in UTF-16.
+ * Nothing goes through Explorer, so no confirmation dialog comes up on the
+ * person's screen.
  */
-function purgeRecycledScript(folder) {
+function purgeRecycledScript(folder, sinceMs) {
   const literal = folder.replaceAll("'", "''");
+  const sinceFileTime = (BigInt(sinceMs) + FILETIME_EPOCH_OFFSET_MS) * 10_000n;
   return `$ErrorActionPreference = 'Stop'
 $folder = [IO.Path]::GetFullPath('${literal}').TrimEnd('\\')
 $segments = @($folder.Split('\\') | Where-Object { $_ })
 if ($segments.Count -lt 3 -or $folder -ieq $HOME.TrimEnd('\\')) {
   throw "Refusing to purge everything deleted from $($folder). Name the folder the test created."
 }
+$since = [long] '${sinceFileTime}'
 $prefix = $folder + '\\'
 $sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
 $bin = Join-Path ($folder.Substring(0, 3)) ('$Recycle.Bin\\' + $sid)
 $purged = @()
+$kept = @()
 if (Test-Path -LiteralPath $bin) {
   foreach ($record in @(Get-ChildItem -LiteralPath $bin -Force -Filter '$I*')) {
     $bytes = [IO.File]::ReadAllBytes($record.FullName)
     if ($bytes.Length -lt 28) { continue }
+    $deleted = [BitConverter]::ToInt64($bytes, 16)
     $length = [BitConverter]::ToInt32($bytes, 24)
     $original = [Text.Encoding]::Unicode.GetString($bytes, 28, [Math]::Min($length * 2, $bytes.Length - 28)).TrimEnd([char]0)
     if ($original -ieq $folder -or $original.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+      if ($deleted -lt $since) {
+        $kept += $original
+        continue
+      }
       $item = Join-Path $bin ('$R' + $record.Name.Substring(2))
       if (Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item -Force -Recurse }
       Remove-Item -LiteralPath $record.FullName -Force
@@ -580,7 +609,7 @@ if (Test-Path -LiteralPath $bin) {
     }
   }
 }
-[ordered]@{ folder = $folder; purged = $purged } | ConvertTo-Json -Compress`;
+[ordered]@{ folder = $folder; kept = $kept; purged = $purged; since = [DateTime]::FromFileTimeUtc($since).ToString('o') } | ConvertTo-Json -Compress`;
 }
 
 /**

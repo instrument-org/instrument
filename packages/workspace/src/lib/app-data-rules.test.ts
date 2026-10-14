@@ -44,7 +44,11 @@ import { ruleRefusal } from "./permissions/rules-fs";
 import { reachOf, type Rules, rulesFor } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { toolFs } from "./tool-fs";
-import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  shellPath,
+} from "./workspace-fs-layout";
 
 vi.mock("./permissions/asks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./permissions/asks")>()),
@@ -74,6 +78,9 @@ const SHAPES = [
 ];
 
 const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
+// Seatbelt and bubblewrap hold native commands on macOS and Linux only, and
+// the refusals read out of a command's output are theirs.
+const nativeSandboxed = process.platform !== "win32";
 const previous = getWorkspaceConfig();
 const sessionId = StoreId.newSessionId();
 const homes: string[] = [];
@@ -442,12 +449,13 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       "refuse %s to a file tool's read, rather than finding it missing",
       async (_name, target) => {
         const files = await toolFs(layout);
-        const read = await files.fs.readFileBuffer(target).then(
+        const resolved = files.resolve(target)._unsafeUnwrap();
+        const read = await files.fs.readFileBuffer(resolved).then(
           () => "read",
-          (error: unknown) => files.failure(error, target),
+          (error: unknown) => files.failure(error, resolved),
         );
         expect(typeof read !== "string" && read.error.message).toBe(
-          `${JSON.stringify(target)} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
+          `${JSON.stringify(shellPath(target))} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
         );
       },
     );
@@ -658,28 +666,36 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ).toBe(false);
     });
 
-    it("orders the Seatbelt profile by where each spelling really is", () => {
-      const lines = seatbeltProfile(reach).split("\n");
-      const opened = lines.indexOf(
-        `(allow file-read* file-write* network-outbound (subpath "${paths.appFiles}"))`,
-      );
-      expect(opened).not.toBe(-1);
-      expect(opened).toBeLessThan(
-        lines.indexOf(
-          `(deny file-read* file-write* network-outbound (subpath "${paths.machine}"))`,
-        ),
-      );
-    });
+    it.runIf(nativeSandboxed)(
+      "orders the Seatbelt profile by where each spelling really is",
+      () => {
+        const lines = seatbeltProfile(reach).split("\n");
+        const opened = lines.indexOf(
+          `(allow file-read* file-write* network-outbound (subpath "${paths.appFiles}"))`,
+        );
+        expect(opened).not.toBe(-1);
+        expect(opened).toBeLessThan(
+          lines.indexOf(
+            `(deny file-read* file-write* network-outbound (subpath "${paths.machine}"))`,
+          ),
+        );
+      },
+    );
 
-    it("binds what it leads to before the app's data is closed", () => {
-      const args = bwrapArgs(reach).join(" ");
-      const opened = args.indexOf(`--bind ${paths.appFiles} ${paths.appFiles}`);
-      expect(opened).not.toBe(-1);
-      expect(opened).toBeLessThan(args.indexOf(`--tmpfs ${paths.machine}`));
-      expect(args).not.toContain(
-        `--bind ${path.join(paths.workspaceMachine, "keys")}`,
-      );
-    });
+    it.runIf(nativeSandboxed)(
+      "binds what it leads to before the app's data is closed",
+      () => {
+        const args = bwrapArgs(reach).join(" ");
+        const opened = args.indexOf(
+          `--bind ${paths.appFiles} ${paths.appFiles}`,
+        );
+        expect(opened).not.toBe(-1);
+        expect(opened).toBeLessThan(args.indexOf(`--tmpfs ${paths.machine}`));
+        expect(args).not.toContain(
+          `--bind ${path.join(paths.workspaceMachine, "keys")}`,
+        );
+      },
+    );
 
     it.runIf(seatbeltAvailable()).each([
       [
@@ -722,10 +738,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
   describe("a walk with nothing else to hold it", () => {
     const layout = layoutUnder(paths, {});
     // The files the table names that are there, each with whether the
-    // rules let the agent read it.
+    // rules let the agent read it, spelled as a walk prints it once resolved.
     const files = reachTable(paths).flatMap(([, op, hostPath, level]) =>
       op === "read" && existsSync(hostPath)
-        ? [{ hostPath, open: level === "allow" }]
+        ? [{ hostPath: path.resolve(hostPath), open: level === "allow" }]
         : [],
     );
     // Each file the table names under `root` that the walk got wrong: one
@@ -794,12 +810,19 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     // Held by the sandbox, ripgrep can pass through a closed folder but not
     // list it, so a walk takes no way on through one: each is left out
     // whole, and the search ends without an error.
-    it.runIf(
-      shape.workspace !== undefined && (seatbeltAvailable() || bwrapAvailable()),
-    ).each([
-      ["the workspace", ["-uuu", "--files", paths.workspace], paths.work],
-      ["the workspace it was cd'd into", ["-uuu", "--files"], paths.workspace],
-    ])(
+    it
+      .runIf(
+        shape.workspace !== undefined &&
+          (seatbeltAvailable() || bwrapAvailable()),
+      )
+      .each([
+        ["the workspace", ["-uuu", "--files", paths.workspace], paths.work],
+        [
+          "the workspace it was cd'd into",
+          ["-uuu", "--files"],
+          paths.workspace,
+        ],
+      ])(
       "rg held by the sandbox walks %s with no error",
       async (_name, args, cwd) => {
         const searched = withAppDataLeftOut(args, layout, cwd, {
@@ -849,7 +872,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     );
   });
 
-  describe("bubblewrap's arguments", () => {
+  describe.runIf(nativeSandboxed)("bubblewrap's arguments", () => {
     const layout = layoutUnder(paths, { grants: [paths.appFiles] });
     const reach = nativeReachFor(layout.rules, layout);
     const args = bwrapArgs(reach).join(" ");

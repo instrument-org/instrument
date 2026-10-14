@@ -21,7 +21,7 @@ import {
   recordWorkspaceSkillMutation,
 } from "./workspace-skill-index";
 import { toolFs } from "./tool-fs";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import { buildWorkspaceFsLayout, shellPath } from "./workspace-fs-layout";
 
 createMockChatConfigForDir(
   `${MOCK_WORKSPACE_DIRS.chats}/workspace-skill-index`,
@@ -267,7 +267,7 @@ describe("consumeSkillChanges", () => {
 
     await withTurnContext(turn, () =>
       files.fs.writeFile(
-        path.join(skillsDir, "brief", "SKILL.md"),
+        shellPath(path.join(skillsDir, "brief", "SKILL.md")),
         "---\ndescription: Brief\n---\n\nBody.\n",
       ),
     );

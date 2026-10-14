@@ -18,8 +18,13 @@ import { chatGrants } from "./chat/grants";
 import { newMessage } from "./new-message";
 import { reachOf, rulesFor, type Rules } from "./permissions/rules";
 import { sessionOfChat } from "./record-folders";
+import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  shellPath,
+} from "./workspace-fs-layout";
 
 /**
  * A file the person attaches is open to the chat where it is on disk, as a
@@ -110,6 +115,8 @@ describe("sending a file from the disk", () => {
     expect(reachOf(rules, path.join(closed, "taxes.md"), "read").level).toBe(
       "never",
     );
+    // Closed before the folder goes: Windows removes no file held open.
+    await disposeSessionsStoreStorage(chatId);
   });
 });
 
@@ -135,14 +142,14 @@ describe("a file granted to a chat, in the shell", () => {
     });
     const shell = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
 
-    expect(await shell.readFile(report)).toBe("draft");
-    await shell.writeFile(report, "final");
+    expect(await shell.readFile(shellPath(report))).toBe("draft");
+    await shell.writeFile(shellPath(report), "final");
     expect(fs.readFileSync(report, "utf8")).toBe("final");
-    await expect(shell.readFile(path.join(closed, "taxes.md"))).rejects.toThrow(
-      /EACCES/,
-    );
     await expect(
-      shell.writeFile(path.join(closed, "new.md"), "x"),
+      shell.readFile(shellPath(path.join(closed, "taxes.md"))),
+    ).rejects.toThrow(/EACCES/);
+    await expect(
+      shell.writeFile(shellPath(path.join(closed, "new.md")), "x"),
     ).rejects.toThrow(/EACCES/);
   });
 });

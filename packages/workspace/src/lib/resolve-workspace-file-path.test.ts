@@ -131,6 +131,13 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     );
     await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
     await fs.writeFile(path.join(workDir(chatId), "work", "report.md"), "made");
+    await fs.mkdir(path.join(workDir(chatId), "tasks", "t-build", "output"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(workDir(chatId), "tasks", "t-build", "output", "report.md"),
+      "a task's",
+    );
     recordMovedPaths(machineDir, [
       { from: path.join(rootDir, "chats"), to: path.join(machineDir, "work") },
     ]);
@@ -160,6 +167,33 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     [
       "the chat's settings",
       (): string => path.join(chatDir(chatId), "settings.json"),
+      (): null | string => null,
+    ],
+    [
+      "a task's file, by the path an earlier build gave its folder",
+      (): string => "/tasks/t-build/output/report.md",
+      (): null | string =>
+        path.join(workDir(chatId), "tasks", "t-build", "output", "report.md"),
+    ],
+    [
+      "a task's folder, by that path",
+      (): string => "/tasks/t-build",
+      (): null | string => path.join(workDir(chatId), "tasks", "t-build"),
+    ],
+    [
+      "a task's file, by its path relative to the chat's folder",
+      (): string => "tasks/t-build/output/report.md",
+      (): null | string =>
+        path.join(workDir(chatId), "tasks", "t-build", "output", "report.md"),
+    ],
+    [
+      "a task's file that is not there",
+      (): string => "/tasks/t-build/output/gone.md",
+      (): null | string => null,
+    ],
+    [
+      "the old task folders as a whole",
+      (): string => "/tasks",
       (): null | string => null,
     ],
   ] as const)("resolves %s", async (_label, filePath, expected) => {

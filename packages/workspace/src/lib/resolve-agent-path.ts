@@ -3,7 +3,7 @@ import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -27,6 +27,12 @@ import {
 } from "./workspace-fs-layout";
 
 const NARROW_NO_BREAK_SPACE = "\u202F";
+
+/**
+ * Where an earlier build showed the agent its chat's task folders, each
+ * task's at `/tasks/<task>`, which is how the chat's messages name them.
+ */
+const OLD_TASKS_MOUNT = "/tasks";
 
 /**
  * Applies macOS-specific Unicode filename fallbacks to find an existing file.
@@ -123,7 +129,9 @@ export async function getSimilarPathSuggestions({
  * A chat's files and its records were once one folder, and a path stored
  * then is read where each went: a relative path in the work folder, or for
  * `attachments/` one missing there in the record folder; an absolute path
- * that is gone where a migration moved what held it (`remapMovedPath`).
+ * that is gone where a migration moved what held it (`remapMovedPath`); and
+ * one in a task's own folder as an earlier build named it, `/tasks/<task>/...`,
+ * in the work folder's `tasks/`, where those folders went.
  *
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
@@ -160,7 +168,9 @@ export function resolveAgentPath(options: {
       "read",
     );
     const hostSpelled = hostPathOf(trimmedPath);
-    const remapped = remapMovedPath(hostSpelled);
+    const remapped =
+      (asTyped.isErr() ? inOldTaskFolder(layout, trimmedPath) : undefined) ??
+      remapMovedPath(hostSpelled);
     if (remapped === hostSpelled) {
       return asTyped;
     }
@@ -184,6 +194,23 @@ export function resolveAgentPath(options: {
       mount: null,
     },
   );
+}
+
+/**
+ * The file an earlier build's `/tasks/<task>/...` named, which moved with the
+ * rest of the chat's work into its work folder's `tasks/`, when it is there.
+ * Only for reading back a path a message kept: the shell has no `/tasks`.
+ */
+function inOldTaskFolder(
+  layout: WorkspaceFsLayout,
+  shellAbsPath: string,
+): string | undefined {
+  const rest = relativeWithin(OLD_TASKS_MOUNT, normalizePath(shellAbsPath));
+  if (rest === null || rest === "/") {
+    return undefined;
+  }
+  const inWorkFolder = path.join(layout.chat.hostRoot, TASKS_DIR_NAME, rest);
+  return fileExistsSync(inWorkFolder) ? inWorkFolder : undefined;
 }
 
 /**

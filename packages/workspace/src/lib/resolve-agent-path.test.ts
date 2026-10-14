@@ -419,6 +419,29 @@ describe("a chat's record folder apart from its work folder", () => {
       ).toBe(true);
     });
 
+    it("reads a task's file by the path an earlier build gave its folder, and writes nothing there", async () => {
+      const report = path.join(work, "tasks", "t-build", "output", "report.md");
+      await fs.mkdir(path.dirname(report), { recursive: true });
+      await fs.writeFile(report, "a task's");
+
+      expect(
+        resolveAgentPath({
+          inputPath: "/tasks/t-build/output/report.md",
+          layout,
+        })._unsafeUnwrap(),
+      ).toEqual({
+        absolutePath: report,
+        displayPath: "./tasks/t-build/output/report.md",
+        mount: null,
+      });
+      expect(
+        resolveWritableToolPath({
+          inputPath: "/tasks/t-build/output/report.md",
+          layout,
+        }).isErr(),
+      ).toBe(true);
+    });
+
     it("keeps another chat's moved work from the agent", async () => {
       const other = path.join(machineDir, "work", "2026-10-13-other", "work");
       await fs.mkdir(other, { recursive: true });

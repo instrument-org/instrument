@@ -81,7 +81,7 @@ export interface FoldedChat {
 }
 
 /** Where a record sorts among the session's records it competes with; later is newer. */
-type Place = readonly (number | string)[];
+export type Place = readonly (number | string)[];
 
 interface Newest<T> {
   place: Place;
@@ -207,7 +207,7 @@ export class ChatFold {
   chat(): FoldedChat {
     const sessions: FoldedSession[] = [];
     for (const [id, state] of this.#sessions) {
-      const header = rootHeader(state);
+      const header = rootHeader(headersOf(state));
       if (header) {
         sessions.push(folded(header, state, this.#marks.get(id) ?? {}));
       }
@@ -221,20 +221,10 @@ export class ChatFold {
     record: LogRecord,
     line: string,
   ): void {
-    const base = sum(Object.values(header.continues ?? {}));
-    const hash = digest(line);
-    if (
-      !this.#firstSight(`${header.id} ${stem} ${base} ${record.seq} ${hash}`)
-    ) {
+    const place = logPlace(header, stem, record, line);
+    if (!this.#firstSight(`${header.id} ${place.join(" ")}`)) {
       return;
     }
-    const place: Place = [
-      base + record.seq,
-      record.at.getTime(),
-      stem,
-      record.seq,
-      hash,
-    ];
     const state = this.#session(header.id);
     const seqs = state.seqs.get(stem) ?? { data: 0, last: -1 };
     state.seqs.set(stem, {
@@ -284,18 +274,10 @@ export class ChatFold {
   }
 
   #addMark(record: MarkRecord, line: string): void {
-    const hash = digest(line);
-    if (!this.#firstSight(`mark ${record.device} ${record.seq} ${hash}`)) {
+    const place = markPlace(record, line);
+    if (!this.#firstSight(`mark ${place.join(" ")}`)) {
       return;
     }
-    const settled = record.field === "title" && record.value.settled ? 1 : 0;
-    const place: Place = [
-      settled,
-      record.at.getTime(),
-      record.device,
-      record.seq,
-      hash,
-    ];
     const marks = this.#marks.get(record.session) ?? {};
     this.#marks.set(record.session, marks);
     switch (record.field) {
@@ -345,6 +327,44 @@ export class ChatFold {
     this.#sessions.set(id, state);
     return state;
   }
+}
+
+/**
+ * Where a log's record sorts among its session's records: past everything
+ * its writer had read (the sum of its header's `continues`, plus its own
+ * `seq`), then by `at`, then by log, then by its line, so a copy of a record
+ * sorts where the record does and two records never tie.
+ */
+export function logPlace(
+  header: SessionHeader,
+  stem: string,
+  record: LogRecord,
+  line: string,
+): Place {
+  const base = sum(Object.values(header.continues ?? {}));
+  return [
+    base + record.seq,
+    record.at.getTime(),
+    stem,
+    record.seq,
+    digest(line),
+  ];
+}
+
+/**
+ * Where a mark sorts among the marks of its session and field: a title that
+ * settled after one that may still change, then the newest `at`, then the
+ * larger device id.
+ */
+export function markPlace(record: MarkRecord, line: string): Place {
+  const settled = record.field === "title" && record.value.settled ? 1 : 0;
+  return [
+    settled,
+    record.at.getTime(),
+    record.device,
+    record.seq,
+    digest(line),
+  ];
 }
 
 /** Folds a chat's files from scratch. */
@@ -401,7 +421,10 @@ function folded(
   return {
     chat: header.chat,
     createdAt: header.createdAt,
-    forked: isForked(state),
+    forked: isForked(
+      headersOf(state),
+      new Map([...state.seqs].map(([stem, { data }]) => [stem, data])),
+    ),
     ...(header.forkedAt === undefined ? {} : { forkedAt: header.forkedAt }),
     ...(header.handle === undefined ? {} : { handle: header.handle }),
     id: header.id,
@@ -446,14 +469,20 @@ function foldedMarks(marks: MarkState): FoldedMarks {
   };
 }
 
+function headersOf(state: SessionState): Map<string, SessionHeader> {
+  return new Map([...state.headers].map(([stem, { value }]) => [stem, value]));
+}
+
 /**
  * The header that names the session: the log it began in, which carries on
  * from nothing. Every log of a session repeats the same session fields, so
  * any header stands in until that log is read.
  */
-function rootHeader(state: SessionState): SessionHeader | undefined {
+export function rootHeader(
+  headers: ReadonlyMap<string, SessionHeader>,
+): SessionHeader | undefined {
   let root: { header: SessionHeader; place: Place } | undefined;
-  for (const [stem, { value }] of state.headers) {
+  for (const [stem, value] of headers) {
     const continues = Object.values(value.continues ?? {});
     const place = [continues.length, sum(continues), stem];
     if (!root || compare(place, root.place) < 0) {
@@ -467,11 +496,15 @@ function rootHeader(state: SessionState): SessionHeader | undefined {
  * Whether two logs each hold records past what the other's writer had read
  * of it: two devices that carried the session on side by side.
  */
-function isForked(state: SessionState): boolean {
-  const stems = [...state.headers.keys()];
-  const readBy = new Map(stems.map((stem) => [stem, readOf(state, stem)]));
+export function isForked(
+  headers: ReadonlyMap<string, SessionHeader>,
+  /** The highest `seq` after its header in each log. */
+  dataSeqs: ReadonlyMap<string, number>,
+): boolean {
+  const stems = [...headers.keys()];
+  const readBy = new Map(stems.map((stem) => [stem, readOf(headers, stem)]));
   const unread = (stem: string, reader: string) =>
-    (state.seqs.get(stem)?.data ?? 0) > (readBy.get(reader)?.get(stem) ?? 0);
+    (dataSeqs.get(stem) ?? 0) > (readBy.get(reader)?.get(stem) ?? 0);
   return stems.some((a) =>
     stems.some((b) => a < b && unread(a, b) && unread(b, a)),
   );
@@ -482,17 +515,17 @@ function isForked(state: SessionState): boolean {
  * header says, and what the headers of the logs it read say in turn.
  */
 function readOf(
-  state: SessionState,
+  headers: ReadonlyMap<string, SessionHeader>,
   stem: string,
   visited = new Set<string>(),
 ): Map<string, number> {
   visited.add(stem);
   const read = new Map<string, number>();
-  const continues = state.headers.get(stem)?.value.continues ?? {};
+  const continues = headers.get(stem)?.continues ?? {};
   for (const [other, seq] of Object.entries(continues)) {
     raise(read, other, seq);
     if (!visited.has(other)) {
-      for (const [deeper, deeperSeq] of readOf(state, other, visited)) {
+      for (const [deeper, deeperSeq] of readOf(headers, other, visited)) {
         raise(read, deeper, deeperSeq);
       }
     }
@@ -519,7 +552,8 @@ function newer<T>(
     : { place, value };
 }
 
-function compare(a: Place, b: Place): number {
+/** Which of two places is later: positive when `a` is. */
+export function compare(a: Place, b: Place): number {
   for (let index = 0; index < Math.max(a.length, b.length); index++) {
     const left = a[index];
     const right = b[index];

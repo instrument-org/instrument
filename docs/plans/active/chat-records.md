@@ -1,6 +1,6 @@
 # Plan: chat records as append-only logs, one per session per device
 
-Status: approved to build on branch `chat-records`, stacked on `workspace-layout`; phases 1 and 2 built (`packages/workspace/src/lib/records/`, not wired into the app), phase 3 next. Nothing merges to main until it has been reviewed.
+Status: approved to build on branch `chat-records`, stacked on `workspace-layout`; phases 1 to 3 built (`packages/workspace/src/lib/records/`, not wired into the app, and `workspace.db`, which the app uses for the index's existing tables and the activity log), phase 4 next. Nothing merges to main until it has been reviewed.
 
 A chat's record today is a SQLite file, `chat.db`, inside the workspace's `.instrument/` folder, which the person may put in iCloud Drive, Dropbox or OneDrive. A sync engine copies files whole and can upload a database mid-transaction, and today's store rewrites nearly every row after its first write (a streaming part is saved whole every 100 ms). This plan makes the record append-only JSONL that a sync engine can carry safely, keeps one rebuildable SQLite database on each computer, and rebuilds the read side around what the window draws today.
 
@@ -15,7 +15,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 - Live data (a tool call's `activity` while its input streams, the task page's streaming text, permission asks) stays in memory and goes to the window only.
 - Images and every other binary a tool returns become blobs named by their hash in the chat's `blobs/`, which travel with the chat.
 - Big command output stays on this computer, in `work/<chat>/.tool-output/`, as today; the log keeps its head, tail and path.
-- One SQLite database per workspace on this computer, `workspace.db`: the index, the activity log and the window's own browser visits.
+- One SQLite database per workspace on this computer, `workspace.db`: the index and the activity log.
 - No lease between devices in v1. On one computer, `open.pid` keeps a second app process out.
 - No rolling to a new log at a size limit in v1. The reader accepts more than one file per session and device, because recovery starts a second one.
 - The device id is bound to the hardware, so a restored backup or a Migration Assistant copy never appends to its twin's logs.
@@ -48,7 +48,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
   handoff-notes.md                              as today, until instrument-folder.md moves it out
 
 <machine>/workspaces-data/<local id>/           this computer only
-  workspace.db                                  index, activity log, window browser visits
+  workspace.db                                  index, activity log
   set-aside/chat-db/<chat id>.db                converted chat.db files
   work/<chat id>/.tool-output/                  big command output, as today
 <machine>/machine-state.json                    adds deviceId and hardwareId
@@ -119,8 +119,8 @@ Dates inside `told` values and tool outputs come back as ISO strings; their read
 
 One file in `workspaces-data/<local id>/`, WAL, `synchronous = NORMAL`, owned by the workspace's process.
 
-- Index tables, rebuildable from the folder: `files` (path, size, mtime, tail hash, folded offset, last `seq`, whether the file is downloaded), `chats` (today's `chat_digests`), `sessions` (header, rollover, stopped, merged marks), `messages` (id, session, role, created, first and last byte offset, for paging), `task_hosts`, `task_standings`. Later, with the visible folders, the front matter of topics, drafts and memories, and full-text search.
-- Records, not rebuildable: `activity` (today's `ai-usage` rows) and `window_browser_visits` (what `browser-state` held for the window's own tabs).
+- Index tables, rebuildable from the folder: `files` (path, size, mtime, tail hash, folded offset, last `seq`, whether the file is downloaded, and what the file's own records decide), `chats` (the chat's own session's title and marks, when it began and last changed, how many tasks it has), `sessions` (header, rollover, stopped, merged marks), `messages` (id, session, role, created, first and last byte offset, for paging), `task_hosts`, `task_standings`. Today's `chat_digests` also reads the parts' text (the first ask, the last reply's first line, steps, files and sites), which no index table holds yet. Later, with the visible folders, the front matter of topics, drafts and memories, and full-text search.
+- Records, not rebuildable: `activity` (the rows `ai-usage.db` held). The window's own tabs have kept no browser state since beta.55, so there is nothing of the window's to keep here.
 - Rebuild drops and refolds the index tables only; their schema version bump triggers it. A corrupt file is moved aside and recreated, which loses the activity log; nothing billing depends on it.
 - Replaces `index/chats.db` (the `index/` folder goes), `.instrument/ai-usage.db` (its rows move in) and `.instrument/window/chat.db` (empty except its migration marker on every install checked; deleted).
 - On launch: stat every log and marks file. Unchanged means the stored digest stands; grown means fold only the new bytes from the saved offset; anything else means refold that file. A file another device grew is noticed when the window comes forward and on a slow timer while it is in front, plus one non-recursive watch on the open chat's record folder. This computer's own writes update the index directly.
@@ -158,7 +158,7 @@ A chat being opened is checked first for a log that is not downloaded (`st_block
 | 0 | This plan and record spec | Reviewed |
 | 1 | Log layer: record schemas, append with newline repair and commit-point fsync, handle closed after each burst, whole-line reader, blobs, device id | Unit tests, including torn lines and a crash mid-write |
 | 2 | Fold, and a fake sync engine for tests | Property tests: any file order, duplicates, truncations or conflict copies give the same chat, or a flagged fork; never a crash or a silent loss |
-| 3 | `workspace.db`: index with per-file cursors, rebuild, activity log and window visits moved in; `index/`, `ai-usage.db` and the window store removed | A rebuild matches the incremental index exactly |
+| 3 | `workspace.db`: index with per-file cursors, rebuild, activity log moved in; `index/`, `ai-usage.db` and the window store removed | A rebuild matches the incremental index exactly |
 | 4 | Swap the store: records written when they settle, the six views in place of the `Store` queries, renderer routes pointed at the views; `Store`, the KV table, superjson and delta persistence deleted | The app runs on the new store |
 | 5 | Converter, and the 1.x migration writing logs | A clone of a real install (392 chats) converts with zero differences; a chat that differs stays on `chat.db` |
 | 6 | Everything visible in the Instrument folder, and the machine-side cleanups: [instrument-folder.md](instrument-folder.md) | As that plan says |

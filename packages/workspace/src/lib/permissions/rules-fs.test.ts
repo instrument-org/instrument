@@ -1,14 +1,23 @@
 import { InMemoryFs } from "just-bash";
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
+import { raiseAsk } from "./asks";
 import { closedNote, ruleRefusal, rulesFs } from "./rules-fs";
-import { type Rule } from "./rules";
+import { type Rule, type Rules } from "./rules";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
 // account change.
 vi.mock("./account-can-write", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./account-can-write")>()),
   accountCanWrite: () => true,
+}));
+
+// A card is heard rather than written to a chat's record.
+vi.mock("./asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./asks")>()),
+  raiseAsk: vi.fn(),
 }));
 
 it("refuses what the rules close, reports it, and leaves the rest alone", async () => {
@@ -165,3 +174,64 @@ it("says why each kind of closed path is closed", () => {
     }
   `);
 });
+
+// A word the shell expanded wrongly can leave the backslashes that kept its
+// quoted characters literal in a path. The person reads that spelling as
+// the app's own folder, so no card asks for it.
+describe.runIf(process.platform !== "win32")(
+  "a spelling of the app's own data with a shell's escapes left in",
+  () => {
+    const userData =
+      "/Users/sam/Library/Application Support/Instrument Preview (wl-89)";
+    const escaped = String.raw`/Users/sam/Library/Application Support/Instrument Preview \(wl-89\)`;
+    const rules: Rules = {
+      asker: {
+        chatId: ChatIdSchema.parse("escaped-spelling"),
+        sessionId: StoreId.newSessionId(),
+      },
+      home: "/Users/sam",
+      rules: [
+        { level: "ask", path: "/Users/sam/Library", source: "place" },
+        {
+          appData: true,
+          level: "never",
+          path: `${userData}/machine`,
+          source: "system",
+        },
+        { level: "allow", path: `${userData}/machine/work/c1`, source: "system" },
+      ],
+      withoutAsking: false,
+    };
+
+    it.each([
+      `${escaped}/machine/work/c1`,
+      `${escaped}/machine/keys`,
+      `${escaped}/Preferences`,
+    ])("refuses %s plainly, raising no card", (hostPath) => {
+      vi.mocked(raiseAsk).mockClear();
+      const refusal = ruleRefusal({
+        hostPath,
+        op: "read",
+        rules,
+        spell: (spelled) => spelled,
+      });
+      expect(refusal).toMatch(/Instrument's own data/);
+      expect(raiseAsk).not.toHaveBeenCalled();
+    });
+
+    it("still asks for a folder of the person's own spelled with a backslash", () => {
+      vi.mocked(raiseAsk).mockClear();
+      ruleRefusal({
+        hostPath: String.raw`/Users/sam/Library/Notes \(old\)/a.txt`,
+        op: "read",
+        rules,
+        spell: (spelled) => spelled,
+      });
+      expect(raiseAsk).toHaveBeenCalledWith(
+        rules.asker,
+        "folder",
+        String.raw`/Users/sam/Library/Notes \(old\)`,
+      );
+    });
+  },
+);

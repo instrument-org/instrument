@@ -9,6 +9,7 @@ import {
   hostPathWithin,
   realHostPath,
   withoutDataVolume,
+  withoutShellEscapes,
   withoutTrailingDots,
 } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
@@ -303,12 +304,20 @@ export function levelWithoutAsking<L extends Access>(
  * passwords place's. Nothing turns a never into anything else. A path on
  * macOS's Data volume meets the rules as the rest of the system spells it,
  * and a name ending in dots or spaces on Windows as the name Windows opens.
+ * A spelling of the app's own data with a shell's escapes left in is the
+ * app's own data too, closed rather than asked for.
  */
 export function reachOf(
   rules: Rules,
   hostPath: string,
   op: "read" | "write",
 ): Reach {
+  const unescaped = withoutShellEscapes(hostPath);
+  const appData =
+    unescaped === hostPath ? undefined : appDataHolding(rules, unescaped);
+  if (appData) {
+    return { level: "never", rule: appData };
+  }
   const resolved = withoutTrailingDots(
     withoutDataVolume(path.resolve(hostPath)),
   );
@@ -363,6 +372,17 @@ export function reachOf(
     level: levelWithoutAsking(level, best?.rule, rules.withoutAsking),
     rule: best?.rule,
   };
+}
+
+/** The rule closing the app's own data that holds `hostPath`, if one does. */
+function appDataHolding(rules: Rules, hostPath: string): Rule | undefined {
+  const target = fold(
+    withoutTrailingDots(withoutDataVolume(path.resolve(hostPath))),
+  );
+  return compiled(rules).find(
+    ({ prefix, root, rule }) =>
+      rule.appData && (target === root || target.startsWith(prefix)),
+  )?.rule;
 }
 
 function homeDepth(rules: Rules): number {
@@ -475,10 +495,15 @@ export function folderToAskFor({
 
 /**
  * Whether `folder` is or holds any of the app's own data, which a yes to it
- * would seem to open.
+ * would seem to open, spelled as it is or with a shell's escapes taken out.
  */
 export function holdsAppData(rules: Rules, folder: string): boolean {
+  const spellings = new Set([folder, withoutShellEscapes(folder)]);
   return rules.rules.some(
-    (rule) => rule.appData && hostPathWithin(folder, rule.path) !== null,
+    (rule) =>
+      rule.appData &&
+      [...spellings].some(
+        (spelling) => hostPathWithin(spelling, rule.path) !== null,
+      ),
   );
 }

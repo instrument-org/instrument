@@ -104,6 +104,21 @@ export function withoutTrailingDots(
 }
 
 /**
+ * A path without the backslashes a shell escapes characters with, which a
+ * word expanded wrongly can leave in it (`Instrument Preview \(x\)` for
+ * `Instrument Preview (x)`). Windows keeps them, as they separate its
+ * folders there.
+ */
+export function withoutShellEscapes(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32"
+    ? hostPath
+    : hostPath.replaceAll(/\\(.)/gs, "$1");
+}
+
+/**
  * Where a path really is, as the rules compare paths: absolute, every link
  * on the way followed (through a tail that does not exist yet), on macOS off
  * the Data volume, and on Windows without the dots and spaces that end a

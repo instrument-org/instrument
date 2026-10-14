@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { realHostPath, withoutTrailingDots } from "./host-path";
+import {
+  realHostPath,
+  withoutShellEscapes,
+  withoutTrailingDots,
+} from "./host-path";
 
 describe("withoutTrailingDots", () => {
   it.each([
@@ -22,6 +26,23 @@ describe("withoutTrailingDots", () => {
   it("keeps the name as given elsewhere", () => {
     expect(withoutTrailingDots("/ws/.instrument./a", "darwin")).toBe(
       "/ws/.instrument./a",
+    );
+  });
+});
+
+describe("withoutShellEscapes", () => {
+  it.each([
+    [String.raw`/a/Instrument Preview \(x\)/b`, "/a/Instrument Preview (x)/b"],
+    [String.raw`/a/App\ Support/\[y\]`, "/a/App Support/[y]"],
+    [String.raw`/a/back\\slash`, String.raw`/a/back\slash`],
+    ["/a/plain", "/a/plain"],
+  ])("reads %s as %s", (given, unescaped) => {
+    expect(withoutShellEscapes(given, "darwin")).toBe(unescaped);
+  });
+
+  it("keeps a Windows path's backslashes", () => {
+    expect(withoutShellEscapes(String.raw`C:\ws\(x)`, "win32")).toBe(
+      String.raw`C:\ws\(x)`,
     );
   });
 });

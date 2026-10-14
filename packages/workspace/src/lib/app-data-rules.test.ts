@@ -725,7 +725,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     );
     // Each file the table names under `root` that the walk got wrong: one
     // it walked that the rules close, or one it left out that they open.
-    const misWalked = (walked: readonly string[], root: string) => {
+    const walkedWrong = (walked: readonly string[], root: string) => {
       const under = files.filter(
         ({ hostPath }) =>
           path.relative(root, hostPath).split(path.sep)[0] !== "..",
@@ -783,7 +783,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         cwd,
         args.at(-1)?.startsWith("-") ? "." : (args.at(-1) ?? "."),
       );
-      expect(misWalked(walked, root)).toEqual([]);
+      expect(walkedWrong(walked, root)).toEqual([]);
     });
 
     it.skipIf(process.platform === "win32")(
@@ -799,7 +799,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           .split("\n")
           .filter(Boolean)
           .map((line) => line.slice(line.indexOf("\t") + 1));
-        expect(misWalked(walked, paths.home)).toEqual([]);
+        expect(walkedWrong(walked, paths.home)).toEqual([]);
       },
     );
   });

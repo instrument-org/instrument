@@ -7,10 +7,12 @@ import {
   mergeEntrySync,
   PARTIAL_INFIX,
   placeEntrySync,
+  placePaths,
   recordMovedPaths,
   removeEntrySync,
   removeIfEmptySync,
   setAsideSync,
+  startupPaths,
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
@@ -58,8 +60,19 @@ const MoveRefusalSchema = z.enum([
   "other-workspace",
   /** This process is pinned to its workspace by `INSTRUMENT_WORKSPACE`. */
   "pinned",
+  /**
+   * A folder the computer keeps for something of its own (Documents,
+   * Desktop, Downloads, iCloud Drive, the folder of disks, the apps' data,
+   * a hidden folder in the home folder), which would make all of it the
+   * folder every chat may change.
+   */
+  "place",
+  /** Where other programs keep sign-ins or what runs at login, or inside one. */
+  "sign-ins",
   /** Holds a `.instrument` folder that is not a workspace's. */
   "taken",
+  /** A folder the system empties on its own, or one inside it. */
+  "temporary",
   /** The workspace's layout sweeps have not finished in the app's data. */
   "unfinished",
   /** The app cannot write there. */
@@ -110,10 +123,13 @@ const FILE_MANAGER_RECORDS = new Set([".DS_Store", "desktop.ini", "Thumbs.db"]);
  */
 export function checkMoveTarget({
   target,
+  temporaryDirs = systemTemporaryDirs(),
   userDataDir,
   workspace,
 }: {
   target: string;
+  /** The folders the system empties on its own (`systemTemporaryDirs`). */
+  temporaryDirs?: string[];
   userDataDir: string;
   workspace: ResolvedWorkspace;
 }): MoveVerdict {
@@ -140,6 +156,7 @@ export function checkMoveTarget({
     from: workspace.path,
     id: workspace.id,
     target,
+    temporaryDirs,
     userDataDir,
   });
   if (where !== undefined) {
@@ -166,26 +183,61 @@ export function checkMoveTarget({
  * Why `target` cannot take the workspace with registry id `id`, now in
  * `from`, by where it is, compared where the folders really are: the
  * workspace's own folder or one around or inside it, the home folder or a
- * disk's top, the app's data, or another workspace this computer knows.
- * Asked when the person picks the folder and again when the move is made,
- * since the folder can change in between.
+ * disk's top, a folder the computer keeps for something of its own, a
+ * place of sign-ins or of what runs at login, a temporary folder, the
+ * app's data, or another workspace this computer knows. The folder becomes
+ * the output folder, which every chat may change, so a place holding more
+ * than the person's own work is refused. Asked when the person picks the
+ * folder and again when the move is made, since the folder can change in
+ * between.
  */
-function refusalOfPlace({
+export function refusalOfPlace({
   from,
   id,
   target,
+  temporaryDirs,
   userDataDir,
 }: {
   from: string;
   id: string;
   target: string;
+  temporaryDirs: string[];
   userDataDir: string;
 }): MoveRefusal | undefined {
   if (samePath(target, from)) {
     return "current";
   }
-  if (samePath(target, os.homedir()) || isVolumeRoot(target)) {
+  const home = os.homedir();
+  if (samePath(target, home) || isVolumeRoot(target)) {
     return "home-or-drive";
+  }
+  const places = placePaths(home);
+  if (
+    [
+      ...places.flatMap((place) =>
+        place.id === "passwords"
+          ? [...place.paths, ...(place.closedUnlessAllowed ?? [])]
+          : [],
+      ),
+      ...startupPaths(home),
+    ].some((placePath) => pathWithin(target, placePath))
+  ) {
+    return "sign-ins";
+  }
+  if (
+    places.some(
+      (place) =>
+        place.id !== "output" &&
+        place.id !== "passwords" &&
+        place.paths.some((placePath) => samePath(target, placePath)),
+    ) ||
+    (samePath(path.dirname(target), home) &&
+      path.basename(target).startsWith("."))
+  ) {
+    return "place";
+  }
+  if (temporaryDirs.some((dir) => pathWithin(target, dir))) {
+    return "temporary";
   }
   if (pathWithin(target, userDataDir) || pathWithin(userDataDir, target)) {
     return "app-data";
@@ -203,6 +255,16 @@ function refusalOfPlace({
     return "other-workspace";
   }
   return undefined;
+}
+
+/**
+ * The folders the system empties on its own: this account's temporary
+ * folder and, beyond Windows, the shared ones.
+ */
+function systemTemporaryDirs(): string[] {
+  return process.platform === "win32"
+    ? [os.tmpdir()]
+    : [os.tmpdir(), "/tmp", "/var/tmp"];
 }
 
 /**
@@ -286,10 +348,13 @@ const COPY_MARK_FILE = "move-copy-mark";
  */
 export function finishPendingMove({
   hide = hideAppFolder,
+  temporaryDirs = systemTemporaryDirs(),
   userDataDir,
   workspace,
 }: {
   hide?: (dataDir: string) => void;
+  /** The folders the system empties on its own (`systemTemporaryDirs`). */
+  temporaryDirs?: string[];
   userDataDir: string;
   workspace: ResolvedWorkspace;
 }): { done: string[]; workspace: ResolvedWorkspace } {
@@ -341,6 +406,7 @@ export function finishPendingMove({
             from,
             id: workspace.id,
             target: to,
+            temporaryDirs,
             userDataDir,
           });
           if (where !== undefined) {

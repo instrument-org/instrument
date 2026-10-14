@@ -125,6 +125,7 @@ export {
   instrumentFolderInDocuments,
   outputFolderPath,
 } from "./lib/chat/output-folder";
+export { placePaths, startupPaths } from "./lib/permissions/places";
 export { chatTitle } from "./lib/chat-info";
 export { getChatSettings } from "./lib/chat-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";

@@ -14,6 +14,7 @@ import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   checkMoveTarget,
   finishPendingMove,
+  refusalOfPlace,
   requestWorkspaceMove,
 } from "./workspace-move";
 import {
@@ -74,8 +75,27 @@ afterEach(() => {
   fs.rmSync(root, { force: true, recursive: true });
 });
 
+/** Why `target` is refused by where it is, whether or not it is on this computer. */
+function refusalOf(
+  target: string,
+  { temporaryDirs }: { temporaryDirs: string[] },
+) {
+  return refusalOfPlace({
+    from: workspace.path,
+    id: workspace.id,
+    target,
+    temporaryDirs,
+    userDataDir,
+  });
+}
+
 function check(target: string, at: ResolvedWorkspace = workspace) {
-  return checkMoveTarget({ target, userDataDir, workspace: at });
+  return checkMoveTarget({
+    target,
+    temporaryDirs: [],
+    userDataDir,
+    workspace: at,
+  });
 }
 
 describe("checkMoveTarget", () => {
@@ -119,6 +139,60 @@ describe("checkMoveTarget", () => {
       fs.mkdirSync(dir, { recursive: true });
     }
     expect(check(dir)).toEqual({ kind: "refused", reason });
+  });
+
+  const home = (...names: string[]) => path.join(os.homedir(), ...names);
+  it.each<{ name: string; reason: string; target: string }>([
+    { name: "Documents itself", reason: "place", target: home("Documents") },
+    { name: "Desktop itself", reason: "place", target: home("Desktop") },
+    { name: "Downloads itself", reason: "place", target: home("Downloads") },
+    ...(process.platform === "darwin"
+      ? [
+          {
+            name: "iCloud Drive itself",
+            reason: "place",
+            target: home("Library", "Mobile Documents", "com~apple~CloudDocs"),
+          },
+          { name: "the apps' data", reason: "place", target: home("Library") },
+          { name: "the folder of disks", reason: "place", target: "/Volumes" },
+        ]
+      : []),
+    {
+      name: "a hidden folder in the home folder",
+      reason: "place",
+      target: home(".instrument-work"),
+    },
+    { name: "the SSH folder", reason: "sign-ins", target: home(".ssh") },
+    {
+      name: "a folder inside a sign-in place",
+      reason: "sign-ins",
+      target: home(".config", "gh", "Instrument"),
+    },
+    {
+      name: "a startup folder",
+      reason: "sign-ins",
+      target: home("Library", "LaunchAgents"),
+    },
+  ])("refuses $name", ({ reason, target }) => {
+    expect(refusalOf(target, { temporaryDirs: [] })).toBe(reason);
+  });
+
+  it("refuses a temporary folder and one inside it, and takes a folder inside Documents", () => {
+    const temporary = path.join(root, "tmp");
+    fs.mkdirSync(path.join(temporary, "Instrument"), { recursive: true });
+    expect(refusalOf(temporary, { temporaryDirs: [temporary] })).toBe(
+      "temporary",
+    );
+    expect(
+      refusalOf(path.join(temporary, "Instrument"), {
+        temporaryDirs: [temporary],
+      }),
+    ).toBe("temporary");
+    expect(
+      refusalOf(path.join(os.homedir(), "Documents", "Instrument"), {
+        temporaryDirs: [temporary],
+      }),
+    ).toBeUndefined();
   });
 
   it("refuses a folder whose .instrument is a link, even to a workspace's", () => {
@@ -182,7 +256,12 @@ describe("finishPendingMove", () => {
   });
 
   function finish() {
-    return finishPendingMove({ hide, userDataDir, workspace });
+    return finishPendingMove({
+      hide,
+      temporaryDirs: [],
+      userDataDir,
+      workspace,
+    });
   }
 
   it("moves the records and the person's files, and the entry follows", () => {
@@ -219,7 +298,12 @@ describe("finishPendingMove", () => {
     const again = resolveWorkspace({ pin: undefined, userDataDir });
     expect(again.workspace.path).toBe(picked);
     expect(
-      finishPendingMove({ hide, userDataDir, workspace: again.workspace }),
+      finishPendingMove({
+        hide,
+        temporaryDirs: [],
+        userDataDir,
+        workspace: again.workspace,
+      }),
     ).toEqual({ done: [], workspace: again.workspace });
   });
 
@@ -240,6 +324,7 @@ describe("finishPendingMove", () => {
 
     const { workspace: moved } = finishPendingMove({
       hide,
+      temporaryDirs: [],
       userDataDir,
       workspace: { ...workspace, path: picked },
     });
@@ -395,6 +480,7 @@ describe("finishPendingMove", () => {
 
     const { done } = finishPendingMove({
       hide,
+      temporaryDirs: [],
       userDataDir,
       workspace: { ...workspace, path: picked },
     });
@@ -465,6 +551,7 @@ describe("finishPendingMove", () => {
       const resolved = resolveWorkspace({ pin: undefined, userDataDir });
       const result = finishPendingMove({
         hide,
+        temporaryDirs: [],
         userDataDir,
         workspace: resolved.workspace,
       });

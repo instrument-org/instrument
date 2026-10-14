@@ -233,7 +233,12 @@ const REFUSALS: Record<MoveRefusal, string> = {
   "other-workspace":
     "That folder holds another Instrument folder, or is inside one.",
   pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
+  place: `${APP_NAME} needs a folder of its own. Make one inside that folder and choose it instead.`,
+  "sign-ins":
+    "Other apps keep sign-ins or startup settings in that folder. Choose a different one.",
   taken: `It already has a folder named .instrument that ${APP_NAME} didn’t make.`,
+  temporary:
+    "Your computer clears out that folder on its own, so files kept there can disappear.",
   unfinished: `${APP_NAME} is still updating your folder from an earlier version. Quit and reopen ${APP_NAME}, then try again.`,
   unwritable: `${APP_NAME} doesn’t have permission to save files there.`,
 };

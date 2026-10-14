@@ -108,6 +108,12 @@
     {
       "name": "refused writes",
       "diff": "refused-writes-3.6.0.diff"
+    },
+    {
+      "name": "glob after quotes",
+      "pulls": [
+        { "number": 588, "commit": "2bd0de5091e0e189d745b275bfee3094782d3d15" }
+      ]
     }
   ]
 }

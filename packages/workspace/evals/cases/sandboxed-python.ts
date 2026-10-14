@@ -116,24 +116,57 @@ function pandasInstalledAt(commands: string[]): number {
   );
 }
 
-/** The package went in and a Python ran it, under either name. */
+/**
+ * How many bash commands ran before the spreadsheet skill was loaded, or -1.
+ * Its environment carries pandas, and `python` runs in it once it is loaded.
+ */
+function pandasSkillLoadedAt(sessions: Session.WithMessagesAndParts[]): number {
+  let commands = 0;
+  for (const session of sessions) {
+    for (const message of session.messages) {
+      for (const part of message.parts) {
+        if (part.type === "tool-bash" && part.input?.command !== undefined) {
+          commands += 1;
+        } else if (
+          part.type === "tool-load_skill" &&
+          String(part.input?.name ?? "")
+            .split(/[:/]/)
+            .at(-1) === "spreadsheet"
+        ) {
+          return commands;
+        }
+      }
+    }
+  }
+  return -1;
+}
+
+/**
+ * The package went in and a Python ran it, under either name. A loaded
+ * skill that carries it counts as the package going in.
+ */
 const installedThePackageAndRanIt: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
     const installed = pandasInstalledAt(commands);
+    const loaded = pandasSkillLoadedAt(sessions);
     const ran = commands.findIndex(
       (command, index) =>
         // The same command counts when python comes after the install in it:
         // `pip install pandas && python -c ...`.
-        (index > installed ||
-          (index === installed && /install[^\n]*python3?\s/.test(command))) &&
+        ((installed !== -1 &&
+          (index > installed ||
+            (index === installed &&
+              /install[^\n]*python3?\s/.test(command)))) ||
+          (loaded !== -1 && index >= loaded)) &&
         /(?:^|[\s;&|(])python3?\s/.test(command),
     );
-    const passed = installed !== -1 && ran !== -1;
+    const passed = ran !== -1;
+    const sources = `pip install ${installed === -1 ? "never happened" : `at command ${installed + 1}`}, spreadsheet skill ${loaded === -1 ? "never loaded" : `loaded before command ${loaded + 1}`}`;
     return {
       evidence: passed
-        ? `pip install at command ${installed + 1}, python at ${ran + 1} of ${commands.length}: ${(commands[ran] ?? "").slice(0, 120)}`
-        : `install ${installed === -1 ? "never happened" : `at ${installed + 1}`}, python ${ran === -1 ? "never ran after it" : `at ${ran + 1}`}. Commands: ${commands.join(" | ").slice(0, 500)}`,
+        ? `${sources}, python at ${ran + 1} of ${commands.length}: ${(commands[ran] ?? "").slice(0, 120)}`
+        : `${sources}, python never ran after either. Commands: ${commands.join(" | ").slice(0, 500)}`,
       passed,
       text: "installed the package and ran it",
     };

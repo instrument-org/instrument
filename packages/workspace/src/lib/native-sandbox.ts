@@ -1117,15 +1117,24 @@ interface Refused {
 }
 
 /**
- * The first path a failed command's output says it was not permitted to use
- * that the rules keep from it, so the agent is told why rather than left to
- * read a bare "Operation not permitted" as something to work around.
+ * The first path a command's output says it was not permitted to use that
+ * the rules keep from it, so the agent is told why rather than left to read
+ * a bare "Operation not permitted" as something to work around.
  */
 export function refusedPathIn(
   output: string,
   reach: NativeReach,
   /** The command's working folder, which a relative path is read against. */
   cwd?: string,
+  {
+    appDataOnly = false,
+  }: {
+    /**
+     * Only a path in the app's own data, which nothing opens and no card
+     * asks for; any other refused path is passed over.
+     */
+    appDataOnly?: boolean;
+  } = {},
 ): undefined | Refused {
   for (const line of output.split("\n")) {
     // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
@@ -1146,7 +1155,10 @@ export function refusedPathIn(
       // been a change.
       const op = line.includes("No such file") ? "read" : "write";
       const decided = reachOf(reach.rules, hostPath, op);
-      if (decided.level !== "allow") {
+      if (
+        decided.level !== "allow" &&
+        (!appDataOnly || decided.rule?.appData === true)
+      ) {
         return {
           hostPath,
           // `mkdir: cannot create directory`, git's `cannot mkdir`, Node's

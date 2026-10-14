@@ -283,6 +283,35 @@ describe("refusedPathIn", () => {
     );
   });
 
+  describe("of the app's own data only", () => {
+    const appData = "/Users/someone/Library/Application Support/Instrument";
+    const withAppData = reachOver("/Users/someone", [
+      ...reach.rules.rules,
+      { appData: true, level: "never", path: appData, source: "system" },
+    ]);
+
+    it.each([
+      [
+        "passes over a path a card could open for one in the app's data",
+        [
+          "cat: /Users/someone/Documents/Acme/a.csv: Operation not permitted",
+          `PermissionError: [Errno 1] Operation not permitted: '${appData}/work/other/a.md'`,
+        ].join("\n"),
+        `${appData}/work/other/a.md`,
+      ],
+      [
+        "finds none where only places are refused",
+        "cat: /Users/someone/.ssh/id_ed25519: Operation not permitted",
+        undefined,
+      ],
+    ])("%s", (_name, output, hostPath) => {
+      expect(
+        refusedPathIn(output, withAppData, undefined, { appDataOnly: true })
+          ?.hostPath,
+      ).toBe(hostPath);
+    });
+  });
+
   it("asks for the folder one level into the place", () => {
     const refused = refusedPathIn(
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",

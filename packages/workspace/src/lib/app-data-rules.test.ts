@@ -26,8 +26,10 @@ import {
   refusalNote,
   refusedPathIn,
   seatbeltAvailable,
+  withNativeReach,
   wrapNativeCommand,
 } from "./native-sandbox";
+import { execShim } from "./shell-commands/exec-shim";
 import { workspaceLayout } from "./workspace-layout";
 import { raiseAsk } from "./permissions/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
@@ -526,6 +528,36 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         reject: false,
       });
       expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+    });
+
+    // A script that catches the refusal and prints it exits 0, and is told
+    // why all the same where the path is the app's own.
+    it.each([
+      [
+        "says why when stderr names the app's own data",
+        `cat '${paths.otherWork}/notes.md' || true`,
+        true,
+      ],
+      [
+        "leaves the same line on stdout alone",
+        `cat '${paths.otherWork}/notes.md' 2>&1 || true`,
+        false,
+      ],
+      [
+        "leaves a refusal outside the app's own data alone",
+        `echo x > '${paths.runtime}/python/probe' || true`,
+        false,
+      ],
+    ])("a command that exits 0 %s", async (_name, script, noted) => {
+      const result = await withNativeReach(reach, () =>
+        execShim("/bin/sh", ["-c", script], { cwd: paths.work }),
+      );
+      expect(result.exitCode).toBe(0);
+      expect(`${result.stdout}${result.stderr}`).toContain(
+        "Operation not permitted",
+      );
+      expect(result.stderr.includes("Instrument's own data")).toBe(noted);
+      expect(raiseAsk).not.toHaveBeenCalled();
     });
   });
 

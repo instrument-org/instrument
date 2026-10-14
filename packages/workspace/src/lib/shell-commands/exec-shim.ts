@@ -163,16 +163,23 @@ export async function execShim(
   await finishTreeTermination?.();
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const refused =
-    spawned.reach && !walks && result.exitCode !== 0
-      ? refusedPathIn(
-          `${stderr}\n${stdout}`,
-          spawned.reach,
-          typeof subprocessOptions.cwd === "string"
-            ? subprocessOptions.cwd
-            : undefined,
-        )
+  const cwd =
+    typeof subprocessOptions.cwd === "string"
+      ? subprocessOptions.cwd
       : undefined;
+  // A command that failed is told of any path the rules kept it from, the
+  // likeliest reason it failed. One that exited 0 handled the refusal itself,
+  // as a script printing the error it caught does, so it is told only of a
+  // path in the app's own data that its stderr names: nothing opens that, and
+  // a bare "Operation not permitted" reads as something to work around. Its
+  // stdout is its own output, and a path a card could open raises no card
+  // from a command that did not fail.
+  const refused =
+    !spawned.reach || walks
+      ? undefined
+      : result.exitCode === 0
+        ? refusedPathIn(stderr, spawned.reach, cwd, { appDataOnly: true })
+        : refusedPathIn(`${stderr}\n${stdout}`, spawned.reach, cwd);
   const refusal = refused && refusalNote(refused);
   // A program that reached a developer tool stub on a Mac without the tools
   // fails with the stub's own error, which does not say what to do.

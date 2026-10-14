@@ -392,7 +392,7 @@ function InstrumentFolder() {
             <AlertDialogDescription>
               {opensInstead
                 ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
-                : `${APP_NAME} will restart to move your chats, topics, and memories there. What ${APP_NAME} makes for you will go there too.`}
+                : `${APP_NAME} will restart and move everything in your Instrument folder there, including any files of your own. What ${APP_NAME} makes for you will go there too.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

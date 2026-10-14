@@ -1,7 +1,6 @@
+import { instrumentFolderInDocuments } from "@instrument-org/workspace/electron";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { promisify } from "node:util";
 
 import artwork from "../../../resources/instrument-folder.svg?raw";
@@ -23,13 +22,17 @@ function run(argv) {
 }
 `;
 
-/** Decorate only the app's default output folder, preserving custom icons. */
+/**
+ * Decorate the output folder only when it is `Instrument` in Documents, the
+ * folder the app suggests, preserving custom icons: any other folder the
+ * person picked keeps the look it has.
+ */
 export async function ensureOutputFolderIcon(
   folderPath: string,
 ): Promise<void> {
   if (
     !["darwin", "linux", "win32"].includes(process.platform) ||
-    folderPath !== path.join(os.homedir(), "Documents", "Instrument")
+    folderPath !== instrumentFolderInDocuments()
   ) {
     return;
   }

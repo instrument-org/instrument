@@ -64,8 +64,8 @@ const CLOUD_STORAGE_NAMES: Record<string, string> = {
  * Where the computer is entered from: the folder Instrument keeps its own
  * outcomes in, which is where what the app made is looked for and so stands
  * first; then the folders a person keeps things in, and every mounted disk
- * and cloud service. The home folder goes by its own name, as the file
- * manager calls it.
+ * and cloud service. The home folder and the output folder go by their own
+ * names, as the file manager calls them.
  *
  * Nothing here reads inside a folder macOS guards: a guarded place is only
  * looked at from outside, so listing the places never asks the person for
@@ -77,7 +77,11 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
     ? getWorkspaceConfig().knownFolders
     : undefined;
   const candidates: ComputerPlace[] = [
-    { kind: "output", name: "Instrument", path: outputFolderPath() },
+    {
+      kind: "output",
+      name: path.basename(outputFolderPath()),
+      path: outputFolderPath(),
+    },
     { kind: "home", name: path.basename(home), path: home },
     ...KNOWN_FOLDERS.map(
       ([key, name]): ComputerPlace => ({

@@ -23,7 +23,7 @@ import {
   type TabsModel,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
@@ -154,6 +154,7 @@ export function placeOfHref(href: string): AppPlace | undefined {
 export function useAppTabs() {
   const [model, setModel] = useAtom(appTabsAtom);
   const lastChat = useAtomValue(chatGroupAtom);
+  const outputFolder = useOutputFolder();
   const activeRouter = getTabRouter(model.selectedId);
 
   /** A tab of its own at an address, up at once unless asked to wait behind. */
@@ -229,7 +230,7 @@ export function useAppTabs() {
     },
     go,
     goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
-      go(placeHrefOf(place, lastChat), { behind, newTab });
+      go(placeHrefOf(place, lastChat, outputFolder), { behind, newTab });
     },
     model,
     navigate,
@@ -266,7 +267,11 @@ export function useAppTabs() {
  * open, the computer at the Instrument folder, the browser's start, and the
  * apps. With no chat named, the chat is the inbox.
  */
-function placeHrefOf(place: AppPlace, lastChat: null | string): string {
+function placeHrefOf(
+  place: AppPlace,
+  lastChat: null | string,
+  outputFolder: string | undefined,
+): string {
   switch (place) {
     case "apps": {
       return APPS_HREF;
@@ -279,7 +284,7 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
       return chat ? chatHref(chat) : INBOX_HREF;
     }
     case "files": {
-      return outputFolderHref();
+      return outputFolderHref(outputFolder);
     }
   }
 }

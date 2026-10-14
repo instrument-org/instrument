@@ -24,6 +24,8 @@ export const WORKER_CONFIG_KEYS = [
   "macHelperBinPath",
   "nativeSandbox",
   "nodeExecEnv",
+  // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
+  "outputDir",
   "pnpmBinPath",
   "registryDir",
   "rootDir",

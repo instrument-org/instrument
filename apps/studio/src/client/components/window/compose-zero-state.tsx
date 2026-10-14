@@ -4,7 +4,7 @@ import {
   useRecentPages,
 } from "@/client/hooks/use-browser-history";
 import { rpcClient } from "@/client/rpc/client";
-import { OUTPUT_FOLDER } from "@/shared/computer-href";
+import { useOutputFolder } from "@/client/lib/output-folder";
 import { type Icon } from "@phosphor-icons/react";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
@@ -56,6 +56,7 @@ export function ComposeZeroState({
   onOpenBrowser: () => void;
   onOpenFolder: (hostPath: string) => void;
 }) {
+  const outputFolder = useOutputFolder();
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-150 flex-col gap-4 overflow-y-auto p-4">
       <div className="my-auto grid shrink-0 grid-cols-3 gap-3">
@@ -64,7 +65,7 @@ export function ComposeZeroState({
           icon={DesktopIcon}
           name={osConventions().computer}
           onOpen={() => {
-            onOpenFolder(OUTPUT_FOLDER);
+            onOpenFolder(outputFolder ?? "~");
           }}
         />
         <Tile icon={SquaresFourIcon} name="Apps" onOpen={onOpenApps} />

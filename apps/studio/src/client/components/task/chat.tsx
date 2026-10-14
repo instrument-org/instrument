@@ -12,7 +12,7 @@ import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -318,6 +318,7 @@ export function ChatConversation({
   };
 
   const isActiveTab = useIsActiveTab();
+  const outputFolder = useOutputFolder();
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   // A chat coming on screen is a place to reply from, so the caret lands
   // in the field as it opens.
@@ -338,7 +339,9 @@ export function ChatConversation({
           appWindow.openScreen(APPS_HREF, { ownTab: true });
         },
         onOpenComputer: () => {
-          appWindow.openScreen(outputFolderHref(), { ownTab: true });
+          appWindow.openScreen(outputFolderHref(outputFolder), {
+            ownTab: true,
+          });
         },
         onOpenWeb: () => {
           appWindow.openScreen(BROWSER_HREF, { ownTab: true });

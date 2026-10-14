@@ -49,6 +49,7 @@ import { logger } from "./electron-logger";
 import {
   getWorkspaceFolder,
   machineDir,
+  workspaceInAppData,
   workspaceMachineDir,
 } from "./get-workspace-folder";
 import { workspaceIndexFileOf, workspaceLayoutMarks } from "./workspaces";
@@ -187,6 +188,8 @@ export function createWorkspaceActor() {
         // See https://www.electronjs.org/docs/latest/api/environment-variables
         ELECTRON_RUN_AS_NODE: "1",
       },
+      // A folder the person picked is where their finished work goes too.
+      ...(workspaceInAppData() ? {} : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),

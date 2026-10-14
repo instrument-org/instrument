@@ -47,6 +47,10 @@ vi.mock("./permissions/asks", async (importOriginal) => ({
   raiseAsk: vi.fn(),
 }));
 
+// Windows runs native commands with no Seatbelt or bubblewrap profile, so
+// nothing there builds one or reads the refusals of a command held by one.
+const onWindows = process.platform === "win32";
+
 function reachOver(home: string, rules: Rule[]): NativeReach {
   return {
     readOnly: [],
@@ -55,7 +59,7 @@ function reachOver(home: string, rules: Rule[]): NativeReach {
   };
 }
 
-describe("seatbeltProfile", () => {
+describe.skipIf(onWindows)("seatbeltProfile", () => {
   it("closes the disk and home to changes, then applies rules shallow to deep", () => {
     const profile = seatbeltProfile(
       reachOver("/nope/home", [
@@ -104,23 +108,25 @@ describe("seatbeltProfile", () => {
   });
 });
 
-describe("a read-only folder inside a place that opens without asking", () => {
-  const home = "/nope/home";
-  const reach: NativeReach = {
-    readOnly: [`${home}/Library/App/uv`],
-    readWrite: [`${home}/Library/App/uv/cache`],
-    rules: {
-      home,
-      rules: [{ level: "ask", path: `${home}/Library`, source: "place" }],
-      withoutAsking: true,
-    },
-  };
+describe.skipIf(onWindows)(
+  "a read-only folder inside a place that opens without asking",
+  () => {
+    const home = "/nope/home";
+    const reach: NativeReach = {
+      readOnly: [`${home}/Library/App/uv`],
+      readWrite: [`${home}/Library/App/uv/cache`],
+      rules: {
+        home,
+        rules: [{ level: "ask", path: `${home}/Library`, source: "place" }],
+        withoutAsking: true,
+      },
+    };
 
-  it("stays closed to changes under Seatbelt, with its stores open", () => {
-    const lines = seatbeltProfile(reach)
-      .split("\n")
-      .filter((line) => line.includes("Library"));
-    expect(lines).toMatchInlineSnapshot(`
+    it("stays closed to changes under Seatbelt, with its stores open", () => {
+      const lines = seatbeltProfile(reach)
+        .split("\n")
+        .filter((line) => line.includes("Library"));
+      expect(lines).toMatchInlineSnapshot(`
       [
         "(allow file-read* file-write* network-outbound (subpath "/nope/home/Library"))",
         "(allow file-read* (subpath "/nope/home/Library/App/uv"))",
@@ -133,16 +139,17 @@ describe("a read-only folder inside a place that opens without asking", () => {
         "(deny file-write-unlink (require-all (regex #"/\\.git$") (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
       ]
     `);
-  });
+    });
 
-  it("binds the closed-file stand-in's folder read-only under bubblewrap", () => {
-    const standIn = runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox;
-    const args = bwrapArgs(reach).join(" ");
-    expect(args).toContain(`--ro-bind ${realpathSync(standIn)}`);
-  });
-});
+    it("binds the closed-file stand-in's folder read-only under bubblewrap", () => {
+      const standIn = runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox;
+      const args = bwrapArgs(reach).join(" ");
+      expect(args).toContain(`--ro-bind ${realpathSync(standIn)}`);
+    });
+  },
+);
 
-describe("the passwords place in a profile", () => {
+describe.skipIf(onWindows)("the passwords place in a profile", () => {
   const home = "/nope/home";
   const socket = "/nope/agent.sock";
   const lines = (rules: Rule[]) =>
@@ -229,7 +236,7 @@ describe("inheritedEnv", () => {
   });
 });
 
-describe("refusedPathIn", () => {
+describe.skipIf(onWindows)("refusedPathIn", () => {
   const reach = reachOver("/Users/someone", [
     { level: "never", path: "/Users/someone/.ssh", source: "place" },
     { level: "ask", path: "/Users/someone/Documents", source: "place" },
@@ -649,7 +656,7 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
   });
 });
 
-describe("bwrapArgs", () => {
+describe.skipIf(onWindows)("bwrapArgs", () => {
   it("refuses a closed folder or file rather than showing it empty", () => {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
     for (const folder of ["Documents/Acme", "Secrets"]) {
@@ -764,7 +771,7 @@ describe("bwrapArgs", () => {
   });
 });
 
-describe("bwrapArgs over the login session's sockets", () => {
+describe.skipIf(onWindows)("bwrapArgs over the login session's sockets", () => {
   const scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
   afterAll(() => {
     rmSync(scratch, { force: true, recursive: true });
@@ -825,7 +832,7 @@ describe("bwrapArgs over the login session's sockets", () => {
   });
 });
 
-describe("bwrapArgs over names that run code", () => {
+describe.skipIf(onWindows)("bwrapArgs over names that run code", () => {
   /** A home with `paths` made in it: a trailing slash makes a folder. */
   function plant(paths: string[]): string {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));

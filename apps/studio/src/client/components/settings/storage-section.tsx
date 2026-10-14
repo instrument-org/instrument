@@ -297,9 +297,7 @@ function InstrumentFolder() {
         if (moved.kind === "refused") {
           refuse(moved.reason);
         } else if (moved.kind === "on-next-launch") {
-          toast.success(
-            `${APP_NAME} will move your folder the next time it opens.`,
-          );
+          toast.info(`Quit ${APP_NAME} and open it again to move your folder.`);
         }
         if (moved.kind !== "relaunching") {
           setPicked(null);
@@ -311,8 +309,8 @@ function InstrumentFolder() {
         path: picked.path,
       });
       if (outcome === "unsupported") {
-        toast.success(
-          `${APP_NAME} will open that folder the next time it opens.`,
+        toast.info(
+          `Quit ${APP_NAME} and open it again to switch to that folder.`,
         );
       }
       if (outcome !== "relaunching") {

@@ -1,7 +1,7 @@
 import { app } from "electron";
+import { spawn } from "node:child_process";
 
 import { requestQuitApproval } from "./quit";
-import { installedFromDeb } from "./update";
 
 /**
  * The exit code that asks `scripts/dev-supervisor.ts` to start electron-vite
@@ -14,16 +14,12 @@ const DEV_RELAUNCH_EXIT_CODE = 75;
 let exitCode = 0;
 
 /**
- * Whether this run can bring itself back after quitting. Not a dev build
- * started without the supervisor (a debugger's launch config running
- * electron-vite directly), and not a Debian install: `app.relaunch()` there
- * strips the privileges later updates authenticate with (see `update.ts`).
+ * Whether this run can bring itself back after quitting: every packaged
+ * build, and a dev build only under the supervisor, not one a debugger's
+ * launch config started by running electron-vite directly.
  */
 export function canRelaunch(): boolean {
-  if (!app.isPackaged) {
-    return process.env.INSTRUMENT_DEV_SUPERVISOR === "1";
-  }
-  return !installedFromDeb();
+  return app.isPackaged || process.env.INSTRUMENT_DEV_SUPERVISOR === "1";
 }
 
 /** What the quit teardown passes to `app.exit` once it has finished. */
@@ -46,7 +42,7 @@ export async function relaunchApp({
   }
   beforeRestart();
   if (app.isPackaged) {
-    app.relaunch();
+    startAgainOnExit();
   } else {
     exitCode = DEV_RELAUNCH_EXIT_CODE;
   }
@@ -65,10 +61,44 @@ export function restartNow(): boolean {
     return false;
   }
   if (app.isPackaged) {
-    app.relaunch();
+    startAgainOnExit();
     app.exit(0);
   } else {
     app.exit(DEV_RELAUNCH_EXIT_CODE);
   }
   return true;
+}
+
+/**
+ * Start the app again, with the arguments it was started with, once this
+ * process has exited.
+ *
+ * On Linux that is a shell of its own rather than `app.relaunch()`, which
+ * starts its helper with no-new-privileges set, inherited by everything the
+ * helper starts (electron/electron#41463). Under it a setuid program runs
+ * without its privileges: a build whose Chromium sandbox is the setuid
+ * `chrome-sandbox` (the tar.gz, and the rpm where unprivileged user
+ * namespaces are off) dies at startup, and a Debian install loses the
+ * `pkexec` its updates authenticate with. A process Node starts inherits
+ * nothing of the kind.
+ */
+function startAgainOnExit() {
+  if (process.platform !== "linux") {
+    app.relaunch();
+    return;
+  }
+  // An AppImage runs from a mount that goes away when it exits, so it starts
+  // again from the image.
+  const executable = process.env.APPIMAGE ?? process.execPath;
+  spawn(
+    "/bin/sh",
+    [
+      "-c",
+      'while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"',
+      String(process.pid),
+      executable,
+      ...process.argv.slice(1),
+    ],
+    { detached: true, stdio: "ignore" },
+  ).unref();
 }

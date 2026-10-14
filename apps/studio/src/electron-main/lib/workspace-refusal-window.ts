@@ -154,14 +154,18 @@ export async function showWorkspaceRefusal({
             title: `${APP_NAME} can’t find your Instrument folder`,
           };
 
-  const reopen = async () => {
+  /**
+   * Restarts into what the person chose, or, in a run that can't restart
+   * itself, says what it will do once they open it again.
+   */
+  const reopen = async (onceOpen: string) => {
     leaving = true;
     if (!restartNow()) {
       leaving = false;
       await show({
-        body: [`${APP_NAME} will use your choice the next time it opens.`],
+        body: [`When you open ${APP_NAME} again, it will ${onceOpen}.`],
         buttons: [{ action: "quit", label: "Quit", primary: true }],
-        title: `Open ${APP_NAME} again`,
+        title: `Quit and open ${APP_NAME} again`,
       });
     }
   };
@@ -194,7 +198,7 @@ export async function showWorkspaceRefusal({
       ...registry,
       active: registered.id,
     }));
-    await reopen();
+    await reopen("open the folder you chose");
   };
 
   let updater: AppUpdaterHandle | undefined;
@@ -351,7 +355,7 @@ export async function showWorkspaceRefusal({
       }
       case "start-over-confirmed": {
         startWorkspaceAfresh({ id: refusal.workspace.id, userDataDir });
-        await reopen();
+        await reopen("start with a new Instrument folder");
         return;
       }
     }

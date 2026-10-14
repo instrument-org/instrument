@@ -62,6 +62,8 @@ The folder holds no SQLite, no lock file and no file anyone rewrites in place. `
 - The machine's id: macOS `IOPlatformUUID` (from `ioreg -rd1 -c IOPlatformExpertDevice`), Windows `MachineGuid` (`HKLM\SOFTWARE\Microsoft\Cryptography`), Linux `/etc/machine-id` (falling back to `/var/lib/dbus/machine-id`).
 - At launch, a missing `deviceId` or a `hardwareId` that does not match the machine makes a new random device id. Same hardware keeps its id across reinstalls of the app's data only if `machine-state.json` survives; a fresh id is always safe, since it only means a new file.
 - If the machine's id cannot be read, the app keeps the stored device id and logs why.
+- A phone binds its id the same way, to a hash of what iOS gives it for the device, for the reason the desktops do: a phone restored onto new hardware must not keep writing the file its old one wrote.
+- A device that only marks chats read, starred or archived writes nothing but its own `marks.<device>.jsonl`, and the fold takes its marks without a log of that device anywhere, since a marks file carries no header.
 
 ## Records
 

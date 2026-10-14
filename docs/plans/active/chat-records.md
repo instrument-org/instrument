@@ -76,7 +76,7 @@ Every line is one JSON object, keys in this order so a reader can skip by prefix
 | `rollover` | `after`, `usableTokens` | Newest wins; same meaning as `rolledOverAfterMessageId` today. | two session fields |
 | `stopped` | `by: user, chat or app` | Applies until a message that starts a turn follows it. | `stoppedBy` |
 | `told` | `what: folders, apps, memory, processes or browser`, `value` | Newest per `what` wins; `null` clears. | the five baseline keys and `browser-state:<s>` |
-| `mark` (marks file only, no header) | `session`, `field`, `value`, `device`. Values: title `{text, settled}`; starred and archived a boolean; unread `{byUser}` or `null`; topics an array of topic ids; stoppedAt an ISO date | Across every device's marks file, newest `at` per (session, field) wins, ties going to the larger device id. An unsettled title never beats a settled one. | the mark half of `sessions:<s>` |
+| `mark` (marks file only, no header) | `session`, `field`, `value`, `device`. Values: title `{text, settled}`; starred and archived a boolean; unread `{byUser}` or `null`; topics an array of topic ids; stoppedAt an ISO date | Across every device's marks file, newest `at` per (session, field) wins, ties going to the larger device id. An unsettled title never beats a settled one. The winning mark's `at` is when it was set (today's `starredAt`, `archivedAt`, `unreadAt`, `titleSettledAt`). | the mark half of `sessions:<s>` |
 
 A session's history is its own logs; a task's is its parent's fold up to `forkedAt` (by message id, never by byte offset), then its own logs.
 

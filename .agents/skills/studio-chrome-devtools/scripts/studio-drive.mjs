@@ -495,9 +495,9 @@ function reapWorkArtifacts(workspaceDir) {
 }
 
 /**
- * Every record folder of a workspace: the chats under `chats/`, plus any task
- * folder a 1.x build left under `tasks/` that the boot migration has not yet
- * moved. A chat's tasks are sessions in its store and work in its folder.
+ * Every record folder of a workspace: the chats under `.instrument/chats/`,
+ * plus any task folder a 1.x build left under `tasks/` that the boot
+ * migration has not yet moved. A chat's tasks are sessions in its store and work in its folder.
  */
 function recordDirs(workspaceDir) {
   const children = (dir) => {
@@ -509,7 +509,7 @@ function recordDirs(workspaceDir) {
       return [];
     }
   };
-  const chats = children(path.join(workspaceDir, "chats"));
+  const chats = children(path.join(workspaceDir, ".instrument", "chats"));
   return [...children(path.join(workspaceDir, "tasks")), ...chats];
 }
 

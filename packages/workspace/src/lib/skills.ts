@@ -13,6 +13,7 @@ import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
+import { workspaceLayout } from "./workspace-layout";
 
 export const FILE_LIST_LIMIT = 50;
 
@@ -311,7 +312,7 @@ export function getSkillSources(
     fromHome("opencode", "opencode", ".config", "opencode", "skills"),
     fromHome("windsurf", "windsurf", ".codeium", "windsurf", "skills"),
     {
-      dir: absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills),
+      dir: AbsolutePathSchema.parse(workspaceLayout(rootDir).skillsDir),
       id: "workspace",
       source: "workspace",
     },

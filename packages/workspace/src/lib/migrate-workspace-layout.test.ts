@@ -100,6 +100,7 @@ describe("migrateWorkspaceLayout", () => {
   it("no-ops when there is no legacy projects/ dir, but still records the mark", () => {
     const result = migrate();
     expect(result).toEqual({
+      appFolders: { done: [], failed: 0 },
       chatRecords: { done: [], failed: 0 },
       conflictedTaskIds: [],
       legacyTasks: {
@@ -115,6 +116,14 @@ describe("migrateWorkspaceLayout", () => {
     // Fresh install: the mark is set on first boot so a later project in
     // projects/ is never seen by a re-run.
     expect(marks.legacyProjectsMigrated).toBe(true);
+  });
+
+  it("removes the 1.x tasks/ folder once nothing is left in it", () => {
+    fs.mkdirSync(path.join(rootDir, "tasks"));
+
+    migrate();
+
+    expect(exists("tasks")).toBe(false);
   });
 
   it("moves tasks and renames db + state files", () => {
@@ -426,8 +435,9 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".tmp", "scratch.csv")).toBe("a,b");
   });
 
-  // A chat an earlier build left, its records in its folder's `.instrument/`,
-  // which the sweep renames there and then lifts to the top of the folder.
+  // A chat an earlier build left at the workspace's top level, its records in
+  // its folder's `.instrument/`, which the sweep moves into the workspace's
+  // `.instrument/`, renames there, and then lifts to the top of the folder.
   describe("a chat's database", () => {
     function writeChatFiles(id: string, files: Record<string, string>) {
       const privateDir = path.join(rootDir, "chats", id, ".instrument");
@@ -438,7 +448,9 @@ describe("migrateWorkspaceLayout", () => {
     }
 
     function chatFiles(id: string) {
-      return fs.readdirSync(path.join(rootDir, "chats", id)).toSorted();
+      return fs
+        .readdirSync(path.join(rootDir, ".instrument", "chats", id))
+        .toSorted();
     }
 
     it("renames task.db to chat.db with its sidecars, once", () => {
@@ -459,8 +471,12 @@ describe("migrateWorkspaceLayout", () => {
         "chat.db-wal",
         "settings.json",
       ]);
-      expect(read("chats", "2026-10-01-chat", "chat.db")).toBe("main");
-      expect(read("chats", "2026-10-01-chat", "chat.db-wal")).toBe("wal");
+      expect(read(".instrument", "chats", "2026-10-01-chat", "chat.db")).toBe(
+        "main",
+      );
+      expect(
+        read(".instrument", "chats", "2026-10-01-chat", "chat.db-wal"),
+      ).toBe("wal");
     });
 
     // A boot cut short after the sidecars moved finishes on the next one,
@@ -484,12 +500,20 @@ describe("migrateWorkspaceLayout", () => {
 
       migrate();
 
-      expect(read("chats", "2026-10-01-chat", "chat.db")).toBe("current");
+      expect(read(".instrument", "chats", "2026-10-01-chat", "chat.db")).toBe(
+        "current",
+      );
       // Nothing reads it; it stays where it was rather than taking chat.db's
       // place.
-      expect(read("chats", "2026-10-01-chat", ".instrument", "task.db")).toBe(
-        "stale",
-      );
+      expect(
+        read(
+          ".instrument",
+          "chats",
+          "2026-10-01-chat",
+          ".instrument",
+          "task.db",
+        ),
+      ).toBe("stale");
     });
 
     it("renames the window's database too", () => {
@@ -526,9 +550,12 @@ describe("migrateWorkspaceLayout", () => {
 
       migrate();
 
-      expect(exists("chats", "2026-10-01-chat", "tasks")).toBe(false);
+      expect(exists(".instrument", "chats", "2026-10-01-chat", "tasks")).toBe(
+        false,
+      );
       expect(
         read(
+          ".instrument",
           ".pre-chats",
           "chat-task-records",
           "2026-10-01-chat",
@@ -542,6 +569,12 @@ describe("migrateWorkspaceLayout", () => {
   describe("a chat's work", () => {
     it("moves a chat's work to its work folder in the machine folder, leaving its records", () => {
       const chat = path.join(rootDir, "chats", "2026-10-01-chat");
+      const record = path.join(
+        rootDir,
+        ".instrument",
+        "chats",
+        "2026-10-01-chat",
+      );
       fs.mkdirSync(path.join(chat, ".instrument"), { recursive: true });
       fs.writeFileSync(path.join(chat, ".instrument", "settings.json"), "{}");
       fs.mkdirSync(path.join(chat, "attachments"));
@@ -552,7 +585,7 @@ describe("migrateWorkspaceLayout", () => {
       const result = migrate();
 
       expect(result.chatRecords.failed).toBe(0);
-      expect(fs.readdirSync(chat).toSorted()).toEqual([
+      expect(fs.readdirSync(record).toSorted()).toEqual([
         "attachments",
         "settings.json",
       ]);
@@ -568,7 +601,12 @@ describe("migrateWorkspaceLayout", () => {
     // they are split in the same sweep, after it.
     it("splits the chats the 1.x migration made in the same sweep", () => {
       vi.mocked(migrateLegacyTasks).mockImplementation(() => {
-        const chat = path.join(rootDir, "chats", "2026-06-23-a-bug");
+        const chat = path.join(
+          rootDir,
+          ".instrument",
+          "chats",
+          "2026-06-23-a-bug",
+        );
         fs.mkdirSync(path.join(chat, ".instrument"), { recursive: true });
         fs.writeFileSync(path.join(chat, ".instrument", "chat.db"), "db");
         fs.writeFileSync(path.join(chat, "notes.md"), "notes");
@@ -577,8 +615,12 @@ describe("migrateWorkspaceLayout", () => {
 
       migrate();
 
-      expect(read("chats", "2026-06-23-a-bug", "chat.db")).toBe("db");
-      expect(exists("chats", "2026-06-23-a-bug", ".instrument")).toBe(false);
+      expect(read(".instrument", "chats", "2026-06-23-a-bug", "chat.db")).toBe(
+        "db",
+      );
+      expect(
+        exists(".instrument", "chats", "2026-06-23-a-bug", ".instrument"),
+      ).toBe(false);
       expect(
         fs.readFileSync(
           path.join(machineDir, "work", "2026-06-23-a-bug", "notes.md"),
@@ -600,6 +642,56 @@ describe("migrateWorkspaceLayout", () => {
       migrate();
 
       expect(exists(".instrument", "external-browser-tmp")).toBe(false);
+    });
+  });
+
+  // Builds before kept the app's folders at the workspace's top level; the
+  // sweep moves them into its `.instrument/` before anything reads them.
+  describe("the app's folders", () => {
+    it("moves them in before the 1.x migration, which finds every topic there", () => {
+      fs.mkdirSync(path.join(rootDir, "topics", "Home", ".instrument"), {
+        recursive: true,
+      });
+      fs.mkdirSync(path.join(rootDir, "chats", "2026-10-01-chat"), {
+        recursive: true,
+      });
+      const seen: string[] = [];
+      vi.mocked(migrateLegacyTasks).mockImplementation(() => {
+        seen.push(...fs.readdirSync(rootDir).toSorted());
+        seen.push(
+          ...fs.readdirSync(path.join(rootDir, ".instrument", "topics")),
+        );
+        return NOTHING_ADOPTED;
+      });
+
+      const result = migrate();
+
+      expect(result.appFolders.failed).toBe(0);
+      expect(seen).toEqual([".instrument", "Home"]);
+      expect(fs.readdirSync(rootDir)).toEqual([".instrument"]);
+      expect(marks.layoutVersion).toBeDefined();
+    });
+
+    it("leaves the mark unwritten while one could not move, so the next boot retries it", () => {
+      fs.mkdirSync(path.join(rootDir, "drafts", "a"), { recursive: true });
+      const into = path.join(rootDir, ".instrument", "drafts");
+      fs.mkdirSync(path.join(into, "b"), { recursive: true });
+      // A folder nothing can be moved into.
+      fs.chmodSync(into, 0o555);
+
+      try {
+        const first = migrate();
+        expect(first.appFolders.failed).toBe(1);
+        expect(marks.layoutVersion).toBeUndefined();
+      } finally {
+        fs.chmodSync(into, 0o755);
+      }
+
+      const second = migrate();
+      expect(second.appFolders.failed).toBe(0);
+      expect(marks.layoutVersion).toBeDefined();
+      expect(fs.readdirSync(into).toSorted()).toEqual(["a", "b"]);
+      expect(exists("drafts")).toBe(false);
     });
   });
 
@@ -671,7 +763,9 @@ describe("migrateWorkspaceLayout", () => {
       const second = migrate();
       expect(second.chatRecords.failed).toBe(0);
       expect(marks.layoutVersion).toBeDefined();
-      expect(exists("chats", "2026-10-01-chat", "work")).toBe(false);
+      expect(exists(".instrument", "chats", "2026-10-01-chat", "work")).toBe(
+        false,
+      );
     });
 
     it("sweeps tasks the legacy projects/ move brought in even when the mark is current", () => {

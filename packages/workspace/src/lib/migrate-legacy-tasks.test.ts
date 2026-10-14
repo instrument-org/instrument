@@ -39,7 +39,7 @@ const JUNE_23 = Date.parse("2026-06-23T21:47:33.119Z");
 /** The conversation a chat holds, one line per part, as the chat's agent will read it. */
 function conversationIn(chat: string): string[] {
   const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "chat.db"),
+    path.join(root, ".instrument", "chats", chat, ".instrument", "chat.db"),
     {
       readOnly: true,
     },
@@ -150,7 +150,7 @@ function readJson(...segments: string[]): Record<string, unknown> {
 
 function sessionOf(chat: string): Record<string, unknown> {
   const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "chat.db"),
+    path.join(root, ".instrument", "chats", chat, ".instrument", "chat.db"),
     {
       readOnly: true,
     },
@@ -262,28 +262,44 @@ describe("migrateLegacyTasks", () => {
     });
 
     const chat = "2026-06-23-rotating-red-square";
-    expect(fs.readdirSync(path.join(root, "chats"))).toEqual([chat]);
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([
+      chat,
+    ]);
     expect(fs.readdirSync(path.join(root, "tasks"))).toEqual([]);
     // The task's folder is the chat's: its files where its replies named them,
     // and no task inside it.
     expect(
       fs.readFileSync(
-        path.join(root, "chats", chat, "output", "square.mp4"),
+        path.join(root, ".instrument", "chats", chat, "output", "square.mp4"),
         "utf8",
       ),
     ).toBe("video");
-    expect(fs.existsSync(path.join(root, "chats", chat, "tasks"))).toBe(false);
     expect(
-      fs.readdirSync(path.join(root, "chats", chat, ".instrument")).toSorted(),
+      fs.existsSync(path.join(root, ".instrument", "chats", chat, "tasks")),
+    ).toBe(false);
+    expect(
+      fs
+        .readdirSync(
+          path.join(root, ".instrument", "chats", chat, ".instrument"),
+        )
+        .toSorted(),
     ).toEqual(["chat.db", "settings.json"]);
     // The task's own record, set aside.
     expect(
       fs
-        .readdirSync(path.join(root, ".pre-chats", "task-records", chat))
+        .readdirSync(
+          path.join(root, ".instrument", ".pre-chats", "task-records", chat),
+        )
         .toSorted(),
     ).toEqual(["settings.json", "task.db"]);
 
-    const settings = readJson("chats", chat, ".instrument", "settings.json");
+    const settings = readJson(
+      ".instrument",
+      "chats",
+      chat,
+      ".instrument",
+      "settings.json",
+    );
     expect(settings).toMatchObject({
       createdAt: "2026-06-23T21:47:33.119Z",
       createdWithAppVersion: "1.2.0",
@@ -300,7 +316,7 @@ describe("migrateLegacyTasks", () => {
 
     // Text, not bytes, which the store refuses to read.
     const db = new DatabaseSync(
-      path.join(root, "chats", chat, ".instrument", "chat.db"),
+      path.join(root, ".instrument", "chats", chat, ".instrument", "chat.db"),
       { readOnly: true },
     );
     expect(
@@ -394,7 +410,8 @@ describe("migrateLegacyTasks", () => {
 
     const chat = "2026-06-23-bike";
     expect(
-      readJson("chats", chat, ".instrument", "settings.json").grants,
+      readJson(".instrument", "chats", chat, ".instrument", "settings.json")
+        .grants,
     ).toEqual([
       {
         grantedAt: new Date(2).toISOString(),
@@ -491,7 +508,7 @@ describe("migrateLegacyTasks", () => {
     const chat = "2026-06-23-rotating-red-square";
     expect(
       fs.readFileSync(
-        path.join(root, "chats", chat, "attachments", "cat.png"),
+        path.join(root, ".instrument", "chats", chat, "attachments", "cat.png"),
         "utf8",
       ),
     ).toBe("cat");
@@ -567,12 +584,19 @@ describe("migrateLegacyTasks", () => {
     ]);
     expect(sessionOf("2026-06-23-a-bug").topics).toEqual([made]);
     expect(
-      readJson("chats", "2026-06-23-a-bug", ".instrument", "settings.json")
-        .projectId,
+      readJson(
+        ".instrument",
+        "chats",
+        "2026-06-23-a-bug",
+        ".instrument",
+        "settings.json",
+      ).projectId,
     ).toBeUndefined();
     expect(fs.existsSync(path.join(root, "projects"))).toBe(false);
     expect(
-      fs.readdirSync(path.join(root, ".pre-chats", "projects")).toSorted(),
+      fs
+        .readdirSync(path.join(root, ".instrument", ".pre-chats", "projects"))
+        .toSorted(),
     ).toEqual(["Shopping", "🐛 Bug tasks"]);
   });
 
@@ -659,9 +683,13 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 0,
       emptyCount: 2,
     });
-    expect(fs.existsSync(path.join(root, "chats"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".instrument", "chats"))).toBe(false);
     expect(
-      fs.readdirSync(path.join(root, ".pre-chats", "empty-tasks")).toSorted(),
+      fs
+        .readdirSync(
+          path.join(root, ".instrument", ".pre-chats", "empty-tasks"),
+        )
+        .toSorted(),
     ).toEqual(["2026-06-23-empty", "2026-06-23-tutorial"]);
   });
 
@@ -713,7 +741,7 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 0,
       leftOver: 1,
     });
-    expect(fs.readdirSync(path.join(root, "chats"))).toEqual([]);
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([]);
     expect(
       fs.readdirSync(path.join(chatDir, ".instrument")).toSorted(),
     ).toEqual(["settings.json", "task.db"]);
@@ -746,14 +774,32 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const chat = "2026-06-23-rotating-red-square";
-    expect(fs.readdirSync(path.join(root, "chats"))).toEqual([chat]);
-    const settings = readJson("chats", chat, ".instrument", "settings.json");
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([
+      chat,
+    ]);
+    const settings = readJson(
+      ".instrument",
+      "chats",
+      chat,
+      ".instrument",
+      "settings.json",
+    );
     expect(settings.chatSessionId).toBe(sessionOf(chat).id);
     expect(
-      fs.readdirSync(path.join(root, "chats", chat, ".instrument")).toSorted(),
+      fs
+        .readdirSync(
+          path.join(root, ".instrument", "chats", chat, ".instrument"),
+        )
+        .toSorted(),
     ).toEqual(["chat.db", "settings.json"]);
     expect(
-      readJson(".pre-chats", "task-records", chat, "settings.json").name,
+      readJson(
+        ".instrument",
+        ".pre-chats",
+        "task-records",
+        chat,
+        "settings.json",
+      ).name,
     ).toBe("Rotating red square video");
   });
 });

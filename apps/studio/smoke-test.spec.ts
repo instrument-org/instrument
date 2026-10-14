@@ -489,6 +489,24 @@ describe("Studio Smoke Test", () => {
       expect(exists, `File exists: ${filePath}`).toBe(true);
     }
 
+    // What the app keeps in the workspace is in its `.instrument/`, leaving
+    // the top level to the person's own work.
+    const topLevel = await fs.readdir(path.join(tempUserDataDir, "workspace"));
+    expect(
+      topLevel.filter((name) =>
+        [
+          "apps",
+          "chats",
+          "drafts",
+          "memory",
+          "skills",
+          "tasks",
+          "topics",
+        ].includes(name),
+      ),
+      "workspace: no app folder at the top level",
+    ).toEqual([]);
+
     // Validate machine-state.json was written at boot: a packaged launch
     // records the version it ran. It holds no identifier for this computer.
     const appStateContent = await fs.readFile(

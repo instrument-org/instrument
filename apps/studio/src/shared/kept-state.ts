@@ -8,7 +8,7 @@
  * things laid out. What they made travels with the workspace; `layout` and
  * `view` stay on this computer, in the workspace's machine folder. `drafts`
  * is not a file: its one key, {@link DRAFTS_KEY}, is kept as a folder per
- * draft at the workspace root.
+ * draft in the workspace's `.instrument/drafts/`.
  */
 export const KEPT_FILES = ["bookmarks", "drafts", "layout", "view"] as const;
 

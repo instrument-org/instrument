@@ -1,11 +1,10 @@
-import { REGISTRY_FOLDER_NAMES } from "../constants";
-import { absolutePathJoin } from "./absolute-path-join";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 
 /** The workspace's own writable skills directory. */
 export function getWorkspaceSkillsDir() {
-  return absolutePathJoin(
-    getWorkspaceConfig().rootDir,
-    REGISTRY_FOLDER_NAMES.skills,
+  return AbsolutePathSchema.parse(
+    workspaceLayout(getWorkspaceConfig().rootDir).skillsDir,
   );
 }

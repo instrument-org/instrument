@@ -35,6 +35,7 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
@@ -50,11 +51,7 @@ import {
   machineDir,
   workspaceMachineDir,
 } from "./get-workspace-folder";
-import {
-  workspaceIndexFileOf,
-  workspaceLayoutMarks,
-  workspacePrivateDir,
-} from "./workspaces";
+import { workspaceIndexFileOf, workspaceLayoutMarks } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -79,9 +76,10 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
 export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
 
-  // Normalize the on-disk layout of any legacy tasks, and take each chat's
-  // work out of its records, before the workspace reads them. Idempotent; a
-  // failure must not block boot.
+  // Move the app's folders into the workspace's `.instrument/`, normalize
+  // the on-disk layout of any legacy tasks, and take each chat's work out of
+  // its records, before the workspace reads them. Idempotent; a failure must
+  // not block boot.
   try {
     const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({
@@ -92,6 +90,14 @@ export function createWorkspaceActor() {
     logger.info(
       `Workspace layout migration: ${Math.round(performance.now() - migrationStartedAt)}ms`,
     );
+    for (const step of migration.appFolders.done) {
+      logger.info(`App folders: ${step}`);
+    }
+    if (migration.appFolders.failed > 0) {
+      logger.warn(
+        `Left ${migration.appFolders.failed} app folder entr${migration.appFolders.failed === 1 ? "y" : "ies"} to move on the next boot`,
+      );
+    }
     if (migration.movedTaskCount > 0) {
       logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
     }
@@ -146,7 +152,7 @@ export function createWorkspaceActor() {
       aiGatewayApp,
       // The workspace's own record, in its `.instrument/`, so it moves and
       // goes with the workspace.
-      aiUsageFile: path.join(workspacePrivateDir(rootDir), "ai-usage.db"),
+      aiUsageFile: path.join(workspaceLayout(rootDir).dataDir, "ai-usage.db"),
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,

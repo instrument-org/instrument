@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { workspaceLayout } from "../../src/lib/workspace-layout";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
@@ -229,7 +230,7 @@ describe("seedWorkspace", () => {
     );
     expect(JSON.parse(preferences)).toEqual({ developerMode: true });
     await expect(
-      fs.access(path.join(userDataDir, "workspace", "chats")),
+      fs.access(workspaceLayout(path.join(userDataDir, "workspace")).chatsDir),
     ).resolves.toBeUndefined();
   });
 

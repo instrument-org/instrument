@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { workspaceLayout } from "./workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -33,7 +34,7 @@ setWorkspaceConfig({
   rootDir: WorkspaceDirSchema.parse(rootDir),
 });
 
-const skillsDir = path.join(rootDir, "skills");
+const { skillsDir } = workspaceLayout(rootDir);
 const turn = {
   id: ChatIdSchema.parse("workspace-skill-index"),
   sessionId: StoreId.newSessionId(),

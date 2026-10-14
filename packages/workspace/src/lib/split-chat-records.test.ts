@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { workspaceLayout } from "./workspace-layout";
 import { AbsolutePathSchema, RelativePathSchema } from "../schemas/paths";
 import { readMovedPaths } from "./moved-paths";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
@@ -19,7 +20,7 @@ function write(file: string, contents = "") {
 }
 
 function recordDir(id = CHAT) {
-  return path.join(workspace.path, "chats", id);
+  return path.join(workspaceLayout(workspace.path).chatsDir, id);
 }
 
 function workDir(id = CHAT) {
@@ -130,7 +131,11 @@ describe("splitChatRecords", () => {
     `);
     expect(
       listing(
-        path.join(workspace.path, ".pre-chats", "chat-task-records", CHAT),
+        path.join(
+          workspaceLayout(workspace.path).setAsideDir,
+          "chat-task-records",
+          CHAT,
+        ),
       ),
     ).toMatchInlineSnapshot(`
       [
@@ -167,7 +172,7 @@ describe("splitChatRecords", () => {
 
     expect(readMovedPaths(machine.path)).toEqual([
       {
-        from: path.join(workspace.path, "chats"),
+        from: workspaceLayout(workspace.path).chatsDir,
         to: path.join(machine.path, "work"),
       },
       {
@@ -189,7 +194,10 @@ describe("splitChatRecords", () => {
   });
 
   it("leaves a chat the 1.x migration has not finished, under its dotted name", () => {
-    const staged = path.join(workspace.path, "chats", ".staging-chat");
+    const staged = path.join(
+      workspaceLayout(workspace.path).chatsDir,
+      ".staging-chat",
+    );
     write(path.join(staged, ".instrument", "chat.db"));
     write(path.join(staged, "work", "draft.md"));
 

@@ -20,13 +20,14 @@ import {
 } from "xstate";
 
 import { instrumentAgent } from "../../agents/instrument";
-import { APPS_DIR_NAME, CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
 import { sessionOfChat } from "../../lib/record-folders";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
+import { workspaceLayout } from "../../lib/workspace-layout";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
 import {
@@ -301,12 +302,13 @@ export const workspaceMachine = setup({
 }).createMachine({
   context: ({ input, self, spawn }) => {
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
+    const layout = workspaceLayout(rootDir);
     const workspaceConfig: WorkspaceConfig = {
       ...(input.aiUsageFile && {
         aiUsageFile: AbsolutePathSchema.parse(input.aiUsageFile),
       }),
       apps: input.apps,
-      appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
+      appsDir: AbsolutePathSchema.parse(layout.appsDir),
       appVersion: input.appVersion,
       browser: input.browser,
       captureException: input.captureException,
@@ -342,7 +344,7 @@ export const workspaceMachine = setup({
       rootDir,
       runtimeDir: AbsolutePathSchema.parse(input.runtimeDir),
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
-      chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
+      chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
       legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),

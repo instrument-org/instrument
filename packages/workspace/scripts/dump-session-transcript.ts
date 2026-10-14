@@ -4,15 +4,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import {
-  CHAT_DB_FILE_NAME,
-  CHATS_DIR_NAME,
-  TASKS_DIR_NAME,
-} from "../src/constants";
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+
+import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getChatSettings } from "../src/lib/chat-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
+import { WORKSPACE_DATA_ENTRIES } from "../src/lib/workspace-layout";
 import { ChatDirSchema } from "../src/schemas/paths";
 import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -42,13 +41,13 @@ if (!inputPath) {
 
 const dir = ChatDirSchema.parse(path.resolve(inputPath));
 
-// The workspace root is above `chats/<chat>` or a 1.x `tasks/<id>`, and
-// chats are found by scanning its `chats/`.
+// The workspace root is above `.instrument/chats/<chat>` or a 1.x
+// `tasks/<id>`, and chats are found by scanning its `.instrument/chats/`.
 const parts = dir.split(path.sep);
-const chatsAt = parts.lastIndexOf(CHATS_DIR_NAME);
+const chatsAt = parts.lastIndexOf(WORKSPACE_DATA_ENTRIES.chats);
 const rootDir =
-  chatsAt > 0
-    ? parts.slice(0, chatsAt).join(path.sep)
+  chatsAt > 1 && parts[chatsAt - 1] === PRIVATE_FOLDER_NAME
+    ? parts.slice(0, chatsAt - 1).join(path.sep)
     : path.dirname(path.dirname(dir));
 
 const settings = await getChatSettings(dir);

@@ -1,21 +1,18 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
-import { type AbsolutePath } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
+import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { getWorkspaceConfig } from "./workspace-config";
-
-const WINDOW_FOLDER_NAME = "window";
+import { workspaceLayout } from "./workspace-layout";
 
 /**
- * The window's own record folder, `.instrument/window/` at the workspace
- * root, standing where a chat's record folder stands for what is scoped to
- * the window (its tabs' pages are kept in the `chat.db` inside it).
+ * The window's own record folder, `.instrument/window/` in the workspace,
+ * standing where a chat's record folder stands for what is scoped to the
+ * window (its tabs' pages are kept in the `chat.db` inside it).
  */
 export function windowDir(
   rootDir: AbsolutePath = getWorkspaceConfig().rootDir,
 ): AbsolutePath {
-  return absolutePathJoin(rootDir, PRIVATE_FOLDER_NAME, WINDOW_FOLDER_NAME);
+  return AbsolutePathSchema.parse(workspaceLayout(rootDir).windowDir);
 }
 
 /** Makes the window's folder, which its tabs' store opens inside. */

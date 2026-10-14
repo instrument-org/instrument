@@ -7,7 +7,6 @@ import path from "node:path";
 
 import {
   CHAT_DB_FILE_NAME,
-  CHATS_DIR_NAME,
   LEGACY_TASK_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
   TASK_STATE_FILE_NAME,
@@ -22,8 +21,14 @@ import {
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
+import {
+  type AppFoldersMove,
+  moveAppFoldersIntoDataDir,
+} from "./move-app-folders";
+import { removeIfEmptySync } from "./move-entry";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
 import { windowDir } from "./window-paths";
+import { workspaceLayout } from "./workspace-layout";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -51,12 +56,14 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // build writes after the sweep, stays as it is until the next version bump.
 // 5: each chat's work moved out of the folder holding its records
 // (splitChatRecords).
-const WORKSPACE_LAYOUT_VERSION = 5;
+// 6: the app's folders moved from the workspace's top level into its
+// `.instrument/` (moveAppFoldersIntoDataDir).
+const WORKSPACE_LAYOUT_VERSION = 6;
 
 // The temp folder an external browser cloned the person's Chrome profile
 // into, in the workspace's `.instrument/`, which nothing writes since that
 // browser was removed. Spelled out: it is a name from builds before.
-const EXTERNAL_BROWSER_TMP_PATH = [PRIVATE_FOLDER_NAME, "external-browser-tmp"];
+const EXTERNAL_BROWSER_TMP_DIR_NAME = "external-browser-tmp";
 
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
 // inherited it as TMPDIR. Each is a copy of the user's real profile -- cookies,
@@ -83,6 +90,9 @@ export interface LayoutMarkStore {
 }
 
 export interface WorkspaceLayoutMigration {
+  // What moving the app's folders into the workspace's `.instrument/` did,
+  // for the boot log.
+  appFolders: AppFoldersMove;
   // What splitting each chat's records from its work did, for the boot log.
   chatRecords: ChatRecordsSplit;
   // Task folder ids left in place because a task with the same id already
@@ -102,10 +112,13 @@ export interface WorkspaceLayoutMigration {
 // 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: the
 //    legacyProjectsMigrated mark runs the pass at most once; isProjectFolder
 //    skips any real project folder (load-bearing: it survives a lost mark).
-// 2. Normalize tasks under tasks/ to current layout, then make 1.x tasks into
-//    chats and projects into topics, then split every chat's records from its
-//    work, which the 1.x tasks just made into chats need as much as the
-//    chats an earlier build made. Idempotent. Guard: the layoutVersion
+// 2. Move the app's folders into the workspace's `.instrument/`, normalize
+//    tasks under tasks/ to current layout, then make 1.x tasks into chats and
+//    projects into topics, then split every chat's records from its work,
+//    which the 1.x tasks just made into chats need as much as the chats an
+//    earlier build made. The folders move first, so the steps after it
+//    (and a later sweep finishing what one left) find every chat and topic
+//    where it now lives. Idempotent. Guard: the layoutVersion
 //    mark skips it once a sweep at the current version has completed, and
 //    is written only after one completes with nothing left over, so a sweep a
 //    crash cut short retries on the next boot. It also runs whenever pass 1
@@ -122,12 +135,14 @@ export function migrateWorkspaceLayout({
   marks: LayoutMarkStore;
   rootDir: string;
 }): WorkspaceLayoutMigration {
-  let migration: Omit<WorkspaceLayoutMigration, "chatRecords" | "legacyTasks"> =
-    {
-      conflictedTaskIds: [],
-      movedTaskCount: 0,
-      removedBrowserProfileCloneCount: 0,
-    };
+  let migration: Omit<
+    WorkspaceLayoutMigration,
+    "appFolders" | "chatRecords" | "legacyTasks"
+  > = {
+    conflictedTaskIds: [],
+    movedTaskCount: 0,
+    removedBrowserProfileCloneCount: 0,
+  };
   const { layoutVersion, legacyProjectsMigrated } = marks.read();
   const legacyMigrationRan = legacyProjectsMigrated !== true;
   if (legacyMigrationRan) {
@@ -138,6 +153,7 @@ export function migrateWorkspaceLayout({
   if (!legacyMigrationRan && layoutVersion === WORKSPACE_LAYOUT_VERSION) {
     return {
       ...migration,
+      appFolders: { done: [], failed: 0 },
       chatRecords: { done: [], failed: 0 },
       legacyTasks: {
         adoptedCount: 0,
@@ -148,6 +164,7 @@ export function migrateWorkspaceLayout({
     };
   }
 
+  const appFolders = moveAppFoldersIntoDataDir({ machineDir, rootDir });
   renameChatDatabases(rootDir);
   const removedBrowserProfileCloneCount = normalizeTasks(
     path.join(rootDir, TASKS_DIR_NAME),
@@ -155,20 +172,32 @@ export function migrateWorkspaceLayout({
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
   const legacyTasks = migrateLegacyTasks(rootDir);
+  // 1.x kept its tasks there, and nothing else is: once they are chats, the
+  // folder goes.
+  removeIfEmptySync(path.join(rootDir, TASKS_DIR_NAME));
   // After the 1.x migration, whose chats it splits too.
   const chatRecords = splitChatRecords({ machineDir, rootDir });
-  fs.rmSync(path.join(rootDir, ...EXTERNAL_BROWSER_TMP_PATH), {
-    force: true,
-    recursive: true,
-  });
+  fs.rmSync(
+    path.join(workspaceLayout(rootDir).dataDir, EXTERNAL_BROWSER_TMP_DIR_NAME),
+    {
+      force: true,
+      recursive: true,
+    },
+  );
   // A task or project left over, a chat left staged with its task inside, or
-  // an entry a split could not move, is finished by the next boot's sweep.
-  if (legacyTasks.leftOver === 0 && chatRecords.failed === 0) {
+  // an entry a move or a split could not move, is finished by the next
+  // boot's sweep.
+  if (
+    appFolders.failed === 0 &&
+    legacyTasks.leftOver === 0 &&
+    chatRecords.failed === 0
+  ) {
     marks.write({ layoutVersion: WORKSPACE_LAYOUT_VERSION });
   }
 
   return {
     ...migration,
+    appFolders,
     chatRecords,
     legacyTasks,
     removedBrowserProfileCloneCount,
@@ -214,11 +243,14 @@ function mergeDirInto(source: string, destination: string) {
 
 function migrateLegacyProjectsDir(
   rootDir: string,
-): Omit<WorkspaceLayoutMigration, "chatRecords" | "legacyTasks"> {
+): Omit<
+  WorkspaceLayoutMigration,
+  "appFolders" | "chatRecords" | "legacyTasks"
+> {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
   const migration: Omit<
     WorkspaceLayoutMigration,
-    "chatRecords" | "legacyTasks"
+    "appFolders" | "chatRecords" | "legacyTasks"
   > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
@@ -331,7 +363,7 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
  * left under a chat's `tasks/` stays as it is.
  */
 function renameChatDatabases(rootDir: string) {
-  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
+  const { chatsDir } = workspaceLayout(rootDir);
   const chats = fs.existsSync(chatsDir)
     ? fs
         .readdirSync(chatsDir, { withFileTypes: true })

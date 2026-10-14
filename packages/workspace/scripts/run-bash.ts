@@ -38,6 +38,7 @@ import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { MountedFolder } from "../src/schemas/mounted-folder";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
@@ -111,9 +112,8 @@ function parseArgs(argv: string[]) {
 const args = parseArgs(process.argv.slice(2));
 
 const rootDir = path.resolve(os.tmpdir(), "instrument-bash-repl");
-const chatsDir = args.chatsDir
-  ? path.resolve(args.chatsDir)
-  : path.join(rootDir, "chats");
+const layout = workspaceLayout(rootDir);
+const chatsDir = args.chatsDir ? path.resolve(args.chatsDir) : layout.chatsDir;
 // Outside the workspace, as the app keeps this computer's folder for it.
 const machineDir = path.resolve(os.tmpdir(), "instrument-bash-repl-machine");
 const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
@@ -131,7 +131,7 @@ const uvBinPath = AbsolutePathSchema.parse(
 
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
-  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
+  appsDir: AbsolutePathSchema.parse(layout.appsDir),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
   captureException: () => {

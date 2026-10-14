@@ -44,7 +44,10 @@ export const WORKSPACE_DATA_ENTRIES = {
    * `.instrument/settings.json` and its instructions in `instructions.md`.
    */
   topics: "topics",
-  /** The window's own record folder, scoped as a chat's is. */
+  /**
+   * Where earlier builds kept a record folder for the window, which is
+   * scoped as a chat is; removed at launch (`settleWorkspaceDb`).
+   */
   window: "window",
 } as const;
 

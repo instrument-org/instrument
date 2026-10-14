@@ -7,7 +7,6 @@ import {
   outputFolderPath,
 } from "../../lib/chat/output-folder";
 import { resolveChat } from "../../lib/record-folders";
-import { ensureWindowDir } from "../../lib/window-paths";
 import { MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
 import {
@@ -18,9 +17,9 @@ import { base } from "../base";
 import { publisher } from "../publisher";
 
 /**
- * Makes what the window opens on, its own folder and the workspace folder
- * every chat reaches, and answers with the folders the window reaches, by the
- * name each is mounted under.
+ * Makes what the window opens on, the workspace folder every chat reaches,
+ * and answers with the folders the window reaches, by the name each is
+ * mounted under.
  */
 const ensure = base
   .output(
@@ -29,7 +28,6 @@ const ensure = base
     }),
   )
   .handler(async ({ context }) => {
-    await ensureWindowDir();
     const made = await ensureOutputFolder();
     // Decorating the folder reads it, which macOS answers for a folder in
     // Documents with its own prompt, so only a folder the app already has

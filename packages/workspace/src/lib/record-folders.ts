@@ -11,7 +11,6 @@ import {
 import { StoreId } from "../schemas/store-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { TypedError } from "./errors";
-import { windowDir } from "./window-paths";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -45,15 +44,12 @@ let handed: Map<ChatId, ChatDir> | undefined;
 
 /**
  * The folder a chat's records live in: its `chat.db`, `settings.json`,
- * `attachments/` and handoff notes. The window, which is no chat, has one of
- * its own in the workspace's `.instrument/`. An id no chat has throws
- * `TypedError.NotFound` rather than naming a folder that is not there; ask
- * `resolveChat` where an unknown id is an answer rather than a mistake.
+ * `attachments/` and handoff notes. An id no chat has, the window's among
+ * them, throws `TypedError.NotFound` rather than naming a folder that is not
+ * there; ask `resolveChat` where an unknown id is an answer rather than a
+ * mistake.
  */
 export function chatDir(id: ChatId): ChatDir {
-  if (id === WINDOW_ID) {
-    return ChatDirSchema.parse(windowDir());
-  }
   const given = handed?.get(id);
   if (given) {
     return given;

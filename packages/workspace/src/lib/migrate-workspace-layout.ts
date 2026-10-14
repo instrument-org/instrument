@@ -12,7 +12,6 @@ import {
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
-import { AbsolutePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
 import { foldTaskWorkDir } from "./fold-task-work-dir";
@@ -33,7 +32,6 @@ import {
 } from "./move-entry";
 import { recordMovedPaths } from "./moved-paths";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
-import { windowDir } from "./window-paths";
 import { workspaceLayout } from "./workspace-layout";
 
 // Legacy on-disk names this migration renames to their current equivalents.
@@ -437,10 +435,7 @@ function renameChatDatabases(rootDir: string) {
         .filter((entry) => entry.isDirectory())
         .map((entry) => path.join(chatsDir, entry.name))
     : [];
-  for (const folder of [
-    ...chats,
-    windowDir(AbsolutePathSchema.parse(rootDir)),
-  ]) {
+  for (const folder of [...chats, workspaceLayout(rootDir).windowDir]) {
     renameChatDatabase(path.join(folder, PRIVATE_FOLDER_NAME));
   }
 }

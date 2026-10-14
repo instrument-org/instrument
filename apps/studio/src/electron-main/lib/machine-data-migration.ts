@@ -9,10 +9,13 @@ import {
   workspaceSettingsDirOf,
 } from "./settings-migration";
 import {
+  hasWorkspaceIdentity,
   openElsewhereBy,
+  readRegistry,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   settleWorkspace,
+  workspaceIndexFileOf,
   workspaceMachineDirOf,
   workspacePrivateDir,
   writeJsonAtomic,
@@ -64,6 +67,9 @@ const WINDOW_FILES = ["layout.json", "view.json", "window-state.json"];
 /** The in-app browser's lists, which name this computer's files and apps. */
 const BROWSER_FILES = ["downloads.json", "external-app-links.json"];
 
+/** Where every workspace's index was kept before each had a machine folder. */
+const LEGACY_INDEXES_DIR = "indexes";
+
 /** A SQLite file and the files beside it that must travel with it. */
 const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
 
@@ -109,6 +115,7 @@ export function moveMachineData({
       WORKSPACE_FORMAT_VERSION
     ) {
       removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
+      removeLegacyIndexes({ done, userDataDir });
       return { done, machineDir };
     }
     const marker = path.join(machineDir, UNFINISHED_MARKER);
@@ -140,7 +147,7 @@ export function moveMachineData({
       }
     }
     foldLayoutMarkers(workspace.path, done);
-    removeLeftovers({ done, userDataDir, workspacePath: workspace.path });
+    removeLeftovers({ done, workspacePath: workspace.path });
 
     if (failed === 0) {
       writeWorkspaceIdentity(workspace.path, {
@@ -152,6 +159,7 @@ export function moveMachineData({
         `workspace at format version ${WORKSPACE_FORMAT_VERSION.toString()}, machine data in ${machineDir}`,
       );
       removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
+      removeLegacyIndexes({ done, userDataDir });
     }
   } catch (error) {
     done.push(`machine data move stopped: ${String(error)}`);
@@ -250,9 +258,7 @@ function plannedMoves({
   } catch {
     // No settings folder: nothing to move out of it.
   }
-  // The index was named by a hash of the workspace's folder in a folder
-  // every workspace shared.
-  const index = `${createHash("sha256").update(workspacePath).digest("hex").slice(0, 16)}.db`;
+  const index = workspaceIndexFileOf(machineDir);
   const into = (from: string, toDir: string, names: Iterable<string>) =>
     [...names].map((name): [string, string] => [
       path.join(from, name),
@@ -284,11 +290,10 @@ function plannedMoves({
       path.join(workspacePath, ".app-servers"),
       path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.appServers),
     ],
-    ...into(
-      path.join(userDataDir, "indexes"),
-      path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.index),
-      SQLITE_FILES.map((suffix) => `${index}${suffix}`),
-    ),
+    ...SQLITE_FILES.map((suffix): [string, string] => [
+      `${legacyIndexFileOf(userDataDir, workspacePath)}${suffix}`,
+      `${index}${suffix}`,
+    ]),
     ...into(settingsDir, dataDir, TRAVELING_FILES),
   ];
 }
@@ -331,6 +336,55 @@ function removeTakenInRootKeys({
   }
 }
 
+/**
+ * A workspace's index from before it had a machine folder: in one folder
+ * every workspace shared, named by a hash of the workspace folder's path.
+ */
+function legacyIndexFileOf(userDataDir: string, workspacePath: string) {
+  const name = createHash("sha256")
+    .update(workspacePath)
+    .digest("hex")
+    .slice(0, 16);
+  return path.join(userDataDir, LEGACY_INDEXES_DIR, `${name}.db`);
+}
+
+/**
+ * The folder every workspace's index was kept in, once no registered
+ * workspace still to be moved has its index there. What is left is the index
+ * of a workspace since deleted, or of a folder since moved, which nothing
+ * reads again, and an index is rebuilt from the chats anyway. On every boot,
+ * like the root key copies, so the last workspace to move takes it.
+ */
+function removeLegacyIndexes({
+  done,
+  userDataDir,
+}: {
+  done: string[];
+  userDataDir: string;
+}) {
+  const dir = path.join(userDataDir, LEGACY_INDEXES_DIR);
+  if (!entryExists(dir)) {
+    return;
+  }
+  const stillToMove = readRegistry(userDataDir).workspaces.filter(
+    (entry) =>
+      hasWorkspaceIdentity(entry.path) &&
+      readWorkspaceIdentity(entry.path).formatVersion <
+        WORKSPACE_FORMAT_VERSION,
+  );
+  if (
+    stillToMove.some((entry) =>
+      entryExists(legacyIndexFileOf(userDataDir, entry.path)),
+    )
+  ) {
+    return;
+  }
+  fs.rmSync(dir, { force: true, recursive: true });
+  done.push(
+    `removed ${dir}, which held no index a workspace still has to move`,
+  );
+}
+
 function fileStats(file: string): fs.Stats | undefined {
   try {
     const stats = fs.statSync(file);
@@ -343,15 +397,13 @@ function fileStats(file: string): fs.Stats | undefined {
 /**
  * What nothing reads any more: `window.json`, retired with what it held; the
  * open mark, now kept on this computer's side, which no live process holds by
- * the time this runs; and the folders the moves emptied.
+ * the time this runs; and the settings folder the moves emptied.
  */
 function removeLeftovers({
   done,
-  userDataDir,
   workspacePath,
 }: {
   done: string[];
-  userDataDir: string;
   workspacePath: string;
 }) {
   const dataDir = workspacePrivateDir(workspacePath);
@@ -362,14 +414,9 @@ function removeLeftovers({
   fs.rmSync(path.join(dataDir, WORKSPACE_MACHINE_ENTRIES.openMark), {
     force: true,
   });
-  for (const dir of [
-    workspaceSettingsDirOf(workspacePath),
-    path.join(userDataDir, "indexes"),
-  ]) {
-    try {
-      fs.rmdirSync(dir);
-    } catch {
-      // Not empty, or not there: either way it stays as it is.
-    }
+  try {
+    fs.rmdirSync(workspaceSettingsDirOf(workspacePath));
+  } catch {
+    // Not empty, or not there: either way it stays as it is.
   }
 }

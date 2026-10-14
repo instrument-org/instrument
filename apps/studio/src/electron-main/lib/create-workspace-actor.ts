@@ -16,7 +16,7 @@ import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-fo
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { APP_NAME, WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachChats,
@@ -49,7 +49,11 @@ import {
   getWorkspaceFolder,
   workspaceMachineDir,
 } from "./get-workspace-folder";
-import { workspaceLayoutMarks, workspacePrivateDir } from "./workspaces";
+import {
+  workspaceIndexFileOf,
+  workspaceLayoutMarks,
+  workspacePrivateDir,
+} from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
@@ -164,10 +168,7 @@ export function createWorkspaceActor() {
       getUser: getSignedInUser,
       // In the workspace's machine folder rather than in the workspace: the
       // index is derived, and a workspace may sit in a synced folder.
-      indexesDir: path.join(
-        workspaceMachineDir(),
-        WORKSPACE_MACHINE_ENTRIES.index,
-      ),
+      indexFile: workspaceIndexFileOf(workspaceMachineDir()),
       // Where the folder rules, the browser profile and the apps' servers
       // are, which the agent never reaches.
       workspaceMachineDir: workspaceMachineDir(),

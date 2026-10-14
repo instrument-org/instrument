@@ -374,6 +374,15 @@ export function workspaceMachineDirOf(
   return path.join(userDataDir, WORKSPACES_DATA_DIR_NAME, localId);
 }
 
+/**
+ * The workspace's index of its chats on this computer, in its machine folder
+ * (`workspaceMachineDirOf`) under one name, so a workspace whose folder moves
+ * keeps it.
+ */
+export function workspaceIndexFileOf(machineDir: string): string {
+  return path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.index, "chats.db");
+}
+
 export function workspacePrivateDir(workspacePath: string): string {
   return path.join(workspacePath, PRIVATE_FOLDER_NAME);
 }

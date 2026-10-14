@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { folderLabel } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -41,7 +42,7 @@ export function StorageSection() {
           Where {APP_NAME} keeps your chats and tasks on your computer
         </p>
       </div>
-      <WorkspaceLocation />
+      <InstrumentFolder />
       <UnrecognizedFolders />
     </div>
   );
@@ -159,7 +160,7 @@ function UnrecognizedFolders() {
           <h4 className="text-sm font-medium">Broken chats and tasks</h4>
         </div>
         <p className="text-sm text-muted-foreground">
-          These chats and tasks are included in your workspace, but {APP_NAME}{" "}
+          These chats and tasks are in your Instrument folder, but {APP_NAME}{" "}
           can&apos;t show them because of problems in the folders. You can
           reveal them on your computer, or delete them to tidy up.
         </p>
@@ -220,37 +221,193 @@ function UnrecognizedFolders() {
   );
 }
 
-function WorkspaceLocation() {
-  const { data: location } = useQuery(
-    rpcClient.workspace.storage.location.queryOptions(),
-  );
+type FolderVerdict = RPCOutput["workspaces"]["checkFolder"];
+type MoveRefusal = Extract<FolderVerdict, { kind: "refused" }>["reason"];
 
-  if (!location) {
+/** Why a folder the person picked can't take their Instrument folder, said to them. */
+const REFUSALS: Record<MoveRefusal, string> = {
+  "app-data": `That folder holds ${APP_NAME}’s own data.`,
+  current: "That’s your Instrument folder, or a folder inside it or around it.",
+  "home-or-drive": `${APP_NAME} needs a folder of its own, not your whole home folder or disk.`,
+  missing: "That folder isn’t there anymore.",
+  "not-absolute": "That folder isn’t there anymore.",
+  "other-workspace":
+    "That folder holds another Instrument folder, or is inside one.",
+  pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
+  taken: `It already has a folder named .instrument that ${APP_NAME} didn’t make.`,
+  unfinished: `${APP_NAME} is still updating your folder from an earlier version. Quit and reopen ${APP_NAME}, then try again.`,
+  unwritable: `${APP_NAME} doesn’t have permission to save files there.`,
+};
+
+/**
+ * Where the person's Instrument folder is, and moving it: a folder picked
+ * in the system's own panel, then a confirmation that the app restarts to
+ * move it there, or to open the Instrument folder already in it.
+ */
+function InstrumentFolder() {
+  const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
+  const [picked, setPicked] = useState<null | {
+    path: string;
+    verdict: Exclude<FolderVerdict, { kind: "refused" }>;
+  }>(null);
+  // Held from the confirmation until the app quits: the restart begins only
+  // after the running-agent prompt and the quit teardown, a few seconds in
+  // which a closed dialog would read as nothing happening.
+  const [restarting, setRestarting] = useState(false);
+
+  if (!folder) {
     return null;
   }
 
+  const refuse = (reason: MoveRefusal) => {
+    toast.error(`${APP_NAME} can’t move your folder there`, {
+      description: REFUSALS[reason],
+    });
+  };
+
+  const choose = async () => {
+    const choice = await rpcClient.utils.showFolderPicker.call({
+      buttonLabel: "Choose",
+      message: "Choose where to keep your Instrument folder.",
+      startingAt: folder.suggested,
+    });
+    if (!choice) {
+      return;
+    }
+    const verdict = await rpcClient.workspaces.checkFolder.call({
+      path: choice.path,
+    });
+    if (verdict.kind === "refused") {
+      refuse(verdict.reason);
+      return;
+    }
+    setPicked({ path: choice.path, verdict });
+  };
+
+  const confirm = async () => {
+    if (!picked) {
+      return;
+    }
+    setRestarting(true);
+    try {
+      if (picked.verdict.kind === "movable") {
+        const moved = await rpcClient.workspaces.move.call({
+          path: picked.path,
+        });
+        if (moved.kind === "refused") {
+          refuse(moved.reason);
+        } else if (moved.kind === "on-next-launch") {
+          toast.success(
+            `${APP_NAME} will move your folder the next time it opens.`,
+          );
+        }
+        if (moved.kind !== "relaunching") {
+          setPicked(null);
+          setRestarting(false);
+        }
+        return;
+      }
+      const { outcome } = await rpcClient.workspaces.open.call({
+        path: picked.path,
+      });
+      if (outcome === "unsupported") {
+        toast.success(
+          `${APP_NAME} will open that folder the next time it opens.`,
+        );
+      }
+      if (outcome !== "relaunching") {
+        setPicked(null);
+        setRestarting(false);
+      }
+    } catch (error) {
+      toast.error(`${APP_NAME} couldn’t move your folder`, { cause: error });
+      setPicked(null);
+      setRestarting(false);
+    }
+  };
+
+  const name = picked ? folderLabel(picked.path) : "";
+  const opensInstead = picked?.verdict.kind === "workspace";
+
   return (
-    <section className="space-y-2" {...settingAnchor("workspace-location")}>
+    <section className="space-y-2" {...settingAnchor("instrument-folder")}>
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-sm font-medium text-muted-foreground">
-          Workspace location
+          Instrument folder
         </h4>
-        <Button
-          onClick={() => {
-            void showInFolder(location.rootDir, { kind: "folder" });
-          }}
-          size="sm"
-          variant="outline"
-        >
-          <ShowInFolderIcon className="size-4" kind="folder" />
-          {showInFolderLabel("folder")}
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            onClick={() => {
+              void showInFolder(folder.path, { kind: "folder" });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <ShowInFolderIcon className="size-4" kind="folder" />
+            {showInFolderLabel("folder")}
+          </Button>
+          {!folder.pinned && (
+            <Button
+              onClick={() => {
+                void choose();
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Move…
+            </Button>
+          )}
+        </div>
       </div>
+      <p className="text-sm text-muted-foreground">
+        {folder.inAppData
+          ? `Your chats, topics, and memories are kept here, with ${APP_NAME}’s own data. You can move them to a folder you choose, and what ${APP_NAME} makes for you will go there too.`
+          : `Your chats, topics, and memories are kept here, and what ${APP_NAME} makes for you goes here too.`}
+      </p>
       <div className="rounded-lg border bg-muted/40 px-3 py-2 select-text">
         <code className="font-mono text-xs break-all text-foreground">
-          {location.rootDir}
+          {folder.path}
         </code>
       </div>
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !restarting) {
+            setPicked(null);
+          }
+        }}
+        open={picked !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {opensInstead
+                ? `“${name}” is already an Instrument folder`
+                : `Move your Instrument folder to “${name}”?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {opensInstead
+                ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
+                : `${APP_NAME} will restart to move your chats, topics, and memories there. What ${APP_NAME} makes for you will go there too.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={restarting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={restarting}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirm();
+              }}
+            >
+              {restarting
+                ? "Restarting…"
+                : opensInstead
+                  ? "Restart and Open"
+                  : "Restart and Move"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

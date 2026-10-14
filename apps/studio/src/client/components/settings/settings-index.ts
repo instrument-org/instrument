@@ -139,10 +139,10 @@ export const SETTINGS_INDEX = [
     title: "New skill",
   },
   {
-    detail: "Where your chats and tasks live on this computer",
-    id: "workspace-location",
+    detail: "Where your chats, topics, and memories are kept, and moving them",
+    id: "instrument-folder",
     tab: "Storage",
-    title: "Workspace location",
+    title: "Instrument folder",
   },
   {
     detail: "Chats and tasks with problems in their folders",
@@ -238,8 +238,7 @@ export const SETTINGS_PAGES: Record<
   },
   Storage: {
     detail:
-      "Where your chats and tasks live, and fixing ones whose folders have problems.",
-    shownWhen: "some chats or tasks have problems in their folders",
+      "Where your Instrument folder is, and fixing chats and tasks whose folders have problems.",
   },
   Features: {
     detail: "Feature flags.",

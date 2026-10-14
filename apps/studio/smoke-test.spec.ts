@@ -465,16 +465,18 @@ describe("Studio Smoke Test", () => {
     childProcess.kill();
     await exited;
 
+    const workspaceDataDir = path.join(
+      tempUserDataDir,
+      "workspace",
+      ".instrument",
+    );
     const requiredPaths = [
-      path.join(tempUserDataDir, "bin"),
+      path.join(tempUserDataDir, "runtime", "bin"),
       path.join(tempUserDataDir, "machine-state.json"),
-      path.join(
-        tempUserDataDir,
-        "workspace",
-        ".instrument",
-        "settings",
-        "preferences.json",
-      ),
+      path.join(workspaceDataDir, "preferences.json"),
+      path.join(workspaceDataDir, "workspace.json"),
+      // The default workspace's machine folder, named by its local id.
+      path.join(tempUserDataDir, "workspaces-data", "default", "owner.json"),
     ];
 
     for (const filePath of requiredPaths) {
@@ -502,5 +504,16 @@ describe("Studio Smoke Test", () => {
       Object.keys(appState),
       "machine-state.json: no install identifier",
     ).not.toContain("telemetryId");
+
+    // The machine data move ran on the first launch and recorded the format
+    // it left the workspace in.
+    const identity = JSON.parse(
+      await fs.readFile(path.join(workspaceDataDir, "workspace.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(
+      identity.formatVersion,
+      "workspace.json: formatVersion is recorded on first launch",
+    ).toEqual(expect.any(Number));
+    expect(identity.formatVersion).toBeGreaterThan(0);
   });
 });

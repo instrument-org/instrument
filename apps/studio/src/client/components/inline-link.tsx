@@ -9,7 +9,6 @@ import {
 import {
   destinationParts,
   mailtoAddress,
-  originToDisclose,
   webUrl,
 } from "@/client/lib/link-target";
 import { cn } from "@/client/lib/utils";
@@ -86,21 +85,15 @@ export const INLINE_CHIP_ICON_CLASS_NAME =
  * specificity, and the typography ones are declared later.
  *
  * The anchor draws no rule of its own, which is the other half of what
- * `no-underline` is for: the parts inside it each draw their own, and one
- * declared out here would paint over all of them in the label's color.
+ * `no-underline` is for: the label inside it draws its own, and one declared
+ * out here would run under the icon as well.
  */
 const INLINE_LINK_CLASS_NAME = "font-normal! no-underline!";
 
 /**
- * The underline, on the parts rather than on the anchor around them.
- *
- * A decoration is painted in the color of the element that declares it, and a
- * descendant cannot repaint one it inherited. Declared on the anchor, the rule
- * under the muted destination came out in the label's color, which is the
- * brightest thing in the sentence sitting under the quietest. Each part drawing
- * its own keeps every underline the color of the text above it, and leaves the
- * icon in front unruled, which an anchor-wide decoration would have struck
- * through.
+ * The underline, on the label rather than on the anchor around it, which
+ * leaves the icon in front unruled where an anchor-wide decoration would have
+ * struck through it.
  */
 const INLINE_LINK_UNDERLINE_CLASS_NAME = "underline";
 
@@ -188,26 +181,24 @@ export function ChipButton({
  * One link, drawn as whatever its destination makes it.
  *
  * The single place that decides, so a link reads the same in a reply and in the
- * message that prompted it. `children` is for a caller holding markup for the
- * label -- a host in backticks, a bolded title -- and `label` is that same label
- * as text, which is what the decision is made from either way.
+ * message that prompted it. The decision is made from `href` alone, and
+ * `children` is the label, markup included -- a host in backticks, a bolded
+ * title.
  */
 export function InlineLink({
   children,
   className,
   href,
-  label,
   ...props
 }: Omit<React.ComponentProps<"a">, "children"> & {
-  children?: ReactNode;
+  children: ReactNode;
   href: string;
-  label: string;
 }) {
   const address = mailtoAddress(href);
   if (address) {
     return (
       <MailLink address={address} className={className}>
-        {children ?? label}
+        {children}
       </MailLink>
     );
   }
@@ -216,14 +207,14 @@ export function InlineLink({
   if (link) {
     return (
       <AppLink className={className} link={link}>
-        {children ?? label}
+        {children}
       </AppLink>
     );
   }
 
   return (
-    <WebLink {...props} className={className} href={href} label={label}>
-      {children ?? label}
+    <WebLink {...props} className={className} href={href}>
+      {children}
     </WebLink>
   );
 }
@@ -350,8 +341,7 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
  * Read in one pass by the same order a reader checks it in: the scheme, then
  * the host that decides where the click lands, then the path it asks that host
  * for. Only the host is at full strength, which is what lets a glance answer
- * the question without reading the rest -- and it is the same string the origin
- * beside the label would have shown, so the two never disagree.
+ * the question without reading the rest.
  *
  * Credentials are muted along with the scheme rather than drawn as part of the
  * host, because they are chosen by whoever wrote the href and decide nothing
@@ -379,9 +369,9 @@ function LinkDestination({ url }: { url: URL }) {
 /**
  * A link to an address, as a chip naming who the mail is for.
  *
- * A chip rather than a disclosed origin because an address is already the whole
- * destination: there is nothing about it left to reveal, and the thing worth
- * saying is that clicking it opens a message rather than a page.
+ * A chip rather than a page's link and tooltip, because an address is already
+ * the whole destination: there is nothing about it left to reveal, and the
+ * thing worth saying is that clicking it opens a message rather than a page.
  */
 function MailLink({
   address,
@@ -412,8 +402,8 @@ function MailLink({
  *
  * A stand-in glyph was the other option and says less than the space it takes:
  * a globe in front of a link is a picture of the word link. Where an icon
- * cannot be had, the label and the origin beside it were already carrying the
- * whole message.
+ * cannot be had, the label and its underline were already carrying the whole
+ * message.
  *
  * Read the way every favicon is, from the app's own store, and a site found
  * this session to have none draws none at once: a transcript naming one host
@@ -461,8 +451,12 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
 }
 
 /**
- * A link to a page: the site's icon, the label, and the origin it leads to when
- * the label does not already say.
+ * A link to a page: the site's icon, then the label.
+ *
+ * The sentence carries nothing else: a link in a reply is read inside a
+ * conversation the reader is already following, the icon says which site it
+ * leads to, and an address after every label is what makes a paragraph of
+ * sources hard to read.
  *
  * One shape for all of them, whether the label is a sentence or the URL itself.
  * The alternative was a chip wherever the label happened to be exactly an
@@ -474,8 +468,8 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
  * and the label is wrapped in `bdi` so a right-to-left one cannot reorder
  * itself around what sits beside it.
  *
- * Hovering it gives up the rest: the full URL, path and query included, which
- * is what a browser puts in the status bar of a window this app does not have.
+ * Hovering it gives up the full URL, path and query included, which is what a
+ * browser puts in the status bar of a window this app does not have.
  * A tooltip is where it goes instead, and the delay in front of one is what
  * makes that bearable -- a pointer crossing a paragraph of links passes over
  * them rather than pausing on one, and only the pause is a question.
@@ -484,16 +478,10 @@ function WebLink({
   children,
   className,
   href,
-  label,
   title,
   ...props
-}: React.ComponentProps<"a"> & {
-  href: string;
-  /** The label as plain text, which is what the origin is compared against. */
-  label: string;
-}) {
+}: React.ComponentProps<"a"> & { href: string }) {
   const url = webUrl(href);
-  const origin = url ? originToDisclose(label, url) : null;
 
   const anchor = (
     <ExternalLink
@@ -519,18 +507,6 @@ function WebLink({
           {children}
         </bdi>
       </span>
-      {origin !== null && (
-        // One text node rather than three: split across them, the accessible
-        // name this anchor computes has the parentheses standing off from the
-        // origin as separate words.
-        <span
-          className={cn(
-            "text-muted-foreground",
-            INLINE_LINK_UNDERLINE_CLASS_NAME,
-          )}
-          data-slot="link-origin"
-        >{` (${origin})`}</span>
-      )}
     </ExternalLink>
   );
 

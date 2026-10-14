@@ -25,7 +25,6 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
-import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
 import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
@@ -39,6 +38,7 @@ import {
   updateRegistry,
   workspaceMachineDirOf,
   type WorkspaceRegistry,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 /**

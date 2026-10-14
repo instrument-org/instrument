@@ -84,6 +84,13 @@ const WorkspaceCreatorSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
+ * The format this build keeps a workspace folder in
+ * (`WorkspaceIdentity.formatVersion`). 1: what is this computer's own lives in
+ * the workspace's machine folder.
+ */
+export const WORKSPACE_FORMAT_VERSION = 1;
+
+/**
  * What a workspace says about itself, kept inside it so a copied or moved
  * workspace keeps its name.
  */

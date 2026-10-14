@@ -10,7 +10,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   checkMoveTarget,
@@ -26,6 +25,7 @@ import {
   updateRegistry,
   workspaceMachineDirOf,
   writeWorkspaceIdentity,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 const WORKSPACE_ID = "01K0000000000000000000MOVE";

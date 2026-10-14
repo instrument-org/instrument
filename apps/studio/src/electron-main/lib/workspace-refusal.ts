@@ -2,9 +2,12 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
 import { pathWithin } from "./path-identity";
-import { type ResolvedWorkspace, WorkspaceIdentitySchema } from "./workspaces";
+import {
+  type ResolvedWorkspace,
+  WorkspaceIdentitySchema,
+  WORKSPACE_FORMAT_VERSION,
+} from "./workspaces";
 
 /**
  * Why the resolved workspace is not opened, said back to the person in a

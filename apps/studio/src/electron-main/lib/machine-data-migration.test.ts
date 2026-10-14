@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { moveMachineData } from "./machine-data-migration";
+import { migrateWorkspaceSettings } from "./settings-migration";
 import {
   defaultWorkspacePath,
   readWorkspaceIdentity,
@@ -179,6 +180,32 @@ describe("moveMachineData", () => {
     expect(done).toContain(
       `workspace at format version 1, machine data in ${machineDir}`,
     );
+  });
+
+  // A folder the person picked, or pinned, that no build made a workspace
+  // of: what is at its top level is theirs, whatever it is called.
+  it("leaves a newly picked folder's own permissions.json and .app-servers where they are", () => {
+    const picked = path.join(userDataDir, "Documents", "Projects");
+    write(path.join(picked, "permissions.json"), "the person's");
+    write(path.join(picked, ".app-servers", "notes.txt"), "the person's");
+    const workspace: ResolvedWorkspace = {
+      id: "projects",
+      isDefault: false,
+      path: picked,
+      pinned: true,
+    };
+
+    // As a boot runs them, the settings migration first.
+    migrateWorkspaceSettings({ packaged: false, userDataDir, workspace });
+    const { machineDir } = moveMachineData({ userDataDir, workspace });
+
+    expect(tree(picked)).toEqual([
+      path.join(".app-servers", "notes.txt"),
+      path.join(".instrument", "workspace.json"),
+      "permissions.json",
+    ]);
+    expect(tree(machineDir)).not.toContain("permissions.json");
+    expect(readWorkspaceIdentity(picked).formatVersion).toBe(1);
   });
 
   it("does nothing on the boots after", () => {

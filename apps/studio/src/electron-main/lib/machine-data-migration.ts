@@ -17,17 +17,11 @@ import {
   type ResolvedWorkspace,
   settleWorkspace,
   workspaceIndexFileOf,
+  WORKSPACE_FORMAT_VERSION,
   workspaceMachineDirOf,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
-
-/**
- * The format this build keeps a workspace folder in
- * (`WorkspaceIdentity.formatVersion`). 1: what is this computer's own lives in
- * the workspace's machine folder.
- */
-export const WORKSPACE_FORMAT_VERSION = 1;
 
 /**
  * Present in the machine folder while a move runs, removed once every entry
@@ -83,7 +77,11 @@ const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
  * marker files become fields of `workspace.json`.
  *
  * Runs after `settings-migration.ts`, before any store opens, once per
- * workspace: `formatVersion` in `workspace.json` says it is done. Each entry
+ * workspace: `formatVersion` in `workspace.json` says it is done. Only a
+ * workspace an earlier build made is ever below it: the settings migration
+ * takes a folder no build made a workspace of in at this format, since what
+ * is at its top level (a `permissions.json`, an `.app-servers` folder) is the
+ * person's own. Each entry
  * is renamed (copied, then removed, across volumes) only where its new place
  * is empty, so nothing is ever made again in place of what it moves, and an
  * entry that cannot be moved stays where it was and is retried on the next

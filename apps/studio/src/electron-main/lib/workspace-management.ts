@@ -4,7 +4,6 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
 import { pathKey, pathWithin, samePath } from "./path-identity";
 import {
   CURRENT_SETTINGS_VERSION,
@@ -26,6 +25,7 @@ import {
   type WorkspaceIdentity,
   writeJsonAtomic,
   writeWorkspaceIdentity,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 /**

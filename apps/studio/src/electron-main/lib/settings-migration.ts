@@ -13,6 +13,7 @@ import {
   hasWorkspaceIdentity,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
+  WORKSPACE_FORMAT_VERSION,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -173,6 +174,12 @@ export function migrateWorkspaceSettings({
       }
       writeWorkspaceIdentity(workspace.path, {
         ...identity,
+        // A folder no build made a workspace of holds nothing kept in an
+        // older format, so it starts at this one, and the machine data move
+        // never takes the person's own top-level files for the app's.
+        ...(hadIdentity || workspace.isDefault
+          ? {}
+          : { formatVersion: WORKSPACE_FORMAT_VERSION }),
         // A folder pinned from outside with nothing to say about itself is
         // named after the folder.
         name: workspace.isDefault

@@ -4,9 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
 import { inspectWorkspaceFolder } from "./workspace-refusal";
-import { type ResolvedWorkspace, writeWorkspaceIdentity } from "./workspaces";
+import {
+  type ResolvedWorkspace,
+  writeWorkspaceIdentity,
+  WORKSPACE_FORMAT_VERSION,
+} from "./workspaces";
 
 let root: string;
 let userDataDir: string;

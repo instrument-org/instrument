@@ -147,7 +147,7 @@ export function isDebInstall({
 // than exact text so a reworded upstream message still lands.
 const SQUIRREL_HANDOFF_LOG = /nativeUpdater|proxy server/i;
 
-export function installedFromDeb() {
+function installedFromDeb() {
   return isDebInstall({
     packageType: readPackageType(),
     platform: os.platform(),

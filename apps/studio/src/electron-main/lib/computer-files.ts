@@ -134,15 +134,17 @@ app.all("/*", async (c) => {
     return c.notFound();
   }
   const hostPath = await resolveThroughAliases(asked, resolveAlias);
-  if (isRefusedByName(asked) || (await isRefusedFile(hostPath))) {
-    return c.notFound();
-  }
   // The renderer's own origin is never this scheme, so every read is
   // cross-origin and `fetch()` needs the grant; the token is what gates the
   // channel, not the origin. The two range headers are what a partial reader
   // needs to see to know slices are answered and how long the whole is.
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Expose-Headers", "Accept-Ranges, Content-Range");
+  // Forbidden rather than not found, and readable by the renderer, so the
+  // file tab that asked can say the file is kept closed rather than gone.
+  if (isRefusedByName(asked) || (await isRefusedFile(hostPath))) {
+    return c.body(null, 403);
+  }
   // `?thumbnail=<px>`: the file drawn small rather than the file itself (see
   // `file-thumbnails.ts`), for a grid or a row that would otherwise decode
   // the whole file to show an inch of it. A 404 is the system having no

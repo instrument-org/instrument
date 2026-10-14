@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
@@ -215,6 +215,83 @@ describe("listComputerFolder", () => {
       }
     },
   );
+});
+
+// The app's own data, which Studio rules on (`refused-files.ts`), stood in
+// for by one folder and one file beside it.
+describe("the app's own data", () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-closed"));
+  let folder = "";
+  const at = (...names: string[]) => path.join(folder, ...names);
+
+  beforeEach(async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-closed-"));
+    await fs.mkdir(at("machine", "keys"), { recursive: true });
+    await fs.mkdir(at("machine", "work"));
+    await fs.writeFile(at("machine", "keys", "session.json"), "secret");
+    await fs.writeFile(at("machine", "state.json"), "{}");
+    await fs.writeFile(at("machine", "work", "notes.md"), "notes");
+    const closed = [at("machine", "keys"), at("machine", "state.json")];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      isRefusedFile: (hostPath) =>
+        Promise.resolve(
+          closed.some(
+            (entry) =>
+              hostPath === entry || hostPath.startsWith(`${entry}${path.sep}`),
+          ),
+        ),
+    });
+  });
+
+  afterEach(async () => {
+    const { isRefusedFile: _, ...config } = getWorkspaceConfig();
+    setWorkspaceConfig(config);
+    await fs.rm(folder, { force: true, recursive: true });
+  });
+
+  it.each([
+    {
+      expected: () => ({ kind: "listing", names: ["work"] }),
+      label: "lists a folder holding it without it",
+      listed: () => at("machine"),
+    },
+    {
+      expected: () => ({
+        kind: "refused",
+        path: at("machine", "keys"),
+        reason: "app",
+      }),
+      label: "refuses a folder of it as the app's",
+      listed: () => at("machine", "keys"),
+    },
+    {
+      expected: () => ({ kind: "listing", names: ["notes.md"] }),
+      label: "lists a folder beside it as it is",
+      listed: () => at("machine", "work"),
+    },
+  ])("$label", async ({ expected, listed }) => {
+    const listing = await listComputerFolder({ path: listed(), chatId });
+    expect(
+      listing.kind === "listing"
+        ? {
+            kind: listing.kind,
+            names: listing.entries.map((entry) => entry.name),
+          }
+        : { kind: listing.kind, path: listing.path, reason: listing.reason },
+    ).toEqual(expected());
+  });
+
+  it("leaves it out of the files named by path", async () => {
+    const files = await describeComputerFiles({
+      chatId,
+      paths: [
+        at("machine", "keys", "session.json"),
+        at("machine", "work", "notes.md"),
+      ],
+    });
+    expect(files.map((file) => file.name)).toEqual(["notes.md"]);
+  });
 });
 
 describe("describeComputerFiles", () => {

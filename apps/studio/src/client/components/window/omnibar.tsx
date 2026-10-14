@@ -814,7 +814,12 @@ function useRows({
       ...(listing.isError
         ? { empty: `Nothing at “${folderName}”` }
         : listed?.kind === "refused"
-          ? { empty: `Instrument can’t read “${folderName}”` }
+          ? {
+              empty:
+                listed.reason === "app"
+                  ? `Instrument keeps “${folderName}” private`
+                  : `Instrument can’t read “${folderName}”`,
+            }
           : listed
             ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
             : {}),

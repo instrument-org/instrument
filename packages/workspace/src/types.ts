@@ -175,6 +175,14 @@ export interface WorkspaceConfig {
    * Absent off macOS and in builds without the Mac module.
    */
   resolveAlias?: (path: string) => Promise<string | undefined>;
+  /**
+   * Whether the person's own views of this computer keep a file or folder
+   * closed: the app's own data (each workspace's keys, sign-ins and browser
+   * profiles, its records), which the channel the viewers read files
+   * through refuses too. Files leaves such an entry out of a listing, and
+   * answers such a folder as refused by the app. Absent, nothing is.
+   */
+  isRefusedFile?: (hostPath: string) => Promise<boolean>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's

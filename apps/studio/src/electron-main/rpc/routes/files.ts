@@ -9,6 +9,10 @@ import {
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { resolveAlias } from "@/electron-main/lib/mac-native";
+import {
+  isRefusedByName,
+  isRefusedFile,
+} from "@/electron-main/lib/refused-files";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -374,11 +378,13 @@ async function oneWriterAt<T>(filePath: string, work: () => Promise<T>) {
  * The person's own edit to a text file they have open, written only when the
  * file on disk is still the version the editor started from. When the agent
  * (or anything else) wrote in between, nothing is written and the current text
- * comes back, so the editor can merge it and try again.
+ * comes back, so the editor can merge it and try again. The app's own data is
+ * not written (`isClosed`).
  */
 const write = base
   .errors({
     CANNOT_WRITE: { message: "That file cannot be written to" },
+    FORBIDDEN: { message: "That file is Instrument’s own data" },
     NOT_UTF8: {
       message: "This file is not UTF-8 text, so it is not saved here",
     },
@@ -401,8 +407,11 @@ const write = base
     ]),
   )
   .handler(async ({ errors, input }) => {
+    const filePath = await followAliases(input.path);
+    if (await isClosed(input.path, filePath)) {
+      throw errors.FORBIDDEN();
+    }
     try {
-      const filePath = await followAliases(input.path);
       return await oneWriterAt(filePath, async () => {
         // A write with no version to check creates the file when it is not
         // there; one with a version needs the file it edited.
@@ -438,19 +447,35 @@ const write = base
 /**
  * A text file's contents and version, for an editor that will write it back.
  * A file that is not UTF-8 still reads, its unreadable bytes replaced, with
- * `utf8` false so the editor opens it read only: `write` refuses it.
+ * `utf8` false so the editor opens it read only: `write` refuses it. The
+ * app's own data is not read (`isClosed`).
  */
 const read = base
+  .errors({ FORBIDDEN: { message: "That file is Instrument’s own data" } })
   .input(z.object({ path: HostPathSchema }))
   .output(
     z.object({ content: z.string(), utf8: z.boolean(), version: z.string() }),
   )
-  .handler(async ({ input }) => {
-    const bytes = await fs.readFile(await followAliases(input.path));
+  .handler(async ({ errors, input }) => {
+    const filePath = await followAliases(input.path);
+    if (await isClosed(input.path, filePath)) {
+      throw errors.FORBIDDEN();
+    }
+    const bytes = await fs.readFile(filePath);
     const strict = utf8Text(bytes);
     const content = strict ?? bytes.toString("utf8");
     return { content, utf8: strict !== null, version: versionOf(content) };
   });
+
+/**
+ * Whether a file is the app's own data, which the person's views keep closed:
+ * the editors read and write through here what the viewers read through the
+ * file channel, which refuses it by the same rule (`refused-files.ts`), by
+ * the path asked for and by where its aliases lead.
+ */
+async function isClosed(asked: string, filePath: string): Promise<boolean> {
+  return isRefusedByName(asked) || (await isRefusedFile(filePath));
+}
 
 /**
  * A text file's path with every Finder alias on it followed, so an editor

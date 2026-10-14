@@ -275,6 +275,7 @@ export const workspaceMachine = setup({
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       finderEntries?: WorkspaceConfig["finderEntries"];
       resolveAlias?: WorkspaceConfig["resolveAlias"];
+      isRefusedFile?: WorkspaceConfig["isRefusedFile"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexFile?: string;
@@ -316,6 +317,7 @@ export const workspaceMachine = setup({
       ...(input.driveNames ? { driveNames: input.driveNames } : {}),
       ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
       ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
+      ...(input.isRefusedFile ? { isRefusedFile: input.isRefusedFile } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexFile && {

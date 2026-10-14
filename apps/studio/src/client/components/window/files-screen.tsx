@@ -384,7 +384,8 @@ export function FilesScreen({
     },
   );
 
-  // A missing file returns to the preceding visit, or closes its dedicated tab.
+  // A missing file returns to the preceding visit, or closes its dedicated
+  // tab, and so does the app's own data, which the channel forbids.
   useEffect(() => {
     if (!file) {
       return;
@@ -396,8 +397,18 @@ export function FilesScreen({
           headers: { Range: "bytes=0-0" },
           signal: controller.signal,
         });
-        if (response.status === 404 && !controller.signal.aborted) {
-          toast(`${segmentsOf(file).at(-1) ?? file} is no longer there`);
+        if (controller.signal.aborted) {
+          return;
+        }
+        const name = segmentsOf(file).at(-1) ?? file;
+        if (response.status === 403) {
+          toast(`Instrument keeps “${name}” private`, {
+            description:
+              "It’s part of Instrument’s own data, so you can’t open it here.",
+          });
+          leaveFile();
+        } else if (response.status === 404) {
+          toast(`${name} is no longer there`);
           leaveFile();
         }
       } catch {

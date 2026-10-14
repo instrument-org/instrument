@@ -56,6 +56,7 @@ import {
   workspacePrivateDir,
 } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
+import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
@@ -156,6 +157,8 @@ export function createWorkspaceActor() {
       ensureOutputFolderIcon,
       finderEntries,
       resolveAlias,
+      // Files refuses what the viewers' file channel refuses, by one rule.
+      isRefusedFile: (hostPath) => isRefusedFile(hostPath),
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,

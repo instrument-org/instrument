@@ -165,7 +165,15 @@ describe("handleComputerFileRequest", () => {
       () => `${computerFileBase()}${folder}/%2E%2E/notes.txt`,
     ],
     ["an empty path", () => `${computerFileBase()}/`],
-    // The machine folder's names carry no private segment.
+  ])("refuses %s", async (_name, url) => {
+    const response = await request(url());
+    expect(response.status).toBe(404);
+  });
+
+  // The machine folder's names carry no private segment. Its files are
+  // forbidden rather than missing, in an answer the renderer may read, so a
+  // file tab can say why it shows nothing.
+  it.each([
     [
       "a workspace's keys",
       () =>
@@ -210,9 +218,11 @@ describe("handleComputerFileRequest", () => {
       "a symlink into the machine folder",
       () => urlFor(path.join(folder, "leads-to-keys.json")),
     ],
-  ])("refuses %s", async (_name, url) => {
+  ])("forbids %s", async (_name, url) => {
     const response = await request(url());
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(await response.text()).toBe("");
   });
 
   it("refuses every method but GET and HEAD", async () => {

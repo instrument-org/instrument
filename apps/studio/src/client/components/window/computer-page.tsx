@@ -23,6 +23,7 @@ import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
+import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
@@ -71,7 +72,13 @@ import {
 } from "@/client/lib/computer-file-url";
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { cn, commandKeyHeld, isMacOS, osConventions } from "@/client/lib/utils";
+import {
+  cn,
+  commandKeyHeld,
+  currentOs,
+  isMacOS,
+  osConventions,
+} from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
@@ -649,16 +656,16 @@ export function ComputerPage({
       reread();
     }
   };
-  // Where the thing sits on the Mac, as a terminal, a Finder window or another
-  // app takes it. The browser's own path names a place inside the browser and
-  // is no use anywhere else.
-  const copyPath = async (item: FileSystemItem | undefined) => {
-    const hostPath = hostPathOfItem(item);
-    if (!hostPath) {
+  // Where each thing sits on the Mac, as a terminal, a Finder window or
+  // another app takes it, one to a line. The browser's own path names a place
+  // inside the browser and is no use anywhere else.
+  const copyPaths = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
       return;
     }
     try {
-      await navigator.clipboard.writeText(hostPath);
+      await navigator.clipboard.writeText(hostPaths.join("\n"));
       focusBrowser();
     } catch (error) {
       fileActionFailed("Couldn't copy the path", error);
@@ -1327,7 +1334,7 @@ export function ComputerPage({
       }
       return isApp(tab) ? "app" : "file";
     })(),
-    onCopyPath: () => void copyPath(item),
+    onCopyPath: () => void copyPaths(item ? [item] : []),
     onNewFolder:
       folderOnScreenPath === undefined
         ? undefined
@@ -1664,6 +1671,8 @@ export function ComputerPage({
                         });
                       }
                 }
+                onCopyPath={(picked) => void copyPaths(picked)}
+                onDuplicate={(picked) => void duplicate(picked)}
                 onTrash={(picked) => void trash(picked)}
                 onViewChange={(next) => {
                   setDefaultView(next);
@@ -2065,7 +2074,8 @@ function FolderMenuItems({
   /** New Folder at the head whatever the menu is about, the way the Finder's ⋯ has it. */
   newFolderFirst?: boolean;
 }) {
-  const { Item, Separator } = menuComponents;
+  const { Item, Separator, Shortcut } = menuComponents;
+  const keys = listingKeys(currentOs());
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
   const several = group?.length;
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
@@ -2090,6 +2100,7 @@ function FolderMenuItems({
           <Item onClick={onNewFolder}>
             <FolderPlusIcon className="size-4" />
             <span>New Folder</span>
+            <Shortcut>{keys.newFolder}</Shortcut>
           </Item>
           <Separator />
         </>
@@ -2125,6 +2136,8 @@ function FolderMenuItems({
                 <AppWindowIcon className="size-4" />
               )}
               <span>{opensOutside === "file" ? openLabel : "Open"}</span>
+              {/* The key opens the one row the keyboard is on. */}
+              {several ? null : <Shortcut>{keys.open}</Shortcut>}
             </Item>
           )}
           <Item onClick={onOpenInNewTab}>
@@ -2163,22 +2176,26 @@ function FolderMenuItems({
           <Item onClick={onTrash} variant="destructive">
             <TrashIcon className="size-4" />
             <span>Move to {osConventions().trash}</span>
+            <Shortcut>{keys.trash}</Shortcut>
           </Item>
           <Separator />
           {onRename ? (
             <Item onClick={onRename}>
               <PencilSimpleIcon className="size-4" />
               <span>Rename</span>
+              <Shortcut>{keys.rename}</Shortcut>
             </Item>
           ) : null}
           <Item onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
+            {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
           {file && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />
-              <span>{osConventions().quickLook}</span>
+              <span>Preview</span>
+              <Shortcut>{keys.preview}</Shortcut>
             </Item>
           ) : null}
           {/* Where one thing is has no answer for several. */}
@@ -2188,6 +2205,7 @@ function FolderMenuItems({
               <Item onClick={onCopyPath}>
                 <ClipboardTextIcon className="size-4" />
                 <span>Copy Path</span>
+                {keys.copyPath ? <Shortcut>{keys.copyPath}</Shortcut> : null}
               </Item>
               {/* The Open in list already offers the Finder, so a row of its
                     own would name it twice. */}
@@ -2219,6 +2237,7 @@ function FolderMenuItems({
               <Item onClick={onNewFolder}>
                 <FolderPlusIcon className="size-4" />
                 <span>New Folder</span>
+                <Shortcut>{keys.newFolder}</Shortcut>
               </Item>
               <Separator />
             </>

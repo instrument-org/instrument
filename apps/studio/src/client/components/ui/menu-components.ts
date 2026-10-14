@@ -1,6 +1,7 @@
 import {
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
@@ -8,6 +9,7 @@ import {
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -28,6 +30,8 @@ export interface MenuComponents {
     variant?: "default" | "destructive";
   }>;
   Separator: React.ComponentType<{ className?: string }>;
+  /** The keys that do what the row does, dimmed at the row's end. */
+  Shortcut: React.ComponentType<{ children?: React.ReactNode }>;
   Sub: React.ComponentType<{ children?: React.ReactNode }>;
   SubContent: React.ComponentType<{
     children?: React.ReactNode;
@@ -42,6 +46,7 @@ export interface MenuComponents {
 export const contextMenuComponents: MenuComponents = {
   Item: ContextMenuItem,
   Separator: ContextMenuSeparator,
+  Shortcut: ContextMenuShortcut,
   Sub: ContextMenuSub,
   SubContent: ContextMenuSubContent,
   SubTrigger: ContextMenuSubTrigger,
@@ -50,6 +55,7 @@ export const contextMenuComponents: MenuComponents = {
 export const dropdownMenuComponents: MenuComponents = {
   Item: DropdownMenuItem,
   Separator: DropdownMenuSeparator,
+  Shortcut: DropdownMenuShortcut,
   Sub: DropdownMenuSub,
   SubContent: DropdownMenuSubContent,
   SubTrigger: DropdownMenuSubTrigger,

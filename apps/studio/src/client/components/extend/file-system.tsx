@@ -259,6 +259,17 @@ export type FileSystemProps = {
   moveFocusWithSelection?: boolean;
   onColumnWidthChange?: (columnWidth: number) => void;
   /**
+   * The paths of what is selected, to the clipboard, by the system's key for
+   * it: ⌥⌘C on the Mac, Ctrl+Shift+C on Windows. Left out, the key is
+   * nobody's here.
+   */
+  onCopyPath?: (items: FileSystemItem[]) => void;
+  /**
+   * A copy of what is selected beside it, by ⌘D on the Mac. Left out, the
+   * key is nobody's here.
+   */
+  onDuplicate?: (items: FileSystemItem[]) => void;
+  /**
    * Called on file open (double-click), replacing the built-in behavior. By
    * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
    * other files open their resolved URL in a new tab.
@@ -1634,6 +1645,8 @@ export function FileSystem({
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
   onColumnWidthChange,
+  onCopyPath,
+  onDuplicate,
   onFileOpen,
   onItemContextMenu,
   onListColumnsChange,
@@ -2755,7 +2768,20 @@ export function FileSystem({
     const nav = listingNavRef.current;
     if (!nav) return false;
     const lead = entryOf(selectionRef.current.lead);
+    const picked = () =>
+      selectedPathsOf(selectionRef.current).flatMap((path) => {
+        const each = entryOf(path);
+        return each ? [each] : [];
+      });
     switch (command.type) {
+      case "copy-path":
+      case "duplicate": {
+        const handler = command.type === "duplicate" ? onDuplicate : onCopyPath;
+        const chosen = picked();
+        if (!handler || chosen.length === 0) return false;
+        handler(chosen);
+        return true;
+      }
       case "move": {
         const moved = nav.move(command.direction);
         if (typeof moved === "boolean") return moved;
@@ -2806,12 +2832,9 @@ export function FileSystem({
       case "space":
         return true;
       case "trash": {
-        const picked = selectedPathsOf(selectionRef.current).flatMap((path) => {
-          const each = entryOf(path);
-          return each ? [each] : [];
-        });
-        if (!onTrash || picked.length === 0) return false;
-        onTrash(picked);
+        const chosen = picked();
+        if (!onTrash || chosen.length === 0) return false;
+        onTrash(chosen);
         return true;
       }
       case "type-ahead": {

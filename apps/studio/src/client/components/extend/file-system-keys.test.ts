@@ -4,6 +4,7 @@ import { type Os } from "@/shared/os-conventions";
 
 import {
   listingCommandOf,
+  listingKeys,
   NO_TYPE_AHEAD,
   type TypeAhead,
   typeAhead,
@@ -15,6 +16,7 @@ function press(chord: string) {
   const key = chord.replace(/^[⌘⇧⌥⌃]+/u, "");
   return {
     altKey: chord.includes("⌥"),
+    code: /^[a-z]$/iu.test(key) ? `Key${key.toUpperCase()}` : "",
     ctrlKey: chord.includes("⌃"),
     key: key === "Space" ? " " : key,
     metaKey: chord.includes("⌘"),
@@ -107,6 +109,68 @@ describe("listingCommandOf", () => {
     ["linux", "⇧Delete", null],
   ])("reads the trash key on %s from %s", (os, chord, command) => {
     expect(listingCommandOf(press(chord), os)).toEqual(command);
+  });
+
+  it.each<[Os, string, { type: "copy-path" | "duplicate" } | null]>([
+    // The Finder's Duplicate and Copy as Pathname.
+    ["mac", "⌘d", { type: "duplicate" }],
+    ["mac", "⌥⌘c", { type: "copy-path" }],
+    ["mac", "⇧⌘d", null],
+    ["mac", "⌃c", null],
+    // File Explorer's Copy as path. Its Ctrl+D deletes, so it stays unclaimed.
+    ["windows", "⌃⇧C", { type: "copy-path" }],
+    ["windows", "⌃d", null],
+    ["windows", "⌃⌥c", null],
+    ["linux", "⌃⇧C", null],
+    ["linux", "⌃d", null],
+  ])("reads the copy keys on %s from %s", (os, chord, command) => {
+    expect(listingCommandOf(press(chord), os)).toEqual(command);
+  });
+
+  it("goes by the key's place for ⌥⌘C, since Option types ç on it", () => {
+    expect(listingCommandOf({ ...press("⌥⌘ç"), code: "KeyC" }, "mac")).toEqual({
+      type: "copy-path",
+    });
+  });
+});
+
+describe("listingKeys", () => {
+  it("names the keys each system's listing answers to", () => {
+    expect({
+      linux: listingKeys("linux"),
+      mac: listingKeys("mac"),
+      windows: listingKeys("windows"),
+    }).toMatchInlineSnapshot(`
+      {
+        "linux": {
+          "copyPath": null,
+          "duplicate": null,
+          "newFolder": "Ctrl+Shift+N",
+          "open": "Enter",
+          "preview": "Space",
+          "rename": "F2",
+          "trash": "Del",
+        },
+        "mac": {
+          "copyPath": "⌥⌘C",
+          "duplicate": "⌘D",
+          "newFolder": "⇧⌘N",
+          "open": "⌘O",
+          "preview": "Space",
+          "rename": "↩",
+          "trash": "⌘⌫",
+        },
+        "windows": {
+          "copyPath": "Ctrl+Shift+C",
+          "duplicate": null,
+          "newFolder": "Ctrl+Shift+N",
+          "open": "Enter",
+          "preview": "Space",
+          "rename": "F2",
+          "trash": "Del",
+        },
+      }
+    `);
   });
 });
 

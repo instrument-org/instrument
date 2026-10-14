@@ -5,6 +5,7 @@
  * are left alone, is the same everywhere.
  */
 
+import { formatAcceleratorTextFor } from "@/shared/format-accelerator";
 import {
   type Os,
   OS_CONVENTIONS,
@@ -14,6 +15,10 @@ import {
 export type ListingDirection = "down" | "left" | "right" | "up";
 
 export type ListingCommand =
+  /** ⌥⌘C on the Mac, Ctrl+Shift+C on Windows: the paths of what is selected, to the clipboard. */
+  | { type: "copy-path" }
+  /** ⌘D on the Mac: a copy of what is selected beside it. */
+  | { type: "duplicate" }
   /** An arrow; with Shift it reaches from where the selection began. */
   | { direction: ListingDirection; extend: boolean; type: "move" }
   /** ⇧⌘N, or Ctrl+Shift+N off the Mac: a new folder in the one on screen. */
@@ -37,6 +42,7 @@ export type ListingCommand =
 
 type KeyPress = {
   altKey: boolean;
+  code: string;
   ctrlKey: boolean;
   key: string;
   metaKey: boolean;
@@ -79,6 +85,28 @@ function isTrashPress(
   );
 }
 
+/**
+ * A letter held with `commandKey`, and with Alt and Shift exactly as the chord
+ * has them. Option rewrites the letter a Mac key types (⌥C is ç), so a chord
+ * holding Alt goes by the key's place instead.
+ */
+function isCommandChordPress(
+  press: KeyPress,
+  chord: OsConventions["files"]["duplicateKey"],
+  { commandKey }: OsConventions,
+) {
+  if (!chord) return false;
+  const typed = chord.alt
+    ? press.code === `Key${chord.key.toUpperCase()}`
+    : press.key.toLowerCase() === chord.key;
+  return (
+    typed &&
+    press[commandKey] &&
+    press.altKey === chord.alt &&
+    press.shiftKey === chord.shift
+  );
+}
+
 /** ⇧⌘N, or Ctrl+Shift+N off the Mac, as every system's file manager has it. */
 function isNewFolderPress(press: KeyPress, { commandKey }: OsConventions) {
   return (
@@ -117,6 +145,12 @@ export function listingCommandOf(
   if (isSelectAllPress(press, conventions)) return { type: "select-all" };
   if (isTrashPress(press, conventions)) return { type: "trash" };
   if (isNewFolderPress(press, conventions)) return { type: "new-folder" };
+  if (isCommandChordPress(press, conventions.files.copyPathKey, conventions)) {
+    return { type: "copy-path" };
+  }
+  if (isCommandChordPress(press, conventions.files.duplicateKey, conventions)) {
+    return { type: "duplicate" };
+  }
   if (isParentPress(press, conventions)) return { type: "parent" };
   const command = press.metaKey || press.ctrlKey;
   if (command && (press.key === "o" || press.key === "ArrowDown")) {
@@ -140,6 +174,38 @@ export function listingCommandOf(
     return { char: press.key.toLowerCase(), type: "type-ahead" };
   }
   return null;
+}
+
+/**
+ * The keys a menu names beside a row that does what a listing command does,
+ * written the way `os` writes them, so the menu teaches the press that
+ * `listingCommandOf` answers. Open names ⌘O where Return renames, and Enter
+ * where it opens.
+ */
+export function listingKeys(os: Os) {
+  const {
+    deleteKey,
+    files: { copyPathKey, duplicateKey, renameKey, trashKey },
+    keyJoiner,
+  } = OS_CONVENTIONS[os];
+  const chord = (accelerator: string) =>
+    formatAcceleratorTextFor({ accelerator, os });
+  const commandChord = (held: OsConventions["files"]["duplicateKey"]) =>
+    held &&
+    chord(
+      `${held.alt ? "Alt+" : ""}${held.shift ? "Shift+" : ""}CmdOrCtrl+${held.key}`,
+    );
+  return {
+    copyPath: commandChord(copyPathKey),
+    duplicate: commandChord(duplicateKey),
+    newFolder: chord("CmdOrCtrl+Shift+N"),
+    open: chord(renameKey === "Enter" ? "CmdOrCtrl+O" : "Enter"),
+    preview: chord("Space"),
+    rename: chord(renameKey),
+    trash: trashKey.withCommandKey
+      ? [chord("CmdOrCtrl"), deleteKey].join(keyJoiner)
+      : deleteKey,
+  };
 }
 
 /** How long typed letters wait for the next before the search starts over, like the Finder's. */

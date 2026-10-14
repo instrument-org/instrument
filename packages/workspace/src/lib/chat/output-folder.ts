@@ -4,9 +4,11 @@ import path from "node:path";
 
 import { getWorkspaceConfig, hasWorkspaceConfig } from "../workspace-config";
 
-/** Creates the output folder if it is not there yet. */
-export async function ensureOutputFolder(): Promise<void> {
-  await fs.mkdir(outputFolderPath(), { recursive: true });
+/** Creates the output folder if it is not there yet, answering whether it made it now. */
+export async function ensureOutputFolder(): Promise<boolean> {
+  return (
+    (await fs.mkdir(outputFolderPath(), { recursive: true })) !== undefined
+  );
 }
 
 /**

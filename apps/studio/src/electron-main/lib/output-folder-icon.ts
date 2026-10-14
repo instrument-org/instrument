@@ -64,10 +64,13 @@ async function applyIcon(folderPath: string): Promise<void> {
     finderInfo = Buffer.from(stdout.replaceAll(/\s/g, ""), "hex");
   } catch (error) {
     // Without Documents access the icon cannot be written either; decoration
-    // is cosmetic, so a refusal skips it rather than reporting.
+    // is cosmetic, so a refusal skips it rather than reporting. A read cut
+    // off by its timeout is one too: macOS holds it while its Documents
+    // prompt waits for an answer.
     if (
       error instanceof Error &&
-      /Operation not permitted|Permission denied/.test(error.message)
+      (/Operation not permitted|Permission denied/.test(error.message) ||
+        ("killed" in error && error.killed === true))
     ) {
       return;
     }

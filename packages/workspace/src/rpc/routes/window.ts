@@ -30,15 +30,22 @@ const ensure = base
   )
   .handler(async ({ context }) => {
     await ensureWindowDir();
-    await ensureOutputFolder();
-    // Folder decoration must not prevent a conversation from opening.
-    void context.workspaceConfig
-      .ensureOutputFolderIcon?.(outputFolderPath())
-      .catch((error: unknown) => {
-        context.workspaceConfig.captureException(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      });
+    const made = await ensureOutputFolder();
+    // Decorating the folder reads it, which macOS answers for a folder in
+    // Documents with its own prompt, so only a folder the app already has
+    // in hand is decorated: one it made just now, or the one the person
+    // picked for their workspace, whose pick carries access with it. Any
+    // other is left alone rather than asked about at startup.
+    if (made || context.workspaceConfig.outputDir !== undefined) {
+      // Folder decoration must not prevent a conversation from opening.
+      void context.workspaceConfig
+        .ensureOutputFolderIcon?.(outputFolderPath())
+        .catch((error: unknown) => {
+          context.workspaceConfig.captureException(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        });
+    }
     return { folders: await folderReach(WINDOW_ID) };
   });
 

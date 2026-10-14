@@ -354,14 +354,14 @@ describe("resolveAgentBrowserPathArgs", () => {
       path: "attachments/missing.png",
     },
     { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
-  ])("refuses an upload of a $name", async ({ path }) => {
+  ])("refuses an upload of a $name", async ({ path: operand }) => {
     const result = await resolveAgentBrowserPathArgs(
-      ["upload", "@e1", path],
+      ["upload", "@e1", operand],
       { cwd: "/Users/sam/chat", fs },
       layout,
     );
 
-    expect(result).toEqual({ error: `Upload file not found: "${path}".` });
+    expect(result).toEqual({ error: `Upload file not found: "${operand}".` });
   });
 
   it("leaves non-upload relative arguments unchanged", async () => {

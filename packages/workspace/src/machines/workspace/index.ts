@@ -280,6 +280,12 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexFile?: string;
+      /**
+       * Whether 1.x may have left tasks at the workspace's top level, which
+       * it did only in the app's own data: then `legacyTasksDir` is its
+       * `tasks/`.
+       */
+      legacyTasks?: boolean;
       machineDir: string;
       workspaceMachineDir: string;
       modelCache: ModelCache;
@@ -349,7 +355,9 @@ export const workspaceMachine = setup({
       runtimeDir: AbsolutePathSchema.parse(input.runtimeDir),
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
       chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
-      legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
+      ...(input.legacyTasks && {
+        legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
+      }),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       ...(input.macHelperBinPath === undefined

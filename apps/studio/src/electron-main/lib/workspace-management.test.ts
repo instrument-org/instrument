@@ -1,3 +1,4 @@
+import { WORKSPACE_LAYOUT_VERSION } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import os from "node:os";
@@ -78,10 +79,15 @@ describe("createWorkspace", () => {
         ),
       ),
     ).toEqual({ developerMode: true });
-    // Already in the current format, with an id of its own and a machine
-    // folder, named by its local id, holding nothing but whose it is.
+    // Already in the current format and layout, so no sweep ever runs on
+    // it, with an id of its own and a machine folder, named by its local
+    // id, holding nothing but whose it is.
     const identity = readWorkspaceIdentity(dir);
     expect(identity.formatVersion).toBe(1);
+    expect(identity).toMatchObject({
+      layoutVersion: WORKSPACE_LAYOUT_VERSION,
+      legacyProjectsMigrated: true,
+    });
     expect(identity.id).toMatch(/^[\dA-Z]{26}$/);
     expect(machineDirOf(created)).toBe(
       path.join(userDataDir, "workspaces-data", "byok-only"),

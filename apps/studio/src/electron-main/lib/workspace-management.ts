@@ -1,4 +1,5 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { WORKSPACE_LAYOUT_VERSION } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
@@ -349,12 +350,15 @@ function populateWorkspace({
     developerMode,
   });
 
-  // Already at the current settings version and format: there is nothing
-  // legacy in a workspace made by this build.
+  // Already at the current settings version, format and layout: there is
+  // nothing legacy in a workspace made by this build, so no migration or
+  // layout sweep ever runs on it.
   writeWorkspaceIdentity(dir, {
     color,
     createdBy: { kind: "person" },
     formatVersion: WORKSPACE_FORMAT_VERSION,
+    layoutVersion: WORKSPACE_LAYOUT_VERSION,
+    legacyProjectsMigrated: true,
     name,
     settingsVersion: CURRENT_SETTINGS_VERSION,
   });

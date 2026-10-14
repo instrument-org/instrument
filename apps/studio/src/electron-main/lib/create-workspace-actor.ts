@@ -77,67 +77,17 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
 export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
 
-  // Move the app's folders into the workspace's `.instrument/`, normalize
-  // the on-disk layout of any legacy tasks, and take each chat's work out of
-  // its records, before the workspace reads them. Idempotent; a failure must
-  // not block boot.
-  try {
-    const migrationStartedAt = performance.now();
-    const migration = migrateWorkspaceLayout({
-      machineDir: workspaceMachineDir(),
-      marks: workspaceLayoutMarks(rootDir),
-      rootDir,
-    });
+  // The layout sweeps bring what 1.x and the 2.0 betas left into the shape
+  // this build reads. They run only on a workspace in the app's own data,
+  // where those builds kept every workspace: a folder the person picked was
+  // never one, its top level is theirs, and a workspace moved there had its
+  // sweeps finished first.
+  const inAppData = workspaceInAppData();
+  if (inAppData) {
+    sweepWorkspaceLayout(rootDir);
+  } else {
     logger.info(
-      `Workspace layout migration: ${Math.round(performance.now() - migrationStartedAt)}ms`,
-    );
-    for (const step of migration.appFolders.done) {
-      logger.info(`App folders: ${step}`);
-    }
-    if (migration.appFolders.failed > 0) {
-      logger.warn(
-        `Left ${migration.appFolders.failed} app folder entr${migration.appFolders.failed === 1 ? "y" : "ies"} to move on the next boot`,
-      );
-    }
-    if (migration.movedTaskCount > 0) {
-      logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
-    }
-    if (migration.legacyTasks.adoptedCount > 0) {
-      logger.info(
-        `Made ${migration.legacyTasks.adoptedCount} earlier task(s) into chats, set aside ${migration.legacyTasks.emptyCount} empty one(s), and wrote ${migration.legacyTasks.topicCount} topic(s) from projects`,
-      );
-    }
-    if (migration.legacyTasks.leftOver > 0) {
-      logger.warn(
-        `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
-      );
-    }
-    for (const step of migration.chatRecords.done) {
-      logger.info(`Chat records: ${step}`);
-    }
-    if (migration.chatRecords.failed > 0) {
-      logger.warn(
-        `Left ${migration.chatRecords.failed} chat entr${migration.chatRecords.failed === 1 ? "y" : "ies"} to move on the next boot`,
-      );
-    }
-    if (migration.removedBrowserProfileCloneCount > 0) {
-      logger.info(
-        `Deleted ${migration.removedBrowserProfileCloneCount} leftover browser profile clone(s)`,
-      );
-    }
-    if (migration.conflictedTaskIds.length > 0) {
-      // A legacy task was abandoned because tasks/<id> already exists. The
-      // marker means this won't retry, so the leftover copy lingers in
-      // projects/ -- surface it.
-      logger.warn(
-        "Workspace layout migration left legacy task copies in projects/ (id already exists under tasks/)",
-        { conflictedTaskIds: migration.conflictedTaskIds },
-      );
-    }
-  } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+      "Workspace layout migration: none for a folder the person picked",
     );
   }
 
@@ -191,8 +141,9 @@ export function createWorkspaceActor() {
         // See https://www.electronjs.org/docs/latest/api/environment-variables
         ELECTRON_RUN_AS_NODE: "1",
       },
-      // A folder the person picked is where their finished work goes too.
-      ...(workspaceInAppData() ? {} : { outputDir: rootDir }),
+      // A folder the person picked is where their finished work goes too,
+      // and only the app's own data ever held 1.x tasks.
+      ...(inAppData ? { legacyTasks: true } : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
@@ -362,4 +313,72 @@ export function createWorkspaceActor() {
     actor,
     workspaceConfig,
   };
+}
+
+/**
+ * Move the app's folders into the workspace's `.instrument/`, normalize the
+ * on-disk layout of any legacy tasks, and take each chat's work out of its
+ * records, before the workspace reads them. Idempotent; a failure must not
+ * block boot.
+ */
+function sweepWorkspaceLayout(rootDir: string) {
+  try {
+    const migrationStartedAt = performance.now();
+    const migration = migrateWorkspaceLayout({
+      machineDir: workspaceMachineDir(),
+      marks: workspaceLayoutMarks(rootDir),
+      rootDir,
+    });
+    logger.info(
+      `Workspace layout migration: ${Math.round(performance.now() - migrationStartedAt)}ms`,
+    );
+    for (const step of migration.appFolders.done) {
+      logger.info(`App folders: ${step}`);
+    }
+    if (migration.appFolders.failed > 0) {
+      logger.warn(
+        `Left ${migration.appFolders.failed} app folder entr${migration.appFolders.failed === 1 ? "y" : "ies"} to move on the next boot`,
+      );
+    }
+    if (migration.movedTaskCount > 0) {
+      logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
+    }
+    if (migration.legacyTasks.adoptedCount > 0) {
+      logger.info(
+        `Made ${migration.legacyTasks.adoptedCount} earlier task(s) into chats, set aside ${migration.legacyTasks.emptyCount} empty one(s), and wrote ${migration.legacyTasks.topicCount} topic(s) from projects`,
+      );
+    }
+    if (migration.legacyTasks.leftOver > 0) {
+      logger.warn(
+        `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
+      );
+    }
+    for (const step of migration.chatRecords.done) {
+      logger.info(`Chat records: ${step}`);
+    }
+    if (migration.chatRecords.failed > 0) {
+      logger.warn(
+        `Left ${migration.chatRecords.failed} chat entr${migration.chatRecords.failed === 1 ? "y" : "ies"} to move on the next boot`,
+      );
+    }
+    if (migration.removedBrowserProfileCloneCount > 0) {
+      logger.info(
+        `Deleted ${migration.removedBrowserProfileCloneCount} leftover browser profile clone(s)`,
+      );
+    }
+    if (migration.conflictedTaskIds.length > 0) {
+      // A legacy task was abandoned because tasks/<id> already exists. The
+      // marker means this won't retry, so the leftover copy lingers in
+      // projects/ -- surface it.
+      logger.warn(
+        "Workspace layout migration left legacy task copies in projects/ (id already exists under tasks/)",
+        { conflictedTaskIds: migration.conflictedTaskIds },
+      );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
 }

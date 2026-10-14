@@ -180,6 +180,25 @@ describe("storage.invalidFolders", () => {
     `);
   });
 
+  it("takes none of a picked folder's own folders for 1.x tasks", async () => {
+    const { legacyTasksDir: _kept, ...picked } = getWorkspaceConfig();
+    setWorkspaceConfig(picked);
+    fs.mkdirSync(path.join(root, "tasks", "Field notes"), { recursive: true });
+    const context = createContext();
+
+    await expect(
+      call(storage.invalidFolders.list, undefined, { context }),
+    ).resolves.toEqual([]);
+    await expect(
+      call(
+        storage.invalidFolders.trash,
+        { kind: "legacy-task", name: "Field notes" },
+        { context },
+      ),
+    ).rejects.toThrow("This workspace keeps no 1.x tasks");
+    expect(fs.existsSync(path.join(root, "tasks", "Field notes"))).toBe(true);
+  });
+
   it("trashes an unreadable chat with its work folder, and forgets it", async () => {
     await seedBrokenChats();
     const badDb = ChatIdSchema.parse("2026-10-01-bad-db");

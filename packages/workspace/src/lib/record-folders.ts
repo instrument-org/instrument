@@ -80,7 +80,15 @@ export function chatIdTaken(id: string): boolean {
     parsed.data === WINDOW_ID ||
     known.chats.has(parsed.data) ||
     fs.existsSync(folderOf(parsed.data)) ||
-    fs.existsSync(path.join(getWorkspaceConfig().legacyTasksDir, parsed.data))
+    legacyTaskTaken(parsed.data)
+  );
+}
+
+/** Whether 1.x left a task under this id, in a workspace that kept its tasks. */
+function legacyTaskTaken(id: ChatId): boolean {
+  const { legacyTasksDir } = getWorkspaceConfig();
+  return (
+    legacyTasksDir !== undefined && fs.existsSync(path.join(legacyTasksDir, id))
   );
 }
 

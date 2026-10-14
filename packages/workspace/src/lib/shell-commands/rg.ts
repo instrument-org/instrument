@@ -1,12 +1,15 @@
 import { defineCommand } from "just-bash";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
+import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { hostPathWithin, realHostPath } from "../host-path";
 import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
 import {
+  appDataBounds,
   otherFolders,
   outsideFolderRefusal,
   resolveHostPath,
@@ -74,6 +77,13 @@ const DENIED_SHORT_FLAG = "z";
  */
 const VALUE_SHORT_FLAGS = new Set("ABCEMTdefgjmrt");
 
+/** Glob metacharacters, each matched literally inside a one-member class. */
+const GLOB_METACHARACTERS = /[*?[{}\\]/g;
+
+/** Whether names differing only in case are one file here. */
+const FOLDS_CASE =
+  process.platform === "darwin" || process.platform === "win32";
+
 export function createRgCommand({
   layout,
   chatId,
@@ -100,11 +110,15 @@ export function createRgCommand({
     }
 
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    const searched = withAppDataLeftOut(bridged.args, layout, hostCwd);
+    if ("error" in searched) {
+      return { exitCode: 2, stderr: `${searched.error}\n`, stdout: "" };
+    }
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
       RG_DISK_PATH,
-      ["--no-config", "--path-separator=/", ...bridged.args],
+      ["--no-config", "--path-separator=/", ...searched.args],
       {
         cancelSignal: ctx.signal,
         cwd: hostCwd,
@@ -260,4 +274,265 @@ function deniedFlag(arg: string): null | string {
     }
   }
   return null;
+}
+
+/**
+ * The agent's arguments with globs after them that leave the app's own data
+ * out of ripgrep's walk ({@link appDataBounds}): what is closed is left out,
+ * and the way on to what the rules open there (the work folder, what the
+ * chat was sent, the skills and apps) is kept. On macOS and Linux the native
+ * sandbox refuses that data to the walk as well; Windows has none, so there
+ * these are what keep a search of the output folder out of other chats'
+ * records. They keep an ordinary search out, not a program set on getting
+ * in: on Windows a `python` script reads the same files.
+ *
+ * ripgrep anchors a glob at its working directory and matches it against
+ * each path as printed, so a folder holding the data needs the globs under
+ * each spelling the search may print it with: the working directory's own
+ * (none), and that of each argument naming such a folder (which argument is
+ * the pattern would take parsing every flag this wrapper hands through, so
+ * each is asked). One spelled with `.` or empty segments, which the printed
+ * path does not match literally, is respelled normalized, or refused where
+ * that would lead elsewhere.
+ *
+ * They are `--iglob`s, after every other argument: ripgrep adds each
+ * `--iglob` after each `--glob`, and the last glob matching a path decides,
+ * so no glob of the agent's brings back what they leave out. They go ahead
+ * of a `--`, since everything past it is a path.
+ */
+export function withAppDataLeftOut(
+  args: readonly string[],
+  layout: WorkspaceFsLayout,
+  hostCwd: string,
+): { args: string[] } | { error: string } {
+  const { closed, open } = appDataBounds(layout);
+  // A closed folder inside another is left out with it, unless something
+  // between them opens.
+  const outermost = closed.filter(
+    (folder) =>
+      !closed.some(
+        (other) =>
+          other !== folder &&
+          hostPathWithin(other, folder) !== null &&
+          !open.some(
+            (opened) =>
+              hostPathWithin(other, opened) !== null &&
+              hostPathWithin(opened, folder) !== null,
+          ),
+      ),
+  );
+  const below = new Map(
+    outermost.map((folder) => [folder, leftOutBelow(folder, open)]),
+  );
+  // What to leave out of a walk from `reached`, relative to it: the left-out
+  // folders it holds, and where it starts inside one (a `cd` passes through
+  // a closed folder on the way to one that opens), everything there but the
+  // way on.
+  const leftOutOfWalk = (reached: string): string[] =>
+    [...below].flatMap(([folder, patterns]) => {
+      const rest = remainderWithin(reached, folder);
+      if (rest) {
+        return patterns.map((pattern) =>
+          joinPrinted(escapeGlob(rest), pattern),
+        );
+      }
+      if (
+        remainderWithin(folder, reached) === null ||
+        open.some((opened) => hostPathWithin(opened, reached) !== null)
+      ) {
+        return [];
+      }
+      return leftOutBelow(reached, open).map((pattern) => pattern || "*");
+    });
+  const globs = new Set<string>();
+  const leaveOutUnder = (spelling: string, patterns: readonly string[]) => {
+    for (const pattern of patterns) {
+      globs.add(`!/${joinPrinted(escapeGlob(spelling), pattern)}`);
+    }
+  };
+
+  leaveOutUnder("", leftOutOfWalk(whereItIs(hostCwd) ?? hostCwd));
+  const respelled: string[] = [];
+  let operandsOnly = false;
+  for (const arg of args) {
+    const isOperand = operandsOnly || !arg.startsWith("-");
+    operandsOnly ||= arg === "--";
+    // An empty argument names no path: it is the pattern that matches
+    // every line.
+    const reached =
+      isOperand && arg !== "" ? whereItIs(hostOperand(hostCwd, arg)) : null;
+    const patterns = reached === null ? [] : leftOutOfWalk(reached);
+    if (patterns.length === 0) {
+      respelled.push(arg);
+      continue;
+    }
+    const spelling = printedSpelling(arg);
+    if (spelling !== null) {
+      leaveOutUnder(spelling, patterns);
+      respelled.push(arg);
+      continue;
+    }
+    const normalized = nodePath.normalize(arg);
+    const normalizedSpelling = printedSpelling(normalized);
+    if (
+      normalizedSpelling === null ||
+      whereItIs(hostOperand(hostCwd, normalized)) !== reached
+    ) {
+      return {
+        error: `${RG_COMMAND.name}: ${arg}: path is not accessible; spell it without \`.\` or empty segments`,
+      };
+    }
+    leaveOutUnder(normalizedSpelling, patterns);
+    respelled.push(normalized);
+  }
+
+  const globArgs = [...globs].flatMap((glob) => ["--iglob", glob]);
+  const operandsFrom = respelled.indexOf("--");
+  return {
+    args:
+      operandsFrom === -1
+        ? [...respelled, ...globArgs]
+        : [
+            ...respelled.slice(0, operandsFrom),
+            ...globArgs,
+            ...respelled.slice(operandsFrom),
+          ],
+  };
+}
+
+/**
+ * Globs, relative to `folder`, for everything in it but the way on to what
+ * opens there: the folder itself (an empty glob) where nothing does. A
+ * folder with one name to keep is not listed: its other names are matched
+ * by pattern, two per letter of the kept name, however many it holds (one
+ * chat's folder among every chat's). Any other is listed.
+ */
+function leftOutBelow(folder: string, open: readonly string[]): string[] {
+  const below = open.flatMap((opened) => {
+    const rest = hostPathWithin(folder, opened);
+    return rest === null ? [] : [{ opened, rest }];
+  });
+  if (below.length === 0) {
+    return [""];
+  }
+  if (below.some(({ rest }) => rest === "/")) {
+    return [];
+  }
+  const kept = new Map<string, string[]>();
+  for (const { opened, rest } of below) {
+    const name = rest.split("/")[1] ?? "";
+    kept.set(name, [...(kept.get(name) ?? []), opened]);
+  }
+  const [only, ...others] = kept.keys();
+  const here =
+    only !== undefined && others.length === 0 && /^[\w.-]+$/.test(only)
+      ? everyNameBut(only)
+      : listedBut(folder, [...kept.keys()]);
+  return [
+    ...here,
+    ...[...kept].flatMap(([name, opened]) =>
+      leftOutBelow(nodePath.join(folder, name), opened).map((pattern) =>
+        joinPrinted(escapeGlob(name), pattern),
+      ),
+    ),
+  ];
+}
+
+/**
+ * Globs matching every name but `kept`: one that turns off it at some
+ * letter, one that stops short of it, and one that runs on past it.
+ */
+function everyNameBut(kept: string): string[] {
+  const globs: string[] = [];
+  for (let at = 0; at < kept.length; at++) {
+    const before = kept.slice(0, at);
+    if (before !== "") {
+      globs.push(before);
+    }
+    globs.push(`${before}[!${kept.charAt(at)}]*`);
+  }
+  globs.push(`${kept}?*`);
+  return globs;
+}
+
+/** Globs for each entry of `folder` but the `kept` ones. */
+function listedBut(folder: string, kept: readonly string[]): string[] {
+  let names: string[];
+  try {
+    names = readdirSync(folder);
+  } catch {
+    // Nothing a walk could list there either.
+    return [];
+  }
+  const fold = (name: string) => (FOLDS_CASE ? name.toLowerCase() : name);
+  const keep = new Set(kept.map(fold));
+  return names.filter((name) => !keep.has(fold(name))).map(escapeGlob);
+}
+
+/** Where a path really is, as the rules compare it, or null where nothing is. */
+function whereItIs(hostPath: string): null | string {
+  try {
+    realpathSync(hostPath);
+  } catch {
+    return null;
+  }
+  return realHostPath(hostPath);
+}
+
+function escapeGlob(literal: string): string {
+  return literal.replaceAll(GLOB_METACHARACTERS, (character) =>
+    character === "\\" && nodePath.sep === "\\" ? "/" : `[${character}]`,
+  );
+}
+
+/**
+ * Where ripgrep finds an operand: joined to its working directory as typed
+ * rather than normalized, so `..` after a symlink resolves the way the
+ * operating system resolves it.
+ */
+function hostOperand(hostCwd: string, arg: string): string {
+  return nodePath.isAbsolute(arg) ? arg : `${hostCwd}${nodePath.sep}${arg}`;
+}
+
+/** Two parts of a printed path, joined the way ripgrep joins them. */
+function joinPrinted(parent: string, child: string): string {
+  if (parent === "" || child === "") {
+    return parent || child;
+  }
+  return parent.endsWith("/") ? `${parent}${child}` : `${parent}/${child}`;
+}
+
+/**
+ * What of an operand ripgrep's glob matcher sees in front of each path under
+ * it, or null for a spelling it would not match literally. `.` contributes
+ * nothing, since ripgrep drops the leading `./` it prints under it.
+ */
+function printedSpelling(arg: string): null | string {
+  const posix = nodePath.sep === "\\" ? arg.replaceAll("\\", "/") : arg;
+  if (posix === "." || posix === "./") {
+    return "";
+  }
+  if (posix === "/") {
+    return posix;
+  }
+  const unprefixed = posix.startsWith("./") ? posix.slice(2) : posix;
+  const spelling =
+    unprefixed.length > 1 && unprefixed.endsWith("/")
+      ? unprefixed.slice(0, -1)
+      : unprefixed;
+  const segments = spelling.split("/");
+  const plain = segments.every(
+    (segment, index) =>
+      segment !== "." &&
+      (segment !== "" || (index === 0 && segments.length > 1)),
+  );
+  return plain ? spelling : null;
+}
+
+/**
+ * The part of `hostPath` under `parent` as ripgrep prints it below the
+ * parent's spelling: "" for the parent itself, or null for a path outside it.
+ */
+function remainderWithin(parent: string, hostPath: string): null | string {
+  return hostPathWithin(parent, hostPath)?.slice(1) ?? null;
 }

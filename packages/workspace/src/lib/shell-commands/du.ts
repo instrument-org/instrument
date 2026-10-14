@@ -1,10 +1,13 @@
 import { defineCommand } from "just-bash";
 import fs from "node:fs/promises";
+import nodePath from "node:path";
 import { Worker } from "node:worker_threads";
 
+import { realHostPath } from "../host-path";
 import { relativeWithin } from "../path-containment";
 import { reachOf } from "../permissions/rules";
 import {
+  appDataBounds,
   hostPathOf,
   otherFolders,
   resolveHostPath,
@@ -59,8 +62,11 @@ interface DuRoot {
  * is rounded up to a 4 KiB cluster.
  *
  * Paths are printed as the agent typed them, never in the host's spelling. The walk
- * does not follow symlinks and counts a hard-linked file once. Anything it does
- * not implement -- another flag, an operand outside every mount -- goes to
+ * does not follow symlinks and counts a hard-linked file once. It runs as the
+ * app, outside every sandbox, so it leaves the app's own data out
+ * ({@link appDataBounds}) the way the rules do: what is closed is neither
+ * counted nor named, and what opens inside it is walked. Anything it does not
+ * implement -- another flag, an operand outside every mount -- goes to
  * just-bash's `du` unchanged.
  */
 export function createDuCommand({
@@ -118,6 +124,7 @@ export function createDuCommand({
 
     return await runInWorker(
       {
+        bounds: appDataBounds(layout),
         maxOutput: ctx.limits.maxOutputSize,
         operands,
         options: parsed.options,
@@ -283,7 +290,7 @@ function resolveOperand(
     if (hostPath === null) {
       return { display, kind: "missing" };
     }
-    return { display, hostPath, kind: "path" };
+    return { display, hostPath: whereItIs(hostPath), kind: "path" };
   }
 
   // A directory above mounts, such as `/Users`, holds mounts but no files of
@@ -300,7 +307,7 @@ function resolveOperand(
     process.platform !== "win32" &&
     reachOf(layout.rules, hostPathOf(path), "read").level === "allow"
   ) {
-    return { display, hostPath: hostPathOf(path), kind: "path" };
+    return { display, hostPath: whereItIs(hostPathOf(path)), kind: "path" };
   }
   const direct = inside.filter((mount) => {
     const relative = relativeWithin(path, mount.shellRoot);
@@ -316,12 +323,27 @@ function resolveOperand(
         const name = mount.shellRoot.slice(
           mount.shellRoot.lastIndexOf("/") + 1,
         );
-        return { display: `${base}/${name}`, hostPath: mount.hostRoot };
+        return {
+          display: `${base}/${name}`,
+          hostPath: whereItIs(mount.hostRoot),
+        };
       })
       .toSorted((a, b) => (a.display < b.display ? -1 : 1)),
     display,
     kind: "mounts",
   };
+}
+
+/**
+ * A path as the walk spells it, where the folder holding it really is, so
+ * what it walks below compares with the app's own data as the rules do. The
+ * path itself is not followed: `du` measures a link as a link.
+ */
+function whereItIs(hostPath: string): string {
+  return nodePath.join(
+    realHostPath(nodePath.dirname(hostPath)),
+    nodePath.basename(hostPath),
+  );
 }
 
 /**
@@ -341,7 +363,7 @@ const path = require("node:path");
 // the user's disk, so it reads it as it is. The setting is this thread's own.
 process.noAsar = true;
 
-const { maxOutput, operands, options, windows } = workerData;
+const { bounds, maxOutput, operands, options, windows } = workerData;
 const lines = [];
 const errors = [];
 const seenLinks = new Set();
@@ -418,6 +440,39 @@ function child(display, name) {
   return display === "/" ? "/" + name : display.replace(/\/+$/, "") + "/" + name;
 }
 
+const fold = (hostPath) =>
+  windows || process.platform === "darwin" ? hostPath.toLowerCase() : hostPath;
+const closed = bounds.closed.map(fold);
+const open = bounds.open.map(fold);
+
+function holds(root, hostPath) {
+  return (
+    hostPath === root ||
+    hostPath.startsWith(root.endsWith(path.sep) ? root : root + path.sep)
+  );
+}
+
+// The app's own data: a path whose deepest holder among the closed folders
+// and what opens in them is closed, and which holds nothing that opens.
+function leftOut(hostPath) {
+  const folded = fold(hostPath);
+  let deepest = -1;
+  let isClosed = false;
+  for (const folder of closed) {
+    if (holds(folder, folded) && folder.length > deepest) {
+      deepest = folder.length;
+      isClosed = true;
+    }
+  }
+  for (const opened of open) {
+    if (holds(opened, folded) && opened.length >= deepest) {
+      deepest = opened.length;
+      isClosed = false;
+    }
+  }
+  return isClosed && !open.some((opened) => holds(folded, opened));
+}
+
 function walk(hostPath, display, depth) {
   let stat;
   try {
@@ -438,7 +493,9 @@ function walk(hostPath, display, depth) {
     }
     names.sort();
     for (const name of names) {
-      total += walk(path.join(hostPath, name), child(display, name), depth + 1);
+      const named = path.join(hostPath, name);
+      if (leftOut(named)) continue;
+      total += walk(named, child(display, name), depth + 1);
     }
     if (depth <= options.maxDepth) emit(total, display);
   } else if (depth === 0 || (options.all && depth <= options.maxDepth)) {
@@ -477,7 +534,12 @@ try {
 `;
 
 async function runInWorker(
-  input: { maxOutput: number; operands: DuOperand[]; options: DuOptions },
+  input: {
+    bounds: ReturnType<typeof appDataBounds>;
+    maxOutput: number;
+    operands: DuOperand[];
+    options: DuOptions;
+  },
   signal: AbortSignal | undefined,
 ): Promise<{ exitCode: number; stderr: string; stdout: string }> {
   const worker = new Worker(DU_WORKER_SOURCE, {

@@ -1,6 +1,7 @@
 import { execa } from "execa";
 import { Bash } from "just-bash";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -31,7 +32,10 @@ import {
   withNativeReach,
   wrapNativeCommand,
 } from "./native-sandbox";
+import { RG_DISK_PATH } from "./ripgrep";
+import { createDuCommand } from "./shell-commands/du";
 import { execShim } from "./shell-commands/exec-shim";
+import { withAppDataLeftOut } from "./shell-commands/rg";
 import { workspaceLayout } from "./workspace-layout";
 import { raiseAsk } from "./permissions/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
@@ -705,6 +709,99 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       });
       expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
     });
+  });
+
+  // `du` walks as the app, and `rg` on Windows has no sandbox to refuse it
+  // the app's data, so each leaves it out itself: what the rules close is
+  // neither listed nor counted, and what opens inside it is walked.
+  describe("a walk with nothing else to hold it", () => {
+    const layout = layoutUnder(paths, {});
+    // The files the table names that are there, each with whether the
+    // rules let the agent read it.
+    const files = reachTable(paths).flatMap(([, op, hostPath, level]) =>
+      op === "read" && existsSync(hostPath)
+        ? [{ hostPath, open: level === "allow" }]
+        : [],
+    );
+    // Each file the table names under `root` that the walk got wrong: one
+    // it walked that the rules close, or one it left out that they open.
+    const misWalked = (walked: readonly string[], root: string) => {
+      const under = files.filter(
+        ({ hostPath }) =>
+          path.relative(root, hostPath).split(path.sep)[0] !== "..",
+      );
+      return under.length === 0
+        ? [`nothing the table names is under ${root}`]
+        : under
+            .filter(({ hostPath, open }) => walked.includes(hostPath) !== open)
+            .map(
+              ({ hostPath, open }) =>
+                `${open ? "left out" : "walked"} ${hostPath}`,
+            );
+    };
+
+    it.each([
+      ["the home folder", ["-uuu", "--files", paths.home], paths.work],
+      [
+        "the home folder, past a glob of the agent's",
+        ["-uuu", "--files", "-g", "*", "--iglob", "*.db", paths.home],
+        paths.work,
+      ],
+      [
+        "the home folder after --",
+        ["-uuu", "--files", "--", paths.home],
+        paths.work,
+      ],
+      [
+        "the home folder by a step up",
+        ["-uuu", "--files", ".."],
+        path.join(paths.home, "Downloads"),
+      ],
+      [
+        "the home folder spelled with a step in place",
+        ["-uuu", "--files", "./../"],
+        path.join(paths.home, "Downloads"),
+      ],
+      ["the workspace", ["-uuu", "--files", paths.workspace], paths.work],
+      ["the workspace it was cd'd into", ["-uuu", "--files"], paths.workspace],
+      ["the workspace as .", ["-uuu", "--files", "."], paths.workspace],
+    ])("rg leaves it out of %s", async (_name, args, cwd) => {
+      const searched = withAppDataLeftOut(args, layout, cwd);
+      if ("error" in searched) {
+        throw new Error(searched.error);
+      }
+      const listed = await execa(
+        RG_DISK_PATH,
+        ["--no-config", "--path-separator=/", ...searched.args],
+        { cwd, reject: false },
+      );
+      const walked = listed.stdout
+        .split("\n")
+        .filter(Boolean)
+        .map((printed) => path.resolve(cwd, printed));
+      const root = path.resolve(
+        cwd,
+        args.at(-1)?.startsWith("-") ? "." : (args.at(-1) ?? "."),
+      );
+      expect(misWalked(walked, root)).toEqual([]);
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "du leaves it out of the home folder",
+      async () => {
+        const bash = new Bash({
+          customCommands: [createDuCommand({ layout })],
+          cwd: layout.chat.shellRoot,
+          fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
+        });
+        const result = await bash.exec(`du -a '${paths.home}'`);
+        const walked = result.stdout
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => line.slice(line.indexOf("\t") + 1));
+        expect(misWalked(walked, paths.home)).toEqual([]);
+      },
+    );
   });
 
   describe("bubblewrap's arguments", () => {

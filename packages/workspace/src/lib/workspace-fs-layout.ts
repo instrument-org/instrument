@@ -801,6 +801,40 @@ function layoutRules(
   return { ...given, rules: [...outsideAppData, ...own] };
 }
 
+/**
+ * The app's own data as a walk meets it, each folder where it really is:
+ * the folders closed to the agent (`closed`), and the folders and files in
+ * them its rules open again (`open`: the chat's work folder, what it was
+ * sent, its handoff notes, the skills and apps, the runtime's own folders).
+ * A walk the app runs for the agent with nothing else to hold it (`du`'s,
+ * and `rg`'s on Windows) leaves out a path whose deepest holder is closed,
+ * and goes on through it to what is open.
+ */
+export function appDataBounds(layout: WorkspaceFsLayout): {
+  closed: string[];
+  open: string[];
+} {
+  const closed = layout.rules.rules
+    .filter((rule) => rule.appData)
+    .map((rule) => realHostPath(rule.path));
+  const open = layout.rules.rules
+    .filter(
+      (rule) =>
+        !rule.appData &&
+        !rule.dotEntries &&
+        (rule.level === "allow" || rule.level === "readOnly"),
+    )
+    .map((rule) => realHostPath(rule.path))
+    .filter((opened) =>
+      closed.some(
+        (folder) =>
+          hostPathWithin(folder, opened) !== null &&
+          hostPathWithin(opened, folder) === null,
+      ),
+    );
+  return { closed: [...new Set(closed)], open: [...new Set(open)] };
+}
+
 /** The layout's mounts with every one inside another left to the outer. */
 async function mountRoots(
   layout: WorkspaceFsLayout,

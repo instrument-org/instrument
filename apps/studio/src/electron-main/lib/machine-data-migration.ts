@@ -108,6 +108,7 @@ export function moveMachineData({
       readWorkspaceIdentity(workspace.path).formatVersion >=
       WORKSPACE_FORMAT_VERSION
     ) {
+      removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
       return { done, machineDir };
     }
     const marker = path.join(machineDir, UNFINISHED_MARKER);
@@ -150,6 +151,7 @@ export function moveMachineData({
       done.push(
         `workspace at format version ${WORKSPACE_FORMAT_VERSION.toString()}, machine data in ${machineDir}`,
       );
+      removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
     }
   } catch (error) {
     done.push(`machine data move stopped: ${String(error)}`);
@@ -289,6 +291,53 @@ function plannedMoves({
     ),
     ...into(settingsDir, dataDir, TRAVELING_FILES),
   ];
+}
+
+/**
+ * The default workspace's key stores still at the root of userData, from
+ * before workspaces: the settings take-in copied them into the workspace and
+ * only a packaged build then removed them, so a development build's are there
+ * in plaintext. Once the workspace has all of its machine data in place, each
+ * goes when its keys hold the same store and the root copy is no newer than
+ * theirs, which is what the take-in left. A root copy written after that (by
+ * an older build sharing this userData) or one the keys do not hold is the
+ * only copy of what it says, and stays. On every boot rather than once, since
+ * it costs a few stats and a workspace moved by an earlier build still has
+ * them.
+ */
+function removeTakenInRootKeys({
+  done,
+  machineDir,
+  userDataDir,
+  workspace,
+}: {
+  done: string[];
+  machineDir: string;
+  userDataDir: string;
+  workspace: ResolvedWorkspace;
+}) {
+  if (!workspace.isDefault) {
+    return;
+  }
+  const keysDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
+  for (const name of KEY_FILES) {
+    const rootCopy = path.join(userDataDir, name);
+    const atRoot = fileStats(rootCopy);
+    const kept = fileStats(path.join(keysDir, name));
+    if (atRoot && kept && atRoot.mtimeMs <= kept.mtimeMs) {
+      fs.rmSync(rootCopy, { force: true });
+      done.push(`removed the root copy of ${name}, which the keys hold`);
+    }
+  }
+}
+
+function fileStats(file: string): fs.Stats | undefined {
+  try {
+    const stats = fs.statSync(file);
+    return stats.isFile() ? stats : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

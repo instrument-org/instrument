@@ -87,8 +87,10 @@ const COPIED_FILES = [
  * The copied files that hold secrets in a packaged build. A packaged build
  * deletes its root copies once the workspace holds them, so a signed-in session
  * or a key does not outlive a sign-out or a disconnect in a file nothing reads.
- * Dev builds keep them, since every checkout on the machine shares one dev
- * userData and an older one may still read them.
+ * Dev builds keep them here, since every checkout on the machine shares one dev
+ * userData and an older one may still read them; the machine data move removes
+ * them in every build once the workspace's keys hold them
+ * (`machine-data-migration.ts`).
  */
 const PACKAGED_SECRET_FILES = [
   "session.json.enc",

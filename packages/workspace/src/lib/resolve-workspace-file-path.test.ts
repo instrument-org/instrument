@@ -8,6 +8,7 @@ import {
   WorkspaceDirSchema,
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
+import { workspaceLayout } from "./workspace-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -73,7 +74,11 @@ describe("resolveWorkspaceFilePath", () => {
       ...getWorkspaceConfig(),
       rootDir: WorkspaceDirSchema.parse(root),
     });
-    const skillFile = path.join(root, "skills", "csv-table", "SKILL.md");
+    const skillFile = path.join(
+      workspaceLayout(root).skillsDir,
+      "csv-table",
+      "SKILL.md",
+    );
     await fs.mkdir(path.dirname(skillFile), { recursive: true });
     await fs.writeFile(skillFile, "---\nname: csv-table\n---\n");
 

@@ -1,8 +1,9 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app } from "electron";
 import path from "node:path";
 
-import { getResolvedWorkspace, workspacePrivateDir } from "./workspaces";
+import { getResolvedWorkspace } from "./workspaces";
 
 export function getWorkspaceFolder(): string {
   return getResolvedWorkspace().path;
@@ -20,10 +21,10 @@ export function machineDir(): string {
 /**
  * What the app keeps for the resolved workspace that travels with it,
  * `<workspace>/.instrument/`: its identity, the person's preferences and
- * flags, their bookmarks.
+ * flags, their bookmarks, and the folders `workspaceLayout` names.
  */
 export function workspaceDataDir(): string {
-  return workspacePrivateDir(getWorkspaceFolder());
+  return workspaceLayout(getWorkspaceFolder()).dataDir;
 }
 
 /**

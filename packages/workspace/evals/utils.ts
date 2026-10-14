@@ -20,8 +20,9 @@ import path from "node:path";
 import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { TASKS_DIR_NAME } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
@@ -54,9 +55,10 @@ let humanStream: NodeJS.WritableStream = process.stdout;
 export function buildReportWorkspaceConfig(
   absoluteWorkspaceDir: string,
 ): WorkspaceConfig {
+  const layout = workspaceLayout(absoluteWorkspaceDir);
   return {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(path.join(absoluteWorkspaceDir, "apps")),
+    appsDir: AbsolutePathSchema.parse(layout.appsDir),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: () => {
@@ -74,9 +76,7 @@ export function buildReportWorkspaceConfig(
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "system-skills"),
     ),
-    chatsDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, CHATS_DIR_NAME),
-    ),
+    chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
     legacyTasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
     ),

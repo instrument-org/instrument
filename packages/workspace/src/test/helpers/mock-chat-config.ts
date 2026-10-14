@@ -22,12 +22,13 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
+import { workspaceLayout } from "../../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import {
@@ -42,11 +43,13 @@ import { StoreId } from "../../schemas/store-id";
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 // Outside the workspace, as this computer's folder for it is.
 const MOCK_WORKSPACE_MACHINE_DIR = "/tmp/workspace-machine";
+const MOCK_WORKSPACE_LAYOUT = workspaceLayout(MOCK_WORKSPACE_DIR);
 
 export const MOCK_WORKSPACE_DIRS = {
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
-  chats: `${MOCK_WORKSPACE_DIR}/${CHATS_DIR_NAME}`,
+  apps: MOCK_WORKSPACE_LAYOUT.appsDir,
+  chats: MOCK_WORKSPACE_LAYOUT.chatsDir,
   machine: MOCK_WORKSPACE_MACHINE_DIR,
   tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
   work: `${MOCK_WORKSPACE_MACHINE_DIR}/${WORKSPACE_MACHINE_ENTRIES.work}`,
@@ -118,7 +121,7 @@ export function createMockChatConfig(
 
   const workspaceConfig: WorkspaceConfig = {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse([MOCK_WORKSPACE_DIR, "apps"].join("/")),
+    appsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.apps),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: (...args: unknown[]) => {

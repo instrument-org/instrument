@@ -7,12 +7,11 @@ import path from "node:path";
 import { monotonicFactory } from "ulid";
 import { z } from "zod";
 
-import { TOPICS_DIR_NAME } from "../../constants";
-import { type AbsolutePath } from "../../schemas/paths";
-import { absolutePathJoin } from "../absolute-path-join";
+import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { validateFolderName } from "../project-folder-name";
 import { getWorkspaceConfig } from "../workspace-config";
 import { updateJsonRecordSync } from "../json-record-file";
+import { workspaceLayout } from "../workspace-layout";
 
 const ulid = monotonicFactory();
 
@@ -54,8 +53,8 @@ const TopicSettingsSchema = z.object({
 });
 
 /**
- * A topic: a tag on chats, with a folder of its own under `topics/` named
- * for it. Its instructions are the standing words every chat filed under it
+ * A topic: a tag on chats, with a folder of its own in the workspace's
+ * `.instrument/topics/` named for it. Its instructions are the standing words every chat filed under it
  * is read with.
  */
 export const TopicSchema = TopicSettingsSchema.extend({
@@ -116,7 +115,7 @@ export function newTopicId(at?: number): string {
  * is up, and for everything else, since a topic is two small files.
  */
 export function readTopicsSync(rootDir: string): Topic[] {
-  const dir = path.join(rootDir, TOPICS_DIR_NAME);
+  const dir = workspaceLayout(rootDir).topicsDir;
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -171,7 +170,9 @@ export function topicName(raw: string): string {
 
 /** Where every topic's folder is. */
 export function topicsDir(): AbsolutePath {
-  return absolutePathJoin(getWorkspaceConfig().rootDir, TOPICS_DIR_NAME);
+  return AbsolutePathSchema.parse(
+    workspaceLayout(getWorkspaceConfig().rootDir).topicsDir,
+  );
 }
 
 /**
@@ -216,7 +217,7 @@ export function updateTopic(
  */
 export function writeTopicSync(rootDir: string, topic: Topic): void {
   const { instructions, name, ...settings } = topic;
-  const folder = path.join(rootDir, TOPICS_DIR_NAME, name);
+  const folder = path.join(workspaceLayout(rootDir).topicsDir, name);
   // Every field this build knows is written as the topic has it, absent ones
   // dropped (a retired topic brought back loses its mark); the rest stay.
   const known = Object.fromEntries(
@@ -371,10 +372,8 @@ function updateTopicNow(topicId: string, change: TopicChange): void {
       );
     }
     if (name !== topic.name) {
-      fs.renameSync(
-        path.join(rootDir, TOPICS_DIR_NAME, topic.name),
-        path.join(rootDir, TOPICS_DIR_NAME, name),
-      );
+      const dir = workspaceLayout(rootDir).topicsDir;
+      fs.renameSync(path.join(dir, topic.name), path.join(dir, name));
     }
   }
   const { instructions, ...rest } = topic;

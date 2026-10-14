@@ -37,8 +37,12 @@ it("writes two pastes of the same name into the draft's folder, the second numbe
     options,
   );
 
-  expect(path.relative(workspace, first.path)).toBe("drafts/d1/image.png");
-  expect(path.relative(workspace, second.path)).toBe("drafts/d1/image 2.png");
+  expect(path.relative(workspace, first.path)).toBe(
+    ".instrument/drafts/d1/image.png",
+  );
+  expect(path.relative(workspace, second.path)).toBe(
+    ".instrument/drafts/d1/image 2.png",
+  );
   expect(first.size).toBe(16);
   expect(await fs.readFile(second.path, "utf8")).toBe("not really a png");
 });
@@ -54,9 +58,9 @@ it("rewrites an item handed over again rather than adding a copy", async () => {
   const again = await stage();
 
   expect(again.path).toBe(first.path);
-  expect(await fs.readdir(path.join(workspace, "drafts/d2"))).toEqual([
-    "notes.txt",
-  ]);
+  expect(
+    await fs.readdir(path.join(workspace, ".instrument/drafts/d2")),
+  ).toEqual(["notes.txt"]);
 });
 
 it.each(["../escape.png", "a/b.png", "..", ""])(

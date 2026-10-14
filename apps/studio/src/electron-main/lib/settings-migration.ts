@@ -1,10 +1,10 @@
 import { DRAFTS_KEY } from "@/shared/kept-state";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
 import {
   createDraftsFolder,
-  DRAFTS_DIR_NAME,
   draftDirOf,
   freeNameIn,
 } from "../stores/workspace/drafts-folder";
@@ -13,7 +13,6 @@ import {
   hasWorkspaceIdentity,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
-  workspacePrivateDir,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -34,7 +33,7 @@ import {
  * rather than keeping those defaults over the user's legacy files.
  *
  * Version 2 moves a workspace's drafts out of its settings into a folder each
- * at its root.
+ * in its drafts folder.
  */
 
 export const CURRENT_SETTINGS_VERSION = 2;
@@ -202,18 +201,27 @@ export function migrateWorkspaceSettings({
 /**
  * Version 2: a 2.0 beta kept the drafts as one list in the settings'
  * `drafts.json`, and what was pasted into each in `.instrument/drafts/<id>/`
- * one folder per item. Each draft becomes a folder of its own at the
- * workspace root, with what was pasted into it beside its words. A draft
- * whose folder is already there is left as it is. `history.json`, which kept
- * a list nothing reads any longer, goes too.
+ * one folder per item. Each draft becomes a folder of its own in the
+ * workspace's drafts folder, with what was pasted into it beside its words.
+ * A draft whose folder is already there is left as it is. `history.json`,
+ * which kept a list nothing reads any longer, goes too.
+ *
+ * The beta's staging folder is the drafts folder itself, so of it only the
+ * item folders the kept list names go, and a draft's folder only once that
+ * leaves it empty: a draft kept there since is never touched.
  */
 function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
   const settingsDir = workspaceSettingsDirOf(workspacePath);
   const keptFile = path.join(settingsDir, "drafts.json");
-  const stagedRoot = path.join(workspacePrivateDir(workspacePath), "drafts");
+  const root = workspaceLayout(workspacePath).draftsDir;
+  const stagedItems = new Set<string>();
   const kept = readObject(keptFile)?.[DRAFTS_KEY];
   if (Array.isArray(kept) && kept.length > 0) {
-    const root = path.join(workspacePath, DRAFTS_DIR_NAME);
+    for (const draft of kept) {
+      for (const file of stagedFilesOf(root, draft)) {
+        stagedItems.add(file.itemDir);
+      }
+    }
     const folder = createDraftsFolder(root);
     const read = folder.read()[DRAFTS_KEY];
     const onDisk: unknown[] = Array.isArray(read) ? read : [];
@@ -231,13 +239,15 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
         return [];
       }
       const dir = draftDirOf(root, draft.id);
-      const staged = path.join(stagedRoot, draft.id) + path.sep;
+      const staged = new Set(
+        stagedFilesOf(root, draft).map((file) => file.path),
+      );
       const attached = Array.isArray(draft.attached)
         ? draft.attached.map((item: unknown) => {
             if (
               !isObject(item) ||
               typeof item.path !== "string" ||
-              !item.path.startsWith(staged) ||
+              !staged.has(item.path) ||
               !fs.existsSync(item.path)
             ) {
               return item;
@@ -258,9 +268,55 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
     });
     done.push(`moved ${moved.length.toString()} drafts into their folders`);
   }
+  for (const itemDir of stagedItems) {
+    fs.rmSync(itemDir, { force: true, recursive: true });
+    removeIfEmpty(path.dirname(itemDir));
+  }
   fs.rmSync(keptFile, { force: true });
   fs.rmSync(path.join(settingsDir, "history.json"), { force: true });
-  fs.rmSync(stagedRoot, { force: true, recursive: true });
+}
+
+/**
+ * The files a beta draft names that it staged: each in an item folder of its
+ * own, `<id>/<item>/<name>` under the drafts folder.
+ */
+function stagedFilesOf(
+  root: string,
+  draft: unknown,
+): { itemDir: string; path: string }[] {
+  if (
+    !isObject(draft) ||
+    typeof draft.id !== "string" ||
+    !Array.isArray(draft.attached)
+  ) {
+    return [];
+  }
+  const draftDir = draftDirOf(root, draft.id);
+  return draft.attached.flatMap((item: unknown) => {
+    if (!isObject(item) || typeof item.path !== "string") {
+      return [];
+    }
+    const [itemName, ...rest] = path
+      .relative(draftDir, item.path)
+      .split(path.sep);
+    return itemName === undefined ||
+      itemName === "" ||
+      itemName === ".." ||
+      path.isAbsolute(itemName) ||
+      rest.length === 0
+      ? []
+      : [{ itemDir: path.join(draftDir, itemName), path: item.path }];
+  });
+}
+
+function removeIfEmpty(dir: string) {
+  try {
+    if (fs.readdirSync(dir).length === 0) {
+      fs.rmdirSync(dir);
+    }
+  } catch {
+    // Not there, or not empty: either way it stays as it is.
+  }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -273,7 +329,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * them on their way.
  */
 export function pageThumbnailsDirOf(workspacePath: string): string {
-  return path.join(workspacePrivateDir(workspacePath), "page-thumbnails");
+  return path.join(workspaceLayout(workspacePath).dataDir, "page-thumbnails");
 }
 
 /**
@@ -282,7 +338,7 @@ export function pageThumbnailsDirOf(workspacePath: string): string {
  * and that move then takes each to where it now lives.
  */
 export function workspaceSettingsDirOf(workspacePath: string): string {
-  return path.join(workspacePrivateDir(workspacePath), "settings");
+  return path.join(workspaceLayout(workspacePath).dataDir, "settings");
 }
 
 /**

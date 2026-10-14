@@ -15,12 +15,13 @@ import {
   readMovedPaths,
   remapMovedPath,
 } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
 import { logger } from "../../lib/electron-logger";
-import { createDraftsFolder, DRAFTS_DIR_NAME } from "./drafts-folder";
+import { createDraftsFolder } from "./drafts-folder";
 
 /** How long writes gather before a file is written: a burst of navigation is one write. */
 const WRITE_DELAY_MS = 250;
@@ -178,7 +179,7 @@ function getStore() {
       file === "bookmarks" ? workspaceDataDir() : workspaceWindowDir(),
     {
       drafts: createDraftsFolder(
-        path.join(getWorkspaceFolder(), DRAFTS_DIR_NAME),
+        workspaceLayout(getWorkspaceFolder()).draftsDir,
         (file) => remapMovedPath(file, readMovedPaths(workspaceMachineDir())),
       ),
     },

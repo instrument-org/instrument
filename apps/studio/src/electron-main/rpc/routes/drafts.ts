@@ -1,9 +1,9 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import {
-  DRAFTS_DIR_NAME,
   draftDirOf,
   freeNameIn,
 } from "@/electron-main/stores/workspace/drafts-folder";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -48,7 +48,7 @@ const stage = base
   .output(z.object({ path: z.string(), size: z.number() }))
   .handler(async ({ input }) => {
     const dir = draftDirOf(
-      path.join(getWorkspaceFolder(), DRAFTS_DIR_NAME),
+      workspaceLayout(getWorkspaceFolder()).draftsDir,
       input.draftId,
     );
     const item = `${input.draftId}/${input.itemId}`;

@@ -1,3 +1,4 @@
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,7 +17,6 @@ import {
   updateRegistry,
   workspaceLayoutMarks,
   workspaceMachineDirOf,
-  workspacePrivateDir,
   writeWorkspaceIdentity,
 } from "./workspaces";
 
@@ -265,9 +265,9 @@ describe("workspace ids", () => {
 
   it("reads an id that could name a folder elsewhere as none", () => {
     const dir = defaultWorkspacePath(userDataDir);
-    fs.mkdirSync(workspacePrivateDir(dir), { recursive: true });
+    fs.mkdirSync(workspaceLayout(dir).dataDir, { recursive: true });
     fs.writeFileSync(
-      path.join(workspacePrivateDir(dir), "workspace.json"),
+      path.join(workspaceLayout(dir).dataDir, "workspace.json"),
       JSON.stringify({ id: "../../elsewhere", name: "Mine" }),
     );
     expect(readWorkspaceIdentity(dir).id).toBeUndefined();

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { workspaceLayout } from "../lib/workspace-layout";
 import { REGISTRY_FOLDER_NAMES, CHAT_FOLDER_NAMES } from "../constants";
 import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
@@ -580,7 +581,10 @@ describe("LoadSkill", () => {
     // A skill in the workspace's own skills dir, which mounts writable at
     // /skills, unlike the registry the other tests use.
     const workspaceRoot = path.join(tmpDir, "workspace");
-    const skillDir = path.join(workspaceRoot, "skills", "mine");
+    const skillDir = path.join(
+      workspaceLayout(workspaceRoot).skillsDir,
+      "mine",
+    );
     await fs.mkdir(skillDir, { recursive: true });
     await fs.writeFile(
       path.join(skillDir, "SKILL.md"),

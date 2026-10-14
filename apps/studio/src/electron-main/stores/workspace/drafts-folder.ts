@@ -4,9 +4,6 @@ import path from "node:path";
 
 import { logger } from "../../lib/electron-logger";
 
-/** The folder at the workspace root holding one folder per draft. */
-export const DRAFTS_DIR_NAME = "drafts";
-
 /** What a draft's words are kept in, inside its folder. */
 const WORDS_FILE_NAME = "draft.md";
 
@@ -34,8 +31,8 @@ function recordPathOf(dir: string) {
 }
 
 /**
- * The window's drafts as a folder per draft at the workspace root, where the
- * person can find them: the words in `draft.md`, what was pasted in with no
+ * The window's drafts as a folder per draft in the workspace's drafts folder
+ * (`workspaceLayout`), where the person can find them: the words in `draft.md`, what was pasted in with no
  * file behind it beside them, and the rest of the record in the folder's
  * `.instrument/settings.json`. A path to a file in the draft's own folder is
  * kept relative to it. Deleting the folder deletes the draft.

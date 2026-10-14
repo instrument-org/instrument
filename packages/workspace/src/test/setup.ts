@@ -9,6 +9,7 @@ import path from "node:path";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
 import { setWorkspaceConfig } from "../lib/workspace-config";
+import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { unavailableWebSearchClient } from "../schemas/web-search";
 
@@ -16,6 +17,7 @@ const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-test-"),
 );
 const tasksDir = path.join(rootDir, "tasks");
+const layout = workspaceLayout(rootDir);
 // Outside the workspace, as this computer's folder for it is.
 const machineDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-machine-test-"),
@@ -38,7 +40,7 @@ const rejectBrowserTarget = () => {
 // `vi.mock(import("ulid"))` runs in snapshot tests.
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
-  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
+  appsDir: AbsolutePathSchema.parse(layout.appsDir),
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),
@@ -69,7 +71,7 @@ setWorkspaceConfig({
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
-  chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
+  chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
   legacyTasksDir: WorkspaceDirSchema.parse(tasksDir),
   tempFolders: [],
   trashItem: () => Promise.resolve(),

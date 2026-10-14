@@ -72,6 +72,49 @@ describe("remapMovedPath", () => {
     expect(remapMovedPath(at(...segments), moves)).toBe(at(...segments));
   });
 
+  // A chat's old folder went two ways: its work to the work folder, then its
+  // records into the workspace's `.instrument/`.
+  describe("a folder whose entries went to two places", () => {
+    const moves = (): MovedPath[] => [
+      { from: at("chats"), to: at("work") },
+      { from: at("chats"), to: at(".instrument", "chats") },
+    ];
+
+    it.each([
+      [
+        "what a chat was sent, kept with its records",
+        ["chats", "a", "attachments", "cat.png"],
+        [".instrument", "chats", "a", "attachments", "cat.png"],
+      ],
+      [
+        "what it made, moved with its work",
+        ["chats", "a", "work", "report.md"],
+        ["work", "a", "work", "report.md"],
+      ],
+    ])("finds %s where it is", (_case, stored, now) => {
+      touch(...now);
+
+      expect(remapMovedPath(at(...stored), moves())).toBe(at(...now));
+    });
+
+    it("answers with the first move's place when neither holds the path", () => {
+      expect(remapMovedPath(at("chats", "a", "gone.md"), moves())).toBe(
+        at("work", "a", "gone.md"),
+      );
+    });
+
+    it("follows the second place through a later move of its own", () => {
+      const now = touch("synced", "chats", "a", "attachments", "cat.png");
+
+      expect(
+        remapMovedPath(at("chats", "a", "attachments", "cat.png"), [
+          ...moves(),
+          { from: at(".instrument", "chats"), to: at("synced", "chats") },
+        ]),
+      ).toBe(now);
+    });
+  });
+
   it("names the folder a moved folder itself went to", () => {
     const moves: MovedPath[] = [{ from: at("chats"), to: at("work") }];
 

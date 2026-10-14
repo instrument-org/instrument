@@ -16,26 +16,29 @@ Out of scope entirely: the person themselves, malware already on the computer, a
 
 ## What we protect
 
-1. **The person's folder settings.** Settings › Permissions, and the cards the person answers, decide which folders the agent may read and change. A folder set to Not allowed stays closed: if Downloads is Not allowed, "delete everything in my Downloads folder" is refused, and the person changes the setting if they mean it. The places where the person's own sign-ins live (the Keychain, browser profiles, SSH and cloud keys, password managers) start closed or asking, and stay that way until the person opens them.
+1. **The person's folder settings.** Settings › Permissions, and the cards the person answers, decide which folders the agent may read and change. A folder set to Not allowed stays closed: if Downloads is Not allowed, "delete everything in my Downloads folder" is refused, and the person changes the setting if they mean it. What the person attaches to a message, or picks on a card, is open to that chat whatever Settings says about where it is; asking for it in words still respects Not allowed. The places where the person's own sign-ins live (the Keychain, browser profiles, SSH and cloud keys, password managers) start closed or asking, and stay that way until the person opens them.
 2. **The app's secrets.** Provider keys, the account sign-in, connected apps' credentials, and the per-launch keys the app's own local servers check. The agent never reads or changes them, and never changes the person's permission settings.
-3. **The sandbox itself.** Code the agent writes or downloads runs inside the sandbox. Nothing the app runs outside it (a connected app's local server, the installer for the managed Python, the app's own code) is loaded from or configured by a place the agent can write, and the agent cannot change what runs at login or when a shell starts (login items, shell startup files). One exception by design: on macOS, an AppleScript the agent writes runs outside the sandbox when every app it talks to is one the person allowed, because automating those apps is the point.
+3. **The sandbox itself.** Code the agent writes or downloads runs inside the sandbox. Nothing the app runs outside it (a connected app's local server, the installer for the managed Python, the app's own code) is loaded from or configured by a place the agent can write, and the agent cannot change what runs at login or when a shell starts (login items, shell startup files). One exception by design: on macOS, AppleScript sent to apps the person allowed runs outside the sandbox, because automating those apps is the point. Such a script may only send those apps commands, and anything in it that runs code (shell commands, scripts built at run time, the Objective-C bridge) is refused. An allowed app can then do whatever that app can do, and Finder, Terminal and System Events reach every file, which their cards say.
 4. **The person's files through the app's own operations.** A migration, a move of the Instrument folder, or a cleanup never loses or overwrites the person's files.
 
 ## What we do not protect
 
 - **Separation between chats.** Every chat belongs to the same person. One chat can leave files, installed packages, or skills that another chat later uses, and that is expected.
+- **The agent's choices inside the workspace.** Inside the workspace (its chats, its topics and their folders, the Instrument folder), what the agent chooses to do is not defended, whether or not something steered it: a chat the agent tags with a topic, for example, reaches that topic's folders. The four lines guard everything outside the workspace.
 - **Network access.** The agent can reach any address. Network rules are too fine-grained for most people to reason about, and the agent drives a real browser, which could not work behind them anyway. So if planted instructions steer the agent into sending something it was allowed to read, Instrument does not stop it. What limits that is the folder settings (what the agent can read at all) and the model's judgment.
 - **The in-app browser's sessions.** The in-app browser is the agent's as much as the person's: the agent browses as the person, with the sessions the person signed in to there. The person's other browsers stay closed (line 1).
 - **What the agent leaves in folders it may change.** If a folder is open to the agent, it can leave a script or file there that runs or is opened later. Line 3 keeps that out of the app's own programs and out of login and shell startup, not out of every program the person uses.
 - **Whether a file exists.** A refusal can reveal that a name exists in a folder the agent may not read. File names and sizes are not treated as secrets.
-- **The app's own records from the agent's view.** Other chats' records and the workspace's settings are closed to the agent so it does not wander into or rewrite the app's state, not because they are secret from the person.
+- **The app's own records from the agent's view.** Other chats' records and the workspace's settings are closed to the agent so it does not wander into or rewrite the app's state, not because they are secret from the person. They are closed to it as files, and it reaches them on purpose through the `chat` and `memory` commands.
 - **Running out the person's computer.** A runaway command is stopped by timeouts and limits, not prevented from starting.
 
 ## Windows
 
 Windows has no operating-system sandbox for the agent's programs yet. The shell's own commands and the file tools follow the folder settings there, but a program the agent starts (python, node, git, a script) can read and change anything the person can, the app's secrets included. Settings › Permissions says so on Windows. Two commands carry their own fences in the meantime: `rg` leaves the app's own data out of its searches, and `git` refuses the options that would let it run other programs.
 
-The fix is Microsoft's MXC sandbox, built from the same rules as macOS and Linux, once [microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464) and the startup failures recorded in [windows-sandbox.md](windows-sandbox.md) are fixed. It needs Windows 11 24H2 or later; older Windows keeps the notice. Until then, no new per-command fence is added for a gap that only exists because Windows has no sandbox.
+The fix is Microsoft's MXC sandbox, built from the same rules as macOS and Linux, once [microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464) is fixed and node and git start inside it, which they fail to do with `STATUS_DLL_INIT_FAILED` (recorded in [windows-sandbox.md](windows-sandbox.md)). It needs Windows 11 24H2 or later; older Windows keeps the notice. Until then, no new per-command fence is added for a gap that only exists because Windows has no sandbox.
+
+Windows is not the only place a program the agent starts runs without an operating-system sandbox. On Linux without user namespaces (an AppImage on Ubuntu, which restricts them to programs with an AppArmor profile) bubblewrap cannot start, and on a Mac running inside another sandbox Seatbelt cannot apply, since it does not nest. Settings › Permissions says so there too, and the same holds as on Windows: the shell's own commands and the file tools follow the folder settings, and a program the agent starts can reach what the person can.
 
 ## How the lines are held
 
@@ -48,6 +51,20 @@ One set of rules (`packages/workspace/src/lib/permissions/`) decides every path:
 Some commands also check their own arguments before they run, as a second layer for an easy mistake: `git` refuses options that run other programs, `node` refuses debugger flags, `agent-browser` refuses subcommands that reach outside the browser, and `rg` refuses flags that run another program. On macOS and Linux the operating system is the boundary and these are not; on Windows they are what there is.
 
 Leaving the app's own data out of an `rg` or `du` walk keeps their output clean on macOS and Linux, where the system refuses those folders anyway.
+
+The app's own ways of showing the person a file, the file viewers through the file channel and a local page in the in-app browser, hold to a second rule of their own, by name (`apps/studio/src/electron-main/lib/refused-files.ts`). It refuses a workspace's records and the machine folder, so the person's own screens stay out of the app's data whatever they are asked to open.
+
+## Defenses that hold these lines
+
+Each of these holds one of the lines above, and a change that weakens one needs the same care as a change to the rules themselves.
+
+- The sign-in places are closed, and the passwords place asks even when the person uses folders without asking (lines 1 and 2).
+- The startup places, login items and shell startup files, are closed to changes whatever the settings say (line 3).
+- The runtime folders (the managed Python, the skill environments, the preload, `bin`) are read-only to chats, and the skills the app ships are built in folders no chat reaches (line 3).
+- Installs are held to hash and release-age checks (line 3).
+- The browser bridge passes only the commands on its list, a local file is checked before a page loads it, and `tab read` refuses a file the agent could not open itself (line 1).
+- App credentials are bound to their service's origin, and an app's manifest cannot name a command line (lines 2 and 3).
+- `git` and `rg` check their arguments, and `rg` and `du` leave the app's own data out of their walks: a second layer on macOS and Linux, and the only one on Windows.
 
 ## When a finding needs a fix
 

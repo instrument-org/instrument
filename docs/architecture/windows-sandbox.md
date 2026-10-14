@@ -4,7 +4,7 @@ What holds the agent to Settings › Permissions on Windows, what does not yet, 
 
 ## What holds today
 
-The agent's own tools follow the Permissions rules on every platform: the shell's builtins (`cat`, `ls`, `rg`, `cp`, and the rest) and the file tools check each path against the rules before they touch it, refuse what is Not allowed, and ask before a folder marked Ask first. The shell spells a Windows path the POSIX way, `D:\Photos` as `/d/Photos`, and converts it back at the edge for native commands and for anything shown to the person.
+The agent's own tools follow the Permissions rules on every platform: the shell's builtins (`cat`, `ls`, `cp`, and the rest) and the file tools check each path against the rules before they touch it, refuse what is Not allowed, and ask before a folder marked Ask first. `rg` is the real ripgrep binary, which nothing sandboxes on Windows: the paths it is given are checked against the rules and its walk leaves the app's own data out, but it reads what the person can. The shell spells a Windows path the POSIX way, `D:\Photos` as `/d/Photos`, and converts it back at the edge for native commands and for anything shown to the person.
 
 ## The gap
 

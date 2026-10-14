@@ -8,7 +8,7 @@ import { pick } from "radashi";
 import { type AbsolutePath } from "../../../schemas/paths";
 import { absolutePathJoin } from "../../absolute-path-join";
 import { commandLineToolsEnv } from "../../command-line-tools-env";
-import { uvBuildEnvFor } from "../../tool-isolation-env";
+import { nodeBuildEnvFor, uvBuildEnvFor } from "../../tool-isolation-env";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type LocalMcpAppManifest } from "../manifest";
 import { workspaceMachineDir } from "../../workspace-machine-dir";
@@ -163,7 +163,7 @@ async function installNodePackage({
     `${JSON.stringify({ name: `instrument-app-server`, private: true, version: "0.0.0" }, null, 2)}\n`,
   );
 
-  const { nodeExecEnv, pnpmBinPath } = getWorkspaceConfig();
+  const { nodeExecEnv, pnpmBinPath, runtimeDir } = getWorkspaceConfig();
   // pnpm ships as a script for node to run, and the node that runs it is the
   // one this process is: the same way every other install in the app goes out
   // (see run-pnpm.ts), and the reason no `node` has to be on PATH.
@@ -175,6 +175,11 @@ async function installNodePackage({
       cwd: dir,
       env: {
         ...nodeExecEnv,
+        // The app's own registry settings, store, caches and config, in the
+        // build folders no chat reaches, never the person's `~/.npmrc` or a
+        // chat's: what this installs runs outside every sandbox. The same
+        // release-age gate as every other install.
+        ...nodeBuildEnvFor(runtimeDir),
         ...commandLineToolsEnv(),
         // pnpm locates its store through os.homedir(); the real home is where
         // every other install in this app already writes (see run-pnpm.ts).

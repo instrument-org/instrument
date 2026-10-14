@@ -827,6 +827,19 @@ export function bwrapArgs(
       // folder to bind it to, and a remount leaves the binds inside it be.
       args.push("--perms", opensInside ? "0111" : "0000", "--tmpfs", real);
       if (opensInside) {
+        args.push(
+          ...standInsWithin(
+            real,
+            ordered
+              .filter(
+                (other) =>
+                  other.depth > entry.depth &&
+                  other.path.startsWith(`${entry.path}${path.sep}`),
+              )
+              .map((other) => resolveReal(other.path)),
+            standIn,
+          ),
+        );
         remountLater.push("--remount-ro", real);
       } else {
         args.push("--remount-ro", real);
@@ -838,6 +851,49 @@ export function bwrapArgs(
     }
   }
   return [...args, ...sessionSockets, ...remountLater];
+}
+
+/**
+ * What stands in for each entry of a closed folder that a folder opens
+ * inside, once it is an empty folder that can only be passed through: a
+ * folder nobody may open or list in place of each folder, the closed-file
+ * stand-in in place of each file, so a program naming one meets "permission
+ * denied" rather than a missing file. A folder on the way to one `decided`
+ * by another rule is made searchable and no more, with the same done inside
+ * it; what another rule decides is left to that rule.
+ */
+function standInsWithin(
+  folder: string,
+  decided: readonly string[],
+  standIn: string,
+): string[] {
+  const args: string[] = [];
+  const visit = (dir: string) => {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(dir, entry.name);
+      if (decided.includes(entryPath)) {
+        continue;
+      }
+      if (
+        decided.some((other) => other.startsWith(`${entryPath}${path.sep}`))
+      ) {
+        args.push("--perms", "0111", "--dir", entryPath);
+        visit(entryPath);
+      } else if (entry.isDirectory()) {
+        args.push("--perms", "0000", "--dir", entryPath);
+      } else {
+        args.push("--ro-bind", standIn, entryPath);
+      }
+    }
+  };
+  visit(folder);
+  return args;
 }
 
 /**

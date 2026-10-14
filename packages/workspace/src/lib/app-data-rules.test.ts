@@ -44,14 +44,24 @@ vi.mock("./permissions/asks", async (importOriginal) => ({
 
 /**
  * The app's own data, laid out as on a person's computer: this computer's
- * folder where Linux and macOS keep other apps' data, the default workspace
- * and the runtime folder in it, and one chat's records and work beside
- * another's. Inside it everything is refused, plainly and with no card,
- * whatever the person allowed around it, but for what the app opens.
+ * folder where Linux and macOS keep other apps' data, the runtime folder in
+ * it, the workspace kept there or in a folder the person picked in their
+ * Documents, and one chat's records and work beside another's. Inside it
+ * everything is refused, plainly and with no card, whatever the person
+ * allowed around it, but for what the app opens. The top level of a picked
+ * folder is the person's, and follows their rules like any folder.
  */
 const SHAPES = [
-  { appFiles: ".config", platform: "Linux" },
-  { appFiles: path.join("Library", "Application Support"), platform: "macOS" },
+  { appFiles: ".config", name: "where Linux keeps it" },
+  {
+    appFiles: path.join("Library", "Application Support"),
+    name: "where macOS keeps it",
+  },
+  {
+    appFiles: path.join("Library", "Application Support"),
+    name: "with the workspace in a folder the person picked",
+    workspace: path.join("Documents", "Instrument"),
+  },
 ];
 
 const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
@@ -70,13 +80,19 @@ beforeEach(() => {
   vi.mocked(raiseAsk).mockClear();
 });
 
-/** A home with the app's data laid down where `appFiles` says. */
-function homeShaped(appFiles: string) {
+/**
+ * A home with the app's data laid down where `appFiles` says, and the
+ * workspace in it or at `workspaceIn`, below the home folder.
+ */
+function homeShaped(appFiles: string, workspaceIn?: string) {
   const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "app-data-")));
   homes.push(home);
   const machine = path.join(home, appFiles, "Instrument");
   const workspaceMachine = path.join(machine, "workspaces-data", "default");
-  const workspace = path.join(machine, "workspace");
+  const workspace =
+    workspaceIn === undefined
+      ? path.join(machine, "workspace")
+      : path.join(home, workspaceIn);
   const data = workspaceLayout(workspace);
   const paths = {
     appFiles: path.join(home, appFiles),
@@ -117,6 +133,7 @@ function homeShaped(appFiles: string) {
     `${paths.runtime}/environments/abc/x`,
     `${paths.runtime}/bin/node`,
     `${paths.appFiles}/Other/state.json`,
+    `${workspace}/report.pdf`,
   ]) {
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, "secret");
@@ -328,8 +345,8 @@ function reachTable(p: Paths) {
   ] as const;
 }
 
-describe.each(SHAPES)("the app's data where $platform keeps it", (shape) => {
-  const paths = homeShaped(shape.appFiles);
+describe.each(SHAPES)("the app's data $name", (shape) => {
+  const paths = homeShaped(shape.appFiles, shape.workspace);
   // Set as the cases are collected, since each builds its layout from the
   // config then, and again before each runs.
   useApp(paths);
@@ -344,6 +361,17 @@ describe.each(SHAPES)("the app's data where $platform keeps it", (shape) => {
       "%s: %s %s is %s",
       (_name, op, hostPath, level) => {
         expect(reachOf(layout.rules, hostPath, op).level).toBe(level);
+      },
+    );
+
+    // The picked folder is `Instrument` in Documents, the output folder's
+    // place, so its top level takes that place's rule rather than the app's.
+    it.runIf(shape.workspace !== undefined).each(["read", "write"] as const)(
+      "opens finished work at the workspace's top level, the output folder, to %s",
+      (op) => {
+        expect(
+          reachOf(layout.rules, `${paths.workspace}/report.pdf`, op).level,
+        ).toBe("allow");
       },
     );
 

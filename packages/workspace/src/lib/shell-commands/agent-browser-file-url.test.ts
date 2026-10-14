@@ -8,12 +8,13 @@ import {
   WorkDirSchema,
 } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
 const TASK = "/Users/me/Tasks/test-task";
 // The chat's record folder, in the workspace, which the rules keep hidden.
-const RECORD = `${getWorkspaceConfig().rootDir}/chats/test-task`;
+const RECORD = `${workspaceLayout(getWorkspaceConfig().rootDir).chatsDir}/test-task`;
 
 const layout = buildWorkspaceFsLayout({
   folders: {

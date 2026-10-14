@@ -36,6 +36,7 @@ import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
 import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 import { workspaceMachineDir } from "./workspace-machine-dir";
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
@@ -105,7 +106,7 @@ export interface WorkspaceFsMount {
   shellRoot: string;
   /**
    * When true the mount is read-only: writes throw EROFS in the shell.
-   * A folder is read-only when it holds the workspace
+   * A folder is read-only when it overlaps the app's own data
    * ({@link effectiveFolderAccess}).
    */
   readOnly: boolean;
@@ -249,7 +250,7 @@ export async function buildBashFs(
     });
     fs.mount(
       mount.shellRoot,
-      homeWalkBudget && folderHoldsWorkspace(mount.hostRoot)
+      homeWalkBudget && folderHoldsAppData(mount.hostRoot)
         ? homeWalkBudget.wrap(mounted, mount.shellRoot, (path) => {
             // The chat's own folder walks at the sandbox's budget wherever
             // it sits, the home folder included.
@@ -353,28 +354,29 @@ export function buildWorkspaceFsLayout({
 }
 
 /**
- * The access a folder actually gets: read and write, unless the folder
- * overlaps the workspace's own directory in either direction.
+ * The access a folder actually gets: read and write, unless it overlaps the
+ * app's own data: one inside this computer's folder for the app or inside
+ * the workspace's `.instrument/`, or one holding this computer's folder
+ * whole.
  *
- * Every chat's database and settings, and the skills the agent loads as
- * instructions, live under the workspace root. A folder that contains it, or
- * sits inside it, would turn one chat's write grant into write access to
- * every other chat and a way to persist instructions across all of them.
- * Reading those files is possible through any such folder; writing them is
- * refused.
- *
- * The judgment is about the folder given, not about the mount it sits in: the
- * home folder whole is read-only, since the workspace is somewhere inside it,
- * while its Desktop granted on its own is clear of the workspace and carries
- * the grant in full.
+ * That folder keeps every workspace's keys, browser profiles and folder
+ * rules, and each chat's work folder, so a write grant over it would reach
+ * all of them; the rules close it to every command, and the mount is
+ * read-only as well. The judgment is about the folder given, not about the
+ * mount it sits in: the home folder whole is read-only, since this
+ * computer's folder is somewhere inside it, while its Desktop granted on its
+ * own carries the grant in full. A folder that only holds the workspace's
+ * `.instrument/` (the workspace's own folder, which is the output folder once
+ * the person picked it, or the folder holding that) carries its grant too:
+ * the rules close `.instrument/` inside it.
  *
  * Applied here rather than at the UI so it holds for a hand-edited
  * settings.json, and shared with the agent's folder list so what the model is
  * told matches what the filesystem enforces.
  *
- * Both paths are canonicalized before they are compared, because the overlap
+ * The paths are canonicalized before they are compared, because the overlap
  * is a fact about the directory rather than about how it was spelled: `..`
- * segments and a symlink pointing at the workspace both name it without
+ * segments and a symlink pointing at the app's data both name it without
  * matching it as a prefix. Only a read-write grant pays for that, so the usual
  * read-only folder costs nothing.
  */
@@ -385,37 +387,38 @@ export function effectiveFolderAccess(folder: {
   if (folder.access !== "read-write") {
     return "read-only";
   }
+  const config = getWorkspaceConfig();
   const folderPath = canonicalizeThroughMissing(folder.path);
-  const workspaceRoot = canonicalizeThroughMissing(
-    getWorkspaceConfig().rootDir,
+  const machine = canonicalizeThroughMissing(config.machineDir);
+  const workspaceData = canonicalizeThroughMissing(
+    workspaceLayout(config.rootDir).dataDir,
   );
-  // Either path failing to resolve means the overlap cannot be ruled out, so
-  // the grant is refused rather than assumed safe.
-  if (folderPath === null || workspaceRoot === null) {
+  // A path failing to resolve means the overlap cannot be ruled out, so the
+  // grant is refused rather than assumed safe.
+  if (folderPath === null || machine === null || workspaceData === null) {
     return "read-only";
   }
-  const overlapsWorkspace =
-    pathIsWithin(folderPath, workspaceRoot) ||
-    pathIsWithin(workspaceRoot, folderPath);
-  return overlapsWorkspace ? "read-only" : "read-write";
+  const overlapsAppData =
+    pathIsWithin(folderPath, machine) ||
+    pathIsWithin(machine, folderPath) ||
+    pathIsWithin(folderPath, workspaceData);
+  return overlapsAppData ? "read-only" : "read-write";
 }
 
 /**
- * True when a folder contains the workspace root: the home folder, reached
- * whole. Such a folder is read-only as a whole (effectiveFolderAccess) while a
- * folder inside it takes a write grant, which is what a refusal to write it
- * whole should say to do instead.
+ * True when a folder holds this computer's folder for the app: the home
+ * folder, reached whole. Such a folder is read-only as a whole
+ * (effectiveFolderAccess) while a folder inside it takes a write grant,
+ * which is what a refusal to write it whole should say to do instead.
  */
-export function folderHoldsWorkspace(folderPath: string): boolean {
+export function folderHoldsAppData(folderPath: string): boolean {
   const resolved = canonicalizeThroughMissing(folderPath);
-  const workspaceRoot = canonicalizeThroughMissing(
-    getWorkspaceConfig().rootDir,
-  );
+  const machine = canonicalizeThroughMissing(getWorkspaceConfig().machineDir);
   return (
     resolved !== null &&
-    workspaceRoot !== null &&
-    resolved !== workspaceRoot &&
-    pathIsWithin(workspaceRoot, resolved)
+    machine !== null &&
+    resolved !== machine &&
+    pathIsWithin(machine, resolved)
   );
 }
 
@@ -710,8 +713,10 @@ export function hostPathOf(shellSpelled: string): string {
  * allow for each folder it reaches, plus the app's own over its folders.
  * The app's own data is closed to every command, and refused plainly: this
  * computer's folder (each workspace's keys, browser profiles, folder rules
- * and work folders, and the runtime folder) and the workspace's records.
- * In it only these open: the chat's work folder, and in its record folder
+ * and work folders, and the runtime folder) and the workspace's
+ * `.instrument/`, its records. The workspace's own folder around that is
+ * the person's, and follows their rules like any folder: once they picked
+ * it, it is the output folder. In the app's own data only these open: the chat's work folder, and in its record folder
  * the attachments it reads and the handoff notes it writes; the skills it
  * reads and the apps it writes; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
@@ -742,7 +747,7 @@ function layoutRules(
     config.machineDir,
     workspaceMachineDir(),
     config.runtimeDir,
-    config.rootDir,
+    workspaceLayout(config.rootDir).dataDir,
   ].map((path) => ({ appData: true, ...system("never", path) }));
   const own: Rule[] = [
     ...appData,

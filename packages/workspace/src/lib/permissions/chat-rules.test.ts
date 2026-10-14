@@ -19,6 +19,7 @@ import {
 } from "../native-sandbox";
 import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { nativeReachFor } from "./chat-rules";
 
@@ -101,7 +102,7 @@ describe.runIf(seatbeltAvailable())(
   () => {
     const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
     const name = path.basename(chatRoot);
-    const record = path.join(rootDir, "chats", name);
+    const record = path.join(workspaceLayout(rootDir).chatsDir, name);
     const work = path.join(workspaceMachineDir, "work", name);
     mkdirSync(path.join(record, "attachments"), { recursive: true });
     mkdirSync(work, { recursive: true });

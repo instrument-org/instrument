@@ -123,7 +123,7 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     machineDir = path.join(root, "machine");
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
+      chatsDir: AbsolutePathSchema.parse(workspaceLayout(rootDir).chatsDir),
       rootDir: WorkspaceDirSchema.parse(rootDir),
       workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
       workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
@@ -137,7 +137,10 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
     await fs.writeFile(path.join(workDir(chatId), "work", "report.md"), "made");
     recordMovedPaths(machineDir, [
-      { from: path.join(rootDir, "chats"), to: path.join(machineDir, "work") },
+      {
+        from: workspaceLayout(rootDir).chatsDir,
+        to: path.join(machineDir, "work"),
+      },
     ]);
   });
 

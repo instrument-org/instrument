@@ -84,14 +84,16 @@ it("asks before changing the home folder a temp folder holds", async () => {
 });
 
 it.skipIf(process.platform === "win32")(
-  "keeps the workspace a temp folder holds closed",
+  "keeps the workspace's records a temp folder holds closed",
   async () => {
     const result = await run(
-      "ls /tmp/workspace; touch /tmp/workspace/leak.txt",
+      "ls /tmp/workspace/.instrument; touch /tmp/workspace/.instrument/leak.txt",
     );
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Permission denied");
     expect(result.stderr).toContain("Instrument's own data");
-    await expect(fs.stat("/tmp/workspace/leak.txt")).rejects.toThrow();
+    await expect(
+      fs.stat("/tmp/workspace/.instrument/leak.txt"),
+    ).rejects.toThrow();
   },
 );

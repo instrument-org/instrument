@@ -648,7 +648,7 @@ describe("LoadSkill", () => {
 
       Its Node.js packages are installed beside its scripts. Its folder is read-only, so a script of your own goes in your work folder, with what it imports added there (\`pnpm add <package>\`).
 
-      Its Python packages are installed: \`python\` runs its scripts with them, and your own scripts too wherever no \`.venv\` is near, so do not install them again. A package its instructions say to \`pip install\` for one use is not among them; installing it makes a \`.venv\` in your work folder, which has only what you install in it.
+      Its Python packages are installed: \`python\` runs its scripts with them, and your own scripts too until you load another skill, so do not install them again. A package its instructions say to \`pip install\` for one use is not among them; installing it puts it in a \`.venv\` in your work folder, where its scripts find it as well as yours.
 
       Everything below is the text of the skill "spreadsheet".
 

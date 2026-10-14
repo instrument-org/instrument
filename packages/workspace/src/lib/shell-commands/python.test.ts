@@ -17,6 +17,12 @@ vi.mock("execa");
 vi.mock(import("../venv"), () => ({ pythonToRun: vi.fn() }));
 vi.mock(import("../skill-environments"), () => ({
   environmentBinDir: (venv: string) => path.join(venv, "bin"),
+  pythonLayerEnv: (layer: string, pythonPath: string | undefined) => ({
+    INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(layer, "site-packages"),
+    PYTHONPATH: ["/runtime/environments/site", pythonPath]
+      .filter(Boolean)
+      .join(path.delimiter),
+  }),
   skillPythonToRun: vi.fn(),
 }));
 
@@ -36,6 +42,8 @@ describe("python", () => {
 
   beforeEach(async () => {
     const { pythonToRun } = await import("../venv");
+    const { skillPythonToRun } = await import("../skill-environments");
+    vi.mocked(skillPythonToRun).mockResolvedValue({});
     vi.mocked(pythonToRun).mockResolvedValue({
       python: "/work/.venv/bin/python",
       venv: AbsolutePathSchema.parse("/work/.venv"),
@@ -69,11 +77,52 @@ describe("python", () => {
     );
   });
 
-  it("runs a skill's script in the skill's environment, which what it starts finds too", async () => {
+  const skillEnv = AbsolutePathSchema.parse("/runtime/environments/0123");
+  const workVenv = AbsolutePathSchema.parse("/work/.venv");
+
+  it.each([
+    {
+      absent: ["INSTRUMENT_EXTRA_SITE_PACKAGES"],
+      env: {
+        PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
+        PYTHONPATH: "/mine",
+        VIRTUAL_ENV: skillEnv,
+      },
+      interpreter: "/runtime/environments/0123/bin/python",
+      name: "a skill's script in the skill's environment, which what it starts finds too",
+      skill: { venv: skillEnv },
+    },
+    {
+      absent: [],
+      env: {
+        INSTRUMENT_EXTRA_SITE_PACKAGES: "/work/.venv/site-packages",
+        PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
+        PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
+          path.delimiter,
+        ),
+        VIRTUAL_ENV: skillEnv,
+      },
+      interpreter: "/runtime/environments/0123/bin/python",
+      name: "a skill's script with the .venv layered behind its environment",
+      skill: { layer: workVenv, venv: skillEnv },
+    },
+    {
+      absent: ["PYTHONNOUSERSITE", "VIRTUAL_ENV"],
+      env: {
+        INSTRUMENT_EXTRA_SITE_PACKAGES:
+          "/runtime/environments/0123/site-packages",
+        PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
+          path.delimiter,
+        ),
+      },
+      interpreter: "/work/.venv/bin/python",
+      name: "the agent's own code in its .venv with the skill's environment layered behind it",
+      skill: { layer: skillEnv },
+    },
+  ])("runs $name", async ({ absent, env, interpreter, skill }) => {
     const { execa } = await import("execa");
     const { skillPythonToRun } = await import("../skill-environments");
-    const venv = AbsolutePathSchema.parse("/runtime/environments/0123");
-    vi.mocked(skillPythonToRun).mockResolvedValueOnce({ venv });
+    vi.mocked(skillPythonToRun).mockResolvedValueOnce(skill);
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
@@ -81,7 +130,10 @@ describe("python", () => {
 
     await command.execute(["-u", "/runtime/skills/pdf/scripts/x.py"], {
       ...mockCtx,
-      env: new Map([["INSTRUMENT_SKILL_DIR", "/runtime/skills/pdf"]]),
+      env: new Map([
+        ["INSTRUMENT_SKILL_DIR", "/runtime/skills/pdf"],
+        ["PYTHONPATH", "/mine"],
+      ]),
     });
 
     expect(vi.mocked(skillPythonToRun)).toHaveBeenLastCalledWith(
@@ -91,15 +143,21 @@ describe("python", () => {
       }),
     );
     expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
-      expect.stringContaining("/runtime/environments/0123/bin/python"),
+      interpreter,
       ["-u", "/runtime/skills/pdf/scripts/x.py"],
       expect.objectContaining({
-        env: expect.objectContaining({
-          PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
-          VIRTUAL_ENV: venv,
-        }),
+        env: expect.objectContaining(env),
       }),
     );
+    for (const name of absent) {
+      expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          env: expect.not.objectContaining({ [name]: expect.anything() }),
+        }),
+      );
+    }
   });
 
   it.each([

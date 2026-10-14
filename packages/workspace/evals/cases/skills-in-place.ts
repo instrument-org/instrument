@@ -10,10 +10,11 @@ import { type Assertion, defineEval } from "../harness";
 /**
  * A skill is read where it is: `load_skill` names its folder, the shell
  * calls it `$INSTRUMENT_SKILL_DIR`, and `python` runs a script there in the
- * skill's own environment, and the agent's own code in it too where no
- * `.venv` is near. A unit test shows the variable is set and the
- * environment picked; only a model shows whether it runs the scripts where
- * they are, without copying them or installing their packages again.
+ * skill's own environment, and the agent's own code with the skill's
+ * packages too, behind its `.venv`'s where it has one. A unit test shows the
+ * variable is set and the environment picked; only a model shows whether it
+ * runs the scripts where they are, without copying them or installing their
+ * packages again.
  */
 
 /** Every bash command the task ran, in order. */

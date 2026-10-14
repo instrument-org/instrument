@@ -45,6 +45,22 @@ export function venvPython(venvDir: AbsolutePath): AbsolutePath {
 }
 
 /**
+ * A virtualenv's site-packages: `lib/python<version>/site-packages` on macOS
+ * and Linux, `Lib/site-packages` on Windows, as uv lays them out from the
+ * managed Python.
+ */
+export function venvSitePackages(venvDir: AbsolutePath): AbsolutePath {
+  return isWindows
+    ? absolutePathJoin(venvDir, "Lib", "site-packages")
+    : absolutePathJoin(
+        venvDir,
+        "lib",
+        `python${MANAGED_PYTHON_VERSION}`,
+        "site-packages",
+      );
+}
+
+/**
  * The virtualenv a Python command run in `cwd` uses: the nearest `.venv`
  * from `cwd` up to the root of the chat's work folder, and for a command run
  * outside that folder, the one at its root. Undefined where there is none.

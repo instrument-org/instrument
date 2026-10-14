@@ -71,7 +71,7 @@ describe("createBashDescription", () => {
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
         uv - Python package and environment manager, backing \`python\` and \`pip\`. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
-        python - Run Python as a real process: a skill's script with that skill's packages, and anything else in the nearest \`.venv\` up to this conversation's folder, with what \`pip\` installed there, or where there is none, with the packages of the skill you loaded last, or the standard library alone. It reads and writes the folders you reach where they sit.
+        python - Run Python as a real process: a skill's script with that skill's packages, and your own code with what \`pip\` installed in the nearest \`.venv\` up to this conversation's folder. Each also finds the other's packages where its own have none by that name: a skill's script finds what you installed, and your code the packages of the skill you loaded last. It reads and writes the folders you reach where they sit.
         pip - Install Python packages via uv into the nearest \`.venv\` up to this conversation's folder, which the first install makes at its root, and where \`python\` runs. Use like pip, e.g. \`pip install <package>\`.
         validate-skill - Check a skill written in the workspace's skills folder and report what is wrong with it.
       Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.

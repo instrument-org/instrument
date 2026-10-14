@@ -10,9 +10,10 @@ import {
   ensurePythonEnvironment,
   environmentBinDir,
   pythonEnvironmentOf,
+  pythonLayerEnv,
   trustedSkillFolder,
 } from "../skill-environments";
-import { getUvBinPath, withPythonVersionNote } from "../uv";
+import { getUvBinPath, nearestVenv, withPythonVersionNote } from "../uv";
 import { venvToInstallInto } from "../venv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
@@ -69,6 +70,7 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
             UV_NO_SYNC: "1",
             UV_PROJECT_ENVIRONMENT: skill.venv,
             VIRTUAL_ENV: skill.venv,
+            ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
           }
         : env,
       hostCwd,
@@ -81,7 +83,9 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
  * For `uv run --project <skill folder>`, the skill's own environment, which
  * no chat may write, so uv runs in it as it stands (`UV_NO_SYNC`, which
  * leaves the lockfile alone too) rather than making a `.venv` in the
- * skill's folder. Undefined for any other command.
+ * skill's folder, with the `.venv` nearest the shell's folder layered
+ * behind it, as `python` runs the skill's scripts. Undefined for any other
+ * command.
  */
 async function skillProjectEnvironment({
   args,
@@ -93,7 +97,9 @@ async function skillProjectEnvironment({
   chatId: ChatId;
   ctx: CommandContext;
   hostCwd: AbsolutePath;
-}): Promise<{ error: string } | { venv: AbsolutePath } | undefined> {
+}): Promise<
+  { error: string } | { layer?: AbsolutePath; venv: AbsolutePath } | undefined
+> {
   if (args[0] !== "run") {
     return undefined;
   }
@@ -110,7 +116,11 @@ async function skillProjectEnvironment({
     signal: ctx.signal,
     skillDir: folder,
   });
-  return "error" in built ? { error: built.error.output } : built;
+  if ("error" in built) {
+    return { error: built.error.output };
+  }
+  const layer = nearestVenv(chatId, hostCwd);
+  return layer === undefined ? built : { layer, venv: built.venv };
 }
 
 /** The folder `--project` or `--directory` names, before any `--`. */

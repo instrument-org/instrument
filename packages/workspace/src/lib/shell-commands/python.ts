@@ -5,7 +5,11 @@ import path from "node:path";
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { environmentBinDir, skillPythonToRun } from "../skill-environments";
+import {
+  environmentBinDir,
+  pythonLayerEnv,
+  skillPythonToRun,
+} from "../skill-environments";
 import { venvPython } from "../uv";
 import { pythonToRun } from "../venv";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -15,12 +19,14 @@ import { hostPathArgs, resolveCommandContext } from "./utils";
 /**
  * `python` (and `python3`) is a real process held to the same native sandbox
  * as every other binary the shell runs. A script in a skill's folder runs in
- * that skill's environment; anything else in the virtualenv nearest the
- * shell's folder, where `pip install` put packages, or where there is none,
- * the environment of the skill loaded last, or the managed Python's own.
+ * that skill's environment, with the virtualenv nearest the shell's folder,
+ * where `pip install` put packages, behind it; anything else runs in that
+ * virtualenv, with the environment of the skill loaded last behind it, or
+ * where there is none, in that skill's environment, or the managed Python's
+ * own.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python as a real process: a skill's script with that skill's packages, and anything else in the nearest \`.venv\` up to this conversation's folder, with what \`pip\` installed there, or where there is none, with the packages of the skill you loaded last, or the standard library alone. It reads and writes the folders you reach where they sit.`,
+  description: `Run Python as a real process: a skill's script with that skill's packages, and your own code with what \`pip\` installed in the nearest \`.venv\` up to this conversation's folder. Each also finds the other's packages where its own have none by that name: a skill's script finds what you installed, and your code the packages of the skill you loaded last. It reads and writes the folders you reach where they sit.`,
   name: "python",
 } as const;
 
@@ -79,10 +85,10 @@ async function runNativePython(
     script: script === undefined ? undefined : path.resolve(hostCwd, script),
     signal: ctx.signal,
   });
-  if (skill && "error" in skill) {
+  if ("error" in skill) {
     return { exitCode: 1, stderr: skill.error.output, stdout: "" };
   }
-  const interpreter = skill
+  const interpreter = skill.venv
     ? { python: venvPython(skill.venv), venv: skill.venv }
     : await pythonToRun({ chatId, cwd: hostCwd, signal: ctx.signal });
   if ("error" in interpreter) {
@@ -92,20 +98,24 @@ async function runNativePython(
   const result = await execShim(interpreter.python, finalArgs, {
     cancelSignal: ctx.signal,
     cwd: hostCwd,
-    // A skill's environment is the one a program the script starts finds
-    // too. The managed Python run bare reads no packages of the person's
-    // own (their user site-packages), as a virtualenv reads none.
-    env: skill
-      ? {
-          ...env,
-          PATH: [environmentBinDir(skill.venv), env.PATH]
-            .filter(Boolean)
-            .join(path.delimiter),
-          VIRTUAL_ENV: skill.venv,
-        }
-      : interpreter.venv
-        ? env
-        : { ...env, PYTHONNOUSERSITE: "1" },
+    // A skill's environment, and the one layered behind the interpreter's,
+    // are what a Python the script starts finds too. The managed Python run
+    // bare reads no packages of the person's own (their user
+    // site-packages), as a virtualenv reads none.
+    env: {
+      ...env,
+      ...(skill.venv
+        ? {
+            PATH: [environmentBinDir(skill.venv), env.PATH]
+              .filter(Boolean)
+              .join(path.delimiter),
+            VIRTUAL_ENV: skill.venv,
+          }
+        : interpreter.venv
+          ? {}
+          : { PYTHONNOUSERSITE: "1" }),
+      ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
+    },
     // Buffer, not the latin1-packed string: execa UTF-8 encodes string
     // input, which would double-encode every non-ASCII byte.
     ...(stdin ? { input: Buffer.from(stdin, "latin1") } : { stdin: "ignore" }),

@@ -11,10 +11,11 @@ import {
   ensureNodeEnvironment,
   ensurePythonEnvironment,
   pythonEnvironmentOf,
+  pythonLayerEnv,
   skillPythonToRun,
   trustedSkillFolder,
 } from "./skill-environments";
-import { venvPython } from "./uv";
+import { venvPython, venvSitePackages } from "./uv";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { workspaceLayout } from "./workspace-layout";
 
@@ -124,10 +125,15 @@ describe("ensurePythonEnvironment", () => {
     expect(fs.existsSync(venvPython(AbsolutePathSchema.parse(target)))).toBe(
       true,
     );
-    // Nothing of the build is left beside it.
-    expect(fs.readdirSync(runtime().environments)).toEqual([
-      path.basename(target ?? ""),
-    ]);
+    // Nothing of the build is left beside it, only the folder that layers
+    // an environment under another.
+    const [layerDir, ...others] = fs
+      .readdirSync(runtime().environments)
+      .filter((entry) => entry !== path.basename(target ?? ""));
+    expect(others).toEqual([]);
+    expect(
+      fs.readdirSync(path.join(runtime().environments, layerDir ?? "")),
+    ).toEqual(["sitecustomize.py"]);
     const calls = vi.mocked(runUvCommand).mock.calls.map(([call]) => ({
       args: call.args.map((arg) =>
         arg
@@ -305,38 +311,161 @@ describe("trustedSkillFolder", () => {
 });
 
 describe("skillPythonToRun", () => {
-  it("runs a script in the environment of the skill that holds it", async () => {
-    const skillDir = shippedSkill("pdf", PYTHON_SKILL);
+  const cwd = () =>
+    path.join(root.path, "machine", "work", "skill-environments");
+  const venv = () => path.join(cwd(), ".venv");
+  const skills = () => ({
+    other: shippedSkill("other", {
+      ...PYTHON_SKILL,
+      "uv.lock": "version = 2\n",
+    }),
+    page: shippedSkill("page", { "scripts/a.ts": "" }),
+    pdf: shippedSkill("pdf", PYTHON_SKILL),
+  });
+  const environment = (skillDir: string) => pythonEnvironmentOf(skillDir);
+
+  beforeEach(() => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      workFoldersDir: AbsolutePathSchema.parse(path.dirname(cwd())),
+    });
+  });
+
+  it.each<{
+    expected: (
+      folders: ReturnType<typeof skills>,
+    ) => Awaited<ReturnType<typeof skillPythonToRun>>;
+    loaded?: keyof ReturnType<typeof skills>;
+    name: string;
+    script?: keyof ReturnType<typeof skills> | "own";
+    venvNear: boolean;
+  }>([
+    {
+      expected: ({ pdf }) => ({ venv: environment(pdf) }),
+      name: "a skill's script, alone where no .venv is near",
+      script: "pdf",
+      venvNear: false,
+    },
+    {
+      expected: ({ pdf }) => ({
+        layer: AbsolutePathSchema.parse(venv()),
+        venv: environment(pdf),
+      }),
+      name: "a skill's script, with the .venv behind it",
+      script: "pdf",
+      venvNear: true,
+    },
+    {
+      expected: ({ pdf }) => ({
+        layer: AbsolutePathSchema.parse(venv()),
+        venv: environment(pdf),
+      }),
+      loaded: "other",
+      name: "a skill's script, in its own skill's environment whichever was loaded",
+      script: "pdf",
+      venvNear: true,
+    },
+    {
+      expected: ({ pdf }) => ({ venv: environment(pdf) }),
+      loaded: "pdf",
+      name: "the agent's own script in the loaded skill's environment where no .venv is near",
+      script: "own",
+      venvNear: false,
+    },
+    {
+      expected: ({ pdf }) => ({ layer: environment(pdf) }),
+      loaded: "pdf",
+      name: "the agent's own script in the .venv, with the loaded skill's environment behind it",
+      script: "own",
+      venvNear: true,
+    },
+    {
+      expected: ({ pdf }) => ({ layer: environment(pdf) }),
+      loaded: "pdf",
+      name: "code from -c or stdin like the agent's own script",
+      venvNear: true,
+    },
+    {
+      expected: () => ({}),
+      name: "the agent's own script with no skill loaded",
+      script: "own",
+      venvNear: true,
+    },
+    {
+      expected: () => ({}),
+      loaded: "page",
+      name: "the agent's own script after a skill with no Python environment",
+      script: "own",
+      venvNear: true,
+    },
+  ])("runs $name", async ({ expected, loaded, script, venvNear }) => {
+    const folders = skills();
+    if (venvNear) {
+      write(path.join(venv(), "pyvenv.cfg"));
+    }
 
     await expect(
       skillPythonToRun({
         chatId,
-        cwd: root.path,
-        loadedSkillDir: undefined,
-        script: path.join(skillDir, "scripts", "run.py"),
+        cwd: cwd(),
+        loadedSkillDir: loaded && folders[loaded],
+        script:
+          script === undefined
+            ? undefined
+            : path.join(
+                script === "own" ? path.join(cwd(), "job") : folders[script],
+                "scripts",
+                "run.py",
+              ),
       }),
-    ).resolves.toEqual({ venv: pythonEnvironmentOf(skillDir) });
+    ).resolves.toEqual(expected(folders));
   });
 
-  it("runs other code in the loaded skill's environment until a .venv is near", async () => {
-    const skillDir = shippedSkill("pdf", PYTHON_SKILL);
-    const cwd = path.join(root.path, "machine", "work", "skill-environments");
-    setWorkspaceConfig({
-      ...getWorkspaceConfig(),
-      workFoldersDir: AbsolutePathSchema.parse(path.dirname(cwd)),
+  it("runs the agent's own code in its .venv when the loaded skill's environment cannot be built, and reports it with none", async () => {
+    const { runUvCommand } = await import("./run-uv");
+    vi.mocked(runUvCommand).mockResolvedValue({
+      combined: "offline",
+      exitCode: 2,
+      stdout: "",
     });
     const own = {
       chatId,
-      cwd,
-      loadedSkillDir: skillDir,
-      script: path.join(cwd, "job", "mine.py"),
+      cwd: cwd(),
+      loadedSkillDir: skills().pdf,
+      script: path.join(cwd(), "job", "mine.py"),
     };
 
     await expect(skillPythonToRun(own)).resolves.toEqual({
-      venv: pythonEnvironmentOf(skillDir),
+      error: { exitCode: 2, output: "offline" },
     });
+    write(path.join(venv(), "pyvenv.cfg"));
+    await expect(skillPythonToRun(own)).resolves.toEqual({});
+  });
+});
 
-    write(path.join(cwd, ".venv", "pyvenv.cfg"));
-    await expect(skillPythonToRun(own)).resolves.toBeUndefined();
+describe("pythonLayerEnv", () => {
+  it("puts the layer's sitecustomize ahead of what PYTHONPATH was, naming the site-packages it adds", async () => {
+    const skillDir = shippedSkill("pdf", PYTHON_SKILL);
+    const built = await ensurePythonEnvironment({ chatId, skillDir });
+    if (!("venv" in built)) {
+      throw new Error(built.error.output);
+    }
+    const layer = AbsolutePathSchema.parse(
+      path.join(root.path, "work", ".venv"),
+    );
+
+    const env = pythonLayerEnv(layer, "/mine");
+    const [siteDir, ...rest] = (env.PYTHONPATH ?? "").split(path.delimiter);
+
+    expect(rest).toEqual(["/mine"]);
+    expect(path.dirname(siteDir ?? "")).toBe(runtime().environments);
+    const source = fs.readFileSync(
+      path.join(siteDir ?? "", "sitecustomize.py"),
+      "utf8",
+    );
+    expect(source).toContain("INSTRUMENT_EXTRA_SITE_PACKAGES");
+    expect(source).toContain("site.addsitedir(extra)");
+    expect(env.INSTRUMENT_EXTRA_SITE_PACKAGES).toBe(venvSitePackages(layer));
+    expect(pythonLayerEnv(layer, undefined).PYTHONPATH).toBe(siteDir);
   });
 });

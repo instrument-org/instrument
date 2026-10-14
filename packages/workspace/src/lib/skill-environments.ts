@@ -13,7 +13,12 @@ import { ensureManagedPython, runUvCommand } from "./run-uv";
 import { runtimeLayout } from "./runtime-dir";
 import { SKILL_COPY_IGNORE } from "./skill-artifact-ignore";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
-import { MANAGED_PYTHON_VERSION, nearestVenv, venvPython } from "./uv";
+import {
+  MANAGED_PYTHON_VERSION,
+  nearestVenv,
+  venvPython,
+  venvSitePackages,
+} from "./uv";
 import { hasUsableVenv, type VenvError } from "./venv";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
@@ -30,6 +35,52 @@ const BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 const PYTHON_PROJECT_FILE = "pyproject.toml";
 const PYTHON_LOCKFILE = "uv.lock";
 const NODE_MODULES = "node_modules";
+
+/** The site-packages folder the layer's `sitecustomize` adds. */
+const EXTRA_SITE_PACKAGES = "INSTRUMENT_EXTRA_SITE_PACKAGES";
+const SITE_LAYER_FILE = "sitecustomize.py";
+
+/**
+ * Lays a second environment's packages behind the ones Python runs with.
+ * `site` imports `sitecustomize` once it has put the interpreter's own
+ * site-packages on `sys.path`, so `site.addsitedir` appends the folder after
+ * them and runs its `.pth` files, where `PYTHONPATH` would put it ahead of
+ * them. It takes its own folder back off `sys.path`, then runs the
+ * `sitecustomize` it stands in front of, where the interpreter or a package
+ * has one (a Python on this computer may, though none the app builds does).
+ * A Python of another version, which a program the script starts may run,
+ * adds nothing, and a folder already on the path is not added again.
+ */
+const SITE_LAYER_SOURCE = `import importlib.machinery
+import importlib.util
+import os
+import site
+import sys
+
+
+def _layer():
+    def key(entry):
+        return os.path.normcase(os.path.realpath(entry))
+
+    here = key(os.path.dirname(__file__))
+    sys.path[:] = [entry for entry in sys.path if not entry or key(entry) != here]
+    extra = os.environ.get("${EXTRA_SITE_PACKAGES}", "")
+    if (
+        "%d.%d" % sys.version_info[:2] == "${MANAGED_PYTHON_VERSION}"
+        and os.path.isdir(extra)
+        and key(extra) not in [key(entry) for entry in sys.path if entry]
+    ):
+        site.addsitedir(extra)
+    spec = importlib.machinery.PathFinder.find_spec("sitecustomize", sys.path)
+    if spec is not None and spec.loader is not None:
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["sitecustomize"] = module
+        spec.loader.exec_module(module)
+
+
+_layer()
+del _layer
+`;
 
 function environmentsDir(): AbsolutePath {
   return AbsolutePathSchema.parse(
@@ -141,7 +192,11 @@ export function ensurePythonEnvironment({
   );
 }
 
-/** {@link ensurePythonEnvironment} on the thread that builds. */
+/**
+ * {@link ensurePythonEnvironment} on the thread that builds, with the
+ * folder that layers an environment under another
+ * ({@link pythonLayerEnv}).
+ */
 export async function ensurePythonEnvironmentHere({
   chatId,
   skillDir,
@@ -158,10 +213,49 @@ export async function ensurePythonEnvironmentHere({
       },
     };
   }
-  const error = await buildOnce(target, hasUsableVenv, (staging) =>
-    buildPythonEnvironment({ chatId, skillDir, staging }),
-  );
+  const error =
+    (await buildOnce(target, hasUsableVenv, (staging) =>
+      buildPythonEnvironment({ chatId, skillDir, staging }),
+    )) ??
+    (await buildOnce(
+      siteLayerDir(),
+      (dir) => existsSync(path.join(dir, SITE_LAYER_FILE)),
+      async (staging) => {
+        await fs.mkdir(staging, { recursive: true });
+        await fs.writeFile(
+          path.join(staging, SITE_LAYER_FILE),
+          SITE_LAYER_SOURCE,
+        );
+        return undefined;
+      },
+    ));
   return error ? { error } : { venv: target };
+}
+
+/**
+ * The folder holding the layer's `sitecustomize`, in `environments/` beside
+ * the environments it layers, named by its source.
+ */
+function siteLayerDir(): AbsolutePath {
+  return environmentDir("site", SITE_LAYER_SOURCE);
+}
+
+/**
+ * The variables that put `layer`'s site-packages after the interpreter's
+ * own, in the Python started with them and every Python that one starts:
+ * the folder holding the layer's `sitecustomize` ahead of what `PYTHONPATH`
+ * was, and the folder it adds.
+ */
+export function pythonLayerEnv(
+  layer: AbsolutePath,
+  pythonPath: string | undefined,
+): Record<string, string> {
+  return {
+    [EXTRA_SITE_PACKAGES]: venvSitePackages(layer),
+    PYTHONPATH: [siteLayerDir(), pythonPath]
+      .filter(Boolean)
+      .join(path.delimiter),
+  };
 }
 
 /**
@@ -196,10 +290,18 @@ export async function ensureNodeEnvironment({
 }
 
 /**
- * The environment `python` runs in for a skill: the one for the skill whose
- * folder holds `script`, or, where no `.venv` is near `cwd`, the one for the
- * skill loaded last (`loadedSkillDir`). Undefined where neither has one,
- * which leaves `python` to the nearest `.venv` or the managed Python.
+ * The skill environments `python` runs with, layered so the skill's packages
+ * and what `pip install` put in the `.venv` nearest `cwd` are both found:
+ *
+ * - A script in a skill's folder runs in that skill's environment (`venv`),
+ *   with the `.venv` behind it (`layer`), so the skill's own versions win.
+ * - Anything else runs in the `.venv`, which the caller finds, with the
+ *   environment of the skill loaded last (`loadedSkillDir`) behind it, so
+ *   what the agent installed wins; with no `.venv` near, in that skill's
+ *   environment itself.
+ *
+ * It names neither where no skill with an environment is involved, which
+ * leaves `python` to the nearest `.venv` or the managed Python.
  */
 export async function skillPythonToRun({
   chatId,
@@ -215,20 +317,47 @@ export async function skillPythonToRun({
   /** The script on the host, where the command runs one. */
   script: string | undefined;
   signal?: AbortSignal;
-}): Promise<PythonEnvironmentResult | undefined> {
+}): Promise<
+  | { error: VenvError }
+  | {
+      /** The environment whose site-packages go behind the interpreter's. */
+      layer?: AbsolutePath;
+      /** The skill environment `python` runs in, where it runs in one. */
+      venv?: AbsolutePath;
+    }
+> {
   const withEnvironment = (hostPath: string | undefined) => {
     const folder =
       hostPath === undefined ? undefined : trustedSkillFolder(hostPath);
     return folder && pythonEnvironmentOf(folder) ? folder : undefined;
   };
-  const folder =
-    withEnvironment(script) ??
-    (nearestVenv(chatId, cwd) === undefined
-      ? withEnvironment(loadedSkillDir)
-      : undefined);
-  return folder === undefined
-    ? undefined
-    : ensurePythonEnvironment({ chatId, signal, skillDir: folder });
+  const near = nearestVenv(chatId, cwd);
+  const scriptSkill = withEnvironment(script);
+  if (scriptSkill !== undefined) {
+    const built = await ensurePythonEnvironment({
+      chatId,
+      signal,
+      skillDir: scriptSkill,
+    });
+    return "error" in built || near === undefined
+      ? built
+      : { layer: near, venv: built.venv };
+  }
+  const loaded = withEnvironment(loadedSkillDir);
+  if (loaded === undefined) {
+    return {};
+  }
+  const built = await ensurePythonEnvironment({
+    chatId,
+    signal,
+    skillDir: loaded,
+  });
+  if (near === undefined) {
+    return built;
+  }
+  // The agent's own code runs in its `.venv` either way; a skill
+  // environment that cannot be built only leaves its packages out.
+  return "error" in built ? {} : { layer: built.venv };
 }
 
 /**

@@ -1,4 +1,7 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import {
+  PRIVATE_FOLDER_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import {
   ASIDE_INFIX,
   asidesOf,
@@ -28,12 +31,15 @@ import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   hasWorkspaceIdentity,
+  liveHolderOf,
+  markWorkspaceOpen,
   openElsewhereBy,
   readRegistry,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   updateRegistry,
   workspaceMachineDirOf,
+  type WorkspaceRegistry,
 } from "./workspaces";
 
 /**
@@ -345,6 +351,12 @@ const COPY_MARK_FILE = "move-copy-mark";
  * workspace (a second development instance) postpones the steps left to a
  * launch that finds it closed, and this launch opens the live copy. Never
  * throws: a step that fails is reported and retried on the next launch.
+ *
+ * Two launches at once take turns: the one making the move holds a lock in
+ * the machine folder (`move.lock`) until it has marked the workspace open,
+ * and the other waits for it, then reads the entry again and opens wherever
+ * that left the workspace, as any launch that resolved the workspace before
+ * another moved it does.
  */
 export function finishPendingMove({
   hide = hideAppFolder,
@@ -358,18 +370,64 @@ export function finishPendingMove({
   userDataDir: string;
   workspace: ResolvedWorkspace;
 }): { done: string[]; workspace: ResolvedWorkspace } {
-  const done: string[] = [];
-  const entry = readRegistry(userDataDir).workspaces.find(
-    (candidate) => candidate.id === workspace.id,
-  );
-  const pending = entry?.pendingMove;
-  if (!entry || !pending || workspace.pinned) {
-    return { done, workspace };
+  const entry = registryEntry(userDataDir, workspace.id);
+  if (!entry || workspace.pinned) {
+    return { done: [], workspace };
   }
+  if (!entry.pendingMove) {
+    return { done: [], workspace: atEntry(workspace, entry) };
+  }
+  const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
+  return withMoveLock(machineDir, () => {
+    try {
+      // Read again once the lock is this launch's: a launch it waited for
+      // may have made the move, or part of it, since.
+      const current = registryEntry(userDataDir, workspace.id);
+      if (!current?.pendingMove) {
+        return {
+          done: [],
+          workspace: current ? atEntry(workspace, current) : workspace,
+        };
+      }
+      return makeMove({
+        entry: current,
+        hide,
+        machineDir,
+        pending: current.pendingMove,
+        temporaryDirs,
+        userDataDir,
+        workspace: atEntry(workspace, current),
+      });
+    } finally {
+      // Before the lock goes, so a launch that was waiting for it finds this
+      // one holding the workspace.
+      markWorkspaceOpen(machineDir);
+    }
+  });
+}
+
+/** `finishPendingMove`'s steps, with the move lock held. */
+function makeMove({
+  entry,
+  hide,
+  machineDir,
+  pending,
+  temporaryDirs,
+  userDataDir,
+  workspace,
+}: {
+  entry: RegistryEntry;
+  hide: (dataDir: string) => void;
+  machineDir: string;
+  pending: PendingMove;
+  temporaryDirs: string[];
+  userDataDir: string;
+  workspace: ResolvedWorkspace;
+}): { done: string[]; workspace: ResolvedWorkspace } {
+  const done: string[] = [];
   const { from, to } = pending;
   const fromData = workspaceLayout(from).dataDir;
   const toData = workspaceLayout(to).dataDir;
-  const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
   const moved = { ...workspace, path: to };
   // By the path the entry records, never through links: a target that
   // became a link to the original is not a move already made.
@@ -519,6 +577,82 @@ export function hideAppFolder(dataDir: string): void {
   } catch {
     // The same.
   }
+}
+
+type RegistryEntry = WorkspaceRegistry["workspaces"][number];
+type PendingMove = NonNullable<RegistryEntry["pendingMove"]>;
+
+function registryEntry(userDataDir: string, id: string) {
+  return readRegistry(userDataDir).workspaces.find((entry) => entry.id === id);
+}
+
+/**
+ * The workspace where its entry says it is: a launch that resolved it
+ * before another launch made its move has the old folder.
+ */
+function atEntry(
+  workspace: ResolvedWorkspace,
+  entry: RegistryEntry,
+): ResolvedWorkspace {
+  return path.resolve(entry.path) === path.resolve(workspace.path)
+    ? workspace
+    : { ...workspace, path: entry.path };
+}
+
+/**
+ * Run `run` holding the workspace's move lock: a file in its machine folder
+ * naming this process. A live launch of this app holding it is waited for,
+ * however long its move takes, since going ahead would move the records
+ * from under it; one that ended without removing it no longer counts.
+ * Where the lock cannot be written at all, `run` goes ahead without it.
+ */
+function withMoveLock<T>(machineDir: string, run: () => T): T {
+  const lock = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.moveLock);
+  let held = false;
+  try {
+    fs.mkdirSync(machineDir, { recursive: true });
+    for (;;) {
+      try {
+        fs.writeFileSync(lock, process.pid.toString(), { flag: "wx" });
+        held = true;
+        break;
+      } catch (error) {
+        if (!isErrorCode(error, "EEXIST")) {
+          break;
+        }
+      }
+      if (liveHolderOf(lock) === null) {
+        const left = readText(lock);
+        // Unless another waiter took it over in the meantime.
+        if (left !== undefined && readText(lock) === left) {
+          fs.rmSync(lock, { force: true });
+        }
+        continue;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  } catch {
+    // No machine folder to lock in: the move goes ahead unlocked.
+  }
+  try {
+    return run();
+  } finally {
+    if (held) {
+      fs.rmSync(lock, { force: true });
+    }
+  }
+}
+
+function readText(file: string) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function isErrorCode(error: unknown, code: string) {
+  return error instanceof Error && "code" in error && error.code === code;
 }
 
 /** Change the pending move the registry entry `id` records, where it still has one. */

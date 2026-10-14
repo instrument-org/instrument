@@ -831,9 +831,17 @@ export function markWorkspaceOpen(machineDir: string): void {
  * may since have given to another program.
  */
 export function openElsewhereBy(markDir: string): null | number {
+  return liveHolderOf(openPidPath(markDir));
+}
+
+/**
+ * The pid a file names, when it is another live process running this app's
+ * program, as `openElsewhereBy` reads the open mark.
+ */
+export function liveHolderOf(pidFile: string): null | number {
   let pid: number;
   try {
-    pid = Number(fs.readFileSync(openPidPath(markDir), "utf8").trim());
+    pid = Number(fs.readFileSync(pidFile, "utf8").trim());
   } catch {
     return null;
   }

@@ -4,6 +4,7 @@ import {
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -526,6 +527,96 @@ describe("finishPendingMove", () => {
     expect(readRegistry(userDataDir).workspaces[0]?.path).toBe(workspace.path);
   });
 
+  describe("two launches at once", () => {
+    const lockFile = () =>
+      path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.moveLock);
+
+    it("opens where another launch moved the workspace after this one resolved it", () => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+      const stale = resolveWorkspace({ pin: undefined, userDataDir }).workspace;
+      finish();
+
+      const { done, workspace: opened } = finishPendingMove({
+        hide,
+        temporaryDirs: [],
+        userDataDir,
+        workspace: stale,
+      });
+
+      expect(done).toEqual([]);
+      expect(opened.path).toBe(picked);
+    });
+
+    it("waits for the launch making the move, then opens where it went", () => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+      fs.mkdirSync(machineDir(), { recursive: true });
+      // Another launch of this program holds the lock while it moves the
+      // records and points the entry at the target, then lets go.
+      const other = spawn(
+        process.execPath,
+        [
+          "-e",
+          `
+          const fs = require("node:fs");
+          const [lock, registry, from, to] = process.argv.slice(1);
+          fs.writeFileSync(lock, String(process.pid));
+          setTimeout(() => {
+            fs.renameSync(from + "/.instrument", to + "/.instrument");
+            const value = JSON.parse(fs.readFileSync(registry, "utf8"));
+            for (const entry of value.workspaces) {
+              if (entry.id === "default") {
+                entry.path = to;
+                delete entry.pendingMove;
+              }
+            }
+            fs.writeFileSync(registry, JSON.stringify(value));
+            fs.rmSync(lock);
+          }, 400);
+          `,
+          lockFile(),
+          registryFile(),
+          workspace.path,
+          picked,
+        ],
+        { stdio: "ignore" },
+      );
+      const exited = new Promise((resolve) => other.once("exit", resolve));
+      waitFor(() => fs.existsSync(lockFile()));
+
+      const { done, workspace: opened } = finish();
+
+      expect(done).toEqual([]);
+      expect(opened.path).toBe(picked);
+      expect(readWorkspaceIdentity(picked).id).toBe(WORKSPACE_ID);
+      return exited;
+    });
+
+    it("takes over a lock a launch left when it ended", () => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+      fs.mkdirSync(machineDir(), { recursive: true });
+      const ended = spawnSync(process.execPath, ["-e", ""]).pid;
+      fs.writeFileSync(lockFile(), String(ended));
+
+      const { workspace: moved } = finish();
+
+      expect(moved.path).toBe(picked);
+      expect(fs.existsSync(lockFile())).toBe(false);
+    });
+
+    it("marks the workspace open before it lets another launch in", () => {
+      requestWorkspaceMove({ target: picked, userDataDir, workspace });
+
+      finish();
+
+      expect(
+        fs.readFileSync(
+          path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.openMark),
+          "utf8",
+        ),
+      ).toBe(process.pid.toString());
+    });
+  });
+
   describe("cut short or failing at any step", () => {
     /** The records every launch must find whole, with what each holds. */
     let records: Map<string, string>;
@@ -930,5 +1021,16 @@ function spyOn(method: FaultyMethod) {
       });
       break;
     }
+  }
+}
+
+/** Wait, blocking, until `ready` answers true, for up to five seconds. */
+function waitFor(ready: () => boolean) {
+  const deadline = Date.now() + 5000;
+  while (!ready()) {
+    if (Date.now() > deadline) {
+      throw new Error("timed out");
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
   }
 }

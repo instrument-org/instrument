@@ -157,6 +157,12 @@ export const WORKSPACE_MACHINE_ENTRIES = {
    * stored before one is read back where it went (`remapMovedPath`).
    */
   movedPaths: "moved-paths.json",
+  /**
+   * The launch making the workspace's pending move, held until it has the
+   * workspace open, so a second launch at once waits for it rather than
+   * moving the same records.
+   */
+  moveLock: "move.lock",
   /** The process that has the workspace open. */
   openMark: "open.pid",
   /**

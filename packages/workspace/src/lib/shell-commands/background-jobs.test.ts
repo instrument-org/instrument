@@ -15,6 +15,7 @@ import {
   listBackgroundProcesses,
 } from "../background-processes";
 import { interruptWaits } from "../wait-interrupts";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const model = createMockAIGatewayModel();
 
@@ -42,7 +43,7 @@ describe("background job commands", () => {
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
+    await removeChatsDir(path.dirname(chatRoot));
   });
 
   async function bash(command: string, yieldMs = 30_000) {

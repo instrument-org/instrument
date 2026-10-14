@@ -11,6 +11,7 @@ import { initializeChat } from "./initialize-chat";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T[\d:.]+Z/g;
 
@@ -23,7 +24,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 /**

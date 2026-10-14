@@ -21,6 +21,7 @@ import { logSubcommand } from "./task/log";
 import { stopSubcommand } from "./task/stop";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runLog = subcommandRunner(logSubcommand, "task log");
 const runStop = subcommandRunner(stopSubcommand, "task stop");
@@ -92,7 +93,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await killSessionBackgroundProcesses(CHILD_ID);
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 /**

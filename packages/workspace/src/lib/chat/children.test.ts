@@ -12,6 +12,7 @@ import { forgetChatFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { addChildTask, sessionRole, listChildTasks } from "./children";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 let rootDir: string;
 
@@ -29,7 +30,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   forgetChatFolders();
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 describe("listChildTasks", () => {

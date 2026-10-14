@@ -12,6 +12,7 @@ import { detectFolderChanges } from "./folder-changes";
 import { setFoldersBaseline } from "./folders-baseline";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { initializeTestChat } from "../test/helpers/initialize-test-chat";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 // A chat of its own per test: the session store is cached by chat id, so a
 // second chat under one name in a fresh temp directory reuses the handle on the
@@ -65,7 +66,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 describe("detectFolderChanges", () => {

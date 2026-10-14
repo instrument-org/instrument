@@ -17,8 +17,10 @@ import { grantFolder } from "./chat/grants";
 import { recordMovedPaths } from "./moved-paths";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
+import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;
@@ -41,7 +43,7 @@ describe("resolveWorkspaceFilePath", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(root, { force: true, recursive: true });
+    await removeChatsDir(root);
   });
 
   it.each([
@@ -57,7 +59,7 @@ describe("resolveWorkspaceFilePath", () => {
     ],
     [
       "a file in a granted folder by its full path",
-      (): string => path.join(photosRoot, "cat.png"),
+      (): string => shellPath(path.join(photosRoot, "cat.png")),
       (): string => path.join(photosRoot, "cat.png"),
     ],
   ] as const)("resolves %s", async (_label, filePath, expected) => {
@@ -101,7 +103,7 @@ describe("resolveWorkspaceFilePath", () => {
 
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(
-        `${getWorkspaceSkillsDir()}/csv-table/SKILL.md`,
+        shellPath(path.join(getWorkspaceSkillsDir(), "csv-table", "SKILL.md")),
       ),
       chatId,
     });
@@ -111,11 +113,13 @@ describe("resolveWorkspaceFilePath", () => {
 
   it.each([
     {
-      filePath: (): string => path.join(root, "Unattached", "cat.png"),
+      filePath: (): string =>
+        shellPath(path.join(root, "Unattached", "cat.png")),
       label: "a folder the chat does not reach",
     },
     {
-      filePath: (): string => path.join(photosRoot, "escape", "secret.txt"),
+      filePath: (): string =>
+        shellPath(path.join(photosRoot, "escape", "secret.txt")),
       label: "a file behind a symlink out of a granted folder",
     },
   ])("returns null for $label", async ({ filePath }) => {
@@ -186,7 +190,7 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
   });
 
   afterEach(async () => {
-    await fs.rm(root, { force: true, recursive: true });
+    await removeChatsDir(root);
   });
 
   it.each([
@@ -203,18 +207,25 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     ],
     [
       "the agent's work, by its path before it moved",
-      (): string => path.join(chatDir(chatId), "work", "report.md"),
+      (): string => shellPath(path.join(chatDir(chatId), "work", "report.md")),
       (): null | string => path.join(workDir(chatId), "work", "report.md"),
     ],
     [
       "the chat's settings",
-      (): string => path.join(chatDir(chatId), "settings.json"),
+      (): string => shellPath(path.join(chatDir(chatId), "settings.json")),
       (): null | string => null,
     ],
     [
       "another chat's work, by its path before it moved",
       (): string =>
-        path.join(path.dirname(chatDir(chatId)), "other", "work", "theirs.md"),
+        shellPath(
+          path.join(
+            path.dirname(chatDir(chatId)),
+            "other",
+            "work",
+            "theirs.md",
+          ),
+        ),
       (): null | string => null,
     ],
     [

@@ -740,27 +740,31 @@ describe("migrateWorkspaceLayout", () => {
       expect(marks.layoutVersion).toBeDefined();
     });
 
-    it("leaves the mark unwritten while one could not move, so the next boot retries it", () => {
-      fs.mkdirSync(path.join(rootDir, "drafts", "a"), { recursive: true });
-      const into = path.join(rootDir, ".instrument", "drafts");
-      fs.mkdirSync(path.join(into, "b"), { recursive: true });
-      // A folder nothing can be moved into.
-      fs.chmodSync(into, 0o555);
+    // Windows ignores a folder's mode bits, so nothing there keeps a move out.
+    it.skipIf(process.platform === "win32")(
+      "leaves the mark unwritten while one could not move, so the next boot retries it",
+      () => {
+        fs.mkdirSync(path.join(rootDir, "drafts", "a"), { recursive: true });
+        const into = path.join(rootDir, ".instrument", "drafts");
+        fs.mkdirSync(path.join(into, "b"), { recursive: true });
+        // A folder nothing can be moved into.
+        fs.chmodSync(into, 0o555);
 
-      try {
-        const first = migrate();
-        expect(first.appFolders.failed).toBe(1);
-        expect(marks.layoutVersion).toBeUndefined();
-      } finally {
-        fs.chmodSync(into, 0o755);
-      }
+        try {
+          const first = migrate();
+          expect(first.appFolders.failed).toBe(1);
+          expect(marks.layoutVersion).toBeUndefined();
+        } finally {
+          fs.chmodSync(into, 0o755);
+        }
 
-      const second = migrate();
-      expect(second.appFolders.failed).toBe(0);
-      expect(marks.layoutVersion).toBeDefined();
-      expect(fs.readdirSync(into).toSorted()).toEqual(["a", "b"]);
-      expect(exists("drafts")).toBe(false);
-    });
+        const second = migrate();
+        expect(second.appFolders.failed).toBe(0);
+        expect(marks.layoutVersion).toBeDefined();
+        expect(fs.readdirSync(into).toSorted()).toEqual(["a", "b"]);
+        expect(exists("drafts")).toBe(false);
+      },
+    );
 
     it("leaves the mark unwritten while an entry clashes with one already moved in", () => {
       fs.mkdirSync(path.join(rootDir, "drafts", "b"), { recursive: true });

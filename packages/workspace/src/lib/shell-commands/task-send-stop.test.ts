@@ -23,6 +23,7 @@ import { stopSubcommand } from "./task/stop";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runSend = subcommandRunner(sendSubcommand, "task send");
 const runStop = subcommandRunner(stopSubcommand, "task stop");
@@ -95,7 +96,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 function send(args: string[]) {

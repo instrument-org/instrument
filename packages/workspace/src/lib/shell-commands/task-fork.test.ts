@@ -28,6 +28,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { newSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runNew = subcommandRunner(newSubcommand, "task new");
 
@@ -134,7 +135,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 /**

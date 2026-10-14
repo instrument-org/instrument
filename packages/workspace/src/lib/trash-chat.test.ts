@@ -12,6 +12,7 @@ import { trashChat } from "./trash-chat";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { ChatIdSchema } from "../schemas/chat-id";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 let rootDir: string;
 let trashed: string[];
@@ -48,7 +49,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   forgetChatFolders();
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 describe("trashChat", () => {
@@ -70,7 +71,7 @@ describe("trashChat", () => {
 
     expect(result.isOk()).toBe(true);
     // Its agent never ran a command, so it has no work folder to trash.
-    expect(trashed).toEqual([`chats/${chat}`]);
+    expect(trashed).toEqual([path.join("chats", chat)]);
     expect(resolveChat(chat)).toBeUndefined();
     await expect(fs.access(chatDir(otherChat))).resolves.toBeUndefined();
     expect((await Store.getSession(other, otherChat)).isOk()).toBe(true);
@@ -111,7 +112,10 @@ describe("trashChat", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(trashed).toEqual([`chats/${chat}`, `machine/work/${chat}`]);
+    expect(trashed).toEqual([
+      path.join("chats", chat),
+      path.join("machine", "work", chat),
+    ]);
     expect(trashedWithPackages).toEqual([false, false]);
     await expect(fs.access(workDir(otherChat))).resolves.toBeUndefined();
   });
@@ -142,7 +146,7 @@ describe("trashChat", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(trashed).toEqual([`chats/${chat}`]);
+    expect(trashed).toEqual([path.join("chats", chat)]);
     expect(resolveChat(chat)).toBeUndefined();
     expect(reported).toEqual([new Error("A file in it is open")]);
   });

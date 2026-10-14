@@ -150,7 +150,7 @@ describe("storage.invalidFolders", () => {
     expect(
       invalid
         .map(({ kind, name, path: at, reason }) => ({
-          at: path.relative(root, at),
+          at: path.relative(root, at).replaceAll(path.sep, "/"),
           kind,
           name,
           reason,

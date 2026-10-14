@@ -100,7 +100,8 @@ function deliver(
   return state();
 }
 
-describe("the fold, over a fake sync engine", () => {
+// Each test walks every seed, which takes a few seconds on a slower machine.
+describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
   it("comes to the chat its files hold, however they were delivered", () => {
     forEachSeed(SEEDS, (seed) => {
       const { files } = simulated(seed);

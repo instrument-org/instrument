@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import os from "node:os";
+import nodePath from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
@@ -422,11 +424,15 @@ describe("reachOf on Windows, where a folder has second names", () => {
     vi.restoreAllMocks();
   });
 
-  it.each([
-    "/ws/INSTRU~1/keys/secret.txt",
-    "/ws/instru~1/keys/secret.txt",
-    "/ws/INSTRU~1/keys/not-yet.txt",
-  ])("closes %s as the app's own data", (spelled) => {
+  // The stood-in resolver answers for these POSIX spellings only; on Windows
+  // itself the real disk answers, in the test after this block.
+  it
+    .skipIf(process.platform === "win32")
+    .each([
+      "/ws/INSTRU~1/keys/secret.txt",
+      "/ws/instru~1/keys/secret.txt",
+      "/ws/INSTRU~1/keys/not-yet.txt",
+    ])("closes %s as the app's own data", (spelled) => {
     expect(reachOf(rules, spelled, "read")).toMatchObject({
       level: "never",
       rule: { appData: true },
@@ -456,3 +462,52 @@ describe("reachOf on Windows, where a folder has second names", () => {
     expect(reachOf(rules, "/ws/notes.txt", "read").level).toBe("allow");
   });
 });
+
+it.runIf(process.platform === "win32")(
+  "closes every spelling NTFS opens a closed folder by, on a real disk",
+  () => {
+    const ws = fs.mkdtempSync(nodePath.join(os.tmpdir(), "second-names-"));
+    try {
+      fs.mkdirSync(nodePath.join(ws, ".instrument", "keys"), {
+        recursive: true,
+      });
+      fs.writeFileSync(nodePath.join(ws, ".instrument", "keys", "a.txt"), "");
+      fs.writeFileSync(nodePath.join(ws, "notes.txt"), "");
+      const rules: Rules = {
+        home,
+        rules: [
+          { level: "allow", path: ws, source: "folder" },
+          {
+            appData: true,
+            level: "never",
+            path: nodePath.join(ws, ".instrument"),
+            source: "system",
+          },
+        ],
+        withoutAsking: false,
+      };
+      const levelOf = (...segments: string[]) =>
+        reachOf(rules, nodePath.join(ws, ...segments), "read").level;
+
+      expect({
+        short: levelOf("INSTRU~1", "keys", "a.txt"),
+        shortLower: levelOf("instru~1", "keys", "a.txt"),
+        shortNotYet: levelOf("INSTRU~1", "keys", "not-yet.txt"),
+        stream: levelOf(".instrument::$INDEX_ALLOCATION", "keys", "a.txt"),
+        trailingDot: levelOf(".instrument.", "keys", "a.txt"),
+        upper: levelOf(".INSTRUMENT", "keys", "a.txt"),
+        open: levelOf("notes.txt"),
+      }).toEqual({
+        short: "never",
+        shortLower: "never",
+        shortNotYet: "never",
+        stream: "never",
+        trailingDot: "never",
+        upper: "never",
+        open: "allow",
+      });
+    } finally {
+      fs.rmSync(ws, { force: true, recursive: true });
+    }
+  },
+);

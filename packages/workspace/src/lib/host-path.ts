@@ -89,14 +89,32 @@ export function withoutDataVolume(
 }
 
 /**
+ * A path as Windows opens it: each name without the dots and spaces that end
+ * it, which Windows drops, so `.instrument.` and `.instrument ` open
+ * `.instrument`. A name made only of dots (`..`) is left as it is. Other
+ * systems keep those characters, and the path is returned as given there.
+ */
+export function withoutTrailingDots(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32"
+    ? hostPath.replaceAll(/(?<=[^/\\. ])[. ]+(?=[/\\]|$)/g, "")
+    : hostPath;
+}
+
+/**
  * Where a path really is, as the rules compare paths: absolute, every link
- * on the way followed (through a tail that does not exist yet), and on macOS
- * off the Data volume. The path as given, made absolute, where it cannot be
- * resolved, which is also where the system cannot follow it.
+ * on the way followed (through a tail that does not exist yet), on macOS off
+ * the Data volume, and on Windows without the dots and spaces that end a
+ * name. The path as given, made absolute, where it cannot be resolved, which
+ * is also where the system cannot follow it.
  */
 export function realHostPath(hostPath: string): string {
   const resolved = nodePath.resolve(hostPath);
-  return withoutDataVolume(canonicalizeThroughMissing(resolved) ?? resolved);
+  return withoutTrailingDots(
+    withoutDataVolume(canonicalizeThroughMissing(resolved) ?? resolved),
+  );
 }
 
 function isEnoent(error: unknown): boolean {

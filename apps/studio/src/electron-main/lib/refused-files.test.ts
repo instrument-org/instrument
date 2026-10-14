@@ -1,11 +1,18 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import {
   isRecordPath,
   isRefusedByName,
+  isRefusedFile,
   machineFolderViewRule,
 } from "./refused-files";
+
+/** Whether this system opens a name in another case as the same file. */
+const FOLDS_CASE =
+  process.platform === "darwin" || process.platform === "win32";
 
 const MACHINE = path.join(path.parse(process.cwd()).root, "machine");
 const at = (...segments: string[]) => path.join(MACHINE, ...segments);
@@ -62,6 +69,28 @@ describe("isRefusedByName", () => {
       path.join(path.parse(process.cwd()).root, "elsewhere", "a.md"),
       false,
     ],
+    // Firmlinks join the Data volume to `/` on a Mac, and realpath leaves
+    // the longer spelling alone.
+    [
+      "a workspace's keys by the Data volume's path",
+      `/System/Volumes/Data${at("workspaces-data", "x", "keys", "a.json")}`,
+      process.platform === "darwin",
+    ],
+    [
+      "the registry of workspaces by the Data volume's path in lower case",
+      `/system/volumes/data${at("workspaces.json")}`,
+      process.platform === "darwin",
+    ],
+    [
+      "a workspace's keys spelled in upper case",
+      at("WORKSPACES-DATA", "X", "KEYS", "a.json"),
+      true,
+    ],
+    [
+      "the open workspace's work folder spelled in upper case",
+      at("WORKSPACES-DATA", "X", "WORK", "c", "a.md"),
+      !FOLDS_CASE,
+    ],
   ])("%s: %s refused %s", (_case, hostPath, refused) => {
     expect(isRefusedByName(hostPath, rule)).toBe(refused);
   });
@@ -78,6 +107,17 @@ describe("isRefusedByName", () => {
     expect(isRefusedByName(up, rule)).toBe(true);
   });
 
+  it.runIf(process.platform === "darwin")(
+    "refuses the machine folder named by the Data volume's path",
+    () => {
+      const onData = machineFolderViewRule({
+        machineDir: `/System/Volumes/Data${MACHINE}`,
+        workspaceDir: undefined,
+      });
+      expect(isRefusedByName(at("workspaces.json"), onData)).toBe(true);
+    },
+  );
+
   it("refuses a folder named both refused and viewable", () => {
     expect(
       isRefusedByName(
@@ -86,6 +126,66 @@ describe("isRefusedByName", () => {
       ),
     ).toBe(true);
   });
+});
+
+describe("isRefusedFile", () => {
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), "refused-files-")),
+  );
+  const machine = path.join(root, "machine");
+  const keys = path.join(machine, "workspaces-data", "x", "keys");
+  const elsewhere = path.join(root, "elsewhere");
+  fs.mkdirSync(keys, { recursive: true });
+  fs.mkdirSync(elsewhere);
+  fs.writeFileSync(path.join(keys, "k.json"), "{}");
+  fs.writeFileSync(path.join(elsewhere, "notes.md"), "");
+  fs.symlinkSync(keys, path.join(elsewhere, "escape"));
+  const rule = machineFolderViewRule({
+    machineDir: machine,
+    workspaceDir: elsewhere,
+  });
+
+  afterAll(() => {
+    fs.rmSync(root, { force: true, recursive: true });
+  });
+
+  // A file not made yet through a link into the machine folder is where a
+  // write would put it, so it is refused as the files there are.
+  it.each([
+    ["a file of the person's", path.join(elsewhere, "notes.md"), false],
+    ["a new file of the person's", path.join(elsewhere, "new.md"), false],
+    [
+      "a new file in a new folder of the person's",
+      path.join(elsewhere, "new", "new.md"),
+      false,
+    ],
+    ["a key through a link", path.join(elsewhere, "escape", "k.json"), true],
+    ["the link itself", path.join(elsewhere, "escape"), true],
+    [
+      "a new file through a link",
+      path.join(elsewhere, "escape", "new.json"),
+      true,
+    ],
+    [
+      "a new file in a new folder through a link",
+      path.join(elsewhere, "escape", "new", "new.json"),
+      true,
+    ],
+  ])("%s: %s refused %s", async (_case, hostPath, refused) => {
+    expect(await isRefusedFile(hostPath, rule)).toBe(refused);
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "refuses a key by the Data volume's path",
+    async () => {
+      expect(
+        await isRefusedFile(
+          `/System/Volumes/Data${path.join(keys, "k.json")}`,
+          rule,
+        ),
+      ).toBe(true);
+    },
+  );
 });
 
 describe("isRecordPath", () => {
@@ -153,5 +253,17 @@ describe("isRecordPath", () => {
     ],
   ])("%s: %s is a record %s", (_case, hostPath, record) => {
     expect(isRecordPath(hostPath)).toBe(record);
+  });
+
+  // Windows drops the dots and spaces that end a name, so each of these
+  // opens the workspace's `.instrument`; elsewhere each is a name of its own.
+  it.each([
+    "C:\\Users\\sam\\Instrument\\.instrument.\\chats\\c\\chat.db",
+    "C:\\Users\\sam\\Instrument\\.instrument \\chats\\c\\chat.db",
+    "C:\\Users\\sam\\Instrument\\.INSTRUMENT. .\\workspace.json",
+    "C:/Users/sam/Instrument/.instrument../preferences.json",
+  ])("reads %s as a record on Windows only", (hostPath) => {
+    expect(isRecordPath(hostPath, "win32")).toBe(true);
+    expect(isRecordPath(hostPath, "darwin")).toBe(false);
   });
 });

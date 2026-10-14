@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { folderToAskFor, reachOf, rulesFor } from "./rules";
+import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
 
 const home = "/Users/someone";
 const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
@@ -333,6 +333,37 @@ describe("reachOf at one depth", () => {
           "read",
         ).level,
       ).toBe("ask");
+    },
+  );
+});
+
+describe("reachOf on Windows, where a name's trailing dots are dropped", () => {
+  const platform = process.platform;
+  const rules: Rules = {
+    home,
+    rules: [
+      { level: "allow", path: "/ws", source: "folder" },
+      {
+        appData: true,
+        level: "never",
+        path: "/ws/.instrument",
+        source: "system",
+      },
+    ],
+    withoutAsking: false,
+  };
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+  });
+
+  it.each([".instrument.", ".instrument ", ".instrument. ."])(
+    "closes /ws/%s/chats/c/chat.db as the app's own data",
+    (name) => {
+      Object.defineProperty(process, "platform", { value: "win32" });
+      expect(reachOf(rules, `/ws/${name}/chats/c/chat.db`, "read").level).toBe(
+        "never",
+      );
     },
   );
 });

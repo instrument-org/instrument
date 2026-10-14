@@ -5,7 +5,12 @@ import { z } from "zod";
 
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { hostPathWithin, realHostPath, withoutDataVolume } from "../host-path";
+import {
+  hostPathWithin,
+  realHostPath,
+  withoutDataVolume,
+  withoutTrailingDots,
+} from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "./asks";
 import { workspaceMachineDir } from "../workspace-machine-dir";
@@ -296,14 +301,17 @@ export function levelWithoutAsking<L extends Access>(
  *
  * "Use folders without asking" turns an ask into an allow, but for the
  * passwords place's. Nothing turns a never into anything else. A path on
- * macOS's Data volume meets the rules as the rest of the system spells it.
+ * macOS's Data volume meets the rules as the rest of the system spells it,
+ * and a name ending in dots or spaces on Windows as the name Windows opens.
  */
 export function reachOf(
   rules: Rules,
   hostPath: string,
   op: "read" | "write",
 ): Reach {
-  const resolved = withoutDataVolume(path.resolve(hostPath));
+  const resolved = withoutTrailingDots(
+    withoutDataVolume(path.resolve(hostPath)),
+  );
   const target = fold(resolved);
   let best: undefined | { depth: number; rule: Rule };
   for (const { depth, prefix, root, rule } of compiled(rules)) {
@@ -404,7 +412,9 @@ function compiled(rules: Rules) {
     // or above the app's own data) holds what it leads to only as deep as it
     // really is, and a deeper rule there still decides.
     known = rules.rules.flatMap((rule) => {
-      const spelled = withoutDataVolume(path.resolve(rule.path));
+      const spelled = withoutTrailingDots(
+        withoutDataVolume(path.resolve(rule.path)),
+      );
       return [...new Set([fold(spelled), fold(realHostPath(spelled))])].map(
         (root) => ({
           depth: root.split(path.sep).filter(Boolean).length,

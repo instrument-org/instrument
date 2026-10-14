@@ -98,21 +98,94 @@ describe("osascriptCommand", () => {
     );
 
     await mockExeca();
-    await command.execute(["-l", "JavaScript", "-"], {
+    await command.execute(["-"], {
       ...mockCtx,
-      stdin: encodeUtf8ToBytes(
-        "Application('Mail').inbox.messages[0].subject()",
-      ),
+      stdin: encodeUtf8ToBytes('tell app "Mail" to get name of every account'),
     });
     expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
       "/usr/bin/osascript",
-      ["-l", "JavaScript", "-"],
+      ["-"],
       expect.objectContaining({
         input: Buffer.from(
-          'Application("com.apple.mail").inbox.messages[0].subject()',
+          'tell app id "com.apple.mail" to get name of every account',
         ),
       }),
     );
+  });
+
+  // A script to an app runs outside the sandbox, so only AppleScript text,
+  // which the check can read, may be one.
+  it.each([
+    [
+      [
+        "-l",
+        "JavaScript",
+        "-e",
+        "Application('Mail').inbox.messages[0].subject()",
+      ],
+    ],
+    [["-lJavaScript", "-e", "Application('Mail').inbox.messages.length"]],
+    [["-l", "JS", "-e", 'Application("Reminders").reminders.name()']],
+  ])("refuses JavaScript for Automation to an app: %j", async (args) => {
+    const execa = await mockExeca();
+
+    const result = await command.execute(args, mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("has to be AppleScript");
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it("refuses a raw event code, which spells do shell script", async () => {
+    const execa = await mockExeca();
+
+    const result = await command.execute(
+      ["-e", 'tell application "Mail" to «event sysoexec» "id"'],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("(`«event`)");
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a compiled script", "work/mail.scpt", "file"],
+    ["a script bundle", "work/mail.scptd", "bundle"],
+  ])("refuses %s, whose text can't be read", async (_what, file, kind) => {
+    const fs = new InMemoryFs();
+    if (kind === "file") {
+      await fs.writeFile(
+        `${chatRoot}/${file}`,
+        new Uint8Array([...Buffer.from("FasdUAS 1.101.10"), 0, 14, 0]),
+      );
+    } else {
+      await fs.mkdir(`${chatRoot}/${file}/Contents`, { recursive: true });
+    }
+    const execa = await mockExeca();
+
+    const result = await command.execute([file], { ...mockCtx, fs });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(`${file} is a compiled script`);
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it("runs a script file saved as text", async () => {
+    const fs = new InMemoryFs();
+    await fs.writeFile(
+      `${chatRoot}/work/count.applescript`,
+      'tell application "Reminders" to count reminders',
+    );
+    const execa = await mockExeca();
+
+    const result = await command.execute(["work/count.applescript"], {
+      ...mockCtx,
+      fs,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(vi.mocked(execa)).toHaveBeenCalledOnce();
   });
 
   it.each([

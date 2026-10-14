@@ -175,23 +175,32 @@ export function reachesEveryFile(app: string): boolean {
 }
 
 /**
- * Ways a script reaches past the app it tells: a shell, another script, the
- * Objective-C bridge, Standard Additions' own file reading and writing, or an
- * app named by a value the check cannot read. An allowed script runs outside
- * the native sandbox (an app refuses Apple Events from a sandboxed sender),
- * so one carrying any of these is refused rather than run with the reach of a
- * shell. Read off the script's text, so a script that hides one in a built
- * string gets past it; the card says so for the apps that reach every file.
+ * Ways a script reaches past the app it tells: a shell, a script built or
+ * loaded while it runs, a command spelled by its raw four-character code
+ * (`«event sysoexec»` is `do shell script`), the Objective-C bridge,
+ * Standard Additions' own file reading and writing, or an app named by a
+ * value the check cannot read. An allowed script runs outside the native
+ * sandbox (an app refuses Apple Events from a sandboxed sender), so one
+ * carrying any of these is refused rather than run with the reach of a
+ * shell. Read off the script's text: what AppleScript cannot build from a
+ * string without `run script` it cannot hide, and JavaScript for
+ * Automation, which can, is refused whole for a script to an app
+ * (osascript.ts). The card says what the apps that reach every file can
+ * do.
  */
 const RUNS_CODE_OUTSIDE = [
   /\bdo\s+shell\s+script\b/i,
   /\bdoShellScript\b/,
   /\b(?:run|load|store)\s+script\b/i,
-  /\buse\s+framework\b/i,
+  // « as typed, as a Mac Roman file's byte reads here, and spelled `<<`,
+  // which AppleScript rejects today.
+  /(?:«|<<|\u00c7)\s*(?:class|constant|data|enum|event|keyword|property|reference|script|type)\b/i,
+  /\buse\s+(?:framework|script)\b/i,
   /\bcurrent\s+application['’]s\b/i,
   /\bsystem\s+attribute\b/i,
   /\bObjC\s*\./,
   /(?:^|[^\w$])\$\s*[.(]/m,
+  /\bApplication\s*\.\s*currentApplication\b/,
   /\beval\s*\(/,
   /\bFunction\s*\(/,
 ];
@@ -206,6 +215,13 @@ const REACHES_OUTSIDE_IN_CODE = [
   // Mail's `read status` is a property, not Standard Additions' `read`.
   /\bread\s+(?!status\b)\S/i,
   /\bincludeStandardAdditions\b/,
+  // Standard Additions opening a URL or file in its default app, outside
+  // the sandbox: a `.command` file opens in Terminal and runs.
+  /\bopen\s+location\b/i,
+  // A script library, loaded and run as code.
+  /\bscript\s+["']/i,
+  // An Objective-C class by name, as the bridge reaches it.
+  /\bNS[A-Z][A-Za-z]+\b/,
   // An app named by a variable or an expression, which scriptTargets cannot
   // hold to the allowed apps.
   /(?<!current\s)\bapp(?:lication)?\s+(?!id\s*["']|["'])[\w(]/i,
@@ -222,17 +238,15 @@ function withoutStrings(source: string): string {
 
 /** The first way a script runs code outside its app, as written in it. */
 export function runsCodeOutside(source: string): string | undefined {
-  for (const pattern of RUNS_CODE_OUTSIDE) {
-    const found = pattern.exec(source)?.[0];
-    if (found) {
-      return found.trim();
-    }
-  }
-  const code = withoutStrings(source);
-  for (const pattern of REACHES_OUTSIDE_IN_CODE) {
-    const found = pattern.exec(code)?.[0];
-    if (found) {
-      return found.trim();
+  for (const [patterns, text] of [
+    [RUNS_CODE_OUTSIDE, source],
+    [REACHES_OUTSIDE_IN_CODE, withoutStrings(source)],
+  ] as const) {
+    for (const pattern of patterns) {
+      const found = pattern.exec(text)?.[0];
+      if (found) {
+        return found.replaceAll(/\s+/g, " ").trim();
+      }
     }
   }
   return undefined;

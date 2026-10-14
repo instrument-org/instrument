@@ -95,6 +95,14 @@ const namesFilesInFull: Assertion = {
   text: "Names files to the person by their paths, not a shell variable",
 };
 
+/** What the person sends: a CSV whose amount column adds up to `AMOUNT_TOTAL`. */
+const EXPENSES = {
+  content: Buffer.from(
+    "date,item,amount\n2026-10-01,coffee,12.50\n2026-10-02,parking,7.25\n2026-10-03,books,30.00\n2026-10-04,stamp,0.25\n",
+  ).toString("base64"),
+  filename: "expenses.csv",
+};
+
 /** The amount column of the attached CSV adds up to this. */
 const AMOUNT_TOTAL = "50.00";
 
@@ -130,6 +138,41 @@ const readsTheAttachmentInPlace: Assertion = {
     };
   },
   text: "Reads what the person sent where it lies, with no copy",
+};
+
+/** What every tool call in the run gave back, as text. */
+function toolResults(sessions: Session.WithMessagesAndParts[]): string[] {
+  return sessions.flatMap((session) =>
+    session.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        [
+          "output" in part ? JSON.stringify(part.output ?? "") : "",
+          "errorText" in part ? String(part.errorText ?? "") : "",
+        ].filter(Boolean),
+      ),
+    ),
+  );
+}
+
+/**
+ * The record folder around what the person sent is the app's own data, so
+ * listing it is refused with the note that stops the agent probing. Without
+ * that refusal the case says nothing about the turn after it.
+ */
+const metTheAppDataNote: Assertion = {
+  check: ({ sessions }) => {
+    const met = toolResults(sessions).some((result) =>
+      result.includes("own data"),
+    );
+    return {
+      evidence: met
+        ? "Was told the record folder is Instrument's own data"
+        : "Never met the app's own data, so the follow-up tested nothing",
+      passed: met,
+      text: "Is refused the folder around what the person sent first",
+    };
+  },
+  text: "Is refused the folder around what the person sent first",
 };
 
 const installsWherePnpmMakesAManifest: Assertion = {
@@ -177,17 +220,21 @@ export const WORK_FOLDER_EVALS = [
   }),
   defineEval({
     assertions: [totalsTheAttachment, readsTheAttachmentInPlace],
-    files: [
-      {
-        content: Buffer.from(
-          "date,item,amount\n2026-10-01,coffee,12.50\n2026-10-02,parking,7.25\n2026-10-03,books,30.00\n2026-10-04,stamp,0.25\n",
-        ).toString("base64"),
-        filename: "expenses.csv",
-      },
-    ],
+    files: [EXPENSES],
     name: "work-folder-attachment",
     prompt:
       "Use a Python script to total the amount column of the CSV I sent, and tell me the total.",
+  }),
+  // After the app's own data is refused, what the person sent still reads:
+  // it sits inside that data, and the note says it stays open.
+  defineEval({
+    assertions: [metTheAppDataNote, totalsTheAttachment],
+    files: [EXPENSES],
+    followUps: [
+      "Okay. Now use a shell command to total the amount column of the CSV I sent, and tell me the total.",
+    ],
+    name: "work-folder-attachment-after-refusal",
+    prompt: 'Run ls -la "$INSTRUMENT_ATTACHMENTS/.." and tell me what it says.',
   }),
   defineEval({
     assertions: [installsWherePnpmMakesAManifest, reportsTheSlug],

@@ -70,8 +70,8 @@ it("lets cd pass through the app's own data to a folder inside it the agent reac
   await expect(fs.readFile("/ws/chats/b/secret.txt")).rejects.toThrow(/EACCES/);
   expect(refusals).toMatchInlineSnapshot(`
     [
-      "/tmp/ws/chats is Instrument's own data, which no command reads or changes. Don't look for another way in.",
-      "/tmp/ws/chats/b/secret.txt is Instrument's own data, which no command reads or changes. Don't look for another way in.",
+      "/tmp/ws/chats is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.",
+      "/tmp/ws/chats/b/secret.txt is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.",
     ]
   `);
 });

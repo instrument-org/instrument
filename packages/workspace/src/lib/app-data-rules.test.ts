@@ -408,7 +408,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       (_name, target) => {
         const read = resolveAgentPath({ inputPath: target, layout });
         expect(read.isErr() && read.error.message).toBe(
-          `${target} is Instrument's own data, which no command reads or changes. Don't look for another way in.`,
+          `${target} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
         );
       },
     );

@@ -21,7 +21,9 @@ import {
  * raises where the person can open it: the one answer for the shell's own
  * commands, the file tools, the commands that check their operands, and the
  * programs the native profiles stopped. `spell` turns a host path into the
- * path the agent uses. Undefined where the path is open.
+ * path the agent uses, which the note quotes as a JSON string, so a name
+ * that reads as words to the agent (one taken from a download or an
+ * archive) stays a name. Undefined where the path is open.
  */
 export function ruleRefusal({
   afterAsk,
@@ -65,11 +67,12 @@ export function ruleRefusal({
   if (reach.level === "allow") {
     return undefined;
   }
+  const shown = (shownPath: string) => JSON.stringify(spell(shownPath));
   if (reach.level === "never") {
-    return closedNote(reach, spell(hostPath));
+    return closedNote(reach, shown(hostPath));
   }
   if (op === "write" && !accountCanWrite(hostPath)) {
-    return systemOwnedNote(spell(hostPath));
+    return systemOwnedNote(shown(hostPath));
   }
   let folder = folderToAskFor({
     hostPath,
@@ -82,17 +85,17 @@ export function ruleRefusal({
   }
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
-    return `${spell(hostPath)} is directly in ${spell(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
+    return `${shown(hostPath)} is directly in ${shown(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
   }
   // Nor is a folder that holds the app's own data, which no yes opens.
   if (holdsAppData(rules, folder)) {
-    return `${spell(hostPath)} is in ${spell(folder)}, which holds ${APP_NAME}'s own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`;
+    return `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`;
   }
   if (!asks || !rules.asker) {
-    return `${spell(hostPath)} needs the person's yes first.`;
+    return `${shown(hostPath)} needs the person's yes first.`;
   }
   raiseAsk(rules.asker, "folder", folder);
-  const waiting = waitingNote(spell(folder));
+  const waiting = waitingNote(shown(folder));
   return afterAsk ? `${waiting} ${afterAsk}` : waiting;
 }
 

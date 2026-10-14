@@ -718,7 +718,7 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
       path.join(drives, "Backup"),
     ]);
     expect(refusal).toContain(
-      `Waiting on the person to allow ${drives}/Backup.`,
+      `Waiting on the person to allow "${drives}/Backup".`,
     );
   });
 

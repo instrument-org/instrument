@@ -145,14 +145,14 @@ describe("createGitCommand arg policy", () => {
   });
 
   it.each([
-    [["init", "newproj"], "newproj needs the person's yes first."],
+    [["init", "newproj"], `"~/newproj" needs the person's yes first.`],
     [
       ["clone", "https://example.com/r.git", "newproj"],
-      "newproj needs the person's yes first.",
+      `"~/newproj" needs the person's yes first.`,
     ],
     [
       ["add", "notes.txt"],
-      "notes.txt is directly in ~, which no card can open whole.",
+      `"~/notes.txt" is directly in "~", which no card can open whole.`,
     ],
   ])(
     "asks for a new repository directly in the home folder: %j",
@@ -178,7 +178,7 @@ describe("createGitCommand arg policy", () => {
       );
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr.replaceAll(home, "~")).toContain(`~/${refusal}`);
+      expect(result.stderr.replaceAll(home, "~")).toContain(refusal);
     },
   );
 });

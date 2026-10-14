@@ -438,7 +438,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       (_name, target) => {
         const read = resolveAgentPath({ inputPath: target, layout });
         expect(read.isErr() && read.error.message).toBe(
-          `${target} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
+          `${JSON.stringify(target)} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
         );
       },
     );
@@ -503,7 +503,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           spell: (spelled) => spelled,
         }),
       ).toBe(
-        `${paths.appFiles} is in ${paths.appFiles}, which holds Instrument's own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`,
+        `${JSON.stringify(paths.appFiles)} is in ${JSON.stringify(paths.appFiles)}, which holds Instrument's own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`,
       );
       expect(raiseAsk).not.toHaveBeenCalled();
     });

@@ -85,7 +85,7 @@ it("keeps the output before a redirect outside every folder, and runs what follo
     {
       "exitCode": 0,
       "stderr": "bash: <tmp>/outside/file: Read-only file system
-    Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+    Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
     ",
       "stdout": "before
     after rc=1
@@ -100,30 +100,30 @@ it("keeps the output before a redirect outside every folder, and runs what follo
 it("fails a redirect into a closed folder with its refusal note", async () => {
   expect(await run(`echo before; echo x > ${closed}/file; echo after rc=$?`))
     .toMatchInlineSnapshot(`
-    {
-      "exitCode": 0,
-      "stderr": "bash: <tmp>/closed/file: Read-only file system
-    <tmp>/closed/file is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
-    ",
-      "stdout": "before
-    after rc=1
-    ",
-    }
-  `);
+      {
+        "exitCode": 0,
+        "stderr": "bash: <tmp>/closed/file: Read-only file system
+      "<tmp>/closed/file" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      ",
+        "stdout": "before
+      after rc=1
+      ",
+      }
+    `);
 });
 
 it("stops on the failed redirect under set -e", async () => {
   expect(await run(`set -e; echo before; echo x > ${outside}/file; echo never`))
     .toMatchInlineSnapshot(`
-    {
-      "exitCode": 1,
-      "stderr": "bash: <tmp>/outside/file: Read-only file system
-    Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
-    ",
-      "stdout": "before
-    ",
-    }
-  `);
+      {
+        "exitCode": 1,
+        "stderr": "bash: <tmp>/outside/file: Read-only file system
+      Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+      ",
+        "stdout": "before
+      ",
+      }
+    `);
 });
 
 it("reports tee and cp into a refused place and goes on", async () => {
@@ -136,8 +136,8 @@ it("reports tee and cp into a refused place and goes on", async () => {
       "exitCode": 0,
       "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
     cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt'
-    Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
-    <tmp>/closed/copy.txt is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+    Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+    "<tmp>/closed/copy.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
     ",
       "stdout": "x
     rc=1

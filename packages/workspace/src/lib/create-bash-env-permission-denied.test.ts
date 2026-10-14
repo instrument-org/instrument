@@ -153,7 +153,7 @@ describe.each(Object.entries(shells))(
       expect(walked.stderr).not.toContain("Waiting on the person");
       const listed = await bash.exec(`ls ${docs}; ls ${docs}/asks`);
       expect(listed.stderr).toContain(
-        `Waiting on the person to allow ${path.join(docs, "asks")}.`,
+        `Waiting on the person to allow ${JSON.stringify(path.join(docs, "asks"))}.`,
       );
     });
 

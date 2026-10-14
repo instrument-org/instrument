@@ -39,12 +39,14 @@ import { workspaceLayout } from "./workspace-layout";
 
 // What the move leaves behind is kept in the workspace's set-aside folder, so a
 // migration that went wrong can be undone by hand: the projects, once their
-// topics are written, the tasks with nothing the user said in them, and each
-// chat's 1.x settings and database as the task had them.
+// topics are written, the tasks with nothing the user said in them, each
+// chat's 1.x settings and database as the task had them, and anything found
+// holding the name a chat is staged under.
 const LEGACY_PROJECTS_DIR_NAME = "projects";
 const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 const EMPTY_TASKS_DIR_NAME = "empty-tasks";
 const TASK_RECORDS_DIR_NAME = "task-records";
+const STAGED_CHATS_DIR_NAME = "staged-chats";
 
 // What a task carries while it is staged as a chat: the chat's database and
 // settings, written beside the task's own and put in their place once the
@@ -162,10 +164,12 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     }
   }
 
-  // Every name in use, so a chat's name is unique across the chats, the tasks
-  // inside them, and the tasks no chat owns.
+  // Every name in use, so a chat's name is unique across the chats, the
+  // chats an earlier boot staged and could not name yet, the tasks inside
+  // them, and the tasks no chat owns.
   const taken = new Set([
     ...readDirs(chatsDir),
+    ...readDirs(chatsDir).flatMap((name) => stagedChatName(name) ?? []),
     ...readDirs(chatsDir).flatMap((chat) =>
       readDirs(path.join(chatsDir, chat, TASKS_DIR_NAME)),
     ),
@@ -332,7 +336,17 @@ function adoptTask({
   const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
   const chatSettings = path.join(privateDir, STAGED_CHAT_SETTINGS_FILE_NAME);
   const stagingDir = path.join(chatsDir, stagingName(chatName));
-  fs.rmSync(stagingDir, { force: true, recursive: true });
+  // Whatever holds the name is kept, as a chat's files may be in it.
+  if (present(stagingDir)) {
+    moveAside(
+      stagingDir,
+      path.join(
+        workspaceLayout(rootDir).setAsideDir,
+        STAGED_CHATS_DIR_NAME,
+        chatName,
+      ),
+    );
+  }
   try {
     removeDb(chatDb);
     writeChatRows({ dbPath: chatDb, messages: conversation.messages, session });
@@ -381,7 +395,8 @@ function adoptTask({
  * once done, so a boot cut short part way picks up where it stopped.
  */
 function finishStagedChat(stagingDir: string, rootDir: string) {
-  const chatName = path.basename(stagingDir).slice(1, -".partial".length);
+  const chatName =
+    stagedChatName(path.basename(stagingDir)) ?? path.basename(stagingDir);
   const privateDir = path.join(stagingDir, PRIVATE_FOLDER_NAME);
   const backup = path.join(
     workspaceLayout(rootDir).setAsideDir,
@@ -412,7 +427,7 @@ function finishStagedChat(stagingDir: string, rootDir: string) {
 /** Finishes the chats an earlier boot staged. Returns whether there were any. */
 function finishStagedChats(chatsDir: string, rootDir: string): boolean {
   const staged = readDirs(chatsDir).filter(
-    (name) => name.startsWith(".") && name.endsWith(".partial"),
+    (name) => stagedChatName(name) !== undefined,
   );
   for (const name of staged) {
     try {
@@ -752,6 +767,13 @@ function readProjects(rootDir: string): LegacyProject[] {
 /** The hidden name a chat is moved in under until it is finished. */
 function stagingName(chatName: string): string {
   return `.${chatName}.partial`;
+}
+
+/** The chat a staging folder's name stands for, or undefined for any other name. */
+function stagedChatName(name: string): string | undefined {
+  return name.startsWith(".") && name.endsWith(".partial")
+    ? name.slice(1, -".partial".length)
+    : undefined;
 }
 
 function storedValue(blob: null | Uint8Array): unknown {

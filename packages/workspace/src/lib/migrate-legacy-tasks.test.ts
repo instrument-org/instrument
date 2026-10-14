@@ -753,6 +753,52 @@ describe("migrateLegacyTasks", () => {
     });
   });
 
+  // A boot that staged a chat and could not name it (a folder held open, as
+  // on a crashed boot) leaves `.<name>.partial` among the chats, holding the
+  // task's files. A later boot that adopts a second task of the same day and
+  // title must not take that name, or the staging of one would take the
+  // other's place.
+  it("keeps a chat an earlier boot staged apart from a later task of the same day and title", () => {
+    const first = legacyTask("2026-06-23-first", { sessions: ONE_ASK });
+    const second = legacyTask("2026-06-23-second", { sessions: ONE_ASK });
+    fs.mkdirSync(path.join(first, "work"));
+    fs.writeFileSync(path.join(first, "work", "first.txt"), "first");
+    fs.mkdirSync(path.join(second, "work"));
+    fs.writeFileSync(path.join(second, "work", "second.txt"), "second");
+    const rename = fs.renameSync.bind(fs);
+    const busy = (failing: (from: string) => boolean) =>
+      vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+        if (failing(String(from))) {
+          throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+        }
+        rename(from, to);
+      });
+
+    // The first boot stages the first task and cannot name it, and cannot
+    // move the second at all.
+    const firstBoot = busy(
+      (from) => from === second || from.endsWith(".partial"),
+    );
+    migrateLegacyTasks(root);
+    firstBoot.mockRestore();
+    // The next one adopts the second, with the first still unnamed.
+    const secondBoot = busy((from) => from.endsWith(".partial"));
+    migrateLegacyTasks(root);
+    secondBoot.mockRestore();
+    migrateLegacyTasks(root);
+
+    const chats = path.join(root, ".instrument", "chats");
+    expect(
+      fs
+        .readdirSync(chats)
+        .toSorted()
+        .map((chat) => [chat, fs.readdirSync(path.join(chats, chat, "work"))]),
+    ).toEqual([
+      ["2026-06-23-rotating-red-square", ["first.txt"]],
+      ["2026-06-23-rotating-red-square-2", ["second.txt"]],
+    ]);
+  });
+
   it.each([
     ["before it was named", (from: string) => from.endsWith(".partial")],
     [

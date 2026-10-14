@@ -316,6 +316,106 @@ describe("moveMachineData", () => {
     ).toBe(false);
   });
 
+  describe("the key stores a development build left at the root", () => {
+    const LONG_AGO = new Date("2026-01-01");
+    const LATER = new Date("2027-01-01");
+
+    /** A root file, last written at `when`. */
+    function writeAtRoot(name: string, when: Date) {
+      const file = path.join(userDataDir, name);
+      write(file, `${name} at the root`);
+      fs.utimesSync(file, when, when);
+    }
+
+    function seedRoot() {
+      // Taken in, and no newer than the workspace's copy.
+      writeAtRoot("session-dev.json", LONG_AGO);
+      writeAtRoot("providers.json.enc", LONG_AGO);
+      // Never taken in: the workspace holds no store of the name.
+      writeAtRoot("providers.json", LONG_AGO);
+      // Written after the take-in by something else.
+      writeAtRoot("app-connections.json", LATER);
+      // Not a key store.
+      writeAtRoot("features.json", LONG_AGO);
+    }
+
+    it("removes the copies the workspace's keys hold, once they hold them", () => {
+      seedBeta();
+      seedRoot();
+
+      const { done } = moveMachineData({ userDataDir, workspace: workspace() });
+
+      expect(
+        fs
+          .readdirSync(userDataDir)
+          .filter((name) => name.endsWith(".json") || name.endsWith(".enc"))
+          .toSorted(),
+      ).toEqual([
+        "app-connections.json",
+        "features.json",
+        "providers.json",
+        "workspaces.json",
+      ]);
+      expect(done).toContain(
+        "removed the root copy of session-dev.json, which the keys hold",
+      );
+    });
+
+    it("removes them on a later boot of a workspace an earlier build moved", () => {
+      seedBeta();
+      moveMachineData({ userDataDir, workspace: workspace() });
+      seedRoot();
+
+      moveMachineData({ userDataDir, workspace: workspace() });
+
+      expect(fs.existsSync(path.join(userDataDir, "session-dev.json"))).toBe(
+        false,
+      );
+      expect(fs.existsSync(path.join(userDataDir, "providers.json"))).toBe(
+        true,
+      );
+    });
+
+    it("leaves them while the move has not finished", () => {
+      seedBeta();
+      seedRoot();
+      const machineDir = settleWorkspace({
+        userDataDir,
+        workspace: workspace(),
+      });
+      write(path.join(machineDir, "browser"), "in the way");
+
+      moveMachineData({ userDataDir, workspace: workspace() });
+
+      expect(fs.existsSync(path.join(userDataDir, "session-dev.json"))).toBe(
+        true,
+      );
+    });
+
+    it("leaves them for another workspace, which never took them in", () => {
+      const other: ResolvedWorkspace = {
+        id: "other",
+        isDefault: false,
+        path: path.join(userDataDir, "workspaces", "other"),
+        pinned: false,
+      };
+      write(
+        path.join(
+          workspaceMachineDirOf(userDataDir, "other"),
+          "keys",
+          "session-dev.json",
+        ),
+      );
+      seedRoot();
+
+      moveMachineData({ userDataDir, workspace: other });
+
+      expect(fs.existsSync(path.join(userDataDir, "session-dev.json"))).toBe(
+        true,
+      );
+    });
+  });
+
   it("leaves everything where it is while an older build has the workspace open, and moves it on the boot after", () => {
     seedBeta();
     const root = defaultWorkspacePath(userDataDir);

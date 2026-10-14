@@ -97,6 +97,34 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stderr).toContain(`flag ${flag} is not allowed`);
   });
 
+  // Connected to the app's browser, which is already running, the CLI
+  // drops an extension.
+  it.each([
+    [["--extension", "/Users/sam/ext", "open", "https://example.com"]],
+    [["open", "https://example.com", "--extension=/Users/sam/ext"]],
+  ])("refuses --extension, which has no effect here: %j", async (args) => {
+    const { execa } = await import("execa");
+
+    const result = await command.execute(args, mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe(
+      "agent-browser: flag --extension has no effect on Instrument's browser: an extension loads only into a browser agent-browser starts itself, and this one is already running.\n",
+    );
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it("drives the app's browser with a page init script, its path checked later", () => {
+    expect(
+      classifyInvocation(
+        ["--init-script", "hook.js", "open", "https://x.com"],
+        {
+          hasNoWindow: false,
+        },
+      ),
+    ).toEqual({ kind: "tabs" });
+  });
+
   it("serves the CLI's core guide, led by what differs in this app", async () => {
     const result = await command.execute(["skills", "get", "core"], mockCtx);
 
@@ -458,6 +486,8 @@ describe("agent-browser file operands and the folder rules", () => {
     writeFileSync(path.join(root, "closed", "baseline.png"), "png");
     writeFileSync(path.join(root, "shelf", "form.pdf"), "pdf");
     writeFileSync(path.join(root, "work", "photo.png"), "png");
+    writeFileSync(path.join(root, "closed", "hook.js"), "js");
+    writeFileSync(path.join(root, "work", "hook.js"), "js");
     symlinkSync(
       path.join(root, "closed", "secret.txt"),
       path.join(root, "work", "notes.txt"),
@@ -504,6 +534,18 @@ describe("agent-browser file operands and the folder rules", () => {
     {
       args: ["diff", "screenshot", "--baseline", "../closed/baseline.png"],
       name: "a diff baseline",
+    },
+    {
+      args: ["--init-script", "../closed/hook.js", "open", "https://x.com"],
+      name: "a page init script",
+    },
+    {
+      args: ["open", "https://x.com", "--init-script", "notes.txt"],
+      name: "a page init script through a link in the work folder",
+    },
+    {
+      args: ["--init-script=../closed/hook.js", "open", "https://x.com"],
+      name: "a page init script spelled with =",
     },
   ])("refuses $name from a closed folder", async ({ args }) => {
     const result = await resolve(args);
@@ -559,8 +601,22 @@ describe("agent-browser file operands and the folder rules", () => {
     });
   });
 
+  it("refuses a page init script that is not there", async () => {
+    expect(
+      await resolve(["--init-script", "gone.js", "open", "https://x.com"]),
+    ).toEqual({ error: 'Init script not found: "gone.js".' });
+  });
+
   it.each([
     [["screenshot"], ["screenshot"]],
+    [
+      ["--init-script", "hook.js", "open", "https://x.com"],
+      ["--init-script", "<root>/work/hook.js", "open", "https://x.com"],
+    ],
+    [
+      ["--init-script=hook.js", "open", "https://x.com"],
+      ["--init-script=<root>/work/hook.js", "open", "https://x.com"],
+    ],
     [
       ["screenshot", "shot.png"],
       ["screenshot", "<root>/work/shot.png"],
@@ -763,6 +819,8 @@ describe("agent-browser routing", () => {
         ["AGENT_BROWSER_PROVIDER", "evil"],
         ["AGENT_BROWSER_SESSION", "hijacked"],
         ["AGENT_BROWSER_CONFIG", "/task/agent-browser.json"],
+        ["AGENT_BROWSER_INIT_SCRIPTS", "/Users/sam/secrets/hook.js"],
+        ["AGENT_BROWSER_EXTENSIONS", "/Users/sam/ext"],
       ],
     );
 
@@ -774,6 +832,8 @@ describe("agent-browser routing", () => {
     expect(env.AGENT_BROWSER_PROFILE).toBeUndefined();
     expect(env.AGENT_BROWSER_SESSION).toBeUndefined();
     expect(env.AGENT_BROWSER_CONFIG).toBeUndefined();
+    expect(env.AGENT_BROWSER_INIT_SCRIPTS).toBeUndefined();
+    expect(env.AGENT_BROWSER_EXTENSIONS).toBeUndefined();
     expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
     expect(env.AGENT_BROWSER_PLUGINS).not.toContain("evil");
   });

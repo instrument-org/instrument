@@ -103,7 +103,12 @@ export function agentBrowserFlagName(arg: string): string {
  * in the original list so a caller can rewrite one in place.
  */
 export function parseAgentBrowserArgs(args: string[]) {
-  const globalFlags: { name: string; value: string | undefined }[] = [];
+  const globalFlags: {
+    name: string;
+    value: string | undefined;
+    /** Where the value is in the list, for a flag that took one from the next argument. */
+    valueIndex?: number;
+  }[] = [];
   const subArgs: { index: number; value: string }[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -124,7 +129,11 @@ export function parseAgentBrowserArgs(args: string[]) {
     const next = args[i + 1];
 
     if (GLOBAL_VALUE_FLAGS.has(name)) {
-      globalFlags.push({ name, value: next });
+      globalFlags.push({
+        name,
+        value: next,
+        ...(next !== undefined && { valueIndex: i + 1 }),
+      });
       i++;
       continue;
     }

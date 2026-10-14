@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
@@ -82,6 +83,16 @@ export const BLOCKED_FLAGS = new Set([
   "--session", // Harness injects this; derived from our session id.
   "--session-name", // Upstream's alias for --session.
 ]);
+
+// Loads a browser extension from a path, which only a browser agent-browser
+// launches itself takes: connected to Instrument's, already running, the
+// CLI drops it.
+const EXTENSION_FLAG = "--extension";
+
+// Registers a script the browser runs in every page, read from a path by the
+// CLI outside the sandbox, so the path is held to the folder rules
+// (resolveAgentBrowserPathArgs).
+const INIT_SCRIPT_FLAG = "--init-script";
 
 // Launch-state flags that imply an external local Chrome launch when no
 // connection-identity flag (--cdp, --auto-connect, --provider) is present:
@@ -402,7 +413,8 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
 ]);
 
 type Operand = { index: number; value: string };
-type FileOperand = { index: number; op: "read" | "write" };
+/** `prefix` is the part of the argument before the path, for `--flag=<path>`. */
+type FileOperand = { index: number; op: "read" | "write"; prefix?: string };
 
 /**
  * The operands of a file subcommand that name a file, and whether the
@@ -479,6 +491,28 @@ function fileOperandsOf(
   }
 }
 
+/**
+ * The page init scripts an invocation names, which the browser reads: the
+ * value after `--init-script`, and one spelled `--init-script=<path>`, which
+ * the CLI does not take for the flag today and is held as one all the same.
+ */
+function initScriptOperands(
+  args: string[],
+  globalFlags: ReturnType<typeof parseAgentBrowserArgs>["globalFlags"],
+): FileOperand[] {
+  const prefix = `${INIT_SCRIPT_FLAG}=`;
+  return [
+    ...globalFlags.flatMap(({ name, valueIndex }): FileOperand[] =>
+      name === INIT_SCRIPT_FLAG && valueIndex !== undefined
+        ? [{ index: valueIndex, op: "read" }]
+        : [],
+    ),
+    ...args.flatMap((arg, index): FileOperand[] =>
+      arg.startsWith(prefix) ? [{ index, op: "read", prefix }] : [],
+    ),
+  ];
+}
+
 /** The operands that are not a flag or a flag's value. */
 function positionalsOf(
   operands: Operand[],
@@ -510,12 +544,13 @@ function isScreenshotPath(value: string): boolean {
 }
 
 /**
- * Spell the file operands of subcommands that take a file as the host does,
- * refuse one the folder rules keep from the agent, and check every file
- * operand of `upload` exists. The CLI and the browser it drives run outside
- * the sandbox, so the rules are asked here, as `rg` and `du` ask them of
- * theirs. CDP reports success for missing files, so the wrapper must fail
- * before handing them to the browser process.
+ * Spell the file operands of subcommands that take a file, and the page
+ * init scripts, as the host does, refuse one the folder rules keep from the
+ * agent, and check every file `upload` sends and every init script exists.
+ * The CLI and the browser it drives run outside the sandbox, so the rules
+ * are asked here, as `rg` and `du` ask them of theirs. CDP reports success
+ * for missing files, so the wrapper must fail before handing them to the
+ * browser process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
@@ -528,35 +563,49 @@ export async function resolveAgentBrowserPathArgs(
   },
   layout: WorkspaceFsLayout,
 ): Promise<{ args: string[] } | { error: string }> {
-  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs(args);
   const textOperands = new Set(
     subcommand !== undefined && !FILE_OPERAND_SUBCOMMANDS.has(subcommand)
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
-  const fileOperands = fileOperandsOf(subcommand, subArgs.slice(1));
-  for (const { index, op } of fileOperands) {
-    const arg = args[index] ?? "";
+  const initScripts = initScriptOperands(args, globalFlags);
+  const fileOperands = [
+    ...fileOperandsOf(subcommand, subArgs.slice(1)),
+    ...initScripts,
+  ];
+  const pathOf = ({ index, prefix = "" }: FileOperand) =>
+    (args[index] ?? "").slice(prefix.length);
+  for (const operand of fileOperands) {
+    const named = pathOf(operand);
     const refusal = unsandboxedOperandRefusal(
       layout,
-      ctx.fs.resolvePath(ctx.cwd, arg),
-      op,
+      ctx.fs.resolvePath(ctx.cwd, named),
+      operand.op,
     );
     if (refusal !== undefined) {
-      return { error: `${arg}: Permission denied\n${refusal}` };
+      return { error: `${named}: Permission denied\n${refusal}` };
     }
   }
-  const fileIndexes = new Set(fileOperands.map(({ index }) => index));
+  for (const operand of initScripts) {
+    const named = pathOf(operand);
+    if (!(await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, named)))) {
+      return { error: `Init script not found: "${named}".` };
+    }
+  }
+  const byIndex = new Map(
+    fileOperands.map((operand) => [operand.index, operand]),
+  );
   // The daemon outlives the shell's `cd` and resolves a relative path
   // against the folder it was launched in, so a file operand goes to it
   // absolute.
-  const resolved = args.map((arg, index) =>
-    textOperands.has(index)
-      ? arg
-      : fileIndexes.has(index)
-        ? hostPathOf(ctx.fs.resolvePath(ctx.cwd, arg))
-        : (hostPathArgs([arg])[0] ?? arg),
-  );
+  const resolved = args.map((arg, index) => {
+    const operand = byIndex.get(index);
+    if (operand) {
+      return `${operand.prefix ?? ""}${hostPathOf(ctx.fs.resolvePath(ctx.cwd, pathOf(operand)))}`;
+    }
+    return textOperands.has(index) ? arg : (hostPathArgs([arg])[0] ?? arg);
+  });
   if (subcommand !== "upload") {
     return { args: resolved };
   }
@@ -621,6 +670,12 @@ export function classifyInvocation(
     return {
       kind: "refuse",
       stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
+    };
+  }
+  if (args.some((a) => agentBrowserFlagName(a) === EXTENSION_FLAG)) {
+    return {
+      kind: "refuse",
+      stderr: `agent-browser: flag ${EXTENSION_FLAG} has no effect on ${APP_NAME}'s browser: an extension loads only into a browser agent-browser starts itself, and this one is already running.\n`,
     };
   }
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
@@ -822,8 +877,10 @@ export function createAgentBrowserCommand({
       // AGENT_BROWSER_DEBUG:
       //   process.env.NODE_ENV === "development" ? "1" : undefined,
       AGENT_BROWSER_EXECUTABLE_PATH: undefined,
+      AGENT_BROWSER_EXTENSIONS: undefined,
       AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
       AGENT_BROWSER_IDLE_TIMEOUT_MS,
+      AGENT_BROWSER_INIT_SCRIPTS: undefined,
       AGENT_BROWSER_NAMESPACE: undefined,
       AGENT_BROWSER_PLUGINS: pluginRegistry,
       AGENT_BROWSER_PROFILE: undefined,

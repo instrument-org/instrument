@@ -73,6 +73,7 @@ describe("parseAgentBrowserArgs", () => {
         {
           "name": "--provider",
           "value": "browserbase",
+          "valueIndex": 1,
         },
         {
           "name": "--json",

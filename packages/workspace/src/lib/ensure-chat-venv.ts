@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -95,10 +95,15 @@ function cancelledVenvCreation(): ChatVenvError {
 }
 
 function hasUsableVenv(chatId: ChatId) {
-  return (
-    existsSync(chatVenvPython(chatId)) &&
-    existsSync(path.join(chatVenvDir(chatId), "pyvenv.cfg"))
-  );
+  const config = path.join(chatVenvDir(chatId), "pyvenv.cfg");
+  if (!existsSync(chatVenvPython(chatId)) || !existsSync(config)) {
+    return false;
+  }
+  // The Python the venv was made from, gone once the managed Python is
+  // removed or kept somewhere else. Without it the venv runs nothing, even
+  // where its own `python.exe` is still there (Windows).
+  const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, "utf8"))?.[1];
+  return home === undefined || existsSync(home.trim());
 }
 
 async function runUvVenv(chatId: ChatId): Promise<ChatVenvError | undefined> {

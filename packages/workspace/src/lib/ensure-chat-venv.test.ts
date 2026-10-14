@@ -7,6 +7,7 @@ import { ensureChatVenv } from "./ensure-chat-venv";
 vi.mock(import("node:fs"), () => ({
   existsSync: vi.fn(() => false),
   mkdirSync: vi.fn(),
+  readFileSync: vi.fn(),
 }));
 vi.mock(import("./run-uv"));
 
@@ -64,6 +65,48 @@ describe("ensureChatVenv", () => {
     expect(vi.mocked(runUvCommand).mock.calls[0]?.[0].args).toContain(
       "--clear",
     );
+  });
+
+  it("recreates a venv whose base Python is gone", async () => {
+    const { existsSync, readFileSync } = await import("node:fs");
+    const { runUvCommand } = await import("./run-uv");
+    vi.mocked(runUvCommand).mockClear();
+    // The interpreter link and pyvenv.cfg are there; the Python it names is not.
+    vi.mocked(existsSync).mockReturnValueOnce(true).mockReturnValueOnce(true);
+    vi.mocked(readFileSync).mockReturnValueOnce(
+      "home = /gone/python/cpython-3.12-macos-aarch64-none/bin\nimplementation = CPython\n",
+    );
+    vi.mocked(runUvCommand).mockResolvedValueOnce({
+      combined: "",
+      exitCode: 0,
+      stdout: "",
+    });
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("moved-python"));
+
+    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    expect(vi.mocked(existsSync).mock.lastCall?.[0]).toBe(
+      "/gone/python/cpython-3.12-macos-aarch64-none/bin",
+    );
+    expect(vi.mocked(runUvCommand).mock.calls[0]?.[0].args).toContain(
+      "--clear",
+    );
+  });
+
+  it("keeps a venv whose base Python is there", async () => {
+    const { existsSync, readFileSync } = await import("node:fs");
+    const { runUvCommand } = await import("./run-uv");
+    vi.mocked(runUvCommand).mockClear();
+    vi.mocked(existsSync)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(true);
+    vi.mocked(readFileSync).mockReturnValueOnce("home = /runtime/python/bin\n");
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("usable-venv"));
+
+    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    expect(runUvCommand).not.toHaveBeenCalled();
   });
 
   it("lets one caller cancel without cancelling shared venv creation", async () => {

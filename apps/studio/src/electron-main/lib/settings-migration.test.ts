@@ -323,7 +323,7 @@ describe("drafts into folders", () => {
       "settings at version 2",
     ]);
 
-    const drafts = path.join(workspace(), "drafts");
+    const drafts = path.join(workspace(), ".instrument", "drafts");
     expect(
       fs
         .readdirSync(drafts, { recursive: true, withFileTypes: true })
@@ -357,20 +357,18 @@ describe("drafts into folders", () => {
     expect(fs.readdirSync(settings())).not.toEqual(
       expect.arrayContaining(["drafts.json", "history.json"]),
     );
-    expect(fs.existsSync(path.join(workspace(), ".instrument/drafts"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(drafts, "d1", "item-1"))).toBe(false);
     expect(readWorkspaceIdentity(workspace()).name).toBe("Mine");
   });
 
   it("leaves a draft whose folder is already there as it is", () => {
     seedBetaDrafts();
-    const words = path.join(workspace(), "drafts/d1/draft.md");
-    fs.mkdirSync(path.join(workspace(), "drafts/d1/.instrument"), {
+    const words = path.join(workspace(), ".instrument/drafts/d1/draft.md");
+    fs.mkdirSync(path.join(workspace(), ".instrument/drafts/d1/.instrument"), {
       recursive: true,
     });
     fs.writeFileSync(
-      path.join(workspace(), "drafts/d1/.instrument/settings.json"),
+      path.join(workspace(), ".instrument/drafts/d1/.instrument/settings.json"),
       "{}",
     );
     fs.writeFileSync(words, "newer");
@@ -378,5 +376,41 @@ describe("drafts into folders", () => {
     migrateBoth();
 
     expect(fs.readFileSync(words, "utf8")).toBe("newer");
+  });
+
+  // The beta staged its pastes in the folder drafts are kept in now, so a
+  // draft made since must outlive the staging going.
+  it("removes only the item folders it staged, never a draft kept there since", () => {
+    seedBetaDrafts();
+    const kept = path.join(workspace(), ".instrument", "drafts", "d9");
+    for (const [name, contents] of [
+      [".instrument/settings.json", `{"createdAt":9}`],
+      ["draft.md", "a draft from after the move"],
+      ["photo.png", "png"],
+    ] as const) {
+      fs.mkdirSync(path.dirname(path.join(kept, name)), { recursive: true });
+      fs.writeFileSync(path.join(kept, name), contents);
+    }
+
+    migrateBoth();
+
+    expect(
+      fs
+        .readdirSync(kept, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) =>
+          path.relative(kept, path.join(entry.parentPath, entry.name)),
+        )
+        .toSorted(),
+    ).toEqual([
+      path.join(".instrument", "settings.json"),
+      "draft.md",
+      "photo.png",
+    ]);
+    expect(
+      fs.existsSync(
+        path.join(workspace(), ".instrument", "drafts", "d1", "item-1"),
+      ),
+    ).toBe(false);
   });
 });

@@ -23,20 +23,6 @@ export const CHAT_FOLDER_NAMES = {
   work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
-// One folder per chat at the workspace root, its tasks included: a task is a
-// session in the chat's database, with no folder of its own.
-export const CHATS_DIR_NAME = "chats";
-// One folder per app at the workspace root, mounted for the
-// chat. Secrets never live here; the app's stores hold them.
-export const APPS_DIR_NAME = "apps";
-// One Markdown file per memory at the workspace root: what the conversation's
-// agent keeps about the user across every chat, readable and editable in a
-// file manager.
-export const MEMORY_DIR_NAME = "memory";
-// One folder per topic at the workspace root, named for the topic: its
-// settings in `.instrument/settings.json` and its instructions in
-// `instructions.md`.
-export const TOPICS_DIR_NAME = "topics";
 // A chat's SQLite store, every session in it, in its record folder.
 export const CHAT_DB_FILE_NAME = "chat.db";
 // The notes the agent keeps for whoever carries a chat on after its context

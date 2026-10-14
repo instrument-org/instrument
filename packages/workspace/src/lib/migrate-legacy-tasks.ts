@@ -8,7 +8,6 @@ import { DatabaseSync } from "node:sqlite";
 import { ulid } from "ulid";
 
 import {
-  CHATS_DIR_NAME,
   CHAT_DB_FILE_NAME,
   LEGACY_TASK_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
@@ -36,12 +35,12 @@ import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
+import { workspaceLayout } from "./workspace-layout";
 
-// Where what the move leaves behind is kept, so a migration that went wrong
-// can be undone by hand: the projects, once their topics are written, the
-// tasks with nothing the user said in them, and each chat's 1.x settings and
-// database as the task had them.
-const BACKUP_DIR_NAME = ".pre-chats";
+// What the move leaves behind is kept in the workspace's set-aside folder, so a
+// migration that went wrong can be undone by hand: the projects, once their
+// topics are written, the tasks with nothing the user said in them, and each
+// chat's 1.x settings and database as the task had them.
 const LEGACY_PROJECTS_DIR_NAME = "projects";
 const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 const EMPTY_TASKS_DIR_NAME = "empty-tasks";
@@ -135,7 +134,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     topicCount: 0,
   };
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
-  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
+  const { chatsDir } = workspaceLayout(rootDir);
   const staged = finishStagedChats(chatsDir, rootDir);
   const legacy = readDirs(tasksDir).filter((name) =>
     isLegacyTask(path.join(tasksDir, name)),
@@ -215,7 +214,11 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     try {
       moveAside(
         project.source,
-        path.join(rootDir, BACKUP_DIR_NAME, LEGACY_PROJECTS_DIR_NAME, name),
+        path.join(
+          workspaceLayout(rootDir).setAsideDir,
+          LEGACY_PROJECTS_DIR_NAME,
+          name,
+        ),
       );
     } catch {
       migration.leftOver += 1;
@@ -269,7 +272,11 @@ function adoptTask({
   ) {
     moveAside(
       chatDir,
-      path.join(rootDir, BACKUP_DIR_NAME, EMPTY_TASKS_DIR_NAME, taskName),
+      path.join(
+        workspaceLayout(rootDir).setAsideDir,
+        EMPTY_TASKS_DIR_NAME,
+        taskName,
+      ),
     );
     return { kind: "empty" };
   }
@@ -368,7 +375,8 @@ function adoptTask({
 
 /**
  * Gives a staged chat its name once its database and settings are in place:
- * the task's own set aside under `.pre-chats/task-records/<chat>`, and the
+ * the task's own set aside under `.pre-chats/task-records/<chat>` in the
+ * workspace's `.instrument/`, and the
  * chat's written in that staging put where they were. Each step is skipped
  * once done, so a boot cut short part way picks up where it stopped.
  */
@@ -376,8 +384,7 @@ function finishStagedChat(stagingDir: string, rootDir: string) {
   const chatName = path.basename(stagingDir).slice(1, -".partial".length);
   const privateDir = path.join(stagingDir, PRIVATE_FOLDER_NAME);
   const backup = path.join(
-    rootDir,
-    BACKUP_DIR_NAME,
+    workspaceLayout(rootDir).setAsideDir,
     TASK_RECORDS_DIR_NAME,
     chatName,
   );
@@ -700,7 +707,7 @@ function readJson(file: string): Record<string, unknown> | undefined {
 function readProjects(rootDir: string): LegacyProject[] {
   const dirs = [
     path.join(rootDir, LEGACY_PROJECTS_DIR_NAME),
-    path.join(rootDir, BACKUP_DIR_NAME, LEGACY_PROJECTS_DIR_NAME),
+    path.join(workspaceLayout(rootDir).setAsideDir, LEGACY_PROJECTS_DIR_NAME),
   ];
   return dirs.flatMap((dir) =>
     readDirs(dir).flatMap((name): LegacyProject[] => {

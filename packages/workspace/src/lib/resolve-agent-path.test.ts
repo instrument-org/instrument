@@ -214,12 +214,12 @@ describe("dot folders", () => {
 });
 
 describe("another chat's folders, reached through a folder that holds them", () => {
-  const { workspaceMachineDir } = getWorkspaceConfig();
+  const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
   const workFolders = path.join(workspaceMachineDir, "work");
   const layout = buildWorkspaceFsLayout({
     folders: {
       // Above both the workspace and this computer's folder for it.
-      above: attachment("id-above", path.dirname(path.dirname(chatsDir()))),
+      above: attachment("id-above", path.dirname(rootDir)),
     },
     chatHostRoot: WorkDirSchema.parse(
       path.join(workFolders, "2026-09-26-chat"),

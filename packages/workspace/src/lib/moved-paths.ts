@@ -10,8 +10,8 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  * One move a migration made on this computer: what was under `from` and is
  * not there now is under `to`, at the same place below it. A path already
  * there is never looked for elsewhere, so a move that left some entries
- * behind (a chat's records, which stay where its work was) names only the
- * rest.
+ * behind names only the rest, and a folder whose entries went to several
+ * places is one move per place.
  */
 const MovedPathSchema = z.object({ from: z.string(), to: z.string() });
 export type MovedPath = z.output<typeof MovedPathSchema>;
@@ -41,24 +41,19 @@ let cached: { file: string; moves: MovedPath[]; stamp: string } | undefined;
  * so is the record. For whatever reads back a path it kept (the agent's
  * file tools and the person's file views over an old reply, the recent
  * files, a draft's attachments) rather than for anything that writes one.
+ *
+ * A folder whose entries went to more than one place (a chat's old folder:
+ * its work to the work folder, its records into the workspace's
+ * `.instrument/`) is recorded as one move per place, so every move holding
+ * the path is followed, the deepest first, and the first that leads to
+ * something there wins. When none does, the deepest one's answer stands.
  */
 export function remapMovedPath(
   hostPath: string,
   moves: readonly MovedPath[] = workspaceMovedPaths(),
   exists: (candidate: string) => boolean = fs.existsSync,
 ): string {
-  let current = hostPath;
-  for (let step = 0; step < MAX_MOVES_FOLLOWED; step++) {
-    if (exists(current)) {
-      return current;
-    }
-    const move = deepestMoveHolding(current, moves);
-    if (move === undefined) {
-      return current;
-    }
-    current = path.join(move.to, move.relative);
-  }
-  return current;
+  return follow(hostPath, moves, exists, MAX_MOVES_FOLLOWED).path;
 }
 
 /** The moves recorded in a machine folder, read again only when the file changes. */
@@ -131,19 +126,50 @@ function workspaceMovedPaths(): MovedPath[] {
     : [];
 }
 
-function deepestMoveHolding(
+/**
+ * One path through up to `budget` moves: where it is when it is there, and
+ * otherwise the first place a move holding it leads to that is, trying the
+ * deepest move first.
+ */
+function follow(
   hostPath: string,
   moves: readonly MovedPath[],
-): (MovedPath & { relative: string }) | undefined {
-  let best: (MovedPath & { relative: string }) | undefined;
-  for (const move of moves) {
-    const relative = hostPathWithin(move.from, hostPath);
-    if (
-      relative !== null &&
-      (best === undefined || move.from.length > best.from.length)
-    ) {
-      best = { ...move, relative: relative === "/" ? "." : `.${relative}` };
-    }
+  exists: (candidate: string) => boolean,
+  budget: number,
+): { found: boolean; path: string } {
+  if (exists(hostPath)) {
+    return { found: true, path: hostPath };
   }
-  return best;
+  if (budget === 0) {
+    return { found: false, path: hostPath };
+  }
+  let fallback: { found: boolean; path: string } | undefined;
+  for (const move of movesHolding(hostPath, moves)) {
+    const next = follow(
+      path.join(move.to, move.relative),
+      moves,
+      exists,
+      budget - 1,
+    );
+    if (next.found) {
+      return next;
+    }
+    fallback ??= next;
+  }
+  return fallback ?? { found: false, path: hostPath };
+}
+
+/** Every move holding a path, the deepest first. */
+function movesHolding(
+  hostPath: string,
+  moves: readonly MovedPath[],
+): (MovedPath & { relative: string })[] {
+  return moves
+    .flatMap((move) => {
+      const relative = hostPathWithin(move.from, hostPath);
+      return relative === null
+        ? []
+        : [{ ...move, relative: relative === "/" ? "." : `.${relative}` }];
+    })
+    .toSorted((a, b) => b.from.length - a.from.length);
 }

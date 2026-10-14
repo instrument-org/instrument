@@ -1,8 +1,6 @@
-import {
-  PRIVATE_FOLDER_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import type { LayoutMarkStore } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 import { ulid } from "ulid";
@@ -11,9 +9,10 @@ import { z } from "zod";
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
  *
- * A workspace is a folder: chats, tasks, and the rest at the top level, and
- * what the app keeps for it that travels with it under `.instrument/` (its
- * identity, its preferences). What is this computer's own about it (keys,
+ * A workspace is a folder: the person's own work at the top level, and
+ * everything the app keeps for it that travels with it under `.instrument/`
+ * (its identity, its preferences, its chats, drafts and topics, laid out by
+ * `workspaceLayout`). What is this computer's own about it (keys,
  * Chromium profiles, window state, folder rules) is in its machine folder,
  * `<userData>/workspaces-data/<local id>/`, named by the short id this
  * machine's registry gives it. The machine keeps a list of them in
@@ -157,7 +156,7 @@ export function defaultWorkspacePath(userDataDir: string): string {
 
 export function hasWorkspaceIdentity(workspacePath: string): boolean {
   return fs.existsSync(
-    path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+    path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
   );
 }
 
@@ -170,7 +169,7 @@ export function readWorkspaceIdentity(
 ): WorkspaceIdentity {
   const parsed = WorkspaceIdentitySchema.safeParse(
     readJson(
-      path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+      path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
     ) ?? {},
   );
   return parsed.success ? parsed.data : WorkspaceIdentitySchema.parse({});
@@ -383,10 +382,6 @@ export function workspaceIndexFileOf(machineDir: string): string {
   return path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.index, "chats.db");
 }
 
-export function workspacePrivateDir(workspacePath: string): string {
-  return path.join(workspacePath, PRIVATE_FOLDER_NAME);
-}
-
 /** Write through a sibling and rename, so a crash mid-write leaves the old file. */
 export function writeJsonAtomic(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -400,7 +395,7 @@ export function writeWorkspaceIdentity(
   identity: WorkspaceIdentity,
 ): void {
   writeJsonAtomic(
-    path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+    path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
     identity,
   );
 }

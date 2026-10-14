@@ -33,6 +33,57 @@ export function moveEntrySync(from: string, to: string): void {
 }
 
 /**
+ * `from` to `to` as {@link moveEntrySync} moves it, or where `to` is a folder
+ * already, each entry of `from` into it the same way, and `from` removed once
+ * it is empty. An entry whose place is taken by anything but a folder to
+ * merge into is left where it was and named to `onLeft`. Returns whether it
+ * moved anything. Throws as `moveEntrySync` does, leaving what it had not
+ * reached yet where it was.
+ */
+export function mergeEntrySync(
+  from: string,
+  to: string,
+  onLeft: (from: string, to: string) => void,
+): boolean {
+  if (!entryExists(to)) {
+    moveEntrySync(from, to);
+    return true;
+  }
+  if (!isDirectorySync(from) || !isDirectorySync(to)) {
+    onLeft(from, to);
+    return false;
+  }
+  let moved = false;
+  for (const name of fs.readdirSync(from)) {
+    moved =
+      mergeEntrySync(path.join(from, name), path.join(to, name), onLeft) ||
+      moved;
+  }
+  removeIfEmptySync(from);
+  return moved;
+}
+
+/** Whether a path names a folder itself, never a link to one. */
+export function isDirectorySync(entry: string): boolean {
+  try {
+    return fs.lstatSync(entry).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Removes a folder that holds nothing; anything else stays as it is. */
+export function removeIfEmptySync(dir: string): void {
+  try {
+    if (fs.readdirSync(dir).length === 0) {
+      fs.rmdirSync(dir);
+    }
+  } catch {
+    // Not there, or not empty: either way it stays as it is.
+  }
+}
+
+/**
  * A rename, tried again for a moment on Windows, where a file another program
  * has open (an antivirus scan, the search indexer) refuses one until it lets
  * go.

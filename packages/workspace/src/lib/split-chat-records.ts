@@ -9,20 +9,23 @@ import path from "node:path";
 import {
   CHAT_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
-  CHATS_DIR_NAME,
   HANDOFF_NOTES_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
-import { entryExists, moveEntrySync } from "./move-entry";
+import {
+  entryExists,
+  isDirectorySync,
+  mergeEntrySync,
+  moveEntrySync,
+  removeIfEmptySync,
+} from "./move-entry";
 import { recordMovedPaths } from "./moved-paths";
+import { workspaceLayout } from "./workspace-layout";
 
 // The names earlier builds used, spelled out rather than built from the
 // current ones: they are what is on disk from before.
 const AGENT_BROWSER_HOME_DIR_NAME = "agent-browser-home";
 const LEGACY_HANDOFF_NOTES_PATH = ["work", "handoff-notes.md"];
-const WINDOW_RECORD_PATH = [PRIVATE_FOLDER_NAME, "window"];
-// Where the layout sweep keeps what it sets aside, at the workspace root.
-const BACKUP_DIR_NAME = ".pre-chats";
 const TASK_RECORDS_SET_ASIDE_DIR_NAME = "chat-task-records";
 
 // A SQLite database and the files beside it, sidecars first: a move cut short
@@ -66,7 +69,8 @@ export interface ChatRecordsSplit {
  * A virtualenv, `node_modules` and the scratch folder are dropped rather than
  * moved, and so is `agent-browser`'s old home. A `tasks/` folder an earlier
  * build left in a chat goes to the work folder with the rest, but for each
- * old task's own records, which are set aside under `.pre-chats/`.
+ * old task's own records, which are set aside with what the migrations kept
+ * (`setAsideDir`).
  *
  * Each entry is renamed (copied, then removed, across volumes, and retried
  * for a moment on Windows) only where its new place is free; a folder whose
@@ -85,9 +89,10 @@ export function splitChatRecords({
   rootDir: string;
 }): ChatRecordsSplit {
   const split: ChatRecordsSplit = { done: [], failed: 0 };
-  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
+  const layout = workspaceLayout(rootDir);
+  const { chatsDir } = layout;
   const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
-  const windowRecordDir = path.join(rootDir, ...WINDOW_RECORD_PATH);
+  const windowRecordDir = layout.windowDir;
   const windowWorkDir = path.join(workFoldersDir, "window");
 
   recordMovedPaths(machineDir, [
@@ -104,7 +109,7 @@ export function splitChatRecords({
         recordDir: path.join(chatsDir, name),
         workDir: path.join(workFoldersDir, name),
       })),
-    ...(isDirectory(windowRecordDir)
+    ...(isDirectorySync(windowRecordDir)
       ? [
           {
             name: "window",
@@ -118,8 +123,7 @@ export function splitChatRecords({
     splitOne({
       ...folder,
       setAsideDir: path.join(
-        rootDir,
-        BACKUP_DIR_NAME,
+        layout.setAsideDir,
         TASK_RECORDS_SET_ASIDE_DIR_NAME,
         folder.name,
       ),
@@ -127,37 +131,6 @@ export function splitChatRecords({
     });
   }
   return split;
-}
-
-function isDirectory(entry: string): boolean {
-  try {
-    return fs.lstatSync(entry).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * `from` to `to`, or where `to` is a folder already, each entry of `from`
- * into it the same way. An entry whose place is taken by something else is
- * left. Returns what it moved.
- */
-function moveInto(from: string, to: string, split: ChatRecordsSplit): boolean {
-  if (!entryExists(to)) {
-    moveEntrySync(from, to);
-    return true;
-  }
-  if (!isDirectory(from) || !isDirectory(to)) {
-    split.done.push(`left ${from}: ${to} is already there`);
-    return false;
-  }
-  let moved = false;
-  for (const name of fs.readdirSync(from)) {
-    moved =
-      moveInto(path.join(from, name), path.join(to, name), split) || moved;
-  }
-  removeIfEmpty(from);
-  return moved;
 }
 
 function readEntries(dir: string): string[] {
@@ -176,16 +149,6 @@ function readDirs(dir: string): string[] {
       .map((entry) => entry.name);
   } catch {
     return [];
-  }
-}
-
-function removeIfEmpty(dir: string) {
-  try {
-    if (fs.readdirSync(dir).length === 0) {
-      fs.rmdirSync(dir);
-    }
-  } catch {
-    // Not there, or not empty: either way it stays as it is.
   }
 }
 
@@ -258,7 +221,7 @@ function splitOne({
       fs.rmSync(agentBrowserHome, { force: true, recursive: true });
     });
   }
-  removeIfEmpty(privateDir);
+  removeIfEmptySync(privateDir);
   if (entryExists(privateDir)) {
     split.done.push(
       `left ${privateDir} holding ${readEntries(privateDir).join(", ")}`,
@@ -300,9 +263,9 @@ function splitOne({
         });
       }
     }
-    removeIfEmpty(taskDir);
+    removeIfEmptySync(taskDir);
   }
-  removeIfEmpty(tasksDir);
+  removeIfEmptySync(tasksDir);
 
   for (const entry of readEntries(recordDir)) {
     if (RECORD_ENTRY_NAMES.has(entry) || entry === PRIVATE_FOLDER_NAME) {
@@ -317,7 +280,11 @@ function splitOne({
       continue;
     }
     step(split, `move ${from}`, () => {
-      if (moveInto(from, path.join(workDir, entry), split)) {
+      if (
+        mergeEntrySync(from, path.join(workDir, entry), (left, taken) => {
+          split.done.push(`left ${left}: ${taken} is already there`);
+        })
+      ) {
         moved.push(entry);
       }
     });

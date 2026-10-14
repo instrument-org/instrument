@@ -1,5 +1,6 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { entryExists, moveEntrySync } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,7 +18,6 @@ import {
   settleWorkspace,
   workspaceIndexFileOf,
   workspaceMachineDirOf,
-  workspacePrivateDir,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -125,7 +125,7 @@ export function moveMachineData({
     // profiles open where they are, and moving them from under it would split
     // each in two. They move on a boot that finds it gone, and the marker
     // has that move put them over whatever this one writes in the meantime.
-    const holder = openElsewhereBy(workspacePrivateDir(workspace.path));
+    const holder = openElsewhereBy(workspaceLayout(workspace.path).dataDir);
     if (holder !== null) {
       done.push(
         `left the machine data where it is while process ${holder.toString()} has the workspace open`,
@@ -174,7 +174,7 @@ export function moveMachineData({
  * the two leaves both rather than neither.
  */
 function foldLayoutMarkers(workspacePath: string, done: string[]) {
-  const dataDir = workspacePrivateDir(workspacePath);
+  const dataDir = workspaceLayout(workspacePath).dataDir;
   const versionFile = path.join(dataDir, ".layout-version");
   const projectsFile = path.join(dataDir, ".legacy-projects-migrated");
   const change: { layoutVersion?: number; legacyProjectsMigrated?: true } = {};
@@ -241,7 +241,7 @@ function plannedMoves({
   userDataDir: string;
   workspacePath: string;
 }): [from: string, to: string][] {
-  const dataDir = workspacePrivateDir(workspacePath);
+  const dataDir = workspaceLayout(workspacePath).dataDir;
   const settingsDir = workspaceSettingsDirOf(workspacePath);
   const keysDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
   const browserDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.browser);
@@ -406,7 +406,7 @@ function removeLeftovers({
   done: string[];
   workspacePath: string;
 }) {
-  const dataDir = workspacePrivateDir(workspacePath);
+  const dataDir = workspaceLayout(workspacePath).dataDir;
   if (entryExists(path.join(dataDir, "window.json"))) {
     fs.rmSync(path.join(dataDir, "window.json"), { force: true });
     done.push("removed window.json, which nothing reads");

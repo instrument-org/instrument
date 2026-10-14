@@ -1,4 +1,5 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -20,7 +21,6 @@ import {
   settleWorkspace,
   updateRegistry,
   type WorkspaceIdentity,
-  workspacePrivateDir,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -194,7 +194,7 @@ export function listWorkspaces({
       isRegistered: false,
       isResolved: false,
       lastOpenedAt: null,
-      openElsewhereBy: openElsewhereBy(workspacePrivateDir(dir)),
+      openElsewhereBy: openElsewhereBy(workspaceLayout(dir).dataDir),
       path: dir,
     })),
   ];
@@ -330,7 +330,7 @@ function openMarkDirOf(
 ): string {
   return (
     machineDirOwnedBy(userDataDir, workspace) ??
-    workspacePrivateDir(workspace.path)
+    workspaceLayout(workspace.path).dataDir
   );
 }
 
@@ -345,7 +345,7 @@ function populateWorkspace({
   dir: string;
   name: string;
 }) {
-  writeJsonAtomic(path.join(workspacePrivateDir(dir), "preferences.json"), {
+  writeJsonAtomic(path.join(workspaceLayout(dir).dataDir, "preferences.json"), {
     developerMode,
   });
 

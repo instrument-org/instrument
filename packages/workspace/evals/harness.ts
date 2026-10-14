@@ -26,6 +26,7 @@ import {
 } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { listChatBackgroundProcesses } from "../src/lib/background-processes";
@@ -661,7 +662,7 @@ export async function runEvals(
   );
   const appFixtures = await seedConnectedApps(declaredApps, {
     apps: appsConfig,
-    appsDir: path.join(workspaceRootDir, "apps"),
+    appsDir: workspaceLayout(workspaceRootDir).appsDir,
   });
   for (const app of declaredApps) {
     write(

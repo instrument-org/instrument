@@ -1,3 +1,4 @@
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,7 +22,6 @@ import {
   releaseOpenMark,
   type ResolvedWorkspace,
   updateRegistry,
-  workspacePrivateDir,
   writeWorkspaceIdentity,
 } from "./workspaces";
 
@@ -66,14 +66,14 @@ describe("createWorkspace", () => {
     });
     const { id, path: dir } = created;
     expect(id).toBe("byok-only");
-    expect(entriesOf(workspacePrivateDir(dir))).toEqual([
+    expect(entriesOf(workspaceLayout(dir).dataDir)).toEqual([
       "preferences.json",
       "workspace.json",
     ]);
     expect(
       JSON.parse(
         fs.readFileSync(
-          path.join(workspacePrivateDir(dir), "preferences.json"),
+          path.join(workspaceLayout(dir).dataDir, "preferences.json"),
           "utf8",
         ),
       ),
@@ -124,7 +124,7 @@ describe("createWorkspace", () => {
         fs.readFileSync(path.join(machineDirOf(created), "state.json"), "utf8"),
       ),
     ).toEqual({ hasCompletedProviderSetup: true });
-    expect(entriesOf(workspacePrivateDir(created.path))).toEqual([
+    expect(entriesOf(workspaceLayout(created.path).dataDir)).toEqual([
       "preferences.json",
       "workspace.json",
     ]);
@@ -318,6 +318,6 @@ describe("deleting", () => {
     updateRegistry(userDataDir, (registry) => ({ ...registry, active: id }));
     unregisterWorkspace({ dir, userDataDir });
     expect(readRegistry(userDataDir)).toMatchObject({ active: "default" });
-    expect(fs.existsSync(workspacePrivateDir(dir))).toBe(true);
+    expect(fs.existsSync(workspaceLayout(dir).dataDir)).toBe(true);
   });
 });

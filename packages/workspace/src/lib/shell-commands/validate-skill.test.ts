@@ -13,6 +13,7 @@ import {
   vi,
 } from "vitest";
 
+import { workspaceLayout } from "../workspace-layout";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import {
   createMockChatConfigForDir,
@@ -42,7 +43,7 @@ const mockCtx = createCommandContext({
 const run = (...args: string[]) =>
   createValidateSkillCommand().execute(args, mockCtx);
 
-const skillsDir = path.join(rootDir, "skills");
+const { skillsDir } = workspaceLayout(rootDir);
 
 // The command runs discovery over every source, and `getSkillSources` derives a
 // dozen of them from the home directory. Left real, this suite walks whatever

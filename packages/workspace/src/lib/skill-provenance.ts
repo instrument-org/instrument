@@ -1,11 +1,10 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
-import { REGISTRY_FOLDER_NAMES } from "../constants";
 import { type WorkspaceDir } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
 import { pathIsWithin } from "./path-is-within";
 import { type SkillInfo } from "./skills";
+import { workspaceLayout } from "./workspace-layout";
 
 export const SKILL_ORIGINS = [
   "external",
@@ -45,6 +44,6 @@ export function getSkillProvenance(
 
 /** Canonical path of the workspace skills directory. */
 export async function getWritableSkillsRoot(rootDir: WorkspaceDir) {
-  const root = absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills);
+  const root = workspaceLayout(rootDir).skillsDir;
   return fs.realpath(root).catch(() => root);
 }

@@ -2,6 +2,7 @@ import { noopModelCache } from "@instrument-org/ai-gateway";
 import path from "node:path";
 
 import { createMemoryAppsConfig } from "../../src/lib/apps/memory-config";
+import { workspaceLayout } from "../../src/lib/workspace-layout";
 import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
@@ -24,10 +25,11 @@ export function createStubWorkspaceConfig({
 }): WorkspaceConfig {
   const absoluteRootDir = path.resolve(rootDir);
   const absoluteTasksDir = path.resolve(tasksDir);
+  const layout = workspaceLayout(absoluteRootDir);
 
   return {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "apps")),
+    appsDir: AbsolutePathSchema.parse(layout.appsDir),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: () => {
@@ -50,7 +52,7 @@ export function createStubWorkspaceConfig({
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "system-skills"),
     ),
-    chatsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "chats")),
+    chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
     legacyTasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),

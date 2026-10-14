@@ -2,6 +2,7 @@ import {
   PRIVATE_FOLDER_NAME,
   WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
+import { PERSON_FOLDERS_IN_DATA_DIR } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -18,10 +19,11 @@ import {
  * local page in the in-app browser may load (`local-file-policy.ts`).
  *
  * Two kinds are refused. A workspace's records, under a `.instrument` segment
- * anywhere. And the machine folder, Electron's userData, which keeps each
- * workspace's keys, sign-ins and Chromium profiles under names nothing else
- * marks as private; only the folders in it that are the person's to view are
- * shown, which {@link machineFolderViewRule} names.
+ * anywhere but in the folders there that hold the person's own files
+ * ({@link isRecordPath}). And the machine folder, Electron's userData, which
+ * keeps each workspace's keys, sign-ins and Chromium profiles under names
+ * nothing else marks as private; only the folders in it that are the
+ * person's to view are shown, which {@link machineFolderViewRule} names.
  */
 
 /**
@@ -32,11 +34,6 @@ export interface ViewRule {
   refused: readonly string[];
   viewable: readonly string[];
 }
-
-const PRIVATE_SEGMENT_REGEX = new RegExp(
-  `(?:^|[/\\\\])${PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:[/\\\\]|$)`,
-  "i",
-);
 
 /**
  * Whether names differing only in case are one file, as they are on the
@@ -74,6 +71,37 @@ export function machineFolderViewRule({
 }
 
 /**
+ * Whether a path is one of the app's records by its names: under a
+ * `.instrument` folder, matched in any case, and not in one of the folders
+ * there that hold the person's own files (`PERSON_FOLDERS_IN_DATA_DIR`:
+ * what they attached to a chat, their drafts, topics, skills, apps and
+ * memories), each named in the app's own spelling. A second `.instrument`
+ * below the first, such as a draft's or a topic's own settings, is a record
+ * again, and so is a path with a step up or a step in place below it, which
+ * could name a record from inside one of those folders. Separated by either
+ * slash, for a path from a URL as for one on Windows.
+ */
+export function isRecordPath(hostPath: string): boolean {
+  const names = hostPath.split(/[/\\]+/);
+  const isPrivate = (name: string) =>
+    name.toLowerCase() === PRIVATE_FOLDER_NAME;
+  const at = names.findIndex(isPrivate);
+  if (at === -1) {
+    return false;
+  }
+  const below = names.slice(at + 1).filter((name) => name !== "");
+  return (
+    below.some((name) => isPrivate(name) || name === "." || name === "..") ||
+    !PERSON_FOLDERS_IN_DATA_DIR.some((folder) =>
+      folder.every((name, index) => {
+        const actual = below[index];
+        return actual !== undefined && (name === "*" || name === actual);
+      }),
+    )
+  );
+}
+
+/**
  * Whether the file a resolved, absolute path names is refused by its name
  * alone. Where the name really leads is {@link isRefusedFile}.
  */
@@ -81,7 +109,7 @@ export function isRefusedByName(
   hostPath: string,
   rule: ViewRule = appViewRule(),
 ): boolean {
-  if (PRIVATE_SEGMENT_REGEX.test(hostPath)) {
+  if (isRecordPath(hostPath)) {
     return true;
   }
   let deepest: undefined | { length: number; refused: boolean };

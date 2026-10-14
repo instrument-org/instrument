@@ -27,9 +27,10 @@ import { type GuestRole, guests } from "./guest-registry";
  * own act (a link they clicked, a file they opened) and is left alone here;
  * the agent opens and reads only the files its own tools reach, which the CDP
  * bridge enforces. That holds only in a guest: a window a page opened never
- * shows a file (see `isAllowedGuestRequest`). The task's private directory is
- * refused as a segment anywhere, the way every other road to a file refuses
- * it, and so is the machine folder but the workspaces kept in it
+ * shows a file (see `isAllowedGuestRequest`). A workspace's records are
+ * refused under a `.instrument` segment anywhere but in the folders there
+ * that hold the person's own files, the way every other road to a file
+ * refuses them, and so is the machine folder but the workspaces kept in it
  * (`refused-files.ts`), by name and by where the name really leads, a page's
  * own navigation included.
  *

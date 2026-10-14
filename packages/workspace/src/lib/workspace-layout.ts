@@ -1,9 +1,11 @@
 import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
-// Depends on nothing of the workspace's, so the app's main process, which
-// reads and writes some of these folders before the workspace is up, lays out
-// the same ones the workspace reads. Its own package entry
+import { CHAT_FOLDER_NAMES } from "../constants";
+
+// Depends on nothing of the workspace's but its names, so the app's main
+// process, which reads and writes some of these folders before the workspace
+// is up, lays out the same ones the workspace reads. Its own package entry
 // (`@instrument-org/workspace/layout`) keeps the import that cheap.
 
 /**
@@ -45,6 +47,23 @@ export const WORKSPACE_DATA_ENTRIES = {
   /** The window's own record folder, scoped as a chat's is. */
   window: "window",
 } as const;
+
+/**
+ * What in a workspace's `.instrument/` is the person's own to look at, each
+ * as the names below it, `*` standing for any one: what they attached to a
+ * chat, and their drafts, topics, skills, apps and memories. Everything else
+ * there (a chat's database and settings, the workspace's own records, the
+ * window's) is the app's, and so is a record folder of its own inside one of
+ * these, which carries the same `.instrument` name.
+ */
+export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
+  [WORKSPACE_DATA_ENTRIES.apps],
+  [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
+  [WORKSPACE_DATA_ENTRIES.drafts],
+  [WORKSPACE_DATA_ENTRIES.memory],
+  [WORKSPACE_DATA_ENTRIES.skills],
+  [WORKSPACE_DATA_ENTRIES.topics],
+];
 
 /**
  * The app's folders in a workspace, every one inside its hidden

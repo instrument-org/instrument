@@ -48,8 +48,9 @@ import {
  * built again only once a record of its own, or a mark on it, arrives.
  */
 
-type FoldedMarks = {
-  [F in MarkField]?: Extract<MarkRecord, { field: F }>;
+/** The newest of each of a session's marks, as the person made it. */
+export type FoldedMarks = {
+  [F in MarkField]?: Omit<Extract<MarkRecord, { field: F }>, "seq">;
 };
 
 export interface FoldedSession {
@@ -525,17 +526,22 @@ function messagesOf(state: SessionState): {
 
 function foldedMarks(marks: MarkState): FoldedMarks {
   return {
-    ...(marks.archived && { archived: marks.archived.value }),
-    ...(marks.starred && { starred: marks.starred.value }),
-    ...(marks.stoppedAt && { stoppedAt: marks.stoppedAt.value }),
-    ...(marks.title && { title: marks.title.value }),
-    ...(marks.topics && { topics: marks.topics.value }),
-    ...(marks.unread && { unread: marks.unread.value }),
+    ...(marks.archived && { archived: made(marks.archived.value) }),
+    ...(marks.starred && { starred: made(marks.starred.value) }),
+    ...(marks.stoppedAt && { stoppedAt: made(marks.stoppedAt.value) }),
+    ...(marks.title && { title: made(marks.title.value) }),
+    ...(marks.topics && { topics: made(marks.topics.value) }),
+    ...(marks.unread && { unread: made(marks.unread.value) }),
   };
 }
 
 function headersOf(state: SessionState): Map<string, SessionHeader> {
   return new Map([...state.headers].map(([stem, { value }]) => [stem, value]));
+}
+
+/** A mark as the person made it, apart from where in its file it is. */
+function made<M extends MarkRecord>({ seq: _seq, ...mark }: M): Omit<M, "seq"> {
+  return mark;
 }
 
 /**

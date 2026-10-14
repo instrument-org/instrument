@@ -297,7 +297,13 @@ function marksOf(marks: MarkRecord[], session: StoreId.Session) {
       winners[mark.field] = mark;
     }
   }
-  return winners;
+  // As the person made each, apart from where in its file it is.
+  return Object.fromEntries(
+    Object.entries(winners).map(([field, { seq: _seq, ...made }]) => [
+      field,
+      made,
+    ]),
+  );
 }
 
 function compareRanks(

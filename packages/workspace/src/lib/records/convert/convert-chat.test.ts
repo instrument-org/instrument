@@ -251,7 +251,6 @@ describe("convertChat", () => {
               "at": 2026-10-14T12:00:30.000Z,
               "device": "dev_AAAAAAAA",
               "field": "archived",
-              "seq": 2,
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
               "value": true,
@@ -260,7 +259,6 @@ describe("convertChat", () => {
               "at": 2026-10-14T12:00:20.000Z,
               "device": "dev_AAAAAAAA",
               "field": "starred",
-              "seq": 1,
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
               "value": true,
@@ -269,7 +267,6 @@ describe("convertChat", () => {
               "at": 2026-10-14T12:00:50.000Z,
               "device": "dev_AAAAAAAA",
               "field": "stoppedAt",
-              "seq": 5,
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
               "value": 2026-10-14T12:00:50.000Z,
@@ -278,7 +275,6 @@ describe("convertChat", () => {
               "at": 2026-10-14T12:00:10.000Z,
               "device": "dev_AAAAAAAA",
               "field": "title",
-              "seq": 0,
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
               "value": {
@@ -290,7 +286,6 @@ describe("convertChat", () => {
               "at": 2026-10-14T12:01:40.000Z,
               "device": "dev_AAAAAAAA",
               "field": "topics",
-              "seq": 4,
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
               "value": [
@@ -302,7 +297,6 @@ describe("convertChat", () => {
               "at": 2026-10-14T12:00:40.000Z,
               "device": "dev_AAAAAAAA",
               "field": "unread",
-              "seq": 3,
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
               "value": {

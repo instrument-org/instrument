@@ -50,6 +50,17 @@ export function recordChanged(
   publisher.publish("record.changed", { id, kind });
 }
 
+/**
+ * Says that a message of a transcript, or one of its parts, changed, naming
+ * the message and whether it was taken out.
+ */
+export function recordMessageChanged(
+  id: ChatId,
+  message: NonNullable<RecordChanged["message"]>,
+): void {
+  publisher.publish("record.changed", { id, kind: "messages", message });
+}
+
 /** Says that a chat is gone, once the index has forgotten it. */
 export function recordRemoved(id: ChatId): void {
   publisher.publish("record.changed", { id, kind: "removed" });

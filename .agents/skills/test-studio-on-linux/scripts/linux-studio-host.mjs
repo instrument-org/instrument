@@ -286,19 +286,20 @@ def running_outside_unit():
 
 
 def validation(properties, status):
-    executable = target["executable"]
+    # None for a preview with nothing running or unpacked: then nothing can match it.
+    executable = target.get("executable")
     exec_start = properties.get("ExecStart") or ""
     owner = status.get("owner") or {}
     agent = status.get("userAgent") or ""
     return {
         "cdpConfigured": ("--remote-debugging-port=%d" % target["cdpPort"]) in exec_start,
-        "commandConfigured": executable in exec_start,
+        "commandConfigured": bool(executable) and executable in exec_start,
         "loopback": bool(status.get("live")) and owner.get("localAddress") in ("127.0.0.1", "[::1]", "::1"),
-        "ownerMatches": bool(status.get("live")) and owner.get("executablePath") == executable,
+        "ownerMatches": bool(status.get("live")) and bool(executable) and owner.get("executablePath") == executable,
         "rendererReady": renderer_ready(status),
         "updaterPollingDisabled": "DISABLE_AUTO_UPDATE_POLLING=true" in (properties.get("Environment") or ""),
         "userAgentMatches": "Instrument/" in agent and "Instrument(Dev)/" not in agent,
-        "workingDirectoryMatches": (properties.get("WorkingDirectory") or "") == os.path.dirname(executable),
+        "workingDirectoryMatches": bool(executable) and (properties.get("WorkingDirectory") or "") == os.path.dirname(executable),
     }
 `;
 }
@@ -657,18 +658,34 @@ fail("${selectedTarget} CDP did not become ready on port %d within ${timeoutSeco
 }
 
 function statusScript(selectedTarget) {
+  const isPreview = selectedTarget === PREVIEW_TARGET;
   return `${baseScript(selectedTarget)}
 ${cdpFunction()}
 ${inspectFunction()}
+${isPreview ? previewFunction() : ""}
 properties = unit_properties(target["unit"])
 status = cdp_status(target["cdpPort"])
+${
+  isPreview
+    ? `# A preview's profile entry names no executable. Its executable is the
+# one holding the port, else one running, else the newest unpacked (what
+# start would run), else none.
+running = sorted({path for _, path in preview_processes()})
 try:
+    newest = preview_executable("")
+except SystemExit:
+    newest = None
+target["executable"] = (status.get("owner") or {}).get("executablePath") or (running[0] if running else None) or newest
+# The installed package's version says nothing about a preview.
+version = None`
+    : `try:
     version = subprocess.run(
         ["dpkg-query", "-W", "-f=\${Version}", "instrument"],
         capture_output=True, text=True, timeout=10,
     ).stdout.strip() or None
 except (OSError, subprocess.SubprocessError):
-    version = None
+    version = None`
+}
 
 print(json.dumps({
     "installed": {
@@ -687,7 +704,7 @@ print(json.dumps({
         "validation": validation(properties, status),
     },
     "installedExecutable": {
-        "exists": os.path.exists(target["executable"]),
+        "exists": bool(target["executable"]) and os.path.exists(target["executable"]),
         "path": target["executable"],
         "version": version,
     },

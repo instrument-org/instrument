@@ -165,9 +165,9 @@ describe.skipIf(process.platform === "win32")(
         name: "icon.svg",
         touch: async (dir: AbsolutePath) => {
           expect(await findAppIcon(dir)).toBeUndefined();
-          await expect(
-            writeAppIcon(dir, svgIcon, "icon.svg"),
-          ).rejects.toThrow(/ELOOP|symbolic link/);
+          await expect(writeAppIcon(dir, svgIcon, "icon.svg")).rejects.toThrow(
+            /ELOOP|symbolic link/,
+          );
         },
       },
     ])(

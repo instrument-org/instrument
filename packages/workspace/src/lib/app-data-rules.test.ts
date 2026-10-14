@@ -442,9 +442,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       "refuse %s to a file tool's read, rather than finding it missing",
       async (_name, target) => {
         const files = await toolFs(layout);
-        const read = await files.fs
-          .readFileBuffer(target)
-          .then(() => "read", (error: unknown) => files.failure(error, target));
+        const read = await files.fs.readFileBuffer(target).then(
+          () => "read",
+          (error: unknown) => files.failure(error, target),
+        );
         expect(typeof read !== "string" && read.error.message).toBe(
           `${JSON.stringify(target)} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
         );

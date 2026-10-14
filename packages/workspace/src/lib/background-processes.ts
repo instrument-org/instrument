@@ -992,7 +992,8 @@ function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
     // would write through.
     const fd = openOwnFile({
       file: absolutePathJoin(workDir(chatId), logFilePath),
-      flags: fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
+      flags:
+        fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
       folder: workDir(chatId),
       make: true,
     });

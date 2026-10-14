@@ -70,7 +70,10 @@ describe("resolveWorkspaceFilePath", () => {
   });
 
   it("resolves a screenshot's name kept with a plain space before PM", async () => {
-    const onDisk = path.join(chatRoot, "Screenshot 2026-10-14 at 9.41.03\u202FPM.png");
+    const onDisk = path.join(
+      chatRoot,
+      "Screenshot 2026-10-14 at 9.41.03\u202FPM.png",
+    );
     await fs.writeFile(onDisk, "shot");
 
     const resolved = await resolveWorkspaceFilePath({

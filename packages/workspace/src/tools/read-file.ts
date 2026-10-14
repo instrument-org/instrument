@@ -529,17 +529,13 @@ export const ReadFile = setupTool({
         suggestions: await files.similar(target),
       });
     }
-    const modifiedAt = (
-      stats ?? (await files.fs.stat(target))
-    ).mtime.getTime();
+    const modifiedAt = (stats ?? (await files.fs.stat(target))).mtime.getTime();
 
     // A rectangle has nothing to crop in any other kind of file, and a model
     // that sends one there is nearly always filling the parameter in rather
     // than aiming it, so the file is read as usual and the result says so.
     const regionIgnored =
-      region &&
-      aimsSomewhere(region) &&
-      !isReadableImage(getMimeType(target))
+      region && aimsSomewhere(region) && !isReadableImage(getMimeType(target))
         ? ("not-an-image" as const)
         : undefined;
 

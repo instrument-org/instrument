@@ -10,12 +10,23 @@ describe("isRefusedByName", () => {
   const rule = machineFolderViewRule({
     machineDir: MACHINE,
     workspaceDir: path.join(path.parse(process.cwd()).root, "elsewhere"),
+    workspaceMachineDir: at("workspaces-data", "x"),
   });
 
   it.each([
     ["the registry of workspaces", at("workspaces.json"), true],
     ["a workspace's keys", at("workspaces-data", "x", "keys", "a.json"), true],
     ["the runtime", at("runtime", "bin", "node"), true],
+    [
+      "the open workspace's chat's work folder",
+      at("workspaces-data", "x", "work", "c", "a.md"),
+      false,
+    ],
+    [
+      "another workspace's work folder",
+      at("workspaces-data", "y", "work", "c", "a.md"),
+      true,
+    ],
     [
       "the default workspace's chat",
       at("workspace", "chats", "c", "a.md"),

@@ -1,4 +1,7 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import {
+  PRIVATE_FOLDER_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -44,15 +47,18 @@ const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
 
 /**
  * The machine folder's rule: all of it is refused, but the workspaces it
- * keeps, the default one and those made from the dev panel, and the workspace
- * this process has open wherever it is.
+ * keeps, the default one and those made from the dev panel, the workspace
+ * this process has open wherever it is, and that workspace's chats' work
+ * folders.
  */
 export function machineFolderViewRule({
   machineDir,
   workspaceDir,
+  workspaceMachineDir,
 }: {
   machineDir: string;
   workspaceDir: string | undefined;
+  workspaceMachineDir?: string;
 }): ViewRule {
   return {
     refused: [machineDir],
@@ -60,6 +66,9 @@ export function machineFolderViewRule({
       defaultWorkspacePath(machineDir),
       createdWorkspacesDir(machineDir),
       ...(workspaceDir === undefined ? [] : [workspaceDir]),
+      ...(workspaceMachineDir === undefined
+        ? []
+        : [path.join(workspaceMachineDir, WORKSPACE_MACHINE_ENTRIES.work)]),
     ],
   };
 }
@@ -122,8 +131,10 @@ let cached: undefined | { key: string; rule: ViewRule };
 function appViewRule(): ViewRule {
   const machine = appMachineDir();
   let workspaceDir: string | undefined;
+  let workspaceMachineDir: string | undefined;
   try {
-    workspaceDir = getResolvedWorkspace().path;
+    ({ path: workspaceDir, machineDir: workspaceMachineDir } =
+      getResolvedWorkspace());
   } catch {
     // Not resolved yet: only the workspaces the machine folder keeps are shown.
   }
@@ -132,7 +143,11 @@ function appViewRule(): ViewRule {
     cached = {
       key,
       rule: withRealPaths(
-        machineFolderViewRule({ machineDir: machine, workspaceDir }),
+        machineFolderViewRule({
+          machineDir: machine,
+          workspaceDir,
+          workspaceMachineDir,
+        }),
         machine,
       ),
     };

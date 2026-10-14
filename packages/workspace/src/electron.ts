@@ -88,6 +88,7 @@ export { findAvailableName } from "./lib/find-available-name";
 export {
   type LayoutMarkStore,
   migrateWorkspaceLayout,
+  WORKSPACE_LAYOUT_VERSION,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { attachChats } from "./lib/chat/attach";

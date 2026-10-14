@@ -53,11 +53,13 @@ const listInvalidFolders = base
         ...folder,
         path: absolutePathJoin(chatsDir(), folder.name),
       })),
-      ...legacyTasks.map((folder) => ({
-        kind: "legacy-task" as const,
-        ...folder,
-        path: absolutePathJoin(legacyTasksDir, folder.name),
-      })),
+      ...(legacyTasksDir === undefined
+        ? []
+        : legacyTasks.map((folder) => ({
+            kind: "legacy-task" as const,
+            ...folder,
+            path: absolutePathJoin(legacyTasksDir, folder.name),
+          }))),
     ];
   });
 

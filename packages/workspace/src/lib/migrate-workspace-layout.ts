@@ -58,7 +58,7 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // (splitChatRecords).
 // 6: the app's folders moved from the workspace's top level into its
 // `.instrument/` (moveAppFoldersIntoDataDir).
-const WORKSPACE_LAYOUT_VERSION = 6;
+export const WORKSPACE_LAYOUT_VERSION = 6;
 
 // The temp folder an external browser cloned the person's Chrome profile
 // into, in the workspace's `.instrument/`, which nothing writes since that

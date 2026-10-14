@@ -254,10 +254,14 @@ export interface WorkspaceConfig {
   // Where every chat's folder is, `chats/` under the root.
   chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
-  // Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
-  // migration reads, and names a new chat stays clear of while a folder
-  // there waits to move.
-  legacyTasksDir: AbsolutePath;
+  /**
+   * Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
+   * migration reads, and names a new chat stays clear of while a folder
+   * there waits to move. Absent for a workspace in a folder the person
+   * picked, which no 1.x build kept and whose top level is theirs, and
+   * wherever nothing 1.x made is opened (evals, scripts).
+   */
+  legacyTasksDir?: AbsolutePath;
   /**
    * The system's temp folders, which the agent writes with no card. Absent,
    * they are the system's own (`/tmp`, `/var/tmp` and `os.tmpdir()`). A test

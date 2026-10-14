@@ -188,7 +188,7 @@ describe("moveMachineData", () => {
     const picked = path.join(userDataDir, "Documents", "Projects");
     write(path.join(picked, "permissions.json"), "the person's");
     write(path.join(picked, ".app-servers", "notes.txt"), "the person's");
-    const workspace: ResolvedWorkspace = {
+    const pickedWorkspace: ResolvedWorkspace = {
       id: "projects",
       isDefault: false,
       path: picked,
@@ -196,8 +196,15 @@ describe("moveMachineData", () => {
     };
 
     // As a boot runs them, the settings migration first.
-    migrateWorkspaceSettings({ packaged: false, userDataDir, workspace });
-    const { machineDir } = moveMachineData({ userDataDir, workspace });
+    migrateWorkspaceSettings({
+      packaged: false,
+      userDataDir,
+      workspace: pickedWorkspace,
+    });
+    const { machineDir } = moveMachineData({
+      userDataDir,
+      workspace: pickedWorkspace,
+    });
 
     expect(tree(picked)).toEqual([
       path.join(".app-servers", "notes.txt"),

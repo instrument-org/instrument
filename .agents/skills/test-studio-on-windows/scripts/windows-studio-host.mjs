@@ -172,6 +172,24 @@ function cdpFunction() {
 }`;
 }
 
+/**
+ * PowerShell that names the window a launch is showing: `app` once a page
+ * under the renderer URL is up, `refusal` when the launch refused its
+ * workspace and shows only its own window in place of everything else (a
+ * data: page with no renderer behind it, workspace-refusal-window.ts), and
+ * nothing while neither is up yet. studio-drive tells the two apart the same
+ * way and drives the second with `--page refusal`.
+ */
+function launchedPageFunction() {
+  return `function Get-LaunchedPage($cdp, [string] $rendererUrl) {
+  if (-not $cdp.live) { return $null }
+  $pages = @($cdp.targets | Where-Object { $_.type -eq 'page' })
+  if (@($pages | Where-Object { $_.url -like $rendererUrl }).Count -gt 0) { return 'app' }
+  if (@($pages | Where-Object { $_.url -like 'data:text/html*' }).Count -gt 0) { return 'refusal' }
+  return $null
+}`;
+}
+
 function fail(message) {
   throw new CliError(message);
 }
@@ -270,7 +288,7 @@ async function main() {
         if (name && !PREVIEW_NAME_PATTERN.test(name)) {
           fail(`Invalid preview name ${JSON.stringify(name)}.`);
         }
-        report(runPowerShellJson(host, previewStartScript(name, timeout)));
+        reportStart(runPowerShellJson(host, previewStartScript(name, timeout)));
         break;
       }
       assertNoArguments();
@@ -279,7 +297,7 @@ async function main() {
           `--workspace and --fresh only apply to --target ${SEEDED_TARGET}.`,
         );
       }
-      report(
+      reportStart(
         runPowerShellJson(
           host,
           startScript(target, timeout, {
@@ -463,6 +481,7 @@ function previewExecutableFunction() {
 function previewStartScript(name, timeoutSeconds) {
   return `${baseScript()}
 ${cdpFunction()}
+${launchedPageFunction()}
 ${previewExecutableFunction()}
 $target = $profile.${PROFILE_KEYS[PREVIEW_TARGET]}
 if (-not $target -or -not $target.cdpPort -or -not $target.taskName) {
@@ -499,11 +518,13 @@ if (-not $existing.live) {
 $deadline = (Get-Date).AddSeconds(${timeoutSeconds})
 do {
   $cdp = Get-CdpStatus -port $target.cdpPort
-  if ($cdp.live -and @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0) {
+  $page = Get-LaunchedPage $cdp 'file:///*/resources/app.asar/out/renderer/*'
+  if ($page) {
     [ordered]@{
       cdp = $cdp
       executable = $executable.FullName
       port = $target.cdpPort
+      refusal = $page -eq 'refusal'
       reused = [bool] $existing.live
       target = '${PREVIEW_TARGET}'
       version = $executable.VersionInfo.ProductVersion
@@ -716,6 +737,20 @@ function report(value) {
   console.log(JSON.stringify(value, undefined, 2));
 }
 
+/**
+ * A launch that refused its workspace is up, so start succeeds, but the
+ * window it shows is not the app's, which the result's `refusal` says and
+ * this line says in words.
+ */
+function reportStart(result) {
+  report(result);
+  if (result.refusal) {
+    console.error(
+      "The launch refused its workspace and shows only that window. Drive it with studio-drive's --page refusal.",
+    );
+  }
+}
+
 function requireWorkspaceName(value) {
   if (!value) {
     fail(
@@ -893,8 +928,8 @@ function startScript(selectedTarget, timeoutSeconds, { fixture, fresh }) {
     throw "CDP port $($target.cdpPort) is not bound to loopback: $($cdp.owner.localAddress)"
   }
 }
-function Test-TargetReady($cdp) {
-  return @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0
+function Get-TargetPage($cdp) {
+  return Get-LaunchedPage $cdp 'file:///*/resources/app.asar/out/renderer/*'
 }`
       : `function Assert-TargetCdp($cdp) {
   if (-not $cdp.live) { return }
@@ -913,8 +948,8 @@ function Test-TargetReady($cdp) {
     throw "CDP port $($target.cdpPort) is not bound to loopback: $($cdp.owner.localAddress)"
   }
 }
-function Test-TargetReady($cdp) {
-  return @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http://localhost:*/renderer/*' }).Count -gt 0
+function Get-TargetPage($cdp) {
+  return Get-LaunchedPage $cdp 'http://localhost:*/renderer/*'
 }`;
   // A seeded workspace has no provider credentials and must not have any, so
   // without SKIP_ONBOARDING the app opens the onboarding window and never
@@ -973,7 +1008,8 @@ ${reuseSeeded}
 }`;
   const reportedWorkspace = isSeeded ? "; workspace = $workspace" : "";
   return `${baseScript()}
-${cdpFunction()}${isSeeded ? `\n${markerFunction()}\n${reapFunction()}\n${seedFunction()}` : ""}
+${cdpFunction()}
+${launchedPageFunction()}${isSeeded ? `\n${markerFunction()}\n${reapFunction()}\n${seedFunction()}` : ""}
 ${targetSetup}
 ${identityFunction}
 $task = Get-ScheduledTask -TaskName $target.taskName -ErrorAction SilentlyContinue
@@ -991,8 +1027,9 @@ do {
   $cdp = Get-CdpStatus -port $target.cdpPort
   if ($cdp.live) {
     Assert-TargetCdp $cdp
-    if (Test-TargetReady $cdp) {
-      [ordered]@{ cdp = $cdp; port = $target.cdpPort; reused = $existing.live; target = '${selectedTarget}'; taskName = $target.taskName${reportedWorkspace} } | ConvertTo-Json -Depth 8 -Compress
+    $page = Get-TargetPage $cdp
+    if ($page) {
+      [ordered]@{ cdp = $cdp; port = $target.cdpPort; refusal = $page -eq 'refusal'; reused = $existing.live; target = '${selectedTarget}'; taskName = $target.taskName${reportedWorkspace} } | ConvertTo-Json -Depth 8 -Compress
       exit 0
     }
   }

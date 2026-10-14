@@ -73,6 +73,8 @@ node "$WINDOWS_HOST" start --host "$HOST" --target dev
 node "$WINDOWS_HOST" start --host "$HOST" --target installed
 ```
 
+A launch that refuses its workspace (one made by a newer build, or a folder it cannot read) shows only a window of its own, with no renderer behind it. `start` still returns once that window is up, with `refusal: true` and a line saying so; drive it with `studio-drive`'s `--page refusal`.
+
 The installed task must set `DISABLE_AUTO_UPDATE_POLLING=true` and pass `--remote-debugging-port=<port>` to the executable. Confirm both in `status`; do not run an installed-product test if the task omits either. A packaged app already running without CDP must be closed first because its single-instance lock prevents a second launch from adding the debug flag.
 
 Open a foreground SSH tunnel. Choose an unused local port, especially when local Studio instances are running:

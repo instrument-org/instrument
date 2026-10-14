@@ -17,7 +17,6 @@ export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
   "chatsDir",
-  "chatTemplateDir",
   // Where the folder rules are read from, live, for each command.
   "workspaceMachineDir",
   "macHelperBinPath",

@@ -137,11 +137,6 @@ const config: Configuration = {
   },
   extraResources: [
     {
-      filter: ["**/*"],
-      from: "../../packages/workspace/templates/default",
-      to: "chat-template",
-    },
-    {
       filter: ["**/*.json"],
       from: "../../registry/api",
       to: "registry/api",

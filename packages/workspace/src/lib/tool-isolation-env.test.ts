@@ -42,7 +42,9 @@ describe("the runtime folder", () => {
     `);
   });
 
-  it("holds the node tools' caches and their own empty npm config", () => {
+  // Snapshotted whole so pnpm's safety settings stay in view: weakening the
+  // release-age gate or the build policy has to show up as a diff here.
+  it("holds the node tools' caches, their own empty npm config, and pnpm's settings", () => {
     expect(inRuntime(nodeToolsEnvFor(runtimeDir))).toMatchInlineSnapshot(`
       {
         "PNPM_HOME": "<runtime>/caches/pnpm-home",
@@ -55,13 +57,18 @@ describe("the runtime folder", () => {
         "npm_config_userconfig": "<runtime>/config/npmrc",
         "pnpm_config_cache_dir": "<runtime>/caches/pnpm",
         "pnpm_config_confirm_modules_purge": "false",
+        "pnpm_config_dlx_cache_max_age": "259200",
         "pnpm_config_global_bin_dir": "<runtime>/caches/pnpm-global-bin",
         "pnpm_config_global_dir": "<runtime>/caches/pnpm-global",
         "pnpm_config_globalconfig": "<runtime>/config/npmrc-global",
+        "pnpm_config_minimum_release_age": "10080",
         "pnpm_config_npmrc_auth_file": "<runtime>/config/npmrc",
         "pnpm_config_state_dir": "<runtime>/caches/pnpm-state",
         "pnpm_config_store_dir": "<runtime>/caches/pnpm-store",
+        "pnpm_config_strict_dep_builds": "false",
+        "pnpm_config_update_notifier": "false",
         "pnpm_config_userconfig": "<runtime>/config/npmrc",
+        "pnpm_config_verify_deps_before_run": "false",
       }
     `);
     expect(readdirSync(runtimeLayout(runtimeDir).config).toSorted()).toEqual([

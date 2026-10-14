@@ -43,7 +43,6 @@ function createWorkspaceActor(
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureException: noop,
-      chatTemplateDir: MOCK_WORKSPACE_DIRS.chatTemplate,
       getAIProviderConfigs: () => [],
       modelCache: noopModelCache,
       nodeExecEnv: {},

@@ -62,7 +62,6 @@ import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
 import { windowsDriveNames } from "./windows-drives";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
-const CHAT_TEMPLATE_DIR_NAME = "chat-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
 /**
@@ -71,10 +70,6 @@ const SYSTEM_SKILLS_DIR_NAME = "system-skills";
  * does not spend the watcher's budget as well.
  */
 const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
-const UNPACKAGED_CHAT_TEMPLATE_DIR = path.resolve(
-  import.meta.dirname,
-  "../../../../packages/workspace/templates/default",
-);
 const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
@@ -154,9 +149,6 @@ export function createWorkspaceActor() {
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       captureException: captureServerException,
-      chatTemplateDir: app.isPackaged
-        ? path.join(process.resourcesPath, CHAT_TEMPLATE_DIR_NAME)
-        : UNPACKAGED_CHAT_TEMPLATE_DIR,
       ...(process.platform === "win32"
         ? { driveNames: windowsDriveNames }
         : {}),

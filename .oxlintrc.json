@@ -12,7 +12,6 @@
     "**/.tmp",
     "**/.turbo",
     "**/fixtures",
-    "**/templates",
     "registry",
     "**/*.snap",
     "**/*.gen.ts",

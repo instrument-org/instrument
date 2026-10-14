@@ -46,7 +46,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 
-import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../src/lib/command-line-tools-env";
 import { copySkill } from "../src/lib/copy-skill";
 import { createBashEnv } from "../src/lib/create-bash-env";
@@ -57,10 +56,7 @@ import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
 import { chatVenvPython } from "../src/lib/uv";
 import { workDir } from "../src/lib/work-dir";
-import {
-  getWorkspaceConfig,
-  setWorkspaceConfig,
-} from "../src/lib/workspace-config";
+import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
@@ -108,21 +104,14 @@ function indent(text: string) {
     .join("\n");
 }
 
-/** A chat folder from the template, as initializeTask lays one down. */
+/** A chat and its work folder, empty, as the chat's first command finds it. */
 async function placeAuditChat() {
   const chatId = ChatIdSchema.parse(ulid().toLowerCase());
   // Put in the chat index, so every later lookup of the id finds its folder.
   const sessionId = StoreId.newSessionId();
   await fs.mkdir(placeChat(chatId, sessionId), { recursive: true });
   const dir = workDir(chatId);
-  // `work/` has to arrive from the template: its package.json and
-  // pnpm-workspace.yaml are what make the skill's own `pnpm install` a nested
-  // workspace install rather than an error.
-  await fs.cp(getWorkspaceConfig().chatTemplateDir, dir, {
-    force: false,
-    recursive: true,
-  });
-  await fs.mkdir(path.join(dir, CHAT_FOLDER_NAMES.work), { recursive: true });
+  await fs.mkdir(dir, { recursive: true });
   return { chatId, dir, sessionId };
 }
 
@@ -244,7 +233,7 @@ async function installSkill({
   if (runtime.node) {
     const { exitCode, stderr, stdout } = await runPnpmCommand({
       args: ["install"],
-      cwd: dir,
+      cwd: destDir,
       signal,
       chatId,
     });
@@ -510,9 +499,6 @@ for (const mode of args.modes) {
 
   setWorkspaceConfig({
     ...createStubWorkspaceConfig({ tasksDir: path.join(root, "tasks") }),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(repoRoot, "packages/workspace/templates/default"),
-    ),
     pnpmBinPath,
     uvBinPath,
   });

@@ -73,9 +73,6 @@ beforeEach(async () => {
     ...getWorkspaceConfig(),
     // A chat's record goes under the root, kept apart from the folders
     // the test attaches.
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../../templates/default"),
-    ),
     chatsDir: AbsolutePathSchema.parse(
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),

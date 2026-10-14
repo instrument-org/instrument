@@ -182,8 +182,8 @@ async function installNodePackage({
         pnpm_config_loglevel: "error",
         // Outside a workspace pnpm fails an install over any dependency with
         // an install script it was not told to allow. The scripts stay
-        // unrun, as in a chat's folder (templates/default/pnpm-workspace.yaml),
-        // and a server that needed one fails the entry check below instead.
+        // unrun, as in the agent's own installs (`nodeToolsEnvFor`), and a
+        // server that needed one fails the entry check below instead.
         pnpm_config_strict_dep_builds: "false",
       },
       node: true,

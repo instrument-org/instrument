@@ -6,7 +6,6 @@
     "**/routeTree.gen.ts",
     "**/*.gen.ts",
     "**/fixtures",
-    "**/templates",
     "**/out",
     "**/dist",
     "**/bin",

@@ -425,9 +425,6 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.chatTemplate]: {
-        "package.json": "{}",
-      },
       [MOCK_WORKSPACE_DIRS.chats]: { [chatFolder]: {} },
       [MOCK_WORKSPACE_DIRS.work]: {
         [chatFolder]: {
@@ -437,7 +434,6 @@ describe("sessionMachine", () => {
               "../../fixtures/assets/image.png",
             ),
           ),
-          "package.json": "{}",
           "test.txt": "Hello, world!",
         },
       },

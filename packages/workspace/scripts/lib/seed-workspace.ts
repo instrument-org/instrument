@@ -19,12 +19,11 @@ import {
   SETTINGS_FILE_NAME,
   WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
-import { ok, safeTry } from "neverthrow";
+import { ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../../src/constants";
-import { copyChatFolder } from "../../src/lib/copy-chat-folder";
 import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat-dir";
@@ -59,11 +58,6 @@ import {
 // Where a chat's folders are made: in the user-data directory beside the
 // workspace, not inside it, as a user's own folders are.
 const FOLDERS_DIR_NAME = "folders";
-
-const CHAT_TEMPLATE_DIR = path.resolve(
-  import.meta.dirname,
-  "../../templates/default",
-);
 
 export interface SeededTask {
   /** The chat it is inside, for a task a chat started. */
@@ -105,9 +99,8 @@ export async function seedWorkspace({
 
   const workspaceConfig = createStubWorkspaceConfig({
     overrides: {
-      // The one stub path the seeder reads through rather than merely names:
-      // task creation copies this template into every task it makes.
-      chatTemplateDir: AbsolutePathSchema.parse(CHAT_TEMPLATE_DIR),
+      // The machine folder's paths, which the seeder writes into rather than
+      // merely names: each chat's work folder is in it.
       workFoldersDir: AbsolutePathSchema.parse(
         path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work),
       ),
@@ -443,10 +436,10 @@ async function seedChatTask({
 }
 
 /**
- * A task's folder flat under `tasks/`, laid down the way 1.x made one: the
- * default scaffold and its settings. The app never makes one now, so it is
- * put in this process's index by hand, where the index is pointed at
- * `tasks/`, for the store writes that follow.
+ * A task's folder flat under `tasks/`, laid down the way 1.x made one, with
+ * its settings. The app never makes one now, so it is put in this process's
+ * index by hand, where the index is pointed at `tasks/`, for the store
+ * writes that follow.
  */
 function seedLegacyTaskFolder({
   id,
@@ -460,10 +453,9 @@ function seedLegacyTaskFolder({
   workspaceConfig: WorkspaceConfig;
 }) {
   const dir = placeChat(id, sessionId);
-  return copyChatFolder({
-    sourceDir: workspaceConfig.chatTemplateDir,
-    targetDir: dir,
-  }).map(() =>
+  return ResultAsync.fromPromise(fs.mkdir(dir, { recursive: true }), (error) =>
+    error instanceof Error ? error : new Error(String(error)),
+  ).map(() =>
     // 1.x kept a task's name in its settings; written raw because a chat's
     // settings have no such field.
     updateChatRecord(dir, "settings", () => ({

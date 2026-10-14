@@ -96,7 +96,6 @@ describe("executeToolCallMachine", () => {
       [MOCK_WORKSPACE_DIRS.work]: {
         [taskConfig]: {
           "nonexistent.js": "",
-          "package.json": "{}",
           "test.txt": "Hello, world!",
         },
       },

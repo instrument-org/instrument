@@ -56,9 +56,6 @@ beforeEach(async () => {
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../templates/default"),
-    ),
   });
   await initializeTestChat({
     initialSettings: {},

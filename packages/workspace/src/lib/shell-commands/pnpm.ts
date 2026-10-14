@@ -7,8 +7,7 @@ import {
 import { dedent } from "radashi";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { type WorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
-import { workDir } from "../work-dir";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { resolveCommandContext, subprocessStdin } from "./utils";
@@ -53,6 +52,7 @@ function blockedSubcommand(
 // Skip auto-install when the subcommand is itself a package management operation
 const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "add",
+  "approve-builds",
   "dedupe",
   "fetch",
   "i", // short for install
@@ -175,26 +175,8 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     // The shell's cwd as a host path.
     const { hostCwd: cwd } = resolveCommandContext(chatId, ctx);
 
-    // The manifest is at the root of the chat's folder, which is also where the agent starts,
-    // so reaching this means it ran the command from somewhere else. Fail fast
-    // with guidance instead of pnpm's opaque
-    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
     const isInformational =
       !subcommand || subcommand.startsWith("-") || subcommand === "help";
-    const hasManifest =
-      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "package.json"))) ||
-      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "pnpm-workspace.yaml")));
-    if (!isInformational && !hasManifest) {
-      return {
-        exitCode: 1,
-        stderr: dedent`
-          No package manifest found here. Your package is this conversation's folder, which is also where you start.
-          Run package commands from there, e.g. \`cd ${shellPath(workDir(chatId))} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
-        `,
-        stdout: "",
-      };
-    }
-
     let installOutput = "";
     if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({

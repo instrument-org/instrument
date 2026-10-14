@@ -169,9 +169,10 @@ export const LoadSkill = setupTool({
 
     if (runtime.node) {
       if (provenance.installDependencies) {
+        // In the copy's own folder, which is its own package.
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
-          cwd: workDir(chatId),
+          cwd: destDir,
           signal,
           chatId,
         });

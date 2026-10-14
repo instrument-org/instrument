@@ -2,21 +2,16 @@ import { ok, Result, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
-import { type ChatDir, type WorkDir } from "../schemas/paths";
+import { type ChatDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type ChatSettingsUpdate } from "../schemas/chat-settings";
 import { type WorkspaceConfig } from "../types";
-import { absolutePathJoin } from "./absolute-path-join";
-import { copyChatFolder } from "./copy-chat-folder";
 import { createSession } from "./create-session";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
-import { pathExists } from "./path-exists";
 import { forgetChat, placeChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
-import { workDir } from "./work-dir";
 
 type InitialSettings = Omit<
   ChatSettingsUpdate,
@@ -122,51 +117,4 @@ async function initializeRecord({
     release?.();
     return error;
   });
-}
-
-/**
- * What a work folder starts with: the template's package root, and the
- * `work` folder the agent is told it has. `work` normally arrives with the
- * template; made here too, so it is a guarantee of the folder rather than a
- * template detail (venv creation, pnpm guidance, and skill installs all
- * assume it exists).
- */
-function scaffoldWorkFolder(dir: WorkDir, workspaceConfig: WorkspaceConfig) {
-  return safeTry(async function* () {
-    yield* copyChatFolder({
-      sourceDir: workspaceConfig.chatTemplateDir,
-      targetDir: dir,
-    });
-    yield* ResultAsync.fromPromise(
-      fs.mkdir(absolutePathJoin(dir, CHAT_FOLDER_NAMES.work), {
-        recursive: true,
-      }),
-      (error) =>
-        new TypedError.FileSystem(
-          error instanceof Error ? error.message : "Unknown error",
-          { cause: error },
-        ),
-    );
-    return ok(undefined);
-  });
-}
-
-/**
- * Scaffolds the chat's work folder as its agent starts, when it has no
- * package root: a chat made holds only its records, and its agent expects a
- * package root to install into. One with a `package.json` already is left
- * as it is.
- */
-export async function ensureWorkFolder(
-  chatId: ChatId,
-  workspaceConfig: WorkspaceConfig,
-) {
-  const dir = workDir(chatId);
-  if (await pathExists(absolutePathJoin(dir, "package.json"))) {
-    return;
-  }
-  const scaffolded = await scaffoldWorkFolder(dir, workspaceConfig);
-  if (scaffolded.isErr()) {
-    workspaceConfig.captureException(scaffolded.error);
-  }
 }

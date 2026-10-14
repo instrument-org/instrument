@@ -59,9 +59,6 @@ setWorkspaceConfig({
     subscribeEvents: noopCleanup,
   },
   captureException: noop,
-  chatTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "chat-template"),
-  ),
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},

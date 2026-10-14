@@ -271,7 +271,6 @@ export const workspaceMachine = setup({
       appVersion: string;
       browser: BrowserConfig;
       captureException: CaptureExceptionFunction;
-      chatTemplateDir: string;
       driveNames?: WorkspaceConfig["driveNames"];
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       finderEntries?: WorkspaceConfig["finderEntries"];
@@ -309,7 +308,6 @@ export const workspaceMachine = setup({
       appVersion: input.appVersion,
       browser: input.browser,
       captureException: input.captureException,
-      chatTemplateDir: AbsolutePathSchema.parse(input.chatTemplateDir),
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }

@@ -137,9 +137,6 @@ setWorkspaceConfig({
   captureException: () => {
     return;
   },
-  chatTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "chat-template"),
-  ),
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},
@@ -184,12 +181,11 @@ const chatId = ChatIdSchema.parse(args.chatId ?? ulid().toLowerCase());
 
 const chatDir = path.join(chatsDir, chatId);
 const workDir = path.join(workFoldersDir, chatId);
-// The record folder with somewhere for attachments, and the work folder with
-// the `work/` the template normally scaffolds, which the repl skips.
+// The record folder with somewhere for attachments. The work folder is made
+// by the first command, as a chat's is.
 await fs.mkdir(path.join(chatDir, CHAT_FOLDER_NAMES.attachments), {
   recursive: true,
 });
-await fs.mkdir(path.join(workDir, CHAT_FOLDER_NAMES.work), { recursive: true });
 const sessionId = StoreId.newSessionId();
 // The shell finds its folder through the chat index, which the repl's folder,
 // made by hand, is put in.

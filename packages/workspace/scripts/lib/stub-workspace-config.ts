@@ -16,8 +16,7 @@ export function createStubWorkspaceConfig({
   rootDir = path.dirname(tasksDir),
 }: {
   // For the parts a script actually exercises. The defaults below point at
-  // paths that need only be well-formed, not real; a script that creates tasks
-  // has to supply a real `chatTemplateDir`, for one.
+  // paths that need only be well-formed, not real.
   overrides?: Partial<WorkspaceConfig>;
   rootDir?: string;
   tasksDir: string;
@@ -33,9 +32,6 @@ export function createStubWorkspaceConfig({
     captureException: () => {
       return;
     },
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "chat-template"),
-    ),
     getAIProviderConfigs: () => [],
     // On for the dev harnesses, which exist to exercise the real thing. The
     // app ships with it off until the macOS permission prompt is handled.

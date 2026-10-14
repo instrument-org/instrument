@@ -599,10 +599,6 @@ export async function runEvals(
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
-      chatTemplateDir: path.resolve(
-        import.meta.dirname,
-        "../templates/default",
-      ),
       getAIProviderConfigs: () => providerConfigs,
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches

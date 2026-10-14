@@ -153,7 +153,6 @@ export interface WorkspaceConfig {
   appVersion: string;
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
-  chatTemplateDir: AbsolutePath;
   /**
    * What the system's file manager calls each drive at `roots` (`C:\`), by
    * its root, for the Files sidebar's Locations: "Local Disk (C:)" on

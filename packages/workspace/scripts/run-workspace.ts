@@ -118,7 +118,6 @@ const actor = createActor(workspaceMachine, {
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    chatTemplateDir: path.resolve(import.meta.dirname, "../templates/default"),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
     modelCache: noopModelCache,
     nodeExecEnv: {},

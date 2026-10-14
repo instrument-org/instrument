@@ -840,6 +840,11 @@ describe("LoadSkill", () => {
     )._unsafeUnwrap();
 
     expect(runPnpmCommand).toHaveBeenCalledTimes(1);
+    // In the copy's own folder, its own package.
+    expect(vi.mocked(runPnpmCommand).mock.lastCall?.[0]).toMatchObject({
+      args: ["install"],
+      cwd: expect.stringMatching(/[/\\]skills[/\\].+[/\\]mixed-skill$/),
+    });
     expect(installPythonSkill).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
       installResults: [

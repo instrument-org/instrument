@@ -44,7 +44,6 @@ const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 const MOCK_WORKSPACE_MACHINE_DIR = "/tmp/workspace-machine";
 
 export const MOCK_WORKSPACE_DIRS = {
-  chatTemplate: `${MOCK_WORKSPACE_DIR}/chat-template`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
   chats: `${MOCK_WORKSPACE_DIR}/${CHATS_DIR_NAME}`,
@@ -125,7 +124,6 @@ export function createMockChatConfig(
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    chatTemplateDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chatTemplate),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     modelCache: options.catalog
       ? { ...noopModelCache, read: () => options.catalog }

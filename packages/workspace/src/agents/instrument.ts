@@ -18,7 +18,6 @@ import { folderReach } from "../lib/chat/folder-reach";
 import { outputFolderPath } from "../lib/chat/output-folder";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import { ensureWorkFolder } from "../lib/initialize-chat";
 import { isToolPart } from "../lib/is-tool-part";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
@@ -198,7 +197,6 @@ export const instrumentAgent = setupAgent({
     }
   },
   onStart: async ({ sessionId, chatId }) => {
-    await ensureWorkFolder(chatId, getWorkspaceConfig());
     await beginSkillChangeTracking({ id: chatId, sessionId });
   },
   shouldContinue: shouldContinueAfterHandingOff,

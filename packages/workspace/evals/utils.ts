@@ -62,9 +62,6 @@ export function buildReportWorkspaceConfig(
     captureException: () => {
       return;
     },
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "chat-template"),
-    ),
     getAIProviderConfigs: () => [],
     modelCache: noopModelCache,
     nodeExecEnv: {},

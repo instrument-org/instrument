@@ -8,13 +8,17 @@ import { runtimeLayout } from "./runtime-dir";
 // depends on nothing either, so the sandbox bake-off probe runs the same
 // isolation the app does.
 
+/** How many days old a package must be before an install takes it. */
+const RELEASE_AGE_DAYS = 7;
+
 /**
  * The environment that pins pnpm, npm and node-gyp to the caches and config
  * in `runtimeDir`, whatever the person's setup holds: their `~/.npmrc` (a
  * registry, `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global
  * store and caches are never read or written. The config files are the
- * app's own and empty; what a chat's install needs comes from its own
- * `pnpm-workspace.yaml`.
+ * app's own and empty. pnpm's settings for every install the agent makes,
+ * wherever it makes it, are the `pnpm_config_*` variables here, which a
+ * project's own `pnpm-workspace.yaml` can still change for that project.
  */
 export function nodeToolsEnvFor(runtimeDir: string): Record<string, string> {
   const { caches, config } = runtimeLayout(runtimeDir);
@@ -43,18 +47,30 @@ export function nodeToolsEnvFor(runtimeDir: string): Record<string, string> {
     // A chat folder installed against an earlier store is reinstalled
     // against this one without asking, since nobody answers a prompt here.
     pnpm_config_confirm_modules_purge: "false",
+    // What `pnpx` fetched stays for 180 days, so it is warm in every chat.
+    pnpm_config_dlx_cache_max_age: String(180 * 24 * 60),
     pnpm_config_global_bin_dir: path.join(caches, "pnpm-global-bin"),
     pnpm_config_global_dir: path.join(caches, "pnpm-global"),
     pnpm_config_globalconfig: globalConfig,
+    // A release younger than a week is not installed, in minutes.
+    pnpm_config_minimum_release_age: String(RELEASE_AGE_DAYS * 24 * 60),
     pnpm_config_npmrc_auth_file: userConfig,
     pnpm_config_state_dir: path.join(caches, "pnpm-state"),
     pnpm_config_store_dir: path.join(caches, "pnpm-store"),
+    // A dependency's install script nobody allowed is skipped with a warning
+    // rather than failing the install, so a package the agent adds cannot
+    // dead-end it; the bash tool says how to allow one
+    // (`ignoredBuildsNote`).
+    pnpm_config_strict_dep_builds: "false",
+    pnpm_config_update_notifier: "false",
     pnpm_config_userconfig: userConfig,
+    // pnpm 11 has every `pnpm run` and `pnpm exec` check the install first
+    // and start one of its own when it looks stale, which races the agent's
+    // own installs against the shared store and deadlocks. It installs when
+    // the agent installs.
+    pnpm_config_verify_deps_before_run: "false",
   };
 }
-
-/** How many days old a package must be before an install takes it. */
-const RELEASE_AGE_DAYS = 7;
 
 /**
  * The environment that pins uv (and anything that runs the real pip) to
@@ -62,7 +78,7 @@ const RELEASE_AGE_DAYS = 7;
  * Pythons it installs in their own folder, with no config of the person's
  * read (`uv.toml` in their home or a parent folder, `pip.conf`), and none of
  * their Pythons used. A release younger than a week is not installed, the
- * gate a chat's `pnpm-workspace.yaml` holds npm packages to.
+ * gate pnpm holds npm packages to.
  */
 export function uvToolsEnvFor(
   runtimeDir: string,

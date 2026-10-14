@@ -37,6 +37,10 @@ vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   workspaceWindowDir: () => "/machine/workspaces-data/default/window",
 }));
 
+// The zoom the kept state holds is not under test, and the real module
+// brings the whole workspace package with it, which each test imports again.
+vi.mock("./kept-state", () => ({ getKeptState: () => undefined }));
+
 vi.mock("electron-store", () => ({
   default: class {
     get store() {

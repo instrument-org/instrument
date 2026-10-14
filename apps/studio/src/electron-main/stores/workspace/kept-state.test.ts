@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
-import { createKeptStateStore } from "./kept-state";
+import { createKeptStateStore, remapFolderAddresses } from "./kept-state";
 
 let dir: string;
 
@@ -111,4 +111,62 @@ it("leaves no temporary file behind", () => {
   store.flush();
 
   expect(fs.readdirSync(dir)).toEqual(["bookmarks.json"]);
+});
+
+it("reads a file through its own reader as it loads", () => {
+  fs.writeFileSync(
+    path.join(dir, "layout.json"),
+    JSON.stringify({ "app-tabs.v2": { tabs: ["a"] } }),
+  );
+  const store = createKeptStateStore(() => dir, undefined, {
+    layout: (keys) => ({ ...keys, read: true }),
+  });
+  expect(store.snapshot().layout).toEqual({
+    "app-tabs.v2": { tabs: ["a"] },
+    read: true,
+  });
+});
+
+it("names each Files address's folder and file where a move took them", () => {
+  const moved = (hostPath: string) =>
+    hostPath.replace("/data/workspace", "/Users/sam/Documents/Instrument");
+  const old = encodeURIComponent("/data/workspace/.instrument/chats/c1");
+  expect(
+    remapFolderAddresses(
+      {
+        "window-tabs.v9": {
+          tabs: [
+            { href: `/files?path=&root=${old}` },
+            {
+              href: `/files?file=${encodeURIComponent("/data/workspace/report.pdf")}&path=&root=~`,
+            },
+            { href: "/files?path=Documents%2F&root=~" },
+            { href: "/chats/c1" },
+          ],
+        },
+        "zoom.v1": 1,
+      },
+      moved,
+    ),
+  ).toMatchInlineSnapshot(`
+    {
+      "window-tabs.v9": {
+        "tabs": [
+          {
+            "href": "/files?path=&root=%2FUsers%2Fsam%2FDocuments%2FInstrument%2F.instrument%2Fchats%2Fc1",
+          },
+          {
+            "href": "/files?file=%2FUsers%2Fsam%2FDocuments%2FInstrument%2Freport.pdf&path=&root=~",
+          },
+          {
+            "href": "/files?path=Documents%2F&root=~",
+          },
+          {
+            "href": "/chats/c1",
+          },
+        ],
+      },
+      "zoom.v1": 1,
+    }
+  `);
 });

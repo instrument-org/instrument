@@ -1,3 +1,4 @@
+import { app } from "electron";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +20,8 @@ vi.mock(import("./file-thumbnails"), async (importOriginal) => ({
 let folder: string;
 let file: string;
 let mtimeMs: number;
+/** This computer's folder, Electron's userData. */
+let machine: string;
 
 const urlFor = (hostPath: string, query = "") =>
   `${computerFileBase()}${hostPath.split("/").map(encodeURIComponent).join("/")}${query}`;
@@ -34,6 +37,26 @@ beforeAll(async () => {
   await fs.writeFile(path.join(folder, ".instrument", "chat.db"), "secret");
   const stats = await fs.stat(file);
   mtimeMs = stats.mtimeMs;
+
+  machine = path.join(folder, "machine");
+  vi.mocked(app.getPath).mockImplementation((name) =>
+    name === "userData" ? machine : "/mock/path",
+  );
+  const machineFiles = {
+    "browser-cookies": "workspaces-data/default/browser/app-session/Cookies",
+    keys: "workspaces-data/default/keys/providers.json",
+    note: "workspace/chats/2026-10-01-chat/notes.md",
+  };
+  for (const relative of Object.values(machineFiles)) {
+    await fs.mkdir(path.dirname(path.join(machine, relative)), {
+      recursive: true,
+    });
+    await fs.writeFile(path.join(machine, relative), relative);
+  }
+  await fs.symlink(
+    path.join(machine, machineFiles.keys),
+    path.join(folder, "leads-to-keys.json"),
+  );
 });
 
 afterAll(async () => {
@@ -63,6 +86,21 @@ describe("handleComputerFileRequest", () => {
       expect(await response.text()).toBe("<p>a or b</p>");
     },
   );
+
+  it("serves a file in a workspace the machine folder keeps", async () => {
+    const note = path.join(
+      machine,
+      "workspace",
+      "chats",
+      "2026-10-01-chat",
+      "notes.md",
+    );
+    const response = await request(urlFor(note));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(
+      "workspace/chats/2026-10-01-chat/notes.md",
+    );
+  });
 
   it("does not let an unversioned read be kept", async () => {
     const response = await request(urlFor(file));
@@ -127,6 +165,51 @@ describe("handleComputerFileRequest", () => {
       () => `${computerFileBase()}${folder}/%2E%2E/notes.txt`,
     ],
     ["an empty path", () => `${computerFileBase()}/`],
+    // The machine folder's names carry no private segment.
+    [
+      "a workspace's keys",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "workspaces-data",
+            "default",
+            "keys",
+            "providers.json",
+          ),
+        ),
+    ],
+    [
+      "a browser profile's cookies",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "workspaces-data",
+            "default",
+            "browser",
+            "app-session",
+            "Cookies",
+          ),
+        ),
+    ],
+    [
+      "the machine folder in another case",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "WORKSPACES-DATA",
+            "default",
+            "keys",
+            "providers.json",
+          ),
+        ),
+    ],
+    [
+      "a symlink into the machine folder",
+      () => urlFor(path.join(folder, "leads-to-keys.json")),
+    ],
   ])("refuses %s", async (_name, url) => {
     const response = await request(url());
     expect(response.status).toBe(404);

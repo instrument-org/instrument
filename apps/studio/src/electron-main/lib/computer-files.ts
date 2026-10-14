@@ -13,6 +13,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { resolveAlias } from "./mac-native";
+import { isRefusedByName, isRefusedFile } from "./refused-files";
 import {
   fileThumbnail,
   fileThumbnailDeps,
@@ -43,9 +44,11 @@ import {
  *   `file://` address instead. The check is unconditional so development
  *   exercises the same path the packaged build does.
  * - The task's private directory is refused as a segment anywhere, the way
- *   every other road to a file refuses it, and only GET and HEAD are answered.
+ *   every other road to a file refuses it, and so is the machine folder but
+ *   the workspaces kept in it (`refused-files.ts`), since its keys and
+ *   browser profiles carry no such segment. Only GET and HEAD are answered.
  *   A Finder alias on the path is followed, as a symbolic link is, and where
- *   it leads is held to the same refusal.
+ *   either leads is held to the same refusal.
  */
 const HOST_PREFIX = "computer-";
 
@@ -131,7 +134,7 @@ app.all("/*", async (c) => {
     return c.notFound();
   }
   const hostPath = await resolveThroughAliases(asked, resolveAlias);
-  if (PRIVATE_DIR_SEGMENT_REGEX.test(hostPath)) {
+  if (isRefusedByName(asked) || (await isRefusedFile(hostPath))) {
     return c.notFound();
   }
   // The renderer's own origin is never this scheme, so every read is

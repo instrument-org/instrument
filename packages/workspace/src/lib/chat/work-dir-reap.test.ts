@@ -13,7 +13,7 @@ import {
   startBackgroundRun,
 } from "../background-processes";
 import { workDir } from "../work-dir";
-import { reapWorkDir, startWorkDirReap } from "./work-dir-reap";
+import { reapWorkDir, reapWorkDirs, startWorkDirReap } from "./work-dir-reap";
 
 /** Chats with a session running, and chats being trashed. */
 const running = new Set<ChatId>();
@@ -129,6 +129,19 @@ describe("reapWorkDir", () => {
     const { chatId, dir } = chatWith();
     fs.rmdirSync(dir);
     expect(reapWorkDir(chatId, workspaceRef)).toBe(false);
+  });
+});
+
+describe("reapWorkDirs", () => {
+  it("removes the empty folders a quit left and keeps the rest", () => {
+    const empty = chatWith();
+    const kept = chatWith({ "notes.md": "x" });
+    const busy = chatWith();
+    running.add(busy.chatId);
+    reapWorkDirs(workspaceRef);
+    expect(fs.existsSync(empty.dir)).toBe(false);
+    expect(fs.existsSync(kept.dir)).toBe(true);
+    expect(fs.existsSync(busy.dir)).toBe(true);
   });
 });
 

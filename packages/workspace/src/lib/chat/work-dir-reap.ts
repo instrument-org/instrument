@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
-import { type ChatId } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { listChatBackgroundProcesses } from "../background-processes";
 import { resolveChat } from "../record-folders";
 import { workDir } from "../work-dir";
@@ -23,9 +23,16 @@ const SYSTEM_LITTER = new Set([".DS_Store"]);
  *
  * At rest is the moment because nothing of the chat's can be using the
  * folder then: no session of it, its tasks' included, is running a command,
- * and nothing it left running in the background is still going.
+ * and nothing it left running in the background is still going. Folders a
+ * turn left behind when the app quit or crashed before it ended are reaped
+ * when the workspace starts.
  */
 export function startWorkDirReap(workspaceRef: WorkspaceActorRef): void {
+  try {
+    reapWorkDirs(workspaceRef);
+  } catch (error) {
+    getWorkspaceConfig().captureException(error);
+  }
   void (async () => {
     for await (const { id } of publisher.subscribe("session.done")) {
       try {
@@ -35,6 +42,25 @@ export function startWorkDirReap(workspaceRef: WorkspaceActorRef): void {
       }
     }
   })();
+}
+
+/**
+ * Removes every chat's work folder that `reapWorkDir` would: each one
+ * empty, of a chat that is still there, with nothing of the chat's at work.
+ */
+export function reapWorkDirs(workspaceRef: WorkspaceActorRef): void {
+  let names: string[];
+  try {
+    names = readdirSync(getWorkspaceConfig().workFoldersDir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const chatId = ChatIdSchema.safeParse(name);
+    if (chatId.success) {
+      reapWorkDir(chatId.data, workspaceRef);
+    }
+  }
 }
 
 /**

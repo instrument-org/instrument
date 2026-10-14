@@ -36,7 +36,7 @@ import {
  */
 
 /** Why a folder cannot take the workspace. */
-export const MoveRefusalSchema = z.enum([
+const MoveRefusalSchema = z.enum([
   /** Inside the app's own data, or holding it. */
   "app-data",
   /** The workspace's own folder, or one inside or around it. */
@@ -59,7 +59,7 @@ export const MoveRefusalSchema = z.enum([
   "unwritable",
 ]);
 
-export type MoveRefusal = z.output<typeof MoveRefusalSchema>;
+type MoveRefusal = z.output<typeof MoveRefusalSchema>;
 
 const OpenInsteadSchema = z.object({
   kind: z.literal("workspace"),

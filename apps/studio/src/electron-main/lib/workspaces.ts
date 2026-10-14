@@ -160,7 +160,8 @@ export type OpenWorkspace = ResolvedWorkspace & {
 };
 export type WorkspaceIdentity = z.output<typeof WorkspaceIdentitySchema>;
 export type WorkspaceRegistry = z.output<typeof RegistrySchema>;
-export type RegistryEntry = z.output<typeof RegistryEntrySchema>;
+
+type RegistryEntry = z.output<typeof RegistryEntrySchema>;
 
 export function createdWorkspacesDir(userDataDir: string): string {
   return path.join(userDataDir, WORKSPACES_DIR_NAME);

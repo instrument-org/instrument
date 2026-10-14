@@ -99,6 +99,7 @@ Grouped by area; status is the short form of each file's own line.
 | [The file-open cache is sized for a vanished cost](file-open-cache-is-sized-for-a-vanished-cost.md) | open, deliberate |
 | [The task list ordered itself by file mtime](task-list-order-followed-file-mtimes.md) — so reading a task counted as changing it | fixed |
 | [Connector authentication notes](connector-authentication-technical-notes.md) | reference, partly overtaken by apps |
+| [Syncing a data folder through file sync](syncing-a-data-folder-through-file-sync.md): what iCloud Drive, Dropbox, Google Drive, OneDrive and Syncthing do to files two devices share, and the format rules that survive them | research, nothing built |
 
 ### Model and context
 

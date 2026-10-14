@@ -216,6 +216,10 @@ function tree(dir: string): string[] {
   return fsSync
     .readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
+    .map((entry) =>
+      path
+        .relative(dir, path.join(entry.parentPath, entry.name))
+        .replaceAll(path.sep, "/"),
+    )
     .sort();
 }

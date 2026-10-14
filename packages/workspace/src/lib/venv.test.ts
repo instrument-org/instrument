@@ -4,6 +4,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { workVenvDir } from "./uv";
 import { ensureVenv, pythonToRun, venvToInstallInto } from "./venv";
+import { workDir } from "./work-dir";
 
 vi.mock(import("node:fs"), () => ({
   existsSync: vi.fn(() => false),
@@ -186,7 +187,7 @@ describe("venvToInstallInto", () => {
     ).resolves.toEqual({ venv: workVenvDir(chatId) });
     expect(vi.mocked(runUvCommand).mock.calls[0]?.[0]).toMatchObject({
       args: ["venv", "--clear", "--python", "3.12", workVenvDir(chatId)],
-      cwd: "/tmp/workspace-machine/work/first-install",
+      cwd: workDir(chatId),
     });
   });
 });

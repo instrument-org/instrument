@@ -112,21 +112,25 @@ describe("listComputerFolder", () => {
     expect(listing.entries.at(-1)?.name).toBe("file 1999");
   });
 
-  it("answers a folder its account cannot read with who refused", async () => {
-    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
-    const shut = path.join(folder, "shut");
-    await fs.mkdir(shut, { mode: 0o000 });
+  // Windows ignores a folder's POSIX mode bits, so 0o000 shuts nothing there.
+  it.skipIf(process.platform === "win32")(
+    "answers a folder its account cannot read with who refused",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+      const shut = path.join(folder, "shut");
+      await fs.mkdir(shut, { mode: 0o000 });
 
-    try {
-      expect(await listComputerFolder({ path: shut, chatId })).toMatchObject({
-        kind: "refused",
-        path: shut,
-        reason: "account",
-      });
-    } finally {
-      await fs.chmod(shut, 0o700);
-    }
-  });
+      try {
+        expect(await listComputerFolder({ path: shut, chatId })).toMatchObject({
+          kind: "refused",
+          path: shut,
+          reason: "account",
+        });
+      } finally {
+        await fs.chmod(shut, 0o700);
+      }
+    },
+  );
 
   // The app folders iCloud Drive shows live in each app's own container; the
   // Mac helper is what names them, stood in for here by a script.

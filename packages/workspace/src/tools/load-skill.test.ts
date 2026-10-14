@@ -9,6 +9,7 @@ import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { runtimeLayout } from "../lib/runtime-dir";
 import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
+import { shellPath } from "../lib/workspace-fs-layout";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -32,11 +33,14 @@ function modelText(result: ReturnType<typeof LoadSkill.toModelOutput>) {
   return named(result.value);
 }
 
-/** Names the workspace's skills folder, which is a temp dir here. */
+/**
+ * Names the workspace's skills folder, which is a temp dir here, as the
+ * model reads it: by the shell's spelling of its path.
+ */
 function named(text: string) {
   return text
-    .replaceAll(getWorkspaceSkillsDir(), "<workspace skills>")
-    .replaceAll(preparedSkillsDir(), "<runtime skills>");
+    .replaceAll(shellPath(getWorkspaceSkillsDir()), "<workspace skills>")
+    .replaceAll(shellPath(preparedSkillsDir()), "<runtime skills>");
 }
 
 let tmpDir: string;

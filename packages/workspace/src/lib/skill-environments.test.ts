@@ -180,18 +180,21 @@ describe("ensurePythonEnvironment", () => {
     expect(
       fs.readdirSync(path.join(runtime().environments, layerDir ?? "")),
     ).toEqual(["sitecustomize.py"]);
+    // The staging folder's name, by either separator, as Windows spells it
+    // with a backslash.
+    const staging = /[\\/]\.(?:shipped-)?[0-9a-f]+\.building-[^\\/]+/;
     const calls = vi.mocked(runUvCommand).mock.calls.map(([call]) => ({
       args: call.args.map((arg) =>
         arg
           .replace(skillDir, "<skill>")
-          .replace(/\/\.(?:shipped-)?[0-9a-f]+\.building-[^/]+/, "/<staging>")
+          .replace(staging, `${path.sep}<staging>`)
           .replace(runtime().environments, "<environments>"),
       ),
       buildFolders: call.buildFolders,
       lockfilePinned: call.lockfilePinned,
       stdin: call.stdin,
       writable: call.writable?.map((dir) =>
-        dir.replace(/\/\.(?:shipped-)?[0-9a-f]+\.building-[^/]+/, "/<staging>"),
+        dir.replace(staging, `${path.sep}<staging>`),
       ),
     }));
     expect(calls).toEqual([
@@ -201,12 +204,12 @@ describe("ensurePythonEnvironment", () => {
           "--relocatable",
           "--python",
           "3.12",
-          "<environments>/<staging>",
+          path.join("<environments>", "<staging>"),
         ],
         buildFolders: true,
         lockfilePinned: true,
         stdin: undefined,
-        writable: [`${runtime().environments}/<staging>`],
+        writable: [path.join(runtime().environments, "<staging>")],
       },
       {
         args: [
@@ -220,7 +223,7 @@ describe("ensurePythonEnvironment", () => {
         buildFolders: true,
         lockfilePinned: true,
         stdin: undefined,
-        writable: [`${runtime().environments}/<staging>`],
+        writable: [path.join(runtime().environments, "<staging>")],
       },
       {
         args: [
@@ -242,7 +245,7 @@ describe("ensurePythonEnvironment", () => {
         buildFolders: true,
         lockfilePinned: true,
         stdin: "pypdf==6.0\n",
-        writable: [`${runtime().environments}/<staging>`],
+        writable: [path.join(runtime().environments, "<staging>")],
       },
     ]);
   });

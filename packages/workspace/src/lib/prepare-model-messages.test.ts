@@ -20,6 +20,7 @@ import {
 } from "./prepare-model-messages";
 import { Store } from "./store";
 import { chatDir } from "./record-folders";
+import { shellPath } from "./workspace-fs-layout";
 
 vi.mock(import("./session-store-storage"));
 
@@ -993,7 +994,7 @@ describe("prepareModelMessages", () => {
 
         expect(notice).toContain("No handoff notes were found");
         expect(notice).toContain(
-          path.join(chatDir(chatId), "handoff-notes.md"),
+          shellPath(path.join(chatDir(chatId), "handoff-notes.md")),
         );
       });
 

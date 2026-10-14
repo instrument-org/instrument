@@ -74,8 +74,9 @@ async function makeChat(name: string, sessionId = SESSION) {
   return chatId;
 }
 
+/** Where `dir` is in the workspace, spelled with `/` on every platform. */
 function relative(dir: string) {
-  return path.relative(rootDir, dir);
+  return path.relative(rootDir, dir).replaceAll(path.sep, "/");
 }
 
 describe("chat folder names", () => {

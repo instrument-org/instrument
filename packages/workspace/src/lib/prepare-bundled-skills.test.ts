@@ -34,8 +34,11 @@ async function setup() {
   return { config, prepared: runtimeLayout(config.runtimeDir).skills };
 }
 
+/** Every entry under `dir`, spelled with `/` on every platform. */
 const listed = async (dir: string) =>
-  (await fs.readdir(dir, { recursive: true })).toSorted();
+  (await fs.readdir(dir, { recursive: true }))
+    .map((entry) => entry.replaceAll(path.sep, "/"))
+    .toSorted();
 
 describe("prepareBundledSkills", () => {
   it("copies both bundled sources into one folder, the system's copy winning a shared name", async () => {

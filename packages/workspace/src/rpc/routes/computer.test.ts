@@ -38,7 +38,10 @@ function createContext(): WorkspaceRPCContext {
 describe("workspace.computer.list", () => {
   it.each([
     ["a file", "notes.md"],
-    ["a path through a file", path.join("notes.md", "inside")],
+    // Windows reports a path through a file as missing (ENOENT), not ENOTDIR.
+    ...(process.platform === "win32"
+      ? []
+      : [["a path through a file", path.join("notes.md", "inside")]]),
   ])("answers NOT_A_FOLDER for %s", async (_, relative) => {
     const target = path.join(tmpDir, relative);
     const listing = call(
@@ -183,44 +186,52 @@ describe("workspace.computer.list", () => {
     }
   });
 
-  it("says a refused folder is a package, which the folder panel cannot pick", async () => {
-    const target = path.join(tmpDir, "Photos Library.photoslibrary");
-    await fs.mkdir(target, { mode: 0o000 });
-    const config = getWorkspaceConfig();
-    setWorkspaceConfig({
-      ...config,
-      finderEntries: async (asked) =>
-        asked === tmpDir
-          ? [{ name: "Photos Library.photoslibrary", package: true }]
-          : [],
-    });
-    try {
-      await expect(
-        call(
-          computer.list,
-          { id: chatId, path: target },
-          { context: createContext() },
-        ),
-      ).resolves.toMatchObject({ kind: "refused", package: true });
-    } finally {
-      setWorkspaceConfig(config);
-      await fs.chmod(target, 0o700);
-    }
-  });
+  // Windows ignores a folder's POSIX mode bits, so 0o000 shuts nothing there.
+  it.skipIf(process.platform === "win32")(
+    "says a refused folder is a package, which the folder panel cannot pick",
+    async () => {
+      const target = path.join(tmpDir, "Photos Library.photoslibrary");
+      await fs.mkdir(target, { mode: 0o000 });
+      const config = getWorkspaceConfig();
+      setWorkspaceConfig({
+        ...config,
+        finderEntries: async (asked) =>
+          asked === tmpDir
+            ? [{ name: "Photos Library.photoslibrary", package: true }]
+            : [],
+      });
+      try {
+        await expect(
+          call(
+            computer.list,
+            { id: chatId, path: target },
+            { context: createContext() },
+          ),
+        ).resolves.toMatchObject({ kind: "refused", package: true });
+      } finally {
+        setWorkspaceConfig(config);
+        await fs.chmod(target, 0o700);
+      }
+    },
+  );
 
-  it("answers a folder it may not read as refused rather than failing", async () => {
-    const target = path.join(tmpDir, "shut");
-    await fs.mkdir(target, { mode: 0o000 });
-    try {
-      await expect(
-        call(
-          computer.list,
-          { id: chatId, path: target },
-          { context: createContext() },
-        ),
-      ).resolves.toMatchObject({ kind: "refused", reason: "account" });
-    } finally {
-      await fs.chmod(target, 0o700);
-    }
-  });
+  // Windows ignores a folder's POSIX mode bits, so 0o000 shuts nothing there.
+  it.skipIf(process.platform === "win32")(
+    "answers a folder it may not read as refused rather than failing",
+    async () => {
+      const target = path.join(tmpDir, "shut");
+      await fs.mkdir(target, { mode: 0o000 });
+      try {
+        await expect(
+          call(
+            computer.list,
+            { id: chatId, path: target },
+            { context: createContext() },
+          ),
+        ).resolves.toMatchObject({ kind: "refused", reason: "account" });
+      } finally {
+        await fs.chmod(target, 0o700);
+      }
+    },
+  );
 });

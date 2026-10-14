@@ -272,6 +272,7 @@ export function createStructure(ed: Editor): StructureApi {
     };
     state.gesture = reorderGesture({
       gripHtml: I.grip,
+      gripTitle: `Drag to reorder (${ed.keys.moveUp} / ${ed.keys.moveDown})`,
       host: ui.proxies,
       items,
       onCancel: () => {

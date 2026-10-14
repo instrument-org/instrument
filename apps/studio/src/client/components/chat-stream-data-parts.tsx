@@ -2,7 +2,8 @@ import {
   backgroundProcessesModelNote,
   browserStatusModelNote,
   dateChangeModelNote,
-  isAddressableTaskFilePath,
+  isAddressableChatFilePath,
+  jobEventModelNote,
   maxStepsModelNote,
   messageGapModelNote,
   type SessionMessagePart,
@@ -66,6 +67,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // are the reason for everything that follows.
   "data-fromChat": "always",
   "data-intent": "dev",
+  // The reason a session woke when a command it left running ended. Like a
+  // task's finish in the chat, the reply that follows says what came of it,
+  // so the note itself is a developer's peek.
+  "data-jobEvent": "dev",
   "data-maxSteps": "dev",
   // What the agent is told it remembers about the user. Context for the
   // model; the user's copy is the Memory section of Settings.
@@ -253,7 +258,7 @@ export function renderDataPart({
           (file) =>
             file.status !== "deleted" &&
             file.filePath.startsWith("output/") &&
-            isAddressableTaskFilePath(file.filePath) &&
+            isAddressableChatFilePath(file.filePath) &&
             pathsAlreadyShown?.has(file.filePath) !== true,
         )
         .map((file) => file.filePath);
@@ -338,6 +343,16 @@ export function renderDataPart({
         />
       );
     }
+    case "data-jobEvent": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={jobEventModelNote(part.data)}
+        />
+      );
+    }
     case "data-skillMentions": {
       return (
         <ModelContextDebugCard
@@ -350,7 +365,15 @@ export function renderDataPart({
     }
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.
-      if (ctx.presentation === "chat") {
+      // A note the app's quit or the user's stop left wakes nothing, so no
+      // reply follows it and it is the only word in the chat that the task
+      // ended.
+      if (
+        ctx.presentation === "chat" &&
+        !part.data.events.some(
+          (event) => event.stoppedBy === "app" || event.stoppedBy === "user",
+        )
+      ) {
         return ctx.isDeveloperMode ? (
           <ChatDevOnly key={part.metadata.id}>
             <TaskEventNote data={part.data} />

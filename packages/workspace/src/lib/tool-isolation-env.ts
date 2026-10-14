@@ -49,6 +49,11 @@ export function nodeToolsEnvFor(dir: string): Record<string, string> {
   };
 }
 
+/** Where uv keeps the Pythons it installs, in `uvDataDir`. */
+export function uvPythonInstallDir(uvDataDir: string): string {
+  return path.join(uvDataDir, "python");
+}
+
 /** How many days old a package must be before an install takes it. */
 const RELEASE_AGE_DAYS = 7;
 
@@ -65,6 +70,10 @@ export function uvToolsEnvFor(
   now = new Date(),
 ): Record<string, string> {
   return {
+    // matplotlib keeps its font cache in ~/.matplotlib on macOS, which the
+    // sandbox keeps from changes, so without its own folder every chart
+    // rebuilt the cache (about ten seconds).
+    MPLCONFIGDIR: path.join(uvDataDir, "matplotlib"),
     PIP_CONFIG_FILE: os.devNull,
     UV_CACHE_DIR: path.join(uvDataDir, "cache"),
     UV_EXCLUDE_NEWER: new Date(
@@ -74,7 +83,7 @@ export function uvToolsEnvFor(
     // uv's own Pythons alone, so neither `uv venv` nor anything it runs
     // picks up a python3 the person has earlier on their PATH.
     UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
+    UV_PYTHON_INSTALL_DIR: uvPythonInstallDir(uvDataDir),
     UV_PYTHON_PREFERENCE: "only-managed",
     UV_TOOL_BIN_DIR: path.join(uvDataDir, "tools", "bin"),
     UV_TOOL_DIR: path.join(uvDataDir, "tools"),

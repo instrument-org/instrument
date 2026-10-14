@@ -96,8 +96,21 @@ export function AssistantMessagesFooter({
 
       const firstCreatedAt = messages[0]?.metadata.createdAt;
       const lastMessage = messages.at(-1);
-      const lastEndedAt =
-        lastMessage?.metadata.endedAt ?? lastMessage?.metadata.finishedAt;
+      // A call the app's quit cut off ends after its step did: the quit
+      // records when the app closed on the call, not on the message.
+      const lastEndedAt = [
+        lastMessage?.metadata.endedAt ?? lastMessage?.metadata.finishedAt,
+        ...messages.flatMap((message) =>
+          message.parts.flatMap((part) =>
+            "endedAt" in part && part.endedAt instanceof Date
+              ? [part.endedAt]
+              : [],
+          ),
+        ),
+      ].reduce<Date | undefined>(
+        (latest, at) => (at && (!latest || at > latest) ? at : latest),
+        undefined,
+      );
 
       const elapsed =
         firstCreatedAt && lastEndedAt

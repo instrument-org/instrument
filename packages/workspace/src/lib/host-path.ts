@@ -70,6 +70,24 @@ export function hostPathWithin(root: string, hostPath: string): null | string {
   return `/${resolved.split(nodePath.sep).slice(-depth).join("/")}`;
 }
 
+/**
+ * A path on macOS's Data volume as the rest of the system spells it. The
+ * volume is joined to `/` by firmlinks, which `realpath` leaves alone, so
+ * `/System/Volumes/Data/Users/sam/.ssh` is `~/.ssh` by another name and has
+ * to meet the same rules. Seatbelt matches the path the kernel resolved and
+ * needs no help.
+ */
+export function withoutDataVolume(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "darwin") {
+    return hostPath;
+  }
+  const match = /^\/System\/Volumes\/Data(?=\/|$)/i.exec(hostPath);
+  return match ? hostPath.slice(match[0].length) || "/" : hostPath;
+}
+
 function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }

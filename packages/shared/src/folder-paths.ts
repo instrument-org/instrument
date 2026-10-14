@@ -35,20 +35,36 @@ export function displayHostPath(
   homeDir: string | undefined,
 ): string {
   const names = namesFromHome(filePath, homeDir);
-  return names ? names.join(filePath.includes("\\") ? "\\" : "/") : filePath;
+  const separator =
+    splitsOnBackslash(filePath, homeDir) && filePath.includes("\\")
+      ? "\\"
+      : "/";
+  return names ? names.join(separator) : filePath;
 }
 
-/** `~` and `~/x` written out against the home directory; any other path as given. */
+/**
+ * `~` and `~/x` written out against the home directory, and `~\x` where home
+ * is a Windows path; any other path as given.
+ */
 export function expandHomePath(
   filePath: string,
   homeDir: string | undefined,
 ): string {
-  if (!homeDir || !(filePath === "~" || /^~[/\\]/.test(filePath))) {
+  if (!homeDir || !/^~(?:[/\\]|$)/.test(filePath)) {
     return filePath;
   }
-  const separator = homeDir.includes("\\") ? "\\" : "/";
-  const below = filePath.slice(2).split(/[/\\]/).filter(Boolean);
-  return [homeDir.replace(/[/\\]+$/, ""), ...below].join(separator);
+  const windows = isWindowsPath(homeDir);
+  if (filePath.startsWith("~\\") && !windows) {
+    return filePath;
+  }
+  const separator = windows && homeDir.includes("\\") ? "\\" : "/";
+  const below = filePath
+    .slice(2)
+    .split(windows ? /[/\\]/ : "/")
+    .filter(Boolean);
+  return [homeDir.replace(windows ? /[/\\]+$/ : /\/+$/, ""), ...below].join(
+    separator,
+  );
 }
 
 /**
@@ -67,7 +83,7 @@ export function folderLabelFromPath(
 
 /** What the user calls a folder: its own name, never any name we assigned it. */
 export function folderNameFromPath(folderPath: string): string {
-  return folderPath.split(/[/\\]/).findLast(Boolean) ?? folderPath;
+  return namesAlong(folderPath).at(-1) ?? folderPath;
 }
 
 /** Whether a path is the home directory itself, spelled either way. */
@@ -100,7 +116,7 @@ export function namesFromHome(
     return undefined;
   }
   const normalizedHome = normalizeForCompare(homeDir);
-  const normalizedPath = normalizeForCompare(filePath);
+  const normalizedPath = normalizeForCompare(filePath, homeDir);
   if (normalizedHome === "") {
     return undefined;
   }
@@ -118,7 +134,7 @@ export function namesFromHome(
 
 /** The folder one level up, or undefined at a filesystem root. */
 export function parentSegmentFromPath(folderPath: string): string | undefined {
-  const segments = folderPath.split(/[/\\]/).filter(Boolean);
+  const segments = namesAlong(folderPath);
   return segments.length >= 2 ? segments.at(-2) : undefined;
 }
 
@@ -153,6 +169,38 @@ export function shortenHomePath(
   return `~${filePath.slice(normalizedHome.length)}`;
 }
 
-function normalizeForCompare(value: string): string {
-  return value.replaceAll("\\", "/").replace(/\/+$/, "");
+/**
+ * Whether a path is spelled the Windows way, from a drive (`C:\`) or a
+ * network share (`\\server\share`). Only there is a backslash a separator;
+ * on a Mac or Linux it is a character a name can hold.
+ */
+export function isWindowsPath(hostPath: string): boolean {
+  return /^(?:[A-Za-z]:(?:[/\\]|$)|\\\\)/.test(hostPath);
+}
+
+/**
+ * Whether a backslash separates names in a path: one spelled the Windows way,
+ * or one written from `~` against a home directory that is.
+ */
+function splitsOnBackslash(filePath: string, homeDir?: string): boolean {
+  return (
+    isWindowsPath(filePath) ||
+    (/^~(?:[/\\]|$)/.test(filePath) &&
+      homeDir !== undefined &&
+      isWindowsPath(homeDir))
+  );
+}
+
+/** Every name along a path, in order. */
+function namesAlong(filePath: string): string[] {
+  return filePath
+    .split(isWindowsPath(filePath) ? /[/\\]/ : "/")
+    .filter(Boolean);
+}
+
+/** A path with its separators as `/` and none trailing, to compare by. */
+function normalizeForCompare(value: string, homeDir?: string): string {
+  return (
+    splitsOnBackslash(value, homeDir) ? value.replaceAll("\\", "/") : value
+  ).replace(/\/+$/, "");
 }

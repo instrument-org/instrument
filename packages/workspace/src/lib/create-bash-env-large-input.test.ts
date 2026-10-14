@@ -23,14 +23,14 @@ const sessionId = StoreId.newSessionId();
 const LINES = 300_000;
 
 let tmpDir: string;
-let taskRoot: string;
+let chatRoot: string;
 let chatId: ChatId;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-large-input-"));
-  taskRoot = path.join(tmpDir, "tasks", "test");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatRoot = path.join(tmpDir, "tasks", "test");
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterEach(async () => {
@@ -70,7 +70,7 @@ describe("large inputs", () => {
   it("reads tens of megabytes of binary stdin byte for byte", async () => {
     const bytes = Buffer.alloc(40 * 1024 * 1024);
     for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 131 + 7) & 255;
-    await fs.writeFile(path.join(taskRoot, "work", "big.bin"), bytes);
+    await fs.writeFile(path.join(chatRoot, "work", "big.bin"), bytes);
     const expected = createHash("sha256").update(bytes).digest("hex");
     const bash = await createBashEnv({ sessionId, chatId });
 

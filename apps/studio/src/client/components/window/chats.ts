@@ -4,6 +4,8 @@ import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention"
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
 
+import { nameOf } from "./host-path";
+
 /** A chat as the chat lists it: the first message, the title, and where it stands. */
 export type Chat = NonNullable<RPCOutput["workspace"]["chats"]["byId"]>;
 
@@ -43,7 +45,7 @@ export interface Filterable {
   root?: undefined | { parts: { text?: string; type: string }[] };
   /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
-  state: "failed" | "idle" | "limited" | "waiting" | "working";
+  state: "failed" | "idle" | "limited" | "stopped" | "waiting" | "working";
   title: string;
   topics: string[];
   /** Whether it carries the unread mark: something in it not yet looked at. */
@@ -236,7 +238,7 @@ function matchesSearch(
     askOf(chat),
     chat.latest?.text ?? "",
     ...chat.topics.map((id) => topicNames.get(id) ?? ""),
-    ...chat.holds.files.map(basename),
+    ...chat.holds.files.map(nameOf),
     ...chat.holds.sites,
     ...chat.holds.apps,
   ]);
@@ -264,11 +266,6 @@ export function askOf(chat: {
   return (chat.root?.parts ?? [])
     .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
     .join("\n");
-}
-
-/** The last part of a path, which is how a file is named on a row. */
-export function basename(path: string): string {
-  return path.replace(/\/+$/, "").split("/").at(-1) || path;
 }
 
 /** Items by when something last happened in each, newest first. */

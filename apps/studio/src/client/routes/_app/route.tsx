@@ -192,7 +192,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       appsBySlug={appsBySlug}
       chatTitles={chatTitles}
       chosenId={showsPane ? up.id : undefined}
-      isChatWorking={chatRecord?.state === "working"}
+      isChatWorking={chatRecord?.working === true}
       onAddComputer={() => {
         windowTabs.openScreen(outputFolderHref(), {
           group: chat,
@@ -363,6 +363,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       closeTab={shell.requestClose}
                       group={chat}
                       isFramed={false}
+                      isShown={showsPane}
                       // Puts the view away; what it showed stays among the
                       // chat's tiles, which are where a tab is closed.
                       onClose={() => {

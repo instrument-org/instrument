@@ -1,8 +1,14 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  getToolNameByType,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { useState } from "react";
 
+import { getToolExplanation } from "../../lib/get-tool-explanation";
+import { isCutOff } from "../../lib/is-cut-off";
+import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 
@@ -19,19 +25,30 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
   const inputText =
     rawInput ?? (part.input ? JSON.stringify(part.input, null, 2) : undefined);
   const inputLabel = rawInput ? "Raw input" : "Input";
+  // A call the app's closing cut off did not fail: it reads as the call it
+  // was, with being cut off as where it stands.
+  const cutOff = isCutOff(part);
 
   return (
     <div className="group/card mt-2 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="border-b border-border bg-muted px-4 py-3">
         <p className="text-xs font-medium text-muted-foreground">
-          Tool call failed
+          {cutOff
+            ? (getToolExplanation(part) ??
+              getToolLabel(getToolNameByType(part.type)))
+            : "Tool call failed"}
         </p>
       </div>
 
       {part.errorText && (
         <div className="relative">
           <div className="max-h-44 scrollbar-thin scrollbar-color overflow-auto px-4 py-3 pr-10">
-            <pre className="font-mono text-sm leading-relaxed break-words whitespace-pre-wrap text-destructive">
+            <pre
+              className={cn(
+                "font-mono text-sm leading-relaxed break-words whitespace-pre-wrap",
+                cutOff ? "text-muted-foreground" : "text-destructive",
+              )}
+            >
               {part.errorText}
             </pre>
           </div>

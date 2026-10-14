@@ -99,9 +99,7 @@ export function LookPanel({
         // The viewer's own head closes it, beside the file's actions.
         showCloseButton={false}
       >
-        <DialogTitle className="sr-only">
-          {file?.name ?? "Quick Look"}
-        </DialogTitle>
+        <DialogTitle className="sr-only">{file?.name ?? "Preview"}</DialogTitle>
         {file && fileUrl !== undefined ? (
           <FileViewer
             className="h-full"

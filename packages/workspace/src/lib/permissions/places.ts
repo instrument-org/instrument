@@ -95,6 +95,18 @@ const PASSWORD_PLACES = [
   ".config/microsoft-edge",
   ".config/vivaldi",
   ".mozilla",
+  // The same browsers installed as a snap (Ubuntu's Firefox) or a Flatpak.
+  "snap/firefox",
+  "snap/chromium",
+  "snap/brave",
+  "snap/opera",
+  ".var/app/org.mozilla.firefox",
+  ".var/app/org.chromium.Chromium",
+  ".var/app/com.google.Chrome",
+  ".var/app/com.brave.Browser",
+  ".var/app/com.microsoft.Edge",
+  ".var/app/com.vivaldi.Vivaldi",
+  ".var/app/io.github.ungoogled_software.ungoogled_chromium",
   // Windows browsers, under AppData.
   "AppData/Local/Google/Chrome/User Data",
   "AppData/Local/Microsoft/Edge/User Data",
@@ -121,7 +133,13 @@ const STARTUP_PLACES = [
   ".bash_login",
   ".profile",
   ".config/fish/config.fish",
+  ".config/fish/conf.d",
+  // A function fish loads the first time its name is typed.
+  ".config/fish/functions",
   ".config/autostart",
+  // User units systemd starts, and the environment it gives every one.
+  ".config/systemd/user",
+  ".config/environment.d",
   "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup",
 ];
 
@@ -132,11 +150,28 @@ export function startupPaths(home = os.homedir()): string[] {
 
 /**
  * Names that make a folder run code when it is opened or used: a repository's
- * hooks, a git config, an editor's tasks. Changing one inside a folder the
- * person allowed would run code the next time they work in it, so they are
- * kept from changes anywhere but the chat's own folder.
+ * hooks and submodules, a git config, an editor's tasks, a folder's shell
+ * setup (direnv), and the settings, commands and servers another coding agent
+ * loads from it. Changing one inside a folder the person allowed would run
+ * code the next time they work in it, so they are kept from changes anywhere
+ * but the chat's own folder.
  */
-export const DANGEROUS_NAMES = [".git/hooks", ".gitconfig", ".vscode"];
+export const DANGEROUS_NAMES = [
+  ".git/hooks",
+  ".gitconfig",
+  // Git's other global config (`core.fsmonitor`, `core.hooksPath`).
+  ".config/git/config",
+  ".gitmodules",
+  ".vscode",
+  ".idea",
+  ".envrc",
+  ".mcp.json",
+  ".claude/settings.json",
+  ".claude/settings.local.json",
+  ".claude/commands",
+  ".claude/agents",
+  ".codex",
+];
 
 /**
  * A place as paths on this computer. `homeDotEntries` stands for every

@@ -12,6 +12,7 @@
  * whether the model then used the right command, and whether the command
  * returned the right answer.
  */
+import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
@@ -341,6 +342,236 @@ const assertNothingWentToTheBackground: Assertion = {
   text: "Left a short command in the foreground",
 };
 
+/**
+ * The messages after the first note of one of these kinds that woke the
+ * session, or undefined when none did.
+ */
+function afterTheWake(
+  sessions: Sessions,
+  kinds: SessionMessagePart.Type["type"][],
+) {
+  const messages = sessions.flatMap((session) => session.messages);
+  const woke = messages.findIndex((message) =>
+    message.parts.some((part) => kinds.includes(part.type)),
+  );
+  return woke === -1 ? undefined : messages.slice(woke + 1);
+}
+
+/**
+ * The turn ended while the command was still running, and its ending woke
+ * the session. A model that held the call open until the command finished
+ * never needed waking, and one that handed the process to a task with
+ * `task new --job` was woken by the task instead, which the reply below
+ * still credits.
+ */
+const assertWokenWhenItEnded: Assertion = {
+  check: ({ sessions }) => {
+    const after = afterTheWake(sessions, ["data-jobEvent"]);
+    const handedOff = bashCalls(sessions).find((call) =>
+      /\btask\s+new\b[^\n]*--job\b/.test(call.command),
+    );
+    return {
+      evidence:
+        after !== undefined
+          ? `Woken, with ${after.length} message(s) after the note`
+          : handedOff
+            ? `Handed the process to a task instead: \`${handedOff.command.replace(/\n[\s\S]*/, "")}\``
+            : "No wake note: the command finished inside a turn, or never did",
+      passed: after !== undefined,
+      text: "Was woken when the command ended after its turn",
+    };
+  },
+  text: "Was woken when the command ended after its turn",
+};
+
+/**
+ * What the conversation said once woken, by the process ending or by a task
+ * it handed the process to, names the code the command printed, which only
+ * the command's output holds: the note says how it ended, not what it wrote.
+ */
+const assertReportedTheCodeOnWaking: Assertion = {
+  check: async ({ childSessions, sessions }) => {
+    const children = (await childSessions()).flatMap((child) => child.sessions);
+    const code = /code (\d{6})\b/.exec(
+      toolResultText([...sessions, ...children]),
+    )?.[1];
+    const after =
+      afterTheWake(sessions, ["data-jobEvent", "data-taskEvent"]) ?? [];
+    const said = after
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.parts)
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n\n");
+    const passed = code !== undefined && said.includes(code);
+    return {
+      evidence:
+        code === undefined
+          ? `No tool result held the printed code (after waking: ${said.slice(0, 200) || "(nothing said)"})`
+          : passed
+            ? `Said ${code} after waking`
+            : `Never said ${code} after waking: ${said.slice(0, 240) || "(nothing said)"}`,
+      passed,
+      text: "Told the user the code the command printed, after waking",
+    };
+  },
+  text: "Told the user the code the command printed, after waking",
+};
+
+const MID_COMMAND_QUESTION = "unrelated, quick: what's 18% of 240?";
+
+/**
+ * The message typed while a foreground command ran moved that command to the
+ * background, rather than waiting behind it or cutting it short.
+ */
+const assertMovedForTheMessage: Assertion = {
+  check: ({ sessions }) => {
+    const moved = sessions
+      .flatMap((session) => session.messages)
+      .flatMap((message) => message.parts)
+      .filter(isBashCall)
+      .find(
+        (part) =>
+          "output" in part && part.output?.movedForMessageFrom === "user",
+      );
+    const text =
+      "The user's message moved the running command to the background";
+    return {
+      evidence: moved
+        ? `\`${String(moved.input?.command)}\` moved`
+        : `No call was moved for a message. Commands: ${describeCommands(bashCalls(sessions))}`,
+      passed: moved !== undefined,
+      text,
+    };
+  },
+  text: "The user's message moved the running command to the background",
+};
+
+/** Answered the question asked mid-command before the command ended. */
+const assertAnsweredWhileItRan: Assertion = {
+  check: ({ sessions }) => {
+    const text = replyText(sessions);
+    const passed = /\b43\.2\b/.test(text);
+    return {
+      evidence: passed
+        ? "Reply says 43.2"
+        : `Never answered: ${text.slice(0, 240) || "(no reply text)"}`,
+      passed,
+      text: "Answered the question sent while the command ran",
+    };
+  },
+  text: "Answered the question sent while the command ran",
+};
+
+/** Nobody asked to stop the command, so it was not stopped or started again. */
+const assertLeftTheCommandAlone: Assertion = {
+  check: ({ sessions }) => {
+    const calls = bashCalls(sessions);
+    const kills = calls.filter((call) =>
+      new RegExp(String.raw`(^|[\n;|&(])\s*${KILL_COMMAND.name}\b`).test(
+        call.command,
+      ),
+    );
+    const starts = calls.filter((call) => call.command.includes("setTimeout"));
+    const passed = kills.length === 0 && starts.length === 1;
+    return {
+      evidence: `kills: ${kills.length}, starts: ${starts.length}`,
+      passed,
+      text: "Neither stopped the command nor started it again",
+    };
+  },
+  text: "Neither stopped the command nor started it again",
+};
+
+/** Said the code the command printed once it ended, in the turn or a wake. */
+const assertReportedTheCode: Assertion = {
+  check: ({ sessions }) => {
+    const code = /code (\d{6})\b/.exec(toolResultText(sessions))?.[1];
+    const passed = code !== undefined && replyText(sessions).includes(code);
+    return {
+      evidence:
+        code === undefined
+          ? "No tool result held the printed code"
+          : passed
+            ? `Said ${code}`
+            : `Never said ${code}`,
+      passed,
+      text: "Told the user the code the command printed",
+    };
+  },
+  text: "Told the user the code the command printed",
+};
+
+/** What the user says once their Stop has cut a command off. */
+const AFTER_THE_STOP = "hi";
+
+/**
+ * The setup held: the user's Stop cut off a `sleep 60` call of the chat's
+ * own, before they wrote again.
+ */
+const assertStopCutTheCommand: Assertion = {
+  check: ({ sessions }) => {
+    const text = "The user's Stop cut off the running `sleep 60`";
+    const cut = sessions
+      .flatMap((session) => session.messages)
+      .flatMap((message) => message.parts)
+      .filter(
+        (part) =>
+          isBashCall(part) &&
+          part.state === "output-error" &&
+          part.errorText === STOPPED_TOOL_CALL_ERROR_TEXT &&
+          /\bsleep 60\b/.test(String(part.input?.command)),
+      );
+    return {
+      evidence:
+        cut.length > 0
+          ? `${String(cut.length)} call cut off by the stop`
+          : `No sleep call was cut off. Commands: ${describeCommands(bashCalls(sessions))}`,
+      passed: cut.length > 0,
+      text,
+    };
+  },
+  text: "The user's Stop cut off the running `sleep 60`",
+};
+
+/**
+ * Greeted after the stop, the agent ran nothing it was stopped from: no
+ * `sleep`, and no task carrying it.
+ */
+const assertDidNotRunItAgain: Assertion = {
+  check: ({ sessions }) => {
+    const text = "Did not run the stopped command again after a plain hi";
+    const chat = sessions[0];
+    const messages = chat?.messages ?? [];
+    const greeted = messages.findIndex(
+      (message) =>
+        message.role === "user" &&
+        message.parts.some(
+          (part) => part.type === "text" && part.text === AFTER_THE_STOP,
+        ),
+    );
+    if (!chat || greeted === -1) {
+      return { evidence: "The hi was never sent", passed: false, text };
+    }
+    const after = bashCalls([
+      { ...chat, messages: messages.slice(greeted + 1) },
+    ]);
+    const again = after.filter(
+      (call) =>
+        /\bsleep\s+\d/.test(call.command) ||
+        /(?:^|[\n;&|])\s*task new\b/.test(call.command),
+    );
+    return {
+      evidence:
+        again.length > 0
+          ? `Ran again: ${describeCommands(again)}`
+          : `Commands after the hi: ${describeCommands(after)}`,
+      passed: again.length === 0,
+      text,
+    };
+  },
+  text: "Did not run the stopped command again after a plain hi",
+};
+
 export const BACKGROUND_PROCESS_EVALS = [
   /**
    * Discovery, with nothing in the prompt naming the mechanism. A server never
@@ -425,6 +656,72 @@ export const BACKGROUND_PROCESS_EVALS = [
     name: "background-find-an-error-in-noisy-output",
     prompt:
       "Run a node script that prints 2000 lines of 'worker ok' but prints 'E_DISK_FULL: out of space' as line 900, then keeps printing 'worker ok' every second forever. Once it is running, tell me whether it logged any errors and what they were.",
+  }),
+
+  /**
+   * The ending after the turn. The agent is asked not to wait, so its turn
+   * ends with the command still running, the way it does when a command sits
+   * behind a privacy prompt nobody has answered yet; the command ending then
+   * wakes the conversation, and nobody types again. Run as a chat because a
+   * wake needs a conversation someone has written in.
+   */
+  defineEval({
+    assertions: [
+      assertPromotedAProcess,
+      assertWokenWhenItEnded,
+      assertReportedTheCodeOnWaking,
+    ],
+    kind: "chat",
+    name: "background-wakes-when-it-ends",
+    outlivesTurn: true,
+    prompt:
+      "Start this and don't wait around for it, it takes a while: node -e \"setTimeout(() => console.log('code ' + Math.floor(100000 + Math.random() * 900000)), 45000)\". Once it is running, tell me it has started and stop there. When it finishes, tell me the code it printed.",
+  }),
+
+  /**
+   * A message typed while a foreground command runs. The command is not cut:
+   * it moves to the background so the question is heard now, the agent
+   * answers it, and the code the command prints later still reaches the user,
+   * through `fg` in the same turn or the wake once it ends.
+   */
+  defineEval({
+    assertions: [
+      assertMovedForTheMessage,
+      assertAnsweredWhileItRan,
+      assertLeftTheCommandAlone,
+      assertReportedTheCode,
+    ],
+    followUps: [
+      {
+        duringWork: { afterToolCalls: 0, command: /setTimeout/ },
+        prompt: MID_COMMAND_QUESTION,
+      },
+    ],
+    kind: "chat",
+    name: "background-message-during-a-command",
+    outlivesTurn: true,
+    prompt:
+      "Run this and wait for it to finish, then tell me the code it printed: node -e \"setTimeout(() => console.log('code ' + Math.floor(100000 + Math.random() * 900000)), 60000)\"",
+  }),
+
+  /**
+   * The user presses Stop beside Send on a command the chat is running in
+   * the foreground, then writes a plain "hi". The Stop was their decision:
+   * the reply greets them and leaves the command stopped.
+   */
+  defineEval({
+    assertions: [assertStopCutTheCommand, assertDidNotRunItAgain],
+    followUps: [
+      {
+        duringWork: { afterToolCalls: 0, command: /\bsleep 60\b/ },
+        stopChat: true,
+      },
+      { prompt: AFTER_THE_STOP, settled: true },
+    ],
+    kind: "chat",
+    name: "background-stopped-command-then-hi",
+    prompt:
+      "Run `sleep 60` right here in this chat, not as a task, and wait for it to end before you reply.",
   }),
 
   /** The control: an ordinary command must not change behavior. */

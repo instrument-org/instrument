@@ -102,7 +102,8 @@ export const SETTINGS_INDEX = [
     title: "Change plan",
   },
   {
-    detail: "Your card and invoices, and canceling your subscription, in Stripe",
+    detail:
+      "Your card and invoices, and canceling your subscription, in Stripe",
     id: "billing-portal",
     tab: "Usage and billing",
     title: "Payment method and invoices",
@@ -277,6 +278,7 @@ export const SETTINGS_PAGES: Record<
   Debug: {
     detail: "Tools for working on the app.",
     developerOnly: true,
+    shownWhen: "the app runs on Linux",
   },
 };
 

@@ -152,7 +152,7 @@ export function FileDropRegion({
       endDrag();
 
       // A file this app put in the air, let go again without ever leaving the
-      // window. Attaching a task's own file to that same task is not what
+      // window. Attaching a chat's own file to that same chat is not what
       // anyone was reaching for; a click that moved far enough to drag is.
       if (isOwnDrag || !e.dataTransfer) {
         return;

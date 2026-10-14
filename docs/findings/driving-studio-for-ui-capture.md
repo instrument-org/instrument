@@ -73,6 +73,7 @@ Most of the list below has landed. `.agents/skills/studio-chrome-devtools/script
 - The dev panel can simulate the post-update toast and force the quit guard.
 
 - `boot --workspace <fixture>` runs against a workspace built from a committed description (`fixtures/workspaces/`) rather than the shared dev application-data directory, so a run no longer depends on what that machine did last.
+- A booted instance stays off screen until someone clicks its Dock icon, with background throttling off for its windows and their browser guests (`windows/on-screen.ts`). An occluded window no longer blanks its captures or drops its input, so the occlusion class of blank frame is gone for driven instances.
 
 What is still open: renderer HMR during scripted runs; `boot` freezes main and preload only. The native quit dialog remains uncapturable by CDP by construction.
 

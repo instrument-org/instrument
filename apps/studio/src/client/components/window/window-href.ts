@@ -216,11 +216,6 @@ export function matchScreen(href: string): Screen {
   return { kind: "unknown" };
 }
 
-/** Whether a screen is the chat: the inbox alone, or beside one chat. */
-export function isChatScreen(screen: Screen): boolean {
-  return screen.kind === "chat" || screen.kind === "inbox";
-}
-
 /**
  * The address of a chat's screen, or of a chat named by its session, which
  * opens at the chat that session is.

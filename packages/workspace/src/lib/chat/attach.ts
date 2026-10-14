@@ -2,13 +2,15 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { startAppEvents } from "../apps/events";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
 import { startChatUnreadOnSettle } from "./chats";
+import { startJobWake } from "./job-wake";
 import { startChatRetitle } from "./retitle";
 import { startChatWake } from "./wake";
 
 /**
  * Everything a chat needs from the process that owns the workspace
  * actor: a way for its `task` command to reach the machine, the subscribers
- * that wake it when a child finishes or the user acts on an app, the one
+ * that wake it when a child finishes, a background process it left running
+ * ends, or the user acts on an app, the one
  * that names a chat again once its first exchange settles, and the one that
  * marks a chat unread each time it settles.
  * Called once per actor by whoever creates one, rather than by the machine
@@ -18,6 +20,7 @@ import { startChatWake } from "./wake";
 export function attachChats(workspaceRef: WorkspaceActorRef): void {
   setWorkspaceActorRef(workspaceRef);
   startChatWake(workspaceRef);
+  startJobWake(workspaceRef);
   startAppEvents(workspaceRef);
   startChatRetitle();
   startChatUnreadOnSettle();

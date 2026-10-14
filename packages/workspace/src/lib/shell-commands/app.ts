@@ -156,7 +156,7 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       Draw the app with this icon: a square SVG, or a square PNG of at least
       128px, in place of its site's or its Mac app's. For a service whose site
       has no good one, a local app that drives no Mac app, or when the user
-      asks. A task can draw one; set it from the task's folder.
+      asks. A task can draw one; set it from the chat's folder.
   ${APP_COMMAND.name} account <slug> ['<account>'] [--clear]
       Name the account the app is signed in as, the way the user would know
       it ("jeremy@example.com", "Acme workspace"), so two apps for one service

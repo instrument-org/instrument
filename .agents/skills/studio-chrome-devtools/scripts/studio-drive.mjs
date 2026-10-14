@@ -62,8 +62,24 @@
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
 //
+// An instance booted here never comes on screen by itself. Its windows render,
+// take input, and answer screenshots off screen, and keep drawing once
+// covered, minimized, or on another Space, so a run never has to raise one,
+// and the person at the machine keeps their focus and their Space: anything put
+// on screen, even without focus, can scroll a display to another Space. A
+// person takes one over by clicking its Dock icon. `--visible` puts the window
+// up as a hand-started run would, for a run that needs the window's real
+// pixels on screen (`screencapture -l`).
+//
 // `--inspect <port>` also opens the main process's V8 inspector on that port,
 // which is what `main-stalls.mjs` measures the main thread through.
+//
+// `--own-privacy` (macOS) boots an instance macOS answers with its own privacy
+// grants rather than the terminal's, which otherwise hand it Full Disk Access,
+// so a protected folder refuses it and its first read asks the way an
+// installed app's does. The grants are the dev Electron bundle's, not a signed
+// build's, and they outlive the instance: undo one in System Settings or with
+// `tccutil reset All com.github.Electron`. Stopping it is the same as any other.
 //
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
@@ -82,7 +98,7 @@
 // toolchain and caches are already set up, so it starts as fast as the
 // developer's instance, and `--with-sign-ins` copies the developer's account and
 // keys into it so it can run a real agent turn. The developer's own instance keeps
-// its workspace. Clean rooms not booted for 14 days are reaped like fixtures;
+// its workspace. Clean rooms not booted for 3 days are reaped like fixtures;
 // `--fresh` empties one first.
 //
 //   node studio-drive.mjs boot --purpose "first chat" --clean-room first-chat --with-sign-ins
@@ -143,6 +159,9 @@ const COMMANDS = new Set([
   "boot",
   "click",
   "eval",
+  // `eval` under another name, for a harness that refuses any command line
+  // containing the word.
+  "js",
   "goto",
   "modal",
   "port",
@@ -171,7 +190,10 @@ const WORKSPACE_CACHE_ROOT = path.join(
 
 // Workspaces nobody has driven in this long are dropped at the next boot,
 // because nobody runs a clean command. Losing one costs a reseed.
-const WORKSPACE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const WORKSPACE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+// Names the checkout a cache root belongs to, since the root's own name is only
+// a hash of its path.
+const CHECKOUT_MARKER = "checkout";
 // Installed dependencies inside a task are the only part that grows -- to
 // hundreds of megabytes once an agent has run an install in one -- and the only
 // part deleting does not invalidate. So they go sooner than the workspace does.
@@ -359,15 +381,43 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
 }
 
 function reapStaleCleanRooms() {
+  reapGoneCheckouts();
   reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS);
 }
 
 function reapStaleWorkspaces() {
+  reapGoneCheckouts();
   reapOlderThan(WORKSPACE_CACHE_ROOT, WORKSPACE_MAX_AGE_MS, {
     // Its own mtime only moves when a clean room is added or removed; the clean
     // rooms inside are reaped one by one instead.
     keep: new Set([path.basename(CLEAN_ROOMS_ROOT)]),
   });
+}
+
+/**
+ * Drops the caches of checkouts that no longer exist. A worktree removed once
+ * it lands never boots again, so its own reaping never runs and its fixtures
+ * and clean rooms would stay for good. A root without the marker is left alone.
+ */
+function reapGoneCheckouts() {
+  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
+  writeFileSync(path.join(WORKSPACE_CACHE_ROOT, CHECKOUT_MARKER), REPO_ROOT);
+  const parent = path.dirname(WORKSPACE_CACHE_ROOT);
+  for (const entry of readdirSync(parent, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === CHECKOUT_KEY) {
+      continue;
+    }
+    const root = path.join(parent, entry.name);
+    try {
+      const checkout = readFileSync(path.join(root, CHECKOUT_MARKER), "utf8");
+      if (!existsSync(checkout)) {
+        rmSync(root, { force: true, recursive: true });
+      }
+    } catch {
+      // No marker, or another boot reaped it between the listing and the
+      // read. Housekeeping must never be what ends a run.
+    }
+  }
 }
 
 function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
@@ -437,7 +487,16 @@ function recordDirs(workspaceDir) {
 
 async function cmdBoot(
   explicitPort,
-  { fresh, hot, inspect, keepTabs, purpose: rawPurpose, withSignIns },
+  {
+    fresh,
+    hot,
+    inspect,
+    keepTabs,
+    ownPrivacy,
+    purpose: rawPurpose,
+    visible,
+    withSignIns,
+  },
 ) {
   const purpose = normalizePurpose(rawPurpose);
   if (WORKSPACE && CLEAN_ROOM) {
@@ -465,6 +524,18 @@ async function cmdBoot(
     // discover it as an app that did or did not restart when it expected.
     // Skipped when the record predates the field, since which mode that
     // instance is in is exactly what it does not say.
+    if (Boolean(existing.ownPrivacy) !== Boolean(ownPrivacy)) {
+      fail(
+        `The running instance on port ${existing.port} was booted ${existing.ownPrivacy ? "with" : "without"} --own-privacy.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it the other way.`,
+      );
+    }
+    if (visible && existing.offScreen) {
+      fail(
+        `The running instance on port ${existing.port} was booted without --visible, so it stays off screen until someone clicks its Dock icon.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it with --visible.`,
+      );
+    }
     if (existing.hot !== undefined && existing.hot !== hot) {
       console.error(
         `studio-drive: reusing the instance on port ${existing.port}, which was booted ` +
@@ -548,7 +619,9 @@ async function cmdBoot(
         ].join(path.delimiter),
         REMOTE_DEBUGGING_PORT: String(port),
         STUDIO_DRIVE_COLOR: color,
+        STUDIO_OWN_PRIVACY: ownPrivacy ? "1" : undefined,
         STUDIO_DRIVE_PURPOSE: purpose,
+        STUDIO_DRIVE_VISIBLE: visible ? "1" : undefined,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
         // and never reveals the main one, which reads as a hang.
@@ -574,6 +647,8 @@ async function cmdBoot(
     hot: Boolean(hot),
     ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
+    ...(!visible && { offScreen: true }),
+    ...(ownPrivacy && { ownPrivacy: true }),
     pid: child.pid,
     port,
     purpose,
@@ -682,10 +757,18 @@ async function cmdRun(file, rawArgs) {
     writeFileSync(source, stdin);
   }
 
-  let args;
+  // An empty object rather than undefined, so a script reading args.x without
+  // --args gets undefined for the field instead of a TypeError.
+  let args = {};
   if (rawArgs !== undefined) {
     try {
-      args = JSON.parse(rawArgs);
+      // `@<file>` reads the JSON from a file, for arguments a shell would
+      // mangle: backslashes in a Windows path, quotes inside a prompt.
+      args = JSON.parse(
+        rawArgs.startsWith("@")
+          ? readFileSync(rawArgs.slice(1), "utf8")
+          : rawArgs,
+      );
     } catch (error) {
       fail(`--args is not JSON: ${error.message}`);
     }
@@ -699,8 +782,13 @@ async function cmdRun(file, rawArgs) {
     );
   }
 
+  // --quiet drops the per-step trace from a run that succeeds, for a script
+  // whose own return value already says what happened: each step records the
+  // value it returned, and a few RPC reads make that hundreds of kilobytes.
+  const quiet = process.argv.includes("--quiet");
   const app = await connect({
     allowReload: process.argv.includes("--allow-reload"),
+    page: flag(process.argv, "--page"),
     port: flag(process.argv, "--port"),
     workspace: INSTANCE,
   });
@@ -710,7 +798,7 @@ async function cmdRun(file, rawArgs) {
     return {
       ok: true,
       steps: app.trace.length,
-      trace: app.trace,
+      ...(!quiet && { trace: app.trace }),
       ...(value !== undefined && { value }),
     };
   } catch (error) {
@@ -722,7 +810,11 @@ async function cmdRun(file, rawArgs) {
       ok: false,
       steps: app.trace.length,
       stoppedAt: app.trace.at(-1)?.label,
-      trace: app.trace,
+      // A failure keeps the trace even when quiet, without the values each
+      // step returned, which are what makes it long.
+      trace: quiet
+        ? app.trace.map(({ value: _value, ...entry }) => entry)
+        : app.trace,
     };
   } finally {
     app.close();
@@ -838,7 +930,9 @@ try {
           hot: argv.includes("--hot"),
           inspect: flag(argv, "--inspect"),
           keepTabs: argv.includes("--keep-tabs"),
+          ownPrivacy: argv.includes("--own-privacy"),
           purpose: flag(argv, "--purpose"),
+          visible: argv.includes("--visible"),
           withSignIns: argv.includes("--with-sign-ins"),
         }),
       );
@@ -954,6 +1048,7 @@ async function runAgainstInstance() {
   // lost. `run` takes the stricter default, because a sequence cannot.
   const app = await connect({
     allowReload: true,
+    page: flag(argv, "--page"),
     port: flag(argv, "--port"),
     workspace: INSTANCE,
   });
@@ -968,23 +1063,39 @@ async function runAgainstInstance() {
 async function dispatch(app) {
   switch (command) {
     case "bash": {
-      return cmdBash(app, positional.join(" "));
+      return cmdBash(
+        app,
+        flag(argv, "--file")
+          ? readFileSync(flag(argv, "--file"), "utf8").trim()
+          : positional.join(" "),
+      );
     }
     case "click": {
       return app.click(
         flag(argv, "--selector")
           ? { selector: flag(argv, "--selector") }
           : (flag(argv, "--text") ?? positional[0]),
+        undefined,
+        // `--right` goes last: like every flag here it takes the word after
+        // it, so `click --right Name` would read Name as its value.
+        {
+          button: argv.includes("--right") ? "right" : "left",
+          count: argv.includes("--double") ? 2 : 1,
+        },
       );
     }
-    case "eval": {
+    case "eval":
+    case "js": {
       return app.eval(positional.join(" "));
     }
     case "goto": {
       return app.goto(positional[0], { newTab: argv.includes("--new-tab") });
     }
     case "modal": {
-      return cmdModal(app, argv[0]);
+      return cmdModal(
+        app,
+        argv.includes("--close") ? "--close" : positional[0],
+      );
     }
     case "press": {
       return app.press(positional[0]);

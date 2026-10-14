@@ -17,12 +17,7 @@ import {
 } from "@/client/lib/live-file";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-  indentWithTab,
-} from "@codemirror/commands";
+import { history } from "@codemirror/commands";
 import {
   bracketMatching,
   HighlightStyle,
@@ -32,7 +27,7 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { search, searchKeymap } from "@codemirror/search";
+import { search } from "@codemirror/search";
 import {
   Annotation,
   ChangeSet,
@@ -62,6 +57,7 @@ import {
 } from "@codemirror/view";
 
 import { instrumentMark } from "../markdown-editor/icons";
+import { CODE_EDITOR_KEYS } from "./keymap";
 import {
   changesBetween,
   detectIndent,
@@ -459,6 +455,26 @@ export function createCodeSession(options: CodeSessionOptions) {
     text.replaceAll(/\r\n?|\n/g, disk.form.lineBreak),
   );
 
+  // The main process hears when the editor takes and gives up the keyboard,
+  // so the window's chords that are also this editor's keys reach it first
+  // (`CODE_EDITOR_SHORTCUTS`). An editor torn down while it has the keyboard
+  // fires no blur, so `destroy` gives it up too.
+  let focused = false;
+  const setFocused = (next: boolean) => {
+    if (next !== focused) {
+      focused = next;
+      window.api?.codeEditorFocus?.(next);
+    }
+  };
+  const reportFocus = EditorView.domEventObservers({
+    blur: () => {
+      setFocused(false);
+    },
+    focus: () => {
+      setFocused(true);
+    },
+  });
+
   view.setState(
     EditorState.create({
       doc: Text.of(form.body.split(form.lineBreak)),
@@ -479,12 +495,8 @@ export function createCodeSession(options: CodeSessionOptions) {
         EditorState.readOnly.of(options.readOnly),
         search({ top: true }),
         searchPhrases,
-        keymap.of([
-          ...searchKeymap,
-          ...defaultKeymap,
-          ...historyKeymap,
-          indentWithTab,
-        ]),
+        keymap.of(CODE_EDITOR_KEYS),
+        reportFocus,
         codeHighlighting,
         language.of([]),
         wrap.of(options.wrapLines ? EditorView.lineWrapping : []),
@@ -564,6 +576,7 @@ export function createCodeSession(options: CodeSessionOptions) {
       if (destroyed) {
         return;
       }
+      setFocused(false);
       stopFlushOnLeave();
       await saves.flush();
       destroyed = true;

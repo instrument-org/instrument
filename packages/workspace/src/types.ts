@@ -155,6 +155,14 @@ export interface WorkspaceConfig {
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
   chatTemplateDir: AbsolutePath;
+  /**
+   * What the system's file manager calls each drive at `roots` (`C:\`), by
+   * its root, for the Files sidebar's Locations: "Local Disk (C:)" on
+   * Windows. Answers within a moment with what it knows, so the sidebar never
+   * waits on the system; a root it does not name yet goes by its letter.
+   * Absent off Windows, where a disk is named by the folder it is mounted at.
+   */
+  driveNames?: (roots: string[]) => Promise<Record<string, string>>;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
   /**

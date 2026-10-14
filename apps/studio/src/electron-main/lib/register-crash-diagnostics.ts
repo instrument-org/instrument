@@ -51,7 +51,7 @@ let isWritingCrashRecord = false;
  * report the user chooses to send with nothing to redact first. The
  * uncaught-exception and unhandled-rejection records are not: they carry the
  * throw's message and stack, and a message is whatever the throw put in it. A
- * rejected task-file read names a host path and a task directory whose name
+ * rejected chat-file read names a host path and a chat folder whose name
  * came from the user's own prompt.
  *
  * Two records cover what no JavaScript handler can see. Crashpad writes a

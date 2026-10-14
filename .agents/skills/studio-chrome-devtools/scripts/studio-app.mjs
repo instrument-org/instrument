@@ -214,7 +214,7 @@ export async function resolvePort({ port, workspace } = {}) {
  */
 const isAppWindow = (target) => !target.url.includes("#/onboarding");
 
-async function pickTarget(origin) {
+async function pickTarget(origin, page = "app") {
   let list;
   try {
     const response = await fetch(`${origin}/json/list`);
@@ -228,23 +228,27 @@ async function pickTarget(origin) {
   const pages = list.filter(
     (t) => t.type === "page" && t.url.includes("/renderer/"),
   );
-  const page = pages.find((target) => isAppWindow(target));
-  if (!page) {
+  const wanted = pages.find((target) =>
+    page === "onboarding" ? !isAppWindow(target) : isAppWindow(target),
+  );
+  if (!wanted) {
     if (pages.length === 0) {
       fail(
         `No Studio renderer among ${list.length} target(s). Is the window open?`,
       );
     }
     fail(
-      `No app window among ${pages.length} Studio page(s). Onboarding may still be up.`,
+      page === "onboarding"
+        ? `No onboarding window among ${pages.length} Studio page(s); drive the app window without --page.`
+        : `No app window among ${pages.length} Studio page(s). Onboarding is up: pass --page onboarding to drive it.`,
     );
   }
-  return page;
+  return wanted;
 }
 
 /** A raw CDP connection. {@link connect} is what a caller usually wants. */
-export async function openCdp(origin) {
-  const target = await pickTarget(origin);
+export async function openCdp(origin, { page } = {}) {
+  const target = await pickTarget(origin, page);
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     socket.addEventListener("open", resolve, { once: true });
@@ -279,9 +283,29 @@ export async function openCdp(origin) {
     }
   });
 
+  // A page that goes away mid-call (the onboarding window closing as it
+  // finishes, a window reloading) never answers. Fail what is waiting rather
+  // than leave it unsettled, which ends the process with no result at all.
+  let closed = false;
+  socket.addEventListener("close", () => {
+    closed = true;
+    for (const entry of pending.values()) {
+      entry.reject(
+        new DriveError(
+          "The page closed while a command was waiting on it. If it was the onboarding window, onboarding has finished: drive the app window.",
+        ),
+      );
+    }
+    pending.clear();
+  });
+
   const send = (method, parameters = {}) => {
     const id = ++nextId;
     return new Promise((resolve, reject) => {
+      if (closed) {
+        reject(new DriveError("The page is closed."));
+        return;
+      }
       pending.set(id, { reject, resolve });
       socket.send(JSON.stringify({ id, method, params: parameters }));
     });
@@ -386,23 +410,37 @@ const RECT_FOR = (kind, needle) => `(() => {
     const r = n.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   };
-  const onScreen = (r) =>
-    r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  // The point a click lands on, the element's center, has to be inside the
+  // window, not just some edge of the element: a row cut off at the bottom
+  // has its top on screen and its center below the fold.
+  const onScreen = (r) => {
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    return x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
+  };
 
   // Every role a menu item can carry, not just [role=menuitem]: a checkable row
   // (Radix's CheckboxItem/RadioItem, which is how a menu offers a choice rather
   // than an action) takes one of the other two, and leaving them out made a
   // whole class of menu unclickable by name.
-  const CLICKABLE = "button, a, [role=button], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=tab]";
+  // Options, checkboxes, switches and radios are named controls too: a select's
+  // list and a settings toggle are otherwise reachable only by selector.
+  const CLICKABLE = "button, a, [role=button], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=tab], [role=option], [role=checkbox], [role=switch], [role=radio]";
+  // Whitespace is folded on both sides, so a name copied from snapshot, which
+  // prints a label and its shortcut on one line, matches the element whose
+  // innerText puts them on two. The backslash is doubled because this is
+  // template-literal source: the page has to receive \\s, not s.
+  const fold = (text) => (text ?? "").replace(/\\s+/g, " ").trim();
+  const wanted = fold(needle);
 
   let el = null;
   if (${JSON.stringify(kind)} === "selector") {
     el = document.querySelector(needle);
   } else {
     const named = Array.from(document.querySelectorAll(CLICKABLE))
-      .filter((n) => rendered(n) && ((n.getAttribute("aria-label") ?? "") === needle || (n.innerText ?? "").trim() === needle));
+      .filter((n) => rendered(n) && (fold(n.getAttribute("aria-label")) === wanted || fold(n.innerText) === wanted));
     el = named[0] ?? Array.from(document.querySelectorAll("*"))
-      .filter((n) => n.children.length === 0 && (n.textContent ?? "").trim() === needle && rendered(n))
+      .filter((n) => n.children.length === 0 && fold(n.textContent) === wanted && rendered(n))
       .map((n) => n.closest(CLICKABLE) ?? n)[0] ?? null;
   }
   if (!el) return null;
@@ -416,7 +454,20 @@ const RECT_FOR = (kind, needle) => `(() => {
     r = el.getBoundingClientRect();
     scrolled = true;
   }
+  // What a real click at the center would land on. A floating draft or an
+  // overlay above the target takes the click while the dispatch still reports
+  // success, so name what is on top instead.
+  const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+  const describe = (n) => {
+    const role = n.getAttribute("role");
+    const name = fold(n.getAttribute("aria-label") || n.innerText).slice(0, 60);
+    return n.tagName.toLowerCase() + (role ? "[role=" + role + "]" : "") + (name ? ' "' + name + '"' : "");
+  };
+  const covered = hit && hit !== el && !el.contains(hit) && !hit.contains(el)
+    ? describe(hit)
+    : null;
   return {
+    covered,
     height: r.height,
     offScreen: !onScreen(r),
     scrolled,
@@ -520,9 +571,14 @@ const WAIT_POLL_MS = 100;
  * it happened and say so. Pass `{ allowReload: true }` when the sequence is
  * meant to survive one, or is testing one.
  */
-export async function connect({ allowReload = false, port, workspace } = {}) {
+export async function connect({
+  allowReload = false,
+  page,
+  port,
+  workspace,
+} = {}) {
   const resolved = await resolvePort({ port, workspace });
-  const cdp = await openCdp(`http://127.0.0.1:${resolved}`);
+  const cdp = await openCdp(`http://127.0.0.1:${resolved}`, { page });
 
   const trace = [];
   const app = {
@@ -582,12 +638,33 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
     }
   };
 
+  // Waits for the page to draw after input, and says what happened instead
+  // when it does not, since the input itself was delivered either way. A
+  // window that is covered, minimized, or under a native dialog the input
+  // just opened stops drawing, so its frames never come; a click that
+  // finishes onboarding closes the page outright. Undefined means it drew.
   const settle = async () => {
     await sleep(150);
-    await evaluate(
-      cdp,
-      "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))",
-    );
+    const framed = (async () => {
+      try {
+        return await evaluate(
+          cdp,
+          "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))",
+        );
+      } catch (error) {
+        if (error instanceof DriveError) return "closed";
+        throw error;
+      }
+    })();
+    const timedOut = sleep(5000).then(() => false);
+    const outcome = await Promise.race([framed, timedOut]);
+    if (outcome === "closed") {
+      return "The page closed after the input (onboarding finishing, a window closing).";
+    }
+    if (!outcome) {
+      return "The window drew no frame for 5 seconds after the input: a native dialog it opened, or another window, is in front of it. If nothing opened, bring it to the front and look again.";
+    }
+    return undefined;
   };
 
   const drive = async (call) => {
@@ -601,25 +678,41 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
      * button but not a handler mounted on an ancestor -- and returns as if it
      * worked.
      */
-    click: async (target, label) => {
+    click: async (target, label, { button = "left", count = 1 } = {}) => {
       const { kind, needle } = targetOf(target);
       return step(label ?? `click ${needle}`, async () => {
         const rect = await rectFor(cdp, kind, needle);
         const x = Math.round(rect.x + rect.width / 2);
         const y = Math.round(rect.y + rect.height / 2);
-        for (const type of ["mousePressed", "mouseReleased"]) {
-          await cdp.send("Input.dispatchMouseEvent", {
-            button: "left",
-            clickCount: 1,
-            type,
-            x,
-            y,
-          });
+        // The pointer arrives before it presses, as a real one does: a menu
+        // trigger that tracks hover ignores a bare press.
+        await cdp.send("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x,
+          y,
+        });
+        // A double click is two presses, the second carrying clickCount 2,
+        // which is what fires dblclick.
+        for (let press = 1; press <= count; press++) {
+          for (const type of ["mousePressed", "mouseReleased"]) {
+            await cdp.send("Input.dispatchMouseEvent", {
+              button,
+              clickCount: press,
+              type,
+              x,
+              y,
+            });
+          }
         }
-        await settle();
+        const afterInput = await settle();
         // Recorded because it means the page moved under the run: what was on
         // screen before this step is not what is on screen after it.
-        return { x, y, ...(rect.scrolled && { scrolledIntoView: true }) };
+        return {
+          x,
+          y,
+          ...(rect.scrolled && { scrolledIntoView: true }),
+          ...(afterInput && { afterInput }),
+        };
       });
     },
 
@@ -702,6 +795,11 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
      */
     rpc: (route, input, label) =>
       step(label ?? `rpc ${route}`, () => callRpc(cdp, route, input)),
+    /** The current value of a live (event iterator) route, such as permissions.liveAsks. */
+    rpcFirst: (route, input, label) =>
+      step(label ?? `rpc ${route} (first)`, () =>
+        callRpc(cdp, route, input, { first: true }),
+      ),
 
     /** Screenshot the window, or one element, cropped browser-side. */
     shot: (file, { label, pad = 0, selector, text } = {}) =>
@@ -734,7 +832,12 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
         }
         await settle();
         const landed = await evaluate(cdp, FOCUSED_TEXT);
-        if (landed !== null && landed.includes(text)) {
+        if (landed === null) {
+          fail(
+            "Nothing had focus, so the keys went nowhere. Click the field first.",
+          );
+        }
+        if (landed.includes(text)) {
           return { length: text.length };
         }
         // The focused element disagrees with what was sent. Say so here: a
@@ -826,7 +929,7 @@ const preview = (text) => {
  * the alphanumerics, and the punctuation a US layout places -- because a wrong
  * one is worse than an absent one.
  */
-function keyDescriptor(combination) {
+function keyDescriptor(combination, { windowsTarget }) {
   const parts = String(combination).split("+");
   // A trailing `+` is the plus key itself rather than an empty modifier.
   const name = parts.pop() || "+";
@@ -867,7 +970,9 @@ function keyDescriptor(combination) {
       // is what matches `About <app>`: the first item of the first menu, and
       // the one item carrying no key equivalent of its own. The chord appears
       // to do nothing and the About panel opens over whatever the user is in.
-      ...(process.platform === "win32" && {
+      // What counts is the platform the app runs on, which over a tunnel is
+      // not the one driving it.
+      ...(windowsTarget && {
         nativeVirtualKeyCode: descriptor.keyCode,
       }),
       windowsVirtualKeyCode: descriptor.keyCode,
@@ -879,7 +984,13 @@ function keyDescriptor(combination) {
 }
 
 async function pressKey(cdp, combination) {
-  const descriptor = keyDescriptor(combination);
+  cdp.windowsTarget ??= await evaluate(
+    cdp,
+    'navigator.userAgent.includes("Windows")',
+  );
+  const descriptor = keyDescriptor(combination, {
+    windowsTarget: cdp.windowsTarget,
+  });
   // A `keyDown` carrying `text` is the entire insertion: Blink derives the
   // keypress from that text itself, so a `char` sent after one types the
   // character a second time. `rawKeyDown` is the form for a key that inserts
@@ -905,6 +1016,12 @@ export async function rectFor(cdp, kind, needle) {
         `(${Math.round(rect.x)},${Math.round(rect.y)}). Open or scroll whatever contains it first.`,
     );
   }
+  if (rect.covered) {
+    fail(
+      `Found ${kind} ${JSON.stringify(needle)}, but ${rect.covered} is on top of it, so a click would land there. ` +
+        `Close or move whatever covers it first.`,
+    );
+  }
   return rect;
 }
 
@@ -921,7 +1038,7 @@ export async function rectFor(cdp, kind, needle) {
  * under `data`), and none of that survives being reported as the description of
  * a thrown exception.
  */
-export async function callRpc(cdp, route, input) {
+export async function callRpc(cdp, route, input, { first = false } = {}) {
   await waitForDebugBridge(cdp);
 
   const outcome = await evaluate(
@@ -930,7 +1047,16 @@ export async function callRpc(cdp, route, input) {
       try {
         const value = await window.__studioDebug.rpc(${JSON.stringify(route)}, ${JSON.stringify(input) ?? "undefined"});
         if (value && typeof value[Symbol.asyncIterator] === "function") {
-          return { iterator: true };
+          if (!${first}) return { iterator: true };
+          // A live route yields its current value first; take that and close it.
+          const iterator = value[Symbol.asyncIterator]();
+          const next = await Promise.race([
+            iterator.next(),
+            new Promise((resolve) => setTimeout(() => resolve({ timedOut: true }), 10000)),
+          ]);
+          await iterator.return?.();
+          if (next.timedOut) return { error: { message: "no value within 10 s" } };
+          return { json: JSON.stringify(next.value) ?? "null" };
         }
         return { json: JSON.stringify(value) ?? "null" };
       } catch (error) {
@@ -948,7 +1074,7 @@ export async function callRpc(cdp, route, input) {
   if (outcome.iterator) {
     fail(
       `"${route}" is an event iterator, and one cannot be carried back through a single evaluation.\n` +
-        `Poll its plain counterpart instead: chats.tasks for chats.live.tasks.`,
+        `Poll its plain counterpart instead (chats.tasks for chats.live.tasks), or read its current value with app.rpcFirst.`,
     );
   }
 

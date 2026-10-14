@@ -31,11 +31,29 @@ vi.mock("./child-tasks-query", () => ({
   useChatTasks: () => ({ data: listed.tasks }),
 }));
 
+const { stopSessions } = vi.hoisted(() => ({
+  stopSessions:
+    vi.fn<(input: { id: string; sessionId?: string }) => Promise<void>>(),
+}));
+
+vi.mock("@/client/rpc/client", () => ({
+  rpcClient: {
+    workspace: {
+      session: {
+        stop: { mutationOptions: () => ({ mutationFn: stopSessions }) },
+      },
+    },
+  },
+}));
+
 beforeEach(() => {
+  stopSessions.mockReset();
+  stopSessions.mockResolvedValue(undefined);
   listed.tasks = [
     ...RUNNING.map((task, index) => ({
       id: task.id,
       standing: { kind: "running", line: task.step },
+      stoppable: true,
       title: task.title,
       updatedAt: new Date(2026, 9, 5, 15, 10 - index),
     })),
@@ -83,6 +101,89 @@ describe("ChatActivity", () => {
     expect(onOpen).toHaveBeenCalledWith(packing);
   });
 
+  it("stops one working task from its row, and offers no stop on a finished one", async () => {
+    const onOpen = vi.fn();
+    await inHead(800, onOpen);
+    await userEvent.click(
+      page.getByRole("button", { name: "3 tasks working" }),
+    );
+    await expect
+      .element(page.getByRole("button", { name: "Stop this task" }).nth(2))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "Stop this task" }).nth(3))
+      .not.toBeInTheDocument();
+    await userEvent.click(
+      page.getByRole("button", { name: "Stop this task" }).first(),
+    );
+    await expect
+      .poll(() => stopSessions.mock.calls[0]?.[0])
+      .toEqual({ id: CHAT_ID, sessionId: tram });
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("keeps every other task's stop while one task's stop is on its way", async () => {
+    stopSessions.mockReturnValue(new Promise(() => {}));
+    await inHead(800);
+    await userEvent.click(
+      page.getByRole("button", { name: "3 tasks working" }),
+    );
+    const stops = page.getByRole("button", { name: "Stop this task" });
+    await userEvent.click(stops.first());
+    await expect.element(stops.first()).toBeDisabled();
+    await expect.element(stops.nth(1)).toBeEnabled();
+  });
+
+  // Its turn ended with a card still up: no agent is at work, but it waits
+  // on the person, and its Stop takes it off the card.
+  it("lists a task waiting on a card with what it waits for, and keeps its stop", async () => {
+    listed.tasks = [
+      {
+        ...PACKING,
+        standing: {
+          kind: "waiting",
+          line: "Waiting for your OK to use “Packing”",
+        },
+        stoppable: true,
+        working: false,
+      },
+    ];
+    await renderInBrowser(
+      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
+    );
+    await userEvent.click(page.getByRole("button", { name: "1 task" }));
+    await expect.element(page.getByText("Running")).toBeVisible();
+    await expect.element(page.getByText("Finished")).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("Waiting for your OK to use “Packing”"))
+      .toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Stop this task" }));
+    await expect
+      .poll(() => stopSessions.mock.calls[0]?.[0])
+      .toEqual({ id: CHAT_ID, sessionId: packing });
+  });
+
+  it.each([
+    ["user", "You stopped this task"],
+    ["chat", "The chat stopped this task"],
+  ] as const)(
+    "says the %s stopped a task, rather than drawing it done",
+    async (stoppedBy, said) => {
+      listed.tasks = [
+        {
+          ...PACKING,
+          standing: { kind: "done", line: "Stopped while packing" },
+          stoppedBy,
+        },
+      ];
+      await renderInBrowser(
+        <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
+      );
+      await userEvent.click(page.getByRole("button", { name: "1 task" }));
+      await expect.element(page.getByText(said)).toBeVisible();
+    },
+  );
+
   it("offers the finished tasks while nothing runs", async () => {
     listed.tasks = [PACKING];
     const onOpen = vi.fn();
@@ -93,6 +194,31 @@ describe("ChatActivity", () => {
     await expect.element(page.getByText("Running")).not.toBeInTheDocument();
     await userEvent.click(page.getByRole("button", { name: /Packing list/ }));
     expect(onOpen).toHaveBeenCalledWith(packing);
+  });
+
+  it("says why a finished task failed, and nothing under one that is done", async () => {
+    listed.tasks = [
+      PACKING,
+      {
+        id: tram,
+        standing: {
+          kind: "failed",
+          line: "The app closed while counting the stops",
+        },
+        title: "Tram 28 history",
+        updatedAt: new Date(2026, 9, 5, 14, 30),
+      },
+    ];
+    await renderInBrowser(
+      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
+    );
+    await userEvent.click(page.getByRole("button", { name: "2 tasks" }));
+    await expect
+      .element(page.getByText("The app closed while counting the stops"))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Made packing-list.md"))
+      .not.toBeInTheDocument();
   });
 
   it("draws nothing for a chat that filed no task", async () => {

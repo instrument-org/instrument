@@ -15,7 +15,7 @@ LINUX_HOST=.agents/skills/test-studio-on-linux/scripts/linux-studio-host.mjs
 DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 ```
 
-`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Linux host changes. `test-studio-on-windows` is its sibling and the two are deliberately shaped alike, so what you know from one transfers.
+`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Linux host changes. Anything on the host outside Studio's window, such as a native dialog or the system browser during sign-in, goes through `drive-host-desktop`. `test-studio-on-windows` is its sibling and the two are deliberately shaped alike, so what you know from one transfers.
 
 The SSH alias must already work noninteractively. A user must stay logged into the desktop, because the launcher inherits that session's environment to find a display. The host must have `~/.instrument/studio-host.json`; `status` explains when it is missing.
 
@@ -23,11 +23,23 @@ If the profile or the systemd unit is missing, read [references/host-enrollment.
 
 ## Choose the target
 
-Only `installed` is enrolled. It validates the installed packaged product, uses the production user data, and can mutate real local application state. Route helpers do not exist, so use generic `eval`, `click`, `press`, `wait`, and `shot` operations.
+Two targets are enrolled, `installed` and `preview`. `installed` validates the installed packaged product, uses the production user data, and can mutate real local application state. Route helpers do not exist, so use generic `eval`, `click`, `press`, `wait`, and `shot` operations.
 
 There is no `dev` target: enrolling one needs a checkout and a Node toolchain on the host, neither of which a bare desktop install has. The profile schema leaves room for it, and the enrollment reference describes the shape.
 
-A preview build is how to test a branch's packaged app without touching the installed one. `gh workflow run preview.yml --ref <branch> -f os=linux` (or `all`) builds both architectures, and `gh api repos/instrument-org/instrument/actions/artifacts/<id>/zip > preview.tar.gz` fetches one as the file itself (the run's `artifacts` endpoint lists ids); `gh run download` fails on it, since it expects every artifact to be a zip. Take the `tar.gz` matching the host, since the AppImage needs FUSE. Unpacked, it runs as `instrument-preview-<name>` with its own user data, and `window.__studioDrive` is attached, so route helpers work. No `preview` target is enrolled yet: start it the way [references/host-enrollment.md](references/host-enrollment.md) starts the installed app, with the preview's executable and a CDP port of its own. Every build is a first launch, since the run number is part of its name; for another first launch, build again.
+`preview` tests a branch's packaged app without touching the installed one. `gh workflow run preview.yml --ref <branch> -f os=linux` (or `all`) builds both architectures; then:
+
+```bash
+node "$LINUX_HOST" install-preview --host "$HOST" --run <run-id>
+node "$LINUX_HOST" start --host "$HOST" --target preview [--name <preview-name>]
+node "$LINUX_HOST" tunnel --host "$HOST" --target preview --local-port 49173
+node "$LINUX_HOST" stop --host "$HOST" --target preview
+node "$LINUX_HOST" remove-preview --host "$HOST" --all-but-latest      # or --name <a>,<b>
+```
+
+`remove-preview` deletes superseded previews and their data (a running one is skipped) and reports the free space left; the VM's disk is small.
+
+`install-preview` takes the run's `tar.gz` for the host's architecture (the AppImage needs FUSE), cached locally by artifact id, unpacks it under `~/.local/share/instrument-previews/<name>`, and makes Chromium's `chrome-sandbox` root-owned and setuid through `sudo -n`, without which the app will not start (`sandboxReady` says whether that worked). `start` runs the named preview, or the newest, as a transient user unit with its own CDP port, so it inherits the desktop session the way the installed unit does. It runs as `instrument-preview-<name>` with its own user data, and `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. `stop` sends SIGTERM to the app's main process only, as quitting would, and kills what is left after ten seconds. Never stop it with `systemctl --user stop` alone: signaling every process in the unit at once kills the GPU process mid-teardown, Chromium exits with `GPU process isn't usable`, and the main thread spins at full CPU until systemd's 90-second SIGKILL. That is a product bug a logout or shutdown also hits, not a quirk of the tooling.
 
 ## Establish source identity
 
@@ -97,6 +109,8 @@ node "$LINUX_HOST" stop --host "$HOST" --target installed
 ```
 
 Stopping reports `portReleased` and any surviving processes. Both matter here: the desktop environment can re-home a launched app into its own scope, outside the unit's control group, and then stopping the unit leaves children alive holding the debug port. Stop also stops the scopes those children are in, so treat a non-empty `survivingProcesses` or `portReleased: false` as something to investigate rather than retry through.
+
+When the host is a UTM guest on the Mac you run from, the helper also powers the guest itself: `vm-start --host "$HOST" --vm "<UTM name>"` starts it if needed and waits for SSH, and `vm-stop` shuts it down from inside (`sudo -n systemctl poweroff`) and waits for UTM to report it stopped, never forcing it. Unlike the Mac VM the guest is never replaced, because it carries a signed-in browser and the installed release app. Stop the preview first; a shutdown with the app running hits the 90-second hang above.
 
 ## Troubleshooting
 

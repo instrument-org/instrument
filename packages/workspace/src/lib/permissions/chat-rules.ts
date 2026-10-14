@@ -11,6 +11,7 @@ import { chatGrants } from "../chat/grants";
 import { chatDenials } from "./denials";
 import { type NativeReach } from "../native-sandbox";
 import { nodeToolsDir } from "../tool-isolation";
+import { uvPythonInstallDir } from "../tool-isolation-env";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { readPermissionSettings, type Rules, rulesFor } from "./rules";
@@ -70,7 +71,6 @@ export async function chatReach(
   };
 }
 
-/** What a native command the chat's shell spawns is held to. */
 /**
  * The app's bin folder and the folders its links lead to, which a program
  * has to read to run `node` or `pnpm` off PATH. Read once per folder: the
@@ -100,19 +100,24 @@ function toolBinFolders(toolBinDir: string): string[] {
   return folders;
 }
 
+/** What a native command the chat's shell spawns is held to. */
 export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,
 ): NativeReach {
-  const { toolBinDir } = getWorkspaceConfig();
+  const { toolBinDir, uvDataDir } = getWorkspaceConfig();
   return {
     readOnly: [
       ...layout.skills.map((mount) => mount.hostRoot),
       ...(toolBinDir ? toolBinFolders(toolBinDir) : []),
+      // The managed Pythons every chat's virtualenv runs on, which the app
+      // installs (installManagedPython): a file one chat put there would run
+      // in every other. The rest of uv's folder, its caches, stays open.
+      uvPythonInstallDir(uvDataDir),
     ],
     readWrite: [
-      layout.task.hostRoot,
-      getWorkspaceConfig().uvDataDir,
+      layout.chat.hostRoot,
+      uvDataDir,
       nodeToolsDir(),
       ...(layout.apps ? [layout.apps.hostRoot] : []),
     ],

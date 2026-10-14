@@ -59,6 +59,11 @@ const DELTA_SAVE_INTERVAL_MS = 100;
 const DELTA_SAVE_MAX_UNSAVED_CHARS = 4096;
 
 interface LLMRequestInput {
+  /**
+   * Why the request is being let go, asked when its signal fires; the caller
+   * that let it go is the one that knows. Unknown when there is none.
+   */
+  abortReason?: () => SessionMessage.AbortReason;
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
@@ -196,6 +201,7 @@ export const llmRequestLogic = fromPromise<
     assistantMessage.metadata.error = {
       kind: "aborted",
       message: "Aborted",
+      reason: input.abortReason?.() ?? "unknown",
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
@@ -931,10 +937,18 @@ export const llmRequestLogic = fromPromise<
       }
       case error instanceof Error &&
         (error.name === "AbortError" || error.name === "TimeoutError"): {
-        // Not sure if we hit this, I wasn't able to reproduce it
+        // Not sure if we hit this, I wasn't able to reproduce it. A timeout
+        // thrown from below is one; an abort is ours to explain only when our
+        // own signal fired.
         assistantMessage.metadata.error = {
           kind: "aborted",
           message: error.message,
+          reason:
+            error.name === "TimeoutError"
+              ? "timeout"
+              : signal.aborted
+                ? (input.abortReason?.() ?? "unknown")
+                : "unknown",
         };
         break;
       }

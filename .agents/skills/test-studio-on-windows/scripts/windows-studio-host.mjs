@@ -1,16 +1,28 @@
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 const PROFILE_RELATIVE_PATH = String.raw`.instrument\studio-host.json`;
 // A seeded run is its own enrolled task rather than a per-start rewrite of the
 // development one, so nothing mutates enrolled state at run time and `status`
 // keeps reporting what each task really does.
 const SEEDED_TARGET = "dev-seeded";
+// A preview build is the exception: each one installs under its own name, so
+// its task is registered again at every start with that build's executable.
+const PREVIEW_TARGET = "preview";
 const PROFILE_KEYS = {
   dev: "dev",
   "dev-seeded": "devSeeded",
   installed: "installed",
+  preview: "preview",
 };
+// The preview workflow's name for the Windows installer, and the build name it
+// carries in parentheses, which is also its install folder's suffix.
+const PREVIEW_INSTALLER_PATTERN =
+  /^Instrument Preview \(([\da-z-]+)\)-win-.*\.exe$/u;
+const PREVIEW_NAME_PATTERN = /^[\da-z-]+$/u;
 const TARGETS = new Set(Object.keys(PROFILE_KEYS));
 // Written by `pnpm workspace:seed` at the root of the workspace it built. It is
 // how a fixture name gets from that run to this one.
@@ -42,6 +54,20 @@ function assertNoArguments() {
       `Unexpected argument${argv.length === 1 ? "" : "s"}: ${argv.join(" ")}`,
     );
   }
+}
+
+async function firstFreePort(start) {
+  for (let port = start; port < start + 50; port++) {
+    try {
+      await assertPortAvailable(port);
+      return port;
+    } catch {
+      // Taken; try the next one.
+    }
+  }
+  fail(
+    `No free local port between ${start} and ${start + 49}; pass --local-port.`,
+  );
 }
 
 function assertPortAvailable(port) {
@@ -100,6 +126,10 @@ if ($profile.${PROFILE_KEYS[SEEDED_TARGET]}) {
   $configuredPorts += $profile.${PROFILE_KEYS[SEEDED_TARGET]}.cdpPort
   $configuredTaskNames += $profile.${PROFILE_KEYS[SEEDED_TARGET]}.taskName
 }
+if ($profile.${PROFILE_KEYS[PREVIEW_TARGET]}) {
+  $configuredPorts += $profile.${PROFILE_KEYS[PREVIEW_TARGET]}.cdpPort
+  $configuredTaskNames += $profile.${PROFILE_KEYS[PREVIEW_TARGET]}.taskName
+}
 if (@($configuredPorts | Sort-Object -Unique).Count -ne $configuredPorts.Count) {
   throw 'The host profile must give each target its own CDP port.'
 }
@@ -157,13 +187,44 @@ async function main() {
   }
 
   switch (command) {
+    case "install-preview": {
+      const run = takeFlag("--run");
+      assertNoArguments();
+      if (!run || !/^\d+$/u.test(run)) {
+        fail("Pass --run <preview workflow run id>.");
+      }
+      report(installPreview(host, run));
+      break;
+    }
+    case "remove-preview": {
+      const names = takeFlag("--name", "");
+      const keepLatest = argv.includes("--all-but-latest");
+      if (keepLatest) argv.splice(argv.indexOf("--all-but-latest"), 1);
+      assertNoArguments();
+      const list = names.split(",").filter(Boolean);
+      if (list.some((name) => !PREVIEW_NAME_PATTERN.test(name))) {
+        fail("Invalid preview name.");
+      }
+      if (list.length === 0 && !keepLatest) {
+        fail("Pass --name <preview>[,<preview>…] or --all-but-latest.");
+      }
+      report(runPowerShellJson(host, removePreviewScript(list, keepLatest)));
+      break;
+    }
+    case "purge-recycled": {
+      const folder = takeFlag("--path");
+      assertNoArguments();
+      if (!folder) fail("Pass --path <the folder the deleted items were in>.");
+      report(runPowerShellJson(host, purgeRecycledScript(folder)));
+      break;
+    }
     case "profile": {
       assertNoArguments();
       report(readProfile(host));
       break;
     }
     case "seed": {
-      if (target === "installed") {
+      if (target === "installed" || target === PREVIEW_TARGET) {
         fail(`Only the ${SEEDED_TARGET} target has a seeded workspace.`);
       }
       const workspace = requireWorkspaceName(takeFlag("--workspace"));
@@ -174,13 +235,25 @@ async function main() {
     }
     case "start": {
       const timeout = Number(
-        takeFlag("--timeout", target === "installed" ? "45" : "180"),
+        takeFlag(
+          "--timeout",
+          target === "installed" || target === PREVIEW_TARGET ? "45" : "180",
+        ),
       );
       if (!Number.isFinite(timeout) || timeout <= 0) {
         fail("--timeout must be a positive number of seconds.");
       }
       const requestedWorkspace = takeFlag("--workspace");
       const fresh = takeSwitch("--fresh");
+      if (target === PREVIEW_TARGET) {
+        const name = takeFlag("--name", "");
+        assertNoArguments();
+        if (name && !PREVIEW_NAME_PATTERN.test(name)) {
+          fail(`Invalid preview name ${JSON.stringify(name)}.`);
+        }
+        report(runPowerShellJson(host, previewStartScript(name, timeout)));
+        break;
+      }
       assertNoArguments();
       if (target !== SEEDED_TARGET && (requestedWorkspace || fresh)) {
         fail(
@@ -208,16 +281,25 @@ async function main() {
     }
     case "stop": {
       assertNoArguments();
-      report(runPowerShellJson(host, stopScript(target)));
+      report(
+        runPowerShellJson(
+          host,
+          target === PREVIEW_TARGET ? previewStopScript() : stopScript(target),
+        ),
+      );
       break;
     }
     case "tunnel": {
       const profile = readProfile(host);
       const remotePort = targetConfig(profile, target).cdpPort;
-      const localPort = Number(
-        takeFlag("--local-port", String(remotePort + 1000)),
-      );
+      const requestedPort = takeFlag("--local-port");
       assertNoArguments();
+      // A port given is used or refused; without one, the first free port from
+      // the conventional one up, since another tunnel (another host's, another
+      // session's) may already hold it. The forwarding line names the port.
+      const localPort = requestedPort
+        ? Number(requestedPort)
+        : await firstFreePort(remotePort + 1000);
       await assertPortAvailable(localPort);
       console.error(
         `Forwarding http://127.0.0.1:${localPort} to ${host} ${target} CDP port ${remotePort}. Press Ctrl-C to stop.`,
@@ -248,10 +330,257 @@ async function main() {
     }
     default: {
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use profile, seed, start, status, stop, or tunnel.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, purge-recycled, remove-preview, seed, start, status, stop, or tunnel.`,
       );
     }
   }
+}
+
+/**
+ * Fetches a preview run's Windows installer through gh, copies it to the host
+ * and installs it silently. The installer is cached locally by artifact id, so
+ * installing the same build on a second host does not download it again.
+ */
+function installPreview(hostName, run) {
+  const listing = spawnSync(
+    "gh",
+    [
+      "api",
+      `repos/instrument-org/instrument/actions/runs/${run}/artifacts`,
+      "--jq",
+      ".artifacts[] | [.id, .name, .expired] | @tsv",
+    ],
+    { encoding: "utf8" },
+  );
+  if (listing.status !== 0) {
+    fail(`gh could not list run ${run}'s artifacts.\n${listing.stderr}`);
+  }
+  const artifact = listing.stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.split("\t"))
+    .find(([, name]) => PREVIEW_INSTALLER_PATTERN.test(name ?? ""));
+  if (!artifact) {
+    fail(
+      `Run ${run} has no Windows installer artifact. Was it built with -f os=windows or all, and has the Windows leg finished?`,
+    );
+  }
+  const [id, artifactName, expired] = artifact;
+  if (expired === "true") fail(`Run ${run}'s installer artifact has expired.`);
+  const [, name] = PREVIEW_INSTALLER_PATTERN.exec(artifactName);
+  const cacheDir = path.join(tmpdir(), "instrument-previews");
+  mkdirSync(cacheDir, { recursive: true });
+  const local = path.join(cacheDir, `${id}.exe`);
+  if (!existsSync(local)) {
+    // gh run download expects every artifact to be a zip; this endpoint
+    // returns an unzipped upload as the file itself.
+    const download = spawnSync(
+      "sh",
+      [
+        "-c",
+        `gh api "repos/instrument-org/instrument/actions/artifacts/${id}/zip" > "${local}.part" && mv "${local}.part" "${local}"`,
+      ],
+      { stdio: ["ignore", "ignore", "inherit"] },
+    );
+    if (download.status !== 0) fail(`Downloading artifact ${id} failed.`);
+  }
+  const remoteName = `instrument-preview-${name}-setup.exe`;
+  const copy = spawnSync("scp", ["-q", local, `${hostName}:${remoteName}`], {
+    stdio: ["ignore", "ignore", "inherit"],
+  });
+  if (copy.status !== 0) fail(`Copying the installer to ${hostName} failed.`);
+  return runPowerShellJson(
+    hostName,
+    `$ErrorActionPreference = 'Stop'
+$installer = Join-Path $HOME '${remoteName}'
+$started = Get-Date
+Start-Process -FilePath $installer -ArgumentList '/S' -Wait
+Remove-Item -LiteralPath $installer
+# The installer puts a shortcut on the Desktop, and a test host gets a new
+# preview most days, so it goes: the Start menu entry stays.
+Get-ChildItem -LiteralPath ([Environment]::GetFolderPath('Desktop')) -Filter 'Instrument Preview (${name}).lnk' | Remove-Item
+${previewExecutableFunction()}
+$executable = Get-PreviewExecutable '${name}'
+[ordered]@{
+  executable = $executable.FullName
+  installSeconds = [int] ((Get-Date) - $started).TotalSeconds
+  name = '${name}'
+  run = '${run}'
+  version = $executable.VersionInfo.ProductVersion
+} | ConvertTo-Json -Compress`,
+  );
+}
+
+/**
+ * PowerShell that finds an installed preview's executable: the one named, or
+ * the most recently installed when no name is given. A preview installs per
+ * user under Programs\instrument-preview-<name>, and its executable carries the
+ * display name, `Instrument Preview (<name>).exe`.
+ */
+function previewExecutableFunction() {
+  return `function Get-PreviewExecutable([string] $name) {
+  $programs = Join-Path $env:LOCALAPPDATA 'Programs'
+  if ($name) {
+    $dir = Get-Item -LiteralPath (Join-Path $programs "instrument-preview-$name") -ErrorAction SilentlyContinue
+  } else {
+    $dir = Get-ChildItem -LiteralPath $programs -Directory -Filter 'instrument-preview-*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  }
+  if (-not $dir) {
+    throw "No preview is installed$(if ($name) { " as $name" }). Run install-preview first."
+  }
+  $executable = Get-ChildItem -LiteralPath $dir.FullName -Filter 'Instrument Preview (*).exe' | Select-Object -First 1
+  if (-not $executable) {
+    throw "$($dir.FullName) holds no Instrument Preview executable."
+  }
+  return $executable
+}`;
+}
+
+/**
+ * PowerShell that starts a preview with its CDP port and waits for its
+ * renderer. The task launches the executable through a headless console host,
+ * so no console window sits on the person's desktop for the app's lifetime.
+ */
+function previewStartScript(name, timeoutSeconds) {
+  return `${baseScript()}
+${cdpFunction()}
+${previewExecutableFunction()}
+$target = $profile.${PROFILE_KEYS[PREVIEW_TARGET]}
+if (-not $target -or -not $target.cdpPort -or -not $target.taskName) {
+  throw 'The host profile must define ${PROFILE_KEYS[PREVIEW_TARGET]}.cdpPort and .taskName. See references/host-enrollment.md.'
+}
+$executable = Get-PreviewExecutable '${name}'
+$existing = Get-CdpStatus -port $target.cdpPort
+if ($existing.live -and -not [string]::Equals($existing.owner.executablePath, $executable.FullName, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "CDP port $($target.cdpPort) is held by $($existing.owner.executablePath). Stop the preview target first."
+}
+if (-not $existing.live) {
+  if (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $executable.FullName }) {
+    throw "$($executable.Name) is already running without the CDP port. Close it, or stop the preview target, first."
+  }
+  $log = Join-Path $env:LOCALAPPDATA 'instrument-preview-test.log'
+  # The headless console host re-quotes what it is given, which breaks a quoted
+  # path nested inside cmd's own quotes, so the command goes in a launcher whose
+  # path needs none. ASCII, since cmd reads a byte-order mark as a command.
+  $launcher = Join-Path $env:LOCALAPPDATA 'instrument-preview-test.cmd'
+  Set-Content -LiteralPath $launcher -Encoding ASCII -Value @(
+    '@echo off',
+    'set DISABLE_AUTO_UPDATE_POLLING=true',
+    "\`"$($executable.FullName)\`" --remote-debugging-port=$($target.cdpPort) > \`"$log\`" 2>&1"
+  )
+  if ($launcher -match '\\s') {
+    throw "The preview launcher path has a space in it: $launcher"
+  }
+  $action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument "--headless cmd.exe /d /c $launcher" -WorkingDirectory $executable.DirectoryName
+  $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+  Register-ScheduledTask -TaskName $target.taskName -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+  Start-ScheduledTask -TaskName $target.taskName
+}
+$deadline = (Get-Date).AddSeconds(${timeoutSeconds})
+do {
+  $cdp = Get-CdpStatus -port $target.cdpPort
+  if ($cdp.live -and @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0) {
+    [ordered]@{
+      cdp = $cdp
+      executable = $executable.FullName
+      port = $target.cdpPort
+      reused = [bool] $existing.live
+      target = '${PREVIEW_TARGET}'
+      version = $executable.VersionInfo.ProductVersion
+    } | ConvertTo-Json -Depth 8 -Compress
+    exit 0
+  }
+  Start-Sleep -Milliseconds 500
+} while ((Get-Date) -lt $deadline)
+throw "The preview's CDP did not become ready on port $($target.cdpPort) within ${timeoutSeconds} seconds."`;
+}
+
+/**
+ * PowerShell that uninstalls previews silently and deletes their data: the
+ * named ones, or every one but the most recently installed. A running preview
+ * is left alone. Each build installs and keeps data under its own name, so a
+ * test host gains about a gigabyte per build until they are removed.
+ */
+function removePreviewScript(names, keepLatest) {
+  const literal = names.map((name) => `'${name}'`).join(",");
+  return `$ErrorActionPreference = 'Stop'
+$programs = Join-Path $env:LOCALAPPDATA 'Programs'
+$dirs = @(Get-ChildItem -LiteralPath $programs -Directory -Filter 'instrument-preview-*' | Sort-Object LastWriteTime -Descending)
+$names = @(${literal || "@()"})
+if (${keepLatest ? "$true" : "$false"}) { $names = @($dirs | Select-Object -Skip 1 | ForEach-Object { $_.Name.Substring('instrument-preview-'.Length) }) }
+$removed = @(); $skipped = @()
+foreach ($name in $names) {
+  $dir = Join-Path $programs "instrument-preview-$name"
+  if (-not (Test-Path -LiteralPath $dir)) { $skipped += "$name (not installed)"; continue }
+  if (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir + '\\', [StringComparison]::OrdinalIgnoreCase) }) { $skipped += "$name (running)"; continue }
+  $uninstaller = Get-ChildItem -LiteralPath $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
+  if ($uninstaller) { Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait }
+  if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
+  $data = Join-Path $env:APPDATA "Instrument Preview ($name)"
+  if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
+  $removed += $name
+}
+[ordered]@{ removed = $removed; skipped = $skipped; freeGB = [int]((Get-PSDrive C).Free / 1GB) } | ConvertTo-Json -Compress`;
+}
+
+/** PowerShell that stops every installed preview, whichever build it is. */
+function previewStopScript() {
+  return `${baseScript()}
+$target = $profile.${PROFILE_KEYS[PREVIEW_TARGET]}
+if ($target.taskName) {
+  Stop-ScheduledTask -TaskName $target.taskName -ErrorAction SilentlyContinue
+}
+$prefix = Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') 'instrument-preview-'
+$processes = @(Get-CimInstance Win32_Process | Where-Object {
+  $_.ExecutablePath -and $_.ExecutablePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
+})
+$ids = @($processes.ProcessId)
+$roots = @($processes | Where-Object { $ids -notcontains $_.ParentProcessId })
+$stopped = @()
+foreach ($root in $roots) {
+  & taskkill.exe /PID $root.ProcessId /T /F | Out-Null
+  if ($LASTEXITCODE -eq 0) { $stopped += $root.ProcessId }
+}
+[ordered]@{ stoppedProcessTrees = $stopped; target = '${PREVIEW_TARGET}' } | ConvertTo-Json -Compress`;
+}
+
+/**
+ * PowerShell that empties from the Recycle Bin only what was deleted from
+ * inside one folder, so a test that deletes files can clean up after itself
+ * without touching anything else there. Each deleted item is a `$R` file with
+ * a `$I` record beside it, and the record holds the item's original path: an
+ * 8-byte version, 8-byte size, 8-byte deletion time, then the path's length
+ * in characters and the path in UTF-16. Nothing goes through Explorer, so no
+ * confirmation dialog comes up on the person's screen.
+ */
+function purgeRecycledScript(folder) {
+  const literal = folder.replaceAll("'", "''");
+  return `$ErrorActionPreference = 'Stop'
+$folder = [IO.Path]::GetFullPath('${literal}').TrimEnd('\\')
+$segments = @($folder.Split('\\') | Where-Object { $_ })
+if ($segments.Count -lt 3 -or $folder -ieq $HOME.TrimEnd('\\')) {
+  throw "Refusing to purge everything deleted from $($folder). Name the folder the test created."
+}
+$prefix = $folder + '\\'
+$sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+$bin = Join-Path ($folder.Substring(0, 3)) ('$Recycle.Bin\\' + $sid)
+$purged = @()
+if (Test-Path -LiteralPath $bin) {
+  foreach ($record in @(Get-ChildItem -LiteralPath $bin -Force -Filter '$I*')) {
+    $bytes = [IO.File]::ReadAllBytes($record.FullName)
+    if ($bytes.Length -lt 28) { continue }
+    $length = [BitConverter]::ToInt32($bytes, 24)
+    $original = [Text.Encoding]::Unicode.GetString($bytes, 28, [Math]::Min($length * 2, $bytes.Length - 28)).TrimEnd([char]0)
+    if ($original -ieq $folder -or $original.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+      $item = Join-Path $bin ('$R' + $record.Name.Substring(2))
+      if (Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item -Force -Recurse }
+      Remove-Item -LiteralPath $record.FullName -Force
+      $purged += $original
+    }
+  }
+}
+[ordered]@{ folder = $folder; purged = $purged } | ConvertTo-Json -Compress`;
 }
 
 /**
@@ -365,7 +694,7 @@ function runPowerShell(hostName, script) {
     throw result.error;
   }
   if (result.status !== 0) {
-    const detail = [result.stdout, result.stderr]
+    const detail = [result.stdout, readableErrors(result.stderr)]
       .filter(Boolean)
       .join("\n")
       .trim();
@@ -374,6 +703,25 @@ function runPowerShell(hostName, script) {
     );
   }
   return result.stdout.trim();
+}
+
+/**
+ * An -EncodedCommand run reports errors on stderr as CLIXML, with the message
+ * split across <S S="Error"> records and line breaks escaped as _x000D__x000A_.
+ * This keeps only the thrown message, ahead of PowerShell's position report.
+ */
+function readableErrors(stderr) {
+  if (!stderr?.startsWith("#< CLIXML")) return stderr;
+  const text = [...stderr.matchAll(/<S S="Error">(.*?)<\/S>/gsu)]
+    .map(([, record]) => record)
+    .join("")
+    .replaceAll("_x000D__x000A_", "\n")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&amp;", "&");
+  const message = text.split(/\nAt line:\d+/u)[0];
+  return message.replaceAll(/\n(?!\n)/gu, "").trim();
 }
 
 function runPowerShellJson(hostName, script) {
@@ -675,6 +1023,14 @@ $result = [ordered]@{
     version = if (Test-Path -LiteralPath $profile.installed.executable) { (Get-Item -LiteralPath $profile.installed.executable).VersionInfo.ProductVersion } else { $null }
   }
   nodeHome = $profile.nodeHome
+  previews = @(Get-ChildItem -LiteralPath (Join-Path $env:LOCALAPPDATA 'Programs') -Directory -Filter 'instrument-preview-*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | ForEach-Object {
+    $previewExecutable = Get-ChildItem -LiteralPath $_.FullName -Filter 'Instrument Preview (*).exe' | Select-Object -First 1
+    [ordered]@{
+      installed = $_.LastWriteTime.ToString('o')
+      name = $_.Name.Substring('instrument-preview-'.Length)
+      running = [bool] ($previewExecutable -and (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $previewExecutable.FullName }))
+    }
+  })
   profilePath = $profilePath
   repo = $profile.repo
   schemaVersion = $profile.schemaVersion

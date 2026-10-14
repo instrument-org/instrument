@@ -1,12 +1,24 @@
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 // cspell:ignore Xauthority cmdline expanduser isdigit listdir ltnp rsplit splitlines urlopen -- Python builtins, ss flags and proc entries inside the generated host script
 
 const PROFILE_RELATIVE_PATH = ".instrument/studio-host.json";
+// A preview build unpacks under its own name rather than installing, so its
+// target names only a port and the transient unit it runs as; the executable is
+// found at start, from the preview name or the most recently unpacked.
+const PREVIEW_TARGET = "preview";
 const PROFILE_KEYS = {
   installed: "installed",
+  preview: "preview",
 };
+const PREVIEW_ARCHIVE_PATTERN =
+  /^Instrument Preview \(([\da-z-]+)\)-linux-.*-(arm64|x64)\.tar\.gz$/u;
+const PREVIEW_NAME_PATTERN = /^[\da-z-]+$/u;
+const PREVIEWS_DIR = "~/.local/share/instrument-previews";
 const TARGETS = new Set(Object.keys(PROFILE_KEYS));
 
 class CliError extends Error {}
@@ -29,6 +41,20 @@ function assertNoArguments() {
       `Unexpected argument${argv.length === 1 ? "" : "s"}: ${argv.join(" ")}`,
     );
   }
+}
+
+async function firstFreePort(start) {
+  for (let port = start; port < start + 50; port++) {
+    try {
+      await assertPortAvailable(port);
+      return port;
+    } catch {
+      // Taken; try the next one.
+    }
+  }
+  fail(
+    `No free local port between ${start} and ${start + 49}; pass --local-port.`,
+  );
 }
 
 function assertPortAvailable(port) {
@@ -71,7 +97,7 @@ except ValueError as error:
 if profile.get("schemaVersion") != 1:
     fail("Unsupported host profile schema: %r" % profile.get("schemaVersion"))
 
-configured = [profile[key] for key in ("dev", "devSeeded", "installed") if profile.get(key)]
+configured = [profile[key] for key in ("dev", "devSeeded", "installed", "preview") if profile.get(key)]
 ports = [entry.get("cdpPort") for entry in configured]
 units = [entry.get("unit") for entry in configured]
 if len(set(ports)) != len(ports):
@@ -291,7 +317,77 @@ async function main() {
     );
   }
 
+  if (target === PREVIEW_TARGET && ["start", "stop"].includes(command)) {
+    const name = command === "start" ? takeFlag("--name", "") : "";
+    const timeout = Number(takeFlag("--timeout", "45"));
+    assertNoArguments();
+    if (name && !PREVIEW_NAME_PATTERN.test(name)) {
+      fail(`Invalid preview name ${JSON.stringify(name)}.`);
+    }
+    report(
+      runPythonJson(
+        host,
+        command === "start"
+          ? previewStartScript(name, timeout)
+          : previewStopScript(),
+      ),
+    );
+    return;
+  }
+
   switch (command) {
+    case "remove-preview": {
+      const names = takeFlag("--name", "");
+      const keepLatest = argv.includes("--all-but-latest");
+      if (keepLatest) argv.splice(argv.indexOf("--all-but-latest"), 1);
+      assertNoArguments();
+      const list = names.split(",").filter(Boolean);
+      if (list.some((name) => !PREVIEW_NAME_PATTERN.test(name))) {
+        fail("Invalid preview name.");
+      }
+      if (list.length === 0 && !keepLatest) {
+        fail("Pass --name <preview>[,<preview>…] or --all-but-latest.");
+      }
+      report(
+        runPythonJson(
+          host,
+          `import json, os, shutil
+root = os.path.expanduser("${PREVIEWS_DIR}")
+folders = sorted((entry for entry in os.listdir(root) if os.path.isdir(os.path.join(root, entry))), key=lambda entry: os.path.getmtime(os.path.join(root, entry)), reverse=True) if os.path.isdir(root) else []
+names = folders[1:] if ${keepLatest ? "True" : "False"} else ${JSON.stringify(list)}
+running = set()
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try:
+        running.add(os.readlink("/proc/%s/exe" % pid))
+    except OSError:
+        pass
+removed, skipped = [], []
+for name in names:
+    folder = os.path.join(root, name)
+    if not os.path.isdir(folder):
+        skipped.append(name + " (not installed)")
+        continue
+    if any(path.startswith(folder + "/") for path in running):
+        skipped.append(name + " (running)")
+        continue
+    shutil.rmtree(folder, ignore_errors=True)
+    shutil.rmtree(os.path.expanduser("~/.config/Instrument Preview (%s)" % name), ignore_errors=True)
+    removed.append(name)
+free = shutil.disk_usage(os.path.expanduser("~")).free // (1 << 30)
+print(json.dumps({"removed": removed, "skipped": skipped, "freeGB": free}))`,
+        ),
+      );
+      return;
+    }
+    case "install-preview": {
+      const run = takeFlag("--run");
+      assertNoArguments();
+      if (!run || !/^\d+$/u.test(run)) {
+        fail("Pass --run <preview workflow run id>.");
+      }
+      report(installPreview(host, run));
+      break;
+    }
     case "profile": {
       assertNoArguments();
       report(readProfile(host, target));
@@ -316,15 +412,33 @@ async function main() {
       report(runPythonJson(host, stopScript(target)));
       break;
     }
+    case "vm-start":
+    case "vm-stop": {
+      const vm = takeFlag("--vm");
+      assertNoArguments();
+      if (!vm) {
+        fail("Pass --vm <UTM virtual machine name>.");
+      }
+      report(
+        command === "vm-start"
+          ? await startVm(host, vm)
+          : await stopVm(host, vm),
+      );
+      break;
+    }
     case "tunnel": {
       const remotePort = targetConfig(
         readProfile(host, target),
         target,
       ).cdpPort;
-      const localPort = Number(
-        takeFlag("--local-port", String(remotePort + 1000)),
-      );
+      const requestedPort = takeFlag("--local-port");
       assertNoArguments();
+      // A port given is used or refused; without one, the first free port from
+      // the conventional one up, since another tunnel (another host's, another
+      // session's) may already hold it. The forwarding line names the port.
+      const localPort = requestedPort
+        ? Number(requestedPort)
+        : await firstFreePort(remotePort + 1000);
       await assertPortAvailable(localPort);
       console.error(
         `Forwarding http://127.0.0.1:${localPort} to ${host} ${target} CDP port ${remotePort}. Press Ctrl-C to stop.`,
@@ -355,10 +469,75 @@ async function main() {
     }
     default: {
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use profile, start, status, stop, or tunnel.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, remove-preview, start, status, stop, tunnel, vm-start, or vm-stop.`,
       );
     }
   }
+}
+
+function utm(...args) {
+  const result = spawnSync("utmctl", args, { encoding: "utf8" });
+  return {
+    ok: result.status === 0,
+    out: `${result.stdout}${result.stderr}`.trim(),
+  };
+}
+
+function answersSsh(host) {
+  const probe = spawnSync(
+    "ssh",
+    ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", host, "echo up"],
+    { encoding: "utf8" },
+  );
+  return probe.stdout.trim() === "up";
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Starts the UTM guest the host runs in, when this Mac hosts it, and waits for
+ * SSH. The guest keeps its state between runs (the signed-in browser, the
+ * installed release app), so unlike the Mac VM it is started, never replaced.
+ */
+async function startVm(host, vm) {
+  const status = utm("status", vm).out;
+  if (/not found|Error/u.test(status))
+    fail(`No UTM virtual machine named ${vm}.`);
+  if (answersSsh(host)) return { host, ready: true, started: false, vm };
+  if (status !== "started") utm("start", vm, "--hide");
+  for (let i = 0; i < 36; i++) {
+    if (answersSsh(host)) return { host, ready: true, started: true, vm };
+    await sleep(5000);
+  }
+  fail(`${vm} started but ${host} did not answer SSH within three minutes.`);
+}
+
+/**
+ * Shuts the guest down from inside, so its disk and the release app's data are
+ * left as a normal shutdown leaves them, and waits for UTM to report it
+ * stopped. Never forces: a guest that will not stop is reported instead.
+ */
+async function stopVm(host, vm) {
+  if (utm("status", vm).out === "stopped") return { stopped: true, vm };
+  spawnSync(
+    "ssh",
+    [
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "ConnectTimeout=5",
+      host,
+      "sudo -n systemctl poweroff",
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  for (let i = 0; i < 24; i++) {
+    if (utm("status", vm).out === "stopped") return { stopped: true, vm };
+    await sleep(5000);
+  }
+  fail(`${vm} did not stop within two minutes; it was left running.`);
 }
 
 function readProfile(hostName, selectedTarget) {
@@ -572,8 +751,267 @@ function targetConfig(profile, selectedTarget) {
   ) {
     fail(`The host profile must define ${key}.cdpPort and ${key}.unit.`);
   }
-  if (typeof config.executable !== "string") {
+  if (
+    selectedTarget !== PREVIEW_TARGET &&
+    typeof config.executable !== "string"
+  ) {
     fail(`The host profile must define ${key}.executable.`);
   }
   return config;
+}
+
+/**
+ * Fetches a preview run's archive for the host's architecture through gh
+ * (cached locally by artifact id), copies it over and unpacks it under the
+ * previews folder. The archive rather than the AppImage, which needs FUSE.
+ */
+function installPreview(hostName, run) {
+  const machine = runPython(
+    hostName,
+    "import platform; print(platform.machine())",
+  );
+  const arch = { aarch64: "arm64", x86_64: "x64" }[machine];
+  if (!arch) fail(`Unknown host architecture ${JSON.stringify(machine)}.`);
+  const listing = spawnSync(
+    "gh",
+    [
+      "api",
+      `repos/instrument-org/instrument/actions/runs/${run}/artifacts`,
+      "--jq",
+      ".artifacts[] | [.id, .name, .expired] | @tsv",
+    ],
+    { encoding: "utf8" },
+  );
+  if (listing.status !== 0) {
+    fail(`gh could not list run ${run}'s artifacts.\n${listing.stderr}`);
+  }
+  const artifact = listing.stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.split("\t"))
+    .find(([, name]) => PREVIEW_ARCHIVE_PATTERN.exec(name ?? "")?.[2] === arch);
+  if (!artifact) {
+    fail(
+      `Run ${run} has no Linux ${arch} archive. Was it built with -f os=linux or all, and has the Linux leg finished?`,
+    );
+  }
+  const [id, artifactName, expired] = artifact;
+  if (expired === "true") fail(`Run ${run}'s archive has expired.`);
+  const [, name] = PREVIEW_ARCHIVE_PATTERN.exec(artifactName);
+  const cacheDir = path.join(tmpdir(), "instrument-previews");
+  mkdirSync(cacheDir, { recursive: true });
+  const local = path.join(cacheDir, `${id}.tar.gz`);
+  if (!existsSync(local)) {
+    // gh run download expects every artifact to be a zip; this endpoint
+    // returns an unzipped upload as the file itself.
+    const download = spawnSync(
+      "sh",
+      [
+        "-c",
+        `gh api "repos/instrument-org/instrument/actions/artifacts/${id}/zip" > "${local}.part" && mv "${local}.part" "${local}"`,
+      ],
+      { stdio: ["ignore", "ignore", "inherit"] },
+    );
+    if (download.status !== 0) fail(`Downloading artifact ${id} failed.`);
+  }
+  const remote = `/tmp/instrument-preview-${name}.tar.gz`;
+  const copy = spawnSync("scp", ["-q", local, `${hostName}:${remote}`], {
+    stdio: ["ignore", "ignore", "inherit"],
+  });
+  if (copy.status !== 0) fail(`Copying the archive to ${hostName} failed.`);
+  return runPythonJson(
+    hostName,
+    `import json, os, shutil, subprocess, tarfile, tempfile
+
+name = "${name}"
+root = os.path.expanduser("${PREVIEWS_DIR}")
+dest = os.path.join(root, name)
+archive = "${remote}"
+os.makedirs(root, exist_ok=True)
+if os.path.isdir(dest):
+    shutil.rmtree(dest)
+staging = tempfile.mkdtemp(dir=root)
+with tarfile.open(archive) as handle:
+    handle.extractall(staging, filter="tar")
+os.remove(archive)
+entries = os.listdir(staging)
+top = os.path.join(staging, entries[0]) if len(entries) == 1 else staging
+os.rename(top, dest)
+if top != staging:
+    os.rmdir(staging)
+# The archive's folder carries the build's epoch-0 time, so it is stamped with
+# the install time: "the newest preview" is decided by that time.
+os.utime(dest, None)
+# Chromium's setuid sandbox helper has to be owned by root and setuid, which
+# an archive cannot carry; without it the app refuses to start.
+sandbox = os.path.join(dest, "chrome-sandbox")
+sandbox_ready = (
+    subprocess.run(["sudo", "-n", "chown", "root:root", sandbox]).returncode == 0
+    and subprocess.run(["sudo", "-n", "chmod", "4755", sandbox]).returncode == 0
+)
+executables = [
+    os.path.join(dest, entry)
+    for entry in os.listdir(dest)
+    if entry.startswith("instrument-preview-") and os.access(os.path.join(dest, entry), os.X_OK)
+]
+print(json.dumps({
+    "executable": executables[0] if executables else None,
+    "name": name,
+    "run": "${run}",
+    "sandboxReady": sandbox_ready,
+}))`,
+  );
+}
+
+/** Python that finds an unpacked preview: the one named, or the newest. */
+function previewFunction() {
+  return `def preview_executable(name):
+    root = os.path.expanduser("${PREVIEWS_DIR}")
+    if name:
+        folder = os.path.join(root, name)
+    else:
+        folders = [os.path.join(root, entry) for entry in os.listdir(root)] if os.path.isdir(root) else []
+        folders = [entry for entry in folders if os.path.isdir(entry)]
+        folder = max(folders, key=os.path.getmtime) if folders else None
+    if not folder or not os.path.isdir(folder):
+        fail("No preview is unpacked%s. Run install-preview first." % (" as " + name if name else ""))
+    for entry in sorted(os.listdir(folder)):
+        candidate = os.path.join(folder, entry)
+        if entry.startswith("instrument-preview-") and os.access(candidate, os.X_OK) and os.path.isfile(candidate):
+            return candidate
+    fail("%s holds no instrument-preview executable." % folder)
+
+
+def preview_processes():
+    root = os.path.realpath(os.path.expanduser("${PREVIEWS_DIR}")) + os.sep
+    found = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            executable = os.readlink("/proc/%s/exe" % entry)
+        except OSError:
+            continue
+        if executable.startswith(root):
+            found.append((int(entry), executable))
+    return found
+`;
+}
+
+/**
+ * Python that runs a preview as a transient user unit, which inherits the
+ * graphical session's environment the way the installed unit does, and waits
+ * for its renderer.
+ */
+function previewStartScript(name, timeoutSeconds) {
+  return `${baseScript(PREVIEW_TARGET)}
+${cdpFunction()}
+${inspectFunction()}
+${previewFunction()}
+executable = preview_executable("${name}")
+existing = cdp_status(target["cdpPort"])
+if existing["live"] and (existing.get("owner") or {}).get("executablePath") != executable:
+    fail("CDP port %d is held by %s. Stop the preview target first." % (target["cdpPort"], (existing.get("owner") or {}).get("executablePath")))
+if not existing["live"]:
+    if any(path == executable for _, path in preview_processes()):
+        fail("%s is already running without the CDP port. Stop the preview target first." % os.path.basename(executable))
+    if not graphical_session()["present"]:
+        fail("No graphical session is available to the systemd user manager. Log into the desktop, then retry.")
+    subprocess.run(["systemctl", "--user", "reset-failed", target["unit"]], check=False, capture_output=True, timeout=30)
+    subprocess.run(
+        [
+            "systemd-run", "--user", "--collect", "--unit=" + target["unit"],
+            "--setenv=DISABLE_AUTO_UPDATE_POLLING=true",
+            "--working-directory=" + os.path.dirname(executable),
+            executable, "--remote-debugging-port=%d" % target["cdpPort"],
+        ],
+        check=True, capture_output=True, timeout=30,
+    )
+
+deadline = time.monotonic() + ${timeoutSeconds}
+while time.monotonic() < deadline:
+    status = cdp_status(target["cdpPort"])
+    if status["live"] and renderer_ready(status):
+        print(json.dumps({
+            "cdp": status,
+            "executable": executable,
+            "port": target["cdpPort"],
+            "reused": existing["live"],
+            "target": "${PREVIEW_TARGET}",
+            "unit": target["unit"],
+        }))
+        raise SystemExit(0)
+    time.sleep(0.5)
+if listener_owner(target["cdpPort"]):
+    fail(
+        "CDP port %d accepted connections but never answered within ${timeoutSeconds} seconds. "
+        "An unlocked-keyring prompt waiting on the desktop is the usual cause. Clear it, then retry." % target["cdpPort"]
+    )
+fail("The preview's CDP did not become ready on port %d within ${timeoutSeconds} seconds." % target["cdpPort"])`;
+}
+
+/**
+ * Python that stops every unpacked preview. GNOME can re-home an app's
+ * processes into a scope of their own, so they are found by executable and
+ * signaled directly once the unit is stopped.
+ */
+function previewStopScript() {
+  return `${baseScript(PREVIEW_TARGET)}
+${cdpFunction()}
+${previewFunction()}
+import signal
+# The main process alone gets SIGTERM, the way a person quitting would end
+# it. Signaling the whole unit at once (what systemctl stop, logout and
+# shutdown do) also kills the GPU process mid-teardown, Chromium exits with
+# "GPU process isn't usable", and the main thread spins until systemd's
+# 90-second SIGKILL. The unit is stopped once its main process is gone.
+# The main process is the one whose command line carries no --type=: the
+# zygote, GPU, renderers and crash handler all say what they are, and some
+# are not its children, so a parent check misses them.
+def is_main(pid):
+    try:
+        with open("/proc/%d/cmdline" % pid, "rb") as handle:
+            return b"--type=" not in handle.read()
+    except OSError:
+        return False
+stopped = []
+for pid, _ in preview_processes():
+    if not is_main(pid):
+        continue
+    try:
+        os.kill(pid, signal.SIGTERM)
+        stopped.append(pid)
+    except OSError:
+        pass
+deadline = time.monotonic() + 10
+while preview_processes() and time.monotonic() < deadline:
+    time.sleep(0.25)
+killed = []
+for pid, _ in preview_processes():
+    try:
+        os.kill(pid, signal.SIGKILL)
+        killed.append(pid)
+    except OSError:
+        pass
+time.sleep(1)
+# A program a task started can outlive the app (reparented to the user's
+# systemd, in the desktop's scope rather than the unit) still holding the CDP
+# socket it inherited, and the next start then hangs on that port. Whatever
+# holds the preview's port now is left over from the preview, so it goes too.
+orphans = []
+owner = listener_owner(target["cdpPort"])
+if owner.get("processId"):
+    try:
+        os.kill(owner["processId"], signal.SIGKILL)
+        orphans.append({"pid": owner["processId"], "commandLine": owner.get("commandLine")})
+    except OSError:
+        pass
+subprocess.run(["systemctl", "--user", "stop", "--no-block", target["unit"]], check=False, capture_output=True, timeout=30)
+subprocess.run(["systemctl", "--user", "reset-failed", target["unit"]], check=False, capture_output=True, timeout=30)
+print(json.dumps({
+    "killedAfterIgnoringTerm": killed,
+    "killedHoldingPort": orphans,
+    "signaled": stopped,
+    "target": "${PREVIEW_TARGET}",
+}))`;
 }

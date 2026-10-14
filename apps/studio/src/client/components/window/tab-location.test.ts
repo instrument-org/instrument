@@ -85,6 +85,42 @@ describe("locationCrumbs", () => {
     `);
   });
 
+  // Below the disk's name the path splits the way the whole path does: at
+  // every backslash on Windows, and at a slash alone on a Mac or Linux, where
+  // a backslash is a letter in a name.
+  it.each([
+    [
+      "C:\\Windows\\Web\\Wallpaper",
+      { name: "Local Disk (C:)", path: "C:\\" },
+      [
+        "Local Disk (C:) -> /files?path=&root=C%3A%5C",
+        "Windows -> /files?path=&root=C%3A%5CWindows",
+        "Web -> /files?path=&root=C%3A%5CWindows%5CWeb",
+        "Wallpaper",
+      ],
+    ],
+    [
+      "/Volumes/Backup/a\\b/c",
+      { name: "Backup", path: "/Volumes/Backup" },
+      [
+        "Backup -> /files?path=&root=%2FVolumes%2FBackup",
+        "a\\b -> /files?path=&root=%2FVolumes%2FBackup%2Fa%5Cb",
+        "c",
+      ],
+    ],
+  ])("splits %s below its disk's name", (path, volume, crumbs) => {
+    expect(
+      locationCrumbs(
+        { kind: "folder", path },
+        { home: HOME, volumes: [volume] },
+      ).map((crumb) =>
+        crumb.to?.kind === "screen"
+          ? `${crumb.label} -> ${crumb.to.href}`
+          : crumb.label,
+      ),
+    ).toEqual(crumbs);
+  });
+
   it("starts a path in iCloud Drive at iCloud Drive rather than home", () => {
     const volumes = [
       { name: "Macintosh HD", path: "/" },
@@ -107,8 +143,8 @@ describe("locationCrumbs", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "iCloud Drive -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs",
-        "Obsidian -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2FObsidian",
+        "iCloud Drive -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile+Documents%2Fcom%7Eapple%7ECloudDocs",
+        "Obsidian -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile+Documents%2Fcom%7Eapple%7ECloudDocs%2FObsidian",
         "Vault",
       ]
     `);

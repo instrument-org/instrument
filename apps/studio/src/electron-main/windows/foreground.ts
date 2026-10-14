@@ -1,5 +1,6 @@
 import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
+import { isHeldOffScreen } from "@/electron-main/windows/on-screen";
 import { type BrowserWindow } from "electron";
 
 /**
@@ -28,7 +29,9 @@ export function getForegroundWindow(): BrowserWindow | null {
  */
 export function focusAppWindow() {
   const target = getForegroundWindow();
-  if (target) {
+  // An agent's instance waiting off screen stays there; the person at the
+  // machine did not ask for it.
+  if (target && !isHeldOffScreen(target)) {
     if (target.isMinimized()) {
       target.restore();
     }

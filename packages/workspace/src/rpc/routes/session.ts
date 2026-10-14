@@ -2,7 +2,13 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { stopRunningProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { isWorking } from "../../lib/chat/activity";
+import { markChatStopped } from "../../lib/chat/chats";
+import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
+import { closeAsksOf, openAsksOf } from "../../lib/permissions/asks";
+import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
 import { recordChatActivity } from "../../lib/chat-settings";
@@ -104,8 +110,10 @@ const run = base
 
 /**
  * Stops a record's agents: a chat's, which is its own conversation and every
- * task it started, since Stop means all of the user's work wherever it is
- * running; or with `sessionId`, that one session alone, a task's say.
+ * task it started; or with `sessionId`, that one session alone, a task's
+ * from its row or page, with everything it has running in the background,
+ * or the chat's own turn from its composer, which leaves its tasks working
+ * and its processes running.
  */
 const stop = base
   .input(
@@ -114,10 +122,39 @@ const stop = base
       sessionId: StoreId.SessionSchema.optional(),
     }),
   )
-  .handler(({ context, input }) => {
+  .handler(async ({ context, input }) => {
+    // When the user pressed Stop, on the clock a message is dated by, and
+    // whether it reaches a turn of the chat's own, read before the stop
+    // lands on it.
+    const pressedAt = new Date();
+    const chatSessionId = sessionOfChat(input.id);
+    const stopsOwnTurn =
+      chatSessionId !== undefined &&
+      (input.sessionId === undefined || input.sessionId === chatSessionId) &&
+      isWorking(input.id, chatSessionId);
+    // A task whose turn ended with a card still up has no turn for the stop
+    // to end, so nothing would say it stopped; read before its cards go.
+    const waitingOnCard =
+      input.sessionId !== undefined &&
+      input.sessionId !== chatSessionId &&
+      !isWorking(input.id, input.sessionId) &&
+      (await openAsksOf(input.id, input.sessionId)).length > 0
+        ? input.sessionId
+        : undefined;
+    // A task the person stops ends what it runs in the background too, as
+    // the agent's `task stop --all` does. A job handed to the task is the
+    // task's, so this reaches it. A process can take seconds to go, so the
+    // turn is not kept waiting on it; the note the stop leaves the chat waits
+    // instead (`wake.ts`), so it names nothing as still running.
+    if (input.sessionId !== undefined && input.sessionId !== chatSessionId) {
+      stopRunningProcesses({ by: "user", sessionId: input.sessionId }).catch(
+        context.workspaceConfig.captureException,
+      );
+    }
     // The user's stop, which the task's page ends on. One task stopped
-    // while the chat carries on is news to wake the chat with; the
-    // chat's own Stop ends the chat's turn too, and wakes nothing.
+    // while the chat carries on is written into the chat as a note that
+    // starts no turn; the chat's own session tells it nothing, since only a
+    // task reports to its chat, and nor does a stop of the whole chat.
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
@@ -126,6 +163,25 @@ const stop = base
         ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
+    await Promise.all([
+      // What the stopped sessions were waiting on the person to allow goes
+      // with them, unanswered, so it neither keeps the chat waiting nor
+      // starts them again when answered.
+      closeAsksOf(input.id, input.sessionId),
+      // The chat says the user stopped it until a turn starts after the
+      // Stop, however far its turn had got, before it began included.
+      stopsOwnTurn ? markChatStopped(input.id, pressedAt) : undefined,
+    ]);
+    // Not waited on, as a turn's end is not: its note waits out the
+    // processes the stop ends.
+    if (waitingOnCard !== undefined) {
+      noteTaskStoppedOnCard(
+        input.id,
+        waitingOnCard,
+        context.workspaceRef,
+        "user",
+      ).catch(context.workspaceConfig.captureException);
+    }
   });
 
 const toMarkdown = base

@@ -63,6 +63,8 @@ The app window is a single web contents (see Windows), so modals are plain `<Dia
 
 Quote a name the user chose — a folder, project, skill, or their own search text — in curly quotes: `Remove “${name}”?`. Straight quotes are syntax: SQL identifiers, CSS selectors, `throw`s, prompt text for the model.
 
+A word or key that belongs to one OS (Finder, File Explorer, Recycle Bin, System Settings, This Mac, ⌘) is read from `shared/os-conventions.ts` for the system the app runs on, and added there when it is new. `studio/no-os-words` fails on one written anywhere else; text only ever shown on one system keeps it under `// oxlint-disable-next-line studio/no-os-words -- <where it shows>`.
+
 ## UI zoom
 
 The whole window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:

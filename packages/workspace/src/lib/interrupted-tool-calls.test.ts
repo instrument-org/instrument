@@ -10,7 +10,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "./interrupted-tool-calls";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../constants";
 import { isToolPart } from "./is-tool-part";
 import {
   disposeSessionsStoreStorage,
@@ -202,7 +202,7 @@ describe("sweepInterruptedToolCalls", () => {
     expect(part).toMatchObject({ state: "output-error" });
   });
 
-  it("sweeps every session in the task", async () => {
+  it("sweeps every session in the chat", async () => {
     const rootMessage = assistantMessage();
     const childMessage = assistantMessage(StoreId.newSessionId());
     await seed(rootMessage, [toolPart(rootMessage, "input-available")]);

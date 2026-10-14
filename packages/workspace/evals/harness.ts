@@ -28,10 +28,11 @@ import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
+import { listChatBackgroundProcesses } from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
-import { listChildTasks } from "../src/lib/chat/children";
+import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/permissions/asks";
 import { Store } from "../src/lib/store";
@@ -52,6 +53,7 @@ import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { startRun } from "./lib/start-run";
+import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
   c,
@@ -278,6 +280,9 @@ const ENFORCEMENT_INTERVAL_MS = 15_000;
 /** After a stop is issued, how long to wait for the session to actually end. */
 const STOP_GRACE_MS = 60_000;
 
+/** How long a `stopChat` follow-up waits, once its moment comes, before pressing Stop. */
+const STOP_CHAT_AFTER_MS = 3000;
+
 /**
  * How long every task in a chat's tree has to sit idle before the run
  * is called finished.
@@ -407,6 +412,13 @@ export interface EvalCase {
    */
   marks?: { after?: string; match: RegExp; name: string }[];
   name: string;
+  /**
+   * The run is not over while a command the agent left running in the
+   * background is still going: for a case scored on what the agent does
+   * when one ends after its turn and wakes it. A process that never exits
+   * holds the run to its time cap.
+   */
+  outlivesTurn?: boolean;
   /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
   /**
@@ -463,9 +475,28 @@ type FollowUp = FollowUpTiming &
         /**
          * The user pressing Stop on one of the chat's tasks, by its handle,
          * in place of a message: what the task's page and the chat's task
-         * list do.
+         * list do. A person stops a task they can see, so this waits for the
+         * chat to start it, and counts `afterMs` from the task's start when
+         * that came after the last message. Nothing is pressed when the
+         * chat's turn ends without starting it.
          */
         stopTask: string;
+      }
+    | {
+        /**
+         * The user pressing Stop beside Send in place of a message: the
+         * chat's own turn ends, and its tasks keep working.
+         */
+        stopChat: true;
+      }
+    | {
+        /**
+         * One of the chat's tasks, by its handle, losing its model: every
+         * request its running turn makes from here goes past its chunk
+         * timeout, until the retries run out and the turn ends on the
+         * timeout. Waits for the task the way `stopTask` does.
+         */
+        timeOutTask: string;
       }
   );
 
@@ -477,9 +508,11 @@ interface FollowUpTiming {
    * at the moment its next call is in flight. For a message that has to land
    * inside foreground work rather than between turns. Sent when the turn ends
    * instead, should it end first; `duringWorkMissed` in the run's metrics
-   * counts those.
+   * counts those. With `command`, the call in flight has to be a `bash` call
+   * whose command matches it, for a message that has to land inside one
+   * command in particular when a step makes several calls at once.
    */
-  duringWork?: { afterToolCalls: number };
+  duringWork?: { afterToolCalls: number; command?: RegExp };
   settled?: boolean;
 }
 
@@ -714,9 +747,23 @@ export async function runEvals(
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
       const ownToolsStarted = new Set<string>();
+      // The commands of the run's own `bash` calls in flight, by call.
+      const ownCommandsInFlight = new Map<string, string>();
       let workWaiter:
-        | { afterCalls: number; baseline: number; resolve: () => void }
+        | {
+            afterCalls: number;
+            baseline: number;
+            command?: RegExp;
+            resolve: () => void;
+          }
         | undefined;
+      const workWaiterMet = () =>
+        workWaiter !== undefined &&
+        ownToolsDone.size - workWaiter.baseline >= workWaiter.afterCalls &&
+        (workWaiter.command === undefined ||
+          [...ownCommandsInFlight.values()].some((command) =>
+            workWaiter?.command?.test(command),
+          ));
       let duringWorkMissed = 0;
       // See `EvalCase.marks`. Each is timed from when its message is sent.
       const marks: {
@@ -848,16 +895,16 @@ export async function runEvals(
                 part.state === "output-error"
               ) {
                 ownToolsDone.add(part.toolCallId);
+                ownCommandsInFlight.delete(part.toolCallId);
               } else if (
                 part.state === "input-available" &&
                 !ownToolsStarted.has(part.toolCallId)
               ) {
                 ownToolsStarted.add(part.toolCallId);
-                if (
-                  workWaiter &&
-                  ownToolsDone.size - workWaiter.baseline >=
-                    workWaiter.afterCalls
-                ) {
+                if (part.type === "tool-bash" && part.input?.command) {
+                  ownCommandsInFlight.set(part.toolCallId, part.input.command);
+                }
+                if (workWaiter && workWaiterMet()) {
                   workWaiter.resolve();
                   workWaiter = undefined;
                 }
@@ -885,12 +932,17 @@ export async function runEvals(
                 `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
               );
               if (declines || picked || allows) {
-                // Answered once the asking session's turn is over, as a
+                // Answered once the asking sessions' turns are over, as a
                 // person reading the card would, so the answer arrives as a
                 // wake rather than mid-turn.
                 void (async () => {
                   const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
-                  while (isWorking(id, ask.sessionId) && Date.now() < until) {
+                  while (
+                    ask.askers.some((asker) =>
+                      isWorking(id, asker.sessionId),
+                    ) &&
+                    Date.now() < until
+                  ) {
                     await new Promise((resolve) =>
                       setTimeout(resolve, TREE_POLL_MS),
                     );
@@ -1040,16 +1092,33 @@ export async function runEvals(
         if (stoppedBy || outcome === "timeout") {
           break;
         }
+        // A slow model can still be writing `task new` when `afterMs` has
+        // passed since the message that asked for it.
+        const taskToStop =
+          "stopTask" in followUp
+            ? await taskOnceStarted(id, followUp.stopTask, turn)
+            : "timeOutTask" in followUp
+              ? await taskOnceStarted(id, followUp.timeOutTask, turn)
+              : undefined;
+        const timedFrom = Math.max(
+          lastSentAt,
+          taskToStop?.createdAt.getTime() ?? 0,
+        );
         if (followUp.duringWork !== undefined) {
-          const { afterToolCalls } = followUp.duringWork;
+          const { afterToolCalls, command } = followUp.duringWork;
           const inFlight = new Promise<"in flight">((resolve) => {
             workWaiter = {
               afterCalls: afterToolCalls,
               baseline: toolsAtLastSend,
+              ...(command ? { command } : {}),
               resolve: () => {
                 resolve("in flight");
               },
             };
+            // A call already in flight as the wait begins counts.
+            if (workWaiterMet()) {
+              resolve("in flight");
+            }
           });
           const first = await Promise.race([inFlight, turn]);
           workWaiter = undefined;
@@ -1060,7 +1129,7 @@ export async function runEvals(
           await new Promise((resolve) =>
             setTimeout(
               resolve,
-              Math.max(0, lastSentAt + (followUp.afterMs ?? 0) - Date.now()),
+              Math.max(0, timedFrom + (followUp.afterMs ?? 0) - Date.now()),
             ),
           );
         } else if (followUp.settled && evalCase.kind === "chat") {
@@ -1073,19 +1142,46 @@ export async function runEvals(
         // rest, it starts a turn of its own.
         await evalCase.beforeFollowUp?.(position);
         if ("stopTask" in followUp) {
-          const task = (await listChildTasks(id)).find(
-            (child) => child.handle === followUp.stopTask,
-          );
           write(
-            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${task ? "" : " (no such task)"}${c.reset}\n`,
+            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
           );
-          if (task) {
+          if (taskToStop) {
             await call(
               sessionRoute.stop,
-              { id, sessionId: task.id },
+              { id, sessionId: taskToStop.id },
               { context },
             );
           }
+          lastSentAt = Date.now();
+          continue;
+        }
+        if ("timeOutTask" in followUp) {
+          write(
+            `${evalPrefix(label)}${c.dim}Time out: ${followUp.timeOutTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
+          );
+          if (taskToStop) {
+            const { timeouts } = await timeOutTaskTurn(
+              actor,
+              { chatId: id, sessionId: taskToStop.id },
+              Date.now() + (remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000),
+            );
+            write(
+              `${evalPrefix(label)}${c.dim}Timed out ${String(timeouts)} requests of ${followUp.timeOutTask}${c.reset}\n`,
+            );
+          }
+          lastSentAt = Date.now();
+          continue;
+        }
+        if ("stopChat" in followUp) {
+          // A person presses Stop on a command they have watched start, not
+          // on one still being written.
+          await new Promise((resolve) =>
+            setTimeout(resolve, STOP_CHAT_AFTER_MS),
+          );
+          write(
+            `${evalPrefix(label)}${c.dim}Stop: the chat's turn${c.reset}\n`,
+          );
+          await call(sessionRoute.stop, { id, sessionId }, { context });
           lastSentAt = Date.now();
           continue;
         }
@@ -1125,9 +1221,15 @@ export async function runEvals(
       // run. Everything above this line has only watched the conversation.
       // A message sent mid-turn that the turn ended before hearing runs as a
       // turn of its own, so a timed follow-up waits the same way.
-      if ((evalCase.kind === "chat" || followUps.some(isTimed)) && !stoppedBy) {
+      if (
+        (evalCase.kind === "chat" ||
+          followUps.some(isTimed) ||
+          evalCase.outlivesTurn) &&
+        !stoppedBy
+      ) {
         const settled = await waitForTreeQuiet(id, {
           timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+          untilBackgroundEnds: evalCase.outlivesTurn,
         });
         if (settled.status === "timeout") {
           stoppedBy = "timeout";
@@ -1656,6 +1758,33 @@ async function standInForTasks(
   }
 }
 
+/**
+ * The chat's task by its handle, once the chat has started it; none when
+ * `turn`, the chat's turn that would start it, ends first.
+ */
+async function taskOnceStarted(
+  chatId: ChatId,
+  handle: string,
+  turn: Promise<unknown>,
+): Promise<ChatTask | undefined> {
+  let turnOver = false;
+  void turn.then(() => {
+    turnOver = true;
+  });
+  for (;;) {
+    const task = (await listChildTasks(chatId)).find(
+      (child) => child.handle === handle,
+    );
+    if (task || turnOver) {
+      return task;
+    }
+    await Promise.race([
+      turn,
+      new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS)),
+    ]);
+  }
+}
+
 async function waitForSessionDone(
   sessionId: StoreId.Session,
   id: string,
@@ -1705,12 +1834,24 @@ async function waitForSessionDone(
  */
 async function waitForTreeQuiet(
   rootChatId: ChatId,
-  { timeoutMs }: { timeoutMs: number },
+  {
+    timeoutMs,
+    untilBackgroundEnds = false,
+  }: {
+    timeoutMs: number;
+    /** Count a background process still running as work under way. */
+    untilBackgroundEnds?: boolean;
+  },
 ): Promise<{ quietSince: number; status: "quiet" } | { status: "timeout" }> {
   const deadline = Date.now() + timeoutMs;
   let quietSince: number | undefined;
   while (Date.now() < deadline) {
-    const working = isWorking(rootChatId);
+    const working =
+      isWorking(rootChatId) ||
+      (untilBackgroundEnds &&
+        listChatBackgroundProcesses(rootChatId).some(
+          (process) => process.status === "running",
+        ));
     if (working) {
       quietSince = undefined;
     } else {

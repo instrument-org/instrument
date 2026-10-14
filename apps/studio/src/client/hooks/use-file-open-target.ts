@@ -1,4 +1,5 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
+import { nameOf } from "@/client/components/window/host-path";
 import { rpcClient } from "@/client/rpc/client";
 import {
   skipToken,
@@ -170,7 +171,7 @@ export function sharedApps(answers: readonly OpenCandidate[][]) {
 
 /** A path's extension, lowercased, or "" for a name without one. */
 function extensionOf(hostPath: string) {
-  const name = hostPath.split(/[/\\]/).at(-1) ?? "";
+  const name = nameOf(hostPath);
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
 }

@@ -230,8 +230,8 @@ describe("GenerateImage source images", () => {
     );
   });
 
-  // Everything below the path resolve assumes a task-relative path, so a path in a
-  // folder has to be refused rather than joined onto the task directory.
+  // Everything below the path resolve assumes a path relative to the chat's folder, so a path in a
+  // folder has to be refused rather than joined onto the chat's folder.
   it("refuses to generate into a folder", async () => {
     const result = await runTool(GenerateImage, {
       ...makeExecuteArgs({

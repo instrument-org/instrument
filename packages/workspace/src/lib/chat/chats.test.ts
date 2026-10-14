@@ -16,6 +16,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { recordAsk } from "../permissions/asks";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { forgetChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -26,6 +27,7 @@ import {
   type Chat,
   listChats,
   markChatRead,
+  markChatStopped,
   markChatUnread,
   startChatUnreadOnSettle,
   renameChat,
@@ -44,9 +46,15 @@ const running = vi.hoisted(() => {
 });
 const alive = vi.hoisted(() => ({ value: new Set<string>() }));
 const pendingWakes = vi.hoisted(() => ({ value: new Set<string>() }));
+const pendingJobWakes = vi.hoisted(() => ({ value: new Set<string>() }));
 
 vi.mock(import("./wake"), () => ({
   hasPendingWake: (chatId: string) => pendingWakes.value.has(chatId),
+}));
+
+vi.mock(import("./job-wake"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  hasPendingJobWake: (chatId: string) => pendingJobWakes.value.has(chatId),
 }));
 
 // What the machine would say: which tasks are at work, and which sessions
@@ -110,6 +118,7 @@ beforeEach(() => {
   running.value = [];
   alive.value = new Set();
   pendingWakes.value = new Set();
+  pendingJobWakes.value = new Set();
 });
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
@@ -200,6 +209,27 @@ async function agentSays(
   const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
   expect(saved.isOk()).toBe(true);
   return messageId;
+}
+
+/** A note the app writes as a user message, which the user never typed. */
+async function noteSays(
+  sessionId: StoreId.Session,
+  minute: number,
+  part: (
+    metadata: ReturnType<typeof partMetadata>,
+  ) => SessionMessage.UserWithParts["parts"][number],
+) {
+  const messageId = StoreId.newMessageId();
+  const saved = await Store.saveMessageWithParts(
+    {
+      id: messageId,
+      metadata: { createdAt: at(minute), sessionId },
+      parts: [part(partMetadata({ messageId, sessionId }))],
+      role: "user",
+    },
+    chatFor(sessionId),
+  );
+  expect(saved.isOk()).toBe(true);
 }
 
 function partMetadata(ids: {
@@ -534,6 +564,20 @@ describe("listChats", () => {
     expect(waking?.unread).toBe(false);
   });
 
+  it("leaves a chat read when its turn ends with a finished command's wake on its way", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Build");
+    await userSays(chatId, sessionId, "run the build and tell me", 1);
+    pendingJobWakes.value.add(chatFor(sessionId));
+    startChatUnreadOnSettle();
+
+    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    pendingJobWakes.value.clear();
+    const [waking] = await listChats();
+    expect(waking?.unread).toBe(false);
+  });
+
   it("keeps a mark the user set theirs when the chat settles under it", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
@@ -585,6 +629,48 @@ describe("listChats", () => {
     const [chat] = await listChats();
     expect(chat?.state).not.toBe("failed");
   });
+
+  // A reply cut off by its request timing out never got out, which nobody
+  // asked for; one cut off by a stop someone asked for is no error, and nor
+  // is one cut off before the reason was kept.
+  it.each([
+    { reason: "timeout", state: "failed" },
+    { reason: "manual", state: "idle" },
+    { reason: undefined, state: "idle" },
+  ] as const)(
+    "reads a reply cut off for $reason as $state",
+    async ({ reason, state }) => {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Documents", 1);
+      await userSays(chatId, sessionId, "what's in my Documents?", 1);
+      const replyId = StoreId.newMessageId();
+      const reply = await Store.saveMessageWithParts(
+        {
+          id: replyId,
+          metadata: {
+            createdAt: at(2),
+            error: {
+              kind: "aborted",
+              message: "Aborted",
+              ...(reason ? { reason } : {}),
+            },
+            finishReason: "aborted",
+            finishedAt: at(2),
+            modelId: "glm-5.3-flash",
+            providerId: "openai-compatible",
+            sessionId,
+          },
+          parts: [],
+          role: "assistant",
+        },
+        chatFor(sessionId),
+      );
+      expect(reply.isOk()).toBe(true);
+
+      const [chat] = await listChats();
+      expect(chat?.state).toBe(state);
+    },
+  );
 
   it("carries the topics a chat is tagged with, dropping ids that are not topics", async () => {
     const chatId = await freshChat();
@@ -712,8 +798,8 @@ describe("listChats", () => {
       },
     ]);
 
-    // Another task still moving keeps the chat at work, and its step is
-    // the one shown rather than the stalled task's.
+    // Another task still moving leaves the chat waiting on the question,
+    // which is what the user can do something about.
     running.value = [
       ...running.value,
       {
@@ -725,8 +811,10 @@ describe("listChats", () => {
       },
     ];
     const [busy] = await listChats();
-    expect(busy?.state).toBe("working");
-    expect(busy?.latest?.text).toBe("Checking the pantry");
+    expect(busy?.state).toBe("waiting");
+    expect(busy?.latest?.text).toBe("Which one?");
+    // What it says is the question; what still moves is said apart from it.
+    expect([chat?.working, busy?.working]).toEqual([false, true]);
   });
 
   it("is working while its own agent is alive, saying what it is doing", async () => {
@@ -746,9 +834,11 @@ describe("listChats", () => {
     expect(chat?.latest?.text).toBe("Running a command");
   });
 
-  // A message is written before the agent it starts is running, so a list
-  // read in between must not call the chat idle and show its last reply.
-  it("is working while a message it was just sent waits for its agent, for a while", async () => {
+  // A message reaches its session as it is written, and the turn it starts
+  // is the session's from then until it ends. How new the message is says
+  // nothing: one no turn took up, as a Stop before it began leaves, is not
+  // work.
+  it("works while its session has a turn, however old its message, and not on a message none took up", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       const chatId = await freshChat();
@@ -756,17 +846,56 @@ describe("listChats", () => {
       await userSays(chatId, sessionId, "make me a grocery list", 1);
       await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
       await userSays(chatId, sessionId, "add eggs", 3);
-
       vi.setSystemTime(at(3).getTime() + 5000);
-      const soon = await listChats();
-      expect(soon[0]?.state).toBe("working");
+
+      const [untaken] = await listChats();
+      expect(untaken?.state).toBe("idle");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
-      const later = await listChats();
-      expect(later[0]?.state).toBe("idle");
+      alive.value = new Set([sessionId]);
+      const [taken] = await listChats();
+      expect(taken?.state).toBe("working");
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // A note a stop leaves is written into the chat while its own turn may
+  // still be going, and starts nothing: the turn's step is still its step.
+  it("names its turn's step past a note a stopped task leaves mid-turn", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Counts", 1);
+    await userSays(chatId, sessionId, "count to a million", 1);
+    await agentSays(chatId, sessionId, "", {
+      commands: ["task list"],
+      finished: false,
+      minute: 2,
+    });
+    await noteSays(sessionId, 3, (metadata) => ({
+      data: {
+        events: [
+          {
+            ended: "Stopped while counting",
+            handle: "t1",
+            sessionId: StoreId.newSessionId(),
+            status: "done",
+            stoppedBy: "user",
+            title: "Count the lines",
+          },
+        ],
+      },
+      metadata,
+      type: "data-taskEvent",
+    }));
+    alive.value = new Set([sessionId]);
+
+    const [chat] = await listChats();
+
+    expect(chat?.state).toBe("working");
+    expect(chat?.latest).toMatchObject({
+      kind: "step",
+      text: "Running a command",
+    });
   });
 
   it("is working while a task filed from it has finished and its wake waits to be written", async () => {
@@ -812,6 +941,209 @@ describe("listChats", () => {
     } finally {
       alive.value = new Set();
     }
+  });
+
+  it("waits on an open card, even while the turn that raised it winds down", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Pantry");
+      await userSays(chatId, sessionId, "read my pantry list", 1);
+      await agentSays(chatId, sessionId, "", {
+        commands: ["cat ~/Pantry/list.txt"],
+        finished: false,
+        minute: 2,
+      });
+      vi.setSystemTime(at(3));
+      await recordAsk(
+        { chatId: chatFor(sessionId), sessionId },
+        "folder",
+        path.join(os.homedir(), "Pantry"),
+      );
+      alive.value = new Set([sessionId]);
+
+      const [winding] = await listChats();
+      expect(winding?.state).toBe("waiting");
+      expect(winding?.latest).toEqual({
+        at: at(3).getTime(),
+        kind: "question",
+        text: "Waiting for your OK to use “Pantry”",
+      });
+
+      alive.value = new Set();
+      const [ended] = await listChats();
+      expect(ended?.state).toBe("waiting");
+
+      // The user sent something else rather than answer: the turn that
+      // starts is what the chat is on until it ends.
+      await userSays(chatId, sessionId, "never mind, check the fridge", 4);
+      alive.value = new Set([sessionId]);
+      const [spokenPast] = await listChats();
+      expect(spokenPast?.state).toBe("working");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is idle after a relaunch past the note the quit left, and waits only on a card still open", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Groceries", 1);
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "A task is on it.", {
+        commands: ["task new 'Count the lines'"],
+        minute: 2,
+      });
+      await noteSays(sessionId, 3, (metadata) => ({
+        data: {
+          events: [
+            {
+              ended: "The app closed while counting",
+              handle: "t1",
+              sessionId: StoreId.newSessionId(),
+              status: "done",
+              stoppedBy: "app",
+              title: "Count the lines",
+            },
+          ],
+        },
+        metadata,
+        type: "data-taskEvent",
+      }));
+
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const [relaunched] = await listChats();
+      expect(relaunched?.state).toBe("idle");
+      // What the line says "Done" by once the chat is at rest.
+      expect(relaunched?.lastStep?.at).toBe(at(2).getTime());
+
+      // A card raised before the quit still waits on the user: the note is
+      // not the user speaking past it.
+      vi.setSystemTime(at(2).getTime() + 30_000);
+      await recordAsk(
+        { chatId: chatFor(sessionId), sessionId },
+        "folder",
+        path.join(os.homedir(), "Pantry"),
+      );
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const [carded] = await listChats();
+      expect(carded?.state).toBe("waiting");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("works while a background job's wake is on its way and through the turn it starts, then settles", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Documents", 1);
+    await userSays(chatId, sessionId, "what's in my Documents folder?", 1);
+    await agentSays(chatId, sessionId, "Still listing it.", {
+      commands: ["ls ~/Documents"],
+      minute: 2,
+    });
+    await noteSays(sessionId, 3, (metadata) => ({
+      data: {
+        events: [
+          {
+            command: "ls ~/Documents",
+            durationMs: 40_000,
+            exitCode: 0,
+            id: "bg_1",
+            logFilePath: ".instrument/processes/bg_1.log",
+            status: "exited",
+          },
+        ],
+      },
+      metadata,
+      type: "data-jobEvent",
+    }));
+
+    // Written, and on its way to the session.
+    pendingWakes.value = new Set([chatFor(sessionId)]);
+    const [woken] = await listChats();
+    expect(woken?.state).toBe("working");
+
+    pendingWakes.value = new Set();
+    alive.value = new Set([sessionId]);
+    const [answering] = await listChats();
+    expect(answering?.state).toBe("working");
+
+    await agentSays(chatId, sessionId, "Your Documents folder holds Taxes.", {
+      minute: 4,
+    });
+    alive.value = new Set();
+    const [settled] = await listChats();
+    expect(settled?.state).toBe("idle");
+  });
+
+  // The person's Stop is what says so, however the turn ended: before it
+  // began, as here, with the message no turn took up; mid-call; or
+  // mid-reply. A note a task's stop leaves starts no turn, so it is not
+  // something happening after the Stop.
+  it("says the person stopped its turn from their Stop until a turn starts after it", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Documents", 1);
+    await userSays(chatId, sessionId, "what's in my Documents?", 1);
+    await markChatStopped(chatFor(sessionId), at(2));
+
+    const [beforeStart] = await listChats();
+    expect(beforeStart?.state).toBe("stopped");
+
+    await noteSays(sessionId, 3, (metadata) => ({
+      data: {
+        events: [
+          {
+            ended: "Stopped while waiting",
+            handle: "t1",
+            sessionId: StoreId.newSessionId(),
+            status: "done",
+            stoppedBy: "user",
+            title: "Sleep 150 seconds",
+          },
+        ],
+      },
+      metadata,
+      type: "data-taskEvent",
+    }));
+    const [pastNote] = await listChats();
+    expect(pastNote?.state).toBe("stopped");
+
+    // The next turn starting is what ends it.
+    await userSays(chatId, sessionId, "try Desktop instead", 4);
+    alive.value = new Set([sessionId]);
+    const [next] = await listChats();
+    expect(next?.state).toBe("working");
+
+    // A reply cut off with no Stop of the person's behind it is not theirs.
+    alive.value = new Set();
+    const replyId = StoreId.newMessageId();
+    const reply = await Store.saveMessageWithParts(
+      {
+        id: replyId,
+        metadata: {
+          createdAt: at(5),
+          error: { kind: "aborted", message: "Aborted" },
+          finishReason: "aborted",
+          finishedAt: at(5),
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        parts: [
+          {
+            metadata: partMetadata({ messageId: replyId, sessionId }),
+            text: "Your Desktop holds",
+            type: "text",
+          },
+        ],
+        role: "assistant",
+      },
+      chatFor(sessionId),
+    );
+    expect(reply.isOk()).toBe(true);
+    const [cutOff] = await listChats();
+    expect(cutOff?.state).not.toBe("stopped");
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
@@ -1059,6 +1391,54 @@ describe("liveChatList", () => {
 
     expect((await next())?.[0]?.state).toBe("idle");
     stop();
+  });
+
+  // The quit leaves the chat a note naming the tasks it cut off, written as a
+  // user message that starts no turn. A relaunch right after it must not read
+  // it as a turn starting: nothing would run it.
+  it("says a chat is idle on its first answer after a relaunch, past the note the quit left", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Groceries", 1);
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "A task is on it.", { minute: 2 });
+      const noteId = StoreId.newMessageId();
+      const saved = await Store.saveMessageWithParts(
+        {
+          id: noteId,
+          metadata: { createdAt: at(3), sessionId },
+          parts: [
+            {
+              data: {
+                events: [
+                  {
+                    ended: "The app closed while counting",
+                    handle: "t1",
+                    sessionId: StoreId.newSessionId(),
+                    status: "done",
+                    stoppedBy: "app",
+                    title: "Count the lines",
+                  },
+                ],
+              },
+              metadata: partMetadata({ messageId: noteId, sessionId }),
+              type: "data-taskEvent",
+            },
+          ],
+          role: "user",
+        },
+        chatFor(sessionId),
+      );
+      expect(saved.isOk()).toBe(true);
+
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const { first, stop } = await open();
+      expect(first?.[0]?.state).toBe("idle");
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("moves a row's apps when the workspace's apps change", async () => {

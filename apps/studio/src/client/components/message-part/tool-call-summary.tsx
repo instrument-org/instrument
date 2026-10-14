@@ -9,6 +9,7 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { type ReactNode } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
+import { isCutOff } from "../../lib/is-cut-off";
 import {
   getToolLabelForPart,
   getToolStreamingLabel,
@@ -100,7 +101,7 @@ export function ToolCallSummary({
   const explanation = getToolExplanation(part);
 
   const label =
-    !isFailed && explanation
+    (!isFailed || isCutOff(part)) && explanation
       ? explanation
       : isStreaming
         ? getToolStreamingLabel(toolName)

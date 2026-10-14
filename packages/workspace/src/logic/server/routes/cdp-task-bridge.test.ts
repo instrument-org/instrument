@@ -42,16 +42,16 @@ vi.mock("../../../lib/chat-dir-utils", () => ({
 const { layoutsReadFor } = vi.hoisted(() => ({
   layoutsReadFor: [] as string[],
 }));
-vi.mock("../../../lib/resolve-workspace-file-path", async () => {
+vi.mock("../../../lib/session-layout", async () => {
   const { buildWorkspaceFsLayout } =
     await import("../../../lib/workspace-fs-layout");
   const { ChatDirSchema } = await import("../../../schemas/paths");
   return {
-    taskFsLayout: (chatId: string) => {
+    sessionLayout: ({ chatId }: { chatId: string }) => {
       layoutsReadFor.push(chatId);
       return Promise.resolve(
         buildWorkspaceFsLayout({
-          taskHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
+          chatHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
       );
     },

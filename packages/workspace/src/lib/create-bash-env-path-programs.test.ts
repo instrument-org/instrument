@@ -18,7 +18,7 @@ import { RG_DISK_PATH } from "./ripgrep";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskRoot: string;
+let chatRoot: string;
 let binDir: string;
 let chatId: ChatId;
 let originalPath: string | undefined;
@@ -38,9 +38,9 @@ beforeAll(async () => {
   tmpDir = await fs.realpath(
     await fs.mkdtemp(path.join(os.tmpdir(), "bash-path-programs-")),
   );
-  taskRoot = path.join(tmpDir, "chats", "test");
+  chatRoot = path.join(tmpDir, "chats", "test");
   binDir = path.join(tmpDir, "bin");
-  await fs.mkdir(taskRoot, { recursive: true });
+  await fs.mkdir(chatRoot, { recursive: true });
   await fs.mkdir(binDir);
   await writeProgram(
     binDir,
@@ -52,7 +52,7 @@ beforeAll(async () => {
   await writeProgram(binDir, "rg", "echo fake rg");
   originalPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ""}`;
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterAll(async () => {
@@ -68,7 +68,7 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
     expect(result).toMatchObject({
       exitCode: 0,
       stderr: "",
-      stdout: `args=a b c cwd=${taskRoot}/sub in=piped\n`,
+      stdout: `args=a b c cwd=${chatRoot}/sub in=piped\n`,
     });
   });
 
@@ -136,7 +136,7 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
   });
 
   it("names the program one of our commands runs", async () => {
-    const venvPython = path.join(taskRoot, ".venv", "bin", "python");
+    const venvPython = path.join(chatRoot, ".venv", "bin", "python");
     const result = await run(
       [
         "which python3",
@@ -180,7 +180,7 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
       ].join("\n"),
     );
     expect(result.stdout).toBe(
-      `native ${taskRoot}/native.sh\ninterpreted\n./native.sh\n`,
+      `native ${chatRoot}/native.sh\ninterpreted\n./native.sh\n`,
     );
   });
 });

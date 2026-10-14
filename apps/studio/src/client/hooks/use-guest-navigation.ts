@@ -3,8 +3,8 @@ import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useEffect, useEffectEvent, useState } from "react";
 
 /**
- * Where a browser guest is and whether it has history to step through, kept
- * as it moves: it navigates by the user's hand and by an agent's CDP commands
+ * Where a browser guest is, whether it has history to step through, and
+ * whether it is loading, kept as it moves: it navigates by the user's hand and by an agent's CDP commands
  * alike, so this listens rather than polls.
  *
  * Pass `null` until the guest is there to read. The answer is stamped with the
@@ -20,10 +20,16 @@ export function useGuestNavigation(
     /** Called with the guest's address each time it is read, including the first read for a target. */
     onNavigate?: (url: string) => void;
   } = {},
-): { canGoBack: boolean; canGoForward: boolean; url: null | string } {
+): {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  isLoading: boolean;
+  url: null | string;
+} {
   const [state, setState] = useState<null | {
     back: boolean;
     forward: boolean;
+    loading: boolean;
     targetId: BrowserTargetId;
     url: string;
   }>(null);
@@ -45,6 +51,7 @@ export function useGuestNavigation(
       setState({
         back: guest.canGoBack(),
         forward: guest.canGoForward(),
+        loading: guest.isLoading(),
         targetId: guest.targetId,
         url,
       });
@@ -56,9 +63,10 @@ export function useGuestNavigation(
     const syncSteps = () => {
       const back = guest.canGoBack();
       const forward = guest.canGoForward();
+      const loading = guest.isLoading();
       setState((current) =>
         current?.targetId === guest.targetId
-          ? { ...current, back, forward }
+          ? { ...current, back, forward, loading }
           : current,
       );
     };
@@ -67,6 +75,7 @@ export function useGuestNavigation(
       guest.on("did-navigate", sync),
       guest.on("did-navigate-in-page", sync),
       guest.on("did-fail-load", syncSteps),
+      guest.on("did-start-loading", syncSteps),
       // A redirect can move the history once loading stops without a
       // navigation event for it.
       guest.on("did-stop-loading", syncSteps),
@@ -87,6 +96,7 @@ export function useGuestNavigation(
   return {
     canGoBack: current?.back ?? false,
     canGoForward: current?.forward ?? false,
+    isLoading: current?.loading ?? false,
     url: current?.url ?? null,
   };
 }

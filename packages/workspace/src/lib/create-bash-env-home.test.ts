@@ -34,11 +34,11 @@ beforeAll(async () => {
   home = path.join(tmpDir, "home");
   await fs.mkdir(path.join(home, "Documents"), { recursive: true });
   await fs.writeFile(path.join(home, "Documents", "taxes.txt"), "1040");
-  const taskRoot = path.join(tmpDir, "chats", "test");
-  await fs.mkdir(taskRoot, { recursive: true });
+  const chatRoot = path.join(tmpDir, "chats", "test");
+  await fs.mkdir(chatRoot, { recursive: true });
   originalHome = process.env.HOME;
   process.env.HOME = home;
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // The system's own temp folders, which hold this test's planted home.
   const { tempFolders: _tests, ...system } = getWorkspaceConfig();
   setWorkspaceConfig(system);

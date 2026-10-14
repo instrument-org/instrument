@@ -9,9 +9,10 @@ import {
   type FileOpenTarget,
 } from "./types";
 
-// Bumped only when the persisted shape changes. Candidate curation runs on
-// read, so editing the policy lists no longer invalidates anything here.
-const CACHE_VERSION = 10;
+// Bumped when the persisted shape changes, or the name a resolver gives an
+// app does. Candidate curation runs on read, so editing the policy lists no
+// longer invalidates anything here.
+const CACHE_VERSION = 11;
 
 // Resolution spawns helper processes and only depends on the file type, so
 // every entry is an application-wide cache. Refreshes re-read icons, producing

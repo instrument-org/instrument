@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";

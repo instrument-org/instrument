@@ -1,4 +1,7 @@
 {
   "extends": "@instrument-org/typescript-config/base.json",
-  "include": ["*.ts", "scripts"]
+  "include": ["*.ts", "scripts"],
+  // A probe run with node's type stripping, importing workspace sources by
+  // their .ts paths, which this config does not resolve.
+  "exclude": ["scripts/sandbox-bakeoff"]
 }

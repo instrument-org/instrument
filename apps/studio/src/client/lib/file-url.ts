@@ -1,3 +1,5 @@
+import { isWindowsPath } from "@instrument-org/shared";
+
 /**
  * A file on the computer as a page: the `file://` address a browser opens it
  * at, which is what the person's own browser would do with the file. A guest
@@ -6,11 +8,13 @@
  *
  * Written per segment so the separators survive and a name's own characters
  * do not read as syntax. A Windows path's drive letter becomes the first
- * segment, `file:///C:/Users/...`, which is how Chromium spells one.
+ * segment, `file:///C:/Users/...`, which is how Chromium spells one. A
+ * backslash separates only in a Windows path (a drive's or a share's); on a
+ * Mac or Linux it is a letter a name may hold.
  */
 export function fileUrlOf(hostPath: string): string {
   const encoded = hostPath
-    .split(/[/\\]/)
+    .split(isWindowsPath(hostPath) ? /[/\\]/ : "/")
     .filter((segment, index) => index === 0 || segment !== "")
     .map(encodeURIComponent)
     .join("/");

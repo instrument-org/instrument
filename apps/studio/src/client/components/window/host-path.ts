@@ -1,8 +1,27 @@
+import { isWindowsPath } from "@instrument-org/shared";
+
 /** The folder a path on the computer sits in. */
 export function folderOf(hostPath: string) {
   const separator = separatorOf(hostPath);
   const at = hostPath.lastIndexOf(separator);
   return at <= 0 ? separator : hostPath.slice(0, at);
+}
+
+/**
+ * The folder a folder sits in, or null at the top of a disk (`/`, `C:\`),
+ * which nothing is above. A Windows drive's top keeps its backslash, as the
+ * drive is written.
+ */
+export function parentFolderOf(hostPath: string): null | string {
+  const names = segmentsOf(hostPath);
+  if (separatorOf(hostPath) === "\\") {
+    const above = names.slice(0, -1);
+    if (above.length === 0) {
+      return null;
+    }
+    return above.length === 1 ? `${above.join("")}\\` : above.join("\\");
+  }
+  return names.length === 0 ? null : `/${names.slice(0, -1).join("/")}`;
 }
 
 /**
@@ -46,9 +65,16 @@ export function joinHostPath(base: string, ...below: string[]) {
   return [base.replace(/[/\\]+$/, ""), ...names].join(separatorOf(base));
 }
 
+/** What a thing is called: the last name along its path, whichever way the path is spelled. */
+export function nameOf(hostPath: string) {
+  return segmentsOf(hostPath).at(-1) ?? hostPath;
+}
+
 /** Every name along a path, in order, whichever way the path is spelled. */
 export function segmentsOf(hostPath: string) {
-  return hostPath.split(/[/\\]/).filter(Boolean);
+  return hostPath
+    .split(isWindowsPath(hostPath) ? /[/\\]/ : "/")
+    .filter(Boolean);
 }
 
 /**
@@ -58,5 +84,5 @@ export function segmentsOf(hostPath: string) {
  * paths reach the window from the workspace already spelled its way.
  */
 export function separatorOf(hostPath: string) {
-  return hostPath.includes("\\") ? "\\" : "/";
+  return isWindowsPath(hostPath) && hostPath.includes("\\") ? "\\" : "/";
 }

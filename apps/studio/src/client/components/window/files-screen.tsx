@@ -328,9 +328,13 @@ export function FilesScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  // Shown only while this screen's tab is the one up: a tab behind keeps
-  // its page parked rather than over the tab in front.
-  usePageHost(hostGroup, { chrome: false, into: slot, isActive: isActiveTab });
+  // Shown only while this screen's tab is the one up and on screen: a tab
+  // behind, or a pane put away, keeps its page parked rather than drawn.
+  usePageHost(hostGroup, {
+    chrome: false,
+    into: slot,
+    isActive: isActiveTab && (groupTab?.isShown ?? true),
+  });
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile

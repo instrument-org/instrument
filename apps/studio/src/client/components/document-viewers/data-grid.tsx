@@ -1,4 +1,5 @@
 import { useFindTarget } from "@/client/hooks/use-find-target";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { logger } from "@/client/lib/logger";
 import { cn } from "@/client/lib/utils";
 import { type ReferenceElement } from "@floating-ui/dom";
@@ -34,6 +35,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "../ui/context-menu";
 import {
@@ -916,6 +918,9 @@ export function DataGrid({
               }}
             >
               Copy selection
+              <ContextMenuShortcut>
+                {formatAcceleratorText("CmdOrCtrl+C")}
+              </ContextMenuShortcut>
             </ContextMenuItem>
             {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
               <ContextMenuItem
@@ -1344,6 +1349,9 @@ function GridEditMenuItems({
       <ContextMenuSeparator />
       <ContextMenuItem disabled={!block} onSelect={onEdit}>
         Edit cell
+        <ContextMenuShortcut>
+          {formatAcceleratorText("Enter")}
+        </ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem
         disabled={firstRow === undefined}

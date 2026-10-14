@@ -1,7 +1,7 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
-import { useShowTaskFile } from "../../hooks/use-show-task-file";
+import { useShowChatFile } from "../../hooks/use-show-chat-file";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
@@ -153,13 +153,13 @@ function ReadFileCard({
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {
       return;
     }
-    showTaskFile(filePath);
+    showChatFile(filePath);
   };
 
   return (

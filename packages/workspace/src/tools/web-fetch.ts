@@ -124,7 +124,7 @@ export const WebFetch = setupTool({
     - Following a link surfaced by ${TOOL_NAMES.webSearch}
     - Pulling text or JSON from a known endpoint
 
-    This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the task folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
+    This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the chat's folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
   `,
   async execute({ input, partId, signal, chatId }) {
     const parsedUrl = parseHttpUrl(input.url);
@@ -491,7 +491,7 @@ async function failureBody(response: Response): Promise<string | undefined> {
   }
   // No spill file for this one, unlike the success path: a spill exists so the
   // model can go and get the rest of a page it wants, and nobody wants the rest
-  // of a deny page. Writing one per failed fetch would leave a file in the task
+  // of a deny page. Writing one per failed fetch would leave a file in the chat's
   // folder for every 404.
   const kept = truncateWithoutSplitting(text, MAX_ERROR_BODY_CHARACTERS);
   return kept.length === text.length ? text : `${kept}...`;
@@ -622,7 +622,7 @@ function requestHeaders(userAgent: string): Record<string, string> {
 function unsupportedContentMessage(mime: string): string {
   const label = mime || "unknown";
   if (DOCUMENT_MIMES.has(mime)) {
-    return `${TOOL_NAMES.webFetch} cannot read "${label}" documents directly. Download the file into the task folder (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
+    return `${TOOL_NAMES.webFetch} cannot read "${label}" documents directly. Download the file into the chat's folder (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
   }
   return `Unsupported content type "${label}". ${TOOL_NAMES.webFetch} reads text, HTML, and JSON pages. If the page needs JavaScript, a login, or interaction, use the browser instead.`;
 }

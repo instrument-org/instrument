@@ -19,7 +19,6 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "env": [
         "ANALYZE_BUILD",
-        "CC",
         "CI",
         "DEV",
         "DEVELOPER_DIR",
@@ -44,6 +43,7 @@
         "SKIP_ONBOARDING",
         "STUDIO_DRIVE_PURPOSE",
         "STUDIO_LOG_LEVEL",
+        "STUDIO_OWN_PRIVACY",
         "SIGNTOOL_PATH",
         "MAIN_VITE_APP_API_BASE_URL",
         "MAIN_VITE_APP_REGISTRY_DIR_PATH",

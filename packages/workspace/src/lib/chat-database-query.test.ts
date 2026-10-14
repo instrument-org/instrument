@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 describe("queryChatDatabase", () => {
-  it("queries a task directory read-only and returns raw rows", () => {
+  it("queries a chat's folder read-only and returns raw rows", () => {
     const result = queryChatDatabase({
       databasePath: chatDir,
       sql: "select key, cast(blob as text) as payload from sessions",

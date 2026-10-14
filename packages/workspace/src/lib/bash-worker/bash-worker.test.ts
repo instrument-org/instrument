@@ -40,16 +40,16 @@ let chatId: ChatId;
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-worker-"));
-  const taskPath = path.join(root, "chats", `01k${"worker".padEnd(23, "0")}`);
-  await fs.mkdir(path.join(taskPath, "work"), { recursive: true });
+  const chatRoot = path.join(root, "chats", `01k${"worker".padEnd(23, "0")}`);
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   // Its settings name a session, so the chat is found again on disk after a
   // test below reads the index afresh.
-  await fs.mkdir(path.join(taskPath, ".instrument"));
+  await fs.mkdir(path.join(chatRoot, ".instrument"));
   await fs.writeFile(
-    path.join(taskPath, ".instrument", "settings.json"),
+    path.join(chatRoot, ".instrument", "settings.json"),
     JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
   );
-  chatId = createMockChatConfigForDir(taskPath);
+  chatId = createMockChatConfigForDir(chatRoot);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),

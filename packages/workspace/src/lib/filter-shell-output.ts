@@ -27,9 +27,14 @@ const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
 
 /**
  * A drive-absolute Windows path a native tool printed (`C:\Users\sam\a.txt`,
- * `D:/data`), up to the first character a path segment here cannot hold.
+ * `D:/data`, `C:\\Users\\sam` as a script escaped it), up to the first
+ * character a path segment here cannot hold. A folder's name may hold spaces
+ * (`C:\Program Files\x`) where a separator follows it; the last name may
+ * not, so the sentence after a path stays out of it. `;` ends a path, since
+ * it separates the entries of a Windows PATH.
  */
-const DRIVE_PATH_PATTERN = /(?<![\w/\\])([A-Za-z]):([\\/][^\s"'<>|*?:]*)/g;
+const DRIVE_PATH_PATTERN =
+  /(?<![\w/\\])([A-Za-z]):((?:[\\/]+[^\\/"'<>|*?:;\r\n\t]+(?=[\\/]))*[\\/]+[^\s\\/"'<>|*?:;]*)/g;
 
 /**
  * `rewriteSeparators` respells the drive-absolute paths a Windows-native tool
@@ -62,7 +67,7 @@ export function filterShellOutput(
     filtered = filtered.replaceAll(
       DRIVE_PATH_PATTERN,
       (_, drive: string, rest: string) =>
-        `/${drive.toLowerCase()}${rest.replaceAll("\\", "/")}`.replace(
+        `/${drive.toLowerCase()}${rest.replaceAll(/[\\/]+/g, "/")}`.replace(
           /(.)\/$/,
           "$1",
         ),

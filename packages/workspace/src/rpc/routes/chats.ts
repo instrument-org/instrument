@@ -19,6 +19,7 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
+import { openAsksOf } from "../../lib/permissions/asks";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
@@ -41,8 +42,13 @@ const ChildTaskSchema = ChatTaskSchema.extend({
   }),
   /** The label of its newest step of its own, when it gave one. */
   step: z.string().optional(),
-  /** Whether a stop has something to end: an agent at work. */
+  /**
+   * Whether a stop has something to end: an agent at work, or a wait on a
+   * card it ran into, which the stop takes it off.
+   */
   stoppable: z.boolean(),
+  /** Whether an agent of its is at work. */
+  working: z.boolean(),
 });
 
 export type ChildTask = z.output<typeof ChildTaskSchema>;
@@ -59,7 +65,8 @@ async function childTasks(id: ChatId) {
         ...task,
         standing: await taskStanding({ ...ref, isRunning: running }),
         ...(step ? { step } : {}),
-        stoppable: running,
+        stoppable: running || (await openAsksOf(id, task.id)).length > 0,
+        working: running,
       };
     }),
   );
@@ -67,8 +74,8 @@ async function childTasks(id: ChatId) {
 
 /**
  * Whether a change is to the chat whose tasks a list shows: what one of its
- * rows shows (its title, its standing, its step) is all in the chat's store,
- * and whether it works is its session's agent.
+ * rows shows (its title, its standing, its step) is in the chat's store and
+ * the cards in its state, and whether it works is its session's agent.
  */
 function inChat(chatId: ChatId) {
   return (change: RecordChanged) =>

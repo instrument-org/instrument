@@ -1,10 +1,10 @@
 import { type SessionMessage } from "../schemas/session/message";
 import { filesNamedIn } from "./parse-files-block";
-import { isTaskFileHref, taskFilePathFromHref } from "./task-file-href";
+import { isChatFileHref, chatFilePathFromHref } from "./chat-file-href";
 
 // A Markdown link target. Only a link: a path sitting in prose is text, and the
 // renderer draws no chip for it. Which targets name a file rather than a web
-// page is `isTaskFileHref`'s to say, the same as it is for the renderer.
+// page is `isChatFileHref`'s to say, the same as it is for the renderer.
 const LINK_TARGET = /\[[^\]]*\]\(\s*([^)\s]+)/gu;
 
 /**
@@ -50,8 +50,8 @@ function collectPaths(message: SessionMessage.WithParts): Set<string> {
 
   for (const match of text.matchAll(LINK_TARGET)) {
     const target = match[1];
-    if (target !== undefined && isTaskFileHref(target)) {
-      named.add(taskFilePathFromHref(target));
+    if (target !== undefined && isChatFileHref(target)) {
+      named.add(chatFilePathFromHref(target));
     }
   }
 

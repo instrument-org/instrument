@@ -1,7 +1,7 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { nodeToolsEnv } from "./tool-isolation";
-import { commandLineToolsEnv } from "./command-line-tools-env";
+import { chatNativeReach } from "./chat-native-reach";
 import { execaNodeForChat } from "./execa-node-for-chat";
 import { filterShellOutput } from "./filter-shell-output";
 import {
@@ -33,6 +33,9 @@ export async function runPnpmCommand({
   chatId: ChatId;
 }) {
   const sink = currentShellOutputSink();
+  // A skill's install runs outside any shell call, and is held to the
+  // chat's reach all the same.
+  const reach = await chatNativeReach(chatId);
   const subprocess = execaNodeForChat(
     chatId,
     getWorkspaceConfig().pnpmBinPath,
@@ -43,9 +46,6 @@ export async function runPnpmCommand({
       detached: sink !== undefined && process.platform !== "win32",
       env: {
         ...env,
-        // Keep a native (node-gyp) build from launching the macOS Command Line
-        // Tools installer dialog and hanging the tool call.
-        ...commandLineToolsEnv(),
         // pnpm uses os.homedir() to locate its store and cache, so a HOME the
         // agent exported would record a wrong store path in .modules.yaml, and
         // the next run would see a store mismatch and try to purge
@@ -63,6 +63,7 @@ export async function runPnpmCommand({
       ...(stdin && { input: stdin }),
     },
     cwd,
+    reach,
   );
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal })

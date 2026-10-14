@@ -85,6 +85,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-permissionAnswer": {
       return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
     }
+    case "data-jobEvent": {
+      return `<data-jobEvent events="${part.data.events.map((event) => `${event.id}:${event.status}`).join(",")}" />`;
+    }
     case "data-appEvent": {
       return `<data-appEvent events="${part.data.events.map((event) => `${event.slug}:${event.event}`).join(",")}" />`;
     }

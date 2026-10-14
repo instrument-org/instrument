@@ -688,7 +688,7 @@ function addressOfEvent(params: unknown) {
 
 /** The host path of every folder in a layout. */
 function hostRootsOf(layout: WorkspaceFsLayout) {
-  return [layout.task, ...otherFolders(layout)].map(
+  return [layout.chat, ...otherFolders(layout)].map(
     (folder) => folder.hostRoot,
   );
 }

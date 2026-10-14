@@ -11,6 +11,8 @@ export interface GroupTab {
   /** Closes the tab, for a screen with nowhere left to go. */
   close: () => void;
   id: string;
+  /** Whether the group's tab is on screen: false while the pane it is drawn in is put away, mounted but hidden. */
+  isShown: boolean;
   /** A page in the tab's place: the web's start sending the tab to a site. */
   showPage: (url: string) => void;
 }

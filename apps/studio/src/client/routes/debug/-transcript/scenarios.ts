@@ -220,7 +220,7 @@ const TABLES = [
  * one naming a site and one naming a page inside it. A page link carries the origin
  * it leads to unless its own label already names that origin, which is what
  * keeps the cue on the links that need it and off the ones that do not. An
- * address and a task file are chips instead, because both already name their
+ * address and a chat file are chips instead, because both already name their
  * whole destination and what is worth saying about them is what clicking does.
  *
  * The line of three chips is the alignment case: a chip is centered on the text
@@ -686,7 +686,7 @@ export const scenarios: Scenario[] = [
         type: "tool-edit_file",
       }),
       threw({
-        error: "Invalid path: cannot write outside the task directory",
+        error: "Invalid path: cannot write outside the chat's folder",
         explanation: "Writing outside the task",
         filePath: "../outside/file.ts",
       }),

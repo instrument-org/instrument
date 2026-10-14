@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { RelativeTaskPathSchema, WorkspaceFilePathSchema } from "./paths";
+import { RelativeChatPathSchema, WorkspaceFilePathSchema } from "./paths";
 
-describe("RelativeTaskPathSchema", () => {
+describe("RelativeChatPathSchema", () => {
   it.each(["src/index.ts", "./src/index.ts", "file.txt"])(
     "accepts %s",
     (filePath) => {
-      expect(RelativeTaskPathSchema.safeParse(filePath).success).toBe(true);
+      expect(RelativeChatPathSchema.safeParse(filePath).success).toBe(true);
     },
   );
 
@@ -16,7 +16,7 @@ describe("RelativeTaskPathSchema", () => {
     "src\\..\\..\\secret.txt",
     "/etc/passwd",
   ])("rejects %s", (filePath) => {
-    expect(RelativeTaskPathSchema.safeParse(filePath).success).toBe(false);
+    expect(RelativeChatPathSchema.safeParse(filePath).success).toBe(false);
   });
 });
 

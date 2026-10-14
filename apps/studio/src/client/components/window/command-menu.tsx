@@ -1,5 +1,5 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
-import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
@@ -11,9 +11,13 @@ import {
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
-import { FileTypeIcon } from "@/client/components/extend/file-system";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
+import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf, homeRelative } from "@/client/components/window/host-path";
-import { fileHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -41,8 +45,19 @@ import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
-import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import {
+  locateTypedPath,
+  type MissedPath,
+  missedPathNotice,
+  shownTypedPath,
+  typedPathHere,
+} from "@/client/lib/locate-typed-path";
+import {
+  webSearchLabel,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
+import { osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
   isSearchWords,
@@ -81,6 +96,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
 import { type ReactNode, useDeferredValue, useRef, useState } from "react";
+import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -121,6 +137,12 @@ type Item = {
   icon: ReactNode;
   id: string;
   label: string;
+  /**
+   * Whether the row puts the menu away itself, once it knows it has gone
+   * somewhere: a path is looked for first, and the menu stays with the words
+   * when nothing is there.
+   */
+  leavesItself?: true;
   ranges: null | number[];
   run: () => void;
   type: "item";
@@ -146,7 +168,8 @@ export type CommandMenuSurface = "dialog" | "page";
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
  * The rows follow the words a beat behind while typing, so the field keeps
- * up with the keys; `words` in the result is what the rows are for.
+ * up with the keys; `words` in the result is what the rows are for, and
+ * `pick` is the row Return runs, for the menu's `Command` to hold.
  */
 export function useCommandMenuRows({
   active,
@@ -164,7 +187,12 @@ export function useCommandMenuRows({
   openScreen: (href: string) => void;
   surface: CommandMenuSurface;
   words: string;
-}): { isBang: boolean; rows: Row[]; words: string } {
+}): {
+  isBang: boolean;
+  pick: { onValueChange: (id: string) => void; value: string };
+  rows: Row[];
+  words: string;
+} {
   const words = useDeferredValue(typed);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
@@ -319,16 +347,9 @@ export function useCommandMenuRows({
   }
 
   // Each tab of Settings by name, found by typing it and never listed
-  // before, so the empty menu stays short. General is the Settings row
-  // itself; the tabs for building the app only show in developer mode.
-  const settingsTabs: SettingsTab[] = [
-    "Usage and billing",
-    "Providers",
-    "Skills",
-    "Memory",
-    "Storage",
-    ...(developerMode ? (["Features", "Debug"] as const) : []),
-  ];
+  // before, so the empty menu stays short: the tabs the Settings sidebar
+  // lists, but General, which is the Settings row itself.
+  const settingsTabs = useSettingsTabs().filter((tab) => tab !== "General");
   const settingsRows = settingsTabs.map((tab) => ({
     icon: <GearIcon />,
     id: `settings-${tab}`,
@@ -376,7 +397,117 @@ export function useCommandMenuRows({
   );
 
   const isSearch = words !== "" && !isBang;
-  const site = isSearch ? siteFromWords(words) : undefined;
+  const typedPath = isSearch ? typedPathHere(words) : undefined;
+  const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
+  // A path pressed Return on that led nowhere, kept until the words change:
+  // it answers that Return alone, so the same words typed again later are
+  // looked for again.
+  const [missedAt, setMissedAt] = useState<
+    undefined | { outcome: MissedPath; typed: string }
+  >();
+  if (missedAt !== undefined && missedAt.typed !== typed.trim()) {
+    setMissedAt(undefined);
+  }
+  // A path still being looked for, once the look has gone on long enough
+  // to say so.
+  const [looking, setLooking] = useState<string>();
+  const missed =
+    typedPath !== undefined && missedAt?.typed === typedPath.typed
+      ? missedAt.outcome
+      : undefined;
+  // Where a typed path goes once the menu is out of the way: a folder, or a
+  // place the system would not let the app read, to the folder view, which
+  // says so and is where it is undone; a file to its own view.
+  const openTypedPath = async () => {
+    if (!typedPath) {
+      return;
+    }
+    if (looking === typedPath.typed) {
+      return;
+    }
+    const located = await locateTypedPath(typedPath, {
+      onSlow: () => {
+        setLooking(typedPath.typed);
+      },
+    });
+    setLooking(undefined);
+    if (located.kind === "failed" || located.kind === "missing") {
+      setMissedAt({ outcome: located, typed: typedPath.typed });
+      return;
+    }
+    done(() => {
+      openScreen(
+        located.kind === "file"
+          ? fileHref(located.path)
+          : folderHref(located.path),
+      );
+    })();
+  };
+  const webSearchItem: Item = {
+    icon: <MagnifyingGlassIcon />,
+    id: "web-search",
+    label: webSearchLabel(words),
+    ranges: null,
+    run: () => {
+      openPage(webSearchUrl(words));
+    },
+    type: "item",
+  };
+  const nearest = missed?.kind === "missing" ? missed.nearest : undefined;
+  const pathSection: { items: Item[]; label: string }[] =
+    typedPath === undefined
+      ? []
+      : missed
+        ? [
+            {
+              // The first takes the place of the path's own row under the
+              // same value, so the pick stays on the row Return now runs.
+              items: [
+                ...(nearest === undefined
+                  ? []
+                  : [
+                      {
+                        detail: "Closest folder",
+                        icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+                        id: "nearest-folder",
+                        label: displayHostPath(nearest, window.api.homeDir),
+                        ranges: null,
+                        run: () => {
+                          openScreen(folderHref(nearest));
+                        },
+                        type: "item" as const,
+                      },
+                    ]),
+                webSearchItem,
+              ].map((item, index) =>
+                index === 0 ? { ...item, id: "open-path" } : item,
+              ),
+              label: missedPathNotice(missed),
+            },
+          ]
+        : [
+            {
+              items: [
+                {
+                  detail:
+                    looking === typedPath.typed
+                      ? "Looking…"
+                      : `Open on ${osConventions().computer}`,
+                  icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+                  id: "open-path",
+                  label: shownTypedPath(typedPath),
+                  leavesItself: true,
+                  ranges: null,
+                  run: () => {
+                    void openTypedPath();
+                  },
+                  type: "item",
+                },
+                ...(typedPath.alsoSearch ? [webSearchItem] : []),
+              ],
+              label: "Open",
+            },
+          ];
   const chatMatches = isSearch
     ? nameMatch(byLastUserMessage(chats), (chat) => [chat.title], words)
     : [];
@@ -520,6 +651,7 @@ export function useCommandMenuRows({
     active &&
     isSearch &&
     site === undefined &&
+    typedPath === undefined &&
     words.length >= MEANING_MIN_LENGTH &&
     !hasNameMatches;
   const chatsByMeaning = useChatSearchFallback({
@@ -547,6 +679,7 @@ export function useCommandMenuRows({
           },
         ]
       : [
+          ...pathSection,
           ...(site
             ? [
                 {
@@ -569,23 +702,7 @@ export function useCommandMenuRows({
             : []),
           ...named,
           ...(site === undefined && isSearchWords(words)
-            ? [
-                {
-                  items: [
-                    {
-                      icon: <MagnifyingGlassIcon />,
-                      id: "web-search",
-                      label: `Search the web for “${words}”`,
-                      ranges: null,
-                      run: () => {
-                        openPage(webSearchUrl(words));
-                      },
-                      type: "item" as const,
-                    },
-                  ],
-                  label: "Web",
-                },
-              ]
+            ? [{ items: [webSearchItem], label: "Web" }]
             : []),
           {
             items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
@@ -645,11 +762,31 @@ export function useCommandMenuRows({
       ? []
       : [
           { label: section.label, type: "header" },
-          ...section.items.map((item) => ({ ...item, run: done(item.run) })),
+          ...section.items.map((item) => ({
+            ...item,
+            run: item.leavesItself ? item.run : done(item.run),
+          })),
           ...(section.looking ? [{ type: "looking" as const }] : []),
         ],
   );
-  return { isBang, rows, words };
+
+  // The row Return runs: the first for each new search, and one picked by a
+  // key or the pointer for as long as it is listed. cmdk's own pick moves to
+  // the first row only when the rows it already shows change, and these
+  // arrive a beat after the words, so words pasted whole would otherwise
+  // leave it on a row the empty menu had and the new rows do not.
+  const [picked, setPicked] = useState<{ id: string; words: string }>();
+  const ids = rows.flatMap((row) => (row.type === "item" ? [row.id] : []));
+  const pick = {
+    onValueChange: (id: string) => {
+      setPicked({ id, words });
+    },
+    value:
+      picked?.words === words && ids.includes(picked.id)
+        ? picked.id
+        : (ids[0] ?? ""),
+  };
+  return { isBang, pick, rows, words };
 }
 
 /**
@@ -703,7 +840,7 @@ export function CommandMenu({
   };
   useModalBack(close, open);
 
-  const { isBang, rows, words } = useCommandMenuRows({
+  const { isBang, pick, rows, words } = useCommandMenuRows({
     active: open,
     // A row's action, run once the menu is out of the way.
     done: (run) => () => {
@@ -726,10 +863,12 @@ export function CommandMenu({
           close();
         }
       }}
+      onValueChange={pick.onValueChange}
       open={open}
       shouldFilter={false}
       showCloseButton={false}
       title="Command menu"
+      value={pick.value}
     >
       <CommandInput
         onValueChange={setSearch}
@@ -809,7 +948,7 @@ function ResultRows({ rows }: { rows: Row[] }) {
                   {row.chord === undefined ? (
                     // Return runs the row picked, so it says so.
                     <CommandShortcut className="hidden in-data-[selected=true]:inline">
-                      ↩
+                      {osConventions().returnKey}
                     </CommandShortcut>
                   ) : (
                     <CommandShortcut>

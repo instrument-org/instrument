@@ -4,7 +4,9 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { Store } from "../store";
+import { touchTask } from "./children";
 import { taskStanding } from "./standing";
 
 vi.mock(import("../session-store-storage"));
@@ -214,6 +216,44 @@ describe("taskStanding", () => {
     });
   });
 
+  it("reads a task whose request timed out as failed, saying it timed out", async () => {
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
+    await Store.saveMessageWithParts(
+      assistant(sessionId, [activity("Reading the vault")], {
+        finishReason: "tool-calls",
+      }),
+      chatId,
+    );
+    await Store.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          (ids) => ({
+            metadata: { ...partMetadata(ids), stepCount: 3 },
+            type: "step-start",
+          }),
+        ],
+        {
+          error: { kind: "aborted", message: "Aborted", reason: "timeout" },
+          finishReason: "aborted",
+        },
+      ),
+      chatId,
+    );
+
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      chatId,
+    });
+
+    expect(standing).toEqual({
+      kind: "failed",
+      line: "Timed out while reading the vault",
+    });
+  });
+
   it("says what a task stopped in the middle of when the stop landed on a tool call", async () => {
     const chatId = freshChat();
     const sessionId = await withSession(chatId);
@@ -246,6 +286,102 @@ describe("taskStanding", () => {
     });
 
     expect(standing.line).toBe("Stopped while completing repository copy");
+  });
+
+  it("says the app's closing cut a task off, rather than calling it done", async () => {
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
+    // An earlier step said something, then the turn went on to the call the
+    // quit landed on.
+    await Store.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          (ids) => ({
+            metadata: partMetadata(ids),
+            text: "Starting the count now.",
+            type: "text",
+          }),
+        ],
+        { finishReason: "tool-calls" },
+      ),
+      chatId,
+    );
+    await Store.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          (ids) => ({
+            errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+            input: {
+              activity: "Counting to a million",
+              command: "python count.py",
+              yieldMs: 30_000,
+              explanation: "Run the count",
+            },
+            metadata: { ...partMetadata(ids), endedAt: new Date() },
+            state: "output-error",
+            toolCallId: "call_1",
+            type: "tool-bash",
+          }),
+        ],
+        { finishReason: "tool-calls" },
+      ),
+      chatId,
+    );
+    await touchTask(chatId, sessionId, { stoppedBy: "app" });
+
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      chatId,
+    });
+
+    expect(standing).toMatchInlineSnapshot(`
+      {
+        "kind": "failed",
+        "line": "The app closed while counting to a million",
+      }
+    `);
+  });
+
+  it("says the app's closing cut a task off when only the next launch's sweep saw it", async () => {
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
+    await Store.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          (ids) => ({
+            errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+            input: {
+              command: "curl -s https://example.com/page/7",
+              yieldMs: 30_000,
+              explanation: "Fetching page 7 of 20",
+            },
+            metadata: { ...partMetadata(ids), endedAt: new Date() },
+            state: "output-error",
+            toolCallId: "call_1",
+            type: "tool-bash",
+          }),
+        ],
+        { finishReason: "tool-calls" },
+      ),
+      chatId,
+    );
+
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      chatId,
+    });
+
+    expect(standing).toMatchInlineSnapshot(`
+      {
+        "kind": "failed",
+        "line": "The app closed while fetching page 7 of 20",
+      }
+    `);
   });
 
   it("keeps the case of a step that opens on an acronym", async () => {

@@ -35,7 +35,12 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import {
+  killSessionBackgroundProcesses,
+  listBackgroundProcesses,
+} from "../lib/background-processes";
 import * as children from "../lib/chat/children";
+import * as bashEnv from "../lib/create-bash-env";
 import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -85,7 +90,7 @@ function createManualModelStream() {
 }
 
 describe("sessionMachine", () => {
-  const taskFolder = "pj-test";
+  const chatFolder = "pj-test";
 
   /**
    * Runs the session as a chat's, where a question waits on the user; a
@@ -93,10 +98,10 @@ describe("sessionMachine", () => {
    */
   function answersAsChat() {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
-      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+      id === chatFolder ? ChatIdSchema.parse(chatFolder) : undefined,
     );
     vi.spyOn(children, "sessionRole").mockImplementation((id) =>
-      id === taskFolder ? "chat" : undefined,
+      id === chatFolder ? "chat" : undefined,
     );
   }
   const defaultSessionId = StoreId.newSessionId();
@@ -310,7 +315,7 @@ describe("sessionMachine", () => {
     });
 
     const testTaskConfig = createMockChatConfig(
-      ChatIdSchema.parse(taskFolder),
+      ChatIdSchema.parse(chatFolder),
       {
         aiSDKModel: aiSDKModel ?? mockLanguageModel,
         imageModel,
@@ -424,7 +429,7 @@ describe("sessionMachine", () => {
         "package.json": "{}",
       },
       [MOCK_WORKSPACE_DIRS.chats]: {
-        [taskFolder]: {
+        [chatFolder]: {
           "image.png": mockFs.load(
             path.resolve(
               import.meta.dirname,
@@ -1126,6 +1131,35 @@ describe("sessionMachine", () => {
     ]);
   });
 
+  it("keeps the user's stop when the chat's own stop lands after it", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    result.actor.send({
+      notice: { by: "user", wakesChat: true },
+      type: "stop",
+    });
+    result.actor.send({
+      notice: { by: "chat", wakesChat: false },
+      type: "stop",
+    });
+
+    await runTestMachine(result);
+    unsubscribe();
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: true },
+        sessionId: result.sessionId,
+      },
+    ]);
+  });
+
   it("should force stop agents before the stopping failsafe completes", async () => {
     let finishOnFinish: (() => void) | undefined;
     const onFinishPromise = new Promise<void>((resolve) => {
@@ -1325,6 +1359,53 @@ describe("sessionMachine", () => {
     expect(unhandled).toEqual([]);
   });
 
+  /** Why each reply a session's turn cut off was cut off, oldest first. */
+  function abortReasons(
+    session: Awaited<ReturnType<typeof Store.getSessionWithMessagesAndParts>>,
+  ) {
+    return session
+      ._unsafeUnwrap()
+      .messages.flatMap((message) =>
+        message.role === "assistant" &&
+        message.metadata.error?.kind === "aborted"
+          ? [message.metadata.error.reason]
+          : [],
+      );
+  }
+
+  it("says a reply the user stopped was cut off by their stop", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+      initialChunkDelaysMs: [5000],
+    });
+    result.actor.start();
+    // The reply is stored as its request goes out, before any of it arrives.
+    await vi.waitFor(async () => {
+      const session = await Store.getSessionWithMessagesAndParts(
+        result.sessionId,
+        result.chatId,
+      );
+      expect(
+        session
+          ._unsafeUnwrap()
+          .messages.some((message) => message.role === "assistant"),
+      ).toBe(true);
+    });
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+
+    await vi.waitFor(async () => {
+      expect(
+        abortReasons(
+          await Store.getSessionWithMessagesAndParts(
+            result.sessionId,
+            result.chatId,
+          ),
+        ),
+      ).toEqual(["manual"]);
+    });
+  });
+
   it("should retry and fail on timeout", async () => {
     const chunkTimeoutMs = 500;
     const session = await createAndRunTestMachine({
@@ -1333,6 +1414,8 @@ describe("sessionMachine", () => {
       initialChunkDelaysMs: [chunkTimeoutMs * 2, chunkTimeoutMs * 2, 1, 1],
       llmRequestChunkTimeoutMs: chunkTimeoutMs,
     });
+    // Cut off by its request timing out, which nobody asked for.
+    expect(abortReasons(session)).toEqual(["timeout", "timeout"]);
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
       "<session title="Test session" count="7">
@@ -1602,6 +1685,70 @@ describe("sessionMachine", () => {
         </session>"
       `);
     });
+
+    // What waits behind a turn the person stops is kept but not run: a
+    // message or a wake note queued then would otherwise start the agent
+    // again the moment it winds down. One sent after the Stop runs.
+    it.each([{ after: false }, { after: true }])(
+      "holds what was queued when the person stopped the turn, and runs what came after (sent after: $after)",
+      async ({ after }) => {
+        const result = await createActorAndTask({
+          chunkSets: [readFileChunks, writeFileChunks, finishChunks],
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+
+        const messageId = StoreId.newMessageId();
+        const queued: SessionMessage.UserWithParts = {
+          id: messageId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: defaultSessionId,
+              },
+              text: "One more thing.",
+              type: "text",
+            },
+          ],
+          role: "user",
+        };
+        const stop = () => {
+          result.actor.send({
+            notice: { by: "user", wakesChat: false },
+            type: "stop",
+          });
+        };
+        if (after) {
+          stop();
+        }
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: queued,
+        });
+        if (!after) {
+          stop();
+        }
+
+        const session = await runTestMachine(result);
+        const shorthand = sessionToShorthand(session);
+        expect(shorthand).toContain("<text>One more thing.</text>");
+        // Answered only by a turn of its own after the stopped one.
+        expect(shorthand.includes("I'm done.")).toBe(after);
+      },
+    );
 
     // The user writing again while the conversation replies stops the reply,
     // and the call it cut short says so rather than that the user stopped it.
@@ -1914,6 +2061,100 @@ describe("sessionMachine", () => {
         expect(shorthand.match(/<session-context/g)).toHaveLength(2);
         expect(shorthand).toContain("I'm done.</text>");
       });
+
+      // A foreground command would hold the message until it ended. It is
+      // not cut either: it moves to the background, and the message is heard
+      // at the step after.
+      it("moves a running command to the background and hears the message next", async () => {
+        answersAsChat();
+        // A command that takes five seconds, unless stopped. The shell's
+        // own commands load from disk, which the mocked filesystem hides.
+        let stopped = false;
+        vi.spyOn(bashEnv, "createBashEnv").mockResolvedValue({
+          exec: (_command, options) =>
+            new Promise((resolve, reject) => {
+              const timer = setTimeout(() => {
+                // Only the fields the bash tool reads.
+                resolve({
+                  exitCode: 0,
+                  stderr: "",
+                  stdout: "slept\n",
+                } as Awaited<ReturnType<bashEnv.BashRunner["exec"]>>);
+              }, 5000);
+              options?.signal?.addEventListener("abort", () => {
+                stopped = true;
+                clearTimeout(timer);
+                reject(new Error("aborted"));
+              });
+            }),
+        });
+        const bashChunks = [
+          { id: "test-call-bash", toolName: "bash", type: "tool-input-start" },
+          {
+            input: JSON.stringify({
+              command: "sleep 5",
+              explanation: "Waiting",
+              yieldMs: 60_000,
+            }),
+            toolCallId: "test-call-bash",
+            toolName: "bash",
+            type: "tool-call",
+          },
+        ] as const satisfies LanguageModelV4StreamPart[];
+        const result = await createActorAndTask({
+          chunkSets: [bashChunks, finishChunks],
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+        // Past the bash call's start, so its wait is registered.
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const started = performance.now();
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: typed("also check the logs"),
+        });
+
+        try {
+          const session = await runTestMachine(result);
+          expect(performance.now() - started).toBeLessThan(4000);
+          const shorthand = sessionToShorthand(session);
+          expect(shorthand).not.toContain("interrupted by a newer message");
+          expect(shorthand).toContain('"movedForMessageFrom": "user"');
+          expect(shorthand).toContain('"processId": "bg_1"');
+          expect(shorthand).toContain(
+            "The user sent this while you were working on their last message.",
+          );
+          expect(shorthand.match(/<session-context/g)).toHaveLength(2);
+          expect(
+            listBackgroundProcesses(result.sessionId).map(
+              (process) => process.status,
+            ),
+          ).toEqual(["running"]);
+          // The turn is over and the command runs on to its own end.
+          await vi.waitFor(
+            () => {
+              expect(
+                listBackgroundProcesses(result.sessionId).map(
+                  (process) => process.status,
+                ),
+              ).toEqual(["exited"]);
+            },
+            { timeout: 10_000 },
+          );
+          expect(stopped).toBe(false);
+        } finally {
+          await killSessionBackgroundProcesses(result.sessionId);
+        }
+      }, 30_000);
 
       // A message that calls the work off stops it where it is, and runs
       // next as a turn of its own, with no note.

@@ -2,6 +2,7 @@ import { ResultAsync } from "neverthrow";
 import { z } from "zod";
 
 import { SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../constants";
 import { type StoreId } from "../schemas/store-id";
 import { getCurrentDate } from "./get-current-date";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
@@ -12,9 +13,6 @@ import { type WrappedStorage } from "./wrap-storage";
 // Only the role is read: which side wrote the message is all the walk below
 // needs to know, and the full message schema is not this module's to depend on.
 const MessageRoleSchema = z.object({ role: z.string() });
-
-export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
-  "This action was interrupted when the app closed.";
 
 /**
  * Finalizes tool calls that a process left mid-flight.

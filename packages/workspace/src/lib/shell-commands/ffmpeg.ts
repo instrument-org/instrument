@@ -23,7 +23,7 @@ export function createFfmpegCommand(
   _layout: WorkspaceFsLayout,
 ) {
   return defineCommand(FFMPEG_COMMAND.name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
@@ -43,7 +43,7 @@ export function createFfmpegCommand(
       ],
       {
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
+        cwd: hostCwd,
         env: {
           ...getWorkspaceConfig().nodeExecEnv,
           ...env,

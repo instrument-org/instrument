@@ -14,7 +14,7 @@ import {
   createOsascriptCommand,
   worksAppWindows,
 } from "./osascript";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 
@@ -26,11 +26,11 @@ async function mockExeca() {
 
 describe("osascriptCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const layout = taskLayout(chatId);
+  const layout = chatLayout(chatId);
   const command = createOsascriptCommand(chatId, layout);
-  const taskPath = layout.task.shellRoot;
+  const chatRoot = layout.chat.shellRoot;
   const mockCtx = createCommandContext({
-    cwd: taskPath,
+    cwd: chatRoot,
     env: new Map<string, string>(),
     fs: new InMemoryFs(),
     stdin: EMPTY_BYTES,
@@ -172,7 +172,7 @@ describe("osascriptCommand", () => {
 
   it("passes a script's real path through unchanged", async () => {
     const execa = await mockExeca();
-    const script = `read POSIX file "${taskPath}/invite.ics"`;
+    const script = `read POSIX file "${chatRoot}/invite.ics"`;
 
     await command.execute(["-e", script], mockCtx);
 
@@ -211,7 +211,7 @@ describe("osascriptCommand", () => {
     const script =
       'tell application "System Events" to tell process "Raycast" to click button 1 of window 1';
     const fs = new InMemoryFs();
-    await fs.writeFile(`${taskPath}/work/drive.applescript`, script);
+    await fs.writeFile(`${chatRoot}/work/drive.applescript`, script);
 
     const results = [
       await command.execute(["-e", script], mockCtx),

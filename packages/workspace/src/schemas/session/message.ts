@@ -27,11 +27,13 @@ import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
+import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
@@ -47,6 +49,21 @@ export namespace SessionMessage {
   // optional because messages recorded before it existed do not have it.
   const ClassificationSchema = ProviderErrorKindSchema.optional();
 
+  /**
+   * Why a request was let go: a stop someone asked for (the user's or the
+   * chat's, a newer message superseding the reply, the app quitting), its
+   * chunk timeout, or nothing the session could name.
+   */
+  const AbortReasonSchema = z.enum([
+    "chat",
+    "manual",
+    "quit",
+    "superseded",
+    "timeout",
+    "unknown",
+  ]);
+  export type AbortReason = z.output<typeof AbortReasonSchema>;
+
   const ErrorSchema = z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("api-key"),
@@ -55,6 +72,8 @@ export namespace SessionMessage {
     z.object({
       kind: z.literal("aborted"),
       message: z.string(),
+      /** Absent on a reply cut off before the reason was kept. */
+      reason: AbortReasonSchema.optional(),
     }),
     // A write failed because the disk has no space left.
     z.object({
@@ -350,7 +369,9 @@ export namespace SessionMessage {
             part.state === "output-available" ||
             part.state === "output-error",
         )
-        .map((part) => SessionMessagePart.toUIPart(part));
+        .map((part) =>
+          SessionMessagePart.toUIPart(withStoppedToolCallModelText(part)),
+        );
 
       let parts = [...filteredParts];
 
@@ -398,7 +419,7 @@ export namespace SessionMessage {
 
             const attachmentText = dedent`
                   <uploaded_files>
-                  The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
+                  The user uploaded these files with this message. They are now available in the chat's folder at the paths listed below. Assume they are directly relevant to the user's request.
                   ${attachmentDescriptions}
                   </uploaded_files>
                 `;
@@ -519,6 +540,20 @@ export namespace SessionMessage {
         if (taskEventPart) {
           injectedParts.push({
             text: taskEventModelNote(taskEventPart.data),
+            type: "text",
+          });
+        }
+
+        const jobEventPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-jobEvent";
+          } => part.type === "data-jobEvent",
+        );
+        if (jobEventPart) {
+          injectedParts.push({
+            text: jobEventModelNote(jobEventPart.data),
             type: "text",
           });
         }

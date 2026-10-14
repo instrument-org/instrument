@@ -35,7 +35,7 @@
     "fix:lint": "oxlint --type-aware --fix",
     "icons:check": "node scripts/generate-icons.ts --check",
     "icons:generate": "node scripts/generate-icons.ts",
-    "postinstall": "install-electron && node scripts/download-uv.ts",
+    "postinstall": "node scripts/install-electron.ts && node scripts/download-uv.ts",
     "routes:generate": "tsr generate",
     "smoke-test": "vitest run --config vitest.smoke.config.ts",
     "start": "electron-vite preview",

@@ -5,9 +5,9 @@
  * Usage:
  *   pnpm script:run-bash                               # interactive REPL
  *   pnpm script:run-bash -- "echo hello"               # one-shot; exits with command's exit code
- *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one task dir
+ *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one chat folder
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
- *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against existing task dir
+ *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against an existing chat folder
  *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
  *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
@@ -209,7 +209,7 @@ const bash = await createBashEnv({
 });
 
 process.stderr.write(
-  `task dir: ${chatDir}\ntask: ${chatId}  session: ${sessionId}\n\n`,
+  `chat dir: ${chatDir}\nchat: ${chatId}  session: ${sessionId}\n\n`,
 );
 
 // The exit is explicit, so nothing a command left running (a background job,

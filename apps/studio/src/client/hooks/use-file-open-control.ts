@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { isMacOS } from "@/client/lib/utils";
 

@@ -26,7 +26,6 @@ import {
   type InspectorReading,
 } from "@/client/components/window/app-inspector";
 import { visitsWithin } from "@/client/components/window/app-visits";
-import { thisComputer } from "@/client/components/window/computer-name";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
@@ -43,7 +42,7 @@ import {
   showInFolder,
   showInFolderLabel,
 } from "@/client/lib/show-in-files";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { osConventions } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -223,7 +222,7 @@ export function AppFront({
         : app.standing === "needs-key"
           ? `Add a key from ${name}`
           : app.standing === "needs-approval"
-            ? `Allow ${name} to run on ${thisComputer()}`
+            ? `Allow ${name} to run on ${osConventions().thisComputer}`
             : app.standing === "failed"
               ? `Couldn’t connect to ${name}`
               : app.standing === "stale"
@@ -331,7 +330,7 @@ export function AppFront({
                           void revealInFileManager(app.dir);
                         }}
                       >
-                        {getRevealInFolderLabel()}
+                        {osConventions().showInFileManager}
                       </DropdownMenuItem>
                     ) : null}
                     {isConnected || app.hasCredential ? (

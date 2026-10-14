@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";

@@ -25,6 +25,7 @@ import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -538,6 +539,7 @@ function HoldsInChat({
 /**
  * The agent's latest line: the step while it works, in brand; the question
  * while it waits, behind an amber glyph with the words themselves in gray;
+ * that the user stopped it, behind a stop mark, until the next turn starts;
  * and the last reply's first words otherwise, in muted. Nothing when an idle
  * chat has said nothing yet. One line that truncates.
  */
@@ -553,9 +555,17 @@ function Peek({
 }) {
   const isFailed = chat.state === "failed";
   const isLimited = chat.state === "limited";
+  const isStopped = chat.state === "stopped";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (!chat.latest && !isFailed && !isLimited && !isWaiting && !isWorking) {
+  if (
+    !chat.latest &&
+    !isFailed &&
+    !isLimited &&
+    !isStopped &&
+    !isWaiting &&
+    !isWorking
+  ) {
     return null;
   }
   return (
@@ -584,6 +594,13 @@ function Peek({
           <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 truncate text-muted-foreground">
             {LIMITED}
+          </span>
+        </>
+      ) : isStopped ? (
+        <>
+          <StopCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate text-muted-foreground">
+            You stopped Instrument
           </span>
         </>
       ) : isWaiting ? (

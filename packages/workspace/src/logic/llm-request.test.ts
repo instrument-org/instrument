@@ -197,6 +197,8 @@ describe("llmRequestLogic", () => {
         Start: {
           invoke: {
             input: () => ({
+              // What the machine says let a request go: its one stop here.
+              abortReason: () => "manual" as const,
               agent: {
                 agentTools: {},
                 getMessages,
@@ -1435,6 +1437,7 @@ describe("llmRequestLogic", () => {
               "error": {
                 "kind": "aborted",
                 "message": "Aborted",
+                "reason": "manual",
               },
               "finishReason": "aborted",
               "sessionId": "ses_00000000018888888888888888",
@@ -3114,7 +3117,11 @@ describe("llmRequestLogic", () => {
     const testMachine = await createTestMachine({ chunks: [] });
     const messageId = StoreId.newMessageId();
     await Store.saveMessage(
-      { id: messageId, metadata: { createdAt: mockDate, sessionId }, role: "user" },
+      {
+        id: messageId,
+        metadata: { createdAt: mockDate, sessionId },
+        role: "user",
+      },
       testMachine.chatId,
     );
     await Store.saveParts(

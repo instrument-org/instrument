@@ -68,9 +68,9 @@ function budgeted(command: string) {
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-ls-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  const chatRoot = path.join(tmpDir, "tasks", "test");
   attachedDir = path.join(tmpDir, "Home");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   for (let d = 0; d < DIRECTORIES; d++) {
     const dir = path.join(attachedDir, `d${String(d).padStart(2, "0")}`);
     await fs.mkdir(dir, { recursive: true });
@@ -80,7 +80,7 @@ beforeAll(async () => {
       ),
     );
   }
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterAll(async () => {

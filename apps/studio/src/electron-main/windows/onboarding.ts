@@ -6,6 +6,11 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  isDrivenInstance,
+  isHeldOffScreen,
+  putOnScreen,
+} from "@/electron-main/windows/on-screen";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { app, BrowserWindow, type Rectangle, screen } from "electron";
 import path from "node:path";
@@ -40,7 +45,9 @@ export function growOnboardingWindow(bounds: Rectangle) {
 
 export function openOnboardingWindow(): BrowserWindow {
   if (onboardingWindow && !onboardingWindow.isDestroyed()) {
-    onboardingWindow.focus();
+    if (!isHeldOffScreen(onboardingWindow)) {
+      onboardingWindow.focus();
+    }
     return onboardingWindow;
   }
 
@@ -58,6 +65,9 @@ export function openOnboardingWindow(): BrowserWindow {
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
       additionalArguments: ["--windowType=onboarding"],
+      // An agent's instance keeps drawing, and taking input, off screen or
+      // behind other windows.
+      backgroundThrottling: !isDrivenInstance(),
       contextIsolation: true,
       preload: path.join(import.meta.dirname, "../preload/index.mjs"),
       sandbox: false,
@@ -69,7 +79,9 @@ export function openOnboardingWindow(): BrowserWindow {
   });
 
   showWhenReady(onboardingWindow, () => {
-    onboardingWindow?.show();
+    if (onboardingWindow) {
+      putOnScreen(onboardingWindow);
+    }
   });
 
   onboardingWindow.on("closed", () => {

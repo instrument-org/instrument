@@ -33,33 +33,57 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
-/**
- * A place or app the agent ran into that the person has not answered for
- * yet: a folder that asks first, or an app it may not use. Shown as a card at
- * the foot of the chat until the person answers, which wakes the session
- * that asked.
- */
-export const PermissionAskSchema = z.object({
-  askedAt: z.coerce.date(),
-  id: z.string(),
-  kind: z.enum(["app", "folder"]),
+/** A session that ran into what a card asks about, the chat's own or one of its tasks'. */
+const AskerSchema = z.object({
   /**
    * The tool call whose command or file operation raised it before running,
    * by its part's id, so the card draws under that call; absent for one a
    * running command ran into.
    */
   partId: StoreId.PartSchema.optional(),
-  /** The session that ran into it, the chat's own or one of its tasks'. */
   sessionId: StoreId.SessionSchema,
+});
+
+/**
+ * A place or app the agent ran into that the person has not answered for
+ * yet: a folder that asks first, or an app it may not use. Shown as a card at
+ * the foot of the chat until the person answers, which wakes every session
+ * that asked.
+ */
+export const PermissionAskSchema = z.object({
+  askedAt: z.coerce.date(),
+  /**
+   * Every session waiting on the answer, the first to ask first. A session
+   * that runs into the same thing while the card is up joins it, and one the
+   * person stops leaves it; the card goes when none is left.
+   */
+  askers: z.array(AskerSchema),
+  id: z.string(),
+  kind: z.enum(["app", "folder"]),
   /** The folder's path, or the app's name as the agent named it. */
   target: z.string(),
 });
 
 export type PermissionAsk = z.output<typeof PermissionAskSchema>;
 
-// Where the user left off in a chat. Read on open, never queried across
-// chats -- which is what separates it from the settings around it, and why it
-// is one nested key rather than a flat spread.
+/**
+ * An ask as stored, which may still name its one asker at the top level the
+ * way cards were written before a card held every session that asked.
+ */
+const StoredPermissionAskSchema = z.union([
+  PermissionAskSchema,
+  PermissionAskSchema.omit({ askers: true })
+    .extend(AskerSchema.shape)
+    .transform(({ partId, sessionId, ...ask }) => ({
+      ...ask,
+      askers: [{ ...(partId && { partId }), sessionId }],
+    })),
+]);
+
+// Where the user left off in a chat. Read on open, and across chats only by
+// the chat list for its open asks, through `openAsks` -- which is what
+// separates it from the settings around it, and why it is one nested key
+// rather than a flat spread.
 export const StoredChatStateSchema = z
   .object({
     // The apps whose guide this chat has read, so `app request` hands the
@@ -68,7 +92,10 @@ export const StoredChatStateSchema = z
     browserTabs: z.array(HeldTabSchema).default([]),
     // What the agent is waiting on the person to allow, oldest first. One
     // that will not parse costs the chat its open asks alone.
-    permissionAsks: z.array(PermissionAskSchema).optional().catch(undefined),
+    permissionAsks: z
+      .array(StoredPermissionAskSchema)
+      .optional()
+      .catch(undefined),
   })
   .default(() => ({ browserTabs: [] }));
 

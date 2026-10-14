@@ -50,6 +50,28 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     expect(reachOf(rules, target, op).level).toBe(level);
   });
 
+  it.each([
+    ["read", `/System/Volumes/Data${home}/.ssh/id_ed25519`, "ask"],
+    [
+      "read",
+      `/system/volumes/data${home}/Documents/Clients/Other/a.pdf`,
+      "ask",
+    ],
+    [
+      "read",
+      `/System/Volumes/Data${home}/Documents/Clients/Acme/Payroll/june.csv`,
+      "never",
+    ],
+    [
+      "write",
+      `/System/Volumes/Data${home}/Documents/Clients/Acme/brief.md`,
+      "allow",
+    ],
+    ["write", `/System/Volumes/Data${home}/notes.md`, "ask"],
+  ] as const)("%s %s by its Data-volume path is %s", (op, target, level) => {
+    expect(reachOf(rules, target, op).level).toBe(level);
+  });
+
   it("turns asks into allows without asking but sign-ins', never never", () => {
     const relaxed = { ...rules, withoutAsking: true };
     expect(reachOf(relaxed, `${home}/Desktop/a.png`, "write").level).toBe(
@@ -62,6 +84,11 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
       reachOf(relaxed, `${home}/Library/Cookies/Cookies.binarycookies`, "read")
         .level,
     ).toBe("never");
+    // A change no rule holds still asks, as the native profiles keep it.
+    expect(reachOf(relaxed, `${home}/newproj/a.txt`, "write").level).toBe(
+      "ask",
+    );
+    expect(reachOf(relaxed, "/opt/thing", "write").level).toBe("ask");
   });
 
   it.each([
@@ -119,20 +146,27 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     );
   });
 
-  it("lets an Always allow outrank a not now", () => {
-    const allowedLater = rulesFor({
-      denials: [`${home}/Desktop/Trip`],
-      home,
-      settings: {
-        ...settings,
+  // Always on a card for Desktop sets the place; for a folder in it, or on
+  // a place of several folders, it writes a folder rule.
+  it.each([
+    [
+      "a folder rule",
+      {
         folders: [
           {
             addedAt: new Date(0),
             level: "allow",
-            path: AbsolutePathSchema.parse(`${home}/Desktop`),
-          },
+            path: AbsolutePathSchema.parse(`${home}/Desktop/Trip`),
+          } as const,
         ],
       },
+    ],
+    ["the place", { places: { desktop: "allow" } } as const],
+  ])("lets an Always allow on %s outrank a not now", (_on, always) => {
+    const allowedLater = rulesFor({
+      denials: [`${home}/Desktop/Trip`],
+      home,
+      settings: { ...settings, ...always },
     });
     expect(
       reachOf(allowedLater, `${home}/Desktop/Trip/a.png`, "read").level,
@@ -210,4 +244,38 @@ describe.runIf(process.platform !== "win32")("an allow above the home", () => {
   ] as const)("%s %s is %s", (op, target, level) => {
     expect(reachOf(rules, target, op).level).toBe(level);
   });
+});
+
+describe("reachOf at one depth", () => {
+  const ssh = {
+    level: "ask",
+    path: `${home}/.ssh`,
+    place: "passwords",
+    source: "place",
+  } as const;
+  const hiddenEntries = {
+    dotEntries: true,
+    level: "allow",
+    path: home,
+    place: "appFiles",
+    source: "place",
+  } as const;
+
+  // The native profiles rank the two the same way, so the shell's own
+  // commands and the programs it starts agree on ~/.ssh.
+  it.each([
+    ["named first", [ssh, hiddenEntries]],
+    ["named last", [hiddenEntries, ssh]],
+  ] as const)(
+    "lets a rule naming a hidden entry outrank every hidden entry, %s",
+    (_order, rules) => {
+      expect(
+        reachOf(
+          { home, rules: [...rules], withoutAsking: false },
+          `${home}/.ssh/id_ed25519`,
+          "read",
+        ).level,
+      ).toBe("ask");
+    },
+  );
 });

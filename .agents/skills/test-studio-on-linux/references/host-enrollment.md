@@ -17,9 +17,15 @@ Create `~/.instrument/studio-host.json` with host-local values:
     "unit": "instrument-studio-installed.service",
     "cdpPort": 48171,
     "executable": "/path/to/installed/instrument"
+  },
+  "preview": {
+    "unit": "instrument-studio-preview.service",
+    "cdpPort": 48173
   }
 }
 ```
+
+`preview` is optional and names a transient unit, not one to create: `start --target preview` runs the unpacked build under that name with `systemd-run --user`.
 
 Keep this file off Git. It is the only place the helper should learn machine-specific executable, unit, and port values. Each target needs its own CDP port and its own unit; the helper refuses a profile that shares either.
 

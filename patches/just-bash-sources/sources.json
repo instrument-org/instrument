@@ -100,6 +100,14 @@
     {
       "name": "ls -l",
       "diff": "ls-long-format-3.6.0.diff"
+    },
+    {
+      "name": "cp follows links",
+      "diff": "cp-follows-links-3.6.0.diff"
+    },
+    {
+      "name": "refused writes",
+      "diff": "refused-writes-3.6.0.diff"
     }
   ]
 }

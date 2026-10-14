@@ -5,6 +5,7 @@ import {
   type PendingProblem,
   type ReportInput,
 } from "@/shared/problem-reports";
+import { osConventionsFor } from "@/shared/os-conventions";
 import { app } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -109,7 +110,7 @@ export function recordEndedSession(session: EndedSession) {
     ended: crashed
       ? session.crashRecord
         ? "crashed after an uncaught error"
-        : `crashed (${session.dumps} crash dump${session.dumps === 1 ? "" : "s"} kept on this Mac)`
+        : `crashed (${session.dumps} crash dump${session.dumps === 1 ? "" : "s"} kept on ${osConventionsFor(process.platform).thisComputer})`
       : "ended without closing, with no crash on record",
     error: session.crashRecord,
     surface: problem.kind,

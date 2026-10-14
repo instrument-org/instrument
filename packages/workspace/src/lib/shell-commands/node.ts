@@ -102,7 +102,7 @@ export const NODE_COMMAND = {
  */
 export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
     if (args.length === 0 && !stdinProgram) {
@@ -136,7 +136,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
         chatId,
         ["--version"],
         ctx.signal,
-        taskCwd,
+        hostCwd,
         env,
       );
       const streams = mapStreams(
@@ -183,9 +183,15 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
     if (evalCode !== undefined) {
       const execResult = await execNode(
         chatId,
-        [...nodeFlags, wantsPrint ? "-p" : "-e", evalCode],
+        [
+          ...nodeFlags,
+          wantsPrint ? "-p" : "-e",
+          evalCode,
+          // The script's own arguments, in process.argv after the executable.
+          ...hostPathArgs(positionals),
+        ],
         ctx.signal,
-        taskCwd,
+        hostCwd,
         env,
         subprocessStdin(ctx.stdin),
         invokeTool,
@@ -208,7 +214,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
           chatId,
           nodeFlags,
           ctx.signal,
-          taskCwd,
+          hostCwd,
           env,
           Buffer.from(stdinProgram, "latin1"),
           invokeTool,
@@ -243,7 +249,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
       chatId,
       [...nodeFlags, filePath, ...scriptArgs],
       ctx.signal,
-      taskCwd,
+      hostCwd,
       env,
       subprocessStdin(ctx.stdin),
       invokeTool,

@@ -236,6 +236,34 @@ describe("taskEventModelNote", () => {
     `);
   });
 
+  // A timeout is nobody's decision, so the note reads it as the error it is,
+  // one the chat can send the task on from, and not as the user's stop.
+  it("says a task's request timed out, as an error rather than a stop", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 42_000,
+          ended: "Timed out while reading the vault",
+          handle: "t1",
+          status: "error",
+          sessionId: TASK_ID,
+          title: "Audit the vault",
+          tokens: 12_000,
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created has finished:
+      - t1 ("Audit the vault") stopped with an error, "Timed out while reading the vault" (42 seconds of work, 12K tokens so far).
+      Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+  });
+
+  // Written without a wake and read with the user's next message, so it
+  // never says it is why the agent is awake.
   it("says the user stopped a task, and that it stays stopped", () => {
     const note = taskEventModelNote({
       events: [
@@ -256,7 +284,6 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       The user stopped a task you created:
       - t1 ("Audit the vault") was stopped by the user while reading the vault and did not finish (42 seconds of work, 12K tokens so far). Leave it stopped unless they ask for it again.
-      Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
   });

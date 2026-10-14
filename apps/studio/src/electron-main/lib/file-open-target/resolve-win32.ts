@@ -1,9 +1,10 @@
+import { OS_CONVENTIONS } from "@/shared/os-conventions";
 import { app } from "electron";
 import path from "node:path";
 import { z } from "zod";
 
 import { storeFileOpenNativeImage } from "../app-protocol";
-import { runThrottledHelper } from "./helper-process";
+import { powerShellArgs, runThrottledHelper } from "./helper-process";
 import { type ResolvedApp } from "./types";
 
 const Win32ResultSchema = z.object({
@@ -52,7 +53,7 @@ if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
 @{ appName = $name; exePath = $exe } | ConvertTo-Json -Compress
 `;
   const stdout = await runThrottledHelper({
-    args: ["-NoProfile", "-NonInteractive", "-Command", script],
+    args: powerShellArgs(script),
     file: "powershell",
   });
   const trimmed = stdout.trim();
@@ -65,8 +66,19 @@ if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
     .getFileIcon(result.exePath, { size: "normal" })
     .catch(() => null);
   return {
-    appName: result.appName,
+    appName: win32AppName(result.appName, result.exePath),
     bundleId: null,
     iconUrl: icon ? await storeFileOpenNativeImage(icon) : null,
   };
+}
+
+/**
+ * What an app is called in "Open in …". Windows names the shell, which opens
+ * a .zip as a folder, by its name from before Windows 8, "Windows Explorer";
+ * it goes by the name File Explorer has everywhere else in the app.
+ */
+export function win32AppName(appName: string, exePath: string): string {
+  return path.win32.basename(exePath).toLowerCase() === "explorer.exe"
+    ? OS_CONVENTIONS.windows.fileManager
+    : appName;
 }

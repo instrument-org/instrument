@@ -1,9 +1,12 @@
 import { execa, type Options } from "execa";
 import { type Serializable } from "node:child_process";
+import path from "node:path";
 
+import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
 
 import {
+  NativeSandboxUnavailableError,
   refusalNote,
   refusedPathIn,
   wrapNativeCommand,
@@ -105,7 +108,23 @@ export async function execShim(
   const sink = currentShellOutputSink();
   const { cancelSignal, onMessage, unsandboxed, walks, ...subprocessOptions } =
     options;
-  const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
+  let spawned: ReturnType<typeof wrapNativeCommand>;
+  try {
+    spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
+  } catch (error) {
+    if (!(error instanceof NativeSandboxUnavailableError)) {
+      throw error;
+    }
+    // 126, the shell's "found but could not run".
+    return {
+      exitCode: 126,
+      file,
+      isMaxBuffer: false,
+      shortMessage: undefined,
+      stderr: `${error.message}\n`,
+      stdout: "",
+    };
+  }
   const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
     ...(onMessage ? { ipc: true } : {}),
@@ -154,8 +173,24 @@ export async function execShim(
             : undefined,
         )
       : undefined;
+  const refusal = refused && refusalNote(refused);
+  // A program that reached a developer tool stub on a Mac without the tools
+  // fails with the stub's own error, which does not say what to do.
+  // `xcode-select --install` reports a request the sandbox refused and still
+  // exits 0, so its own output is read whatever the exit code, and it fails.
+  const installRefused =
+    path.basename(file) === "xcode-select" &&
+    `${stderr}\n${stdout}`.includes("no install could be requested");
+  const missingTools =
+    result.exitCode !== 0 || installRefused
+      ? commandLineToolsNote(`${stderr}\n${stdout}`)
+      : undefined;
+  const notes = [
+    ...(refusal ? [`${refusal}\n`] : []),
+    ...(missingTools ? [missingTools] : []),
+  ].join("");
   return {
-    exitCode: result.exitCode,
+    exitCode: installRefused && result.exitCode === 0 ? 1 : result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
     file,
@@ -169,8 +204,8 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
-    stderr: refused
-      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${refusalNote(refused)}\n`
+    stderr: notes
+      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${notes}`
       : stderr,
     stdout,
   };
@@ -207,7 +242,7 @@ export function mapStreams(
  * The message is sanitized before it goes out. execa opens `shortMessage` with
  * `Command failed with <code>: <resolved binary> <args>`, and the resolved
  * binary is a real host path (the bundled dugite git, the app's ffmpeg) that
- * the sandbox otherwise never shows -- `filterShellOutput` masks the task dir
+ * the sandbox otherwise never shows -- `filterShellOutput` masks the chat's folder
  * and the home dir, neither of which covers a path inside an installed app
  * bundle. That opening line is dropped and any remaining mention of the binary
  * becomes the command name, leaving the part that actually diagnoses the

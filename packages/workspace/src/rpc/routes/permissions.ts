@@ -3,8 +3,9 @@ import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
-import { bwrapAvailable, seatbeltAvailable } from "../../lib/native-sandbox";
+import { nativeSandboxEnforced } from "../../lib/native-sandbox";
 import {
+  type Level,
   LevelSchema,
   PLACE_DEFAULTS,
   PlaceIdSchema,
@@ -22,16 +23,15 @@ import {
   reachesEveryFile,
 } from "../../lib/permissions/apps";
 import { closeAsk, openAsks } from "../../lib/permissions/asks";
-import { chatRules } from "../../lib/permissions/chat-rules";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeSessionForPermission } from "../../lib/chat/wake";
 import { recordChanges } from "../../lib/record-changes";
 import { PermissionAskSchema } from "../../schemas/chat-state";
 import { distinct, liveRead } from "../live-read";
-import { reachOf } from "../../lib/permissions/rules";
+import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
 
 const PermissionsViewSchema = z.object({
@@ -63,7 +63,7 @@ function view(
   const home = os.homedir();
   return {
     apps: settings.apps,
-    enforced: seatbeltAvailable() || bwrapAvailable(),
+    enforced: nativeSandboxEnforced(),
     folders: settings.folders,
     home,
     places: placePaths(home).map((place) => ({
@@ -101,30 +101,56 @@ const setPlace = base
     ),
   );
 
+/**
+ * Settings with a folder set to `level`. A folder that is a built-in place
+ * on its own (Documents, Desktop, Downloads) changes that place instead, so
+ * the list never shows one folder twice with two answers. A place made of
+ * several folders, or one that also holds the home folder's hidden entries,
+ * keeps a rule for the one folder, which opens no more than was asked.
+ */
+function withFolderLevel(
+  settings: PermissionSettings,
+  folder: AbsolutePath,
+  level: Level,
+): PermissionSettings {
+  for (const place of placePaths()) {
+    const [only, ...others] = place.paths;
+    if (
+      place.id !== "output" &&
+      only !== undefined &&
+      others.length === 0 &&
+      !place.homeDotEntries &&
+      !place.closedUnlessAllowed &&
+      hostPathWithin(only, folder) === "/"
+    ) {
+      return {
+        ...settings,
+        folders: settings.folders.filter((f) => f.path !== folder),
+        places: { ...settings.places, [place.id]: level },
+      };
+    }
+  }
+  const known = settings.folders.find((f) => f.path === folder);
+  return {
+    ...settings,
+    folders: known
+      ? settings.folders.map((f) => (f.path === folder ? { ...f, level } : f))
+      : [
+          ...settings.folders,
+          { addedAt: getCurrentDate(), level, path: folder },
+        ],
+  };
+}
+
 /** Adds or changes a folder's own rule. */
 const setFolder = base
   .input(z.object({ level: LevelSchema, path: AbsolutePathSchema }))
   .output(PermissionsViewSchema)
   .handler(async ({ input }) =>
     view(
-      await updatePermissionSettings((settings) => {
-        const known = settings.folders.find((f) => f.path === input.path);
-        return {
-          ...settings,
-          folders: known
-            ? settings.folders.map((f) =>
-                f.path === input.path ? { ...f, level: input.level } : f,
-              )
-            : [
-                ...settings.folders,
-                {
-                  addedAt: getCurrentDate(),
-                  level: input.level,
-                  path: input.path,
-                },
-              ],
-        };
-      }),
+      await updatePermissionSettings((settings) =>
+        withFolderLevel(settings, input.path, input.level),
+      ),
     ),
   );
 
@@ -153,18 +179,6 @@ const setWithoutAsking = base
       })),
     ),
   );
-
-/**
- * What the rules make of a folder for one chat, so a card can tell a folder
- * the person already closed from one they have not been asked about.
- */
-const reach = base
-  .input(z.object({ id: ChatIdSchema, path: z.string() }))
-  .output(z.object({ level: z.enum(["allow", "ask", "hidden", "never"]) }))
-  .handler(async ({ input }) => {
-    const rules = await chatRules({ chatId: input.id });
-    return { level: reachOf(rules, input.path, "read").level };
-  });
 
 /** Adds or changes an app's own rule. */
 const setApp = base
@@ -209,41 +223,6 @@ const removeApp = base
     ),
   );
 
-/**
- * Lets a chat control an app: what answering its card does. "Always" also
- * allows the app in Settings › Permissions, for every chat from then on.
- */
-const allowApp = base
-  .input(
-    z.object({
-      always: z.boolean().optional(),
-      app: z.string().trim().min(1),
-      id: ChatIdSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(async ({ input }) => {
-    await grantApp(input.id, input.app);
-    await setDenied(input.id, "app", input.app, false);
-    if (input.always) {
-      const bundleId = await appBundleId(input.app);
-      await updatePermissionSettings((settings) => ({
-        ...settings,
-        apps: [
-          ...settings.apps.filter(
-            (app) => app.name.toLowerCase() !== input.app.toLowerCase(),
-          ),
-          {
-            addedAt: getCurrentDate(),
-            bundleId,
-            level: "allow",
-            name: input.app,
-          },
-        ],
-      }));
-    }
-  });
-
 /** What the rules make of an app for one chat, for its card. */
 const appReachRoute = base
   .input(z.object({ app: z.string(), id: ChatIdSchema }))
@@ -253,13 +232,10 @@ const appReachRoute = base
     reachesEveryFile: reachesEveryFile(input.app),
   }));
 
-/** The chat's open asks, as its cards draw them, oldest first. */
-const asks = base
-  .input(z.object({ id: ChatIdSchema }))
-  .output(PermissionAskSchema.array())
-  .handler(({ input }) => openAsks(input.id));
-
-/** The same asks, read again whenever the chat's state moves. */
+/**
+ * The chat's open asks, as its cards draw them, oldest first, read again
+ * whenever the chat's state moves.
+ */
 const liveAsks = base
   .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(PermissionAskSchema.array()))
@@ -279,9 +255,10 @@ const liveAsks = base
 
 /**
  * The person's answer to an ask: allowed in this chat, allowed always, or
- * not now. A folder may be answered with a different one picked in the
- * system's panel. The session that asked is woken with the answer, or hears
- * it at its next step if its turn is still going.
+ * not now, which the chat keeps whoever asked. A folder may be answered with
+ * a different one picked in the system's panel. Every session that asked is
+ * woken with the answer, or hears it at its next step if its turn is still
+ * going.
  */
 const answer = base
   .input(
@@ -309,13 +286,9 @@ const answer = base
         await grantFolder({ chatId: input.id, path: target, source: "card" });
         if (input.decision === "always") {
           const folder = AbsolutePathSchema.parse(target);
-          await updatePermissionSettings((settings) => ({
-            ...settings,
-            folders: [
-              ...settings.folders.filter((known) => known.path !== folder),
-              { addedAt: getCurrentDate(), level: "allow", path: folder },
-            ],
-          }));
+          await updatePermissionSettings((settings) =>
+            withFolderLevel(settings, folder, "allow"),
+          );
         }
       } else {
         await grantApp(input.id, target);
@@ -345,20 +318,17 @@ const answer = base
       },
       context.workspaceRef,
       input.id,
-      ask.sessionId,
+      ask.askers.map((asker) => asker.sessionId),
     );
   });
 
 export const permissions = {
-  allowApp,
   answer,
-  asks,
   liveAsks,
   appReach: appReachRoute,
   get,
   removeApp,
   setApp,
-  reach,
   removeFolder,
   setFolder,
   setPlace,

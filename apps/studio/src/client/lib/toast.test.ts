@@ -99,6 +99,20 @@ it("shows an error's cause in developer mode, after the caller's words", () => {
   );
 });
 
+it("says a spoken reason once in developer mode, not again as the cause", () => {
+  setToastDeveloperMode(true);
+  const refused = new ORPCError("CANNOT_UNDO", {
+    message: "Something named “report.txt” is already there.",
+  });
+  toast.error("Couldn't undo that", {
+    cause: refused,
+    description: spokenMessage(refused, ["CANNOT_UNDO"]),
+  });
+  expect(calls[0]?.data?.description).toBe(
+    "Something named “report.txt” is already there.",
+  );
+});
+
 it("shows developer toasts only in developer mode, marked", () => {
   toast.dev("Switch canceled");
   expect(calls).toEqual([]);

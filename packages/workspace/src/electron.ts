@@ -86,7 +86,6 @@ export {
   cdpMethodsHandled,
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
-export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";
 export {
@@ -94,6 +93,7 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { attachChats } from "./lib/chat/attach";
+export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { WINDOW_ID } from "./schemas/window-id";

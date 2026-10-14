@@ -37,6 +37,7 @@ import { loadFonts } from "./fonts";
 import { createHistory } from "./history";
 import { createImage } from "./image";
 import { createInput } from "./input";
+import { editorKeys, type EditorKeys } from "./keys";
 import { createLive } from "./live";
 import { type PageWatch, pageWatch } from "./observer";
 import { createOverlay } from "./overlay";
@@ -49,7 +50,7 @@ import CSS from "./style.css?inline";
 import { createTextEdit } from "./text-edit";
 import { readTheme, resolveColors } from "./tokens";
 import { createToolbar } from "./toolbar";
-import { UI_HTML } from "./ui-html";
+import { uiHtml } from "./ui-html";
 
 declare global {
   interface Window {
@@ -93,6 +94,7 @@ class PageEditor implements Editor {
   constructor(
     readonly bridge: PageEditorBridge,
     readonly path: string,
+    readonly keys: EditorKeys,
     readonly state: EditorState,
     readonly uiHost: HTMLElement,
     readonly shadow: ShadowRoot,
@@ -155,7 +157,8 @@ export async function startEditor(bridge: PageEditorBridge) {
   // the element under the pointer, which a closed root answers with null.
   // Named on this world's own view of the host, so the page's never has it.
   Object.defineProperty(uiHost, "shadowRoot", { value: shadow });
-  shadow.innerHTML = `<style>${CSS}</style>${UI_HTML}`;
+  const keys = editorKeys(boot.os);
+  shadow.innerHTML = `<style>${CSS}</style>${uiHtml(keys)}`;
   const ui = findUi(shadow);
 
   // The snapshot the previous load of this edit handed over (see `reload.ts`),
@@ -214,6 +217,7 @@ export async function startEditor(bridge: PageEditorBridge) {
   const ed = new PageEditor(
     bridge,
     boot.name,
+    keys,
     state,
     uiHost,
     shadow,

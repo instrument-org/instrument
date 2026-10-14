@@ -18,10 +18,10 @@ let chatId: ReturnType<typeof createMockChatConfigForDir>;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "run-bash-route-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  const chatRoot = path.join(tmpDir, "tasks", "test");
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, ".instrument"), { recursive: true });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterAll(async () => {

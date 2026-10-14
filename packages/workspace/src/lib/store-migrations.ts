@@ -49,8 +49,8 @@ function replaceWith(part: unknown): PartChange {
   return { kind: "replace", part };
 }
 
-// A row in the task's own database, so it travels with the data it describes --
-// through an export, an import, or a copied task folder. `__canary__` already
+// A row in the chat's own database, so it travels with the data it describes --
+// through an export, an import, or a copied chat folder. `__canary__` already
 // establishes that the key space carries our own bookkeeping.
 const VERSION_KEY = "__migration_version__";
 

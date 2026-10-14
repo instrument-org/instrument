@@ -28,7 +28,6 @@ declare namespace NodeJS {
       /** scripts/billing-e2e.ts: the local API it drives Studio against. */
       BILLING_BASE_URL: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
-      CC: string | undefined;
       CI: string | undefined;
       DEVELOPER_DIR: string | undefined;
       DISABLE_AUTO_UPDATE_POLLING: string | undefined;
@@ -80,8 +79,12 @@ declare namespace NodeJS {
       STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
+      /** Dev only: `1` when studio-drive booted this instance with its windows on screen (`--visible`). */
+      STUDIO_DRIVE_VISIBLE: string | undefined;
       /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
       STUDIO_LOG_LEVEL: string | undefined;
+      /** Dev only: `1` when studio-drive booted this instance with its own macOS privacy grants (`--own-privacy`). */
+      STUDIO_OWN_PRIVACY: string | undefined;
       /** Set by Windows: the drive it runs from, such as `C:`. */
       SystemDrive: string | undefined;
       TARGET_PLATFORM: string | undefined;
@@ -92,6 +95,8 @@ declare namespace NodeJS {
       WIN_TIMESTAMP_URL: string | undefined;
       XDG_CURRENT_DESKTOP: string | undefined;
       XDG_DATA_DIRS: string | undefined;
+      /** Where Linux keeps a person's data, the Trash among it; `~/.local/share` when unset. */
+      XDG_DATA_HOME: string | undefined;
       /**
        * Set by the session manager. The second Wayland signal, for a launch
        * context that carries it while dropping `WAYLAND_DISPLAY`.

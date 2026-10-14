@@ -5,6 +5,7 @@ import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
+import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { HANDOFF_EVALS } from "./handoff";
@@ -39,6 +40,7 @@ export const EVALS = [
   ...BROWSER_SELECTION_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,
+  ...DEVELOPER_TOOLS_EVALS,
   ...DOCUMENT_DESIGN_EVALS,
   ...FILES_FENCE_EVALS,
   ...HANDOFF_EVALS,

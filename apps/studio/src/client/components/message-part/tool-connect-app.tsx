@@ -1,6 +1,6 @@
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { thisComputer } from "@/client/components/window/computer-name";
+import { osConventions } from "@/client/lib/utils";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
@@ -87,7 +87,7 @@ function ConnectCard({
                   : kind === "key"
                     ? `${name} needs a key`
                     : kind === "run"
-                      ? `${name} runs on ${thisComputer()}`
+                      ? `${name} runs on ${osConventions().thisComputer}`
                       : `Connect ${name}`}
             </p>
             <p className="text-xs leading-5 text-muted-foreground">{reason}</p>

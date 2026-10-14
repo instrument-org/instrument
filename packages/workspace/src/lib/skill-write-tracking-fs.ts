@@ -33,6 +33,7 @@ export function skillWriteTrackingFs(
   };
   const readFileBytes = delegate.readFileBytes?.bind(delegate);
   const readdirWithFileTypes = delegate.readdirWithFileTypes?.bind(delegate);
+  const createExclusive = delegate.createExclusive?.bind(delegate);
   const tracked: IFileSystem = {
     appendFile: (...args) =>
       recordAfter(delegate.appendFile(...args), [args[0]]),
@@ -68,6 +69,12 @@ export function skillWriteTrackingFs(
   }
   if (readdirWithFileTypes) {
     tracked.readdirWithFileTypes = readdirWithFileTypes;
+  }
+  // What `mktemp` makes its file with; without it a mount holding the
+  // skills fails every `mktemp` there with ENOSYS.
+  if (createExclusive) {
+    tracked.createExclusive = (...args) =>
+      recordAfter(createExclusive(...args), [args[0]]);
   }
   return tracked;
 }

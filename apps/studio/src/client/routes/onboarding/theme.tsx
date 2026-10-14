@@ -6,7 +6,9 @@ import { z } from "zod";
 
 export const Route = createFileRoute("/onboarding/theme")({
   component: OnboardingTheme,
-  validateSearch: z.object({ success: z.boolean().optional() }),
+  validateSearch: z.object({
+    success: z.boolean().optional().catch(undefined),
+  }),
 });
 
 function OnboardingTheme() {

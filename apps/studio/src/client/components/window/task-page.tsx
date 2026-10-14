@@ -16,9 +16,9 @@ import { useMutation } from "@tanstack/react-query";
  * the agent's shoulder. Headed by the task's title and its menu, which
  * travel together so the menu reads as acting on the task named beside it.
  * A task that left commands running shows how many, opening onto a list
- * that stops them. While the task works, a Stop at the header's far end
- * halts it; in developer mode the task's message and token totals sit
- * beside it. Nothing names the chat: the page stands under it.
+ * that stops them. While the task works or waits on a card, a Stop at the
+ * header's far end halts it; in developer mode the task's message and token
+ * totals sit beside it. Nothing names the chat: the page stands under it.
  */
 export function TaskPage({
   chat,
@@ -66,10 +66,10 @@ export function TaskPage({
       <div className="min-h-0 flex-1">
         <ChildTranscript
           chat={chat}
-          isWorking={task.stoppable}
+          isWorking={task.working}
           key={sessionId}
           sessionId={sessionId}
-          stoppedBy={task.stoppable ? undefined : task.stoppedBy}
+          stoppedBy={task.working ? undefined : task.stoppedBy}
         />
       </div>
     </div>

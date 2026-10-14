@@ -1,10 +1,12 @@
 import {
-  killBackgroundProcess,
   listBackgroundProcesses,
+  stopRunningProcesses,
 } from "../../background-processes";
 import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask } from "../../chat/children";
 import { describeLeftRunning } from "../../chat/left-running";
+import { noteTaskStoppedOnCard } from "../../chat/wake";
+import { closeAsksOf, openAsksOf } from "../../permissions/asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";
@@ -78,7 +80,9 @@ async function stopOne(
 ) {
   const turn = isWorking(task.chatId, task.id)
     ? await stopTurn(task, context)
-    : `${task.handle} is not running.\n`;
+    : (await openAsksOf(task.chatId, task.id)).length > 0
+      ? await stopWaiting(task)
+      : `${task.handle} is not running.\n`;
   if (all) {
     return `${turn}${await stopBackground(task)}`;
   }
@@ -101,11 +105,10 @@ async function stopBackground(task: ChatTask, wanted?: string) {
   if (running.length === 0) {
     return `${task.handle} has nothing running in the background.\n`;
   }
-  const targets =
-    wanted === undefined
-      ? running
-      : running.filter((process) => process.id === wanted);
-  if (wanted !== undefined && targets.length === 0) {
+  if (
+    wanted !== undefined &&
+    !running.some((process) => process.id === wanted)
+  ) {
     const background = leftRunning(task.id)
       .map((process) => describeLeftRunning(process))
       .join(", ");
@@ -114,27 +117,41 @@ async function stopBackground(task: ChatTask, wanted?: string) {
     );
   }
   const now = Date.now();
-  const lines = await Promise.all(
-    targets.map(async (process) => {
-      const described = describeLeftRunning({
-        command: process.command,
-        id: process.id,
-        runningForMs: now - process.startedAt.getTime(),
-      });
-      const killed = await killBackgroundProcess({
-        by: "conversation",
-        id: process.id,
-        sessionId: task.id,
-      });
-      if (!killed?.stoppedByThisCall) {
-        return `${process.id} had already ended.`;
-      }
-      return killed.terminationConfirmed
-        ? `Stopped ${described}.`
-        : `Told ${described} to stop, but could not confirm it did; \`${TASK_COMMAND.name} list\` will say.`;
-    }),
-  );
+  const stopped = await stopRunningProcesses({
+    by: "conversation",
+    ...(wanted === undefined ? {} : { id: wanted }),
+    sessionId: task.id,
+  });
+  const lines = stopped.map(({ killed, process }) => {
+    const described = describeLeftRunning({
+      command: process.command,
+      id: process.id,
+      runningForMs: now - process.startedAt.getTime(),
+    });
+    if (!killed?.stoppedByThisCall) {
+      return `${process.id} had already ended.`;
+    }
+    return killed.terminationConfirmed
+      ? `Stopped ${described}.`
+      : `Told ${described} to stop, but could not confirm it did; \`${TASK_COMMAND.name} list\` will say.`;
+  });
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Stops a task whose turn ended on a card still waiting for the person: takes
+ * it off its cards, so an answer cannot wake it, and marks it stopped by the
+ * chat, as the person's Stop of such a task does for them.
+ */
+async function stopWaiting(task: ChatTask) {
+  await closeAsksOf(task.chatId, task.id);
+  await noteTaskStoppedOnCard(
+    task.chatId,
+    task.id,
+    getWorkspaceActorRef(),
+    "chat",
+  );
+  return `Stopped ${task.handle}, which was waiting on the person's answer to a card; an answer no longer wakes it. \`task send\` gives it the next thing to do.\n`;
 }
 
 /** Ends a working task's turn, and says whether it went idle in time. */
@@ -145,9 +162,12 @@ async function stopTurn(task: ChatTask, context: TaskCommandContext) {
     value: {
       id: task.chatId,
       notice: { by: "chat", wakesChat: false },
+      reason: "chat",
       sessionId: task.id,
     },
   });
+  // A card it raised on the way would otherwise wake it once answered.
+  await closeAsksOf(task.chatId, task.id);
   const timeoutMs = Math.max(
     0,
     Math.min(STOP_CONFIRM_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),

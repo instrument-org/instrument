@@ -17,6 +17,18 @@ describe("hostPathArgs", () => {
     ];
     expect(hostPathArgs(args)).toEqual(args);
   });
+
+  it("respells drive paths on Windows and leaves its switches alone", () => {
+    const platform = process.platform;
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      expect(
+        hostPathArgs(["/c", "ver", "/d/", "/c/Users/sam", "--out=/d/x.txt"]),
+      ).toEqual(["/c", "ver", "/d/", "C:\\Users\\sam", "--out=D:\\x.txt"]);
+    } finally {
+      Object.defineProperty(process, "platform", { value: platform });
+    }
+  });
 });
 
 const KNOWN_OPTIONS = { v: { type: "boolean" } } as const;

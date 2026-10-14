@@ -4,7 +4,11 @@ import { z } from "zod";
 
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
+import {
+  canonicalizeThroughMissing,
+  hostPathWithin,
+  withoutDataVolume,
+} from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "./asks";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -158,19 +162,32 @@ export function rulesFor({
     rules.push({ level: "allow", path: allowed, source: "grant" });
   }
   // An Always allow for the folder or one holding it, given in Settings or
-  // from any chat's card, outranks a chat's earlier "Not now".
-  const alwaysAllowed = settings.folders
-    .filter((folder) => folder.level === "allow")
-    .map((folder) => folder.path);
+  // from any chat's card, outranks a chat's earlier "Not now". A card's
+  // Always on a place that is one folder (Documents) sets the place.
+  const alwaysAllowed = rules.filter(
+    (rule) =>
+      rule.level === "allow" &&
+      (rule.source === "folder" || rule.source === "place"),
+  );
   for (const denied of denials) {
-    if (
-      alwaysAllowed.some((allowed) => hostPathWithin(allowed, denied) !== null)
-    ) {
+    if (alwaysAllowed.some((allowed) => ruleHolds(allowed, denied))) {
       continue;
     }
     rules.push({ denied: true, level: "never", path: denied, source: "grant" });
   }
   return { home, rules, withoutAsking: settings.withoutAsking };
+}
+
+/**
+ * Whether `rule` holds `hostPath`: the path is its folder or in it, or for
+ * a rule standing for every hidden entry, one of those entries or in one.
+ */
+function ruleHolds(rule: Rule, hostPath: string): boolean {
+  const within = hostPathWithin(rule.path, hostPath);
+  if (within === null) {
+    return false;
+  }
+  return !rule.dotEntries || within.startsWith("/.");
 }
 
 /** The startup places and built-in places in one home folder. */
@@ -216,7 +233,7 @@ export interface Reach {
   rule?: Rule;
 }
 
-export const SOURCE_RANK = {
+const SOURCE_RANK = {
   folder: 1,
   grant: 2,
   place: 0,
@@ -224,16 +241,33 @@ export const SOURCE_RANK = {
 } as const;
 
 /**
+ * A rule's rank among the rules holding a path at the same depth: the app's
+ * own over a chat's grant over a folder rule over a place. A rule for every
+ * hidden entry in a folder stands for each of them only as a fallback, so a
+ * rule naming one of them at that depth (~/.ssh in the passwords place
+ * against the hidden entries of other apps' files) outranks it. `reachOf`
+ * and both native profiles order rules by it.
+ */
+export function ruleRank(rule: Rule): number {
+  return SOURCE_RANK[rule.source] - (rule.dotEntries ? 0.5 : 0);
+}
+
+/**
  * A rule's level with "Use folders without asking" applied: every Ask first
  * becomes a yes but the passwords place's, which holds sign-ins rather than
- * work and keeps asking.
+ * work and keeps asking. A change where no rule holds the path still asks:
+ * the switch is for the person's folders, and the native profiles keep
+ * such a path closed to changes whatever it says.
  */
 export function levelWithoutAsking<L extends Access>(
   level: L,
   rule: Rule | undefined,
   withoutAsking: boolean,
 ): "allow" | L {
-  return level === "ask" && withoutAsking && rule?.place !== "passwords"
+  return level === "ask" &&
+    withoutAsking &&
+    rule !== undefined &&
+    rule.place !== "passwords"
     ? "allow"
     : level;
 }
@@ -246,14 +280,16 @@ export function levelWithoutAsking<L extends Access>(
  * anything asks.
  *
  * "Use folders without asking" turns an ask into an allow, but for the
- * passwords place's. Nothing turns a never into anything else.
+ * passwords place's. Nothing turns a never into anything else. A path on
+ * macOS's Data volume meets the rules as the rest of the system spells it.
  */
 export function reachOf(
   rules: Rules,
   hostPath: string,
   op: "read" | "write",
 ): Reach {
-  const target = fold(path.resolve(hostPath));
+  const resolved = withoutDataVolume(path.resolve(hostPath));
+  const target = fold(resolved);
   let best: undefined | { depth: number; rule: Rule };
   for (const { depth, prefix, root, rule } of compiled(rules)) {
     let held: number | undefined;
@@ -271,8 +307,7 @@ export function reachOf(
     if (
       !best ||
       held > best.depth ||
-      (held === best.depth &&
-        SOURCE_RANK[rule.source] > SOURCE_RANK[best.rule.source])
+      (held === best.depth && ruleRank(rule) > ruleRank(best.rule))
     ) {
       best = { depth: held, rule };
     }
@@ -285,7 +320,7 @@ export function reachOf(
     op === "write" &&
     best?.rule.level === "allow" &&
     best.depth < homeDepth(rules) &&
-    hostPathWithin(rules.home, hostPath) !== null
+    hostPathWithin(rules.home, resolved) !== null
   ) {
     best = undefined;
   }
@@ -313,6 +348,11 @@ function homeDepth(rules: Rules): number {
 
 function namesDangerous(foldedPath: string): boolean {
   const slashed = foldedPath.replaceAll(path.sep, "/");
+  // A repository's .git folder itself: moved or replaced, its hooks would
+  // sit outside the name that closes them.
+  if (slashed.endsWith("/.git")) {
+    return true;
+  }
   return DANGEROUS_NAMES.some((name) => {
     const folded = fold(name);
     return slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`);

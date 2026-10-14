@@ -1,11 +1,11 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 
 // The grid is a router-bound tree of preview cards; what this component decides
 // is which files reach it and in what order, so it stands in for the real one.
@@ -25,7 +25,7 @@ vi.mock("./files-grid", () => ({
     >
       {files.map((file) => (
         <li key={file.hostPath}>
-          {`${file.taskFile?.filePath ?? "?"} @ ${file.hostPath} @ ${file.url}`}
+          {`${file.chatFile?.filePath ?? "?"} @ ${file.hostPath} @ ${file.url}`}
         </li>
       ))}
     </ul>
@@ -83,7 +83,7 @@ function renderBlock(
   } = {},
 ) {
   return renderWithProviders(
-    <MarkdownTaskContext
+    <MarkdownChatContext
       value={
         inTask
           ? {
@@ -95,7 +95,7 @@ function renderBlock(
       }
     >
       <AgentFilesBlock content={content} />
-    </MarkdownTaskContext>,
+    </MarkdownChatContext>,
   );
 }
 
@@ -131,7 +131,7 @@ describe("AgentFilesBlock", () => {
     `);
   });
 
-  // The task-file index covers the task directory only, so this path is one no
+  // A chat-file index covers the chat's folder only, so this path is one no
   // index could have answered for -- and now nothing has to.
   it("shows a file in a folder the user shared", () => {
     renderBlock("/Users/casey/Photos/cat.png");
@@ -159,7 +159,7 @@ describe("AgentFilesBlock", () => {
     expect(screen.getByRole("button", { name: "Open backups" })).toBeTruthy();
   });
 
-  it("takes the grid's folder bucketing off, which drops anything outside the task folder", () => {
+  it("takes the grid's folder bucketing off, which drops anything outside the chat's folder", () => {
     renderBlock("output/chart.png");
 
     expect(screen.getByRole("list").dataset.preserveOrder).toBe("true");

@@ -3,13 +3,12 @@ import path from "node:path";
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { commandLineToolsEnv } from "./command-line-tools-env";
 import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
-// Per-task virtualenv, at the task root so it ships with the task and stays
-// isolated from other tasks. The root is also the agent's working directory,
+// The chat's virtualenv, at the root of its folder so it ships with the chat
+// and stays isolated from other chats. The root is also the agent's working directory,
 // which is where uv and python look for a venv when nothing points them at one.
 const VENV_DIR_NAME = ".venv";
 
@@ -66,11 +65,6 @@ export function uvSubprocessEnv({
   ];
 
   return {
-    // uv reaches for install_name_tool when it relocates a managed interpreter,
-    // and for a compiler if an install ever falls back to source. Both are
-    // macOS Command Line Tools stubs, which hang the tool call behind an
-    // installer dialog when the tools are absent.
-    ...commandLineToolsEnv(),
     // Redirect heavy model/data caches to an app-managed, writable dir shared
     // across tasks so big downloads land once and persist, rather than under
     // `~`, which the native sandbox keeps read-only outside the chat's
@@ -88,5 +82,20 @@ export function uvSubprocessEnv({
     U2NET_HOME: path.join(uvDataDir, "u2net"),
     VIRTUAL_ENV: venvDir,
     ...uvToolsEnvFor(uvDataDir),
+    // The managed Python is the app's to install (installManagedPython), in
+    // a folder no chat may write, so a chat's uv uses the one there and
+    // fails plainly on any other version rather than trying a download.
+    UV_PYTHON_DOWNLOADS: "never",
   };
+}
+
+/**
+ * uv's `output`, with a line saying which Python there is when it failed for
+ * want of another version (`uv venv --python 3.11`, a project that requires
+ * 3.13).
+ */
+export function withPythonVersionNote(output: string): string {
+  return /No interpreter found for .* in managed installations/.test(output)
+    ? `${output.trimEnd()}\nOnly Python ${MANAGED_PYTHON_VERSION} is available, and no other version can be installed. Use \`--python ${MANAGED_PYTHON_VERSION}\`, or a project whose requires-python allows ${MANAGED_PYTHON_VERSION}.\n`
+    : output;
 }

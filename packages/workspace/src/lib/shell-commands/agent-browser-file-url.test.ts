@@ -16,7 +16,7 @@ const layout = buildWorkspaceFsLayout({
       path: AbsolutePathSchema.parse("/Users/me/My Docs"),
     },
   },
-  taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/test-task"),
+  chatHostRoot: ChatDirSchema.parse("/Users/me/Tasks/test-task"),
 });
 
 async function makeCtx() {
@@ -55,7 +55,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
       name: "absolute path",
       url: "/Users/me/Tasks/test-task/output/report.html",
     },
-    { name: "task-relative path", url: "output/report.html" },
+    { name: "path relative to the chat's folder", url: "output/report.html" },
     { name: "dot-relative path", url: "./output/report.html" },
   ])("opens a $name at the file's own address", async ({ url }) => {
     const result = await rewritten(["open", url]);
@@ -92,7 +92,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
     );
   });
 
-  it("opens a missing task file so the agent sees the browser's not-found page", async () => {
+  it("opens a missing file in the chat's folder so the agent sees the browser's not-found page", async () => {
     const result = await rewritten([
       "open",
       "file:///Users/me/Tasks/test-task/output/absent.html",
@@ -107,7 +107,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
     { arg: "file:///etc/hosts", name: "file outside every mount" },
     {
       arg: "file:///Users/me/Tasks/test-task/.instrument/task.db",
-      name: "file in the task's private directory",
+      name: "file in the chat's private directory",
     },
     { arg: "/etc/hosts", name: "path outside every mount" },
   ])("refuses a $name", async ({ arg }) => {

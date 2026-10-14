@@ -1,6 +1,6 @@
 // A drag this app started can be dropped back into this app, because the window
-// is as good a drop target as any other. Attaching a task's own file to a
-// message in that same task is not something anyone sets out to do, while a
+// is as good a drop target as any other. Attaching a chat's own file to a
+// message in that same chat is not something anyone sets out to do, while a
 // quick click on a file card with a moving mouse crosses the drag threshold and
 // produces exactly that. So a drop is only taken from a drag that has been
 // somewhere else first.

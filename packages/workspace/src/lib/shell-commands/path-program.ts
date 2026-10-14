@@ -199,7 +199,7 @@ function createPathProgramCommand(
   hostPath: string,
 ): Command {
   return defineCommand(name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     // cmd.exe runs a batch file; CreateProcess cannot.
     const [file, fileArgs] = /\.(?:bat|cmd)$/i.test(hostPath)
@@ -210,7 +210,7 @@ function createPathProgramCommand(
       : [hostPath, hostPathArgs(args)];
     const result = await execShim(file, fileArgs, {
       cancelSignal: ctx.signal,
-      cwd: taskCwd,
+      cwd: hostCwd,
       env: {
         ...getWorkspaceConfig().nodeExecEnv,
         ...env,

@@ -19,6 +19,7 @@ import { noop } from "radashi";
 
 import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
+import { isDrivenInstance } from "../windows/on-screen";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -511,6 +512,11 @@ export function createBrowserViewManager(): BrowserViewManager {
       // behavior, which also covers the gap before a page paints its own
       // background (runtime-compiled CSS, slow loads, about:blank).
       webPreferences.transparent = false;
+      // In an agent's instance a page keeps drawing while the window is off
+      // screen or covered; the window's own setting does not reach its guests.
+      if (isDrivenInstance()) {
+        webPreferences.backgroundThrottling = false;
+      }
       // Inert on every page but a file being edited in place, where it hands
       // the editor to the guest's isolated world; see page-editor/sessions.ts.
       webPreferences.preload = pageEditorPreloadPath();

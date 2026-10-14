@@ -45,6 +45,7 @@ export function GroupItem({
   closeTab,
   group,
   isFramed = true,
+  isShown = true,
   onClose,
   onExpand,
   onPageChrome,
@@ -57,6 +58,8 @@ export function GroupItem({
   group: string;
   /** Whether it stands on a card inset in its band, as in a draft; a grown popped-out chat draws it edge to edge, as the pane beside a chat does. */
   isFramed?: boolean;
+  /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
+  isShown?: boolean;
   /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
   onClose?: () => void;
   /** Grows it into the larger view, from Expand beside the ×, for a surface that only peeks at it. */
@@ -169,16 +172,21 @@ export function GroupItem({
           }
         }}
         onVisit={(href) => {
-          windowTabs.visitHref(up.id, href);
+          // A site at the window's level is the window tab's page, so the
+          // window's tab goes to the screen the way the command menu sends
+          // it, and back returns to the page; in a chat's or a draft's
+          // group the tab up becomes the screen in its place.
+          if (before) {
+            appWindow.openScreen(href);
+          } else {
+            windowTabs.visitHref(up.id, href);
+          }
         }}
         {...(up.kind === "page"
           ? {
-              fieldEnd: (
-                <div
-                  className="flex shrink-0 items-center empty:hidden"
-                  ref={setFieldSlot}
-                />
-              ),
+              // No box of its own, so the page's load line inside it is
+              // drawn against the field.
+              fieldEnd: <div className="contents" ref={setFieldSlot} />,
               reload: (
                 <div
                   className="flex shrink-0 items-center empty:hidden"
@@ -278,6 +286,7 @@ export function GroupItem({
             closeTab(up.id);
           },
           id: up.id,
+          isShown,
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },

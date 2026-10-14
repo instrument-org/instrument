@@ -3,6 +3,7 @@
  * the preload hands over (the boot answer and a channel to the window) on
  * the isolated world's global, where the page's scripts cannot reach it.
  */
+import { type Os } from "@/shared/os-conventions";
 import {
   type PageEditorGuestMessage,
   type PageEditorHostMessage,
@@ -13,6 +14,8 @@ export interface PageEditorBoot {
   bundle: string;
   /** The file's name, for what the agent reads. */
   name: string;
+  /** The system the app runs on, so the editor writes its key hints that system's way. */
+  os: Os;
   /** The file's text as loaded, before the ids were stamped on. */
   src: string;
   /** What the previous load of this edit handed over, or what the window started it with. */

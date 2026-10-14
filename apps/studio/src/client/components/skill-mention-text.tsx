@@ -39,11 +39,9 @@ export function SkillMentionText({ text }: { text: string }) {
         }
         if (segment.type === "link") {
           return (
-            <InlineLink
-              href={segment.href}
-              key={segmentIndex}
-              label={segment.label}
-            />
+            <InlineLink href={segment.href} key={segmentIndex}>
+              {segment.label}
+            </InlineLink>
           );
         }
         const summary = byName.get(segment.name);

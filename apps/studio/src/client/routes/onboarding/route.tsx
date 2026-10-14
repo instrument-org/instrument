@@ -1,10 +1,16 @@
+import { DefaultErrorComponent } from "@/client/components/default-error-component";
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
 import { Toaster } from "@/client/components/ui/sonner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Outlet, useMatchRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  type ErrorComponentProps,
+  Outlet,
+  useMatchRoute,
+} from "@tanstack/react-router";
 import { lazy, Suspense, useEffect } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -20,7 +26,21 @@ export const Route = createFileRoute("/onboarding")({
     };
   },
   component: OnboardingRoute,
+  errorComponent: OnboardingError,
 });
+
+/**
+ * A crash in the onboarding screen's own frame, drawn inside the layout so the
+ * window keeps its macOS drag strip and stays movable. Elsewhere the window has
+ * a native frame.
+ */
+function OnboardingError(props: ErrorComponentProps) {
+  return (
+    <OnboardingLayout>
+      <DefaultErrorComponent {...props} />
+    </OnboardingLayout>
+  );
+}
 
 const DevPanel = lazy(() =>
   import("@/client/components/dev-panel").then((m) => ({

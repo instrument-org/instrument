@@ -1,0 +1,283 @@
+diff --git a/packages/just-bash/src/commands/tee/tee.test.ts b/packages/just-bash/src/commands/tee/tee.test.ts
+--- a/packages/just-bash/src/commands/tee/tee.test.ts
++++ b/packages/just-bash/src/commands/tee/tee.test.ts
+@@ -1,5 +1,6 @@
+ import { describe, expect, it } from "vitest";
+ import { Bash } from "../../Bash.js";
++import { OverlayFs } from "../../fs/overlay-fs/index.js";
+ 
+ describe("tee command", () => {
+   it("should pass through stdin to stdout", async () => {
+@@ -52,5 +53,15 @@
+     expect(result.stdout).toContain("tee");
+     expect(result.stdout).toContain("stdin");
+     expect(result.exitCode).toBe(0);
++  });
++
++  it("reports a file the filesystem refuses by its errno", async () => {
++    const env = new Bash({
++      fs: new OverlayFs({ root: import.meta.dirname, readOnly: true }),
++    });
++    const result = await env.exec("echo hi | tee out.txt");
++    expect(result.stdout).toBe("hi\n");
++    expect(result.stderr).toBe("tee: out.txt: Read-only file system\n");
++    expect(result.exitCode).toBe(1);
+   });
+ });
+diff --git a/packages/just-bash/src/commands/tee/tee.ts b/packages/just-bash/src/commands/tee/tee.ts
+--- a/packages/just-bash/src/commands/tee/tee.ts
++++ b/packages/just-bash/src/commands/tee/tee.ts
+@@ -1,4 +1,5 @@
+ import { latin1FromBytes } from "../../encoding.js";
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type {
+   ExecResult,
+   RuntimeCommand,
+@@ -56,8 +57,8 @@
+         } else {
+           await ctx.fs.writeFile(filePath, content, "binary");
+         }
+-      } catch (_error) {
+-        stderr += `tee: ${file}: No such file or directory\n`;
++      } catch (error) {
++        stderr += `tee: ${file}: ${describeFsError(error)}\n`;
+         exitCode = 1;
+       }
+     }
+diff --git a/packages/just-bash/src/interpreter/helpers/errors.ts b/packages/just-bash/src/interpreter/helpers/errors.ts
+--- a/packages/just-bash/src/interpreter/helpers/errors.ts
++++ b/packages/just-bash/src/interpreter/helpers/errors.ts
+@@ -20,17 +20,19 @@
+   ["ELOOP", "Too many levels of symbolic links"],
+   ["ENAMETOOLONG", "File name too long"],
+   ["ENOENT", "No such file or directory"],
++  ["ENOSPC", "No space left on device"],
+   ["ENOTDIR", "Not a directory"],
+   ["EPERM", "Operation not permitted"],
++  ["EROFS", "Read-only file system"],
+ ]);
+ 
+ /**
+- * The message a command prints for a failed file operation, from the error's
+- * errno: read off `code` when the error carries one, and off the
+- * `ECODE: ...` message prefix the virtual filesystems use otherwise. An error
+- * with no errno this table knows reads as a missing file.
++ * The message for a failed file operation's errno, or undefined when the
++ * error carries no errno this table knows. The errno is read off `code` when
++ * the error carries one, and off the `ECODE: ...` message prefix the virtual
++ * filesystems use otherwise.
+  */
+-export function describeFsError(error: unknown): string {
++export function fsErrorReason(error: unknown): string | undefined {
+   const code =
+     typeof error === "object" &&
+     error !== null &&
+@@ -40,8 +42,13 @@
+       : error instanceof Error
+         ? /^(E[A-Z]+)\b/.exec(error.message)?.[1]
+         : undefined;
+-  return (
+-    (code !== undefined && FS_ERROR_MESSAGES.get(code)) ||
+-    "No such file or directory"
+-  );
++  return code === undefined ? undefined : FS_ERROR_MESSAGES.get(code);
++}
++
++/**
++ * The message a command prints for a failed file operation, from the error's
++ * errno. An error with no errno the table knows reads as a missing file.
++ */
++export function describeFsError(error: unknown): string {
++  return fsErrorReason(error) ?? "No such file or directory";
+ }
+diff --git a/packages/just-bash/src/interpreter/process-substitution.readonly.test.ts b/packages/just-bash/src/interpreter/process-substitution.readonly.test.ts
+--- a/packages/just-bash/src/interpreter/process-substitution.readonly.test.ts
++++ b/packages/just-bash/src/interpreter/process-substitution.readonly.test.ts
+@@ -23,9 +23,10 @@
+ describe("process substitution - read-only filesystem", () => {
+   it("still refuses ordinary writes", async () => {
+     const env = readOnlyBash();
+-    await expect(env.exec("echo nope > out.txt")).rejects.toThrow(
+-      "EROFS: read-only file system, write '/home/user/project/out.txt'",
+-    );
++    const result = await env.exec("echo nope > out.txt");
++    expect(result.stdout).toBe("");
++    expect(result.stderr).toBe("bash: out.txt: Read-only file system\n");
++    expect(result.exitCode).toBe(1);
+   });
+ 
+   it("reads from <(cmd)", async () => {
+@@ -115,23 +116,23 @@
+ describe("process substitution - read-only /dev/fd is not scratch space", () => {
+   it("refuses a write to an unallocated descriptor", async () => {
+     const env = readOnlyBash();
+-    await expect(
+-      env.exec("cat <(true); echo data > /dev/fd/99"),
+-    ).rejects.toThrow("EROFS: read-only file system, write '/dev/fd/99'");
++    const result = await env.exec("cat <(true); echo data > /dev/fd/99");
++    expect(result.stderr).toBe("bash: /dev/fd/99: Read-only file system\n");
++    expect(result.exitCode).toBe(1);
+   });
+ 
+   it("refuses an append to an unallocated descriptor", async () => {
+     const env = readOnlyBash();
+-    await expect(
+-      env.exec("cat <(true); echo data >> /dev/fd/99"),
+-    ).rejects.toThrow("EROFS: read-only file system, append '/dev/fd/99'");
++    const result = await env.exec("cat <(true); echo data >> /dev/fd/99");
++    expect(result.stderr).toBe("bash: /dev/fd/99: Read-only file system\n");
++    expect(result.exitCode).toBe(1);
+   });
+ 
+   it("refuses a write even with a descriptor still live", async () => {
+     const env = readOnlyBash();
+-    await expect(
+-      env.exec("cat <(true) <(echo data > /dev/fd/99)"),
+-    ).rejects.toThrow("EROFS: read-only file system, write '/dev/fd/99'");
++    const result = await env.exec("cat <(true) <(echo data > /dev/fd/99)");
++    expect(result.stdout).toBe("");
++    expect(result.stderr).toBe("bash: /dev/fd/99: Read-only file system\n");
+   });
+ 
+   it("refuses creating a directory under /dev/fd", async () => {
+@@ -146,14 +147,13 @@
+   });
+ 
+   it("behaves the same whether or not a substitution ran first", async () => {
+-    const before = readOnlyBash();
+-    await expect(before.exec("echo data > /dev/fd/99")).rejects.toThrow(
+-      "EROFS: read-only file system, write '/dev/fd/99'",
++    const before = await readOnlyBash().exec("echo data > /dev/fd/99");
++    const after = await readOnlyBash().exec(
++      "cat <(true); echo data > /dev/fd/99",
+     );
+-    const after = readOnlyBash();
+-    await expect(
+-      after.exec("cat <(true); echo data > /dev/fd/99"),
+-    ).rejects.toThrow("EROFS: read-only file system, write '/dev/fd/99'");
++    expect(before.stderr).toBe("bash: /dev/fd/99: Read-only file system\n");
++    expect(after.stderr).toBe(before.stderr);
++    expect(after.exitCode).toBe(before.exitCode);
+   });
+ 
+   it("leaves a writable filesystem's /dev/fd alone", async () => {
+diff --git a/packages/just-bash/src/interpreter/redirections.refused-target.test.ts b/packages/just-bash/src/interpreter/redirections.refused-target.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/just-bash/src/interpreter/redirections.refused-target.test.ts
+@@ -0,0 +1,89 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "../Bash.js";
++import { InMemoryFs } from "../fs/in-memory-fs/index.js";
++import type {
++  BufferEncoding,
++  FileContent,
++  WriteFileOptions,
++} from "../fs/interface.js";
++
++/**
++ * A filesystem that refuses writes under `/ro` the way an embedder's
++ * permission layer does: with an errno on the message, on `code`, or both.
++ */
++class RefusingFs extends InMemoryFs {
++  override async writeFile(
++    path: string,
++    content: FileContent,
++    options?: WriteFileOptions | BufferEncoding,
++  ): Promise<void> {
++    this.refuse("open", path);
++    return super.writeFile(path, content, options);
++  }
++
++  override async appendFile(
++    path: string,
++    content: FileContent,
++    options?: WriteFileOptions | BufferEncoding,
++  ): Promise<void> {
++    this.refuse("open", path);
++    return super.appendFile(path, content, options);
++  }
++
++  private refuse(syscall: string, path: string): void {
++    if (path.startsWith("/ro/")) {
++      throw new Error(`EROFS: read-only file system, ${syscall} '${path}'`);
++    }
++    if (path.startsWith("/denied/")) {
++      throw Object.assign(new Error("permission denied"), { code: "EACCES" });
++    }
++  }
++}
++
++const bash = () =>
++  new Bash({ fs: new RefusingFs({ "/ro/.keep": "", "/denied/.keep": "" }) });
++
++describe("redirection to a target the filesystem refuses", () => {
++  it.each([
++    "echo x > /ro/f",
++    "echo x >| /ro/f",
++    "echo x >> /ro/f",
++    "echo x 2> /ro/f",
++    "echo x &> /ro/f",
++    "echo x &>> /ro/f",
++    "echo x >& /ro/f",
++    "echo x 3> /ro/f",
++    "exec > /ro/f",
++    "exec {fd}> /ro/f",
++    "{ echo x; } > /ro/f",
++  ])("fails only the command for %s", async (command) => {
++    const result = await bash().exec(
++      `echo before; ${command}; echo after rc=$?`,
++    );
++    expect(result.stdout).toBe("before\nafter rc=1\n");
++    expect(result.stderr).toBe("bash: /ro/f: Read-only file system\n");
++    expect(result.exitCode).toBe(0);
++  });
++
++  it("reads the errno off code", async () => {
++    const result = await bash().exec("echo x > /denied/f; echo after rc=$?");
++    expect(result.stdout).toBe("after rc=1\n");
++    expect(result.stderr).toBe("bash: /denied/f: Permission denied\n");
++  });
++
++  it("keeps a loop going", async () => {
++    const result = await bash().exec(
++      "for c in a b; do echo $c >> /ro/f; echo iter $c; done",
++    );
++    expect(result.stdout).toBe("iter a\niter b\n");
++    expect(result.stderr).toBe("bash: /ro/f: Read-only file system\n".repeat(2));
++    expect(result.exitCode).toBe(0);
++  });
++
++  it("stops under set -e", async () => {
++    const result = await bash().exec("set -e; echo before; echo x > /ro/f; echo after");
++    expect(result.stdout).toBe("before\n");
++    expect(result.stderr).toBe("bash: /ro/f: Read-only file system\n");
++    expect(result.exitCode).toBe(1);
++  });
++});
+diff --git a/packages/just-bash/src/interpreter/redirections.ts b/packages/just-bash/src/interpreter/redirections.ts
+--- a/packages/just-bash/src/interpreter/redirections.ts
++++ b/packages/just-bash/src/interpreter/redirections.ts
+@@ -46,6 +46,7 @@
+   setFdEntry,
+   writeFdEntry,
+ } from "./fd-table.js";
++import { fsErrorReason } from "./helpers/errors.js";
+ import { checkReadonlyError } from "./helpers/readonly.js";
+ import { result as makeResult } from "./helpers/result.js";
+ import {
+@@ -228,6 +229,14 @@
+     if (append) await ctx.fs.appendFile(filePath, "", "binary");
+     else await ctx.fs.writeFile(filePath, "", "binary");
+   } catch (error) {
++    // A filesystem refusing the target (missing parent, read-only, permission
++    // denied) fails this command the way bash does, and the script goes on.
++    // A limit or other shell error still ends the script.
++    const reason =
++      error instanceof ControlFlowError ? undefined : fsErrorReason(error);
++    if (reason) {
++      return { error: makeResult("", `bash: ${target}: ${reason}\n`, 1) };
++    }
+     if (!handleWriteError) throw error;
+     return {
+       error: makeResult(

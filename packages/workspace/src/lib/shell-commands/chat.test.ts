@@ -140,7 +140,7 @@ describe("chat list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
-      `${groceries.chatId}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon.chatId}  working  "Trip to Lisbon"  nothing yet\n`,
+      `${groceries.chatId}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon.chatId}  idle  "Trip to Lisbon"  nothing yet\n`,
     );
 
     const filtered = await run("list", "--topic", "home");

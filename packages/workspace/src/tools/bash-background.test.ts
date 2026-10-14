@@ -2,13 +2,15 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   killSessionBackgroundProcesses,
   listChatBackgroundProcesses,
 } from "../lib/background-processes";
 import { chatDir } from "../lib/record-folders";
+import { interruptWaits } from "../lib/wait-interrupts";
+import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -27,22 +29,22 @@ const model = createMockAIGatewayModel();
  * while every doubled test keeps passing.
  */
 describe("bash background processes, end to end", () => {
-  let taskDirPath: string;
+  let chatRoot: string;
   let chatId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     const tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "bg-e2e-"));
     // The task id is the directory name, so it must look like one.
-    taskDirPath = path.join(tasksDir, `01k${"e2e".padEnd(23, "0")}`);
-    await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    chatId = createMockChatConfigForDir(taskDirPath);
+    chatRoot = path.join(tasksDir, `01k${"e2e".padEnd(23, "0")}`);
+    await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+    chatId = createMockChatConfigForDir(chatRoot);
     sessionId = StoreId.newSessionId();
   });
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(taskDirPath), { force: true, recursive: true });
+    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
   });
 
   function toolOptions<TInput>(input: TInput) {
@@ -71,7 +73,7 @@ describe("bash background processes, end to end", () => {
 
   it("promotes a command that outlives its yield and streams its output", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "tick.js"),
+      path.join(chatRoot, "work", "tick.js"),
       'setInterval(() => console.log("tick"), 100);\n',
       "utf8",
     );
@@ -101,7 +103,7 @@ describe("bash background processes, end to end", () => {
   // exactly where it would go missing.
   it("reports a promoted process under the explanation its call gave", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "serve.js"),
+      path.join(chatRoot, "work", "serve.js"),
       "setInterval(() => {}, 1000);\n",
       "utf8",
     );
@@ -127,7 +129,7 @@ describe("bash background processes, end to end", () => {
 
   it("captures output a killed process writes while shutting down", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "graceful.js"),
+      path.join(chatRoot, "work", "graceful.js"),
       [
         'process.on("SIGTERM", () => {',
         '  console.log("shutting down");',
@@ -154,9 +156,9 @@ describe("bash background processes, end to end", () => {
   it.runIf(process.platform !== "win32")(
     "does not return from a kill until descendants are gone",
     async () => {
-      const childPidPath = path.join(taskDirPath, "work", "child.pid");
+      const childPidPath = path.join(chatRoot, "work", "child.pid");
       await fs.writeFile(
-        path.join(taskDirPath, "work", "parent.js"),
+        path.join(chatRoot, "work", "parent.js"),
         [
           'const { spawn } = require("node:child_process");',
           'const fs = require("node:fs");',
@@ -221,7 +223,7 @@ describe("bash background processes, end to end", () => {
     // reports. A promoted call reports the streamed copy instead, so redaction
     // has to hold on the way through the sink as well.
     await fs.writeFile(
-      path.join(taskDirPath, "work", "leaky.js"),
+      path.join(chatRoot, "work", "leaky.js"),
       [
         `setTimeout(() => {`,
         `  console.log("remote: https://user:tok3n@example.com/repo.git");`,
@@ -254,14 +256,69 @@ describe("bash background processes, end to end", () => {
     expect(log).not.toContain("hunter2");
   }, 30_000);
 
+  // A message for the session is heard at the agent's next step. It never ends
+  // the command that step is running: the command moves to the background
+  // and runs to its end, which wakes the session if the turn is over by then.
+  it("moves a foreground command to the background when a message arrives, and lets it finish", async () => {
+    const published = vi.spyOn(publisher, "publish");
+    const started = performance.now();
+    const running = bash("sleep 2; echo slept", 60_000);
+    setTimeout(() => {
+      interruptWaits(sessionId, { from: "user" });
+    }, 300);
+    const moved = await running;
+
+    expect(performance.now() - started).toBeLessThan(1800);
+    expect(moved.processId).toBeDefined();
+    expect(moved.movedForMessageFrom).toBe("user");
+    expect(moved.exitCode).toBeUndefined();
+    const processId = moved.processId ?? "";
+    expect(
+      listChatBackgroundProcesses(chatId).find(
+        (process) => process.id === processId,
+      )?.status,
+    ).toBe("running");
+
+    await vi.waitFor(
+      () => {
+        expect(
+          listChatBackgroundProcesses(chatId).find(
+            (process) => process.id === processId,
+          )?.status,
+        ).toBe("exited");
+      },
+      { timeout: 10_000 },
+    );
+    // Ended on its own, so the session's wake hears of it.
+    expect(published).toHaveBeenCalledWith("backgroundProcess.settled", {
+      id: chatId,
+      sessionId,
+    });
+    const readOutput = await read(processId, 0);
+    expect(readOutput.output).toContain("finished with exit code 0");
+    expect(readOutput.output).toContain("slept");
+  }, 30_000);
+
+  it("leaves a command that ends within the grace to answer for itself", async () => {
+    const running = bash("sleep 0.5; echo quick", 60_000);
+    setTimeout(() => {
+      interruptWaits(sessionId, { from: "user" });
+    }, 100);
+    const result = await running;
+
+    expect(result.processId).toBeUndefined();
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("quick");
+  }, 30_000);
+
   it("appends final shell output when a pipeline transforms live output", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "producer.js"),
+      path.join(chatRoot, "work", "producer.js"),
       'setTimeout(() => process.stdout.write("lower\\n"), 700);\n',
       "utf8",
     );
     await fs.writeFile(
-      path.join(taskDirPath, "work", "uppercase.js"),
+      path.join(chatRoot, "work", "uppercase.js"),
       "process.stdin.on('data', (chunk) => process.stdout.write(chunk.toString().toUpperCase()));\n",
       "utf8",
     );

@@ -52,6 +52,18 @@ describe("handleComputerFileRequest", () => {
     expect(await response.text()).toBe("hello, computer");
   });
 
+  // On a Mac or Linux a backslash is a character a name can hold.
+  it.skipIf(process.platform === "win32")(
+    "serves a file whose name holds a backslash",
+    async () => {
+      const named = path.join(folder, "a\\b.html");
+      await fs.writeFile(named, "<p>a or b</p>");
+      const response = await request(urlFor(named));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("<p>a or b</p>");
+    },
+  );
+
   it("does not let an unversioned read be kept", async () => {
     const response = await request(urlFor(file));
     expect(response.status).toBe(200);
@@ -132,6 +144,18 @@ describe("hostPathOfComputerFileUrl", () => {
     expect(hostPathOfComputerFileUrl(url)).toBe(
       path.join(folder, "Smith, John #2.pdf"),
     );
+  });
+
+  // A backslash separates names in a Windows path, and in every path on
+  // Windows, so there `..\` climbs out of the folder before it.
+  it.each([
+    ["a Windows path", "/C:/Users/sam/Documents/..%5C..%5Ckey.txt", path.win32],
+    ["a rooted path on Windows", "/Users/sam/..%5C..%5Ckey.txt", path.win32],
+  ])("refuses a backslash traversal in %s", (_name, pathname, hostPaths) => {
+    const url = new URL(`${computerFileBase()}${pathname}`);
+    expect(
+      hostPathOfComputerFileUrl(url, undefined, hostPaths),
+    ).toBeUndefined();
   });
 
   it.skipIf(process.platform !== "win32")(

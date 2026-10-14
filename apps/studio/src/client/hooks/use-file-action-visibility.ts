@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { isFileDownloadable } from "@/client/lib/file-actions";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 

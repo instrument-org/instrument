@@ -382,14 +382,12 @@ async function chatTurn(app: StudioApp, modelURI: string, prompt: string) {
   // A chat starts the way a draft's send starts one: its record first, then
   // its opening message.
   const sessionId = newSessionId();
-  const { id } = z
-    .object({ id: z.string() })
-    .parse(
-      await studioRpc(app, "workspace.chats.ensure", {
-        firstWords: prompt,
-        sessionId,
-      }),
-    );
+  const { id } = z.object({ id: z.string() }).parse(
+    await studioRpc(app, "workspace.chats.ensure", {
+      firstWords: prompt,
+      sessionId,
+    }),
+  );
   await studioRpc(app, "workspace.message.create", { id, modelURI, prompt });
   await app.waitForIdle({ chatId: id, timeout: 180_000 });
   const list = z

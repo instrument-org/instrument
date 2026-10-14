@@ -15,7 +15,7 @@ import {
 import { Delayed } from "@/client/components/ui/delayed";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -26,8 +26,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import { getFileManagerName } from "@/client/lib/utils";
 
 import { fileActionFailed, FolderMenu, refusalLine } from "./computer-page";
 import { useWindow } from "./context";
@@ -170,12 +168,12 @@ export function FileTree({
         }}
         onQuickLook={undefined}
         onReveal={() => {
-          run(`Couldn't show it in ${getFileManagerName()}`, () =>
+          run(`Couldn't show it in ${osConventions().inFileManager}`, () =>
             rpcClient.utils.showFileInFolder.call({ filepath: menuHostPath }),
           );
         }}
         onTrash={() => {
-          run(`Couldn't move it to the ${getTrashTerminology()}`, () =>
+          run(`Couldn't move it to the ${osConventions().trash}`, () =>
             rpcClient.files.trash.call({ path: menuHostPath }),
           );
         }}

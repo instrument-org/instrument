@@ -1,0 +1,47 @@
+import { RuleTester } from "oxlint/plugins-dev";
+import { describe, it } from "vitest";
+
+import plugin from "./oxlint-rules";
+
+RuleTester.describe = describe;
+RuleTester.it = it;
+
+const rule = plugin.rules["no-os-words"];
+if (!rule) {
+  throw new Error("The plugin has no studio/no-os-words rule");
+}
+
+/** A line that writes `word` where every system shows it. */
+const writes = (code: string, word: string) => ({
+  code,
+  errors: [{ data: { word }, messageId: "osWord" }],
+});
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("no-os-words", rule, {
+  invalid: [
+    writes(`const label = "Quick " + "Look";`, "Quick Look"),
+    writes(`const label = name + " in Quick " + ("Lo" + "ok");`, "Quick Look"),
+    writes(`const label = "Reveal in " + \`File Explorer\`;`, "File Explorer"),
+    writes(`const label = "Reveal in Explorer";`, "Explorer"),
+    writes(`const line = "It stays on your Mac.";`, "your Mac"),
+    writes(`const line = "It stays on your PC.";`, "your PC"),
+    writes(`const line = "Turn it on in macOS settings.";`, "macOS settings"),
+    writes(`const hint = "Press Cmd+K to search.";`, "Cmd"),
+    writes(`const hint = "Hold Option to copy.";`, "Hold Option"),
+    writes(`const hint = "Option-click a file.";`, "Option"),
+    writes(`const label = "Photos Library";`, "Library"),
+    writes(`const label = <p>Kept in the Library folder</p>;`, "Library"),
+  ],
+  valid: [
+    // Only a string of its own says the word.
+    `const label = "Quick " + look;`,
+    `const label = "Skill Library";`,
+    `const accelerator = "CmdOrCtrl+K";`,
+    `const line = "Pick an option below.";`,
+    `const path = "~/Library/Caches";`,
+    `if (kind === "Finder") {}`,
+    `console.log("Opened " + "Quick Look");`,
+  ],
+});

@@ -236,6 +236,36 @@ describe("BashTool", () => {
       `);
     });
 
+    it("says a message moved it to the background, not its yield", () => {
+      const result = BashTool.toModelOutput({
+        input: { command: "sleep 90", yieldMs: 120_000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "sleep 90",
+          durationMs: 4000,
+          exitCode: undefined,
+          logFilePath: RelativePathSchema.parse(".tool-output/bg_1.log"),
+          movedForMessageFrom: "user",
+          processId: "bg_1",
+        },
+        toolCallId: "1",
+      });
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "type": "text",
+          "value": "The user sent you a message while this was running, so it moved to the background after 4 seconds for you to read the message. It was not stopped and is still running.
+        Process id: bg_1
+
+        No output yet.
+
+        <instrument-system-note>
+        bg_1 is still running. Follow it with \`fg bg_1\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`kill bg_1\`. \`jobs\` lists everything still running. Its bounded process log is at .tool-output/bg_1.log.
+        Do not start a second copy of a process that is already running. A process you leave running stays running after your turn ends, so kill anything the user does not need -- but leave a server running if they still want to reach it.
+        </instrument-system-note>",
+        }
+      `);
+    });
+
     it("says so when a promoted command has not written anything yet", () => {
       const result = BashTool.toModelOutput({
         input: { command: "node work/quiet.js", yieldMs: 1000 },

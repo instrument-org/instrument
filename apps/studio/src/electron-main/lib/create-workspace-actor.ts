@@ -23,6 +23,7 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
+  interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
@@ -53,6 +54,7 @@ import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
+import { windowsDriveNames } from "./windows-drives";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
 const CHAT_TEMPLATE_DIR_NAME = "chat-template";
@@ -147,6 +149,9 @@ export function createWorkspaceActor() {
       chatTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, CHAT_TEMPLATE_DIR_NAME)
         : UNPACKAGED_CHAT_TEMPLATE_DIR,
+      ...(process.platform === "win32"
+        ? { driveNames: windowsDriveNames }
+        : {}),
       ensureOutputFolderIcon,
       finderEntries,
       resolveAlias,
@@ -300,8 +305,18 @@ export function createWorkspaceActor() {
           await Promise.all([
             stopWorkspaceSkillWatcher().catch(noop),
             // Agent-started servers and watchers outlive the turn that started
-            // them, so quitting is what ends them.
-            killAllBackgroundProcesses().catch(noop),
+            // them, so quitting is what ends them. The tasks at work are
+            // stopped and their chats told first, while what each has running
+            // can still be named.
+            interruptTasksForQuit(actor)
+              .catch((error: unknown) => {
+                captureServerException(
+                  error instanceof Error ? error : new Error(String(error)),
+                  { scopes: ["studio"] },
+                );
+              })
+              .then(() => killAllBackgroundProcesses())
+              .catch(noop),
           ]);
         }),
       },

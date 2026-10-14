@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import { osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
@@ -97,7 +98,7 @@ function FolderGroup({
                   variant="destructive"
                 >
                   <TrashIcon className="size-4" />
-                  <span>Move to trash</span>
+                  <span>Move to {osConventions().trash}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -131,11 +132,14 @@ function UnrecognizedFolders() {
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.storage.invalidFolders.list.key(),
       });
-      toast.success(`Moved “${folder.name}” to the trash`);
+      toast.success(`Moved “${folder.name}” to the ${osConventions().trash}`);
     } catch (error) {
-      toast.error(`Couldn't move “${folder.name}” to the trash`, {
-        cause: error,
-      });
+      toast.error(
+        `Couldn't move “${folder.name}” to the ${osConventions().trash}`,
+        {
+          cause: error,
+        },
+      );
     }
   };
 
@@ -192,11 +196,12 @@ function UnrecognizedFolders() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {folderToTrash
-                ? `Move “${folderToTrash.name}” to the trash?`
+                ? `Move “${folderToTrash.name}” to the ${osConventions().trash}?`
                 : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Moves the folder to your system trash. You can still recover it.
+              The folder goes to the {osConventions().trash}, so you can still
+              get it back.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -206,7 +211,7 @@ function UnrecognizedFolders() {
                 void confirmTrash();
               }}
             >
-              Move to trash
+              Move to {osConventions().trash}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

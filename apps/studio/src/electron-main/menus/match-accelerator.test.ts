@@ -1,8 +1,23 @@
-import { resolveAccelerator, SHORTCUT_ENTRIES } from "@/shared/shortcuts";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { CODE_EDITOR_KEYS } from "@/client/components/code-editor/keymap";
+import {
+  resolveAccelerator,
+  SHORTCUT_ENTRIES,
+  type ShortcutAccelerator,
+} from "@/shared/shortcuts";
+import {
+  CODE_EDITOR_SHORTCUTS,
+  WINDOW_MENU_SHORTCUTS,
+  WINDOW_SHORTCUT_ALIASES,
+  WINDOW_SHORTCUTS,
+  type WindowShortcutId,
+} from "@/shared/window-shortcuts";
 import { describe, expect, it } from "vitest";
 
-import { matchesAccelerator, parseAccelerator } from "./match-accelerator";
+import {
+  type Chord,
+  matchesAccelerator,
+  parseAccelerator,
+} from "./match-accelerator";
 
 type Modifier = "alt" | "control" | "meta" | "shift";
 
@@ -341,5 +356,141 @@ describe("the shortcut table", () => {
         ),
       ).not.toBeNull();
     }
+  });
+});
+
+/** Whether one press would fire both chords. */
+function overlaps(a: Chord, b: Chord) {
+  return (
+    a.alt === b.alt &&
+    a.control === b.control &&
+    a.meta === b.meta &&
+    a.on === b.on &&
+    a.value === b.value &&
+    (a.shift === b.shift || !a.comparesShift || !b.comparesShift)
+  );
+}
+
+/** The window's own chords on one side, each by its table row. */
+function windowChords(isMac: boolean) {
+  return [
+    ...Object.entries(WINDOW_SHORTCUTS).map(([id, { accelerator }]) => ({
+      accelerator: resolveAccelerator(accelerator, { isMac }),
+      // `Object.entries` widens the keys to `string`; they are the table's ids.
+      id: id as WindowShortcutId,
+    })),
+    ...WINDOW_SHORTCUT_ALIASES.flatMap(({ accelerator, id }) => {
+      const own = isMac ? accelerator.darwin : accelerator.default;
+      return own ? [{ accelerator: own, id }] : [];
+    }),
+  ];
+}
+
+/** A CodeMirror key name as an Electron accelerator: `Mod-Alt-ArrowUp` is `CmdOrCtrl+Alt+Up`. */
+function acceleratorOf(name: string) {
+  const parts = name.split("-");
+  const key = parts.pop() ?? "";
+  const modifiers = parts.map(
+    (part) =>
+      ({ Cmd: "Command", Ctrl: "Ctrl", Meta: "Command", Mod: "CmdOrCtrl" })[
+        part
+      ] ?? part,
+  );
+  // CodeMirror writes a shifted letter as its capital.
+  const shift = /^[A-Z]$/.test(key) ? ["Shift"] : [];
+  return [...modifiers, ...shift, key.replace(/^Arrow/, "")].join("+");
+}
+
+describe("CODE_EDITOR_SHORTCUTS", () => {
+  it.each([
+    { isMac: true, platform: "mac" },
+    { isMac: false, platform: "win" },
+    { isMac: false, platform: "linux" },
+  ] as const)(
+    "is every window chord the code editor's keys take on $platform",
+    ({ isMac, platform }) => {
+      const editorChords = CODE_EDITOR_KEYS.flatMap((binding) => {
+        const name = binding[platform] ?? binding.key;
+        if (!name) {
+          return [];
+        }
+        return [name, ...(binding.shift ? [`Shift-${name}`] : [])].flatMap(
+          (each) => parseAccelerator(acceleratorOf(each), { isMac }) ?? [],
+        );
+      });
+      const taken = windowChords(isMac).flatMap(({ accelerator, id }) => {
+        const chord = parseAccelerator(accelerator, { isMac });
+        return chord && editorChords.some((key) => overlaps(chord, key))
+          ? [id]
+          : [];
+      });
+      // Find is the editor's own search either way: the window hands the
+      // press to the find target holding the keyboard.
+      expect(new Set(taken.filter((id) => id !== "findInPage"))).toEqual(
+        CODE_EDITOR_SHORTCUTS,
+      );
+    },
+  );
+});
+
+/**
+ * Every chord the app window binds on one side, by a name for the failure:
+ * its own and their second chords, the ones its menu answers (a tab by its
+ * place spelled out, as the menu spells it), and the app and Developer
+ * menus'.
+ */
+function boundChords(isMac: boolean) {
+  const resolve = (accelerator: ShortcutAccelerator) =>
+    resolveAccelerator(accelerator, { isMac });
+  return [
+    ...windowChords(isMac).map(({ accelerator, id }) => ({
+      accelerator,
+      name: id,
+    })),
+    ...Object.entries(WINDOW_MENU_SHORTCUTS).flatMap(
+      ([name, { accelerator }]) =>
+        name === "tabByPlace"
+          ? Array.from({ length: 8 }, (_, index) => ({
+              accelerator: `CmdOrCtrl+${index + 1}`,
+              name: `tab ${index + 1}`,
+            }))
+          : [{ accelerator: resolve(accelerator), name }],
+    ),
+    ...SHORTCUT_ENTRIES.map(({ descriptor, id }) => ({
+      accelerator: resolve(descriptor.accelerator),
+      name: id,
+    })),
+  ];
+}
+
+describe.each([
+  { isMac: true, system: "a Mac" },
+  { isMac: false, system: "Windows and Linux" },
+])("the app window's chords on $system", ({ isMac }) => {
+  // A chord the binder or the menu can't read never fires, silently.
+  it.each(boundChords(isMac))(
+    "$name is a readable chord ($accelerator)",
+    ({ accelerator }) => {
+      expect(parseAccelerator(accelerator, { isMac })).not.toBeNull();
+    },
+  );
+
+  // The binder runs the first row a press matches, so a second command on
+  // the same press would never run.
+  it("never put two commands on one press", () => {
+    const bound = boundChords(isMac).map((each) => ({
+      ...each,
+      chord: parseAccelerator(each.accelerator, { isMac }),
+    }));
+    const clashes = bound.flatMap((a, index) =>
+      bound
+        .slice(index + 1)
+        .flatMap((b) =>
+          a.chord && b.chord && overlaps(a.chord, b.chord)
+            ? [`${a.name} (${a.accelerator}) and ${b.name} (${b.accelerator})`]
+            : [],
+        ),
+    );
+    expect(clashes).toEqual([]);
   });
 });

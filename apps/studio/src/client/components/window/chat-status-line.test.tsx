@@ -7,8 +7,14 @@ const chatId = StoreId.newSessionId();
 
 const title = "Lisbon trip";
 type ChatAt = Parameters<typeof statusLine>[0]["chat"];
-const idle: ChatAt = { runningTasks: [], state: "idle", title };
+const idle: ChatAt = {
+  lastUserMessageAt: 1,
+  runningTasks: [],
+  state: "idle",
+  title,
+};
 const at = (state: ChatAt["state"], over: Partial<ChatAt> = {}): ChatAt => ({
+  lastUserMessageAt: 1,
   runningTasks: [],
   state,
   title,
@@ -27,6 +33,10 @@ const done = (
   ...(last ? { step: last } : {}),
   title: name,
   updatedAt: new Date(when),
+});
+const failed = (when: number, name: string, last: string) => ({
+  ...done(when, name, last),
+  standing: { kind: "failed", line: "The site would not load" },
 });
 
 describe("statusLine", () => {
@@ -72,14 +82,29 @@ describe("statusLine", () => {
       { text: "Waiting on you", tone: "wait" },
     ],
     [
-      "the chat's own last step with a check once it is done",
+      "that a card waits on the user, rather than the step that met it",
+      {
+        chat: at("waiting", {
+          lastStep: lastStep("Reading the AWS configuration"),
+          latest: {
+            at: 3,
+            kind: "question",
+            text: "Waiting for your OK to use “.aws”",
+          },
+        }),
+        listed: [],
+      },
+      { text: "Waiting on you", tone: "wait" },
+    ],
+    [
+      "that its own work is done, rather than the step it was on",
       {
         chat: at("idle", {
           lastStep: lastStep("Checking fares on flytap.com"),
         }),
         listed: [],
       },
-      { text: "Checking fares on flytap.com", tone: "done" },
+      { text: "Done", tone: "done" },
     ],
     [
       "the task that finished last, after the chat's own step",
@@ -90,28 +115,36 @@ describe("statusLine", () => {
       { text: "Lisbon fares and hotels", tone: "done" },
     ],
     [
-      "the chat's own step when it came after the last task",
+      "that its own work is done when that came after the last task",
       {
         chat: at("idle", { lastStep: lastStep("Booking the hotel", 9) }),
         listed: [done(5)],
       },
-      { text: "Booking the hotel", tone: "done" },
+      { text: "Done", tone: "done" },
     ],
     [
-      "a task's last step when its name is the chat's",
+      "that a task named like the chat is done, rather than its last step",
       {
         chat: at("idle", { lastStep: lastStep("Starting a task") }),
         listed: [done(5, title, "Comparing hotel prices")],
       },
-      { text: "Comparing hotel prices", tone: "done" },
+      { text: "Done", tone: "done" },
     ],
     [
-      "nothing when all there is to say is the chat's title",
+      "that a task named like the chat is done, with no step to its name",
       {
         chat: at("idle", { lastStep: lastStep("Starting a task") }),
         listed: [done(5, title)],
       },
-      undefined,
+      { text: "Done", tone: "done" },
+    ],
+    [
+      "the step a task named like the chat stopped on",
+      {
+        chat: at("idle", { lastStep: lastStep("Starting a task") }),
+        listed: [failed(5, title, "Comparing hotel prices")],
+      },
+      { text: "Comparing hotel prices", tone: "stopped" },
     ],
     [
       "a chat stopped on an error",
@@ -122,6 +155,62 @@ describe("statusLine", () => {
       "a chat stopped at a usage limit, calmly",
       { chat: at("limited"), listed: [] },
       { text: "Stopped at a usage limit", tone: "limited" },
+    ],
+    [
+      "that its work is done once the user wrote after the task they stopped, though its reply took no step",
+      {
+        chat: at("idle", {
+          lastStep: lastStep("Running the requested waits"),
+          lastUserMessageAt: 10,
+        }),
+        listed: [{ ...done(5), stoppedBy: "user" }],
+      },
+      { text: "Done", tone: "done" },
+    ],
+    [
+      "a task that woke the chat by name after the reply it woke, until the user writes",
+      {
+        chat: at("idle", {
+          lastStep: lastStep("Starting a task"),
+          lastUserMessageAt: 1,
+        }),
+        listed: [done(5)],
+      },
+      { text: "Lisbon fares and hotels", tone: "done" },
+    ],
+    [
+      "the task the user stopped last beside a stop mark, not a check",
+      {
+        chat: at("idle", { lastStep: lastStep("Starting a task") }),
+        listed: [{ ...done(5), stoppedBy: "user" }],
+      },
+      { text: "Lisbon fares and hotels", tone: "halted" },
+    ],
+    [
+      "the task the chat stopped last beside a stop mark, not a check",
+      {
+        chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
+        listed: [{ ...done(5), stoppedBy: "chat" }],
+      },
+      { text: "Lisbon fares and hotels", tone: "halted" },
+    ],
+    [
+      "that the chat stopped a task named like the chat, rather than that it is done",
+      {
+        chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
+        listed: [{ ...done(5, title), stoppedBy: "chat" }],
+      },
+      { text: "The chat stopped its task", tone: "halted" },
+    ],
+    [
+      "that the user stopped it, rather than that it is done",
+      {
+        chat: at("stopped", {
+          lastStep: lastStep("Listing the Documents folder"),
+        }),
+        listed: [done(1)],
+      },
+      { text: "You stopped Instrument", tone: "halted" },
     ],
   ])("says %s", (_, input, expected) => {
     expect(statusLine(input)).toEqual(expected);

@@ -1,5 +1,5 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
-import { getTrashTerminology } from "@/client/lib/trash-terminology";
+import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
@@ -31,7 +31,7 @@ export function DeleteChatDialog({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
-  const trashTerminology = getTrashTerminology();
+  const trashTerminology = osConventions().trash;
   const children = useQuery({
     ...childTasksOptions(chat.id),
     enabled: open,

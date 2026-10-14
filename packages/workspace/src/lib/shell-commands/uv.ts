@@ -5,13 +5,14 @@ import { type ChatId } from "../../schemas/chat-id";
 import { ensureChatVenv } from "../ensure-chat-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { getUvBinPath } from "../uv";
+import { ensureManagedPython } from "../run-uv";
+import { getUvBinPath, withPythonVersionNote } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager, backing `python` and `pip` with a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager, backing `python` and `pip` with the chat's virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 
@@ -22,7 +23,14 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       return blocked;
     }
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+
+    // The chat's uv may not write the managed Python, so the app installs
+    // it before the first command that could look for it.
+    const python = await ensureManagedPython();
+    if (python) {
+      return { exitCode: python.exitCode, stderr: python.output, stdout: "" };
+    }
 
     // `uv pip` requires the venv to exist (VIRTUAL_ENV points at .venv).
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
@@ -38,7 +46,7 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       args: hostPathArgs(args),
       ctx,
       env,
-      taskCwd,
+      hostCwd,
     });
     return result;
   });
@@ -68,24 +76,24 @@ export async function runUv({
   args,
   ctx,
   env,
-  taskCwd,
+  hostCwd,
 }: {
   args: string[];
   ctx: CommandContext;
   env: Record<string, string>;
-  taskCwd: AbsolutePath;
+  hostCwd: AbsolutePath;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
   const result = await execShim(getUvBinPath(), args, {
     cancelSignal: ctx.signal,
-    cwd: taskCwd,
+    cwd: hostCwd,
     env,
     ...(stdin ? { input: stdin } : { stdin: "ignore" }),
   });
   return {
     exitCode: result.exitCode ?? 1,
     ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
-      filterShellOutput(text),
+      withPythonVersionNote(filterShellOutput(text)),
     ),
   };
 }

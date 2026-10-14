@@ -3,6 +3,7 @@ export {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   CHAT_FOLDER_NAMES,
+  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
@@ -16,10 +17,12 @@ export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export { isInteractiveTool } from "./lib/is-interactive-tool";
 export * from "./lib/is-chat-id";
 export { isToolPart } from "./lib/is-tool-part";
+export { askTargetName } from "./lib/permissions/ask-target";
+export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
-export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
+export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";
 export type {
   ComputerFolder,
   ComputerListing,
@@ -41,12 +44,12 @@ export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
-export { isTaskFileHref, taskFilePathFromHref } from "./lib/task-file-href";
+export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
 export {
-  isAddressableTaskFilePath,
+  isAddressableChatFilePath,
   isFolderPath,
   nameOfPath,
-} from "./lib/task-file-path";
+} from "./lib/chat-file-path";
 export {
   getUsageSummaryFromMessages,
   type UsageSummary,

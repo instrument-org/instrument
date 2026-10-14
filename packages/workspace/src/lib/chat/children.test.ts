@@ -10,11 +10,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { forgetChatFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import {
-  addChildTask,
-  sessionRole,
-  listChildTasks,
-} from "./children";
+import { addChildTask, sessionRole, listChildTasks } from "./children";
 import { ChatIdSchema } from "../../schemas/chat-id";
 
 let rootDir: string;

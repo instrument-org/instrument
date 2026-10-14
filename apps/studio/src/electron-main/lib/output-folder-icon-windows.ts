@@ -44,14 +44,16 @@ export async function applyWindowsFolderIcon(folder: string): Promise<void> {
   await exec("attrib.exe", ["+h", "+s", desktopIni], { timeout: 5000 });
   await exec("attrib.exe", ["+r", folder], { timeout: 5000 });
   const refresh = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class FolderIconRefresh { [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern void SHChangeNotify(uint change, uint flags, string path, IntPtr unused); }'; [FolderIconRefresh]::SHChangeNotify(0x2000, 0x1005, [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(folder).toString("base64")}')), [IntPtr]::Zero)`;
-  await exec(
+  // The script goes in on stdin. Windows looks a new process's command line
+  // over before the spawn returns, and with this script on it the spawn holds
+  // the main thread for a third of a second, 1.7 s at a cold launch. The
+  // script is ASCII, with the folder in base64, so stdin's code page cannot
+  // garble it.
+  const refreshing = exec(
     "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-EncodedCommand",
-      Buffer.from(refresh, "utf16le").toString("base64"),
-    ],
-    { timeout: 10_000 },
+    ["-NoProfile", "-NonInteractive", "-Command", "-"],
+    { timeout: 10_000, windowsHide: true },
   );
+  refreshing.child.stdin?.end(refresh);
+  await refreshing;
 }

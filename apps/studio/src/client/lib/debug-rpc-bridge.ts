@@ -27,7 +27,7 @@ async function callRoute(path: string, input?: unknown): Promise<unknown> {
   const preferences = await rpcClient.preferences.get.call();
   if (!preferences.developerMode) {
     throw new Error(
-      "window.__studioDebug.rpc requires Developer Mode (Settings > General)",
+      "window.__studioDebug.rpc requires Developer Mode (type !dev in the command menu)",
     );
   }
   return await resolveRpcProcedure(rpcClient, path).call(input);

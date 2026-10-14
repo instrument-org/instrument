@@ -2,7 +2,10 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuLabel,
+  ContextMenuShortcut,
 } from "@/client/components/ui/context-menu";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type ReactNode } from "react";
 
 /**
@@ -12,9 +15,12 @@ import { type ReactNode } from "react";
  */
 export function ClosedTabsMenu({
   closed,
+  firstIsReopenedByKey,
   onReopen,
 }: {
   closed: { icon: ReactNode; title: string }[];
+  /** Whether the first row is the one Reopen Closed Tab's key brings back, so it names the key. */
+  firstIsReopenedByKey: boolean;
   /** Which one, by its place in `closed`. */
   onReopen: (entry: number) => void;
 }) {
@@ -38,6 +44,11 @@ export function ClosedTabsMenu({
               {tab.icon}
             </span>
             <span className="truncate">{tab.title}</span>
+            {entry === 0 && firstIsReopenedByKey ? (
+              <ContextMenuShortcut className="pl-4">
+                {formatAcceleratorText(WINDOW_SHORTCUTS.reopenTab.accelerator)}
+              </ContextMenuShortcut>
+            ) : null}
           </ContextMenuItem>
         ))
       )}

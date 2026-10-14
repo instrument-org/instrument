@@ -1,0 +1,78 @@
+diff --git a/packages/just-bash/src/commands/cp/cp.ts b/packages/just-bash/src/commands/cp/cp.ts
+--- a/packages/just-bash/src/commands/cp/cp.ts
++++ b/packages/just-bash/src/commands/cp/cp.ts
+@@ -178,7 +178,22 @@
+           );
+         }
+ 
+-        await ctx.fs.cp(srcPath, targetPath, { recursive });
++        // Without -R, a source operand that is a symlink is copied as the
++        // file it leads to, as POSIX cp does. fs.cp copies a link as a link,
++        // which a filesystem that refuses symlinks cannot take.
++        if (
++          !recursive &&
++          !srcStat.isDirectory &&
++          (await ctx.fs.lstat(srcPath)).isSymbolicLink
++        ) {
++          await ctx.fs.writeFile(
++            targetPath,
++            await ctx.fs.readFileBuffer(srcPath),
++          );
++          await ctx.fs.chmod(targetPath, srcStat.mode & 0o7777);
++        } else {
++          await ctx.fs.cp(srcPath, targetPath, { recursive });
++        }
+ 
+         // Note: preserve flag is accepted but timestamps are not actually preserved
+         // in the virtual filesystem (the fs.cp doesn't support preserving metadata)
+diff --git a/packages/just-bash/src/commands/cp/cp.test.ts b/packages/just-bash/src/commands/cp/cp.test.ts
+--- a/packages/just-bash/src/commands/cp/cp.test.ts
++++ b/packages/just-bash/src/commands/cp/cp.test.ts
+@@ -146,4 +146,47 @@
+     const content = await env.readFile("/home/user/dst.txt");
+     expect(content).toBe("content");
+   });
++
++  describe("symlink source", () => {
++    it.each([
++      ["absolute", "/dir/target.txt"],
++      ["relative", "target.txt"],
++    ])("should copy the file behind a link with an %s target", async (_kind, target) => {
++      const env = new Bash({
++        files: { "/dir/target.txt": "content", "/dir2/.keep": "" },
++      });
++      await env.fs.chmod("/dir/target.txt", 0o640);
++      await env.fs.symlink(target, "/dir/link");
++
++      const result = await env.exec("cp /dir/link /copy && cp /dir/link /dir2/");
++      expect(result.stderr).toBe("");
++
++      for (const copy of ["/copy", "/dir2/link"]) {
++        const stat = await env.fs.lstat(copy);
++        expect(stat.isSymbolicLink).toBe(false);
++        expect(stat.mode & 0o777).toBe(0o640);
++        expect(await env.readFile(copy)).toBe("content");
++      }
++    });
++
++    it("should copy a link as a link with -R", async () => {
++      const env = new Bash({ files: { "/dir/target.txt": "content" } });
++      await env.fs.symlink("target.txt", "/dir/link");
++
++      await env.exec("cp -R /dir/link /dir/copy");
++      expect((await env.fs.lstat("/dir/copy")).isSymbolicLink).toBe(true);
++      expect(await env.fs.readlink("/dir/copy")).toBe("target.txt");
++    });
++
++    it("should report a link to nothing as missing", async () => {
++      const env = new Bash();
++      await env.fs.symlink("/nowhere", "/link");
++
++      const result = await env.exec("cp /link /copy");
++      expect(result.exitCode).toBe(1);
++      expect(result.stderr).toBe(
++        "cp: cannot stat '/link': No such file or directory\n",
++      );
++    });
++  });
+ });

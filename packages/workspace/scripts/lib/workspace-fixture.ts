@@ -16,7 +16,7 @@ import superjson from "superjson";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
-import { RelativeTaskPathSchema } from "../../src/schemas/paths";
+import { RelativeChatPathSchema } from "../../src/schemas/paths";
 import { Session } from "../../src/schemas/session";
 import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
 
@@ -30,9 +30,9 @@ const TASK_FILES_DIR_NAME = "files";
 
 const FixtureFileSchema = z.object({
   // Path inside the fixture's `files/` dir.
-  from: RelativeTaskPathSchema,
+  from: RelativeChatPathSchema,
   // Where it lands inside the seeded task, e.g. `work/report.pdf`.
-  to: RelativeTaskPathSchema,
+  to: RelativeChatPathSchema,
 });
 
 const FixtureChatTaskSchema = z.object({

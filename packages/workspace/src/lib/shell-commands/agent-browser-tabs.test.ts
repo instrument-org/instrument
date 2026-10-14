@@ -13,6 +13,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { chatDir } from "../record-folders";
+import { sessionLayout } from "../session-layout";
 import { getChatState, setChatState } from "../chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
@@ -103,7 +104,11 @@ async function run(
     stderr: "",
     stdout: "",
   } as never);
-  return createAgentBrowserCommand({ sessionId, chatId }).execute(args, ctx);
+  return createAgentBrowserCommand({
+    chatId,
+    layout: await sessionLayout({ chatId, sessionId }),
+    sessionId,
+  }).execute(args, ctx);
 }
 
 /** Tabs the task drives, on the chat's record. */

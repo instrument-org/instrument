@@ -2,9 +2,9 @@ import { APP_PROTOCOL } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { toast } from "@/client/lib/toast";
 
-import { type ViewerFile } from "../atoms/task-file-viewer";
+import { type ViewerFile } from "../atoms/viewer-file";
 import { rpcClient } from "../rpc/client";
-import { downloadTaskFile } from "./download-task-file";
+import { downloadBlob } from "./download-blob";
 
 export async function copyFileToClipboard({
   hostPath,
@@ -32,7 +32,7 @@ export async function downloadFile(file: ViewerFile) {
       throw new Error(`Failed to fetch file: ${response.statusText}`);
     }
     const blob = await response.blob();
-    downloadTaskFile({
+    downloadBlob({
       ...file,
       blob,
     });

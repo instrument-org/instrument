@@ -1,14 +1,14 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
-import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
+import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import {
   type FileType,
   getFileType,
   isMediaFile,
 } from "@/client/lib/get-file-type";
 import {
-  isFileInTaskFolder,
-  isRootTaskFile,
-} from "@/client/lib/task-file-visibility";
+  isFileInChatFolder,
+  isRootChatFile,
+} from "@/client/lib/chat-file-visibility";
 import { cn } from "@/client/lib/utils";
 import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { fork } from "radashi";
@@ -46,10 +46,10 @@ interface FilesGridProps {
    * a smaller version of the jump it was drawn to avoid.
    */
   pendingFilePath?: string;
-  // Takes the list as given instead of bucketing it by task folder. For a set
+  // Takes the list as given instead of bucketing it by folder. For a set
   // an agent chose and ordered: the buckets exist to find the deliverables in
   // everything a turn touched, which is a judgment already made here, and they
-  // drop anything outside the task folder -- including a shared folder's files.
+  // drop anything outside the chat's folder -- including a shared folder's files.
   preserveOrder?: boolean;
   prioritizeUserFiles?: boolean;
 }
@@ -62,17 +62,17 @@ export function FilesGrid({
   preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
 
   // A card here always came from a task's transcript, so the task's own path
   // is what the pane and the conversation address it by.
   const handleFileClick = (file: ViewerFile) => {
-    showTaskFile(taskPathOf(file));
+    showChatFile(chatPathOf(file));
   };
 
   const mainFiles = preserveOrder
     ? files
-    : bucketByTaskFolder(files, prioritizeUserFiles);
+    : bucketByChatFolder(files, prioritizeUserFiles);
 
   const mediaFiles = compact ? [] : mainFiles.filter(isMediaFile);
   const listFiles = compact
@@ -213,16 +213,16 @@ export function FilesGrid({
 
 // Groups a turn's changed files into the folders that reach the user, richest
 // preview first within each. Root files cover a deliverable an agent saved to
-// the task root; see `isSurfacedTaskFile` for which paths reach the user at all.
-function bucketByTaskFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
+// the root of the chat's folder.
+function bucketByChatFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
   const [attachmentFiles, nonAttachmentFiles] = fork(files, (file) =>
-    isFileInTaskFolder(taskPathOf(file), CHAT_FOLDER_NAMES.attachments),
+    isFileInChatFolder(chatPathOf(file), CHAT_FOLDER_NAMES.attachments),
   );
   const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
-    isFileInTaskFolder(taskPathOf(file), CHAT_FOLDER_NAMES.downloads),
+    isFileInChatFolder(chatPathOf(file), CHAT_FOLDER_NAMES.downloads),
   );
   const [rootFiles] = fork(nonDownloadFiles, (file) =>
-    isRootTaskFile(taskPathOf(file)),
+    isRootChatFile(chatPathOf(file)),
   );
 
   const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
@@ -274,7 +274,7 @@ function sortByRichPreview(files: ViewerFile[]) {
   return [...media, ...rowCard, ...other];
 }
 
-/** The path the task wrote for a file, which every card in this grid has. */
-function taskPathOf(file: ViewerFile) {
-  return file.taskFile?.filePath ?? file.hostPath;
+/** The path the agent wrote for a file, which every card in this grid has. */
+function chatPathOf(file: ViewerFile) {
+  return file.chatFile?.filePath ?? file.hostPath;
 }

@@ -15,7 +15,7 @@ import { QuotesIcon } from "@phosphor-icons/react/Quotes";
 import { useEffect, useState } from "react";
 
 import { useHostPaths } from "../../hooks/use-host-paths";
-import { useShowTaskFile } from "../../hooks/use-show-task-file";
+import { useShowChatFile } from "../../hooks/use-show-chat-file";
 import { getComputerFileUrl } from "../../lib/computer-file-url";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { filenameFromFilePath } from "../../lib/path-utils";
@@ -130,7 +130,7 @@ export function ToolGenerateImage({
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
 
   if (!part.input) {
     return <ToolCardEmpty message="The prompt has not arrived yet." />;
@@ -168,7 +168,7 @@ export function ToolGenerateImage({
   const servedModelName = resolveImageModelName(successOutput?.modelIdServed);
 
   const openImage = ({ filePath }: { filePath: string }) => {
-    showTaskFile(filePath);
+    showChatFile(filePath);
   };
 
   return (
@@ -340,7 +340,7 @@ function GeneratedImage({
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = useTaskImageSrc(id, filePath, modifiedAt);
+  const src = useChatImageSrc(id, filePath, modifiedAt);
   const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
   const image = (
@@ -421,10 +421,10 @@ function humanizeParamKey(key: string): string {
 }
 
 function ImageActions({ filePath, id }: { filePath: string; id: ChatId }) {
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
 
   const handleExpand = () => {
-    showTaskFile(filePath);
+    showChatFile(filePath);
   };
 
   const hostPath = useHostPaths(id, [filePath])[filePath];
@@ -577,7 +577,7 @@ function SourceThumbnail({
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = useTaskImageSrc(id, filePath, modifiedAt);
+  const src = useChatImageSrc(id, filePath, modifiedAt);
   const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
   const image = (
@@ -623,7 +623,7 @@ function StreamingImagePreview({
   id: ChatId;
   image?: { filePath: string; modifiedAt: number };
 }) {
-  const src = useTaskImageSrc(id, image?.filePath, image?.modifiedAt);
+  const src = useChatImageSrc(id, image?.filePath, image?.modifiedAt);
   return (
     <div className={IMAGE_FRAME}>
       {image && src ? (
@@ -659,7 +659,7 @@ function StreamingImagePreview({
  * versioned by the mtime the tool reported. "" until the place is known,
  * which the image draws as not yet arrived.
  */
-function useTaskImageSrc(
+function useChatImageSrc(
   id: ChatId,
   filePath: string | undefined,
   modifiedAt: number | undefined,

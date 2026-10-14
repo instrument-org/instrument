@@ -10,8 +10,23 @@ import { FileViewer } from "./file-viewer";
 vi.mock("../hooks/use-file-open-control", () => ({
   useFileOpenControl: () => ({}),
 }));
-vi.mock("./open-task-file-button", () => ({
-  OpenTaskFileButton: () => null,
+vi.mock("./open-file-button", () => ({
+  OpenFileButton: () => null,
+}));
+// The editor reads and writes the file through the main process; which
+// editor a file opens in is all that is asked of it here.
+vi.mock("./code-editor/code-file-editor", () => ({
+  CodeFileEditor: ({
+    filename,
+    variant,
+  }: {
+    filename: string;
+    variant: string;
+  }) => (
+    <p>
+      {variant} editor for {filename}
+    </p>
+  ),
 }));
 // Zoom needs browser layout; these checks exercise preview loading and failure.
 vi.mock("../hooks/use-image-panzoom", () => ({
@@ -45,7 +60,7 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-// A `.md` that arrived in the task folder: one image of every kind the agent's
+// A `.md` that arrived in the chat's folder: one image of every kind the agent's
 // own markdown would be allowed to fetch, plus the embedded one that stays and
 // the chart the file wrote beside itself.
 const MARKDOWN_FILE = [
@@ -80,14 +95,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// A `.md` in the task folder is a file someone else may have written -- a
+// A `.md` in the chat's folder is a file someone else may have written -- a
 // cloned repo, an attachment, agent output -- and an `<img>` naming a host is
 // fetched the moment the preview renders, with no click in between.
 describe("FileViewer markdown preview", () => {
   // The file's own chart is the one thing here that is not a request of the
   // author's choosing: the path names no origin, so resolved against the
   // document it lands where the file itself was read from. It sits in
-  // `output/`, so a join from the task root would have drawn the wrong URL.
+  // `output/`, so a join from the chat's folder would have drawn the wrong URL.
   it("draws the file's own images and nothing it names a host for", async () => {
     const { container } = renderMarkdownFile();
     await screen.findByText("Notes");
@@ -170,5 +185,43 @@ describe("FileViewer Photoshop preview", () => {
 
     expect(screen.getByText("Preview unavailable in Instrument")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save as…" })).toBeTruthy();
+  });
+});
+
+// A file with no extension says nothing of what it holds by its name, so its
+// first bytes are read: a `2024` someone wrote is text, shown as text in
+// Preview and in the tab that opens it.
+describe("FileViewer for a file with no extension", () => {
+  const file = {
+    filename: "2024",
+    hostPath: "/Users/casey/show/2024",
+    url: "instrument://computer-test/Users/casey/show/2024",
+  };
+  const serve = (body: BodyInit) => {
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(body)));
+  };
+
+  it("previews UTF-8 text as text", async () => {
+    serve("Plans for the year");
+    renderWithProviders(<FileViewer file={file} />);
+
+    expect(await screen.findByText("Plans for the year")).toBeTruthy();
+    expect(screen.queryByText("Preview unavailable in Instrument")).toBeNull();
+  });
+
+  it("opens UTF-8 text in the text editor", async () => {
+    serve("Plans for the year");
+    renderWithProviders(<FileViewer editable file={file} />);
+
+    expect(await screen.findByText("text editor for 2024")).toBeTruthy();
+  });
+
+  it("leaves a file that is not text to the fallback", async () => {
+    serve(new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x00, 0x00]));
+    renderWithProviders(<FileViewer file={file} />);
+
+    expect(
+      await screen.findByText("Preview unavailable in Instrument"),
+    ).toBeTruthy();
   });
 });

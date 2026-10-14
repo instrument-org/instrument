@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
 import {
@@ -16,6 +16,7 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
+import { raiseAsk } from "./permissions/asks";
 import { type Rule } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { createWalkBudget } from "./walk-budget";
@@ -27,6 +28,7 @@ import {
   effectiveFolderAccess,
   folderHoldsWorkspace,
   hostPathOf,
+  outsideFolderRefusal,
   shellPath,
 } from "./workspace-fs-layout";
 import {
@@ -34,18 +36,23 @@ import {
   consumeSkillChanges,
 } from "./workspace-skill-index";
 
+vi.mock("./permissions/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./permissions/asks")>()),
+  raiseAsk: vi.fn(),
+}));
+
 describe("buildBashFs", () => {
   let tmpDir: string;
   let docs: string;
-  let taskDir: string;
+  let chatRoot: string;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `${APP_NAME_SLUG}-bash-fs-test-`),
     );
     docs = path.join(tmpDir, "Docs");
-    taskDir = path.join(tmpDir, "task");
-    await fs.mkdir(taskDir);
+    chatRoot = path.join(tmpDir, "task");
+    await fs.mkdir(chatRoot);
     await fs.mkdir(docs);
     await fs.writeFile(path.join(docs, "readme.txt"), "hello docs");
   });
@@ -66,12 +73,12 @@ describe("buildBashFs", () => {
       ...(rules.length > 0 && {
         rules: { home: os.homedir(), rules, withoutAsking: false },
       }),
-      taskHostRoot: ChatDirSchema.parse(taskDir),
+      chatHostRoot: ChatDirSchema.parse(chatRoot),
     });
     const bashFs = await buildBashFs(layout, {
       maxFileReadSize: 1024 * 1024,
     });
-    return new Bash({ cwd: layout.task.shellRoot, fs: bashFs });
+    return new Bash({ cwd: layout.chat.shellRoot, fs: bashFs });
   }
 
   // just-bash raises some filesystem refusals as thrown errors rather than exit
@@ -79,14 +86,14 @@ describe("buildBashFs", () => {
   // the private contents must not reach stdout, so both collapse to "".
   async function stdoutOf(bash: Bash, command: string) {
     try {
-      const result = await bash.exec(command.replaceAll("<task>", taskDir));
+      const result = await bash.exec(command.replaceAll("<chat>", chatRoot));
       return result.stdout;
     } catch {
       return "";
     }
   }
 
-  it("writes relative paths into the real task dir", async () => {
+  it("writes relative paths into the real chat folder", async () => {
     const bash = await makeBash();
     const result = await bash.exec("echo hi > notes.txt");
     expect(result.exitCode).toBe(0);
@@ -110,9 +117,9 @@ describe("buildBashFs", () => {
     const bash = await makeBash([
       { level: "readOnly", path: docs, source: "system" },
     ]);
-    await expect(bash.exec(`echo nope > '${docs}/new.txt'`)).rejects.toThrow(
-      /EACCES/,
-    );
+    const write = await bash.exec(`echo nope > '${docs}/new.txt'`);
+    expect(write.exitCode).toBe(1);
+    expect(write.stderr).toBe(`bash: ${docs}/new.txt: Permission denied\n`);
     await expect(fs.access(path.join(docs, "new.txt"))).rejects.toThrow();
     const read = await bash.exec(`cat '${docs}/readme.txt'`);
     expect(read.stdout).toBe("hello docs");
@@ -126,6 +133,25 @@ describe("buildBashFs", () => {
     expect(result.exitCode).not.toBe(0);
     expect(result.stdout).toBe("");
   });
+
+  // macOS reaches its Data volume at / through firmlinks, which realpath
+  // leaves alone, so the same file has a second spelling.
+  it.runIf(process.platform === "darwin")(
+    "refuses to read what the rules close by its Data-volume path",
+    async () => {
+      const bash = await makeBash([
+        {
+          level: "never",
+          path: path.join(docs, "readme.txt"),
+          source: "folder",
+        },
+      ]);
+      const real = await fs.realpath(path.join(docs, "readme.txt"));
+      const result = await bash.exec(`cat '/System/Volumes/Data${real}'`);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).toBe("");
+    },
+  );
 
   // A folder has to reach the real disk. OverlayFs would accept every
   // one of these writes into an in-memory layer that is dropped when the bash
@@ -189,7 +215,7 @@ describe("buildBashFs", () => {
   });
 
   it.each([
-    ["absolute", `cat <task>/.instrument/state.json`],
+    ["absolute", `cat <chat>/.instrument/state.json`],
     ["traversal", "cat work/../.instrument/state.json"],
     ["from a subdirectory", "cd work && cat ../.instrument/state.json"],
     ["assembled at runtime", 'd=.instrument; f=state.json; cat "$d/$f"'],
@@ -197,7 +223,7 @@ describe("buildBashFs", () => {
     ["via find", "find . -name state.json -exec cat {} +"],
     // A case-insensitive disk (macOS, Windows) opens the same directory.
     ["uppercase", "cat .INSTRUMENT/state.json"],
-    ["mixed-case", `cat <task>/.Instrument/state.json`],
+    ["mixed-case", `cat <chat>/.Instrument/state.json`],
   ])(
     "masks the private dir against a %s reference",
     async (_label, command) => {
@@ -229,7 +255,7 @@ describe("buildBashFs", () => {
     expect(await stdoutOf(bash, "cat leak.json")).not.toContain("secret");
   });
 
-  it("keeps the private dir out of task-root listings", async () => {
+  it("keeps the private dir out of listings of the chat's folder", async () => {
     await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
       recursive: true,
     });
@@ -299,10 +325,10 @@ describe("buildBashFs", () => {
 
     it("stops a walk of the disk at the home folder's budget", async () => {
       const layout = buildWorkspaceFsLayout({
-        taskHostRoot: ChatDirSchema.parse(taskDir),
+        chatHostRoot: ChatDirSchema.parse(chatRoot),
       });
       const bash = new Bash({
-        cwd: layout.task.shellRoot,
+        cwd: layout.chat.shellRoot,
         fs: await buildBashFs(layout, {
           homeWalkBudget: createWalkBudget(50),
           maxFileReadSize: 1024 * 1024,
@@ -345,7 +371,7 @@ describe("buildBashFs", () => {
           path: AbsolutePathSchema.parse(gone),
         },
       },
-      taskHostRoot: ChatDirSchema.parse(taskDir),
+      chatHostRoot: ChatDirSchema.parse(chatRoot),
     });
     await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
     expect(existsSync(gone)).toBe(false);
@@ -377,10 +403,10 @@ describe("buildBashFs skills mount", () => {
 
   async function makeBash() {
     const layout = buildWorkspaceFsLayout({
-      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
+      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
-    return new Bash({ cwd: layout.task.shellRoot, fs: bashFs });
+    return new Bash({ cwd: layout.chat.shellRoot, fs: bashFs });
   }
 
   const WORKSPACE_SKILLS = () => getWorkspaceSkillsDir();
@@ -542,7 +568,7 @@ describe("classifyHostPath", () => {
           path: AbsolutePathSchema.parse(home),
         },
       },
-      taskHostRoot: ChatDirSchema.parse(task),
+      chatHostRoot: ChatDirSchema.parse(task),
     });
   }
 
@@ -605,6 +631,69 @@ describe("classifyHostPath", () => {
   });
 });
 
+describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
+  let tmpDir: string;
+  let drives: string;
+
+  beforeEach(async () => {
+    vi.mocked(raiseAsk).mockClear();
+    tmpDir = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "outside-folder-")),
+    );
+    drives = path.join(tmpDir, "Volumes");
+    await fs.mkdir(path.join(drives, "Backup", "photos", "2026"), {
+      recursive: true,
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  function layoutWith(level: "allow" | "ask") {
+    return buildWorkspaceFsLayout({
+      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "chat")),
+      rules: {
+        asker: {
+          chatId: ChatIdSchema.parse("outside-folder-test"),
+          sessionId: StoreId.newSessionId(),
+        },
+        home: path.join(tmpDir, "home"),
+        rules: [{ level, path: drives, place: "drives", source: "place" }],
+        withoutAsking: false,
+      },
+    });
+  }
+
+  it("asks for the folder one level into the place, as a mount's refusal does", () => {
+    const refusal = outsideFolderRefusal(
+      layoutWith("ask"),
+      path.join(drives, "Backup", "photos", "2026", "new.jpg"),
+      "write",
+    );
+    expect(vi.mocked(raiseAsk).mock.calls.map((call) => call[2])).toEqual([
+      path.join(drives, "Backup"),
+    ]);
+    expect(refusal).toContain(
+      `Waiting on the person to allow ${drives}/Backup.`,
+    );
+  });
+
+  it("asks nothing for a place set to Allowed, or a read no rule holds", async () => {
+    const log = path.join(tmpDir, "log", "install.log");
+    await fs.mkdir(path.dirname(log));
+    await fs.writeFile(log, "x");
+    const allowed = layoutWith("allow");
+    const photo = path.join(drives, "Backup", "photos", "2026", "a.jpg");
+    expect([
+      outsideFolderRefusal(allowed, photo, "write"),
+      outsideFolderRefusal(allowed, path.dirname(photo), "read"),
+      outsideFolderRefusal(layoutWith("ask"), log, "read"),
+    ]).toEqual([undefined, undefined, undefined]);
+    expect(raiseAsk).not.toHaveBeenCalled();
+  });
+});
+
 describe("shellPath on Windows", () => {
   const platform = process.platform;
   beforeEach(() => {
@@ -626,5 +715,23 @@ describe("shellPath on Windows", () => {
   it("keeps a network share's server and share", () => {
     expect(shellPath("\\\\nas\\media\\a.mp4")).toBe("//nas/media/a.mp4");
     expect(hostPathOf("//nas/media/a.mp4")).toBe("\\\\nas\\media\\a.mp4");
+  });
+
+  it("finds /tmp in the temp folder, as Git Bash does", () => {
+    expect(hostPathOf("/tmp")).toBe(path.win32.join(os.tmpdir()));
+    expect(hostPathOf("/tmp/a/b.txt")).toBe(
+      path.win32.join(os.tmpdir(), "a", "b.txt"),
+    );
+  });
+
+  it("refuses a path on no drive without resolving it", () => {
+    const layout = buildWorkspaceFsLayout({
+      chatHostRoot: ChatDirSchema.parse(
+        path.join(os.tmpdir(), "chats", "no-drive"),
+      ),
+    });
+    expect(outsideFolderRefusal(layout, "/etc/hosts", "write")).toBe(
+      "/etc/hosts is on no drive. On Windows a path starts with its drive, like /c/Users.",
+    );
   });
 });

@@ -157,11 +157,13 @@ describe.each(Object.entries(shells))(
       );
     });
 
-    it("finds the workspace's machine folder missing, its folder rules with it", async () => {
+    it("refuses the workspace's machine folder plainly, its folder rules with it", async () => {
       const bash = await shell();
       const result = await bash.exec(`cat ${tmpDir}/machine/permissions.json`);
       expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("No such file or directory");
+      expect(result.stderr).toContain("Permission denied");
+      expect(result.stderr).toContain("Instrument's own data");
+      expect(result.stderr).not.toContain("Waiting on the person");
     });
 
     it("still says a missing file is missing", async () => {

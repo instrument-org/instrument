@@ -54,6 +54,7 @@ export function createStubWorkspaceConfig({
     workFoldersDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "machine", "work"),
     ),
+    machineDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "machine")),
     workspaceMachineDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "machine"),
     ),

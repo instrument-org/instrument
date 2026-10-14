@@ -323,7 +323,7 @@ describe("buildBashFs", () => {
       expect(existsSync("/etc/instrument-test")).toBe(false);
     });
 
-    it("keeps the workspace missing", async () => {
+    it("refuses the workspace plainly", async () => {
       const bash = await makeBash();
       const { rootDir } = getWorkspaceConfig();
       await fs.mkdir(rootDir, { recursive: true });
@@ -333,7 +333,8 @@ describe("buildBashFs", () => {
       );
       await fs.rm(path.join(rootDir, "secret.txt"));
       expect(result.stdout).not.toContain("secret");
-      expect(result.stderr).toContain("No such file or directory");
+      expect(result.stderr).toContain("Permission denied");
+      expect(result.stderr).not.toContain("No such file or directory");
     });
 
     it("holds a link to the rules of where it leads", async () => {

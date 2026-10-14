@@ -85,8 +85,8 @@ export interface WorkspaceFsLayout {
   /**
    * The chat's record folder, for the two things in it the agent reaches:
    * what the person sent, in `attachments/`, which it reads, and its handoff
-   * notes, which it writes. The rest of it is the workspace's and stays
-   * hidden. Absent for the window, which keeps no such records.
+   * notes, which it writes. The rest of it is the workspace's and is
+   * refused. Absent for the window, which keeps no such records.
    */
   record?: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
   /**
@@ -153,7 +153,7 @@ export async function buildBashFs(
   // Outside every mount the shell reads the disk where the rules allow
   // reading, as a native program does: the system's own folders, a folder no
   // rule holds, a drive once allowed. A place that asks first asks, the
-  // workspace stays missing, and nothing there changes. Its listings count
+  // app's own data is refused, and nothing there changes. Its listings count
   // against the home folder's smaller budget, so `find /` stops rather than
   // crawling the disk. Windows has no one root to read its drives from, so
   // there a read of a folder outside every mount is refused rather than
@@ -209,8 +209,8 @@ export async function buildBashFs(
   // Every folder the agent reaches is mounted at its own path on the disk,
   // and a folder inside another is reached through the outer one, since a
   // mount cannot sit inside another. What the agent may read or change in
-  // each is the rules' to say, the app's own folders included: its internals
-  // are missing, the skills it ships are read-only, and the chat's folder is
+  // each is the rules' to say, the app's own folders included: its own data
+  // is refused, the skills it ships are read-only, and the chat's folder is
   // open.
   const workspaceSkills = layout.skills.find((mount) => !mount.readOnly);
   for (const mount of await mountRoots(layout)) {
@@ -707,11 +707,17 @@ export function hostPathOf(shellSpelled: string): string {
 
 /**
  * The rules the layout is held to: the chat's, or where none were given an
- * allow for each folder it reaches, plus the app's own over its folders. The
- * workspace is missing to the agent but for the skills it reads, the apps it
- * writes, and in its chat's record folder the attachments it reads and the
- * handoff notes it writes; this computer's folder for the workspace is
- * missing but for the chat's work folder.
+ * allow for each folder it reaches, plus the app's own over its folders.
+ * The app's own data is closed to every command, and refused plainly: this
+ * computer's folder (each workspace's keys, browser profiles, folder rules
+ * and work folders, and the runtime folder) and the workspace's records.
+ * In it only these open: the chat's work folder, and in its record folder
+ * the attachments it reads and the handoff notes it writes; the skills it
+ * reads and the apps it writes; the runtime's caches and config, which the
+ * programs it runs write, and its managed Python, skills, skill
+ * environments and `bin` links, which they read. A person's rule inside
+ * the app's own data opens nothing there, and one on a folder holding it
+ * is outranked by the deeper rule that closes it.
  */
 function layoutRules(
   layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules },
@@ -730,11 +736,16 @@ function layoutRules(
     path,
     source: "system",
   });
+  const config = getWorkspaceConfig();
+  const runtime = runtimeLayout(config.runtimeDir);
+  const appData: Rule[] = [
+    config.machineDir,
+    workspaceMachineDir(),
+    config.runtimeDir,
+    config.rootDir,
+  ].map((path) => ({ appData: true, ...system("never", path) }));
   const own: Rule[] = [
-    system("hidden", getWorkspaceConfig().rootDir),
-    // The keys, browser profiles and folder rules this computer keeps for
-    // the workspace, outside it.
-    system("hidden", workspaceMachineDir()),
+    ...appData,
     system("allow", layout.chat.hostRoot),
     ...(layout.record
       ? [
@@ -755,9 +766,20 @@ function layoutRules(
       system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
     ),
     ...(layout.apps ? [system("allow", layout.apps.hostRoot)] : []),
+    system("allow", runtime.caches),
+    system("allow", runtime.config),
+    ...[runtime.bin, runtime.environments, runtime.python, runtime.skills].map(
+      (path) => system("readOnly", path),
+    ),
     ...layout.temp.map((mount) => system("allow", mount.hostRoot)),
   ];
-  return { ...given, rules: [...given.rules, ...own] };
+  const outsideAppData = given.rules.filter(
+    (rule) =>
+      !appData.some(
+        (closed) => hostPathWithin(closed.path, rule.path) !== null,
+      ),
+  );
+  return { ...given, rules: [...outsideAppData, ...own] };
 }
 
 /** The layout's mounts with every one inside another left to the outer. */

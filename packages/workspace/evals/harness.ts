@@ -615,6 +615,7 @@ export async function runEvals(
       runtimeDir,
       // Inside the run's own folder, so a saved run keeps the chats' work
       // folders beside their records (`buildReportWorkspaceConfig`).
+      machineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
       workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),

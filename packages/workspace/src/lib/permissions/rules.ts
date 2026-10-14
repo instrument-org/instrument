@@ -91,15 +91,20 @@ export async function updatePermissionSettings(
 }
 
 /**
- * What a rule makes of its folder: a person's level, or one of the two the
- * app sets for its own folders. "hidden" is its internals, which the agent
- * meets as missing; "readOnly" is what it may read and never change, such
- * as the skills the app ships.
+ * What a rule makes of its folder: a person's level, or "readOnly", which
+ * the app sets for its own folders the agent may read and never change,
+ * such as the skills it ships.
  */
-export type Access = "hidden" | "readOnly" | Level;
+export type Access = "readOnly" | Level;
 
 /** One rule at one path, and where it came from. */
 export interface Rule {
+  /**
+   * Set for the app's own data (this computer's folder, the workspace's
+   * records), closed to every command whatever the person's rules say: no
+   * card asks for it, and only the app's own rules open anything in it.
+   */
+  appData?: true;
   /** Every hidden entry directly in `path`, rather than `path` itself. */
   dotEntries?: true;
   level: Access;
@@ -235,7 +240,7 @@ function placeRules(home: string, settings: PermissionSettings): Rule[] {
 
 /** What the rules make of one path. */
 export interface Reach {
-  level: "allow" | "ask" | "hidden" | "never";
+  level: "allow" | "ask" | "never";
   /** The rule that decided, absent where nothing but the defaults did. */
   rule?: Rule;
 }
@@ -252,11 +257,18 @@ const SOURCE_RANK = {
  * own over a chat's grant over a folder rule over a place. A rule for every
  * hidden entry in a folder stands for each of them only as a fallback, so a
  * rule naming one of them at that depth (~/.ssh in the passwords place
- * against the hidden entries of other apps' files) outranks it. `reachOf`
- * and both native profiles order rules by it.
+ * against the hidden entries of other apps' files) outranks it. The rule
+ * closing the app's own data outranks every other, such as the temp
+ * folder's own by its real path, which lands at the same depth when that
+ * data sits in a temp folder (`/var/folders/...` is `/private/var/folders/...`
+ * on a Mac). `reachOf` and both native profiles order rules by it.
  */
 export function ruleRank(rule: Rule): number {
-  return SOURCE_RANK[rule.source] - (rule.dotEntries ? 0.5 : 0);
+  return (
+    SOURCE_RANK[rule.source] -
+    (rule.dotEntries ? 0.5 : 0) +
+    (rule.appData ? 0.5 : 0)
+  );
 }
 
 /**
@@ -413,30 +425,51 @@ function compiled(rules: Rules) {
  * place or folder rule that asks, so the person sees a name they made rather
  * than the whole of Documents or a folder five levels down. The rule's own
  * folder when the path is that folder or a file directly in it, and always
- * for a sign-in folder, which is answered for whole.
+ * for a sign-in folder, which is answered for whole. A folder holding the
+ * app's own data gives way to the one below it on the way to the path
+ * (`~/Library/Application Support/Other App` rather than Application
+ * Support), so a card never names it; one with nothing below it is left as
+ * it is, for `ruleRefusal` to raise no card for.
  */
 export function folderToAskFor({
-  home,
   hostPath,
   isDirectory,
   rule,
+  rules,
 }: {
-  home: string;
   hostPath: string;
   isDirectory: boolean;
   rule: Rule | undefined;
+  rules: Rules;
 }): string {
   if (rule?.place === "passwords") {
     return rule.path;
   }
-  const root = rule && !rule.dotEntries ? rule.path : home;
+  const root = rule && !rule.dotEntries ? rule.path : rules.home;
   const within = hostPathWithin(root, hostPath);
   if (within === null) {
     return isDirectory ? hostPath : path.dirname(hostPath);
   }
   const parts = within.split("/").filter(Boolean);
-  if (parts.length === 0 || (parts.length === 1 && !isDirectory)) {
-    return root;
+  // The folders the path is in, below the rule's own: all of it for a
+  // folder, all but the file's name for a file.
+  const folders = isDirectory ? parts : parts.slice(0, -1);
+  let depth = folders.length === 0 ? 0 : 1;
+  while (
+    depth < folders.length &&
+    holdsAppData(rules, path.join(root, ...folders.slice(0, depth)))
+  ) {
+    depth++;
   }
-  return path.join(root, parts[0] ?? "");
+  return path.join(root, ...folders.slice(0, depth));
+}
+
+/**
+ * Whether `folder` is or holds any of the app's own data, which a yes to it
+ * would seem to open.
+ */
+export function holdsAppData(rules: Rules, folder: string): boolean {
+  return rules.rules.some(
+    (rule) => rule.appData && hostPathWithin(folder, rule.path) !== null,
+  );
 }

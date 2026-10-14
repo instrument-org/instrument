@@ -17,6 +17,8 @@ export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
   "chatsDir",
+  // Where this computer's folder is, which the rules close.
+  "machineDir",
   // Where the folder rules are read from, live, for each command.
   "workspaceMachineDir",
   "macHelperBinPath",

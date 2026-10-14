@@ -28,6 +28,11 @@ export function runtimeLayout(runtimeDir: string) {
      */
     config: path.join(runtimeDir, "config"),
     /**
+     * One environment per skill dependency set, named by its lockfile's
+     * hash, which native commands only read.
+     */
+    environments: path.join(runtimeDir, "environments"),
+    /**
      * The managed Python every chat's virtualenv is made from, which the app
      * installs and native commands only read.
      */

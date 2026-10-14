@@ -47,6 +47,7 @@ import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import {
   getWorkspaceFolder,
+  machineDir,
   workspaceMachineDir,
 } from "./get-workspace-folder";
 import {
@@ -161,8 +162,10 @@ export function createWorkspaceActor() {
       // In the workspace's machine folder rather than in the workspace: the
       // index is derived, and a workspace may sit in a synced folder.
       indexFile: workspaceIndexFileOf(workspaceMachineDir()),
-      // Where the folder rules, the browser profile and the apps' servers
-      // are, which the agent never reaches.
+      // This computer's folder, and in it the workspace's: where the
+      // folder rules, the browser profile and the apps' servers are, which
+      // the agent never reaches.
+      machineDir: machineDir(),
       workspaceMachineDir: workspaceMachineDir(),
       knownFolders: {
         desktop: app.getPath("desktop"),

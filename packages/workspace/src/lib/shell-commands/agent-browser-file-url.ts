@@ -1,6 +1,5 @@
 import { fileUrlOfHostPath } from "../local-page-address";
 import { normalizePath } from "../normalize-path";
-import { reachOf } from "../permissions/rules";
 import { ruleRefusal } from "../permissions/rules-fs";
 import {
   resolveHostPath,
@@ -77,9 +76,6 @@ export async function rewriteNavigationArgToFileUrl(
   });
   if (refusal) {
     return { error: refusal };
-  }
-  if (reachOf(layout.rules, resolved.hostPath, "read").level === "hidden") {
-    return { error: unreachableFileMessage(target.value) };
   }
 
   const fileUrl = `${fileUrlOfHostPath(resolved.hostPath)}${parsed.suffix}`;

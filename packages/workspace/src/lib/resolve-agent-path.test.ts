@@ -239,9 +239,11 @@ describe("another chat's folders, reached through a folder that holds them", () 
       "its work folder",
       path.join(workFolders, "2026-09-26-other", "work", "notes.md"),
     ],
-  ])("answers %s as missing for reading and writing", (_label, other) => {
+  ])("refuses %s plainly for reading and writing", (_label, other) => {
     const read = resolveAgentPath({ inputPath: other, layout });
-    expect(read.isErr() && read.error.message).toMatch(/No such file/);
+    expect(read.isErr() && read.error.message).toMatch(
+      /is Instrument's own data, which no command reads or changes/,
+    );
     expect(resolveWritableToolPath({ inputPath: other, layout }).isErr()).toBe(
       true,
     );
@@ -249,7 +251,7 @@ describe("another chat's folders, reached through a folder that holds them", () 
 });
 
 // A chat's records and its work are two folders: the record folder in the
-// workspace, which the rules keep hidden but for what the person sent and the
+// workspace, which the rules close but for what the person sent and the
 // agent's handoff notes, and the work folder in this computer's folder for
 // the workspace, where the shell starts.
 describe("a chat's record folder apart from its work folder", () => {
@@ -367,7 +369,9 @@ describe("a chat's record folder apart from its work folder", () => {
     (name) => {
       const target = name === "" ? record : path.join(record, name);
       const read = resolveAgentPath({ inputPath: target, layout });
-      expect(read.isErr() && read.error.message).toMatch(/No such file/);
+      expect(read.isErr() && read.error.message).toMatch(
+        /is Instrument's own data, which no command reads or changes/,
+      );
       expect(
         resolveWritableToolPath({ inputPath: target, layout }).isErr(),
       ).toBe(true);

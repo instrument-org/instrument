@@ -191,7 +191,12 @@ describe("folderToAskFor", () => {
     [`${home}/Documents/Clients`, true, `${home}/Documents/Clients`],
   ])("%s asks for %s", (hostPath, isDirectory, expected) => {
     expect(
-      folderToAskFor({ home, hostPath, isDirectory, rule: documents }),
+      folderToAskFor({
+        hostPath,
+        isDirectory,
+        rule: documents,
+        rules: rulesFor({ home, settings }),
+      }),
     ).toBe(expected);
   });
 
@@ -205,10 +210,10 @@ describe("folderToAskFor", () => {
     const rules = rulesFor({ home, settings });
     expect(
       folderToAskFor({
-        home,
         hostPath,
         isDirectory: false,
         rule: reachOf(rules, hostPath, "read").rule,
+        rules,
       }),
     ).toBe(expected);
   });
@@ -216,13 +221,65 @@ describe("folderToAskFor", () => {
   it("asks one level below home where no rule holds the path", () => {
     expect(
       folderToAskFor({
-        home,
         hostPath: `${home}/Projects/site/index.html`,
         isDirectory: false,
         rule: undefined,
+        rules: rulesFor({ home, settings }),
       }),
     ).toBe(`${home}/Projects`);
   });
+
+  // The app's own data in a place that asks, as the machine folder sits in
+  // the Library on a Mac: a card for something beside it names the folder
+  // below the one that holds it, and one with nothing below asks for the
+  // folder that holds it, which ruleRefusal raises no card for.
+  it.each([
+    [
+      `${home}/Library/Application Support/Other/state.json`,
+      false,
+      `${home}/Library/Application Support/Other`,
+    ],
+    [
+      `${home}/Library/Application Support/Other/cache/a`,
+      true,
+      `${home}/Library/Application Support/Other`,
+    ],
+    [
+      `${home}/Library/Application Support`,
+      true,
+      `${home}/Library/Application Support`,
+    ],
+    [
+      `${home}/Library/Preferences/x.plist`,
+      false,
+      `${home}/Library/Preferences`,
+    ],
+  ])(
+    "asks around the app's own data: %s asks for %s",
+    (hostPath, isDirectory, expected) => {
+      const base = rulesFor({ home, settings });
+      const rules = {
+        ...base,
+        rules: [
+          ...base.rules,
+          {
+            appData: true,
+            level: "never",
+            path: `${home}/Library/Application Support/Instrument`,
+            source: "system",
+          } as const,
+        ],
+      };
+      expect(
+        folderToAskFor({
+          hostPath,
+          isDirectory,
+          rule: { level: "ask", path: `${home}/Library`, source: "place" },
+          rules,
+        }),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe.runIf(process.platform !== "win32")("an allow above the home", () => {

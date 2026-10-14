@@ -193,6 +193,13 @@ export interface WorkspaceConfig {
    */
   indexFile?: AbsolutePath;
   /**
+   * This computer's folder, Electron's userData: the runtime folder, each
+   * workspace's machine folder, the registry of workspaces, the app's own
+   * Chromium profile and machine preferences. Closed to every command the
+   * agent runs, but for what the rules open in it.
+   */
+  machineDir: AbsolutePath;
+  /**
    * This computer's own folder for the workspace, outside it: the folder
    * rules (`permissions.json`), the in-app browser's profile, the apps'
    * installed servers, the app's keys and window state, and each chat's

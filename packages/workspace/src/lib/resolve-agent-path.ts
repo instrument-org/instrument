@@ -16,7 +16,6 @@ import { remapMovedPath } from "./moved-paths";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
-import { reachOf } from "./permissions/rules";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import {
@@ -321,11 +320,7 @@ function heldToRules(
   if (resolved.isErr()) {
     return resolved;
   }
-  const { absolutePath, displayPath } = resolved.value;
-  // The app's internals answer as missing, the way the shell shows them.
-  if (reachOf(layout.rules, absolutePath, "read").level === "hidden") {
-    return executeError(`No such file or directory: ${displayPath}`);
-  }
+  const { absolutePath } = resolved.value;
   const refusal = ruleRefusal({
     hostPath: absolutePath,
     op,

@@ -1,24 +1,26 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { type IFileSystem } from "just-bash";
 import { existsSync } from "node:fs";
 import nodePath from "node:path";
 
-import {
-  canonicalizeThroughMissing,
-  hostPathWithin,
-  withoutDataVolume,
-} from "../host-path";
+import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { raiseAsk, waitingNote } from "./asks";
 import { isClosedDiskRoot } from "../disk-root";
-import { folderToAskFor, type Reach, reachOf, type Rules } from "./rules";
+import {
+  folderToAskFor,
+  holdsAppData,
+  type Reach,
+  reachOf,
+  type Rules,
+} from "./rules";
 
 /**
  * What the agent reads when the rules keep it from a path, and the card it
  * raises where the person can open it: the one answer for the shell's own
  * commands, the file tools, the commands that check their operands, and the
  * programs the native profiles stopped. `spell` turns a host path into the
- * path the agent uses. Undefined where the path is open, and for the app's
- * internals, which the agent meets as missing rather than refused.
+ * path the agent uses. Undefined where the path is open.
  */
 export function ruleRefusal({
   afterAsk,
@@ -59,7 +61,7 @@ export function ruleRefusal({
 }): string | undefined {
   const hostPath = withoutDataVolume(given);
   const reach = decided ?? reachOf(rules, hostPath, op);
-  if (reach.level === "allow" || reach.level === "hidden") {
+  if (reach.level === "allow") {
     return undefined;
   }
   if (reach.level === "never") {
@@ -69,10 +71,10 @@ export function ruleRefusal({
     return systemOwnedNote(spell(hostPath));
   }
   let folder = folderToAskFor({
-    home: rules.home,
     hostPath,
     isDirectory,
     rule: reach.rule,
+    rules,
   });
   while (onDisk && !existsSync(folder) && folder !== nodePath.dirname(folder)) {
     folder = nodePath.dirname(folder);
@@ -80,6 +82,10 @@ export function ruleRefusal({
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
     return `${spell(hostPath)} is directly in ${spell(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
+  }
+  // Nor is a folder that holds the app's own data, which no yes opens.
+  if (holdsAppData(rules, folder)) {
+    return `${spell(hostPath)} is in ${spell(folder)}, which holds ${APP_NAME}'s own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`;
   }
   if (!asks || !rules.asker) {
     return `${spell(hostPath)} needs the person's yes first.`;
@@ -98,6 +104,9 @@ export function ruleRefusal({
  */
 export function closedNote(reach: Reach, shown: string): string {
   const rule = reach.rule;
+  if (rule?.appData) {
+    return `${shown} is ${APP_NAME}'s own data, which no command reads or changes. Don't look for another way in.`;
+  }
   if (rule?.denied) {
     return `${shown}: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.`;
   }
@@ -162,24 +171,6 @@ export function rulesFs({
     const real = followsLinks ? canonicalizeThroughMissing(host) : null;
     return real === null || real === host ? [host] : [host, real];
   };
-  const isHidden = (mountPath: string) =>
-    hostsOf(mountPath).some(
-      (host) => reachOf(rules, host, "read").level === "hidden",
-    );
-  // A hidden folder on the way to one the agent reaches (the workspace on
-  // the way to the chat's folder) answers stat and exists, as the folders
-  // above a mount do, so `cd` can pass through it. Its listing stays
-  // missing.
-  const leadsOn = (mountPath: string) =>
-    hostsOf(mountPath).some((host) =>
-      rules.rules.some((rule) => {
-        if (rule.level === "hidden" || rule.dotEntries) {
-          return false;
-        }
-        const within = hostPathWithin(host, rule.path);
-        return within !== null && within !== "/";
-      }),
-    );
   const check = (
     op: "read" | "write",
     syscall: string,
@@ -187,12 +178,6 @@ export function rulesFs({
     asks = true,
   ) => {
     const shown = spell(given(mountPath));
-    if (isHidden(mountPath)) {
-      throw Object.assign(
-        new Error(`ENOENT: no such file or directory, ${syscall} '${shown}'`),
-        { code: "ENOENT" },
-      );
-    }
     for (const hostPath of hostsOf(mountPath)) {
       const refusal = ruleRefusal({
         asks,
@@ -236,44 +221,13 @@ export function rulesFs({
       }
       const call = (...args: unknown[]): unknown =>
         Reflect.apply(value, target, args);
-      if (key === "exists") {
-        return async (mountPath: string) =>
-          (!isHidden(mountPath) || leadsOn(mountPath)) &&
-          (await call(mountPath)) === true;
-      }
-      if (key === "stat" || key === "lstat" || key === "realpath") {
-        return async (...args: unknown[]) => {
-          if (isHidden(String(args[0])) && !leadsOn(String(args[0]))) {
-            check("read", key, String(args[0]));
-          }
-          return call(...args);
-        };
-      }
       if (key === "readdir" || key === "readdirWithFileTypes") {
         return async (...args: unknown[]) => {
           const dir = String(args[0]);
           const named = listings.count === 0;
           listings.count++;
           check("read", key, dir, named);
-          const listed = await call(...args);
-          // The app's internals are left out of a listing, the way a missing
-          // folder would be.
-          return Array.isArray(listed)
-            ? listed.filter((entry: unknown) => {
-                const name =
-                  typeof entry === "string"
-                    ? entry
-                    : typeof entry === "object" &&
-                        entry !== null &&
-                        "name" in entry
-                      ? entry.name
-                      : undefined;
-                return (
-                  typeof name !== "string" ||
-                  !isHidden(nodePath.posix.join(dir, name))
-                );
-              })
-            : listed;
+          return call(...args);
         };
       }
       if (reads.has(key) || writes.has(key)) {

@@ -169,6 +169,7 @@ setWorkspaceConfig({
   uvBinPath,
   webSearch: unavailableWebSearchClient,
   workFoldersDir: AbsolutePathSchema.parse(workFoldersDir),
+  machineDir: AbsolutePathSchema.parse(machineDir),
   workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
 });
 

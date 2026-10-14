@@ -1,17 +1,22 @@
 import { defineCommand } from "just-bash";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import nodePath from "node:path";
 import { Worker } from "node:worker_threads";
 
 import { realHostPath } from "../host-path";
 import { relativeWithin } from "../path-containment";
+import { ruleRefusal } from "../permissions/rules-fs";
 import { reachOf } from "../permissions/rules";
 import {
   appDataBounds,
   hostPathOf,
+  operandRefusal,
   otherFolders,
+  outsideFolderRefusal,
   resolveHostPath,
   resolveReadOnlyHostPath,
+  shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 
@@ -25,7 +30,8 @@ const DU_COMMAND = {
 type DuOperand =
   | (DuRoot & { kind: "path" })
   | { children: DuRoot[]; display: string; kind: "mounts" }
-  | { display: string; kind: "missing" };
+  | { display: string; kind: "missing" }
+  | { display: string; kind: "refused"; refusal: string };
 
 interface DuOptions {
   all: boolean;
@@ -285,12 +291,33 @@ function resolveOperand(
   const owner = resolveHostPath(layout, path);
   if (owner !== null) {
     const hostPath = resolveReadOnlyHostPath(layout, path);
-    // A path the rules keep from the agent, and a symlink out of its mount,
-    // read as absent here as they do everywhere else in the shell.
     if (hostPath === null) {
-      return { display, kind: "missing" };
+      // A path the rules keep from the agent is refused, as `ls` and `rg`
+      // refuse it; a symlink out of its mount reads as absent.
+      const refusal = operandRefusal(layout, path);
+      return refusal === undefined
+        ? { display, kind: "missing" }
+        : { display, kind: "refused", refusal };
     }
     return { display, hostPath: whereItIs(hostPath), kind: "path" };
+  }
+
+  // A folder outside every mount that the rules ask about or close is
+  // refused the same way, the app's own data around a mount included.
+  const outside = hostPathOf(path);
+  const refusal =
+    outsideFolderRefusal(layout, path, "read") ??
+    (existsSync(outside) &&
+    reachOf(layout.rules, outside, "read").level === "never"
+      ? ruleRefusal({
+          hostPath: outside,
+          op: "read",
+          rules: layout.rules,
+          spell: shellPath,
+        })
+      : undefined);
+  if (refusal !== undefined) {
+    return { display, kind: "refused", refusal };
   }
 
   // A directory above mounts, such as `/Users`, holds mounts but no files of
@@ -509,6 +536,9 @@ try {
   for (const operand of operands) {
     if (operand.kind === "missing") {
       errors.push("du: cannot access '" + operand.display + "': No such file or directory\n");
+      exitCode = 1;
+    } else if (operand.kind === "refused") {
+      errors.push("du: cannot access '" + operand.display + "': Permission denied\n" + operand.refusal + "\n");
       exitCode = 1;
     } else if (operand.kind === "path") {
       grand += walk(operand.hostPath, operand.display, 0);

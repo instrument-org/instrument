@@ -9,6 +9,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * `du` walks the real directories behind the mounts in a worker thread rather
@@ -169,6 +170,20 @@ describe("du", () => {
       expect(Number(result.stdout.split("\t")[0])).toBeGreaterThanOrEqual(700);
     },
   );
+
+  it("refuses the app's own data as ls does, with the same note", async () => {
+    const { machineDir } = getWorkspaceConfig();
+    await fs.mkdir(machineDir, { recursive: true });
+    const du = await run(`du -s '${machineDir}'`);
+    const ls = await run(`ls '${machineDir}'`);
+
+    expect(du.exitCode).toBe(1);
+    expect(du.stdout).toBe("");
+    const [denied, note] = du.stderr.split("\n");
+    expect(denied).toBe(`du: cannot access '${machineDir}': Permission denied`);
+    expect(note).toMatch(/is Instrument's own data/);
+    expect(ls.stderr).toContain(note);
+  });
 
   it("leaves a flag it does not implement to just-bash", async () => {
     const result = await run(`du --time '${homeDir}'`);

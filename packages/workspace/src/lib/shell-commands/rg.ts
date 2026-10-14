@@ -1,5 +1,5 @@
 import { defineCommand } from "just-bash";
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { readdirSync, realpathSync } from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -7,15 +7,13 @@ import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin, realHostPath } from "../host-path";
 import { nativeCommandsSandboxed } from "../native-sandbox";
 import { isAtOrUnder } from "../path-containment";
-import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
 import {
   appDataBounds,
+  operandRefusal,
   otherFolders,
   outsideFolderRefusal,
-  resolveHostPath,
   resolveReadOnlyHostPath,
-  shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -234,27 +232,6 @@ function bridgePathArgs(
     bridged.push(hostPath);
   }
   return { args: bridged };
-}
-
-/**
- * What the agent reads about a path it named that the rules keep from it,
- * with a card raised where the folder asks first. A path the walk passes is
- * left to the native sandbox, which skips it without asking.
- */
-function operandRefusal(
-  layout: WorkspaceFsLayout,
-  path: string,
-): string | undefined {
-  const resolved = resolveHostPath(layout, path);
-  if (resolved === null || !existsSync(resolved.hostPath)) {
-    return undefined;
-  }
-  return ruleRefusal({
-    hostPath: resolved.hostPath,
-    op: "read",
-    rules: layout.rules,
-    spell: shellPath,
-  });
 }
 
 function deniedFlag(arg: string): null | string {

@@ -891,6 +891,28 @@ function holdsWritable(
 }
 
 /**
+ * What the agent reads about a path in a mount it named that the rules keep
+ * from it, with a card raised where the folder asks first. Undefined for a
+ * path that is open or not there. A path a walk passes is left to the
+ * native sandbox, which skips it without asking.
+ */
+export function operandRefusal(
+  layout: WorkspaceFsLayout,
+  path: string,
+): string | undefined {
+  const resolved = resolveHostPath(layout, path);
+  if (resolved === null || !existsSync(resolved.hostPath)) {
+    return undefined;
+  }
+  return ruleRefusal({
+    hostPath: resolved.hostPath,
+    op: "read",
+    rules: layout.rules,
+    spell: shellPath,
+  });
+}
+
+/**
  * A path outside every mount that the person could allow: the folder a
  * card names for it, or the nearest one on disk holding that, asked for
  * (never the home folder whole or the disk root), and what the agent reads

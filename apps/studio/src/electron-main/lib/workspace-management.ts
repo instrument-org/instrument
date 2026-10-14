@@ -51,6 +51,9 @@ export interface WorkspaceListing {
   path: string;
 }
 
+/** What a file manager leaves in a folder it showed, which is no one's work. */
+const FILE_MANAGER_RECORDS = new Set([".DS_Store", "desktop.ini", "Thumbs.db"]);
+
 /**
  * The credential stores a new workspace can start from: who you are signed in
  * as, and your keys. A ChatGPT account is not one of them: its refresh token
@@ -235,6 +238,22 @@ export function registerStray({
   return true;
 }
 
+/**
+ * Remove a workspace's folder once deleting its `.instrument/` left nothing
+ * of the person's in it; a file manager's own record of how it shows the
+ * folder does not count. A folder holding anything else stays as it is.
+ */
+export function removeFolderIfEmpty(dir: string): void {
+  try {
+    const left = fs.readdirSync(dir);
+    if (left.every((name) => FILE_MANAGER_RECORDS.has(name))) {
+      fs.rmSync(dir, { force: true, recursive: true });
+    }
+  } catch {
+    // Not there, or not readable: either way it stays as it is.
+  }
+}
+
 export function unregisterWorkspace({
   dir,
   userDataDir,
@@ -259,8 +278,8 @@ export function unregisterWorkspace({
  * default workspace never can: it holds what predates workspaces, and the dev
  * panel offers no way to remove it. Nor can a folder that holds userData,
  * which a pinned `INSTRUMENT_WORKSPACE` such as the home folder registers:
- * deleting it would send the app's own data, and everything else in it, to
- * the Trash.
+ * a workspace there is never one made to be deleted, and the app's own data
+ * sits beside its `.instrument/`.
  */
 export function whyNotDeletable(
   listing: Pick<

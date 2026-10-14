@@ -28,6 +28,7 @@ import {
   seatbeltAvailable,
   wrapNativeCommand,
 } from "./native-sandbox";
+import { workspaceLayout } from "./workspace-layout";
 import { raiseAsk } from "./permissions/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
 import { ruleRefusal } from "./permissions/rules-fs";
@@ -76,13 +77,15 @@ function homeShaped(appFiles: string) {
   const machine = path.join(home, appFiles, "Instrument");
   const workspaceMachine = path.join(machine, "workspaces-data", "default");
   const workspace = path.join(machine, "workspace");
+  const data = workspaceLayout(workspace);
   const paths = {
     appFiles: path.join(home, appFiles),
     home,
     machine,
-    otherRecord: path.join(workspace, "chats", "2026-10-13-other"),
+    data,
+    otherRecord: path.join(data.chatsDir, "2026-10-13-other"),
     otherWork: path.join(workspaceMachine, "work", "2026-10-13-other"),
-    record: path.join(workspace, "chats", "2026-10-13-chat"),
+    record: path.join(data.chatsDir, "2026-10-13-chat"),
     runtime: path.join(machine, "runtime"),
     work: path.join(workspaceMachine, "work", "2026-10-13-chat"),
     workspace,
@@ -98,8 +101,8 @@ function homeShaped(appFiles: string) {
     `${paths.otherWork}/notes.md`,
     `${workspace}/.instrument/workspace.json`,
     `${workspace}/.instrument/preferences.json`,
-    `${workspace}/skills/mine/SKILL.md`,
-    `${workspace}/apps/linear/app.json`,
+    `${data.skillsDir}/mine/SKILL.md`,
+    `${data.appsDir}/linear/app.json`,
     `${workspaceMachine}/keys/x`,
     `${workspaceMachine}/browser/Cookies`,
     `${workspaceMachine}/permissions.json`,
@@ -127,8 +130,8 @@ type Paths = ReturnType<typeof homeShaped>;
 function useApp(paths: Paths) {
   setWorkspaceConfig({
     ...previous,
-    appsDir: AbsolutePathSchema.parse(path.join(paths.workspace, "apps")),
-    chatsDir: AbsolutePathSchema.parse(path.join(paths.workspace, "chats")),
+    appsDir: AbsolutePathSchema.parse(paths.data.appsDir),
+    chatsDir: AbsolutePathSchema.parse(paths.data.chatsDir),
     machineDir: AbsolutePathSchema.parse(paths.machine),
     rootDir: WorkspaceDirSchema.parse(paths.workspace),
     runtimeDir: AbsolutePathSchema.parse(paths.runtime),
@@ -282,13 +285,13 @@ function reachTable(p: Paths) {
     [
       "the workspace's skills",
       "write",
-      `${p.workspace}/skills/mine/SKILL.md`,
+      `${p.data.skillsDir}/mine/SKILL.md`,
       "allow",
     ],
     [
       "the workspace's apps",
       "write",
-      `${p.workspace}/apps/linear/app.json`,
+      `${p.data.appsDir}/linear/app.json`,
       "allow",
     ],
     ["the runtime's caches", "write", `${p.runtime}/caches/uv/x`, "allow"],

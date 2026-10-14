@@ -182,9 +182,9 @@ const WORKSPACE_CACHE_ROOT = path.join(
 // Workspaces nobody has driven in this long are dropped at the next boot,
 // because nobody runs a clean command. Losing one costs a reseed.
 const WORKSPACE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
-// Installed dependencies inside a task are the only part that grows -- to
-// hundreds of megabytes once an agent has run an install in one -- and the only
-// part deleting does not invalidate. So they go sooner than the workspace does.
+// Installed dependencies in a chat's work folder are the only part that grows --
+// to hundreds of megabytes once an agent has run an install in one -- and the
+// only part deleting does not invalidate. So they go sooner than the workspace does.
 const WORK_ARTIFACT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
 
@@ -250,7 +250,7 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
   // seeder had nothing to do and the app writes nothing before it is killed.
   utimesSync(userDataDir, new Date(), new Date());
 
-  reapWorkArtifacts(path.join(userDataDir, "workspace"));
+  reapWorkArtifacts(userDataDir);
 
   // The window's tabs, panes and chat groups live in the layout.json of the
   // workspace's machine folder, which the seeder never writes, so without this
@@ -475,14 +475,15 @@ function reapOlderThan(
 }
 
 /**
- * Drops installed dependencies left inside chat folders by a live agent run. A seeded
- * transcript never creates these, so a workspace only used for driving stays in the low
- * megabytes and this finds nothing.
+ * Drops installed dependencies a live agent run left at the top of a chat's
+ * work folder, where its first `pip install` and `pnpm add` put them. A seeded
+ * transcript never creates these, so a workspace only used for driving stays in
+ * the low megabytes and this finds nothing.
  */
-function reapWorkArtifacts(workspaceDir) {
-  for (const recordDir of recordDirs(workspaceDir)) {
+function reapWorkArtifacts(userDataDir) {
+  for (const workDir of workDirs(userDataDir)) {
     for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(recordDir, "work", name);
+      const dir = path.join(workDir, name);
       try {
         if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
           rmSync(dir, { force: true, recursive: true });
@@ -495,11 +496,11 @@ function reapWorkArtifacts(workspaceDir) {
 }
 
 /**
- * Every record folder of a workspace: the chats under `.instrument/chats/`,
- * plus any task folder a 1.x build left under `tasks/` that the boot
- * migration has not yet moved. A chat's tasks are sessions in its store and work in its folder.
+ * Every chat's work folder in the application data: `work/<chat id>/` in each
+ * workspace's machine folder, `workspaces-data/<local id>/` (WORKSPACE_MACHINE_ENTRIES
+ * in the shared package). A chat's tasks work in its folder.
  */
-function recordDirs(workspaceDir) {
+function workDirs(userDataDir) {
   const children = (dir) => {
     try {
       return readdirSync(dir, { withFileTypes: true })
@@ -509,8 +510,9 @@ function recordDirs(workspaceDir) {
       return [];
     }
   };
-  const chats = children(path.join(workspaceDir, ".instrument", "chats"));
-  return [...children(path.join(workspaceDir, "tasks")), ...chats];
+  return children(path.join(userDataDir, "workspaces-data")).flatMap(
+    (machineDir) => children(path.join(machineDir, "work")),
+  );
 }
 
 // --- lifecycle ---------------------------------------------------------

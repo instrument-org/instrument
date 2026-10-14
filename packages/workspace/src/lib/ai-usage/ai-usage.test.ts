@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { closeWorkspaceDb } from "../workspace-db";
 import { aiUsageTelemetry, registerAIUsageTelemetry } from "./record";
 import { type AIUsageEntry } from "./schema";
 import {
   aiUsageCsv,
-  closeAIUsageStore,
   insertAIUsage,
   listAIUsage,
   summarizeAIUsage,
@@ -27,12 +27,12 @@ beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "ai-usage-test-"));
   setWorkspaceConfig({
     ...original,
-    aiUsageFile: AbsolutePathSchema.parse(path.join(dir, "requests.db")),
+    workspaceDbFile: AbsolutePathSchema.parse(path.join(dir, "workspace.db")),
   });
 });
 
 afterEach(async () => {
-  closeAIUsageStore();
+  closeWorkspaceDb();
   setWorkspaceConfig(original);
   await fs.rm(dir, { force: true, recursive: true });
 });

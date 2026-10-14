@@ -94,6 +94,7 @@ export {
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
+export { settleWorkspaceDb } from "./lib/settle-workspace-db";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { WINDOW_ID } from "./schemas/window-id";

@@ -520,12 +520,12 @@ export function workspaceMachineDirOf(
 }
 
 /**
- * The workspace's index of its chats on this computer, in its machine folder
- * (`workspaceMachineDirOf`) under one name, so a workspace whose folder moves
- * keeps it.
+ * The workspace's database on this computer, `workspace.db`, at the top of
+ * its machine folder (`workspaceMachineDirOf`), so a workspace whose folder
+ * moves keeps it.
  */
-export function workspaceIndexFileOf(machineDir: string): string {
-  return path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.index, "chats.db");
+export function workspaceDbFileOf(machineDir: string): string {
+  return path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.database);
 }
 
 /** Write through a sibling and rename, so a crash mid-write leaves the old file. */

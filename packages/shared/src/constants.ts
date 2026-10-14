@@ -148,8 +148,11 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   appServers: "app-servers",
   /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */
   browser: "browser",
-  /** The index of the workspace's chats, rebuilt from them whenever it is missing. */
-  index: "index",
+  /**
+   * `workspace.db`: the index of the workspace's chats, rebuilt from them
+   * whenever it is missing, and the activity log.
+   */
+  database: "workspace.db",
   /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
   keys: "keys",
   /**

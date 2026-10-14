@@ -78,8 +78,8 @@ export function workspaceLayout(workspaceDir: string) {
     chatsDir: entry(WORKSPACE_DATA_ENTRIES.chats),
     /**
      * What the app keeps that travels with the workspace: `workspace.json`,
-     * `preferences.json`, `features.json`, `bookmarks.json`,
-     * `ai-usage.db`, and every folder below.
+     * `preferences.json`, `features.json`, `bookmarks.json`, and every folder
+     * below.
      */
     dataDir,
     draftsDir: entry(WORKSPACE_DATA_ENTRIES.drafts),

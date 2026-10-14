@@ -1,7 +1,6 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { entryExists, moveEntrySync } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -10,13 +9,10 @@ import {
   workspaceSettingsDirOf,
 } from "./settings-migration";
 import {
-  hasWorkspaceIdentity,
   openElsewhereBy,
-  readRegistry,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   settleWorkspace,
-  workspaceIndexFileOf,
   WORKSPACE_FORMAT_VERSION,
   workspaceMachineDirOf,
   writeJsonAtomic,
@@ -72,7 +68,7 @@ const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
  * into its machine folder, `<userData>/workspaces-data/<local id>/`:
  * secrets encrypted with this computer's key, the Chromium profiles and
  * browser history, the window's state, the folder rules (whose paths are this
- * computer's), installed app servers and the index. What follows the person
+ * computer's) and installed app servers. What follows the person
  * stays and moves up out of `.instrument/settings/`, and the layout sweep's
  * marker files become fields of `workspace.json`.
  *
@@ -134,7 +130,6 @@ export function moveMachineData({
     let failed = 0;
     for (const [from, to] of plannedMoves({
       machineDir,
-      userDataDir,
       workspacePath: workspace.path,
     })) {
       try {
@@ -249,11 +244,9 @@ function moveEntry({
 /** Every entry that moves, from where it was to where it goes. */
 function plannedMoves({
   machineDir,
-  userDataDir,
   workspacePath,
 }: {
   machineDir: string;
-  userDataDir: string;
   workspacePath: string;
 }): [from: string, to: string][] {
   const dataDir = workspaceLayout(workspacePath).dataDir;
@@ -273,7 +266,6 @@ function plannedMoves({
   } catch {
     // No settings folder: nothing to move out of it.
   }
-  const index = workspaceIndexFileOf(machineDir);
   const into = (from: string, toDir: string, names: Iterable<string>) =>
     [...names].map((name): [string, string] => [
       path.join(from, name),
@@ -305,10 +297,6 @@ function plannedMoves({
       path.join(workspacePath, ".app-servers"),
       path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.appServers),
     ],
-    ...SQLITE_FILES.map((suffix): [string, string] => [
-      `${legacyIndexFileOf(userDataDir, workspacePath)}${suffix}`,
-      `${index}${suffix}`,
-    ]),
     ...into(settingsDir, dataDir, TRAVELING_FILES),
   ];
 }
@@ -352,23 +340,10 @@ function removeTakenInRootKeys({
 }
 
 /**
- * A workspace's index from before it had a machine folder: in one folder
- * every workspace shared, named by a hash of the workspace folder's path.
- */
-function legacyIndexFileOf(userDataDir: string, workspacePath: string) {
-  const name = createHash("sha256")
-    .update(workspacePath)
-    .digest("hex")
-    .slice(0, 16);
-  return path.join(userDataDir, LEGACY_INDEXES_DIR, `${name}.db`);
-}
-
-/**
- * The folder every workspace's index was kept in, once no registered
- * workspace still to be moved has its index there. What is left is the index
- * of a workspace since deleted, or of a folder since moved, which nothing
- * reads again, and an index is rebuilt from the chats anyway. On every boot,
- * like the root key copies, so the last workspace to move takes it.
+ * The folder every workspace's index was kept in before each had a machine
+ * folder. An index is rebuilt from the workspace's chats in its machine
+ * folder's `workspace.db`, so nothing reads one from here. On every boot, like
+ * the root key copies, so a folder an earlier build left goes.
  */
 function removeLegacyIndexes({
   done,
@@ -381,23 +356,8 @@ function removeLegacyIndexes({
   if (!entryExists(dir)) {
     return;
   }
-  const stillToMove = readRegistry(userDataDir).workspaces.filter(
-    (entry) =>
-      hasWorkspaceIdentity(entry.path) &&
-      readWorkspaceIdentity(entry.path).formatVersion <
-        WORKSPACE_FORMAT_VERSION,
-  );
-  if (
-    stillToMove.some((entry) =>
-      entryExists(legacyIndexFileOf(userDataDir, entry.path)),
-    )
-  ) {
-    return;
-  }
   fs.rmSync(dir, { force: true, recursive: true });
-  done.push(
-    `removed ${dir}, which held no index a workspace still has to move`,
-  );
+  done.push(`removed ${dir}, which held indexes nothing reads`);
 }
 
 function isLink(entry: string) {

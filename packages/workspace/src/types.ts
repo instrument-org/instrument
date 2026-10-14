@@ -144,12 +144,6 @@ export interface WorkspaceAppsConfig {
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
-  /**
-   * The file this workspace's record of the model requests it made is kept
-   * in, inside the workspace's own `.instrument` folder. Absent where nothing
-   * should persist (tests, scripts), and then nothing is recorded.
-   */
-  aiUsageFile?: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
@@ -192,14 +186,16 @@ export interface WorkspaceConfig {
    */
   getUser?: () => Promise<undefined | { email: string; name?: string }>;
   /**
-   * The file the workspace's index of its chats and tasks is kept in:
-   * derived, rebuilt from the workspace whenever it is missing or out of
-   * date, and outside the workspace so a workspace in a synced folder never
-   * carries a live database. Named for the workspace rather than for its
-   * folder's path, so a moved workspace keeps it. Absent where nothing should
-   * persist (tests, scripts), and then every read derives from the stores.
+   * `workspace.db`, the database this computer keeps for the workspace
+   * (`workspace-db.ts`): the index of its chats and tasks, rebuilt from the
+   * workspace whenever it is missing or out of date, and the activity log of
+   * the model requests it made. Outside the workspace, in its machine folder,
+   * so a workspace in a synced folder never carries a live database, and a
+   * moved workspace keeps it. Absent where nothing should persist (tests,
+   * scripts), and then every read derives from the stores and no activity is
+   * recorded.
    */
-  indexFile?: AbsolutePath;
+  workspaceDbFile?: AbsolutePath;
   /**
    * This computer's folder, Electron's userData: the runtime folder, each
    * workspace's machine folder, the registry of workspaces, the app's own

@@ -267,7 +267,6 @@ export const workspaceMachine = setup({
     events: {} as WorkspaceEvent,
     input: {} as {
       aiGatewayApp: AIGatewayApp;
-      aiUsageFile?: string;
       apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
@@ -279,7 +278,6 @@ export const workspaceMachine = setup({
       isRefusedFile?: WorkspaceConfig["isRefusedFile"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
-      indexFile?: string;
       /**
        * Whether 1.x may have left tasks at the workspace's top level, which
        * it did only in the app's own data: then `legacyTasksDir` is its
@@ -287,6 +285,7 @@ export const workspaceMachine = setup({
        */
       legacyTasks?: boolean;
       machineDir: string;
+      workspaceDbFile?: string;
       workspaceMachineDir: string;
       modelCache: ModelCache;
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
@@ -311,9 +310,6 @@ export const workspaceMachine = setup({
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const layout = workspaceLayout(rootDir);
     const workspaceConfig: WorkspaceConfig = {
-      ...(input.aiUsageFile && {
-        aiUsageFile: AbsolutePathSchema.parse(input.aiUsageFile),
-      }),
       apps: input.apps,
       appsDir: AbsolutePathSchema.parse(layout.appsDir),
       appVersion: input.appVersion,
@@ -329,10 +325,10 @@ export const workspaceMachine = setup({
       ...(input.isRefusedFile ? { isRefusedFile: input.isRefusedFile } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
-      ...(input.indexFile && {
-        indexFile: AbsolutePathSchema.parse(input.indexFile),
-      }),
       machineDir: AbsolutePathSchema.parse(input.machineDir),
+      ...(input.workspaceDbFile && {
+        workspaceDbFile: AbsolutePathSchema.parse(input.workspaceDbFile),
+      }),
       workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
       workFoldersDir: absolutePathJoin(
         AbsolutePathSchema.parse(input.workspaceMachineDir),

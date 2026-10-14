@@ -27,6 +27,7 @@ import {
   migrateWorkspaceLayout,
   prepareBundledSkills,
   setBashWorkerFactory,
+  settleWorkspaceDb,
   stopWorkspaceSkillWatcher,
   warmBashWorker,
   workspaceMachine,
@@ -35,7 +36,6 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
-import { workspaceLayout } from "@instrument-org/workspace/layout";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
@@ -52,7 +52,7 @@ import {
   workspaceInAppData,
   workspaceMachineDir,
 } from "./get-workspace-folder";
-import { workspaceIndexFileOf, workspaceLayoutMarks } from "./workspaces";
+import { workspaceDbFileOf, workspaceLayoutMarks } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -90,6 +90,7 @@ export function createWorkspaceActor() {
       "Workspace layout migration: none for a folder the person picked",
     );
   }
+  settleDatabase(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -101,9 +102,6 @@ export function createWorkspaceActor() {
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
-      // The workspace's own record, in its `.instrument/`, so it moves and
-      // goes with the workspace.
-      aiUsageFile: path.join(workspaceLayout(rootDir).dataDir, "ai-usage.db"),
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
@@ -119,13 +117,13 @@ export function createWorkspaceActor() {
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
-      // In the workspace's machine folder rather than in the workspace: the
-      // index is derived, and a workspace may sit in a synced folder.
-      indexFile: workspaceIndexFileOf(workspaceMachineDir()),
       // This computer's folder, and in it the workspace's: where the
       // folder rules, the browser profile and the apps' servers are, which
       // the agent never reaches.
       machineDir: machineDir(),
+      // In the workspace's machine folder rather than in the workspace: a
+      // workspace may sit in a synced folder.
+      workspaceDbFile: workspaceDbFileOf(workspaceMachineDir()),
       workspaceMachineDir: workspaceMachineDir(),
       knownFolders: {
         desktop: app.getPath("desktop"),
@@ -313,6 +311,33 @@ export function createWorkspaceActor() {
     actor,
     workspaceConfig,
   };
+}
+
+/**
+ * Bring what earlier builds kept apart into the workspace's `workspace.db`
+ * before the workspace opens it. Every workspace, wherever it is kept; a
+ * failure must not block boot.
+ */
+function settleDatabase(rootDir: string) {
+  try {
+    const settled = settleWorkspaceDb({
+      machineDir: workspaceMachineDir(),
+      rootDir,
+    });
+    for (const step of settled.done) {
+      logger.info(`Workspace database: ${step}`);
+    }
+    if (settled.failed > 0) {
+      logger.warn(
+        `Left ${settled.failed} workspace database step${settled.failed === 1 ? "" : "s"} for the next boot`,
+      );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
 }
 
 /**

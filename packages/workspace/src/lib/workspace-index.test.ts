@@ -14,29 +14,25 @@ import {
 } from "./session-store-storage";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import {
-  closeWorkspaceIndex,
-  indexedByStore,
-  kept,
-  unkept,
-} from "./workspace-index";
+import { closeWorkspaceDb } from "./workspace-db";
+import { indexedByStore, kept, unkept } from "./workspace-index";
 
 const SESSION = StoreId.newSessionId();
 
 let root: string;
 let chatId: ChatId;
-/** The index's file, outside the workspace as the app keeps it. */
-let indexFile: string;
+/** The workspace's database, outside the workspace as the app keeps it. */
+let databaseFile: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "workspace-index-test-"));
   chatId = createMockChatConfigForDir(
     path.join(root, TASKS_DIR_NAME, "2026-10-01-indexed-task"),
   );
-  indexFile = path.join(root, "machine", "index", "chats.db");
+  databaseFile = path.join(root, "machine", "workspace.db");
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    indexFile: AbsolutePathSchema.parse(indexFile),
+    workspaceDbFile: AbsolutePathSchema.parse(databaseFile),
   });
   await fs.mkdir(chatDir(chatId), { recursive: true });
   // A store on disk, which is what a row stands for.
@@ -45,14 +41,14 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  closeWorkspaceIndex();
+  closeWorkspaceDb();
   await disposeSessionsStoreStorage(chatId);
   await fs.rm(root, { force: true, recursive: true });
 });
 
 /** A fresh cache over the same index, as the next launch has: nothing in memory. */
 function nextLaunch() {
-  closeWorkspaceIndex();
+  closeWorkspaceDb();
   return indexedByStore<{ said: string }>("task_standings");
 }
 
@@ -116,11 +112,11 @@ describe("indexedByStore", () => {
       return Promise.resolve(kept({ said: "done" }));
     };
     await nextLaunch()(chatId, SESSION, derive);
-    closeWorkspaceIndex();
+    closeWorkspaceDb();
 
     const { DatabaseSync } = await import("node:sqlite");
-    const database = new DatabaseSync(indexFile);
-    database.exec("UPDATE meta SET value = '0' WHERE key = 'version'");
+    const database = new DatabaseSync(databaseFile);
+    database.exec("UPDATE meta SET value = '0' WHERE key = 'workspace-index'");
     database.close();
 
     await nextLaunch()(chatId, SESSION, derive);
@@ -158,10 +154,10 @@ describe("indexedByStore", () => {
     const opened = await getSessionsStoreStorage(chatId);
     const written = await opened._unsafeUnwrap().setItemRaw("note", "changed");
     written._unsafeUnwrap();
-    closeWorkspaceIndex();
+    closeWorkspaceDb();
 
     const { DatabaseSync } = await import("node:sqlite");
-    const holder = new DatabaseSync(indexFile);
+    const holder = new DatabaseSync(databaseFile);
     holder.exec("BEGIN EXCLUSIVE");
     try {
       expect(await nextLaunch()(chatId, SESSION, derive)).toEqual({
@@ -177,15 +173,15 @@ describe("indexedByStore", () => {
     });
   });
 
-  it("rebuilds an index file SQLite cannot read", async () => {
+  it("rebuilds the index in a database SQLite cannot read, which is moved aside", async () => {
     await nextLaunch()(chatId, SESSION, () =>
       Promise.resolve(kept({ said: "first" })),
     );
-    closeWorkspaceIndex();
+    closeWorkspaceDb();
     for (const suffix of ["-wal", "-shm"]) {
-      await fs.rm(`${indexFile}${suffix}`, { force: true });
+      await fs.rm(`${databaseFile}${suffix}`, { force: true });
     }
-    await fs.writeFile(indexFile, "not a database, not even close to one");
+    await fs.writeFile(databaseFile, "not a database, not even close to one");
 
     let derived = 0;
     const derive = () => {
@@ -199,6 +195,10 @@ describe("indexedByStore", () => {
       said: "rebuilt",
     });
     expect(derived).toBe(1);
+    const beside = await fs.readdir(path.dirname(databaseFile));
+    expect(beside.filter((name) => name.includes(".unreadable-"))).toEqual([
+      expect.stringMatching(/^workspace\.db\.unreadable-\d+$/),
+    ]);
   });
 
   it("starts over for another release", async () => {

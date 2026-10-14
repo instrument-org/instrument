@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  namesStream,
   realHostPath,
   withoutShellEscapes,
   withoutTrailingDots,
@@ -27,6 +28,23 @@ describe("withoutTrailingDots", () => {
     expect(withoutTrailingDots("/ws/.instrument./a", "darwin")).toBe(
       "/ws/.instrument./a",
     );
+  });
+});
+
+describe("namesStream", () => {
+  it.each([
+    [String.raw`C:\ws\.instrument::$INDEX_ALLOCATION\keys`, true],
+    [String.raw`C:\ws\notes.txt:Zone.Identifier`, true],
+    [String.raw`\\?\C:\ws\notes.txt:hidden`, true],
+    [String.raw`C:\ws\notes.txt`, false],
+    [String.raw`\\?\C:\ws\notes.txt`, false],
+    [String.raw`\\server\share\notes.txt`, false],
+  ])("reads %s on Windows as a stream: %s", (given, stream) => {
+    expect(namesStream(given, "win32")).toBe(stream);
+  });
+
+  it("takes a colon elsewhere for part of a name", () => {
+    expect(namesStream("/Users/sam/10:30 notes.txt", "darwin")).toBe(false);
   });
 });
 

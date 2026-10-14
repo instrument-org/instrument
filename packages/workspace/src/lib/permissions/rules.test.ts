@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
@@ -366,4 +367,92 @@ describe("reachOf on Windows, where a name's trailing dots are dropped", () => {
       );
     },
   );
+});
+
+/**
+ * NTFS opens a folder by two more names than its own: its 8.3 short name
+ * (`INSTRU~1`, in any case) and its `::$INDEX_ALLOCATION` stream. Node opens
+ * both, so the rules decide on the path as the system resolves it, and the
+ * stream's `:` is never part of a name there. The system's resolver is
+ * stood in for here, as it answers on Windows.
+ */
+describe("reachOf on Windows, where a folder has second names", () => {
+  const platform = process.platform;
+  const rules: Rules = {
+    home,
+    rules: [
+      { level: "allow", path: "/ws", source: "folder" },
+      {
+        appData: true,
+        level: "never",
+        path: "/ws/.instrument",
+        source: "system",
+      },
+    ],
+    withoutAsking: false,
+  };
+
+  beforeEach(() => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    vi.spyOn(fs.realpathSync, "native").mockImplementation((given) => {
+      const spelled = String(given);
+      const opened = spelled.replace(
+        /^\/ws\/instru~1(?=\/|$)/i,
+        "/ws/.instrument",
+      );
+      if (!/^\/ws(?:\/|$)/.test(spelled) && spelled !== "/") {
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      }
+      if (
+        spelled !== opened ||
+        ["/", "/ws", "/ws/.instrument"].includes(spelled)
+      ) {
+        return opened;
+      }
+      // Below /ws/.instrument, as it exists on that disk.
+      if (/^\/ws\/\.instrument\/keys(?:\/secret\.txt)?$/.test(spelled)) {
+        return spelled;
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    "/ws/INSTRU~1/keys/secret.txt",
+    "/ws/instru~1/keys/secret.txt",
+    "/ws/INSTRU~1/keys/not-yet.txt",
+  ])("closes %s as the app's own data", (spelled) => {
+    expect(reachOf(rules, spelled, "read")).toMatchObject({
+      level: "never",
+      rule: { appData: true },
+    });
+  });
+
+  it.each([
+    "/ws/.instrument::$INDEX_ALLOCATION/keys/secret.txt",
+    String.raw`C:\ws\.instrument::$INDEX_ALLOCATION\keys\secret.txt`,
+    String.raw`\\?\C:\ws\notes.txt:hidden`,
+    "/ws/notes.txt:Zone.Identifier",
+  ])("closes %s, a path through a stream", (spelled) => {
+    expect(reachOf(rules, spelled, "read")).toEqual({
+      level: "never",
+      stream: true,
+    });
+  });
+
+  it.each([String.raw`C:\ws\notes.txt`, String.raw`\\?\C:\ws\notes.txt`])(
+    "takes the drive's own colon in %s for no stream",
+    (spelled) => {
+      expect(reachOf(rules, spelled, "read").stream).toBeUndefined();
+    },
+  );
+
+  it("leaves the folder's own files open", () => {
+    expect(reachOf(rules, "/ws/notes.txt", "read").level).toBe("allow");
+  });
 });

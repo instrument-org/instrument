@@ -101,12 +101,15 @@ export function ruleRefusal({
 
 /**
  * What the agent reads about a path the rules never open to it this way,
- * by why: the person's not now in this chat, a folder only read, a file
+ * by why: a path through an NTFS stream, the person's not now in this chat, a folder only read, a file
  * that runs when they log in, a name that runs code when its folder is
  * used, or a place closed in Settings. Only the last is something a
  * setting changes, so only it sends the person there.
  */
 export function closedNote(reach: Reach, shown: string): string {
+  if (reach.stream) {
+    return `${shown} names a file or folder by one of its streams (the part after a ":"), a second name no rule opens. Use its own path.`;
+  }
   const rule = reach.rule;
   if (rule?.appData) {
     return `${shown} is ${APP_NAME}'s own data, which no command reads or changes; don't look for another way in. Your work folder ($${FOLDER_VARIABLES.work}) and the files the person sent ($${FOLDER_VARIABLES.attachments}) stay open to you.`;

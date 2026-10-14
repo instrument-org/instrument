@@ -18,13 +18,16 @@ const CASE_INSENSITIVE =
  * against a mount root. Returns null when resolution fails for any reason other
  * than absence, so the caller can fail closed.
  */
-export function canonicalizeThroughMissing(hostPath: string): null | string {
+export function canonicalizeThroughMissing(
+  hostPath: string,
+  realpath: (existing: string) => string = realpathSync,
+): null | string {
   const missing: string[] = [];
   let current = hostPath;
 
   for (;;) {
     try {
-      return nodePath.join(realpathSync(current), ...missing.toReversed());
+      return nodePath.join(realpath(current), ...missing.toReversed());
     } catch (error) {
       if (!isEnoent(error)) {
         return null;
@@ -104,6 +107,44 @@ export function withoutTrailingDots(
 }
 
 /**
+ * Whether a path names a file or folder through one of its NTFS streams:
+ * on Windows a `:` after the drive is never part of a name, only what
+ * separates one from a stream (`.instrument::$INDEX_ALLOCATION` opens the
+ * `.instrument` folder). Nothing elsewhere, where `:` is a character a
+ * name may hold.
+ */
+export function namesStream(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  return (
+    platform === "win32" &&
+    hostPath.replace(/^(?:[\\/]{2}[?.][\\/])?(?:[A-Za-z]:)?/, "").includes(":")
+  );
+}
+
+/**
+ * A path as Windows opens it, which can differ from its spelling by more
+ * than case: an 8.3 short name (`INSTRU~1`) opens the folder its long name
+ * does. The system resolves the deepest part that exists
+ * (`realpathSync.native`), and the rest is kept as spelled. The path as given
+ * elsewhere, and where the system cannot resolve it.
+ */
+export function windowsOpenedPath(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "win32") {
+    return hostPath;
+  }
+  return (
+    canonicalizeThroughMissing(hostPath, (existing) =>
+      realpathSync.native(existing),
+    ) ?? hostPath
+  );
+}
+
+/**
  * A path without the backslashes a shell escapes characters with, which a
  * word expanded wrongly can leave in it (`Instrument Preview \(x\)` for
  * `Instrument Preview (x)`). Windows keeps them, as they separate its
@@ -113,9 +154,7 @@ export function withoutShellEscapes(
   hostPath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  return platform === "win32"
-    ? hostPath
-    : hostPath.replaceAll(/\\(.)/gs, "$1");
+  return platform === "win32" ? hostPath : hostPath.replaceAll(/\\(.)/gs, "$1");
 }
 
 /**

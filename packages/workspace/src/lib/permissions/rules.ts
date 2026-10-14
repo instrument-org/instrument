@@ -7,7 +7,9 @@ import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import {
   hostPathWithin,
+  namesStream,
   realHostPath,
+  windowsOpenedPath,
   withoutDataVolume,
   withoutShellEscapes,
   withoutTrailingDots,
@@ -245,6 +247,8 @@ export interface Reach {
   level: "allow" | "ask" | "never";
   /** The rule that decided, absent where nothing but the defaults did. */
   rule?: Rule;
+  /** Set for a path through an NTFS stream, which no rule opens. */
+  stream?: true;
 }
 
 const SOURCE_RANK = {
@@ -302,16 +306,22 @@ export function levelWithoutAsking<L extends Access>(
  *
  * "Use folders without asking" turns an ask into an allow, but for the
  * passwords place's. Nothing turns a never into anything else. A path on
- * macOS's Data volume meets the rules as the rest of the system spells it,
- * and a name ending in dots or spaces on Windows as the name Windows opens.
- * A spelling of the app's own data with a shell's escapes left in is the
- * app's own data too, closed rather than asked for.
+ * macOS's Data volume meets the rules as the rest of the system spells it.
+ * On Windows a path meets them as the system opens it, its short names
+ * read as the long ones and a name ending in dots or spaces as the name
+ * without them, and a path through an NTFS stream, which is a second name
+ * for a file or folder, is closed. A spelling of the app's own data with a
+ * shell's escapes left in is the app's own data too, closed rather than
+ * asked for.
  */
 export function reachOf(
   rules: Rules,
   hostPath: string,
   op: "read" | "write",
 ): Reach {
+  if (namesStream(hostPath)) {
+    return { level: "never", stream: true };
+  }
   const unescaped = withoutShellEscapes(hostPath);
   const appData =
     unescaped === hostPath ? undefined : appDataHolding(rules, unescaped);
@@ -319,7 +329,7 @@ export function reachOf(
     return { level: "never", rule: appData };
   }
   const resolved = withoutTrailingDots(
-    withoutDataVolume(path.resolve(hostPath)),
+    withoutDataVolume(windowsOpenedPath(path.resolve(hostPath))),
   );
   const target = fold(resolved);
   let best: undefined | { depth: number; rule: Rule };
@@ -435,14 +445,18 @@ function compiled(rules: Rules) {
       const spelled = withoutTrailingDots(
         withoutDataVolume(path.resolve(rule.path)),
       );
-      return [...new Set([fold(spelled), fold(realHostPath(spelled))])].map(
-        (root) => ({
-          depth: root.split(path.sep).filter(Boolean).length,
-          prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
-          root,
-          rule,
-        }),
-      );
+      return [
+        ...new Set([
+          fold(spelled),
+          fold(realHostPath(spelled)),
+          fold(windowsOpenedPath(spelled)),
+        ]),
+      ].map((root) => ({
+        depth: root.split(path.sep).filter(Boolean).length,
+        prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
+        root,
+        rule,
+      }));
     });
     compiledRules.set(rules, known);
   }

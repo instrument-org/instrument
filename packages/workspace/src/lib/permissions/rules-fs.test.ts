@@ -1,5 +1,6 @@
 import { InMemoryFs } from "just-bash";
-import { describe, expect, it, vi } from "vitest";
+import nodeFs from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
@@ -198,7 +199,11 @@ describe.runIf(process.platform !== "win32")(
           path: `${userData}/machine`,
           source: "system",
         },
-        { level: "allow", path: `${userData}/machine/work/c1`, source: "system" },
+        {
+          level: "allow",
+          path: `${userData}/machine/work/c1`,
+          source: "system",
+        },
       ],
       withoutAsking: false,
     };
@@ -235,3 +240,62 @@ describe.runIf(process.platform !== "win32")(
     });
   },
 );
+
+// The shell's own commands and the file tools read and write through this
+// filesystem, so a second name Windows has for a closed folder is refused
+// to both. The system's resolver is stood in for, as it answers there.
+describe("a closed folder's second names on Windows", () => {
+  const platform = process.platform;
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+    vi.restoreAllMocks();
+  });
+
+  it("refuses the short name and the stream as it refuses the folder", async () => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    vi.spyOn(nodeFs.realpathSync, "native").mockImplementation((given) =>
+      String(given).replace(/^\/ws\/instru~1(?=\/|$)/i, "/ws/.instrument"),
+    );
+    const refusals: string[] = [];
+    const fs = rulesFs({
+      delegate: new InMemoryFs({
+        "/.instrument/keys/secret.txt": "s",
+        "/INSTRU~1/keys/secret.txt": "s",
+        "/notes.md": "n",
+      }),
+      hostRoot: "/ws",
+      onRefusal: (refusal) => refusals.push(refusal),
+      rules: {
+        home: "/Users/sam",
+        rules: [
+          { level: "allow", path: "/ws", source: "folder" },
+          {
+            appData: true,
+            level: "never",
+            path: "/ws/.instrument",
+            source: "system",
+          },
+        ],
+        withoutAsking: false,
+      },
+      spell: (hostPath) => hostPath,
+    });
+
+    expect(await fs.readFile("/notes.md")).toBe("n");
+    await expect(fs.readFile("/INSTRU~1/keys/secret.txt")).rejects.toThrow(
+      /EACCES/,
+    );
+    await expect(
+      fs.readFile("/.instrument::$INDEX_ALLOCATION/keys/secret.txt"),
+    ).rejects.toThrow(/EACCES/);
+    await expect(fs.writeFile("/INSTRU~1/keys/new.txt", "x")).rejects.toThrow(
+      /EACCES/,
+    );
+    expect(refusals.map((refusal) => refusal.split(" ")[1])).toEqual([
+      "is",
+      "names",
+      "is",
+    ]);
+  });
+});

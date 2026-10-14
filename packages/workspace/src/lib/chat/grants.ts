@@ -4,16 +4,25 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { chatDir } from "../record-folders";
 import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
+import { remapMovedPath } from "../moved-paths";
 
-/** The folders granted in a chat, oldest first. */
+/**
+ * The folders granted in a chat, oldest first, each where it is now: a grant
+ * stored before a migration moved its folder is read back where it went
+ * (`remapMovedPath`).
+ */
 export async function chatGrants(chatId: ChatId): Promise<ChatGrant[]> {
   const record = await readChatRecord(chatDir(chatId));
-  return record.settings?.grants ?? [];
+  return (record.settings?.grants ?? []).map((grant) => ({
+    ...grant,
+    path: AbsolutePathSchema.parse(remapMovedPath(grant.path)),
+  }));
 }
 
 /**
- * Grants a chat a folder, read and write. A path already granted keeps the
- * grant it has, so a folder sent again keeps its access.
+ * Grants a chat a folder, read and write. A path already granted, as stored
+ * or where it is now, keeps the grant it has, so a folder sent again keeps
+ * its access.
  */
 export async function grantFolder({
   chatId,
@@ -28,7 +37,7 @@ export async function grantFolder({
   let granted: ChatGrant | undefined;
   await updateChatRecord(chatDir(chatId), "settings", (record) => {
     const grants = record.settings?.grants ?? [];
-    granted = grants.find((grant) => grant.path === wanted);
+    granted = grants.find((grant) => isGrantOf(grant, wanted));
     if (granted) {
       return record.raw;
     }
@@ -38,10 +47,10 @@ export async function grantFolder({
   if (!granted) {
     throw new Error(`Folder ${path} was not granted`);
   }
-  return granted;
+  return { ...granted, path: wanted };
 }
 
-/** Takes a folder's grant away from a chat, by its path. */
+/** Takes a folder's grant away from a chat, by its path as stored or as it is now. */
 export async function revokeGrant({
   chatId,
   path,
@@ -53,7 +62,12 @@ export async function revokeGrant({
   await updateChatRecord(chatDir(chatId), "settings", (record) => ({
     ...record.raw,
     grants: (record.settings?.grants ?? []).filter(
-      (grant) => grant.path !== wanted,
+      (grant) => !isGrantOf(grant, wanted),
     ),
   }));
+}
+
+/** Whether a stored grant is of a folder, by the path it has or the one it moved to. */
+function isGrantOf(grant: ChatGrant, folder: string): boolean {
+  return grant.path === folder || remapMovedPath(grant.path) === folder;
 }

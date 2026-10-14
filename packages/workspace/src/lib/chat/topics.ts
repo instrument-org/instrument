@@ -11,6 +11,7 @@ import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { validateFolderName } from "../project-folder-name";
 import { getWorkspaceConfig } from "../workspace-config";
 import { updateJsonRecordSync } from "../json-record-file";
+import { remapMovedPath } from "../moved-paths";
 import { workspaceLayout } from "../workspace-layout";
 
 const ulid = monotonicFactory();
@@ -297,7 +298,8 @@ function nameKey(name: string): string {
 /**
  * One topic by its folder, or nothing for a folder with no readable settings.
  * The name is the folder's, so a folder renamed in a file manager is a topic
- * renamed.
+ * renamed. Its folders are read where they are now, for one stored before a
+ * migration moved it (`remapMovedPath`).
  */
 function readTopicFolder(folderPath: string): Topic | undefined {
   let settings: z.output<typeof TopicSettingsSchema>;
@@ -323,6 +325,13 @@ function readTopicFolder(folderPath: string): Topic | undefined {
   }
   return {
     ...settings,
+    ...(settings.folders
+      ? {
+          folders: settings.folders.map((folder) => ({
+            path: remapMovedPath(folder.path),
+          })),
+        }
+      : {}),
     ...(instructions ? { instructions } : {}),
     name: path.basename(folderPath),
   };

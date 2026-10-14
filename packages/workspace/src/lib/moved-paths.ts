@@ -40,7 +40,8 @@ let cached: { file: string; moves: MovedPath[]; stamp: string } | undefined;
  * when it is still there or no move holds it. Paths are this computer's,
  * so is the record. For whatever reads back a path it kept (the agent's
  * file tools and the person's file views over an old reply, the recent
- * files, a draft's attachments) rather than for anything that writes one.
+ * files, a draft's attachments, a chat's grants, a topic's folders) rather
+ * than for anything that writes one.
  *
  * A folder whose entries went to more than one place (a chat's old folder:
  * its work to the work folder, its records into the workspace's

@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -26,6 +27,7 @@ import {
   refusalNote,
   refusedPathIn,
   seatbeltAvailable,
+  seatbeltProfile,
   withNativeReach,
   wrapNativeCommand,
 } from "./native-sandbox";
@@ -143,7 +145,18 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, "secret");
   }
-  return paths;
+  // Links of the kind the agent can make wherever it writes, named far
+  // deeper than what they lead to: one into the keys, one to the folder
+  // holding the app's data.
+  const deep = path.join(home, "Downloads", ..."abcdefghijk".split(""));
+  mkdirSync(deep, { recursive: true });
+  const deepLinks = {
+    appFiles: path.join(deep, "app-files"),
+    keys: path.join(deep, "keys"),
+  };
+  symlinkSync(path.join(workspaceMachine, "keys"), deepLinks.keys);
+  symlinkSync(paths.appFiles, deepLinks.appFiles);
+  return { ...paths, deepLinks };
 }
 
 type Paths = ReturnType<typeof homeShaped>;
@@ -237,6 +250,14 @@ function personRules(paths: Paths) {
       opened: [path.join(paths.workspaceMachine, "keys")],
     },
     { name: "folders used without asking", withoutAsking: true },
+    {
+      name: "Settings allowing a link deep in Downloads that leads to its keys",
+      opened: [paths.deepLinks.keys],
+    },
+    {
+      grants: [paths.deepLinks.appFiles],
+      name: "a card's yes to a link deep in Downloads that leads to the folder holding it",
+    },
   ];
 }
 
@@ -603,6 +624,86 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       );
       expect(result.stderr.includes("Instrument's own data")).toBe(noted);
       expect(raiseAsk).not.toHaveBeenCalled();
+    });
+  });
+
+  // A rule named deep through a link holds what it leads to only as deep
+  // as that really is, so the deeper rule closing the app's data still
+  // decides there, and one leading into that data opens nothing.
+  describe("a person's rule named deep through a link", () => {
+    const layout = layoutUnder(paths, {
+      grants: [paths.deepLinks.appFiles],
+      opened: [paths.deepLinks.keys],
+    });
+    const reach = nativeReachFor(layout.rules, layout);
+    const keysThroughFolder = path.join(
+      paths.deepLinks.appFiles,
+      path.relative(paths.appFiles, paths.workspaceMachine),
+      "keys",
+      "x",
+    );
+
+    it("is dropped where it leads into the app's data", () => {
+      expect(
+        layout.rules.rules.some((rule) => rule.path === paths.deepLinks.keys),
+      ).toBe(false);
+    });
+
+    it("orders the Seatbelt profile by where each spelling really is", () => {
+      const lines = seatbeltProfile(reach).split("\n");
+      const opened = lines.indexOf(
+        `(allow file-read* file-write* network-outbound (subpath "${paths.appFiles}"))`,
+      );
+      expect(opened).not.toBe(-1);
+      expect(opened).toBeLessThan(
+        lines.indexOf(
+          `(deny file-read* file-write* network-outbound (subpath "${paths.machine}"))`,
+        ),
+      );
+    });
+
+    it("binds what it leads to before the app's data is closed", () => {
+      const args = bwrapArgs(reach).join(" ");
+      const opened = args.indexOf(`--bind ${paths.appFiles} ${paths.appFiles}`);
+      expect(opened).not.toBe(-1);
+      expect(opened).toBeLessThan(args.indexOf(`--tmpfs ${paths.machine}`));
+      expect(args).not.toContain(
+        `--bind ${path.join(paths.workspaceMachine, "keys")}`,
+      );
+    });
+
+    it.runIf(seatbeltAvailable()).each([
+      [
+        "refuses the keys through the link to them",
+        `cat '${paths.deepLinks.keys}/x'`,
+        1,
+      ],
+      [
+        "refuses the keys by their own path",
+        `cat '${paths.workspaceMachine}/keys/x'`,
+        1,
+      ],
+      [
+        "refuses a change to the keys through the link",
+        `echo x > '${paths.deepLinks.keys}/probe'`,
+        1,
+      ],
+      [
+        "refuses the keys through the link to the folder holding them",
+        `cat '${keysThroughFolder}'`,
+        1,
+      ],
+      [
+        "reads beside them, where the card opened",
+        `cat '${paths.deepLinks.appFiles}/Other/state.json'`,
+        0,
+      ],
+    ])("%s", async (_name, script, exitCode) => {
+      const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
+      const result = await execa(spawned.file, spawned.args, {
+        reject: false,
+      });
+      expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
     });
   });
 

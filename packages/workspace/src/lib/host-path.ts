@@ -88,6 +88,17 @@ export function withoutDataVolume(
   return match ? hostPath.slice(match[0].length) || "/" : hostPath;
 }
 
+/**
+ * Where a path really is, as the rules compare paths: absolute, every link
+ * on the way followed (through a tail that does not exist yet), and on macOS
+ * off the Data volume. The path as given, made absolute, where it cannot be
+ * resolved, which is also where the system cannot follow it.
+ */
+export function realHostPath(hostPath: string): string {
+  const resolved = nodePath.resolve(hostPath);
+  return withoutDataVolume(canonicalizeThroughMissing(resolved) ?? resolved);
+}
+
 function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }

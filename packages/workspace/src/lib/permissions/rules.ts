@@ -5,11 +5,7 @@ import { z } from "zod";
 
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import {
-  canonicalizeThroughMissing,
-  hostPathWithin,
-  withoutDataVolume,
-} from "../host-path";
+import { hostPathWithin, realHostPath, withoutDataVolume } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "./asks";
 import { workspaceMachineDir } from "../workspace-machine-dir";
@@ -402,18 +398,21 @@ function compiled(rules: Rules) {
   let known = compiledRules.get(rules);
   if (!known) {
     // A rule holds its folder by the path it names and by where that path
-    // really is, at the depth it names: a path read through a link (`/tmp`
-    // on macOS is `/private/tmp`) meets the same rule either way.
+    // really is: a path read through a link (`/tmp` on macOS is
+    // `/private/tmp`) meets the same rule either way. Each at its own depth,
+    // so a rule named deep through a link that leads somewhere shallow (into
+    // or above the app's own data) holds what it leads to only as deep as it
+    // really is, and a deeper rule there still decides.
     known = rules.rules.flatMap((rule) => {
-      const spelled = path.resolve(rule.path);
-      const depth = spelled.split(path.sep).filter(Boolean).length;
-      const real = canonicalizeThroughMissing(spelled) ?? spelled;
-      return [...new Set([fold(spelled), fold(real)])].map((root) => ({
-        depth,
-        prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
-        root,
-        rule,
-      }));
+      const spelled = withoutDataVolume(path.resolve(rule.path));
+      return [...new Set([fold(spelled), fold(realHostPath(spelled))])].map(
+        (root) => ({
+          depth: root.split(path.sep).filter(Boolean).length,
+          prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
+          root,
+          rule,
+        }),
+      );
     });
     compiledRules.set(rules, known);
   }

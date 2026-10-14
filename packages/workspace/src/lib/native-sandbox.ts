@@ -18,7 +18,7 @@ import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "./command-line-tools-env";
-import { canonicalizeThroughMissing, hostPathWithin } from "./host-path";
+import { hostPathWithin, realHostPath } from "./host-path";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
@@ -143,7 +143,7 @@ export function seatbeltProfile(
     // Again at the home folder, so a folder allowed above it (a temp folder
     // holding a test's planted home) opens nothing in it.
     {
-      depth: depthOf(home),
+      depth: depthOf(resolveReal(home)),
       rank: -1,
       text: `(deny file-write* (subpath ${sbplString(resolveReal(home))}))`,
     },
@@ -177,7 +177,7 @@ export function seatbeltProfile(
     entries.push(
       ...spellings(rule.path).flatMap((spelled) =>
         texts(spelled).map((text) => ({
-          depth: depthOf(rule.path) + (rule.dotEntries ? 1 : 0),
+          depth: depthOf(spelled) + (rule.dotEntries ? 1 : 0),
           opened:
             level !== "allow" && level !== "readOnly"
               ? undefined
@@ -193,7 +193,7 @@ export function seatbeltProfile(
   const opens = (paths: readonly string[], access: string) =>
     paths.flatMap((opened) =>
       spellings(opened).map((spelled) => ({
-        depth: depthOf(opened),
+        depth: depthOf(spelled),
         opened: spelled,
         rank: 3,
         text: `(allow ${access} (subpath ${sbplString(spelled)}))`,
@@ -207,7 +207,7 @@ export function seatbeltProfile(
     // (an Ask first place under folders-without-asking) does not open it.
     ...reach.readOnly.flatMap((closed) =>
       spellings(closed).map((spelled) => ({
-        depth: depthOf(closed),
+        depth: depthOf(spelled),
         rank: 3,
         text: `(deny file-write* (subpath ${sbplString(spelled)}))`,
       })),
@@ -331,7 +331,7 @@ function depthOf(hostPath: string): number {
 }
 
 function resolveReal(target: string): string {
-  return canonicalizeThroughMissing(target) ?? target;
+  return realHostPath(target);
 }
 
 /**
@@ -618,7 +618,15 @@ export function bwrapArgs(
     const key = `${access}:${target}`;
     if (!added.has(key)) {
       added.add(key);
-      entries.push({ access, depth: depthOf(target), path: target, rank });
+      // Ordered by where the folder really is, which is where it is bound:
+      // a folder named deep through a link that leads somewhere shallow
+      // binds there before the deeper rules that close what is inside.
+      entries.push({
+        access,
+        depth: depthOf(resolveReal(target)),
+        path: target,
+        rank,
+      });
     }
   };
   add(home, "read", -1);

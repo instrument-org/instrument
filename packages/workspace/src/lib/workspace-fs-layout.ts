@@ -24,6 +24,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import {
   canonicalizeThroughMissing,
   hostPathWithin,
+  realHostPath,
   realRoot,
 } from "./host-path";
 import { normalizePath } from "./normalize-path";
@@ -783,12 +784,20 @@ function layoutRules(
     ].map((path) => system("readOnly", path)),
     ...layout.temp.map((mount) => system("allow", mount.hostRoot)),
   ];
-  const outsideAppData = given.rules.filter(
-    (rule) =>
-      !appData.some(
-        (closed) => hostPathWithin(closed.path, rule.path) !== null,
-      ),
-  );
+  // Inside it by name or by where the rule's path really leads: a folder
+  // named anywhere that is a link into the app's data opens nothing there.
+  const closedRoots = appData.flatMap((closed) => [
+    closed.path,
+    realHostPath(closed.path),
+  ]);
+  const outsideAppData = given.rules.filter((rule) => {
+    const real = realHostPath(rule.path);
+    return !closedRoots.some(
+      (closed) =>
+        hostPathWithin(closed, rule.path) !== null ||
+        hostPathWithin(closed, real) !== null,
+    );
+  });
   return { ...given, rules: [...outsideAppData, ...own] };
 }
 

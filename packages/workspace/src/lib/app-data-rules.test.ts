@@ -575,36 +575,102 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       expect(args).not.toContain(`--bind ${paths.otherWork}`);
     });
 
-    // An empty folder answers a name in it as missing; what stands in for
-    // each entry makes a program meet "permission denied" there instead.
     it.each([
-      ["another chat's work folder", "--perms 0000 --dir", "otherWork"],
-      ["the keys", "--perms 0000 --dir", "keys"],
-      ["the work folders, passed through", "--perms 0111 --dir", "works"],
-      ["the registry of workspaces", "--ro-bind", "registry"],
-    ] as const)("stands in for %s", (_name, how, which) => {
-      const target = {
-        keys: path.join(paths.workspaceMachine, "keys"),
-        otherWork: paths.otherWork,
-        registry: path.join(paths.machine, "workspaces.json"),
-        works: path.join(paths.workspaceMachine, "work"),
-      }[which];
-      const standIn = path.join(paths.runtime, "sandbox", "closed-file");
-      expect(`${args} `).toContain(
-        how === "--ro-bind"
-          ? `--ro-bind ${standIn} ${target} `
-          : `${how} ${target} `,
-      );
+      ["the work folders", path.join(paths.workspaceMachine, "work")],
+      ["the chats' records", paths.data.chatsDir],
+      ["its own record folder", paths.record],
+    ])(
+      "makes %s, on the way to what opens, searchable and no more",
+      (_name, folder) => {
+        expect(`${args} `).toContain(`--perms 0111 --dir ${folder} `);
+      },
+    );
+
+    // An empty folder answers a name in it as missing, and the note says
+    // why; nothing is listed to stand in for what the folder holds.
+    it.each([
+      ["another chat's work folder", paths.otherWork],
+      ["another chat's records", paths.otherRecord],
+      ["the keys", path.join(paths.workspaceMachine, "keys")],
+      [
+        "the registry of workspaces",
+        path.join(paths.machine, "workspaces.json"),
+      ],
+    ])("names nothing of %s", (_name, target) => {
+      expect(args).not.toContain(target);
     });
 
-    it("tells the agent a program's missing file there is the app's own", () => {
-      const refused = refusedPathIn(
+    it("keeps the same arguments with 2,000 chats as with 2", () => {
+      const fresh = homeShaped(shape.appFiles, shape.workspace);
+      useApp(fresh);
+      const argsFor = (person: Parameters<typeof layoutUnder>[1]) => {
+        const under = layoutUnder(fresh, person);
+        return bwrapArgs(nativeReachFor(under.rules, under));
+      };
+      const people = [{}, { grants: [fresh.appFiles] }];
+      const two = people.map(argsFor);
+      for (let i = 0; i < 1998; i++) {
+        const id = `2026-10-14-chat-${String(i).padStart(4, "0")}`;
+        mkdirSync(path.join(fresh.data.chatsDir, id, "attachments"), {
+          recursive: true,
+        });
+        writeFileSync(path.join(fresh.data.chatsDir, id, "chat.db"), "");
+        mkdirSync(path.join(fresh.workspaceMachine, "work", id));
+        writeFileSync(
+          path.join(fresh.workspaceMachine, "work", id, "a.md"),
+          "",
+        );
+      }
+      const many = people.map(argsFor);
+      expect(many.map((each) => each.length)).toEqual(
+        two.map((each) => each.length),
+      );
+      expect(many).toEqual(two);
+    });
+
+    it.each([
+      [
+        "Python's missing file",
         `FileNotFoundError: [Errno 2] No such file or directory: '${paths.machine}/workspaces.json'`,
-        reach satisfies NativeReach,
-      );
-      expect(refused && refusalNote(refused)).toContain(
-        "is Instrument's own data, which no command reads or changes",
-      );
+      ],
+      [
+        "Node's missing file",
+        `Error: ENOENT: no such file or directory, open '${paths.otherWork}/notes.md'`,
+      ],
+      [
+        "cat's missing file",
+        `cat: ${paths.otherRecord}/chat.db: No such file or directory`,
+      ],
+      [
+        "Node's refused listing",
+        `Error: EACCES: permission denied, scandir '${paths.workspaceMachine}/work'`,
+      ],
+    ])(
+      "tells the agent %s there is the app's own, whatever the exit",
+      (_name, line) => {
+        for (const appDataOnly of [false, true]) {
+          const refused = refusedPathIn(
+            line,
+            reach satisfies NativeReach,
+            paths.work,
+            { appDataOnly },
+          );
+          expect(refused && refusalNote(refused)).toContain(
+            "is Instrument's own data, which no command reads or changes",
+          );
+        }
+      },
+    );
+
+    it("says nothing of a missing file outside it on a zero exit", () => {
+      expect(
+        refusedPathIn(
+          `FileNotFoundError: [Errno 2] No such file or directory: '${paths.home}/Documents/a.csv'`,
+          reach,
+          paths.work,
+          { appDataOnly: true },
+        ),
+      ).toBeUndefined();
     });
   });
 });

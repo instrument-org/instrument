@@ -583,7 +583,9 @@ export function bwrapAvailable(): boolean {
  * folder read-only, then each rule's folder bound over it from shallow to
  * deep, the way the Seatbelt profile orders its rules. A closed folder is an
  * empty one in its place and a closed file is empty; a folder that opens
- * inside a closed one is bound back over the empty one.
+ * inside a closed one is bound back over the empty one. Nothing a closed
+ * folder holds is listed, so the arguments stay as many however much it
+ * holds: bubblewrap refuses more than 9,000, and a workspace's chats add up.
  *
  * Hidden entries in the home folder have no pattern form here, so the home
  * folder is listed and each one is closed by name.
@@ -786,10 +788,38 @@ export function bwrapArgs(
       .map((rule) => rule.path),
   );
   const remountLater: string[] = [];
+  const mounted = new Set<string>();
+  const passedThrough = new Set<string>();
+  const madeOnTheWay = new Set<string>();
+  // The folders between `real` and a closed folder passed through around it,
+  // made searchable and no more where bubblewrap would make them listable.
+  // They come from the path of what opens there, so they cost the same
+  // however much the closed folder holds.
+  const onTheWay = (real: string): string[] => {
+    const between: string[] = [];
+    for (
+      let folder = path.dirname(real);
+      folder !== path.dirname(folder);
+      folder = path.dirname(folder)
+    ) {
+      if (madeOnTheWay.has(folder) || mounted.has(folder)) {
+        if (!madeOnTheWay.has(folder) && !passedThrough.has(folder)) {
+          return [];
+        }
+        return between.toReversed().flatMap((made) => {
+          madeOnTheWay.add(made);
+          return ["--perms", "0111", "--dir", made];
+        });
+      }
+      between.push(folder);
+    }
+    return [];
+  };
   for (const entry of ordered) {
     const real = resolveReal(entry.path);
     if (entry.access === "empty") {
-      args.push("--tmpfs", real, "--remount-ro", real);
+      args.push(...onTheWay(real), "--tmpfs", real, "--remount-ro", real);
+      mounted.add(real);
       continue;
     }
     if (
@@ -806,6 +836,8 @@ export function bwrapArgs(
     if (!existsSync(real)) {
       continue;
     }
+    args.push(...onTheWay(real));
+    mounted.add(real);
     if (entry.access === "write") {
       args.push("--bind", real, real);
     } else if (entry.access === "read") {
@@ -814,7 +846,9 @@ export function bwrapArgs(
       // An empty folder that refuses to be listed or read, so a program
       // meets "permission denied" there rather than an empty or missing
       // folder it would take at face value. A folder opened inside it keeps
-      // search permission, which reaching that folder needs.
+      // search permission, which reaching that folder needs, and holds only
+      // what opens in it: a program naming anything else there finds it
+      // missing, and `refusedPathIn` reads that as the refusal it is.
       const opensInside = ordered.some(
         (other) =>
           other.access !== "none" &&
@@ -827,19 +861,7 @@ export function bwrapArgs(
       // folder to bind it to, and a remount leaves the binds inside it be.
       args.push("--perms", opensInside ? "0111" : "0000", "--tmpfs", real);
       if (opensInside) {
-        args.push(
-          ...standInsWithin(
-            real,
-            ordered
-              .filter(
-                (other) =>
-                  other.depth > entry.depth &&
-                  other.path.startsWith(`${entry.path}${path.sep}`),
-              )
-              .map((other) => resolveReal(other.path)),
-            standIn,
-          ),
-        );
+        passedThrough.add(real);
         remountLater.push("--remount-ro", real);
       } else {
         args.push("--remount-ro", real);
@@ -851,49 +873,6 @@ export function bwrapArgs(
     }
   }
   return [...args, ...sessionSockets, ...remountLater];
-}
-
-/**
- * What stands in for each entry of a closed folder that a folder opens
- * inside, once it is an empty folder that can only be passed through: a
- * folder nobody may open or list in place of each folder, the closed-file
- * stand-in in place of each file, so a program naming one meets "permission
- * denied" rather than a missing file. A folder on the way to one `decided`
- * by another rule is made searchable and no more, with the same done inside
- * it; what another rule decides is left to that rule.
- */
-function standInsWithin(
-  folder: string,
-  decided: readonly string[],
-  standIn: string,
-): string[] {
-  const args: string[] = [];
-  const visit = (dir: string) => {
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const entryPath = path.join(dir, entry.name);
-      if (decided.includes(entryPath)) {
-        continue;
-      }
-      if (
-        decided.some((other) => other.startsWith(`${entryPath}${path.sep}`))
-      ) {
-        args.push("--perms", "0111", "--dir", entryPath);
-        visit(entryPath);
-      } else if (entry.isDirectory()) {
-        args.push("--perms", "0000", "--dir", entryPath);
-      } else {
-        args.push("--ro-bind", standIn, entryPath);
-      }
-    }
-  };
-  visit(folder);
-  return args;
 }
 
 /**
@@ -1065,11 +1044,17 @@ function currentReach(): NativeReach | undefined {
   };
 }
 
+const MISSING = /no such file/i;
+
+/**
+ * How a program says the system refused it a path, in either case: Node and
+ * Go write `permission denied` and `no such file or directory` in lowercase.
+ */
 const REFUSALS = [
-  "not permitted",
-  "Permission denied",
-  "No such file",
-  "Read-only file system",
+  /not permitted/i,
+  /permission denied/i,
+  MISSING,
+  /read-only file system/i,
 ];
 
 /**
@@ -1082,7 +1067,11 @@ const REFUSALS = [
  * (`/bin/sh: 1: cannot create <path>`). Failing both, each word with a
  * slash, last first.
  */
-function pathsNamedIn(line: string, refusal: string): string[] {
+function pathsNamedIn(
+  line: string,
+  /** Where in the line the refusal starts. */
+  refusalAt: number,
+): string[] {
   const quoted = [
     ...line.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`|‘([^’]*)’|“([^”]*)”/g),
   ]
@@ -1091,7 +1080,7 @@ function pathsNamedIn(line: string, refusal: string): string[] {
   if (quoted.length > 0) {
     return quoted.toReversed();
   }
-  const end = line.lastIndexOf(": ", line.indexOf(refusal));
+  const end = line.lastIndexOf(": ", refusalAt);
   if (end !== -1) {
     const words = (line.slice(0, end).split(": ").at(-1) ?? "").split(" ");
     const first = words.findIndex((word) => word.includes("/"));
@@ -1137,23 +1126,26 @@ export function refusedPathIn(
   } = {},
 ): undefined | Refused {
   for (const line of output.split("\n")) {
-    // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
-    // closed folder empty and a home folder read-only, so the same refusal
-    // reads as a missing file or a read-only disk there.
-    const refusal = REFUSALS.find((each) => line.includes(each));
-    if (refusal === undefined) {
+    // Seatbelt refuses with "Operation not permitted"; bubblewrap passes a
+    // closed folder through with only what opens in it, and leaves the home
+    // folder read-only, so the same refusal reads as a missing file or a
+    // read-only disk there.
+    const refusalAt = REFUSALS.map((each) => line.search(each)).find(
+      (at) => at !== -1,
+    );
+    if (refusalAt === undefined) {
       continue;
     }
     // A program names a path the way it was given, so `closed/a.txt` is
     // read against the cwd.
-    for (const named of pathsNamedIn(line, refusal)) {
+    for (const named of pathsNamedIn(line, refusalAt)) {
       if (!path.isAbsolute(named) && cwd === undefined) {
         continue;
       }
       const hostPath = path.resolve(cwd ?? "/", named);
       // A missing file can only be a closed read; anything else may have
       // been a change.
-      const op = line.includes("No such file") ? "read" : "write";
+      const op = MISSING.test(line) ? "read" : "write";
       const decided = reachOf(reach.rules, hostPath, op);
       if (
         decided.level !== "allow" &&

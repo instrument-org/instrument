@@ -1,5 +1,4 @@
 import { execa } from "execa";
-import { type Stats } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -170,25 +169,20 @@ describe("readHandoffNotes", () => {
     const notes = path.join(dir, "handoff-notes.md");
     await fs.writeFile(notes, "Left off at step 3.");
     const chatId = createMockChatConfigForDir(dir);
-    const swapAfter =
-      (look: (file: string) => Promise<Stats>) => async (file: string) => {
-        const seen = await look(file);
+    const look = fs.lstat.bind(fs);
+    const lstat = vi
+      .spyOn(fs, "lstat")
+      .mockImplementationOnce(async (...args: Parameters<typeof fs.lstat>) => {
+        const seen = await look(...args);
         await fs.rm(notes);
         await fs.symlink(path.join(dir, "settings.json"), notes);
         return seen;
-      };
-    const lstat = vi
-      .spyOn(fs, "lstat")
-      .mockImplementationOnce(swapAfter(fs.lstat.bind(fs)));
-    const stat = vi
-      .spyOn(fs, "stat")
-      .mockImplementationOnce(swapAfter(fs.stat.bind(fs)));
+      });
 
     try {
       expect(await readHandoffNotes(chatId)).toBe("Left off at step 3.");
     } finally {
       lstat.mockRestore();
-      stat.mockRestore();
     }
   });
 });

@@ -31,6 +31,18 @@ describe("a local MCP app's manifest", () => {
     });
   });
 
+  // A local server runs outside the sandbox, so its environment is the
+  // app's to set and never the manifest's; one written with `env` still
+  // loads, without it.
+  it("reads a manifest written with env as one without it", () => {
+    expect(
+      AppManifestSchema.parse({
+        ...local,
+        env: { NODE_OPTIONS: "--require ./preload.js" },
+      }),
+    ).toEqual(AppManifestSchema.parse(local));
+  });
+
   it("takes a PyPI package with extras for the python runtime", () => {
     expect(
       AppManifestSchema.safeParse({

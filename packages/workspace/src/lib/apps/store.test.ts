@@ -65,6 +65,25 @@ describe("a manifest's hash", () => {
     );
   });
 
+  // Hashes recorded by approvals given before a local app's manifest lost
+  // its `env`: the same Drafts manifest with no env, and with one.
+  const approvedWithout = "fc359c7061cb109d6b00a302a9909c39";
+  const approvedWithEnv = "a198bbb2ad1371ee55caec5ac840057f";
+
+  it("keeps the hash an approval recorded for a manifest with no env", async () => {
+    expect(await hashOf(drafts)).toBe(approvedWithout);
+  });
+
+  it("reads a manifest still carrying env without it, so its approval is asked for again", async () => {
+    const hash = await hashOf({
+      ...drafts,
+      env: { NODE_OPTIONS: "--require ./preload.js" },
+    });
+
+    expect(hash).toBe(approvedWithout);
+    expect(hash).not.toBe(approvedWithEnv);
+  });
+
   it("changes with what runs", async () => {
     expect(await hashOf({ ...drafts, package: "other-server" })).not.toBe(
       await hashOf(drafts),

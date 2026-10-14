@@ -195,9 +195,6 @@ const LocalMcpAppManifestSchema = z
     // Arguments the server itself takes, after its own name.
     args: z.array(z.string()).optional(),
     auth: LocalMcpAuthSchema,
-    // Static, non-secret environment for the process. The credential is never
-    // one of these; the secret scan the test runs is what catches one.
-    env: z.record(z.string(), z.string()).optional(),
     // The bundle identifier of the Mac app the server drives, when it drives
     // one ("com.agiletortoise.Drafts-OSX"). A server that runs here has no
     // site to draw, so the app is drawn with that app's own icon.
@@ -250,16 +247,43 @@ const WebAppManifestSchema = z.strictObject({
 export type WebAppManifest = z.output<typeof WebAppManifestSchema>;
 
 /**
+ * A local app's manifest with any `env` left out. Its server runs outside
+ * the sandbox and its environment is the app's to set: a variable such as
+ * `NODE_OPTIONS` would load code from wherever the manifest's author
+ * pointed it. A manifest that names one still loads, without it, and hashes
+ * as one that never did, so an approval given with it no longer matches and
+ * the person is asked again.
+ */
+function withoutRetiredKeys(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !("type" in value) ||
+    value.type !== "mcp-local" ||
+    !("env" in value)
+  ) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== "env"),
+  );
+}
+
+/**
  * What an app folder's manifest describes: how to call a service, and nothing
  * about whether it may be called. Whether it may is the connection record,
  * which the app keeps where the agent cannot write it.
  */
-export const AppManifestSchema = z.discriminatedUnion("type", [
-  ApiAppManifestSchema,
-  LocalMcpAppManifestSchema,
-  McpAppManifestSchema,
-  WebAppManifestSchema,
-]);
+export const AppManifestSchema = z.preprocess(
+  withoutRetiredKeys,
+  z.discriminatedUnion("type", [
+    ApiAppManifestSchema,
+    LocalMcpAppManifestSchema,
+    McpAppManifestSchema,
+    WebAppManifestSchema,
+  ]),
+);
 
 export type AppManifest = z.output<typeof AppManifestSchema>;
 

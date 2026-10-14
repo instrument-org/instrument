@@ -43,9 +43,11 @@ beforeAll(async () => {
     name === "userData" ? machine : "/mock/path",
   );
   const machineFiles = {
+    attachment: "workspace/.instrument/chats/2026-10-01-chat/attachments/a.png",
     "browser-cookies": "workspaces-data/default/browser/app-session/Cookies",
+    "chat-db": "workspace/.instrument/chats/2026-10-01-chat/chat.db",
     keys: "workspaces-data/default/keys/providers.json",
-    note: "workspace/chats/2026-10-01-chat/notes.md",
+    note: "workspace/Reports/notes.md",
   };
   for (const relative of Object.values(machineFiles)) {
     await fs.mkdir(path.dirname(path.join(machine, relative)), {
@@ -87,20 +89,20 @@ describe("handleComputerFileRequest", () => {
     },
   );
 
-  it("serves a file in a workspace the machine folder keeps", async () => {
-    const note = path.join(
-      machine,
-      "workspace",
-      "chats",
-      "2026-10-01-chat",
-      "notes.md",
-    );
-    const response = await request(urlFor(note));
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe(
-      "workspace/chats/2026-10-01-chat/notes.md",
-    );
-  });
+  it.each([
+    ["the person's own file", "workspace/Reports/notes.md"],
+    [
+      "what a chat was sent, in the workspace's .instrument/",
+      "workspace/.instrument/chats/2026-10-01-chat/attachments/a.png",
+    ],
+  ])(
+    "serves %s in a workspace the machine folder keeps",
+    async (_name, relative) => {
+      const response = await request(urlFor(path.join(machine, relative)));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(relative);
+    },
+  );
 
   it("does not let an unversioned read be kept", async () => {
     const response = await request(urlFor(file));
@@ -156,6 +158,20 @@ describe("handleComputerFileRequest", () => {
     [
       "the private directory in another case",
       () => urlFor(path.join(folder, ".INSTRUMENT", "chat.db")),
+    ],
+    [
+      "a chat's database beside what it was sent",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "workspace",
+            ".instrument",
+            "chats",
+            "2026-10-01-chat",
+            "chat.db",
+          ),
+        ),
     ],
     // A literal `..` never reaches the handler: URL parsing collapses it, so
     // the request names whatever the collapsed path is. The encoded spelling

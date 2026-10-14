@@ -4,7 +4,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { runtimeLayout } from "./runtime-dir";
-import { nodeToolsEnvFor, uvToolsEnvFor } from "./tool-isolation-env";
+import {
+  nodeBuildEnvFor,
+  nodeToolsEnvFor,
+  uvBuildEnvFor,
+  uvToolsEnvFor,
+} from "./tool-isolation-env";
 
 const runtimeDir = mkdtempSync(path.join(os.tmpdir(), "tool-isolation-env-"));
 
@@ -75,5 +80,60 @@ describe("the runtime folder", () => {
       "npmrc",
       "npmrc-global",
     ]);
+  });
+
+  // What the app builds and every chat runs comes from folders no chat
+  // writes: nothing of the chats' caches or config is named here.
+  it("points the app's builds at the build folders alone", () => {
+    const build = {
+      ...uvBuildEnvFor(runtimeDir, new Date("2026-10-13Z")),
+      ...nodeBuildEnvFor(runtimeDir),
+    };
+    const { caches, config } = runtimeLayout(runtimeDir);
+    expect(
+      Object.values(build).filter((value) =>
+        [caches, config].some((chats) => value.startsWith(chats)),
+      ),
+    ).toEqual([]);
+    expect(inRuntime(build)).toMatchInlineSnapshot(`
+      {
+        "MPLCONFIGDIR": "<runtime>/build/caches/matplotlib",
+        "PIP_CONFIG_FILE": "<devNull>",
+        "PNPM_HOME": "<runtime>/build/caches/pnpm-home",
+        "UV_CACHE_DIR": "<runtime>/build/caches/uv",
+        "UV_EXCLUDE_NEWER": "2026-10-06T00:00:00.000Z",
+        "UV_NO_CONFIG": "1",
+        "UV_PYTHON_DOWNLOADS": "automatic",
+        "UV_PYTHON_INSTALL_DIR": "<runtime>/python",
+        "UV_PYTHON_PREFERENCE": "only-managed",
+        "UV_TOOL_BIN_DIR": "<runtime>/build/caches/uv-tools/bin",
+        "UV_TOOL_DIR": "<runtime>/build/caches/uv-tools",
+        "XDG_CACHE_HOME": "<runtime>/build/caches",
+        "XDG_CONFIG_HOME": "<runtime>/build/config",
+        "XDG_DATA_HOME": "<runtime>/build/caches/data",
+        "XDG_STATE_HOME": "<runtime>/build/caches/state",
+        "npm_config_cache": "<runtime>/build/caches/npm",
+        "npm_config_devdir": "<runtime>/build/caches/node-gyp",
+        "npm_config_globalconfig": "<runtime>/build/config/npmrc-global",
+        "npm_config_userconfig": "<runtime>/build/config/npmrc",
+        "pnpm_config_cache_dir": "<runtime>/build/caches/pnpm",
+        "pnpm_config_confirm_modules_purge": "false",
+        "pnpm_config_dlx_cache_max_age": "259200",
+        "pnpm_config_global_bin_dir": "<runtime>/build/caches/pnpm-global-bin",
+        "pnpm_config_global_dir": "<runtime>/build/caches/pnpm-global",
+        "pnpm_config_globalconfig": "<runtime>/build/config/npmrc-global",
+        "pnpm_config_minimum_release_age": "10080",
+        "pnpm_config_npmrc_auth_file": "<runtime>/build/config/npmrc",
+        "pnpm_config_state_dir": "<runtime>/build/caches/pnpm-state",
+        "pnpm_config_store_dir": "<runtime>/build/caches/pnpm-store",
+        "pnpm_config_strict_dep_builds": "false",
+        "pnpm_config_update_notifier": "false",
+        "pnpm_config_userconfig": "<runtime>/build/config/npmrc",
+        "pnpm_config_verify_deps_before_run": "false",
+      }
+    `);
+    expect(
+      readdirSync(runtimeLayout(runtimeDir).buildConfig).toSorted(),
+    ).toEqual(["npmrc", "npmrc-global"]);
   });
 });

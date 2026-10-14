@@ -12,10 +12,11 @@ import {
   wrapNativeCommand,
 } from "./native-sandbox";
 import { runtimeLayout } from "./runtime-dir";
-import { uvToolsEnvFor } from "./tool-isolation-env";
+import { uvBuildEnvFor } from "./tool-isolation-env";
 import {
   getUvBinPath,
   MANAGED_PYTHON_VERSION,
+  uvBuildSubprocessEnv,
   uvSubprocessEnv,
   withPythonVersionNote,
 } from "./uv";
@@ -24,6 +25,7 @@ import { workDir } from "./work-dir";
 
 export async function runUvCommand({
   args,
+  buildFolders = false,
   cwd,
   lockfilePinned = false,
   signal,
@@ -32,6 +34,12 @@ export async function runUvCommand({
   writable = [],
 }: {
   args: string[];
+  /**
+   * Whether this is the app building a skill it ships, which keeps uv's
+   * cache in the build folders rather than the chats' and opens them to
+   * this command alone, so nothing a chat wrote reaches what it builds.
+   */
+  buildFolders?: boolean;
   cwd?: AbsolutePath;
   /**
    * Whether the versions come from a lockfile someone already chose them
@@ -48,20 +56,25 @@ export async function runUvCommand({
    */
   writable?: AbsolutePath[];
 }) {
-  const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({
-    chatId,
-    cwd: cwd ?? workDir(chatId),
-  });
+  const { UV_EXCLUDE_NEWER, ...pinnedEnv } = buildFolders
+    ? uvBuildSubprocessEnv()
+    : uvSubprocessEnv({
+        chatId,
+        cwd: cwd ?? workDir(chatId),
+      });
   // Held to the chat's reach like any command of its own: uv runs the
   // chat's virtualenv interpreter to read it, and that interpreter, with the
   // `.pth` files beside it, is the chat's to change.
   const reach = await chatNativeReach(chatId);
+  const opened = buildFolders
+    ? [...writable, runtimeLayout(getWorkspaceConfig().runtimeDir).buildCaches]
+    : writable;
   let spawned: ReturnType<typeof wrapNativeCommand>;
   try {
     spawned = wrapNativeCommand(
       getUvBinPath(),
       args,
-      reach ? { ...reach, readWrite: [...reach.readWrite, ...writable] } : null,
+      reach ? { ...reach, readWrite: [...reach.readWrite, ...opened] } : null,
     );
   } catch (error) {
     if (error instanceof NativeSandboxUnavailableError) {
@@ -167,7 +180,7 @@ export async function managedPythonInterpreter(): Promise<
     cwd: runtimeLayout(runtimeDir).python,
     env: {
       ...inheritedEnv(),
-      ...uvToolsEnvFor(runtimeDir),
+      ...uvBuildEnvFor(runtimeDir),
       UV_PYTHON_DOWNLOADS: "never",
     },
     extendEnv: false,
@@ -193,7 +206,8 @@ export async function managedPythonInterpreter(): Promise<
 /**
  * `uv python install`, run as the app outside any chat's reach, which is
  * safe because it runs none of a chat's code: only the Command Line Tools
- * installer is closed to it, as uv may reach for `install_name_tool`. An
+ * installer is closed to it, as uv may reach for `install_name_tool`. Its
+ * downloads are cached in the build folders, which no chat writes. An
  * installed Python makes it a no-op of about 50 ms.
  */
 async function installManagedPython() {
@@ -211,7 +225,7 @@ async function installManagedPython() {
     all: true,
     env: {
       ...inheritedEnv(),
-      ...uvToolsEnvFor(getWorkspaceConfig().runtimeDir),
+      ...uvBuildEnvFor(getWorkspaceConfig().runtimeDir),
     },
     extendEnv: false,
     reject: false,

@@ -27,7 +27,15 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  * Part of every environment's name, so one built a way this build no longer
  * builds is never taken for one it would.
  */
-const ENVIRONMENT_FORMAT = 1;
+const ENVIRONMENT_FORMAT = 2;
+
+/**
+ * What the name of an environment built for a skill the app ships starts
+ * with. One built for a skill any chat can change (the workspace's own) has
+ * none, so it is never taken for a shipped skill's, whatever the two lock,
+ * and neither is a folder named some other way.
+ */
+const SHIPPED_ENVIRONMENT_PREFIX = "shipped-";
 
 /** Long enough for a cold cache to fetch a skill's wheels on a slow connection. */
 const BUILD_TIMEOUT_MS = 10 * 60 * 1000;
@@ -88,21 +96,26 @@ function environmentsDir(): AbsolutePath {
   );
 }
 
-function environmentDir(...parts: string[]): AbsolutePath {
+function environmentDir(shipped: boolean, ...parts: string[]): AbsolutePath {
   const hash = createHash("sha256");
   for (const part of [String(ENVIRONMENT_FORMAT), ...parts]) {
     hash.update(part);
     hash.update("\0");
   }
+  const name = hash.digest("hex").slice(0, 16);
   return AbsolutePathSchema.parse(
-    path.join(environmentsDir(), hash.digest("hex").slice(0, 16)),
+    path.join(
+      environmentsDir(),
+      shipped ? `${SHIPPED_ENVIRONMENT_PREFIX}${name}` : name,
+    ),
   );
 }
 
 /**
  * The Python environment for a skill's locked dependencies, in the runtime
  * folder's `environments/`, named by the hash of its `uv.lock` and the
- * managed Python's version, so every skill locking the same set shares one.
+ * managed Python's version, so every skill locking the same set shares one,
+ * the skills the app ships apart from the workspace's own.
  * Undefined for a skill with no `pyproject.toml` and `uv.lock`.
  */
 export function pythonEnvironmentOf(
@@ -117,7 +130,12 @@ export function pythonEnvironmentOf(
   } catch {
     return undefined;
   }
-  return environmentDir("python", MANAGED_PYTHON_VERSION, lockfile);
+  return environmentDir(
+    shippedSkill(skillDir),
+    "python",
+    MANAGED_PYTHON_VERSION,
+    lockfile,
+  );
 }
 
 /**
@@ -129,19 +147,55 @@ export function pythonEnvironmentOf(
  */
 export function trustedSkillFolder(hostPath: string): AbsolutePath | undefined {
   const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
-  const roots = [runtime.skills, runtime.environments, getWorkspaceSkillsDir()];
-  // As spelled, then where it really is, for a path through a link (the
-  // temp folder's `/var` on macOS).
+  for (const root of [
+    runtime.skills,
+    runtime.environments,
+    getWorkspaceSkillsDir(),
+  ]) {
+    const folder = folderWithin(root, hostPath);
+    if (folder) {
+      return folder;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Whether the skill in `skillDir` is one the app ships, from the runtime
+ * folder's `skills/` or built from one there, which no chat can change. Its
+ * environments are built from the build folders alone; the workspace's own
+ * skills, which any chat can change, are built as the chat's own installs
+ * are, into environments of their own.
+ */
+function shippedSkill(skillDir: string): boolean {
+  const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
+  if (folderWithin(runtime.skills, skillDir)) {
+    return true;
+  }
+  const built = folderWithin(runtime.environments, skillDir);
+  return (
+    built !== undefined &&
+    path.basename(built).startsWith(SHIPPED_ENVIRONMENT_PREFIX)
+  );
+}
+
+/**
+ * The folder directly in `root` that holds `hostPath`, compared as spelled,
+ * then where each really is, for a path through a link (the temp folder's
+ * `/var` on macOS).
+ */
+function folderWithin(
+  root: string,
+  hostPath: string,
+): AbsolutePath | undefined {
   const real = canonicalizeThroughMissing(hostPath);
-  const spellings = roots.flatMap((root) => {
-    const realRoot = canonicalizeThroughMissing(root);
-    return [
-      { path: hostPath, root },
-      ...(real !== null && realRoot !== null
-        ? [{ path: real, root: realRoot }]
-        : []),
-    ];
-  });
+  const realRoot = canonicalizeThroughMissing(root);
+  const spellings = [
+    { path: hostPath, root },
+    ...(real !== null && realRoot !== null
+      ? [{ path: real, root: realRoot }]
+      : []),
+  ];
   for (const spelling of spellings) {
     const name = hostPathWithin(spelling.root, spelling.path)?.split("/")[1];
     if (name) {
@@ -215,7 +269,12 @@ export async function ensurePythonEnvironmentHere({
   }
   const error =
     (await buildOnce(target, hasUsableVenv, (staging) =>
-      buildPythonEnvironment({ chatId, skillDir, staging }),
+      buildPythonEnvironment({
+        chatId,
+        shipped: shippedSkill(skillDir),
+        skillDir,
+        staging,
+      }),
     )) ??
     (await buildOnce(
       siteLayerDir(),
@@ -237,7 +296,7 @@ export async function ensurePythonEnvironmentHere({
  * the environments it layers, named by its source.
  */
 function siteLayerDir(): AbsolutePath {
-  return environmentDir("site", SITE_LAYER_SOURCE);
+  return environmentDir(true, "site", SITE_LAYER_SOURCE);
 }
 
 /**
@@ -262,7 +321,8 @@ export function pythonLayerEnv(
  * A Node skill's environment: one built copy of the skill with its
  * packages installed beside its scripts, where Node finds them, named by
  * the hash of the skill's files, so each version of the skill gets its own
- * and every chat shares it. Built first when it is missing.
+ * and every chat shares it, the skills the app ships apart from the
+ * workspace's own. Built first when it is missing.
  */
 export async function ensureNodeEnvironment({
   chatId,
@@ -273,7 +333,9 @@ export async function ensureNodeEnvironment({
   signal?: AbortSignal;
   skillDir: AbsolutePath;
 }): Promise<{ dir: AbsolutePath } | { error: VenvError }> {
+  const shipped = shippedSkill(skillDir);
   const target = environmentDir(
+    shipped,
     "node",
     await getSkillPackageFingerprint(skillDir),
   );
@@ -281,7 +343,7 @@ export async function ensureNodeEnvironment({
     buildOnce(
       target,
       (dir) => existsSync(path.join(dir, NODE_MODULES)),
-      (staging) => buildNodeEnvironment({ chatId, skillDir, staging }),
+      (staging) => buildNodeEnvironment({ chatId, shipped, skillDir, staging }),
     ),
     signal,
     (cancelled) => cancelled,
@@ -470,16 +532,22 @@ function processAlive(pid: number) {
 
 /**
  * A relocatable virtualenv from the managed Python with the skill's locked
- * dependencies, bytecode compiled, since no chat may write it later. Run
- * as the chat that asked, held to its reach, with the folder being built
- * opened to it: a lockfile can name a package that builds from source.
+ * dependencies, each checked against the hash its lockfile records, and
+ * bytecode compiled, since no chat may write it later. Run as the chat
+ * that asked, held to its reach, with the folder being built opened to it:
+ * a lockfile can name a package that builds from source. A skill the app
+ * ships is built from the build folders' cache, opened to the build alone;
+ * the workspace's own, from the chats' cache, as the chat's own installs
+ * are.
  */
 async function buildPythonEnvironment({
   chatId,
+  shipped,
   skillDir,
   staging,
 }: {
   chatId: ChatId;
+  shipped: boolean;
   skillDir: AbsolutePath;
   staging: AbsolutePath;
 }): Promise<undefined | VenvError> {
@@ -491,6 +559,7 @@ async function buildPythonEnvironment({
   const uv = (args: string[], stdin?: string) =>
     runUvCommand({
       args,
+      buildFolders: shipped,
       chatId,
       cwd: environmentsDir(),
       lockfilePinned: true,
@@ -514,7 +583,6 @@ async function buildPythonEnvironment({
     "--locked",
     "--no-dev",
     "--no-emit-project",
-    "--no-hashes",
     "--project",
     skillDir,
   ]);
@@ -531,6 +599,7 @@ async function buildPythonEnvironment({
       "--compile-bytecode",
       "--python",
       venvPython(staging),
+      "--require-hashes",
       "--requirement",
       "-",
     ],
@@ -550,21 +619,27 @@ function hasRequirements(requirements: string) {
 
 /**
  * A copy of the skill, less what only its development needs, with its
- * production packages installed in it. Held to the asking chat's reach,
- * with the folder being built opened to it.
+ * production packages installed in it as its lockfile has them. Held to
+ * the asking chat's reach, with the folder being built opened to it. A
+ * skill the app ships is built from the build folders' store and config,
+ * opened to the build alone; the workspace's own, from the chats', as the
+ * chat's own installs are.
  */
 async function buildNodeEnvironment({
   chatId,
+  shipped,
   skillDir,
   staging,
 }: {
   chatId: ChatId;
+  shipped: boolean;
   skillDir: AbsolutePath;
   staging: AbsolutePath;
 }): Promise<undefined | VenvError> {
   await copySkillFiles(skillDir, staging);
   const installed = await runPnpmCommand({
-    args: ["install", "--prod"],
+    args: ["install", "--prod", "--frozen-lockfile"],
+    buildFolders: shipped,
     chatId,
     cwd: staging,
     signal: AbortSignal.timeout(BUILD_TIMEOUT_MS),

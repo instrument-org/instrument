@@ -16,15 +16,30 @@ export function runtimeLayout(runtimeDir: string) {
      */
     bin: path.join(runtimeDir, "bin"),
     /**
-     * What programs keep for themselves and can lose: uv's cache and the
-     * tools it installs, the pnpm store, npm's cache, node-gyp's headers,
-     * model downloads. `XDG_CACHE_HOME` for every native command, which
-     * reads and writes it.
+     * The caches the app builds from, or runs from, what every chat then
+     * runs: the environments of the skills it ships, the managed Python, a
+     * connected app's local Python server. No chat reaches it, so nothing a
+     * chat wrote ends up in them; a build the app runs for a chat reaches
+     * it, and no other command of that chat's.
+     */
+    buildCaches: path.join(runtimeDir, "build", "caches"),
+    /**
+     * The settings those builds read: their own `XDG_CONFIG_HOME` and empty
+     * npm config files. A build reads it, and nothing a chat runs reaches it.
+     */
+    buildConfig: path.join(runtimeDir, "build", "config"),
+    /**
+     * What a chat's programs keep for themselves and can lose: uv's cache
+     * and the tools it installs, the pnpm store, npm's cache, node-gyp's
+     * headers, model downloads. `XDG_CACHE_HOME` for every native command,
+     * which reads and writes it, so the app neither builds nor loads
+     * anything from it.
      */
     caches: path.join(runtimeDir, "caches"),
     /**
-     * Where programs keep their settings: `XDG_CONFIG_HOME`, and the app's
-     * own empty npm config files. Native commands read and write it.
+     * Where a chat's programs keep their settings: `XDG_CONFIG_HOME`, and
+     * the app's own empty npm config files. Native commands read and write
+     * it, so no build the app runs reads it.
      */
     config: path.join(runtimeDir, "config"),
     /**
@@ -34,6 +49,12 @@ export function runtimeLayout(runtimeDir: string) {
      * defines it (`skill-environments.ts`).
      */
     environments: path.join(runtimeDir, "environments"),
+    /**
+     * What the app loads into the programs a chat runs, which native
+     * commands only read: the `tools` preload every `node` imports. The app
+     * writes it, so no chat can change what another chat's programs load.
+     */
+    preload: path.join(runtimeDir, "preload"),
     /**
      * The managed Python every chat's virtualenv is made from, which the app
      * installs and native commands only read.

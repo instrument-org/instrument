@@ -38,7 +38,7 @@ const inRuntime = (folders: readonly string[]) =>
     .map((folder) => path.relative(runtimeDir, folder).replaceAll("\\", "/"));
 
 describe("nativeReachFor", () => {
-  it("opens the runtime caches and config, and the managed Pythons, skill environments and bin links only for reading", () => {
+  it("opens the runtime caches and config, and the managed Pythons, skill environments, preload and bin links only for reading", () => {
     expect({
       readOnly: inRuntime(reach.readOnly),
       readWrite: inRuntime(reach.readWrite),
@@ -49,6 +49,7 @@ describe("nativeReachFor", () => {
           "bin",
           "python",
           "environments",
+          "preload",
         ],
         "readWrite": [
           "caches",
@@ -58,8 +59,9 @@ describe("nativeReachFor", () => {
     `);
   });
 
-  it("binds the runtime caches and config read-write, made first if missing, and the managed Pythons read-only under bubblewrap", () => {
+  it("binds the runtime caches and config read-write, made first if missing, and the managed Pythons and the preload read-only under bubblewrap", () => {
     mkdirSync(runtime.python, { recursive: true });
+    mkdirSync(runtime.preload, { recursive: true });
     const args = bwrapArgs(reach).join(" ");
     expect(existsSync(runtime.caches)).toBe(true);
     expect(existsSync(runtime.config)).toBe(true);
@@ -67,18 +69,25 @@ describe("nativeReachFor", () => {
       const real = realpathSync(folder);
       expect(args).toContain(`--bind ${real} ${real}`);
     }
-    const python = realpathSync(runtime.python);
-    expect(args).toContain(`--ro-bind ${python} ${python}`);
+    for (const folder of [runtime.python, runtime.preload]) {
+      const real = realpathSync(folder);
+      expect(args).toContain(`--ro-bind ${real} ${real}`);
+    }
+    expect(args).not.toContain(path.join(runtimeDir, "build"));
   });
 });
 
 describe.runIf(seatbeltAvailable())("a chat's command on this Mac", () => {
   mkdirSync(runtime.python, { recursive: true });
   mkdirSync(runtime.bin, { recursive: true });
+  mkdirSync(runtime.preload, { recursive: true });
 
   it.each([
     ["refuses a file in the managed Pythons", runtime.python, 1],
     ["refuses a file among the bin links", runtime.bin, 1],
+    ["refuses a file beside the preload", runtime.preload, 1],
+    ["refuses a file in the build caches", runtime.buildCaches, 1],
+    ["refuses a file in the build config", runtime.buildConfig, 1],
     ["writes uv's cache", path.join(runtime.caches, "uv"), 0],
     ["writes the models' cache", path.join(runtime.caches, "huggingface"), 0],
     ["writes matplotlib's folder", path.join(runtime.caches, "matplotlib"), 0],

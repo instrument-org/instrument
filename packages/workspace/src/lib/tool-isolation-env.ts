@@ -12,16 +12,34 @@ import { runtimeLayout } from "./runtime-dir";
 const RELEASE_AGE_DAYS = 7;
 
 /**
- * The environment that pins pnpm, npm and node-gyp to the caches and config
- * in `runtimeDir`, whatever the person's setup holds: their `~/.npmrc` (a
- * registry, `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global
- * store and caches are never read or written. The config files are the
- * app's own and empty. pnpm's settings for every install the agent makes,
+ * The environment that pins pnpm, npm and node-gyp to the chats' caches and
+ * config in `runtimeDir`, whatever the person's setup holds: their
+ * `~/.npmrc` (a registry, `ignore-scripts`), `~/.config/pnpm/rc`,
+ * `PNPM_HOME`, global store and caches are never read or written. The
+ * config files are the app's own and empty. pnpm's settings for every install the agent makes,
  * wherever it makes it, are the `pnpm_config_*` variables here, which a
  * project's own `pnpm-workspace.yaml` can still change for that project.
  */
 export function nodeToolsEnvFor(runtimeDir: string): Record<string, string> {
   const { caches, config } = runtimeLayout(runtimeDir);
+  return nodeToolsEnvIn(caches, config);
+}
+
+/**
+ * {@link nodeToolsEnvFor} for the app's build of a skill it ships: the same
+ * settings, with the store, caches and config in the build folders, which no
+ * chat reaches, so no chat's install or setting reaches what every chat
+ * then runs.
+ */
+export function nodeBuildEnvFor(runtimeDir: string): Record<string, string> {
+  const { buildCaches, buildConfig } = runtimeLayout(runtimeDir);
+  return nodeToolsEnvIn(buildCaches, buildConfig);
+}
+
+function nodeToolsEnvIn(
+  caches: string,
+  config: string,
+): Record<string, string> {
   const userConfig = path.join(config, "npmrc");
   const globalConfig = path.join(config, "npmrc-global");
   if (!existsSync(userConfig) || !existsSync(globalConfig)) {
@@ -85,6 +103,28 @@ export function uvToolsEnvFor(
   now = new Date(),
 ): Record<string, string> {
   const { caches, python } = runtimeLayout(runtimeDir);
+  return uvToolsEnvIn(caches, python, now);
+}
+
+/**
+ * {@link uvToolsEnvFor} for what the app builds or runs from uv's cache that
+ * every chat then runs (a shipped skill's environment, the managed Python,
+ * a connected app's local server): the same settings, with the cache and
+ * tools in the build folders, which no chat reaches.
+ */
+export function uvBuildEnvFor(
+  runtimeDir: string,
+  now = new Date(),
+): Record<string, string> {
+  const { buildCaches, python } = runtimeLayout(runtimeDir);
+  return uvToolsEnvIn(buildCaches, python, now);
+}
+
+function uvToolsEnvIn(
+  caches: string,
+  python: string,
+  now: Date,
+): Record<string, string> {
   return {
     // matplotlib keeps its font cache in ~/.matplotlib on macOS, which the
     // sandbox keeps from changes, so without its own folder every chart

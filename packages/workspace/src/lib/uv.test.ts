@@ -10,6 +10,7 @@ import {
 } from "../test/helpers/mock-chat-config";
 import {
   nearestVenv,
+  uvBuildSubprocessEnv,
   uvSubprocessEnv,
   venvPython,
   withPythonVersionNote,
@@ -141,5 +142,25 @@ describe("uvSubprocessEnv", () => {
     expect(dirs[1]).toBe(
       path.join(root, "job", ".venv", isWindows ? "Scripts" : "bin"),
     );
+  });
+});
+
+describe("uvBuildSubprocessEnv", () => {
+  const env = uvBuildSubprocessEnv();
+  const runtime = "/tmp/workspace/runtime";
+
+  it("keeps a shipped skill's build in the build folders, with nothing of a chat's", () => {
+    expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "build", "caches", "uv"));
+    expect(env.XDG_CACHE_HOME).toBe(path.join(runtime, "build", "caches"));
+    expect(env.UV_PYTHON_INSTALL_DIR).toBe(path.join(runtime, "python"));
+    expect(env.UV_PYTHON_DOWNLOADS).toBe("never");
+    expect(
+      Object.entries(env).filter(
+        ([, value]) =>
+          value.startsWith(path.join(runtime, "caches")) ||
+          value.startsWith(path.join(runtime, "config")),
+      ),
+    ).toEqual([]);
+    expect(env.VIRTUAL_ENV).toBeUndefined();
   });
 });

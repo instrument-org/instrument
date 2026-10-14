@@ -8,7 +8,7 @@ import { pick } from "radashi";
 import { type AbsolutePath } from "../../../schemas/paths";
 import { absolutePathJoin } from "../../absolute-path-join";
 import { commandLineToolsEnv } from "../../command-line-tools-env";
-import { uvToolsEnvFor } from "../../tool-isolation-env";
+import { uvBuildEnvFor } from "../../tool-isolation-env";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type LocalMcpAppManifest } from "../manifest";
 import { workspaceMachineDir } from "../../workspace-machine-dir";
@@ -230,6 +230,9 @@ function packageName(spec: string): string {
  * uv pinned to the app's own dirs and its managed interpreter, the same way
  * the sandbox's python runs it, minus the chat's virtualenv: a local MCP
  * server belongs to the workspace rather than to whichever task calls it.
+ * Its cache is the build folders' rather than the chats': the server runs
+ * outside every chat's sandbox from the environment uv keeps there, so no
+ * chat may write it.
  */
 function uvEnv(): Record<string, string> {
   const { runtimeDir, uvBinPath } = getWorkspaceConfig();
@@ -241,7 +244,7 @@ function uvEnv(): Record<string, string> {
       ...(process.env.PATH ? [process.env.PATH] : []),
     ].join(path.delimiter),
     TERM: "dumb",
-    ...pick(uvToolsEnvFor(runtimeDir), [
+    ...pick(uvBuildEnvFor(runtimeDir), [
       "UV_CACHE_DIR",
       "UV_PYTHON_INSTALL_DIR",
       "UV_TOOL_DIR",

@@ -133,6 +133,9 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     `${paths.runtime}/python/bin/python3`,
     `${paths.runtime}/skills/pdf/SKILL.md`,
     `${paths.runtime}/environments/abc/x`,
+    `${paths.runtime}/preload/tools-preload.mjs`,
+    `${paths.runtime}/build/caches/uv/x`,
+    `${paths.runtime}/build/config/npmrc`,
     `${paths.runtime}/bin/node`,
     `${paths.appFiles}/Other/state.json`,
     `${workspace}/report.pdf`,
@@ -338,6 +341,12 @@ function reachTable(p: Paths) {
     ],
     ["the bin links", "read", `${p.runtime}/bin/node`, "allow"],
     ["the bin links", "write", `${p.runtime}/bin/x`, "never"],
+    ["the preload", "read", `${p.runtime}/preload/tools-preload.mjs`, "allow"],
+    ["the preload", "write", `${p.runtime}/preload/tools-preload.mjs`, "never"],
+    ["the build caches", "read", `${p.runtime}/build/caches/uv/x`, "never"],
+    ["the build caches", "write", `${p.runtime}/build/caches/uv/x`, "never"],
+    ["the build config", "read", `${p.runtime}/build/config/npmrc`, "never"],
+    ["the build config", "write", `${p.runtime}/build/config/npmrc`, "never"],
     [
       "bubblewrap's stand-in for a closed file",
       "read",
@@ -429,15 +438,21 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
             `echo x > '${paths.machine}/Cookies'`,
             `echo x > '${paths.runtime}/bin/probe'`,
             `echo x > '${paths.runtime}/python/probe'`,
+            `echo x > '${paths.runtime}/preload/probe'`,
+            `echo x > '${paths.runtime}/build/caches/probe'`,
           ].join("; "),
         );
         expect(result.stdout).toBe("");
         expect(result.stderr).toContain("Permission denied");
         expect(result.stderr).not.toContain("No such file or directory");
         expect(raiseAsk).not.toHaveBeenCalled();
-        expect(() =>
-          realpathSync(path.join(paths.runtime, "bin", "probe")),
-        ).toThrow();
+        for (const probe of [
+          "bin/probe",
+          "preload/probe",
+          "build/caches/probe",
+        ]) {
+          expect(() => realpathSync(path.join(paths.runtime, probe))).toThrow();
+        }
       },
     );
   });
@@ -515,6 +530,36 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       [
         "refuses a change to the managed Python",
         `echo x > '${paths.runtime}/python/probe'`,
+        1,
+      ],
+      [
+        "reads the preload",
+        `cat '${paths.runtime}/preload/tools-preload.mjs'`,
+        0,
+      ],
+      [
+        "refuses a change to the preload",
+        `echo x > '${paths.runtime}/preload/tools-preload.mjs'`,
+        1,
+      ],
+      [
+        "refuses a file beside the preload",
+        `echo x > '${paths.runtime}/preload/probe'`,
+        1,
+      ],
+      [
+        "refuses the build caches",
+        `cat '${paths.runtime}/build/caches/uv/x'`,
+        1,
+      ],
+      [
+        "refuses a change to the build caches",
+        `echo x > '${paths.runtime}/build/caches/uv/x'`,
+        1,
+      ],
+      [
+        "refuses a change to the build config",
+        `echo x > '${paths.runtime}/build/config/npmrc'`,
         1,
       ],
       [

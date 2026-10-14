@@ -6,7 +6,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { hostPathWithin } from "./host-path";
 import { runtimeLayout } from "./runtime-dir";
-import { uvToolsEnvFor } from "./tool-isolation-env";
+import { uvBuildEnvFor, uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
@@ -128,6 +128,25 @@ export function uvSubprocessEnv({
     // The managed Python is the app's to install (installManagedPython), in
     // a folder no chat may write, so a chat's uv uses the one there and
     // fails plainly on any other version rather than trying a download.
+    UV_PYTHON_DOWNLOADS: "never",
+  };
+}
+
+/**
+ * The environment uv runs with when the app builds a skill it ships: pinned
+ * as a chat's is ({@link uvSubprocessEnv}), with its cache in the build
+ * folders and nothing of a chat's, no virtualenv and no model caches.
+ */
+export function uvBuildSubprocessEnv(): Record<string, string> {
+  const { runtimeDir, uvBinPath } = getWorkspaceConfig();
+  return {
+    ...(process.env.HOME ? { HOME: process.env.HOME } : {}),
+    PATH: [
+      path.dirname(uvBinPath),
+      ...(process.env.PATH ? [process.env.PATH] : []),
+    ].join(path.delimiter),
+    TERM: "dumb",
+    ...uvBuildEnvFor(runtimeDir),
     UV_PYTHON_DOWNLOADS: "never",
   };
 }

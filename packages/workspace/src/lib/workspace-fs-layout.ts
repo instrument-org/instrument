@@ -720,9 +720,10 @@ export function hostPathOf(shellSpelled: string): string {
  * the attachments it reads and the handoff notes it writes; the skills it
  * reads and the apps it writes; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
- * environments and `bin` links, which they read. A person's rule inside
- * the app's own data opens nothing there, and one on a folder holding it
- * is outranked by the deeper rule that closes it.
+ * environments, preload and `bin` links, which they read; its build
+ * folders stay closed. A person's rule inside the app's own data opens
+ * nothing there, and one on a folder holding it is outranked by the deeper
+ * rule that closes it.
  */
 function layoutRules(
   layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules },
@@ -773,9 +774,13 @@ function layoutRules(
     ...(layout.apps ? [system("allow", layout.apps.hostRoot)] : []),
     system("allow", runtime.caches),
     system("allow", runtime.config),
-    ...[runtime.bin, runtime.environments, runtime.python, runtime.skills].map(
-      (path) => system("readOnly", path),
-    ),
+    ...[
+      runtime.bin,
+      runtime.environments,
+      runtime.preload,
+      runtime.python,
+      runtime.skills,
+    ].map((path) => system("readOnly", path)),
     ...layout.temp.map((mount) => system("allow", mount.hostRoot)),
   ];
   const outsideAppData = given.rules.filter(

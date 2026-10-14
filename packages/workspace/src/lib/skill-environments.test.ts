@@ -43,6 +43,19 @@ function shippedSkill(name: string, files: Record<string, string>) {
   return AbsolutePathSchema.parse(dir);
 }
 
+/** A skill in the workspace's own `.instrument/skills/`, which any chat can change. */
+function workspaceSkill(name: string, files: Record<string, string>) {
+  const dir = path.join(
+    workspaceLayout(path.join(root.path, "workspace")).skillsDir,
+    name,
+  );
+  write(path.join(dir, "SKILL.md"), `---\nname: ${name}\n---\n`);
+  for (const [file, contents] of Object.entries(files)) {
+    write(path.join(dir, file), contents);
+  }
+  return AbsolutePathSchema.parse(dir);
+}
+
 const PYTHON_SKILL = {
   "pyproject.toml": "[project]\nname = 'x'\n",
   "scripts/run.py": "print(1)",
@@ -93,6 +106,39 @@ describe("pythonEnvironmentOf", () => {
     expect(pythonEnvironmentOf(other)).not.toBe(pythonEnvironmentOf(pdf));
   });
 
+  // A chat can write the workspace's skills, so one of them locking what a
+  // shipped skill locks still never names the shipped skill's environment.
+  it("names the workspace's own skills' environments apart from the shipped ones'", () => {
+    const pdf = shippedSkill("pdf", PYTHON_SKILL);
+    const mine = workspaceSkill("mine", PYTHON_SKILL);
+
+    expect(path.basename(pythonEnvironmentOf(mine) ?? "")).toMatch(
+      /^[0-9a-f]{16}$/,
+    );
+    expect(path.basename(pythonEnvironmentOf(pdf) ?? "")).toMatch(
+      /^shipped-[0-9a-f]{16}$/,
+    );
+  });
+
+  it("takes a Node skill's built copy for a shipped skill's only by the name the app gives one", () => {
+    const pdf = shippedSkill("pdf", PYTHON_SKILL);
+    const mine = workspaceSkill("mine", PYTHON_SKILL);
+    const copy = (name: string) => {
+      const dir = path.join(runtime().environments, name);
+      for (const [file, contents] of Object.entries(PYTHON_SKILL)) {
+        write(path.join(dir, file), contents);
+      }
+      return dir;
+    };
+
+    expect(pythonEnvironmentOf(copy("shipped-0123456789abcdef"))).toBe(
+      pythonEnvironmentOf(pdf),
+    );
+    expect(pythonEnvironmentOf(copy("0123456789abcdef"))).toBe(
+      pythonEnvironmentOf(mine),
+    );
+  });
+
   it("names none for a skill without a locked Python project", () => {
     expect(
       pythonEnvironmentOf(shippedSkill("page", { "scripts/a.ts": "" })),
@@ -106,7 +152,7 @@ describe("pythonEnvironmentOf", () => {
 });
 
 describe("ensurePythonEnvironment", () => {
-  it("builds the environment once, held to the chat with only its folder opened", async () => {
+  it("builds the environment once, hash-checked from the build folders, held to the chat with only its folder opened", async () => {
     const { runUvCommand } = await import("./run-uv");
     const skillDir = shippedSkill("pdf", PYTHON_SKILL);
     const target = pythonEnvironmentOf(skillDir);
@@ -138,13 +184,14 @@ describe("ensurePythonEnvironment", () => {
       args: call.args.map((arg) =>
         arg
           .replace(skillDir, "<skill>")
-          .replace(/\/\.[0-9a-f]+\.building-[^/]+/, "/<staging>")
+          .replace(/\/\.(?:shipped-)?[0-9a-f]+\.building-[^/]+/, "/<staging>")
           .replace(runtime().environments, "<environments>"),
       ),
+      buildFolders: call.buildFolders,
       lockfilePinned: call.lockfilePinned,
       stdin: call.stdin,
       writable: call.writable?.map((dir) =>
-        dir.replace(/\/\.[0-9a-f]+\.building-[^/]+/, "/<staging>"),
+        dir.replace(/\/\.(?:shipped-)?[0-9a-f]+\.building-[^/]+/, "/<staging>"),
       ),
     }));
     expect(calls).toEqual([
@@ -156,6 +203,7 @@ describe("ensurePythonEnvironment", () => {
           "3.12",
           "<environments>/<staging>",
         ],
+        buildFolders: true,
         lockfilePinned: true,
         stdin: undefined,
         writable: [`${runtime().environments}/<staging>`],
@@ -166,10 +214,10 @@ describe("ensurePythonEnvironment", () => {
           "--locked",
           "--no-dev",
           "--no-emit-project",
-          "--no-hashes",
           "--project",
           "<skill>",
         ],
+        buildFolders: true,
         lockfilePinned: true,
         stdin: undefined,
         writable: [`${runtime().environments}/<staging>`],
@@ -187,14 +235,28 @@ describe("ensurePythonEnvironment", () => {
               venvPython(AbsolutePathSchema.parse("/venv")),
             ),
           ),
+          "--require-hashes",
           "--requirement",
           "-",
         ],
+        buildFolders: true,
         lockfilePinned: true,
         stdin: "pypdf==6.0\n",
         writable: [`${runtime().environments}/<staging>`],
       },
     ]);
+  });
+
+  it("builds a workspace skill's environment as the chat's own installs are, never from the build folders", async () => {
+    const { runUvCommand } = await import("./run-uv");
+    const skillDir = workspaceSkill("mine", PYTHON_SKILL);
+
+    await expect(
+      ensurePythonEnvironment({ chatId, skillDir }),
+    ).resolves.toEqual({ venv: pythonEnvironmentOf(skillDir) });
+    expect(
+      vi.mocked(runUvCommand).mock.calls.map(([call]) => call.buildFolders),
+    ).toEqual([false, false, false]);
   });
 
   it("reports a failed export and leaves no environment behind", async () => {
@@ -265,7 +327,8 @@ describe("ensureNodeEnvironment", () => {
       "scripts",
     ]);
     expect(vi.mocked(runPnpmCommand).mock.calls[0]?.[0]).toMatchObject({
-      args: ["install", "--prod"],
+      args: ["install", "--prod", "--frozen-lockfile"],
+      buildFolders: true,
       chatId,
     });
     await expect(ensureNodeEnvironment({ chatId, skillDir })).resolves.toEqual(
@@ -276,6 +339,34 @@ describe("ensureNodeEnvironment", () => {
     write(path.join(skillDir, "scripts", "crop.ts"), "");
     const next = await ensureNodeEnvironment({ chatId, skillDir });
     expect(next).not.toEqual(built);
+  });
+
+  it("builds a workspace skill's copy apart from a shipped one's, as the chat's own installs are", async () => {
+    const { runPnpmCommand } = await import("./run-pnpm");
+    vi.mocked(runPnpmCommand).mockResolvedValue({
+      command: "pnpm install --prod --frozen-lockfile",
+      exitCode: 0,
+      stderr: "",
+      stdout: "",
+    });
+    const files = { "package.json": `{"dependencies":{"cac":"^6.7.14"}}` };
+    const shipped = await ensureNodeEnvironment({
+      chatId,
+      skillDir: shippedSkill("zip", files),
+    });
+    const mine = await ensureNodeEnvironment({
+      chatId,
+      skillDir: workspaceSkill("zip", files),
+    });
+
+    expect("dir" in shipped && path.basename(shipped.dir)).toMatch(
+      /^shipped-[0-9a-f]{16}$/,
+    );
+    expect("dir" in mine && path.basename(mine.dir)).toMatch(/^[0-9a-f]{16}$/);
+    expect(mine).not.toEqual(shipped);
+    expect(
+      vi.mocked(runPnpmCommand).mock.calls.map(([call]) => call.buildFolders),
+    ).toEqual([true, false]);
   });
 });
 

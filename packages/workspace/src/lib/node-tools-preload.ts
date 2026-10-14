@@ -123,13 +123,14 @@ export async function answerToolCall(
 
 /**
  * The preload as a `file:` URL for `--import`, written into the runtime
- * folder's caches, which every native command may read inside the sandbox.
- * Written whenever what is there differs, so a build's preload replaces an
- * older one and a deleted file comes back.
+ * folder's `preload/`, which every native command may read inside the
+ * sandbox and none may change, so no chat can change what another chat's
+ * `node` loads. Written by the app whenever what is there differs, so a
+ * build's preload replaces an older one and a deleted file comes back.
  */
 export async function nodeToolsPreloadUrl(): Promise<string> {
   const file = path.join(
-    runtimeLayout(getWorkspaceConfig().runtimeDir).caches,
+    runtimeLayout(getWorkspaceConfig().runtimeDir).preload,
     "tools-preload.mjs",
   );
   const current = await fs.readFile(file, "utf8").catch(() => undefined);

@@ -1,7 +1,9 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { nodeToolsEnv } from "./tool-isolation";
+import { nodeBuildEnvFor } from "./tool-isolation-env";
 import { chatNativeReach } from "./chat-native-reach";
+import { runtimeLayout } from "./runtime-dir";
 import { execaNodeForChat } from "./execa-node-for-chat";
 import { filterShellOutput } from "./filter-shell-output";
 import {
@@ -15,6 +17,7 @@ export const PNPM_NAME = "pnpm";
 
 export async function runPnpmCommand({
   args,
+  buildFolders = false,
   cwd,
   env,
   pnpmLogLevel,
@@ -24,6 +27,13 @@ export async function runPnpmCommand({
   writable = [],
 }: {
   args: string[];
+  /**
+   * Whether this is the app building a skill it ships, which keeps pnpm's
+   * store, caches and config in the build folders rather than the chats'
+   * and opens them to this command alone (the config only for reading), so
+   * nothing a chat wrote reaches what it builds.
+   */
+  buildFolders?: boolean;
   cwd?: AbsolutePath;
   env?: Record<string, string>;
   /** Forwarded to pnpm as `pnpm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
@@ -42,9 +52,16 @@ export async function runPnpmCommand({
   // A skill's install runs outside any shell call, and is held to the
   // chat's reach all the same.
   const chatReach = await chatNativeReach(chatId);
+  const { runtimeDir } = getWorkspaceConfig();
+  const { buildCaches, buildConfig } = runtimeLayout(runtimeDir);
   const reach = chatReach && {
     ...chatReach,
-    readWrite: [...chatReach.readWrite, ...writable],
+    readOnly: [...chatReach.readOnly, ...(buildFolders ? [buildConfig] : [])],
+    readWrite: [
+      ...chatReach.readWrite,
+      ...writable,
+      ...(buildFolders ? [buildCaches] : []),
+    ],
   };
   const subprocess = execaNodeForChat(
     chatId,
@@ -64,7 +81,7 @@ export async function runPnpmCommand({
         // shell's HOME cannot override it.
         ...(process.env.HOME && { HOME: process.env.HOME }),
         // The app's own store, caches and config, never the person's.
-        ...nodeToolsEnv(),
+        ...(buildFolders ? nodeBuildEnvFor(runtimeDir) : nodeToolsEnv()),
         pnpm_config_reporter: "append-only",
         ...(pnpmLogLevel === "error" ? { pnpm_config_loglevel: "error" } : {}),
       },

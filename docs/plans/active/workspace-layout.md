@@ -45,8 +45,10 @@ No "vault" anywhere. `packages/workspace` keeps its name for now; renaming it (t
   runtime/                                     shared by every workspace, rebuildable
     bin/                                       git, node, pnpm, rg, uv on PATH
     python/                                    the managed interpreter, read-only to chats
-    caches/                                    uv and its tools, the pnpm store, npm, model downloads
-    config/                                    where programs keep their settings
+    caches/                                    a chat's uv and its tools, the pnpm store, npm, model downloads
+    config/                                    where a chat's programs keep their settings
+    build/caches/  build/config/               the same for what the app builds or loads, closed to chats
+    preload/                                   what the app loads into a chat's programs, read-only to chats
     skills/<name>/                             the skills the app ships, read-only
     sandbox/                                   bubblewrap's stand-in for a closed file
     environments/<lockfile hash>/              one per skill dependency set, read-only
@@ -85,7 +87,8 @@ One rule set feeds the shell's own checks and the Seatbelt and bubblewrap profil
 | its own `chats/<id>/attachments/` | read |
 | `.instrument/skills/`, `.instrument/apps/` | read and write |
 | `runtime/caches/`, `runtime/config/` | read and write |
-| `runtime/python/`, `runtime/skills/`, `runtime/environments/`, `runtime/bin/` | read |
+| `runtime/python/`, `runtime/skills/`, `runtime/environments/`, `runtime/preload/`, `runtime/bin/` | read |
+| `runtime/build/` | none; a build the app runs for the chat reads and writes `build/caches/` and reads `build/config/` |
 
 Everything else there (other chats, their work folders, `chat.db`, `settings.json`, `workspace.json`, `preferences.json`, keys, browser data, `permissions.json`) is refused plainly, not hidden. The folders above an open one can be passed through but not listed. The workspace's top level (finished work) and everything else on the computer follow the person's rules in Settings › Permissions.
 

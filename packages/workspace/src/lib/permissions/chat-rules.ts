@@ -110,11 +110,12 @@ export function nativeReachFor(
       ...layout.skills.map((mount) => mount.hostRoot),
       ...toolBinFolders(runtime.bin),
       // The managed Pythons every chat's virtualenv runs on, which the app
-      // installs (installManagedPython), and the skill environments it
-      // builds, which every chat runs: a file one chat put there would run
-      // in every other.
+      // installs (installManagedPython), the skill environments it builds,
+      // which every chat runs, and the preload every chat's `node` imports:
+      // a file one chat put there would run in every other.
       runtime.python,
       runtime.environments,
+      runtime.preload,
     ],
     readWrite: [
       layout.chat.hostRoot,

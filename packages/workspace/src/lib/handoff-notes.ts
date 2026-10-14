@@ -1,3 +1,4 @@
+import { constants } from "node:fs";
 import fs from "node:fs/promises";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -86,17 +87,34 @@ export function contextRolloverNotice(
  * version is the one worth sending. Absent, unreadable, or empty all return
  * undefined and say nothing: this augments a request, and no request should
  * fail because a note the agent may never have written is not there. Nor is
- * a link read through, since the file sits beside the chat's records.
+ * a link read through, since the file sits beside the chat's records and the
+ * agent may put anything at its name: it is opened once, refusing a link
+ * (`O_NOFOLLOW`), and the file opened is the one checked and read, so
+ * nothing swapped in between a check and the read is read. The open does not
+ * wait (`O_NONBLOCK`), so a pipe put there is passed over rather than held
+ * open waiting for a writer.
  */
 export async function readHandoffNotes(
   chatId: ChatId,
 ): Promise<string | undefined> {
   try {
-    const file = handoffNotesPath(chatDir(chatId));
-    if (!(await fs.lstat(file)).isFile()) {
-      return undefined;
+    const handle = await fs.open(
+      handoffNotesPath(chatDir(chatId)),
+      // Windows has neither flag, and no sandbox for the agent's programs
+      // either, so it reads the file as it finds it.
+      constants.O_RDONLY |
+        (constants.O_NOFOLLOW ?? 0) |
+        (constants.O_NONBLOCK ?? 0),
+    );
+    let contents: string;
+    try {
+      if (!(await handle.stat()).isFile()) {
+        return undefined;
+      }
+      contents = await handle.readFile("utf8");
+    } finally {
+      await handle.close();
     }
-    const contents = await fs.readFile(file, "utf8");
     const trimmed = contents.trim();
 
     if (trimmed === "") {

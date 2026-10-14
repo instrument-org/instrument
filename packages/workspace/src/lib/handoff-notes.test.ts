@@ -1,7 +1,9 @@
+import { execa } from "execa";
+import { type Stats } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
@@ -100,17 +102,93 @@ describe("readHandoffNotes", () => {
   });
 
   // The notes sit beside the chat's settings, and the agent writes them: a
-  // link it made there must not hand the settings to the model.
-  it("reads nothing through a link", async () => {
+  // link it made there must not hand the settings to the model, and nothing
+  // it put there may hold the request up.
+  it.each([
+    [
+      "a file",
+      async (notes: string) => {
+        await fs.writeFile(notes, "Left off at step 3.");
+      },
+      "Left off at step 3.",
+    ],
+    [
+      "a link to the settings",
+      async (notes: string) => {
+        await fs.symlink(
+          path.join(path.dirname(notes), "settings.json"),
+          notes,
+        );
+      },
+      undefined,
+    ],
+    [
+      "a link to a link to the settings",
+      async (notes: string) => {
+        const between = path.join(path.dirname(notes), "between");
+        await fs.symlink(
+          path.join(path.dirname(notes), "settings.json"),
+          between,
+        );
+        await fs.symlink(between, notes);
+      },
+      undefined,
+    ],
+    [
+      "a folder",
+      async (notes: string) => {
+        await fs.mkdir(notes);
+      },
+      undefined,
+    ],
+    [
+      "a pipe nothing writes to",
+      async (notes: string) => {
+        // Windows keeps no pipe at a path, and nothing there reads the same.
+        if (process.platform !== "win32") {
+          await execa("mkfifo", [notes]);
+        }
+      },
+      undefined,
+    ],
+  ])("reads %s", async (_case, put, expected) => {
     const dir = path.join(tasksParentDir, "task-1");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, "settings.json"), '{"grants":[]}');
-    await fs.symlink(
-      path.join(dir, "settings.json"),
-      path.join(dir, "handoff-notes.md"),
-    );
+    await put(path.join(dir, "handoff-notes.md"));
     const chatId = createMockChatConfigForDir(dir);
 
-    expect(await readHandoffNotes(chatId)).toBeUndefined();
+    expect(await readHandoffNotes(chatId)).toBe(expected);
+  });
+
+  // A file that is swapped for a link once it was looked at is read as the
+  // file it was, never through the link.
+  it("reads nothing through a link put there after a look", async () => {
+    const dir = path.join(tasksParentDir, "task-1");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "settings.json"), '{"grants":[]}');
+    const notes = path.join(dir, "handoff-notes.md");
+    await fs.writeFile(notes, "Left off at step 3.");
+    const chatId = createMockChatConfigForDir(dir);
+    const swapAfter =
+      (look: (file: string) => Promise<Stats>) => async (file: string) => {
+        const seen = await look(file);
+        await fs.rm(notes);
+        await fs.symlink(path.join(dir, "settings.json"), notes);
+        return seen;
+      };
+    const lstat = vi
+      .spyOn(fs, "lstat")
+      .mockImplementationOnce(swapAfter(fs.lstat.bind(fs)));
+    const stat = vi
+      .spyOn(fs, "stat")
+      .mockImplementationOnce(swapAfter(fs.stat.bind(fs)));
+
+    try {
+      expect(await readHandoffNotes(chatId)).toBe("Left off at step 3.");
+    } finally {
+      lstat.mockRestore();
+      stat.mockRestore();
+    }
   });
 });

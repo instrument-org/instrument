@@ -101,7 +101,8 @@ Rules:
 
 Not built in F2, but the keys are settled now, so a phone writing a draft today writes one a later release can send. Nothing waits in line: a message goes into a chat whenever it arrives, a turn already running included.
 
-- `send: auto` means a computer running Instrument sends this draft as soon as it sees it. Without the field a draft is just a draft, which the chat shows ready to send, and only the person sends it.
+- `send: auto` means a computer running Instrument sends this draft as soon as it sees it. Without the field a draft is just a draft, and only the person sends it: a reply draft found at launch or arriving from another device goes into its chat's message box, ready to send, and is never sent on its own.
+- Where a chat has more than one reply draft, the newest fills the box and a small control above it says how many others there are and swaps one in. None is ever merged into another or dropped.
 - `sendOn: <device id>` names the one device that sends a `send: auto` draft, and such a draft always carries it: a phone names the computer the person picked. Nothing is inferred from which device wrote last, so two computers can never send one draft, and a draft whose computer is away simply waits, which the phone can say plainly.
 - The sending device appends the message, naming `fromDraft`, before it moves files or removes the draft folder, so the records are what "sent" means. Another device learns a draft was sent by finding the message that names it, which is also how a phone's own edit is reconciled when a send was already under way.
 - `.instrument/devices/<device id>.json` (`{name, platform, app, seenAt}`) is written only by the device it names, at launch, at quit, and at most every quarter of an hour while the app runs. It is there so a phone can say "Sends on Jeremy's MacBook Pro", and it never decides anything: a stale `seenAt` must not strand a draft, and a send happens when the named device next runs.

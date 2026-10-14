@@ -2,6 +2,7 @@ import { revokeSession } from "@/electron-main/auth/client";
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
   machineDir,
+  workspaceInAppData,
   workspaceKeysDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
@@ -15,10 +16,17 @@ import {
   whyNotDeletable,
 } from "@/electron-main/lib/workspace-management";
 import {
+  checkMoveTarget,
+  MoveVerdictSchema,
+  NotMovableSchema,
+  requestWorkspaceMove,
+} from "@/electron-main/lib/workspace-move";
+import {
   getResolvedWorkspace,
   machineDirOwnedBy,
   readRegistry,
   readWorkspaceIdentity,
+  registerWorkspaceFolder,
   updateRegistry,
   WorkspaceColorSchema,
   WorkspaceIdentitySchema,
@@ -27,6 +35,7 @@ import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
+import { instrumentFolderInDocuments } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { shell } from "electron";
 import { execFile } from "node:child_process";
@@ -259,10 +268,137 @@ const register = devOnly
     }
   });
 
+/**
+ * Where the person's Instrument folder is: still in the app's own data, or a
+ * folder they picked; and the folder the picker suggests for it.
+ */
+const folder = base
+  .output(
+    z.object({
+      inAppData: z.boolean(),
+      path: z.string(),
+      /** Set by `INSTRUMENT_WORKSPACE`, which keeps it where it is. */
+      pinned: z.boolean(),
+      suggested: z.string(),
+    }),
+  )
+  .handler(() => {
+    const workspace = getResolvedWorkspace();
+    return {
+      inAppData: workspaceInAppData(),
+      path: workspace.path,
+      pinned: workspace.pinned,
+      suggested: instrumentFolderInDocuments(),
+    };
+  });
+
+/** What a folder the person picked would be to their Instrument folder (`checkMoveTarget`). */
+const checkFolder = base
+  .input(z.object({ path: z.string() }))
+  .output(MoveVerdictSchema)
+  .handler(({ input }) =>
+    checkMoveTarget({
+      target: input.path,
+      userDataDir: userDataDir(),
+      workspace: getResolvedWorkspace(),
+    }),
+  );
+
+/**
+ * Move the Instrument folder to a folder the person picked: checked again,
+ * recorded for the next launch, and the app restarted to make it with
+ * nothing open (`workspace-move.ts`). A folder it cannot move to answers
+ * as `checkFolder` would; a restart the person declines over running
+ * agents records nothing.
+ */
+const move = base
+  .input(z.object({ path: z.string() }))
+  .output(
+    z.union([
+      NotMovableSchema,
+      z.object({
+        kind: z.enum(["canceled", "on-next-launch", "relaunching"]),
+      }),
+    ]),
+  )
+  .handler(async ({ input }) => {
+    const workspace = getResolvedWorkspace();
+    const verdict = checkMoveTarget({
+      target: input.path,
+      userDataDir: userDataDir(),
+      workspace,
+    });
+    if (verdict.kind !== "movable") {
+      return verdict;
+    }
+    const request = () => {
+      requestWorkspaceMove({
+        target: input.path,
+        userDataDir: userDataDir(),
+        workspace,
+      });
+    };
+    // A build that cannot restart itself makes the move the next time it is
+    // started by hand.
+    if (!canRelaunch()) {
+      request();
+      return { kind: "on-next-launch" as const };
+    }
+    return { kind: await relaunchApp({ beforeRestart: request }) };
+  });
+
+/**
+ * Open the Instrument folder in a folder the person picked that already
+ * holds one, in place of this one, which stays where it is: registered and
+ * made the one to open, then the app restarted.
+ */
+const open = base
+  .input(z.object({ path: z.string() }))
+  .output(
+    z.object({
+      outcome: z.enum([
+        "canceled",
+        "not-a-workspace",
+        "relaunching",
+        "unsupported",
+      ]),
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    if (getResolvedWorkspace().pinned) {
+      throw errors.UNAUTHORIZED({
+        message:
+          "This instance is pinned to its workspace by INSTRUMENT_WORKSPACE",
+      });
+    }
+    const registered = registerWorkspaceFolder({
+      dir: input.path,
+      userDataDir: userDataDir(),
+    });
+    if (registered === undefined) {
+      return { outcome: "not-a-workspace" as const };
+    }
+    const choose = () => {
+      updateRegistry(userDataDir(), (registry) => ({
+        ...registry,
+        active: registered.id,
+      }));
+    };
+    if (!canRelaunch()) {
+      choose();
+      return { outcome: "unsupported" as const };
+    }
+    return { outcome: await relaunchApp({ beforeRestart: choose }) };
+  });
+
 export const workspaces = {
+  checkFolder,
   create,
   current,
+  folder,
   list,
+  move,
+  open,
   register,
   remove,
   sizes,

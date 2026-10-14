@@ -1,5 +1,8 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import type { LayoutMarkStore } from "@instrument-org/workspace/electron";
+import {
+  type LayoutMarkStore,
+  recordMovedPaths,
+} from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -7,7 +10,7 @@ import path from "node:path";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { pathKey, samePath } from "./path-identity";
+import { pathKey, pathWithin, samePath } from "./path-identity";
 
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
@@ -29,7 +32,10 @@ import { pathKey, samePath } from "./path-identity";
 
 export const DEFAULT_WORKSPACE_ID = "default";
 
-/** The default workspace's folder, which predates the registry and never moves. */
+/**
+ * Where the default workspace starts, in userData, and stays until the
+ * person picks a folder for it (`workspace-move.ts`).
+ */
 const DEFAULT_WORKSPACE_DIR_NAME = "workspace";
 
 /** Where workspaces created after the default one are put. */
@@ -110,6 +116,15 @@ const RegistryEntrySchema = z.object({
   id: FolderSafeIdSchema,
   lastOpenedAt: z.number().optional(),
   path: z.string().min(1),
+  /**
+   * A move of its `.instrument/` the person asked for, from the folder it was
+   * in when they asked to the one they picked, which the next launch makes
+   * before anything opens it (`finishPendingMove`).
+   */
+  pendingMove: z
+    .object({ from: z.string().min(1), to: z.string().min(1) })
+    .optional()
+    .catch(undefined),
   /** The id in the workspace's own `workspace.json`, once a build has settled one. */
   workspaceId: WorkspaceIdSchema.optional().catch(undefined),
 });
@@ -197,17 +212,29 @@ export function resolveWorkspace({
   userDataDir: string;
 }): { problems: string[]; workspace: ResolvedWorkspace } {
   const problems: string[] = [];
-  const fallback = toResolved(
+  const unregistered = toResolved(
     { id: DEFAULT_WORKSPACE_ID, path: defaultWorkspacePath(userDataDir) },
     false,
   );
 
   try {
-    let chosen = fallback;
+    let chosen = unregistered;
     // Decided inside the locked update, so an id picked for a new pin cannot
     // collide with one another process registers at the same moment.
     updateRegistry(userDataDir, (current) => {
-      chosen = chooseWorkspace({ current, fallback, pin, problems });
+      // The default workspace wherever it is now.
+      const fallback = toResolved(
+        current.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ??
+          unregistered,
+        false,
+      );
+      chosen = chooseWorkspace({
+        current,
+        fallback,
+        pin,
+        problems,
+        userDataDir,
+      });
       if (chosen.pinned) {
         fs.mkdirSync(chosen.path, { recursive: true });
       }
@@ -232,8 +259,73 @@ export function resolveWorkspace({
     problems.push(
       `Could not settle the workspace (${String(error)}); opening the default workspace`,
     );
-    return { problems, workspace: fallback };
+    // Where the registry, read without writing, says the default is: one
+    // the person moved is opened there, never made again in userData.
+    return {
+      problems,
+      workspace: toResolved(
+        readRegistry(userDataDir).workspaces.find(
+          (entry) => entry.id === DEFAULT_WORKSPACE_ID,
+        ) ?? unregistered,
+        false,
+      ),
+    };
   }
+}
+
+/**
+ * The registry entry for the workspace in `dir`, a folder the person picked
+ * that already holds one: the entry naming that folder, else the entry of
+ * the same workspace whose folder is gone (moved by hand, or found again
+ * after macOS stopped the app reading it), which keeps its local id and with
+ * it its machine folder, its old folder recorded as moved so paths stored
+ * in it are read back here, else a new entry. Undefined when `dir` holds no
+ * workspace. Opening it is the caller's: `active` is left as it is.
+ */
+export function registerWorkspaceFolder({
+  dir,
+  userDataDir,
+}: {
+  dir: string;
+  userDataDir: string;
+}): undefined | { id: string } {
+  if (!hasWorkspaceIdentity(dir)) {
+    return undefined;
+  }
+  const moves: { from: string; id: string }[] = [];
+  const registered: string[] = [];
+  updateRegistry(userDataDir, (current) => {
+    const known = current.workspaces.find((entry) => samePath(entry.path, dir));
+    const moved = known ? undefined : movedTo(current, dir);
+    const entry: RegistryEntry = {
+      ...(known ?? moved),
+      id: known?.id ?? moved?.id ?? idForPath(current, dir),
+      path: known?.path ?? path.resolve(dir),
+    };
+    if (moved) {
+      moves.push({ from: moved.path, id: moved.id });
+    }
+    registered.push(entry.id);
+    return {
+      ...current,
+      workspaces: current.workspaces.some((other) => other.id === entry.id)
+        ? current.workspaces.map((other) =>
+            other.id === entry.id ? entry : other,
+          )
+        : [...current.workspaces, entry],
+    };
+  });
+  const id = registered.at(-1);
+  if (id === undefined) {
+    return undefined;
+  }
+  const move = moves.at(-1);
+  if (move) {
+    recordMovedPaths(workspaceMachineDirOf(userDataDir, move.id), [
+      { from: move.from, to: path.resolve(dir) },
+    ]);
+  }
+  return { id };
 }
 
 /**
@@ -403,16 +495,25 @@ export function writeWorkspaceIdentity(
   );
 }
 
+/**
+ * The pin, then `active`, then the default. A workspace in userData whose
+ * folder is gone gives way to the default, since the app made it and can
+ * make the default again; one in a folder the person picked never does,
+ * since opening another in its place would read as their chats being gone:
+ * the boot says it cannot read the folder instead (`workspace-refusal.ts`).
+ */
 function chooseWorkspace({
   current,
   fallback,
   pin,
   problems,
+  userDataDir,
 }: {
   current: WorkspaceRegistry;
   fallback: ResolvedWorkspace;
   pin: string | undefined;
   problems: string[];
+  userDataDir: string;
 }): ResolvedWorkspace {
   if (pin) {
     if (path.isAbsolute(pin)) {
@@ -441,7 +542,10 @@ function chooseWorkspace({
     const known = current.workspaces.find(
       (entry) => entry.id === current.active,
     );
-    if (known && isDirectory(known.path)) {
+    if (
+      known &&
+      (isDirectory(known.path) || !pathWithin(known.path, userDataDir))
+    ) {
       return toResolved(known, false);
     }
     problems.push(
@@ -493,8 +597,8 @@ function isDirectory(dir: string) {
 }
 
 /**
- * The default workspace first, always at this userData's own folder whatever
- * the file says, and each folder listed once, by the folder its path names
+ * The default workspace first, in userData's own folder until the person
+ * picks one for it, and each folder listed once, by the folder its path names
  * however it is spelled (`pathKey`): a second entry for a folder already
  * listed (the default one under another id, say) would let it be mistaken
  * for a different workspace. An entry whose folder cannot be reached stays:
@@ -505,18 +609,15 @@ function normalize(
   registry: WorkspaceRegistry,
   userDataDir: string,
 ): WorkspaceRegistry {
-  const defaultEntry =
-    registry.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ??
-    ({ id: DEFAULT_WORKSPACE_ID } satisfies Partial<RegistryEntry>);
+  const defaultEntry = registry.workspaces.find(
+    (entry) => entry.id === DEFAULT_WORKSPACE_ID,
+  ) ?? { id: DEFAULT_WORKSPACE_ID, path: defaultWorkspacePath(userDataDir) };
   const seen = new Set<string>();
   const workspaces: RegistryEntry[] = [];
   const others = registry.workspaces.filter(
     (other) => other.id !== DEFAULT_WORKSPACE_ID,
   );
-  for (const entry of [
-    { ...defaultEntry, path: defaultWorkspacePath(userDataDir) },
-    ...others,
-  ]) {
+  for (const entry of [defaultEntry, ...others]) {
     const key = pathKey(entry.path);
     if (!seen.has(key)) {
       seen.add(key);
@@ -557,6 +658,12 @@ function readRegistryFile(userDataDir: string): {
         workspaces: registry.workspaces.map((entry) => ({
           ...entry,
           path: path.resolve(userDataDir, entry.path),
+          ...(entry.pendingMove && {
+            pendingMove: {
+              ...entry.pendingMove,
+              from: path.resolve(userDataDir, entry.pendingMove.from),
+            },
+          }),
         })),
       },
       userDataDir,
@@ -585,6 +692,12 @@ function changeRegistry(
     workspaces: next.workspaces.map((entry) => ({
       ...entry,
       path: storedPath(entry.path, userDataDir),
+      ...(entry.pendingMove && {
+        pendingMove: {
+          ...entry.pendingMove,
+          from: storedPath(entry.pendingMove.from, userDataDir),
+        },
+      }),
     })),
   });
   return next;

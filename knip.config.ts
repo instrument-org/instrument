@@ -67,6 +67,7 @@ const config: KnipConfig = {
         "powershell.exe",
         "which",
         "xdg-open",
+        "attrib", // Windows tool that hides a picked workspace's .instrument (lib/workspace-move.ts)
       ],
       ignoreDependencies: [
         "ffmpeg-ffprobe-static", // Imported in Vite build to fix import issues

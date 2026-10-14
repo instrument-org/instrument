@@ -103,8 +103,17 @@ export { FILES_FENCE } from "./lib/parse-files-block";
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir } from "./lib/record-folders";
 export { workDir } from "./lib/work-dir";
-export { entryExists, moveEntrySync } from "./lib/move-entry";
-export { readMovedPaths, remapMovedPath } from "./lib/moved-paths";
+export {
+  entryExists,
+  mergeEntrySync,
+  moveEntrySync,
+  removeIfEmptySync,
+} from "./lib/move-entry";
+export {
+  readMovedPaths,
+  recordMovedPaths,
+  remapMovedPath,
+} from "./lib/moved-paths";
 export {
   instrumentFolderInDocuments,
   outputFolderPath,

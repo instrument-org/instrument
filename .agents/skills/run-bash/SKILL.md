@@ -100,7 +100,7 @@ Same environment as the real agent:
 - **FS**: the task dir is the working directory, at its real path under the system temp dir; skills are reached at their real directories; `--attach` folders are reached at their own paths; everything else in the shell is a read-only empty root, so a builtin cannot reach the rest of the host filesystem. Native commands (`python`, `node`, `ffmpeg`, any program on the PATH, ...) are spawned under the same rules through Seatbelt on macOS and bubblewrap on Linux (the runner turns `nativeSandbox` on), and unwrapped elsewhere
 - **Network**: full internet access, the local network and loopback included
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
-- **Custom shims**: `python`/`python3` (the chat's virtualenv interpreter), `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
+- **Custom shims**: `python`/`python3` (the nearest `.venv`'s interpreter, or the managed Python's with none near), `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
 - **Not here**: the commands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `apps/` folder; this runner builds a task's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing

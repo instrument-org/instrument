@@ -6,7 +6,7 @@ import { type Assertion, defineEval } from "../harness";
 /**
  * Python over a folder the chat reaches.
  *
- * `python` is the chat's virtualenv interpreter, held to the native sandbox,
+ * `python` runs in the nearest `.venv`, held to the native sandbox,
  * and reads an attached folder in place, so a parse of a file there should
  * involve no copy into the chat's folder. A package goes in with `pip` and
  * the same `python` runs it. These check that a model takes the direct path,

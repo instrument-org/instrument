@@ -31,6 +31,7 @@ import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SEARCH_EVALS } from "./web-search";
 import { WINDOW_TABS_EVALS } from "./window-tabs";
 import { WORKER_EVALS } from "./worker";
+import { WORK_FOLDER_EVALS } from "./work-folder";
 
 export const EVALS = [
   ...APP_ACCOUNTS_EVALS,
@@ -66,4 +67,5 @@ export const EVALS = [
   ...WEB_SEARCH_EVALS,
   ...WINDOW_TABS_EVALS,
   ...WORKER_EVALS,
+  ...WORK_FOLDER_EVALS,
 ];

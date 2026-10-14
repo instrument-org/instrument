@@ -524,23 +524,50 @@ throw "The preview's CDP did not become ready on port $($target.cdpPort) within 
 function removePreviewScript(names, keepLatest) {
   const literal = names.map((name) => `'${name}'`).join(",");
   return `$ErrorActionPreference = 'Stop'
+${removeTreeFunction()}
 $programs = Join-Path $env:LOCALAPPDATA 'Programs'
 $dirs = @(Get-ChildItem -LiteralPath $programs -Directory -Filter 'instrument-preview-*' | Sort-Object LastWriteTime -Descending)
 $names = @(${literal || "@()"})
 if (${keepLatest ? "$true" : "$false"}) { $names = @($dirs | Select-Object -Skip 1 | ForEach-Object { $_.Name.Substring('instrument-preview-'.Length) }) }
-$removed = @(); $skipped = @()
+$removed = @(); $skipped = @(); $notRemoved = @()
 foreach ($name in $names) {
   $dir = Join-Path $programs "instrument-preview-$name"
   if (-not (Test-Path -LiteralPath $dir)) { $skipped += "$name (not installed)"; continue }
   if (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir + '\\', [StringComparison]::OrdinalIgnoreCase) }) { $skipped += "$name (running)"; continue }
   $uninstaller = Get-ChildItem -LiteralPath $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
   if ($uninstaller) { Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait }
-  if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
-  $data = Join-Path $env:APPDATA "Instrument Preview ($name)"
-  if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
+  $left = @(Remove-Tree $dir) + @(Remove-Tree (Join-Path $env:APPDATA "Instrument Preview ($name)"))
+  if ($left.Count -gt 0) { $notRemoved += $left; continue }
   $removed += $name
 }
-[ordered]@{ removed = $removed; skipped = $skipped; freeGB = [int]((Get-PSDrive C).Free / 1GB) } | ConvertTo-Json -Compress`;
+[ordered]@{ removed = $removed; skipped = $skipped; notRemoved = $notRemoved; freeGB = [int]((Get-PSDrive C).Free / 1GB) } | ConvertTo-Json -Compress`;
+}
+
+/**
+ * PowerShell that deletes a folder and everything in it, and returns what it
+ * could not delete rather than stopping. Win32 path parsing drops a trailing
+ * dot or space from a name, so a file a test left named `trailing-dot.` is not
+ * found at its plain path and Remove-Item gives up on the whole tree; rd given
+ * the folder's `\\?\` form passes every name through as it is. rd also removes
+ * a junction inside the tree without following it.
+ */
+function removeTreeFunction() {
+  return `function Remove-Tree([string] $path) {
+  if (-not (Test-Path -LiteralPath $path)) { return }
+  $long = '\\\\?\\' + $path
+  # Redirected inside cmd, since under 'Stop' a native command's stderr reaching
+  # PowerShell would end the script.
+  & cmd.exe /d /c "rd /s /q \`"$long\`" >nul 2>&1"
+  if (-not (Test-Path -LiteralPath $path)) { return }
+  # What is left, up to a sample: the folder itself when nothing in it remains.
+  try {
+    $entries = @([IO.Directory]::EnumerateFileSystemEntries($long, '*', [IO.SearchOption]::AllDirectories) | Select-Object -First 20 | ForEach-Object { $_.Substring(4) })
+  } catch {
+    $entries = @()
+  }
+  if ($entries.Count -eq 0) { return $path }
+  return $entries
+}`;
 }
 
 /** PowerShell that stops every installed preview, whichever build it is. */

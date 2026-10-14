@@ -23,6 +23,7 @@ import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SCENARIO_EVALS } from "./scenarios";
+import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_SESSION_EVALS } from "./task-sessions";
 import { TASK_TABS_EVALS } from "./task-tabs";
@@ -59,6 +60,7 @@ export const EVALS = [
   ...REACH_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SCENARIO_EVALS,
+  ...SKILLS_IN_PLACE_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_SESSION_EVALS,
   ...TASK_TABS_EVALS,

@@ -24,8 +24,8 @@ const CACHE_ENTRY_LIMIT = 256;
 const CACHE = new Map<string, CachedFingerprint>();
 
 /**
- * Hashes the authored package that `load_skill` copies, reusing the digest
- * while its recursive metadata signature is unchanged.
+ * Hashes a skill's authored files, what a Node skill's built copy holds,
+ * reusing the digest while its recursive metadata signature is unchanged.
  */
 export async function getSkillPackageFingerprint(skillDir: AbsolutePath) {
   const entries = await readPackageEntries(skillDir);

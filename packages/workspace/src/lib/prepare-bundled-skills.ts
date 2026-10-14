@@ -1,11 +1,20 @@
 import { cp, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
-import { AbsolutePathSchema } from "../schemas/paths";
+import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
+import { absolutePathJoin } from "./absolute-path-join";
 import { pathExists } from "./path-exists";
 import { runtimeLayout } from "./runtime-dir";
 import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
+
+type PreparedSkillsConfig = Pick<
+  WorkspaceConfig,
+  "registryDir" | "rootDir" | "runtimeDir" | "systemSkillsDir"
+>;
+
+/** The latest preparation, which the next one waits for. */
+let latest: Promise<void> = Promise.resolve();
 
 /**
  * Copies the skills the app ships into the runtime folder's `skills/`, the
@@ -19,12 +28,36 @@ import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
  * Where two bundled sources hold a skill of one name, the first source wins,
  * as it does when a task loads one.
  */
-export async function prepareBundledSkills(
-  config: Pick<
-    WorkspaceConfig,
-    "registryDir" | "rootDir" | "runtimeDir" | "systemSkillsDir"
-  >,
+export function prepareBundledSkills(
+  config: PreparedSkillsConfig,
 ): Promise<void> {
+  // One at a time: two would build in the same staging folder.
+  const run = latest.catch(() => undefined).then(() => prepare(config));
+  latest = run;
+  return run;
+}
+
+/**
+ * Where a skill the app ships is read: its folder in the runtime folder's
+ * `skills/`, once the preparation running now has put it there, or made
+ * now where none has (a first use racing the launch's, a test), or
+ * undefined where it could not be made.
+ */
+export async function preparedBundledSkill(
+  config: PreparedSkillsConfig,
+  name: string,
+): Promise<AbsolutePath | undefined> {
+  const dir = AbsolutePathSchema.parse(
+    path.join(runtimeLayout(config.runtimeDir).skills, name),
+  );
+  await latest.catch(() => undefined);
+  if (!(await pathExists(absolutePathJoin(dir, "SKILL.md")))) {
+    await prepareBundledSkills(config).catch(() => undefined);
+  }
+  return (await pathExists(dir)) ? dir : undefined;
+}
+
+async function prepare(config: PreparedSkillsConfig): Promise<void> {
   const target = AbsolutePathSchema.parse(
     runtimeLayout(config.runtimeDir).skills,
   );

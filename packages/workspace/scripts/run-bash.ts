@@ -11,6 +11,7 @@
  *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
  *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
+ *   pnpm script:run-bash -- --skill pdf 'echo $INSTRUMENT_SKILL_DIR' # load a skill first, as load_skill does
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -37,7 +38,18 @@ import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
-import { setWorkspaceConfig } from "../src/lib/workspace-config";
+import { prepareBundledSkills } from "../src/lib/prepare-bundled-skills";
+import { getSkillRuntime } from "../src/lib/skill-runtime";
+import {
+  findSkills,
+  getSkillSources,
+  resolveSkillName,
+} from "../src/lib/skills";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../src/lib/workspace-config";
+import { setUpSkill } from "../src/tools/load-skill";
 import { workspaceLayout } from "../src/lib/workspace-layout";
 import { MountedFolder } from "../src/schemas/mounted-folder";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
@@ -56,6 +68,7 @@ function parseArgs(argv: string[]) {
   const commands: string[] = [];
   let chatId: string | undefined;
   let chatsDir: string | undefined;
+  let skill: string | undefined;
 
   const remaining = [...argv];
   while (remaining.length > 0) {
@@ -98,6 +111,11 @@ function parseArgs(argv: string[]) {
 
         break;
       }
+      case "--skill": {
+        skill = remaining.shift();
+
+        break;
+      }
       default: {
         if (arg !== undefined && !arg.startsWith("-")) {
           commands.push(arg);
@@ -106,7 +124,7 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  return { attach, bail, chatsDir, commands, chatId };
+  return { attach, bail, chatsDir, commands, chatId, skill };
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -119,6 +137,7 @@ const machineDir = path.resolve(os.tmpdir(), "instrument-bash-repl-machine");
 const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
 
 const runtimeDir = path.join(rootDir, "runtime");
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
 
 await fs.mkdir(chatsDir, { recursive: true });
 makeToolBinIn(runtimeDir);
@@ -157,11 +176,12 @@ setWorkspaceConfig({
       "pnpm.mjs",
     ),
   ),
-  registryDir: WorkspaceDirSchema.parse(path.join(rootDir, "registry")),
+  // The skills this checkout ships, as the app reads them.
+  registryDir: WorkspaceDirSchema.parse(path.join(repoRoot, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
   runtimeDir: AbsolutePathSchema.parse(runtimeDir),
   systemSkillsDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "system-skills"),
+    path.resolve(import.meta.dirname, "../system-skills"),
   ),
   chatsDir: AbsolutePathSchema.parse(chatsDir),
   legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
@@ -207,6 +227,7 @@ const folders = Object.fromEntries(
 
 const bash = await createBashEnv({
   folders,
+  loadedSkillDir: args.skill ? await loadSkill(args.skill) : undefined,
   sessionId,
   chatId,
 });
@@ -214,6 +235,37 @@ const bash = await createBashEnv({
 process.stderr.write(
   `work folder: ${workDir}\nrecord folder: ${chatDir}\nchat: ${chatId}  session: ${sessionId}\n\n`,
 );
+
+/**
+ * What `load_skill` does before the shell names the skill's folder: the
+ * shipped skills prepared in the runtime folder, and the skill's
+ * environments built. Says where it is and what was set up, on stderr.
+ */
+async function loadSkill(name: string): Promise<string> {
+  const config = getWorkspaceConfig();
+  await prepareBundledSkills(config);
+  const resolved = resolveSkillName(
+    await findSkills(getSkillSources(config)),
+    name,
+  );
+  if (!("skill" in resolved)) {
+    throw new Error(`No skill answers to ${name}.`);
+  }
+  const runtime = getSkillRuntime(resolved.skill.skillDir, name);
+  if ("error" in runtime) {
+    throw new Error(runtime.error);
+  }
+  const started = performance.now();
+  const { installResults, skillDir } = await setUpSkill({
+    chatId,
+    runtime,
+    skill: resolved.skill,
+  });
+  process.stderr.write(
+    `skill: ${skillDir} (${installResults.map((result) => `${result.runtime} ${result.state}`).join(", ") || "no dependencies"}, ${Math.round(performance.now() - started)}ms)\n`,
+  );
+  return skillDir;
+}
 
 // The exit is explicit, so nothing a command left running (a background job,
 // a pooled worker) holds the process open, and waits for both pipes

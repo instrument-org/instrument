@@ -64,6 +64,15 @@ pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
 
 The path to type is the folder's real one. The sandbox shell's `~` and `$HOME` are your real home folder as well, but the runner reaches only what you attach.
 
+### Loading a skill
+
+`--skill <name>` does what `load_skill` does before the commands run: it prepares the skills this checkout ships in the runner's runtime folder, builds the skill's environments, and sets `$INSTRUMENT_SKILL_DIR` to the folder the agent is told, printing it with what was set up and how long it took.
+
+```bash
+pnpm --silent script:run-bash -- --skill pdf \
+  'python "$INSTRUMENT_SKILL_DIR/scripts/check-pdf.py" --help'
+```
+
 ### Piped sequential commands
 
 Pipe a newline-separated script when you need multiple commands sharing one task dir without passing `--task` explicitly:

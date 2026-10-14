@@ -28,8 +28,7 @@ export function getUvBinPath(): AbsolutePath {
 
 /**
  * The virtualenv at the root of the chat's work folder, which the first
- * `pip install` with none nearer makes, and which a loaded skill's Python
- * dependencies install into.
+ * `pip install` with none nearer makes.
  */
 export function workVenvDir(chatId: ChatId): AbsolutePath {
   return absolutePathJoin(workDir(chatId), VENV_DIR_NAME);

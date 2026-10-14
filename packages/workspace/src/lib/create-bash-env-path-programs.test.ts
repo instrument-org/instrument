@@ -90,6 +90,29 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
     expect(result.stdout.split("\n")).toEqual([...folders, ...folders, ""]);
   });
 
+  it("names the folder of the skill loaded last, where one was", async () => {
+    await writeProgram(
+      binDir,
+      "skill-var",
+      'printf "%s\\n" "$INSTRUMENT_SKILL_DIR"',
+    );
+    const skillDir = path.join(tmpDir, "runtime", "skills", "pdf");
+    const loaded = await createBashEnv({
+      chatId,
+      loadedSkillDir: skillDir,
+      sessionId,
+    });
+
+    await expect(
+      loaded.exec('echo "$INSTRUMENT_SKILL_DIR"; skill-var', {
+        signal: AbortSignal.timeout(30_000),
+      }),
+    ).resolves.toMatchObject({ stdout: `${skillDir}\n${skillDir}\n` });
+    await expect(run('echo "[$INSTRUMENT_SKILL_DIR]"')).resolves.toMatchObject({
+      stdout: "[]\n",
+    });
+  });
+
   it("runs a real system program", async () => {
     const result = await run("uname -s");
     expect(result).toMatchObject({ exitCode: 0, stdout: `${os.type()}\n` });

@@ -587,6 +587,11 @@ export interface BashEnvOptions {
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   chatId: ChatId;
+  /**
+   * The folder of the skill the session loaded last, on the host, which the
+   * shell names `INSTRUMENT_SKILL_DIR` (`lastLoadedSkillDir`).
+   */
+  loadedSkillDir?: string;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
@@ -634,7 +639,7 @@ export function createBashDescription() {
 
     IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
+    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs a skill's script with that skill's packages and anything else in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
     IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
@@ -673,10 +678,14 @@ export function createBashDescription() {
 
 /**
  * The folders the agent works with, by the names the shell gives them: its
- * work folder, what the person sent the chat (none for the window), and the
- * output folder, in the shell's spelling.
+ * work folder, what the person sent the chat (none for the window), the
+ * output folder, and the folder of the skill it loaded last, where it has
+ * loaded one, in the shell's spelling.
  */
-function folderVariables(layout: WorkspaceFsLayout): Record<string, string> {
+function folderVariables(
+  layout: WorkspaceFsLayout,
+  loadedSkillDir: string | undefined,
+): Record<string, string> {
   return {
     ...(layout.record && {
       [FOLDER_VARIABLES.attachments]: shellPath(
@@ -684,6 +693,9 @@ function folderVariables(layout: WorkspaceFsLayout): Record<string, string> {
       ),
     }),
     [FOLDER_VARIABLES.output]: shellPath(outputFolderPath()),
+    ...(loadedSkillDir !== undefined && {
+      [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
+    }),
     [FOLDER_VARIABLES.work]: layout.chat.shellRoot,
   };
 }
@@ -722,6 +734,7 @@ export async function createBashEnv(
 export async function createLocalBashEnv({
   folders,
   callPartId,
+  loadedSkillDir,
   role = "task",
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
@@ -847,7 +860,7 @@ export async function createLocalBashEnv({
       // The home the rules hold, so `~` in the shell is the folder its
       // native commands call home, rather than just-bash's default of `/`.
       HOME: shellPath(rules.home),
-      ...folderVariables(layout),
+      ...folderVariables(layout, loadedSkillDir),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       // The system's temp folder, which every program it runs gets too.

@@ -10,7 +10,6 @@ export const CHAT_FOLDER_NAMES = {
   browserSession: "browser-session",
   downloads: "downloads",
   screenshots: "screenshots",
-  skills: "skills",
   // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the chat's folder so tempfile spill
   // and mktemp scratch land here instead of the host temp dir. Dot-prefixed
   // because what accumulates is interpreter caches rather than anything the

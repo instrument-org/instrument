@@ -324,10 +324,11 @@ describe("instrumentAgent", () => {
       "`$INSTRUMENT_ATTACHMENTS`, read where they are",
       "`$INSTRUMENT_OUTPUT`",
       "Throwaway files go in `$TMPDIR`",
+      "`$INSTRUMENT_SKILL_DIR` is its folder",
     ]) {
       expect(prompt).toContain(named);
     }
-    for (const gone of ["package root", "virtualenv", "`work/"]) {
+    for (const gone of ["package root", "virtualenv", "`work/", "`skills/`"]) {
       expect(prompt).not.toContain(gone);
     }
   });

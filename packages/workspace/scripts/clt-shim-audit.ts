@@ -47,14 +47,15 @@ import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../src/lib/command-line-tools-env";
-import { copySkill } from "../src/lib/copy-skill";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { seatbeltAvailable } from "../src/lib/native-sandbox";
-import { installPythonSkill } from "../src/lib/install-python-skill";
-import { runPnpmCommand } from "../src/lib/run-pnpm";
+import {
+  ensureNodeEnvironment,
+  ensurePythonEnvironment,
+} from "../src/lib/skill-environments";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
-import { venvPython, workVenvDir } from "../src/lib/uv";
+import { venvPython } from "../src/lib/uv";
 import { workDir } from "../src/lib/work-dir";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema } from "../src/schemas/paths";
@@ -201,7 +202,10 @@ async function probeBoundary(installerReachable: boolean) {
   return failed;
 }
 
-/** Runs the two installs `load_skill` runs, against a throwaway chat folder. */
+/**
+ * Builds the environments `load_skill` builds for the skill, in the pass's
+ * runtime folder, for a throwaway chat.
+ */
 async function installSkill({
   registrySkillsDir,
   skillName,
@@ -217,49 +221,35 @@ async function installSkill({
     throw new Error(runtime.error);
   }
 
-  const { chatId, dir } = await placeAuditChat();
+  const { chatId } = await placeAuditChat();
 
   const signal = AbortSignal.timeout(INSTALL_TIMEOUT_MS);
-  const { destDir } = await copySkill({
-    dir,
-    signal,
-    skillDir,
-    skillName,
-    skillSource: "system",
-  });
-
   const result: SkillResult = { skill: skillName };
 
   if (runtime.node) {
-    const { exitCode, stderr, stdout } = await runPnpmCommand({
-      args: ["install"],
-      cwd: destDir,
-      signal,
-      chatId,
-    });
-    result.node = { exitCode, output: stdout + stderr };
+    const built = await ensureNodeEnvironment({ chatId, signal, skillDir });
+    result.node =
+      "dir" in built
+        ? { exitCode: 0, output: "" }
+        : { exitCode: built.error.exitCode, output: built.error.output };
   }
 
   if (runtime.python) {
-    const installed = await installPythonSkill({
-      signal,
-      skillDir: destDir,
-      chatId,
-    });
+    const built = await ensurePythonEnvironment({ chatId, signal, skillDir });
     result.python =
-      installed.state === "success"
+      "venv" in built
         ? { state: "success" }
         : {
-            output: installed.output,
-            state: `failure (${installed.exitCode})`,
+            output: built.error.output,
+            state: `failure (${built.error.exitCode})`,
           };
 
-    if (installed.state === "success") {
+    if ("venv" in built) {
       // uv patches the managed interpreter's dylib install name with
       // install_name_tool, which is one of the stubs. Running the interpreter is
       // what proves the install survives that step being unavailable.
       const probe = await execa(
-        venvPython(workVenvDir(chatId)),
+        venvPython(built.venv),
         ["-c", "import sys; print(sys.version.split()[0])"],
         { all: true, reject: false },
       );
@@ -336,7 +326,7 @@ function reportInstall(result: SkillResult) {
   const lines: string[] = [];
   if (result.node) {
     lines.push(
-      `  pnpm install: ${result.node.exitCode === 0 ? "ok" : `FAILED (exit ${result.node.exitCode})`}`,
+      `  node build:   ${result.node.exitCode === 0 ? "ok" : `FAILED (exit ${result.node.exitCode})`}`,
     );
     if (result.node.exitCode !== 0) {
       lines.push(indent(result.node.output));

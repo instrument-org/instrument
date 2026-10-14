@@ -4,15 +4,18 @@ import { ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
-import { copySkill } from "../lib/copy-skill";
+import { FOLDER_VARIABLES } from "../constants";
 import { executeError } from "../lib/execute-error";
-import { installPythonSkill } from "../lib/install-python-skill";
-import { normalizedPathJoin } from "../lib/normalize-path";
-import { runPnpmCommand } from "../lib/run-pnpm";
+import { rememberLoadedSkill } from "../lib/loaded-skill";
+import { preparedBundledSkill } from "../lib/prepare-bundled-skills";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { PYTHON_COMMAND } from "../lib/shell-commands/python";
 import { renderSkillCatalog } from "../lib/skill-catalog";
+import {
+  ensureNodeEnvironment,
+  ensurePythonEnvironment,
+} from "../lib/skill-environments";
 import {
   getSkillProvenance,
   getWritableSkillsRoot,
@@ -20,19 +23,23 @@ import {
 } from "../lib/skill-provenance";
 import { getSkillRuntime } from "../lib/skill-runtime";
 import {
+  BUNDLED_SOURCE_IDS,
   FILE_LIST_LIMIT,
   findSkills,
   getSkillSources,
   listSkillFiles,
   resolveSkillName,
   SKILL_CONTENT_LIMIT,
+  type SkillInfo,
   truncateSkillContent,
 } from "../lib/skills";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceSkillsDir, shellPath } from "../lib/workspace-fs-layout";
+import { type ChatId } from "../schemas/chat-id";
+import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { workDir } from "../lib/work-dir";
+
 const TAGS = {
   file: "file",
   skillFiles: "skill_files",
@@ -64,15 +71,11 @@ export const LoadSkill = setupTool({
   name: "load_skill",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
-      // True when this task had already copied the skill, so the model is told
-      // its own edits to those files survived the reload.
-      alreadyLoaded: z.boolean(),
       content: z.string(),
       // True when the body was longer than `SKILL_CONTENT_LIMIT` and only its
       // head was inlined, so the model is told where to read the rest.
       contentTruncated: z.boolean(),
-      // Relative folder the copy landed in under `skills/`.
-      directory: z.string(),
+      // The skill's files, relative to `skillDir`.
       files: z.array(z.string()),
       installResults: z.array(SkillInstallResultSchema).optional(),
       name: z.string(),
@@ -80,6 +83,11 @@ export const LoadSkill = setupTool({
       // can edit the skill in place: "workspace" lives in the writable
       // workspace skills folder, the others are read-only where they were discovered.
       origin: z.enum(SKILL_ORIGINS),
+      // The folder the skill is read and its scripts run from, on the host,
+      // which the shell names `INSTRUMENT_SKILL_DIR` (`lastLoadedSkillDir`):
+      // the skill's own, a skill the app ships in the runtime folder, or a
+      // Node skill's built copy beside its packages.
+      skillDir: z.string(),
       skillName: z.string(),
       state: z.literal("success"),
       truncated: z.boolean(),
@@ -109,9 +117,9 @@ export const LoadSkill = setupTool({
 
     The skill will inject detailed instructions and workflows into the conversation context.
 
-    Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the chat's folder.
+    Note: a skill is read where it is, and the dependencies it declares are set up the first time it is loaded.
   `.trim(),
-  execute: async ({ input, signal, chatId }) => {
+  execute: async ({ input, sessionId, signal, chatId }) => {
     const workspaceConfig = getWorkspaceConfig();
     const all = await findSkills(getSkillSources(workspaceConfig));
     const resolved = resolveSkillName(all, input.name);
@@ -135,91 +143,30 @@ export const LoadSkill = setupTool({
       return executeError(runtime.error);
     }
 
-    // Source and name remain separate path segments. Turning an address into a
-    // filesystem-safe string would let distinct skills collapse onto one copy.
-    const directory = normalizedPathJoin(skill.sourceId, skill.name);
-    const { alreadyLoaded, destDir } = await copySkill({
-      dir: workDir(chatId),
+    const { installResults, origin, skillDir } = await setUpSkill({
+      chatId,
+      runtime,
       signal,
-      skillDir: skill.skillDir,
-      skillName: skill.name,
-      skillSource: skill.sourceId,
-    });
-
-    const relativeSkillRoot = normalizedPathJoin(
-      CHAT_FOLDER_NAMES.skills,
-      directory,
-    );
-    const { files: copiedFiles, truncated } = await listSkillFiles(
-      destDir,
-      signal,
-    );
-
-    const provenance = getSkillProvenance(
       skill,
-      await getWritableSkillsRoot(workspaceConfig.rootDir),
+    });
+    const { files: skillFiles, truncated } = await listSkillFiles(
+      skillDir,
+      signal,
     );
-
-    // Third-party skills discovered in another tool's folder on this machine are
-    // never eagerly installed: their declared dependencies are code we'd fetch
-    // and run before anyone has vetted the skill. First-party and workspace
-    // skills are trusted enough to provision on load.
-    const installResults: z.output<typeof SkillInstallResultSchema>[] = [];
-
-    if (runtime.node) {
-      if (provenance.installDependencies) {
-        // In the copy's own folder, which is its own package.
-        const { exitCode, stderr, stdout } = await runPnpmCommand({
-          args: ["install"],
-          cwd: destDir,
-          signal,
-          chatId,
-        });
-        installResults.push(
-          exitCode === 0
-            ? { runtime: "node", state: "success" }
-            : {
-                exitCode,
-                output: stdout + stderr,
-                runtime: "node",
-                state: "failure",
-              },
-        );
-      } else {
-        installResults.push({ runtime: "node", state: "skipped" });
-      }
-    }
-
-    if (runtime.python) {
-      if (provenance.installDependencies) {
-        const installResult = await installPythonSkill({
-          signal,
-          skillDir: destDir,
-          chatId,
-        });
-        installResults.push({ ...installResult, runtime: "python" });
-      } else {
-        installResults.push({ runtime: "python", state: "skipped" });
-      }
-    }
-
-    // SKILL.md is already inlined above as the skill's content, so listing it
-    // again would just spend context restating what the agent is reading.
-    const files = copiedFiles
-      .filter((f) => f !== "SKILL.md")
-      .map((f) => `${relativeSkillRoot}/${f}`);
+    rememberLoadedSkill(sessionId, skillDir);
 
     const body = truncateSkillContent(skill.content);
 
     return ok({
-      alreadyLoaded,
       content: body.content,
       contentTruncated: body.truncated,
-      directory,
-      files,
+      // SKILL.md is already inlined above as the skill's content, so listing
+      // it again would just spend context restating what the agent is reading.
+      files: skillFiles.filter((f) => f !== "SKILL.md"),
       ...(installResults.length > 0 ? { installResults } : {}),
       name: skill.id,
-      origin: provenance.origin,
+      origin,
+      skillDir,
       skillName: skill.name,
       state: "success" as const,
       truncated,
@@ -248,23 +195,20 @@ export const LoadSkill = setupTool({
       };
     }
 
-    const skillRoot = `${CHAT_FOLDER_NAMES.skills}/${output.directory}`;
+    const skill = `$${FOLDER_VARIABLES.skill}`;
+    const skillPath = shellPath(output.skillDir);
+    const locationSection = `This skill's folder is \`${skillPath}\`, which the shell names \`${skill}\` until you load another skill.`;
 
     const contentSection = output.contentTruncated
-      ? `\n\nThis skill's SKILL.md is longer than ${SKILL_CONTENT_LIMIT} characters, so only its beginning is below. Read \`${skillRoot}/SKILL.md\` for the rest before following it.`
-      : "";
-
-    const reloadSection = output.alreadyLoaded
-      ? `\n\nYou had already loaded this skill in this task. Its files are still at \`${skillRoot}\` with any changes you made to them, and anything missing from that folder was restored.`
+      ? `\n\nThis skill's SKILL.md is longer than ${SKILL_CONTENT_LIMIT} characters, so only its beginning is below. Read \`${skill}/SKILL.md\` for the rest before following it.`
       : "";
 
     let fileSection = "";
     if (output.files.length > 0) {
       const fileSectionText = [
-        `The skill files below are copied into your task and are yours to edit.`,
-        `For an operation a script already covers, read it and run it with \`${NODE_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
-        `Run a script by its full path from your work folder (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts <input> --output <job>/out\` or \`python ${skillRoot}/scripts/<script>.py <input> --output <job>/out\`); do NOT \`cd\` into the skill folder to run it, or your relative paths won't point into your work folder.`,
-        `For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's preinstalled libraries (see its recipes) instead of bending a script's flags to fit.`,
+        `For an operation a script already covers, read it and run it with \`${NODE_COMMAND.name}\` (TypeScript) or \`${PYTHON_COMMAND.name}\` (Python) rather than rewriting it.`,
+        `Run a script where it is, by its full path from your work folder (e.g. \`${NODE_COMMAND.name} "${skill}/scripts/<script>.ts" <input> --output <job>/out\` or \`${PYTHON_COMMAND.name} "${skill}/scripts/<script>.py" <input> --output <job>/out\`); do NOT \`cd\` into the skill's folder, or your relative paths won't point into your work folder.`,
+        `For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's libraries (see its recipes) in your work folder instead of bending a script's flags to fit.`,
       ].join(" ");
 
       const fileListXml = [
@@ -277,14 +221,19 @@ export const LoadSkill = setupTool({
         ? `\nNote: file list truncated at ${FILE_LIST_LIMIT} entries.`
         : "";
 
-      fileSection = `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`;
+      fileSection = `\n\n${fileSectionText} Its files, in its folder:\n\n${fileListXml}${truncationNote}`;
     }
 
     const workspaceSkillsPath = shellPath(getWorkspaceSkillsDir());
     const customizeHint = `Copy it into \`${workspaceSkillsPath}/\` to change it.`;
+    const builtCopy = output.installResults?.some(
+      (result) => result.runtime === "node" && result.state === "success",
+    );
     const originSection =
       output.origin === "workspace"
-        ? `\n\nThis skill lives at \`${workspaceSkillsPath}/${output.skillName}\`; edit it there to change the skill for future tasks (the copy under \`${CHAT_FOLDER_NAMES.skills}/\` is only for this chat).`
+        ? builtCopy
+          ? `\n\nThis is the workspace's own skill, at \`${workspaceSkillsPath}/${output.skillName}\`: edit it there to change the skill for future tasks. Its scripts run from a copy beside its Node.js packages, which takes your edits when the skill is loaded again.`
+          : `\n\nThis is the workspace's own skill: edit it in its folder to change the skill for future tasks.`
         : output.origin === "in-repo"
           ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the workspace's skills folder (\`${workspaceSkillsPath}/\`), so you cannot edit it in place from here. ${customizeHint}`
           : output.origin === "instrument"
@@ -294,55 +243,49 @@ export const LoadSkill = setupTool({
     let installSection = "";
     if (output.installResults) {
       const installText = output.installResults.map((installResult) => {
+        const runtimeName =
+          installResult.runtime === "node" ? "Node.js" : "Python";
         if (installResult.state === "skipped") {
           const installHint =
             installResult.runtime === "node"
-              ? `run \`cd ${skillRoot} && ${PNPM_COMMAND.name} install\``
-              : "install its locked dependencies into the chat's `.venv`";
+              ? `run \`${PNPM_COMMAND.name} install\` there`
+              : `install the packages its \`pyproject.toml\` lists with \`pip install\``;
           return [
-            `This skill declares ${installResult.runtime === "node" ? "Node.js" : "Python"} dependencies, but ${APP_NAME} did not install them because the skill comes from a third-party skills folder on this machine.`,
-            `Review the skill first, then ${installHint} yourself if you trust it.`,
+            `This skill declares ${runtimeName} dependencies, but ${APP_NAME} did not set them up because the skill comes from a third-party skills folder on this machine.`,
+            `Review the skill first; if you trust it, copy it into a folder in your work folder, ${installHint}, and run the copy's scripts.`,
           ].join(" ");
         }
 
         if (installResult.state === "failure") {
-          const command =
-            installResult.runtime === "node"
-              ? `${PNPM_COMMAND.name} install`
-              : "locked Python dependency installation";
           return [
-            `\`${command}\` exited with code ${installResult.exitCode}.`,
-            `The skill's ${installResult.runtime} dependencies may not be fully installed.`,
+            `Setting up the skill's ${runtimeName} packages failed (exit ${installResult.exitCode}), so its scripts may not run.`,
             `Raw output:\n\`\`\`\n${installResult.output}\n\`\`\``,
           ].join(" ");
         }
 
         return installResult.runtime === "node"
           ? [
-              `\`${PNPM_COMMAND.name} install\` was run for this task.`,
-              `The skill's Node.js dependencies are ready to use.`,
-              `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
+              `Its Node.js packages are installed beside its scripts.`,
+              `Its folder is read-only, so a script of your own goes in your work folder, with what it imports added there (\`${PNPM_COMMAND.name} add <package>\`).`,
             ].join(" ")
           : [
-              `The skill's locked Python dependencies were installed in the chat's \`.venv\`.`,
-              `Run its Python scripts with \`python\`; do not install packages the skill already provides.`,
-              `Those are its required dependencies only: a package its instructions say to \`pip install\` for one use is not installed until you install it.`,
+              `Its Python packages are installed: \`${PYTHON_COMMAND.name}\` runs its scripts with them, and your own scripts too wherever no \`.venv\` is near, so do not install them again.`,
+              `A package its instructions say to \`pip install\` for one use is not among them; installing it makes a \`.venv\` in your work folder, which has only what you install in it.`,
             ].join(" ");
       });
       installSection = `\n\n${installText.join("\n\n")}`;
     }
 
     // The body is the only part of this the skill wrote, so it comes last:
-    // where the copy landed, what was installed, and what we refused to
-    // install all come before it, where nothing in the skill can appear to
-    // have written them.
-    const notes = (
+    // where the skill is, what was set up, and what we refused to set up
+    // all come before it, where nothing in the skill can appear to have
+    // written them.
+    const notes =
+      locationSection +
       originSection +
-      reloadSection +
       fileSection +
       installSection +
-      contentSection
-    ).trimStart();
+      contentSection;
     return {
       type: "text",
       value: `${notes}\n\n${skillInstructions({
@@ -352,6 +295,88 @@ export const LoadSkill = setupTool({
     };
   },
 });
+
+/**
+ * Where a skill is read and its scripts run from, with its dependencies set
+ * up: a skill the app ships from the runtime folder, since its own folder is
+ * in the signed bundle; a Node skill from its built copy beside its
+ * packages, where Node finds them; every other one where it is. Its Python
+ * dependencies go in its environment, which `python` picks for its scripts.
+ *
+ * Third-party skills discovered in another tool's folder on this machine get
+ * no dependencies set up: they are code we'd fetch and run before anyone has
+ * vetted the skill. What the app ships and the workspace's own are trusted
+ * enough to set up on load.
+ */
+export async function setUpSkill({
+  chatId,
+  runtime,
+  signal,
+  skill,
+}: {
+  chatId: ChatId;
+  runtime: { node: boolean; python: boolean };
+  signal?: AbortSignal;
+  skill: SkillInfo;
+}): Promise<{
+  installResults: z.output<typeof SkillInstallResultSchema>[];
+  origin: (typeof SKILL_ORIGINS)[number];
+  skillDir: AbsolutePath;
+}> {
+  const workspaceConfig = getWorkspaceConfig();
+  const provenance = getSkillProvenance(
+    skill,
+    await getWritableSkillsRoot(workspaceConfig.rootDir),
+  );
+  const folder =
+    (BUNDLED_SOURCE_IDS.has(skill.sourceId)
+      ? await preparedBundledSkill(workspaceConfig, skill.name)
+      : undefined) ?? skill.skillDir;
+
+  const installResults: z.output<typeof SkillInstallResultSchema>[] = [];
+  let skillDir = folder;
+
+  if (runtime.node) {
+    if (provenance.installDependencies) {
+      const built = await ensureNodeEnvironment({
+        chatId,
+        signal,
+        skillDir: folder,
+      });
+      if ("dir" in built) {
+        skillDir = built.dir;
+        installResults.push({ runtime: "node", state: "success" });
+      } else {
+        installResults.push({
+          ...built.error,
+          runtime: "node",
+          state: "failure",
+        });
+      }
+    } else {
+      installResults.push({ runtime: "node", state: "skipped" });
+    }
+  }
+
+  if (runtime.python) {
+    if (provenance.installDependencies) {
+      const built = await ensurePythonEnvironment({
+        chatId,
+        signal,
+        skillDir: folder,
+      });
+      installResults.push(
+        "venv" in built
+          ? { runtime: "python", state: "success" }
+          : { ...built.error, runtime: "python", state: "failure" },
+      );
+    } else {
+      installResults.push({ runtime: "python", state: "skipped" });
+    }
+  }
+
+  return { installResults, origin: provenance.origin, skillDir };
+}
 
 /**
  * A skill's body, led by one line saying whose words follow. Shared by every

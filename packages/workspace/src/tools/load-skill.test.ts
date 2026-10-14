@@ -1,11 +1,12 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceLayout } from "../lib/workspace-layout";
-import { REGISTRY_FOLDER_NAMES, CHAT_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES } from "../constants";
+import { lastLoadedSkillDir } from "../lib/loaded-skill";
+import { runtimeLayout } from "../lib/runtime-dir";
 import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import {
@@ -13,13 +14,13 @@ import {
   setWorkspaceConfig,
 } from "../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { LoadSkill } from "./load-skill";
 
-vi.mock(import("../lib/install-python-skill"));
-vi.mock(import("../lib/run-pnpm"));
+vi.mock(import("../lib/skill-environments"));
 
 const model = createMockAIGatewayModel();
 
@@ -33,7 +34,9 @@ function modelText(result: ReturnType<typeof LoadSkill.toModelOutput>) {
 
 /** Names the workspace's skills folder, which is a temp dir here. */
 function named(text: string) {
-  return text.replaceAll(getWorkspaceSkillsDir(), "<workspace skills>");
+  return text
+    .replaceAll(getWorkspaceSkillsDir(), "<workspace skills>")
+    .replaceAll(preparedSkillsDir(), "<runtime skills>");
 }
 
 let tmpDir: string;
@@ -43,13 +46,23 @@ let skillsDir: string;
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "load-skill-test-"));
+  tmpDir = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), "load-skill-test-")),
+  );
   vi.spyOn(os, "homedir").mockReturnValue(path.join(tmpDir, "home"));
   dir = path.join(tmpDir, "app");
   registryDir = path.join(tmpDir, "registry");
   skillsDir = path.join(registryDir, REGISTRY_FOLDER_NAMES.skills);
   await fs.mkdir(dir, { recursive: true });
   await fs.mkdir(skillsDir, { recursive: true });
+  const { ensureNodeEnvironment, ensurePythonEnvironment } =
+    await import("../lib/skill-environments");
+  vi.mocked(ensureNodeEnvironment).mockResolvedValue({
+    dir: AbsolutePathSchema.parse(path.join(tmpDir, "runtime", "env-node")),
+  });
+  vi.mocked(ensurePythonEnvironment).mockResolvedValue({
+    venv: AbsolutePathSchema.parse(path.join(tmpDir, "runtime", "env-py")),
+  });
 });
 
 afterEach(async () => {
@@ -65,8 +78,13 @@ function baseExecuteArgs() {
   };
 }
 
-function copiedSkillDir(name: string, source = APP_NAME_SLUG) {
-  return path.join(dir, CHAT_FOLDER_NAMES.skills, source, name);
+/** Where the app prepares the skills it ships, which they are read from. */
+function preparedSkillsDir() {
+  return runtimeLayout(getWorkspaceConfig().runtimeDir).skills;
+}
+
+function preparedSkillDir(name: string) {
+  return path.join(preparedSkillsDir(), name);
 }
 
 async function createSkill({
@@ -93,13 +111,41 @@ async function createSkill({
 
 function createTaskConfigWithDirs() {
   // Point the singleton's tasksDir at dir's parent so chatDir(id) ===
-  // dir, then also override registryDir for skill resolution.
+  // dir, then also override the skill sources and the runtime folder the
+  // shipped skills are prepared in.
   const id = createMockChatConfigForDir(dir, { model });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     registryDir: AbsolutePathSchema.parse(registryDir),
+    runtimeDir: AbsolutePathSchema.parse(path.join(tmpDir, "runtime")),
+    systemSkillsDir: AbsolutePathSchema.parse(
+      path.join(tmpDir, "system-skills"),
+    ),
   });
   return id;
+}
+
+/** A successful output as stored, for rendering it. */
+function successOutput(
+  overrides: Partial<
+    Extract<
+      ReturnType<typeof LoadSkill.outputSchema.parse>,
+      { state: "success" }
+    >
+  > = {},
+) {
+  return {
+    content: "# Body",
+    contentTruncated: false,
+    files: [],
+    name: "docx",
+    origin: "instrument" as const,
+    skillDir: "/runtime/skills/docx",
+    skillName: "docx",
+    state: "success" as const,
+    truncated: false,
+    ...overrides,
+  };
 }
 
 describe("LoadSkill", () => {
@@ -148,94 +194,57 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("copies skill directory to skills/<source>/<name> on load", async () => {
+  it("reads a shipped skill where the app prepared it, copying nothing into the work folder", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },
       name: "my-skill",
     });
 
-    await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "my-skill" },
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "my-skill" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result).toMatchObject({
+      files: ["scripts/run.ts"],
+      skillDir: preparedSkillDir("my-skill"),
+      state: "success",
     });
-
-    const destBase = copiedSkillDir("my-skill");
-    const md = await fs.readFile(path.join(destBase, "SKILL.md"), "utf8");
-    expect(md).toMatchInlineSnapshot(`
-      "---
-      name: my-skill
-      description: "A test skill"
-      ---
-
-      # my-skill
-
-      Skill instructions here."
-    `);
-
-    const script = await fs.readFile(
-      path.join(destBase, "scripts", "run.ts"),
-      "utf8",
-    );
-    expect(script).toMatchInlineSnapshot(`"console.log('hello')"`);
+    await expect(
+      fs.readFile(
+        path.join(preparedSkillDir("my-skill"), "scripts", "run.ts"),
+        "utf8",
+      ),
+    ).resolves.toBe("console.log('hello')");
+    await expect(fs.readdir(dir)).resolves.toEqual([]);
   });
 
-  it("omits development artifacts when copying a skill", async () => {
-    await createSkill({
-      extraFiles: {
-        ".pytest_cache/v/cache": "cached",
-        ".venv/bin/python": "python",
-        "node_modules/example/index.js": "module.exports = {}",
-        "scripts/run.py": "print('hello')",
-      },
-      name: "my-skill",
-    });
+  it("names the skill's folder to the session's shell", async () => {
+    await createSkill({ name: "my-skill" });
+    const sessionId = StoreId.newSessionId();
+    const args = baseExecuteArgs();
 
     await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
+      ...args,
       input: { explanation: "loading", name: "my-skill" },
+      sessionId,
     });
 
-    const destBase = copiedSkillDir("my-skill");
-    await expect(fs.access(path.join(destBase, ".venv"))).rejects.toThrow();
     await expect(
-      fs.access(path.join(destBase, ".pytest_cache")),
-    ).rejects.toThrow();
-    await expect(
-      fs.access(path.join(destBase, "node_modules")),
-    ).rejects.toThrow();
-    await expect(
-      fs.readFile(path.join(destBase, "scripts", "run.py"), "utf8"),
-    ).resolves.toBe("print('hello')");
+      lastLoadedSkillDir({ chatId: args.chatId, sessionId }),
+    ).resolves.toBe(preparedSkillDir("my-skill"));
   });
 
-  it("copies through the skill's own gitignore, not the task's", async () => {
+  it("lists the skill's files relative to its folder, leaving out what its development left", async () => {
     await createSkill({
       extraFiles: {
         ".gitignore": "build/\n",
+        ".pytest_cache/v/cache": "cached",
+        ".venv/bin/python": "python",
         "build/generated.js": "generated",
-        "scripts/run.ts": "console.log('hello')",
-      },
-      name: "my-skill",
-    });
-    // A task's ignore rules describe the task's own tree, so they have no say
-    // over which of a skill's files come along.
-    await fs.writeFile(path.join(dir, ".gitignore"), "scripts/\n");
-
-    await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "my-skill" },
-    });
-
-    const destBase = copiedSkillDir("my-skill");
-    await expect(
-      fs.readFile(path.join(destBase, "scripts", "run.ts"), "utf8"),
-    ).resolves.toBe("console.log('hello')");
-    await expect(fs.access(path.join(destBase, "build"))).rejects.toThrow();
-  });
-
-  it("includes relative file paths in files array", async () => {
-    await createSkill({
-      extraFiles: {
+        "node_modules/example/index.js": "module.exports = {}",
         "references/notes.md": "# Notes",
         "scripts/lib/helper.ts": "export const x = 1",
         "scripts/run.ts": "console.log('hello')",
@@ -256,9 +265,9 @@ describe("LoadSkill", () => {
     }
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "skills/instrument/my-skill/references/notes.md",
-        "skills/instrument/my-skill/scripts/lib/helper.ts",
-        "skills/instrument/my-skill/scripts/run.ts",
+        "references/notes.md",
+        "scripts/lib/helper.ts",
+        "scripts/run.ts",
       ]
     `);
   });
@@ -321,7 +330,7 @@ describe("LoadSkill", () => {
     );
   });
 
-  it("loads a shadowed namesake by its qualified name, into its own folder", async () => {
+  it("loads a shadowed namesake by its qualified name, from its own folder", async () => {
     await createSkill({ description: "Ours", name: "review" });
     const vendorSkillDir = path.join(
       tmpDir,
@@ -349,22 +358,14 @@ describe("LoadSkill", () => {
     }
     expect(result.content).toContain("Vendor instructions.");
     expect({
-      directory: result.directory,
       name: result.name,
       origin: result.origin,
-    }).toMatchInlineSnapshot(`
-      {
-        "directory": "claude/review",
-        "name": "claude:review",
-        "origin": "external",
-      }
-    `);
-    await expect(
-      fs.readFile(
-        path.join(copiedSkillDir("review", "claude"), "SKILL.md"),
-        "utf8",
-      ),
-    ).resolves.toContain("Vendor instructions.");
+      skillDir: result.skillDir,
+    }).toEqual({
+      name: "claude:review",
+      origin: "external",
+      skillDir: vendorSkillDir,
+    });
   });
 
   it("does not merge a qualified ID with a plain hyphenated name", async () => {
@@ -382,92 +383,20 @@ describe("LoadSkill", () => {
       `---\nname: review\ndescription: "Qualified"\n---\n\nQualified instructions.`,
     );
 
+    const loaded: string[] = [];
     for (const name of ["claude:review", "instrument:claude-review"]) {
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name },
-      });
+      const result = (
+        await runTool(LoadSkill, {
+          ...baseExecuteArgs(),
+          input: { explanation: "loading", name },
+        })
+      )._unsafeUnwrap();
+      if (result.state === "success") {
+        loaded.push(result.skillDir);
+      }
     }
 
-    await expect(
-      fs.readFile(
-        path.join(copiedSkillDir("review", "claude"), "SKILL.md"),
-        "utf8",
-      ),
-    ).resolves.toContain("Qualified instructions.");
-    await expect(
-      fs.readFile(
-        path.join(copiedSkillDir("claude-review"), "SKILL.md"),
-        "utf8",
-      ),
-    ).resolves.toContain("# claude-review");
-  });
-
-  it("loads a skill again without overwriting the agent's edits", async () => {
-    await createSkill({
-      extraFiles: { "scripts/run.ts": "original" },
-      name: "my-skill",
-    });
-
-    const args = {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "my-skill" },
-    };
-
-    await runTool(LoadSkill, args);
-
-    const destScript = path.join(
-      copiedSkillDir("my-skill"),
-      "scripts",
-      "run.ts",
-    );
-
-    await fs.writeFile(destScript, "modified");
-
-    const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
-
-    await expect(fs.readFile(destScript, "utf8")).resolves.toBe("modified");
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    expect(result.alreadyLoaded).toBe(true);
-    expect(result.content).toContain("Skill instructions here.");
-  });
-
-  it("restores what a load cut short left missing", async () => {
-    await createSkill({
-      extraFiles: { "scripts/run.ts": "original" },
-      name: "my-skill",
-    });
-
-    const args = {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "my-skill" },
-    };
-
-    // What a load stopped partway through leaves behind: the directory exists,
-    // its contents do not.
-    const destBase = copiedSkillDir("my-skill");
-    await fs.mkdir(destBase, { recursive: true });
-
-    const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    await expect(
-      fs.readFile(path.join(destBase, "SKILL.md"), "utf8"),
-    ).resolves.toContain("Skill instructions here.");
-    await expect(
-      fs.readFile(path.join(destBase, "scripts", "run.ts"), "utf8"),
-    ).resolves.toBe("original");
-    expect(result.files).toMatchInlineSnapshot(`
-      [
-        "skills/instrument/my-skill/scripts/run.ts",
-      ]
-    `);
+    expect(loaded).toEqual([vendorSkillDir, preparedSkillDir("claude-review")]);
   });
 
   it("returns skill content in content field", async () => {
@@ -491,7 +420,7 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("caps an oversized skill body and points at the copy for the rest", async () => {
+  it("caps an oversized skill body and points at the file for the rest", async () => {
     const line = "Follow this instruction carefully.";
     const body = Array.from(
       { length: Math.ceil(SKILL_CONTENT_LIMIT / line.length) + 100 },
@@ -531,9 +460,11 @@ describe("LoadSkill", () => {
     );
     expect(modelOutput.value.endsWith(result.content)).toBe(true);
     expect(notes).toMatchInlineSnapshot(`
-      "This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      "This skill's folder is \`<runtime skills>/my-skill\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`skills/instrument/my-skill/SKILL.md\` for the rest before following it."
+      This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+
+      This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`$INSTRUMENT_SKILL_DIR/SKILL.md\` for the rest before following it."
     `);
   });
 
@@ -604,11 +535,11 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    expect(result.origin).toBe("workspace");
+    expect(result).toMatchObject({
+      origin: "workspace",
+      skillDir: await fs.realpath(skillDir),
+      state: "success",
+    });
   });
 
   it("puts nothing of ours after the skill's own text", () => {
@@ -617,18 +548,12 @@ describe("LoadSkill", () => {
     const value = modelText(
       LoadSkill.toModelOutput({
         input: { name: "instrument:hostile" },
-        output: {
-          alreadyLoaded: false,
+        output: successOutput({
           content,
-          contentTruncated: false,
-          directory: "instrument/hostile",
-          files: [],
           name: "instrument:hostile",
-          origin: "instrument",
+          skillDir: "/runtime/skills/hostile",
           skillName: "hostile",
-          state: "success",
-          truncated: false,
-        },
+        }),
         toolCallId: "test",
       }),
     );
@@ -636,7 +561,10 @@ describe("LoadSkill", () => {
     // The body arrives intact, and the real provenance note comes before it,
     // so a body imitating that note cannot be mistaken for it.
     expect(value.endsWith(content)).toBe(true);
-    expect(value.startsWith("This skill is provided by Instrument")).toBe(true);
+    expect(value.startsWith("This skill's folder is")).toBe(true);
+    expect(value.indexOf("This skill is provided by Instrument")).toBeLessThan(
+      value.indexOf("Everything below"),
+    );
   });
 
   it("tells the model where a skill came from and whether it can edit it", () => {
@@ -644,18 +572,15 @@ describe("LoadSkill", () => {
       modelText(
         LoadSkill.toModelOutput({
           input: { name: "docx" },
-          output: {
-            alreadyLoaded: false,
-            content: "# Body",
-            contentTruncated: false,
-            directory: "instrument/docx",
-            files: [],
-            name: "docx",
+          output: successOutput({
             origin,
-            skillName: "docx",
-            state: "success",
-            truncated: false,
-          },
+            skillDir:
+              origin === "workspace"
+                ? path.join(getWorkspaceSkillsDir(), "docx")
+                : origin === "external"
+                  ? "/home/.claude/skills/docx"
+                  : "/runtime/skills/docx",
+          }),
           toolCallId: "test",
         }),
       );
@@ -666,22 +591,68 @@ describe("LoadSkill", () => {
       workspace: render("workspace"),
     }).toMatchInlineSnapshot(`
       {
-        "external": "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
+        "external": "This skill's folder is \`/home/.claude/skills/docx\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
+
+      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
       Everything below is the text of the skill "docx".
 
       # Body",
-        "instrument": "This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+        "instrument": "This skill's folder is \`/runtime/skills/docx\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
+
+      This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
       Everything below is the text of the skill "docx".
 
       # Body",
-        "workspace": "This skill lives at \`<workspace skills>/docx\`; edit it there to change the skill for future tasks (the copy under \`skills/\` is only for this chat).
+        "workspace": "This skill's folder is \`<workspace skills>/docx\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
+
+      This is the workspace's own skill: edit it in its folder to change the skill for future tasks.
 
       Everything below is the text of the skill "docx".
 
       # Body",
       }
+    `);
+  });
+
+  it("tells the model how to run a skill's scripts and what was set up for them", () => {
+    expect(
+      modelText(
+        LoadSkill.toModelOutput({
+          input: { name: "spreadsheet" },
+          output: successOutput({
+            files: ["scripts/read.py", "scripts/numbers-bridge.ts"],
+            installResults: [
+              { runtime: "node", state: "success" },
+              { runtime: "python", state: "success" },
+            ],
+            name: "spreadsheet",
+            skillDir: "/runtime/environments/0123456789abcdef",
+            skillName: "spreadsheet",
+          }),
+          toolCallId: "test",
+        }),
+      ),
+    ).toMatchInlineSnapshot(`
+      "This skill's folder is \`/runtime/environments/0123456789abcdef\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
+
+      This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+
+      For an operation a script already covers, read it and run it with \`node\` (TypeScript) or \`python\` (Python) rather than rewriting it. Run a script where it is, by its full path from your work folder (e.g. \`node "$INSTRUMENT_SKILL_DIR/scripts/<script>.ts" <input> --output <job>/out\` or \`python "$INSTRUMENT_SKILL_DIR/scripts/<script>.py" <input> --output <job>/out\`); do NOT \`cd\` into the skill's folder, or your relative paths won't point into your work folder. For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's libraries (see its recipes) in your work folder instead of bending a script's flags to fit. Its files, in its folder:
+
+      <skill_files>
+      <file>scripts/read.py</file>
+      <file>scripts/numbers-bridge.ts</file>
+      </skill_files>
+
+      Its Node.js packages are installed beside its scripts. Its folder is read-only, so a script of your own goes in your work folder, with what it imports added there (\`pnpm add <package>\`).
+
+      Its Python packages are installed: \`python\` runs its scripts with them, and your own scripts too wherever no \`.venv\` is near, so do not install them again. A package its instructions say to \`pip install\` for one use is not among them; installing it makes a \`.venv\` in your work folder, which has only what you install in it.
+
+      Everything below is the text of the skill "spreadsheet".
+
+      # Body"
     `);
   });
 
@@ -702,9 +673,9 @@ describe("LoadSkill", () => {
     expect(result.files).toMatchInlineSnapshot(`[]`);
   });
 
-  it("installs locked Python dependencies for a Python skill", async () => {
-    const { installPythonSkill } = await import("../lib/install-python-skill");
-    vi.mocked(installPythonSkill).mockResolvedValueOnce({ state: "success" });
+  it("builds a Python skill's environment from where the skill is read", async () => {
+    const { ensurePythonEnvironment } =
+      await import("../lib/skill-environments");
     await createSkill({
       extraFiles: {
         "pyproject.toml": "[project]\nname = 'python-skill'\n",
@@ -719,18 +690,19 @@ describe("LoadSkill", () => {
     };
     const result = (await runTool(LoadSkill, args))._unsafeUnwrap();
 
-    expect(installPythonSkill).toHaveBeenCalledWith({
-      signal: args.signal,
-      skillDir: copiedSkillDir("python-skill"),
+    expect(ensurePythonEnvironment).toHaveBeenCalledWith({
       chatId: args.chatId,
+      signal: args.signal,
+      skillDir: preparedSkillDir("python-skill"),
     });
     expect(result).toMatchObject({
       installResults: [{ runtime: "python", state: "success" }],
+      skillDir: preparedSkillDir("python-skill"),
       state: "success",
     });
   });
 
-  it("rejects a Python skill without a lockfile before copying it", async () => {
+  it("rejects a Python skill without a lockfile before setting it up", async () => {
     await createSkill({
       extraFiles: {
         "pyproject.toml": "[project]\nname = 'unlocked-skill'\n",
@@ -747,10 +719,12 @@ describe("LoadSkill", () => {
     expect(result._unsafeUnwrapErr().message).toBe(
       'Skill "unlocked-skill" is missing uv.lock for its Python dependencies.',
     );
-    await expect(fs.access(copiedSkillDir("unlocked-skill"))).rejects.toThrow();
+    const { ensurePythonEnvironment } =
+      await import("../lib/skill-environments");
+    expect(ensurePythonEnvironment).not.toHaveBeenCalled();
   });
 
-  it("rejects an invalid Node package manifest before copying it", async () => {
+  it("rejects an invalid Node package manifest before setting it up", async () => {
     await createSkill({
       extraFiles: { "package.json": "{" },
       name: "invalid-node-skill",
@@ -772,28 +746,31 @@ describe("LoadSkill", () => {
     ["dependencies", { example: 1 }],
     ["optionalDependencies", []],
     ["optionalDependencies", { example: 1 }],
-  ])("rejects an invalid %s field before copying it", async (field, value) => {
-    await createSkill({
-      extraFiles: {
-        "package.json": JSON.stringify({ [field]: value }),
-      },
-      name: "invalid-dependencies",
-    });
+  ])(
+    "rejects an invalid %s field before setting it up",
+    async (field, value) => {
+      await createSkill({
+        extraFiles: {
+          "package.json": JSON.stringify({ [field]: value }),
+        },
+        name: "invalid-dependencies",
+      });
 
-    const result = await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "invalid-dependencies" },
-    });
+      const result = await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "invalid-dependencies" },
+      });
 
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().message).toBe(
-      'Skill "invalid-dependencies" has an invalid ' +
-        `${field} field in package.json.`,
-    );
-  });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toBe(
+        'Skill "invalid-dependencies" has an invalid ' +
+          `${field} field in package.json.`,
+      );
+    },
+  );
 
   it("does not install Node dependencies for a development-only manifest", async () => {
-    const { runPnpmCommand } = await import("../lib/run-pnpm");
+    const { ensureNodeEnvironment } = await import("../lib/skill-environments");
     await createSkill({
       extraFiles: {
         "package.json": JSON.stringify({ scripts: { test: "vitest" } }),
@@ -806,19 +783,12 @@ describe("LoadSkill", () => {
       input: { explanation: "loading", name: "metadata-only" },
     });
 
-    expect(runPnpmCommand).not.toHaveBeenCalled();
+    expect(ensureNodeEnvironment).not.toHaveBeenCalled();
   });
 
-  it("installs both runtimes for mixed skills", async () => {
-    const { installPythonSkill } = await import("../lib/install-python-skill");
-    const { runPnpmCommand } = await import("../lib/run-pnpm");
-    vi.mocked(installPythonSkill).mockResolvedValueOnce({ state: "success" });
-    vi.mocked(runPnpmCommand).mockResolvedValueOnce({
-      command: "pnpm install",
-      exitCode: 0,
-      stderr: "",
-      stdout: "",
-    });
+  it("runs a mixed skill from its Node copy, with its Python environment built from the skill", async () => {
+    const { ensureNodeEnvironment, ensurePythonEnvironment } =
+      await import("../lib/skill-environments");
     await createSkill({
       extraFiles: {
         "package.json": JSON.stringify({
@@ -837,25 +807,57 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
-    expect(runPnpmCommand).toHaveBeenCalledTimes(1);
-    // In the copy's own folder, its own package.
-    expect(vi.mocked(runPnpmCommand).mock.lastCall?.[0]).toMatchObject({
-      args: ["install"],
-      cwd: expect.stringMatching(/[/\\]skills[/\\].+[/\\]mixed-skill$/),
+    expect(vi.mocked(ensureNodeEnvironment).mock.lastCall?.[0]).toMatchObject({
+      skillDir: preparedSkillDir("mixed-skill"),
     });
-    expect(installPythonSkill).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(ensurePythonEnvironment).mock.lastCall?.[0]).toMatchObject(
+      { skillDir: preparedSkillDir("mixed-skill") },
+    );
     expect(result).toMatchObject({
       installResults: [
         { runtime: "node", state: "success" },
         { runtime: "python", state: "success" },
       ],
+      skillDir: path.join(tmpDir, "runtime", "env-node"),
       state: "success",
     });
   });
 
+  it("reads a Node skill where it is when its packages could not be installed", async () => {
+    const { ensureNodeEnvironment } = await import("../lib/skill-environments");
+    vi.mocked(ensureNodeEnvironment).mockResolvedValueOnce({
+      error: { exitCode: 1, output: "ERR_PNPM_FETCH_404" },
+    });
+    await createSkill({
+      extraFiles: {
+        "package.json": JSON.stringify({ dependencies: { example: "1.0.0" } }),
+      },
+      name: "node-skill",
+    });
+
+    const result = (
+      await runTool(LoadSkill, {
+        ...baseExecuteArgs(),
+        input: { explanation: "loading", name: "node-skill" },
+      })
+    )._unsafeUnwrap();
+
+    expect(result).toMatchObject({
+      installResults: [
+        {
+          exitCode: 1,
+          output: "ERR_PNPM_FETCH_404",
+          runtime: "node",
+          state: "failure",
+        },
+      ],
+      skillDir: preparedSkillDir("node-skill"),
+    });
+  });
+
   it("skips dependency installs for a third-party skill", async () => {
-    const { installPythonSkill } = await import("../lib/install-python-skill");
-    const { runPnpmCommand } = await import("../lib/run-pnpm");
+    const { ensureNodeEnvironment, ensurePythonEnvironment } =
+      await import("../lib/skill-environments");
 
     // A skill discovered in another tool's home folder, not the registry or the
     // writable workspace mount, so its origin is "external".
@@ -888,8 +890,8 @@ describe("LoadSkill", () => {
       })
     )._unsafeUnwrap();
 
-    expect(runPnpmCommand).not.toHaveBeenCalled();
-    expect(installPythonSkill).not.toHaveBeenCalled();
+    expect(ensureNodeEnvironment).not.toHaveBeenCalled();
+    expect(ensurePythonEnvironment).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       installResults: [
         { runtime: "node", state: "skipped" },
@@ -904,32 +906,28 @@ describe("LoadSkill", () => {
     const value = modelText(
       LoadSkill.toModelOutput({
         input: { name: "third-party" },
-        output: {
-          alreadyLoaded: false,
-          content: "# Body",
-          contentTruncated: false,
-          directory: "claude/third-party",
-          files: [],
+        output: successOutput({
           installResults: [
             { runtime: "node", state: "skipped" },
             { runtime: "python", state: "skipped" },
           ],
           name: "third-party",
           origin: "external",
+          skillDir: "/home/.claude/skills/third-party",
           skillName: "third-party",
-          state: "success",
-          truncated: false,
-        },
+        }),
         toolCallId: "test",
       }),
     );
 
     expect(value).toMatchInlineSnapshot(`
-      "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      "This skill's folder is \`/home/.claude/skills/third-party\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd skills/claude/third-party && pnpm install\` yourself if you trust it.
+      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
-      This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into the chat's \`.venv\` yourself if you trust it.
+      This skill declares Node.js dependencies, but Instrument did not set them up because the skill comes from a third-party skills folder on this machine. Review the skill first; if you trust it, copy it into a folder in your work folder, run \`pnpm install\` there, and run the copy's scripts.
+
+      This skill declares Python dependencies, but Instrument did not set them up because the skill comes from a third-party skills folder on this machine. Review the skill first; if you trust it, copy it into a folder in your work folder, install the packages its \`pyproject.toml\` lists with \`pip install\`, and run the copy's scripts.
 
       Everything below is the text of the skill "third-party".
 

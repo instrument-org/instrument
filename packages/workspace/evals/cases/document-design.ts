@@ -41,9 +41,9 @@ function pass(text: string, evidence: string): AssertionResult {
   return { evidence, passed: true, text };
 }
 
-/** The newest PDF under the task's work folder, the skills it copied aside. */
+/** The newest PDF under the chat's work folder. */
 async function newestPdf(chatId: ChatId) {
-  const work = path.join(workDir(chatId), "work");
+  const work = workDir(chatId);
   const found: { file: string; mtime: number }[] = [];
   const walk = async (at: string, depth: number) => {
     const entries = await fs.promises
@@ -52,7 +52,7 @@ async function newestPdf(chatId: ChatId) {
     for (const entry of entries) {
       const full = path.join(at, entry.name);
       if (entry.isDirectory()) {
-        if (depth < 3 && entry.name !== "skills") {
+        if (depth < 3) {
           await walk(full, depth + 1);
         }
       } else if (entry.name.toLowerCase().endsWith(".pdf")) {

@@ -1291,7 +1291,7 @@ done`,
               // The supporting sections.
               file({ filePath: "report/deploy.sh" }),
               file({
-                filePath: `${CHAT_FOLDER_NAMES.skills}/pdf/SKILL.md`,
+                filePath: "report/README.md",
                 mimeType: "text/markdown",
               }),
               file({

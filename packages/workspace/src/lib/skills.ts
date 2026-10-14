@@ -24,8 +24,8 @@ export const FILE_LIST_LIMIT = 50;
  * never touched. It exists for the ones that were not: a body discovered in
  * another agent's directory is arbitrary text nothing here reviewed, and
  * inlining it whole is the one place a single file can spend the context window
- * before the task starts. Past this the agent is pointed at the copy in its
- * task, which it can read the way it reads any other file.
+ * before the task starts. Past this the agent is pointed at the file in the
+ * skill's folder, which it can read the way it reads any other file.
  *
  * Roughly 8,500 tokens of Markdown.
  */
@@ -684,8 +684,8 @@ function mergeSkillAliases(
 /**
  * How two skill names are compared for sameness. Case-folded, because macOS and
  * Windows are: `pdf` and `PDF` from different sources are one name as far as
- * the folder a task copies them into is concerned, so they have to be one name
- * here too or the second load would land on top of the first.
+ * the runtime folder the app's own skills are prepared in is concerned, so
+ * they have to be one name here too or one would land on top of the other.
  */
 function nameKey(name: string): string {
   return name.toLowerCase();

@@ -33,7 +33,7 @@ async function sandboxed(command: string) {
   return { exitCode: result.exitCode, stdout: result.stdout };
 }
 
-function bash(command: string) {
+function realBash(command: string) {
   return execFileSync("bash", ["-c", command], {
     cwd: chatRoot,
     encoding: "utf8",
@@ -74,7 +74,7 @@ describe.runIf(process.platform !== "win32")(
       `printf '[%s]\\n' "$INSTRUMENT_WORK"/*.csv`,
     ])("%s prints what bash prints", async (command) => {
       const result = await sandboxed(command);
-      expect(result).toEqual({ exitCode: 0, stdout: bash(command) });
+      expect(result).toEqual({ exitCode: 0, stdout: realBash(command) });
       expect(result.stdout).toContain(chatRoot);
     });
   },

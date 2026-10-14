@@ -29,7 +29,10 @@ const MOVED_ENTRY_NAMES = [
 export interface AppFoldersMove {
   /** One line per folder moved, and one per entry left or failed. */
   done: string[];
-  /** Entries that could not be moved, which the next sweep tries again. */
+  /**
+   * Entries that could not be moved, because the move failed or their new
+   * place is taken, which the next sweep tries again.
+   */
   failed: number;
 }
 
@@ -42,8 +45,9 @@ export interface AppFoldersMove {
  * A folder whose new place is free is renamed whole (copied, then removed,
  * across volumes, and retried for a moment on Windows); one whose new place
  * is already there has its entries moved into it one by one, and an entry
- * still taken is left where it was. An entry that fails is left in place for
- * the next sweep. Records each move first (`recordMovedPaths`), so a path
+ * still taken is left where it was. An entry that fails, or whose place is
+ * taken, is left in place and counted (`failed`), so the sweep is not marked
+ * done and the next one tries it again. Records each move first (`recordMovedPaths`), so a path
  * stored before into one of these folders (a draft's attachments, a chat's
  * grants, a file a reply named, the recent files) is found where it went.
  * Synchronous, with no store open.
@@ -98,6 +102,7 @@ export function moveAppFoldersIntoDataDir({
             path.join(from, entry),
             path.join(to, entry),
             (left, taken) => {
+              move.failed++;
               move.done.push(`left ${left}: ${taken} is already there`);
             },
           )

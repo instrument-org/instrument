@@ -211,9 +211,8 @@ describe("splitChatRecords", () => {
         "work/skills/my-own/SKILL.md",
       ]
     `);
-    expect(
-      result.done.map((line) => line.replace(workDir(), "<work>")),
-    ).toMatchInlineSnapshot(`
+    expect(result.done.map((line) => line.replace(workDir(), "<work>")))
+      .toMatchInlineSnapshot(`
       [
         "2026-10-01-beta: .instrument/settings.json, skills/instrument/sharp-images (removed), work/skills/instrument/pdf (removed), work/skills/system/skill-creator (removed), tasks/old-task/work/skills/instrument/zip (removed), skills, work, with its work in <work>",
       ]
@@ -258,7 +257,8 @@ describe("splitChatRecords", () => {
 
     const result = split();
 
-    expect(result.failed).toBe(0);
+    // Counted, so the sweep runs again rather than leaving it for good.
+    expect(result.failed).toBe(1);
     expect(result.done).toContain(
       `left ${path.join(recordDir(), "work", "report.md")}: ${path.join(workDir(), "work", "report.md")} is already there`,
     );
@@ -287,6 +287,7 @@ describe("splitChatRecords", () => {
 
     const result = split();
 
+    expect(result.failed).toBe(1);
     expect(result.done).toContain(
       `left ${path.join(recordDir(), ".instrument", "chat.db")}: ${path.join(recordDir(), "chat.db")} is already there`,
     );
@@ -300,6 +301,11 @@ describe("splitChatRecords", () => {
     expect(fs.readFileSync(path.join(recordDir(), "chat.db"), "utf8")).toBe(
       "current",
     );
+
+    // Once the clash is settled, the next run moves the settings it held back.
+    fs.rmSync(path.join(recordDir(), ".instrument", "chat.db"));
+    expect(split().failed).toBe(0);
+    expect(listing(recordDir())).toEqual(["chat.db", "settings.json"]);
   });
 
   it("leaves what it could not move for the next run, which finishes it", () => {

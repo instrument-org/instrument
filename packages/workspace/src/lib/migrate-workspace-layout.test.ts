@@ -629,6 +629,30 @@ describe("migrateWorkspaceLayout", () => {
       ).toBe("notes");
     });
 
+    // A chat whose database clashes with one already at its new place keeps
+    // its settings back, so it is listed nowhere until the clash is settled.
+    it("leaves the mark unwritten while a chat's records clash, so the next boot finishes it", () => {
+      const record = path.join(rootDir, ".instrument", "chats", "a-chat");
+      fs.mkdirSync(path.join(record, ".instrument"), { recursive: true });
+      fs.writeFileSync(path.join(record, ".instrument", "chat.db"), "older");
+      fs.writeFileSync(path.join(record, ".instrument", "settings.json"), "{}");
+      fs.writeFileSync(path.join(record, "chat.db"), "current");
+
+      expect(migrate().chatRecords.failed).toBe(1);
+      expect(marks.layoutVersion).toBeUndefined();
+      expect(exists(".instrument", "chats", "a-chat", "settings.json")).toBe(
+        false,
+      );
+
+      fs.rmSync(path.join(record, ".instrument", "chat.db"));
+
+      expect(migrate().chatRecords.failed).toBe(0);
+      expect(marks.layoutVersion).toBeDefined();
+      expect(exists(".instrument", "chats", "a-chat", "settings.json")).toBe(
+        true,
+      );
+    });
+
     it("removes the temp folder an external browser cloned a profile into", () => {
       const clone = path.join(
         rootDir,
@@ -691,6 +715,26 @@ describe("migrateWorkspaceLayout", () => {
       expect(second.appFolders.failed).toBe(0);
       expect(marks.layoutVersion).toBeDefined();
       expect(fs.readdirSync(into).toSorted()).toEqual(["a", "b"]);
+      expect(exists("drafts")).toBe(false);
+    });
+
+    it("leaves the mark unwritten while an entry clashes with one already moved in", () => {
+      fs.mkdirSync(path.join(rootDir, "drafts", "b"), { recursive: true });
+      fs.writeFileSync(path.join(rootDir, "drafts", "b", "draft.md"), "older");
+      const into = path.join(rootDir, ".instrument", "drafts", "b");
+      fs.mkdirSync(into, { recursive: true });
+      fs.writeFileSync(path.join(into, "draft.md"), "newer");
+
+      expect(migrate().appFolders.failed).toBe(1);
+      expect(marks.layoutVersion).toBeUndefined();
+
+      fs.rmSync(path.join(into, "draft.md"));
+
+      expect(migrate().appFolders.failed).toBe(0);
+      expect(marks.layoutVersion).toBeDefined();
+      expect(fs.readFileSync(path.join(into, "draft.md"), "utf8")).toBe(
+        "older",
+      );
       expect(exists("drafts")).toBe(false);
     });
   });

@@ -33,7 +33,12 @@ export function loadChildren(root) {
   // script:dump-session-transcript's.
   const chatDir =
     root.p.meta.chatDir ?? root.p.meta.taskDir ?? root.p.meta.source ?? "";
-  const db = path.join(chatDir, ".instrument", "chat.db");
+  // In the chat's record folder, or in its `.instrument/` for a folder a
+  // build from before records moved apart from work left.
+  const flat = path.join(chatDir, "chat.db");
+  const db = fs.existsSync(flat)
+    ? flat
+    : path.join(chatDir, ".instrument", "chat.db");
   if (!chatDir || !fs.existsSync(db)) {
     return [{ id: "(the chat's tasks)", missing: db }];
   }

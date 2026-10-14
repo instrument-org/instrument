@@ -3,11 +3,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { WorkspaceDirSchema, WorkspaceFilePathSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  WorkspaceDirSchema,
+  WorkspaceFilePathSchema,
+} from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 import { grantFolder } from "./chat/grants";
+import { recordMovedPaths } from "./moved-paths";
+import { chatDir } from "./record-folders";
+import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
@@ -84,10 +92,6 @@ describe("resolveWorkspaceFilePath", () => {
       filePath: (): string => path.join(root, "Unattached", "cat.png"),
       label: "a folder the chat does not reach",
     },
-    {
-      filePath: () => ".instrument/state.json",
-      label: "the task's private dir",
-    },
   ])("returns null for $label", async ({ filePath }) => {
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(filePath()),
@@ -95,5 +99,75 @@ describe("resolveWorkspaceFilePath", () => {
     });
 
     expect(resolved).toBeNull();
+  });
+});
+
+// What the person's file views ask of a chat whose records and work are two
+// folders: a stored `attachments/` path is the file in the record folder, and
+// a path into the chat's folder from before its work moved is where it went.
+describe("resolveWorkspaceFilePath with the records apart from the work", () => {
+  let root: string;
+  let machineDir: string;
+  let chatId: ChatId;
+
+  beforeEach(async () => {
+    root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "resolve-records-")),
+    );
+    const rootDir = path.join(root, "workspace");
+    machineDir = path.join(root, "machine");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
+      rootDir: WorkspaceDirSchema.parse(rootDir),
+      workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
+      workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
+    });
+    chatId = chatFor();
+    await fs.mkdir(path.join(chatDir(chatId), "attachments"));
+    await fs.writeFile(
+      path.join(chatDir(chatId), "attachments", "sent.png"),
+      "sent",
+    );
+    await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
+    await fs.writeFile(path.join(workDir(chatId), "work", "report.md"), "made");
+    recordMovedPaths(machineDir, [
+      { from: path.join(rootDir, "chats"), to: path.join(machineDir, "work") },
+    ]);
+  });
+
+  afterEach(async () => {
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  it.each([
+    [
+      "what the person sent, by its stored path",
+      (): string => "attachments/sent.png",
+      (): null | string =>
+        path.join(chatDir(chatId), "attachments", "sent.png"),
+    ],
+    [
+      "the agent's work, by its relative path",
+      (): string => "work/report.md",
+      (): null | string => path.join(workDir(chatId), "work", "report.md"),
+    ],
+    [
+      "the agent's work, by its path before it moved",
+      (): string => path.join(chatDir(chatId), "work", "report.md"),
+      (): null | string => path.join(workDir(chatId), "work", "report.md"),
+    ],
+    [
+      "the chat's settings",
+      (): string => path.join(chatDir(chatId), "settings.json"),
+      (): null | string => null,
+    ],
+  ] as const)("resolves %s", async (_label, filePath, expected) => {
+    const resolved = await resolveWorkspaceFilePath({
+      filePath: WorkspaceFilePathSchema.parse(filePath()),
+      chatId,
+    });
+
+    expect(resolved).toBe(expected());
   });
 });

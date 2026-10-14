@@ -1,6 +1,7 @@
 import {
   getWorkspaceFolder,
   workspaceDataDir,
+  workspaceMachineDir,
   workspaceWindowDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import {
@@ -10,6 +11,10 @@ import {
   type KeptFile,
   type KeptSnapshot,
 } from "@/shared/kept-state";
+import {
+  readMovedPaths,
+  remapMovedPath,
+} from "@instrument-org/workspace/electron";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -174,6 +179,7 @@ function getStore() {
     {
       drafts: createDraftsFolder(
         path.join(getWorkspaceFolder(), DRAFTS_DIR_NAME),
+        (file) => remapMovedPath(file, readMovedPaths(workspaceMachineDir())),
       ),
     },
   );

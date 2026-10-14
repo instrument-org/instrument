@@ -56,6 +56,7 @@ import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
 import { chatVenvPython } from "../src/lib/uv";
+import { workDir } from "../src/lib/work-dir";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -112,8 +113,8 @@ async function placeAuditChat() {
   const chatId = ChatIdSchema.parse(ulid().toLowerCase());
   // Put in the chat index, so every later lookup of the id finds its folder.
   const sessionId = StoreId.newSessionId();
-  const dir = placeChat(chatId, sessionId);
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(placeChat(chatId, sessionId), { recursive: true });
+  const dir = workDir(chatId);
   // `work/` has to arrive from the template: its package.json and
   // pnpm-workspace.yaml are what make the skill's own `pnpm install` a nested
   // workspace install rather than an error.
@@ -121,12 +122,7 @@ async function placeAuditChat() {
     force: false,
     recursive: true,
   });
-  for (const folder of [
-    CHAT_FOLDER_NAMES.attachments,
-    CHAT_FOLDER_NAMES.work,
-  ]) {
-    await fs.mkdir(path.join(dir, folder), { recursive: true });
-  }
+  await fs.mkdir(path.join(dir, CHAT_FOLDER_NAMES.work), { recursive: true });
   return { chatId, dir, sessionId };
 }
 

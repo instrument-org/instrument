@@ -2,11 +2,18 @@ import { InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../../schemas/mounted-folder";
-import { AbsolutePathSchema, ChatDirSchema } from "../../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkDirSchema,
+} from "../../schemas/paths";
+import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
 const TASK = "/Users/me/Tasks/test-task";
+// The chat's record folder, in the workspace, which the rules keep hidden.
+const RECORD = `${getWorkspaceConfig().rootDir}/chats/test-task`;
 
 const layout = buildWorkspaceFsLayout({
   folders: {
@@ -16,7 +23,8 @@ const layout = buildWorkspaceFsLayout({
       path: AbsolutePathSchema.parse("/Users/me/My Docs"),
     },
   },
-  chatHostRoot: ChatDirSchema.parse("/Users/me/Tasks/test-task"),
+  chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/test-task"),
+  recordHostRoot: ChatDirSchema.parse(RECORD),
 });
 
 async function makeCtx() {
@@ -106,8 +114,8 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it.each([
     { arg: "file:///etc/hosts", name: "file outside every mount" },
     {
-      arg: "file:///Users/me/Tasks/test-task/.instrument/task.db",
-      name: "file in the chat's private directory",
+      arg: `file://${RECORD}/chat.db`,
+      name: "file in the chat's record folder",
     },
     { arg: "/etc/hosts", name: "path outside every mount" },
   ])("refuses a $name", async ({ arg }) => {

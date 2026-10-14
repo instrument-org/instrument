@@ -1,9 +1,14 @@
 import { noteTyped } from "@/electron-main/browser-view/history-intents";
+import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   getHistoryStore,
   recordFileOpen,
 } from "@/electron-main/browser-view/history-store";
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  liveRead,
+  readMovedPaths,
+  remapMovedPath,
+} from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -91,7 +96,7 @@ const live = {
       const store = getHistoryStore();
       yield* liveRead({
         changes: [store.changes.subscribe("changed", { signal })],
-        read: () => store.openedFiles(input.limit),
+        read: () => whereFilesAreNow(store.openedFiles(input.limit)),
       });
     }),
   /**
@@ -130,3 +135,30 @@ export const history = {
   remove,
   summary,
 };
+
+/**
+ * The opened files where they are now: one a migration moved is read back
+ * where it went, and two that land on one file are one, at its latest open.
+ * In the order given, newest first.
+ */
+function whereFilesAreNow(
+  files: z.output<typeof OpenedFileSchema>[],
+): z.output<typeof OpenedFileSchema>[] {
+  const moves = readMovedPaths(workspaceMachineDir());
+  const byPath = new Map<string, z.output<typeof OpenedFileSchema>>();
+  for (const file of files) {
+    const now = remapMovedPath(file.path, moves);
+    const seen = byPath.get(now);
+    byPath.set(
+      now,
+      seen
+        ? {
+            at: Math.max(seen.at, file.at),
+            openCount: seen.openCount + file.openCount,
+            path: now,
+          }
+        : { ...file, path: now },
+    );
+  }
+  return [...byPath.values()];
+}

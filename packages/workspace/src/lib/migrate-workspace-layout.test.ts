@@ -22,17 +22,23 @@ const NOTHING_ADOPTED = {
 };
 
 let rootDir: string;
+// This computer's folder for the workspace, where each chat's work goes.
+let machineDir: string;
 // The workspace's marks, as the app keeps them in its workspace.json.
 let marks: LayoutMarks;
 
 beforeEach(() => {
   rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-layout-"));
+  machineDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "migrate-layout-machine-"),
+  );
   marks = {};
   vi.mocked(migrateLegacyTasks).mockReset().mockReturnValue(NOTHING_ADOPTED);
 });
 
 afterEach(() => {
   fs.rmSync(rootDir, { force: true, recursive: true });
+  fs.rmSync(machineDir, { force: true, recursive: true });
 });
 
 function exists(...segments: string[]): boolean {
@@ -79,6 +85,7 @@ function writeTaskSettings(chatId: string, settings: Record<string, unknown>) {
 
 function migrate() {
   return migrateWorkspaceLayout({
+    machineDir,
     marks: {
       read: () => marks,
       write: (change) => {
@@ -93,6 +100,7 @@ describe("migrateWorkspaceLayout", () => {
   it("no-ops when there is no legacy projects/ dir, but still records the mark", () => {
     const result = migrate();
     expect(result).toEqual({
+      chatRecords: { done: [], failed: 0 },
       conflictedTaskIds: [],
       legacyTasks: {
         adoptedCount: 0,
@@ -418,6 +426,8 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".tmp", "scratch.csv")).toBe("a,b");
   });
 
+  // A chat an earlier build left, its records in its folder's `.instrument/`,
+  // which the sweep renames there and then lifts to the top of the folder.
   describe("a chat's database", () => {
     function writeChatFiles(id: string, files: Record<string, string>) {
       const privateDir = path.join(rootDir, "chats", id, ".instrument");
@@ -428,9 +438,7 @@ describe("migrateWorkspaceLayout", () => {
     }
 
     function chatFiles(id: string) {
-      return fs
-        .readdirSync(path.join(rootDir, "chats", id, ".instrument"))
-        .toSorted();
+      return fs.readdirSync(path.join(rootDir, "chats", id)).toSorted();
     }
 
     it("renames task.db to chat.db with its sidecars, once", () => {
@@ -451,12 +459,8 @@ describe("migrateWorkspaceLayout", () => {
         "chat.db-wal",
         "settings.json",
       ]);
-      expect(read("chats", "2026-10-01-chat", ".instrument", "chat.db")).toBe(
-        "main",
-      );
-      expect(
-        read("chats", "2026-10-01-chat", ".instrument", "chat.db-wal"),
-      ).toBe("wal");
+      expect(read("chats", "2026-10-01-chat", "chat.db")).toBe("main");
+      expect(read("chats", "2026-10-01-chat", "chat.db-wal")).toBe("wal");
     });
 
     // A boot cut short after the sidecars moved finishes on the next one,
@@ -480,9 +484,9 @@ describe("migrateWorkspaceLayout", () => {
 
       migrate();
 
-      expect(read("chats", "2026-10-01-chat", ".instrument", "chat.db")).toBe(
-        "current",
-      );
+      expect(read("chats", "2026-10-01-chat", "chat.db")).toBe("current");
+      // Nothing reads it; it stays where it was rather than taking chat.db's
+      // place.
       expect(read("chats", "2026-10-01-chat", ".instrument", "task.db")).toBe(
         "stale",
       );
@@ -500,12 +504,15 @@ describe("migrateWorkspaceLayout", () => {
 
       migrate();
 
-      expect(fs.readdirSync(windowPrivate)).toEqual(["chat.db"]);
+      expect(
+        fs.readdirSync(path.join(rootDir, ".instrument", "window")),
+      ).toEqual(["chat.db"]);
+      expect(read(".instrument", "window", "chat.db")).toBe("tabs");
     });
 
-    // What an earlier build left under a chat's tasks/ stays on disk as it
-    // was: nothing reads it.
-    it("leaves a folder under a chat's tasks/ alone", () => {
+    // What an earlier build left under a chat's tasks/ is nobody's record, so
+    // its database keeps its name and is set aside out of the chat's folder.
+    it("sets aside the records under a chat's tasks/ without renaming them", () => {
       const leftOver = path.join(
         rootDir,
         "chats",
@@ -519,7 +526,80 @@ describe("migrateWorkspaceLayout", () => {
 
       migrate();
 
-      expect(fs.readdirSync(leftOver)).toEqual(["task.db"]);
+      expect(exists("chats", "2026-10-01-chat", "tasks")).toBe(false);
+      expect(
+        read(
+          ".pre-chats",
+          "chat-task-records",
+          "2026-10-01-chat",
+          "2026-10-01-fork",
+          "task.db",
+        ),
+      ).toBe("fork");
+    });
+  });
+
+  describe("a chat's work", () => {
+    it("moves a chat's work to its work folder in the machine folder, leaving its records", () => {
+      const chat = path.join(rootDir, "chats", "2026-10-01-chat");
+      fs.mkdirSync(path.join(chat, ".instrument"), { recursive: true });
+      fs.writeFileSync(path.join(chat, ".instrument", "settings.json"), "{}");
+      fs.mkdirSync(path.join(chat, "attachments"));
+      fs.writeFileSync(path.join(chat, "attachments", "a.png"), "png");
+      fs.mkdirSync(path.join(chat, "work"));
+      fs.writeFileSync(path.join(chat, "work", "report.md"), "report");
+
+      const result = migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(fs.readdirSync(chat).toSorted()).toEqual([
+        "attachments",
+        "settings.json",
+      ]);
+      expect(
+        fs.readFileSync(
+          path.join(machineDir, "work", "2026-10-01-chat", "work", "report.md"),
+          "utf8",
+        ),
+      ).toBe("report");
+    });
+
+    // The 1.x migration makes its chats in the shape earlier builds left, so
+    // they are split in the same sweep, after it.
+    it("splits the chats the 1.x migration made in the same sweep", () => {
+      vi.mocked(migrateLegacyTasks).mockImplementation(() => {
+        const chat = path.join(rootDir, "chats", "2026-06-23-a-bug");
+        fs.mkdirSync(path.join(chat, ".instrument"), { recursive: true });
+        fs.writeFileSync(path.join(chat, ".instrument", "chat.db"), "db");
+        fs.writeFileSync(path.join(chat, "notes.md"), "notes");
+        return { ...NOTHING_ADOPTED, adoptedCount: 1 };
+      });
+
+      migrate();
+
+      expect(read("chats", "2026-06-23-a-bug", "chat.db")).toBe("db");
+      expect(exists("chats", "2026-06-23-a-bug", ".instrument")).toBe(false);
+      expect(
+        fs.readFileSync(
+          path.join(machineDir, "work", "2026-06-23-a-bug", "notes.md"),
+          "utf8",
+        ),
+      ).toBe("notes");
+    });
+
+    it("removes the temp folder an external browser cloned a profile into", () => {
+      const clone = path.join(
+        rootDir,
+        ".instrument",
+        "external-browser-tmp",
+        "agent-browser-profile-1",
+      );
+      fs.mkdirSync(clone, { recursive: true });
+      fs.writeFileSync(path.join(clone, "Cookies"), "sqlite");
+
+      migrate();
+
+      expect(exists(".instrument", "external-browser-tmp")).toBe(false);
     });
   });
 
@@ -574,6 +654,24 @@ describe("migrateWorkspaceLayout", () => {
       migrate();
       expect(migrateLegacyTasks).toHaveBeenCalledTimes(2);
       expect(marks.layoutVersion).toBeDefined();
+    });
+
+    it("leaves the mark unwritten while a chat's work could not move, so the next boot retries it", () => {
+      const chat = path.join(rootDir, "chats", "2026-10-01-chat");
+      fs.mkdirSync(path.join(chat, "work"), { recursive: true });
+      fs.writeFileSync(path.join(chat, "work", "report.md"), "report");
+      // Something in the way of every work folder.
+      fs.writeFileSync(path.join(machineDir, "work"), "not a folder");
+
+      const first = migrate();
+      expect(first.chatRecords.failed).toBeGreaterThan(0);
+      expect(marks.layoutVersion).toBeUndefined();
+
+      fs.rmSync(path.join(machineDir, "work"));
+      const second = migrate();
+      expect(second.chatRecords.failed).toBe(0);
+      expect(marks.layoutVersion).toBeDefined();
+      expect(exists("chats", "2026-10-01-chat", "work")).toBe(false);
     });
 
     it("sweeps tasks the legacy projects/ move brought in even when the mark is current", () => {

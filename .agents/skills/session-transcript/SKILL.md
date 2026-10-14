@@ -5,7 +5,7 @@ description: Export a chat's or task's session as a markdown transcript from its
 
 # Session Transcript
 
-`script:dump-session-transcript` renders a session from a chat's `.instrument/chat.db` (the chat's own, or one of its tasks', each a session in that store) into a markdown transcript.
+`script:dump-session-transcript` renders a session from a chat's `chat.db`, in its record folder `chats/<id>/`, (the chat's own, or one of its tasks', each a session in that store) into a markdown transcript.
 
 The script lives in `packages/workspace`; the filter runs it from anywhere in the monorepo:
 

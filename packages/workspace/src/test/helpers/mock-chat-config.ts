@@ -14,7 +14,10 @@ import {
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway/schemas";
-import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
+import {
+  AI_GATEWAY_API_KEY_NOT_NEEDED,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { noop } from "radashi";
@@ -37,13 +40,17 @@ import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
+// Outside the workspace, as this computer's folder for it is.
+const MOCK_WORKSPACE_MACHINE_DIR = "/tmp/workspace-machine";
 
 export const MOCK_WORKSPACE_DIRS = {
   chatTemplate: `${MOCK_WORKSPACE_DIR}/chat-template`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
   chats: `${MOCK_WORKSPACE_DIR}/${CHATS_DIR_NAME}`,
+  machine: MOCK_WORKSPACE_MACHINE_DIR,
   tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
+  work: `${MOCK_WORKSPACE_MACHINE_DIR}/${WORKSPACE_MACHINE_ENTRIES.work}`,
 } as const;
 
 // Provider configs registered by createMockChatConfig. The singleton's
@@ -135,6 +142,8 @@ export function createMockChatConfig(
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
+    workFoldersDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.work),
+    workspaceMachineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
   };
 
   // Register this model's provider config and mirror production, where the
@@ -170,8 +179,10 @@ function mockSessionOf(id: ChatId): StoreId.Session {
   return StoreId.SessionSchema.parse(`ses_0${chars.join("")}`);
 }
 
-// Returns a chat id whose chatDir(id) resolves to `dir`, by pointing the
-// singleton's chatsDir at its parent. The dir's basename must be a valid id.
+// Returns a chat id whose record folder (chatDir) and work folder (workDir)
+// both resolve to `dir`, by pointing the singleton's chatsDir and
+// workFoldersDir at its parent. The dir's basename must be a valid id. A test
+// of what lies apart between the two sets them apart itself.
 export function createMockChatConfigForDir(
   dir: string,
   options: Parameters<typeof createMockChatConfig>[1] = {},
@@ -181,6 +192,7 @@ export function createMockChatConfigForDir(
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.dirname(dir)),
+    workFoldersDir: AbsolutePathSchema.parse(path.dirname(dir)),
   });
   if (!options.unplaced) {
     knowChat(id);

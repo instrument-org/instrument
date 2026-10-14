@@ -37,7 +37,7 @@ import { gitBinaryPath, gitSubprocessEnv } from "../../src/lib/git";
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { openAsks } from "../../src/lib/permissions/asks";
 import { updatePermissionSettings } from "../../src/lib/permissions/rules";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
@@ -475,11 +475,7 @@ function detours({
     (names.has(path.basename(file)) ||
       (fs.statSync(file, { throwIfNoEntry: false })?.isFile() === true &&
         (hashes.has(hashOf(file) ?? "") || (matches?.(file) ?? false))));
-  const chatFolder = chatDir(chatId);
-  const inChat = walk(
-    chatFolder,
-    (file) => path.basename(file) === ".instrument",
-  );
+  const inChat = walk(workDir(chatId), () => false);
   return [...new Set([...inChat, ...homeWrites(window)])].filter(isCopy);
 }
 

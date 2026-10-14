@@ -21,7 +21,7 @@ import {
 } from "./background-processes";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
-import { chatDir } from "./record-folders";
+import { workDir } from "./work-dir";
 
 const usedSessionIds: StoreId.Session[] = [];
 
@@ -98,7 +98,7 @@ function makeOwner(name: string) {
       .slice(0, 23)}`,
   );
   createMockChatConfig(chatId);
-  rmSync(chatDir(chatId), { force: true, recursive: true });
+  rmSync(workDir(chatId), { force: true, recursive: true });
   const sessionId = StoreId.newSessionId();
   usedSessionIds.push(sessionId);
   return { sessionId, chatId };
@@ -284,10 +284,10 @@ describe("background processes", () => {
     // A regular file where the log directory belongs, so creating it fails the
     // way a permission or layout problem on the real disk would.
     const toolOutput = absolutePathJoin(
-      chatDir(owner.chatId),
+      workDir(owner.chatId),
       CHAT_FOLDER_NAMES.toolOutput,
     );
-    await fs.mkdir(chatDir(owner.chatId), { recursive: true });
+    await fs.mkdir(workDir(owner.chatId), { recursive: true });
     await fs.writeFile(toolOutput, "not a directory", "utf8");
 
     const controllable = controllableRun();
@@ -493,7 +493,7 @@ describe("background processes", () => {
     });
 
     const log = await fs.readFile(
-      absolutePathJoin(chatDir(owner.chatId), info.logFilePath),
+      absolutePathJoin(workDir(owner.chatId), info.logFilePath),
       "utf8",
     );
     expect(log).toMatchInlineSnapshot(`
@@ -771,7 +771,7 @@ describe("background processes", () => {
     // The counter lives in memory, so a task it has never seen is the state every
     // task is in right after the app restarts.
     const outputDir = absolutePathJoin(
-      chatDir(owner.chatId),
+      workDir(owner.chatId),
       CHAT_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(outputDir, { recursive: true });

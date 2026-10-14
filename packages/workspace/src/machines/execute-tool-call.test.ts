@@ -92,7 +92,8 @@ describe("executeToolCallMachine", () => {
     );
 
     mockFs({
-      [MOCK_WORKSPACE_DIRS.chats]: {
+      [MOCK_WORKSPACE_DIRS.chats]: { [taskConfig]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: {
         [taskConfig]: {
           "nonexistent.js": "",
           "package.json": "{}",

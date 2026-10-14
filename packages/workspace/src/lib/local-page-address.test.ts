@@ -4,16 +4,21 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
-import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkDirSchema,
+} from "../schemas/paths";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
   fileUrlOfHostPath,
   isLocalAddress,
 } from "./local-page-address";
+import { getWorkspaceConfig } from "./workspace-config";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
-function layoutFor(chatRoot: string, docsRoot: string) {
+function layoutFor(chatRoot: string, docsRoot: string, recordRoot?: string) {
   return buildWorkspaceFsLayout({
     folders: {
       docs: {
@@ -22,7 +27,8 @@ function layoutFor(chatRoot: string, docsRoot: string) {
         path: AbsolutePathSchema.parse(docsRoot),
       },
     },
-    chatHostRoot: ChatDirSchema.parse(chatRoot),
+    chatHostRoot: WorkDirSchema.parse(chatRoot),
+    ...(recordRoot && { recordHostRoot: ChatDirSchema.parse(recordRoot) }),
   });
 }
 
@@ -69,6 +75,9 @@ describe("agentSpellingOfFileUrls", () => {
 
 describe("agentPathOfFileUrl", () => {
   let root: string;
+  // The chat's record folder, in the workspace, which the rules keep hidden
+  // but for what the person sent.
+  let record: string;
   let layout: ReturnType<typeof layoutFor>;
 
   beforeAll(async () => {
@@ -76,7 +85,14 @@ describe("agentPathOfFileUrl", () => {
       await fs.mkdtemp(path.join(os.tmpdir(), "local-page-")),
     );
     await fs.mkdir(path.join(root, "task/work"), { recursive: true });
-    await fs.mkdir(path.join(root, "task/.instrument"), { recursive: true });
+    record = path.join(
+      getWorkspaceConfig().rootDir,
+      "chats",
+      path.basename(root),
+    );
+    await fs.mkdir(path.join(record, "attachments"), { recursive: true });
+    await fs.writeFile(path.join(record, "attachments/sent.html"), "");
+    await fs.writeFile(path.join(record, "chat.db"), "");
     await fs.mkdir(path.join(root, "docs"), { recursive: true });
     await fs.mkdir(path.join(root, "elsewhere"), { recursive: true });
     await fs.writeFile(path.join(root, "task/work/page.html"), "");
@@ -85,23 +101,36 @@ describe("agentPathOfFileUrl", () => {
       path.join(root, "elsewhere"),
       path.join(root, "task/work/leak"),
     );
-    layout = layoutFor(path.join(root, "task"), path.join(root, "docs"));
+    layout = layoutFor(
+      path.join(root, "task"),
+      path.join(root, "docs"),
+      record,
+    );
   });
 
   afterAll(async () => {
     await fs.rm(root, { force: true, recursive: true });
+    await fs.rm(record, { force: true, recursive: true });
   });
 
   it.each([
     { file: "task/work/page.html", reachable: true },
     { file: "docs/page.html", reachable: true },
     { file: "elsewhere/secret.txt", reachable: false },
-    { file: "task/.instrument/task.db", reachable: false },
     { file: "task/work/leak/secret.txt", reachable: false },
   ])("$file → reachable: $reachable", ({ file, reachable }) => {
     expect(
       agentPathOfFileUrl(layout, fileUrlOfHostPath(path.join(root, file))),
     ).toBe(reachable ? path.join(root, file) : null);
+  });
+
+  it.each([
+    { file: "attachments/sent.html", reachable: true },
+    { file: "chat.db", reachable: false },
+  ])("record folder's $file → reachable: $reachable", ({ file, reachable }) => {
+    expect(
+      agentPathOfFileUrl(layout, fileUrlOfHostPath(path.join(record, file))),
+    ).toBe(reachable ? path.join(record, file) : null);
   });
 
   it("finds a mount whose root is spelled through a symlink", async () => {

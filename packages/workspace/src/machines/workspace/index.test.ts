@@ -55,6 +55,7 @@ function createWorkspaceActor(
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
       webSearch: unavailableWebSearchClient,
+      workspaceMachineDir: MOCK_WORKSPACE_DIRS.machine,
     },
   });
 }

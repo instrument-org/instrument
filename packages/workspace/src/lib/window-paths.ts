@@ -8,9 +8,9 @@ import { getWorkspaceConfig } from "./workspace-config";
 const WINDOW_FOLDER_NAME = "window";
 
 /**
- * The window's own folder, `.instrument/window/` at the workspace root,
- * standing where a chat's folder stands for what is scoped to the window
- * (its tabs' pages are kept in the store inside it).
+ * The window's own record folder, `.instrument/window/` at the workspace
+ * root, standing where a chat's record folder stands for what is scoped to
+ * the window (its tabs' pages are kept in the `chat.db` inside it).
  */
 export function windowDir(
   rootDir: AbsolutePath = getWorkspaceConfig().rootDir,

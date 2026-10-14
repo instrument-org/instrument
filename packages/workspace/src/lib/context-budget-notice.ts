@@ -1,5 +1,4 @@
 import { type ContextBudget } from "./context-budget";
-import { HANDOFF_NOTES_RELATIVE_PATH } from "./handoff-notes";
 
 /**
  * What the agent is told when its context window is running out.
@@ -10,17 +9,21 @@ import { HANDOFF_NOTES_RELATIVE_PATH } from "./handoff-notes";
  * folded into the prompt, so a number that changes every turn cannot invalidate
  * the cached prefix.
  *
- * The chat's folder is the answer to "durable where?": it is the agent's working
- * directory, it is a real directory on disk, and it outlives any single context
- * window. Notes written there are readable by whatever continues the task,
- * which is what makes warning the agent worth doing at all.
+ * The handoff notes file (`agentHandoffNotesPath`) is the answer to "durable
+ * where?": it is a real file on disk, kept with the chat's records, and it
+ * outlives any single context window. Notes written there are readable by
+ * whatever continues the task, which is what makes warning the agent worth
+ * doing at all.
  */
-export function contextBudgetNotice(budget: ContextBudget): string | undefined {
+export function contextBudgetNotice(
+  budget: ContextBudget,
+  notesPath: string,
+): string | undefined {
   if (budget.status === "ok" || budget.status === "unknown") {
     return undefined;
   }
 
-  const preserve = `Write them to ${HANDOFF_NOTES_RELATIVE_PATH} in this conversation's folder, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.`;
+  const preserve = `Write them to ${notesPath}, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.`;
   const record =
     "Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.";
 

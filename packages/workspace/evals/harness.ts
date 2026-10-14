@@ -58,6 +58,7 @@ import {
   buildProviderConfigs,
   c,
   costOfUsage,
+  EVAL_MACHINE_DIR_NAME,
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
@@ -616,6 +617,9 @@ export async function runEvals(
       registryDir,
       rootDir: workspaceRootDir,
       runtimeDir,
+      // Inside the run's own folder, so a saved run keeps the chats' work
+      // folders beside their records (`buildReportWorkspaceConfig`).
+      workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(

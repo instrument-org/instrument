@@ -6,6 +6,7 @@ import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import { workDir } from "../src/lib/work-dir";
 import { chatModelURI } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import {
@@ -292,10 +293,17 @@ export async function generateReport({
       JSON.stringify(stats, null, 2),
       "utf8",
     );
-    const symlinkPath = path.join(taskOutputDir, "task");
-    await fs.symlink(chatDir(chatId), symlinkPath).catch(() => {
-      return;
-    });
+    // What the run made, and beside it the chat's records.
+    await fs
+      .symlink(workDir(chatId), path.join(taskOutputDir, "task"))
+      .catch(() => {
+        return;
+      });
+    await fs
+      .symlink(chatDir(chatId), path.join(taskOutputDir, "record"))
+      .catch(() => {
+        return;
+      });
 
     if (!evalCase) {
       process.stderr.write(

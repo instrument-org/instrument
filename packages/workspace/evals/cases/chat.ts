@@ -26,7 +26,7 @@ import path from "node:path";
 
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
@@ -284,7 +284,7 @@ function madeDocuments(extensions: string[]): Assertion {
   return {
     check: async ({ chatId }) => {
       // The chat's tasks work in its folder.
-      const written = [os.homedir(), chatDir(chatId)].flatMap((dir) =>
+      const written = [os.homedir(), workDir(chatId)].flatMap((dir) =>
         recentFilesUnder(dir),
       );
       const missing = extensions.filter(

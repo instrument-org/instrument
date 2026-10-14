@@ -7,7 +7,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { chatReadProblem } from "./chat/chats";
-import { UNREADABLE_SETTINGS_REASON } from "./invalid-legacy-task-folders";
+import { pathExists } from "./path-exists";
 import {
   chatsDir,
   forgetChat,
@@ -23,10 +23,10 @@ interface InvalidChatFolder {
 }
 
 const REASONS = {
-  "no-session": "No chat session in its settings (.instrument/settings.json)",
-  "unreadable-messages": "Unreadable messages (.instrument/chat.db)",
-  "unreadable-session": "Unreadable chat session (.instrument/chat.db)",
-  "unreadable-settings": UNREADABLE_SETTINGS_REASON,
+  "no-session": "No chat session in its settings (settings.json)",
+  "unreadable-messages": "Unreadable messages (chat.db)",
+  "unreadable-session": "Unreadable chat session (chat.db)",
+  "unreadable-settings": "Missing or unreadable settings (settings.json)",
 } as const;
 
 /**
@@ -65,10 +65,11 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
 }
 
 /**
- * Sends one folder the scan reports to the OS trash. Only a name the scan
- * reports right now is taken, which keeps a chat the list can show, and any
- * path out of `chats/`, out of reach. A chat whose store was opened has it
- * closed first, and leaves the index once its folder is gone.
+ * Sends one folder the scan reports to the OS trash, with the work folder of
+ * the same name where there is one. Only a name the scan reports right now is
+ * taken, which keeps a chat the list can show, and any path out of `chats/`,
+ * out of reach. A chat whose store was opened has it closed first, and leaves
+ * the index once its folder is gone.
  */
 export async function trashInvalidChatFolder(
   name: string,
@@ -88,6 +89,12 @@ export async function trashInvalidChatFolder(
         if (disposed.isErr()) {
           throw disposed.error;
         }
+      }
+      const work = AbsolutePathSchema.parse(
+        path.join(workspaceConfig.workFoldersDir, name),
+      );
+      if (await pathExists(work)) {
+        await workspaceConfig.trashItem(work);
       }
       await workspaceConfig.trashItem(
         AbsolutePathSchema.parse(path.join(chatsDir(), name)),

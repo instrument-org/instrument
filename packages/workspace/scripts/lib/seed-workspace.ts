@@ -17,12 +17,13 @@
 import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import { ok, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASKS_DIR_NAME } from "../../src/constants";
+import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../../src/constants";
 import { copyChatFolder } from "../../src/lib/copy-chat-folder";
 import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
@@ -30,11 +31,13 @@ import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { updateChatRecord } from "../../src/lib/chat-record";
 import { addChildTask } from "../../src/lib/chat/children";
 import { grantFolder } from "../../src/lib/chat/grants";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
 import {
+  type AbsolutePath,
   AbsolutePathSchema,
   RelativePathSchema,
 } from "../../src/schemas/paths";
@@ -81,7 +84,9 @@ interface FixtureFile {
 /**
  * `userDataDir` is what `ELECTRON_USER_DATA_DIR` will point at, so the layout
  * written here has to be the one the app expects to find: the workspace under
- * `workspace/`, the electron-store files beside it.
+ * `workspace/`, the electron-store files beside it, and each chat's work
+ * folder in the machine folder of the first workspace, which the app names
+ * `default`.
  */
 export async function seedWorkspace({
   fixture,
@@ -94,6 +99,7 @@ export async function seedWorkspace({
 }): Promise<SeededTask[]> {
   const rootDir = path.join(userDataDir, "workspace");
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
+  const machineDir = path.join(userDataDir, "workspaces-data", "default");
 
   await fs.mkdir(tasksDir, { recursive: true });
 
@@ -102,6 +108,10 @@ export async function seedWorkspace({
       // The one stub path the seeder reads through rather than merely names:
       // task creation copies this template into every task it makes.
       chatTemplateDir: AbsolutePathSchema.parse(CHAT_TEMPLATE_DIR),
+      workFoldersDir: AbsolutePathSchema.parse(
+        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work),
+      ),
+      workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
     },
     rootDir,
     tasksDir,
@@ -182,15 +192,14 @@ function collectTimestamps(session: Session.WithMessagesAndParts): Date[] {
   return dates;
 }
 
+/** A fixture's files, into a chat's work folder or a 1.x task's own. */
 async function copyFixtureFiles({
+  dir,
   files,
-  id,
 }: {
+  dir: AbsolutePath;
   files: FixtureFile[];
-  id: ChatId;
 }) {
-  const dir = chatDir(id);
-
   for (const file of files) {
     const destination = resolvePathWithinChatDir({
       dir,
@@ -362,19 +371,41 @@ async function seedTask({
     throw result.error;
   }
 
-  await copyFixtureFiles({ files, id });
+  await copyFixtureFiles({
+    dir: isChat ? workDir(id) : chatDir(id),
+    files,
+  });
 
   // Every task holds an open SQLite handle in a module-level cache. Release it
   // so the WAL is flushed and the process can exit on its own.
   await disposeSessionsStoreStorage(id);
 
+  if (!isChat) {
+    await keepRecordsPrivate(chatDir(id));
+  }
+
   return id;
+}
+
+/**
+ * A 1.x task's records where it kept them, in its folder's `.instrument/`,
+ * which is where the boot migration reads them from. Written to the top of
+ * its folder by the store, as a chat's are, then moved there.
+ */
+async function keepRecordsPrivate(dir: string) {
+  const privateDir = path.join(dir, PRIVATE_FOLDER_NAME);
+  await fs.mkdir(privateDir, { recursive: true });
+  for (const name of await fs.readdir(dir)) {
+    if (name === SETTINGS_FILE_NAME || name.startsWith(CHAT_DB_FILE_NAME)) {
+      await fs.rename(path.join(dir, name), path.join(privateDir, name));
+    }
+  }
 }
 
 /**
  * Seeds a task a chat started, which is a session in the chat's store: the
  * chat's session its parent, its recorded transcript its own, and its files
- * in the chat's folder, where a task works. Returns its session.
+ * in the chat's work folder, where a task works. Returns its session.
  */
 async function seedChatTask({
   chatId,
@@ -406,7 +437,7 @@ async function seedChatTask({
   if (result.isErr()) {
     throw result.error;
   }
-  await copyFixtureFiles({ files, id: chatId });
+  await copyFixtureFiles({ dir: workDir(chatId), files });
   await disposeSessionsStoreStorage(chatId);
   return rebased.session.id;
 }
@@ -430,7 +461,6 @@ function seedLegacyTaskFolder({
 }) {
   const dir = placeChat(id, sessionId);
   return copyChatFolder({
-    includePrivateFolder: false,
     sourceDir: workspaceConfig.chatTemplateDir,
     targetDir: dir,
   }).map(() =>

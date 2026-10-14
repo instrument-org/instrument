@@ -8,6 +8,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import { getChatAttachmentsDir } from "./chat-dir-utils";
 import {
   applyContextRollover,
   contextRolloverBoundaryInForce,
@@ -24,14 +25,20 @@ import { resetMemoryReported } from "./create-memory-part";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
-import { contextRolloverNotice, readHandoffNotes } from "./handoff-notes";
+import {
+  agentHandoffNotesPath,
+  contextRolloverNotice,
+  readHandoffNotes,
+} from "./handoff-notes";
 import { modelChangeSincePreviousTurn } from "./model-change";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
+import { chatDir } from "./record-folders";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { sanitizeModelText } from "./sanitize-model-text";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Marks a message said for this request only and kept nowhere. A model that
@@ -353,6 +360,7 @@ export async function prepareModelMessages({
   const modelMessages = await SessionMessage.toModelMessages(
     portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
+    { attachmentsDir: shellPath(getChatAttachmentsDir(chatDir(chatId))) },
   );
 
   const nonEmptyModelMessages = modelMessages.filter(
@@ -407,7 +415,10 @@ export async function prepareModelMessages({
   // the first one after.
   if (nonContextMessages.length < allNonContextMessages.length) {
     preparedMessages.push({
-      content: contextRolloverNotice(await readHandoffNotes(chatId)),
+      content: contextRolloverNotice(
+        await readHandoffNotes(chatId),
+        agentHandoffNotesPath(chatId),
+      ),
       providerOptions: TRANSIENT,
       role: "user",
     });
@@ -417,7 +428,7 @@ export async function prepareModelMessages({
   // hands back the notes, and this one says how much room what remains has
   // left. Read the other way around, the instruction to write notes arrives
   // before the agent has been given the ones it already wrote.
-  const notice = contextBudgetNotice(budget);
+  const notice = contextBudgetNotice(budget, agentHandoffNotesPath(chatId));
 
   if (notice !== undefined) {
     preparedMessages.push({

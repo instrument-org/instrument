@@ -21,7 +21,7 @@ import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
-import { resolveChat } from "./record-folders";
+import { chatDir, resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
 import { grantFolder } from "./chat/grants";
 import { sessionRole } from "./chat/children";
@@ -164,10 +164,11 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: workDir(chatId),
       files,
       messageId,
+      recordDir: chatDir(chatId),
       sessionId,
+      workDir: workDir(chatId),
     });
 
     if (uploadResult.isErr()) {

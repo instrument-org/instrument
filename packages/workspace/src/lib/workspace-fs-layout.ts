@@ -10,7 +10,7 @@ import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import nodePath from "node:path";
 
-import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Listings, ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
@@ -18,6 +18,7 @@ import {
   type AbsolutePath,
   AbsolutePathSchema,
   type ChatDir,
+  type WorkDir,
 } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
@@ -25,13 +26,11 @@ import {
   hostPathWithin,
   realRoot,
 } from "./host-path";
-import { type MaskedEntry, maskedEntryOf } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
-import { chatsDir } from "./record-folders";
 import { runtimeLayout } from "./runtime-dir";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
@@ -49,9 +48,10 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 const DEV_MOUNT_POINT = "/dev";
 
 /**
- * The complete filesystem layout for a chat: the chat's own folder,
- * writable, one folder per skill source, and the folders the chat reaches,
- * each writable unless it holds the workspace. Every folder sits at its own
+ * The complete filesystem layout for a chat: the chat's work folder,
+ * writable, its record folder for what the agent reaches in it, one folder
+ * per skill source, and the folders the chat reaches, each writable unless it
+ * holds the workspace. Every folder sits at its own
  * host path in the shell's spelling. This is the single source of
  * truth shared by the bash sandbox (just-bash filesystem) and the dedicated
  * file tools, so both agree on what the agent can see and where.
@@ -80,8 +80,15 @@ export interface WorkspaceFsLayout {
    * synchronously; `buildBashFs` skips the ones that are not there.
    */
   skills: WorkspaceFsMount[];
-  /** The chat's own folder, where the shell starts. */
-  chat: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
+  /** The chat's work folder, where the shell starts. */
+  chat: WorkspaceFsMount & { hostRoot: WorkDir; readOnly: false };
+  /**
+   * The chat's record folder, for the two things in it the agent reaches:
+   * what the person sent, in `attachments/`, which it reads, and its handoff
+   * notes, which it writes. The rest of it is the workspace's and stays
+   * hidden. Absent for the window, which keeps no such records.
+   */
+  record?: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
   /**
    * The system's temp folders, writable, where any program keeps scratch
    * files (the config's, or {@link tempFolders}). Listed whether or not each exists;
@@ -94,18 +101,6 @@ export interface WorkspaceFsLayout {
 export interface WorkspaceFsMount {
   /** Real on-disk directory backing this mount. */
   hostRoot: AbsolutePath;
-  /**
-   * Entries at this mount's root that are not the agent's to read or write,
-   * and that every consumer of the layout has to refuse: the `.instrument`
-   * dir, and in the chat mount its `tasks/` dir as well (see
-   * {@link chatMaskedEntries}). Empty for a mount that masks nothing.
-   *
-   * A property of the mount rather than a case each consumer writes against the
-   * chat mount, because each mount that masks anything holds settings that
-   * decide what the agent can reach, such as the chat's grants. A guard
-   * spelled per consumer is one the next mount does not inherit.
-   */
-  maskedEntries: readonly MaskedEntry[];
   /** The folder's path in the shell's spelling: {@link shellPath} of `hostRoot`. */
   shellRoot: string;
   /**
@@ -285,19 +280,19 @@ export function buildWorkspaceFsLayout({
   folders,
   rules,
   chatHostRoot,
+  recordHostRoot,
 }: {
   /** Whether the workspace's apps directory is mounted, writable. */
   apps?: boolean;
   folders?: Record<string, MountedFolder.Type>;
   rules?: Rules;
-  chatHostRoot: ChatDir;
+  chatHostRoot: WorkDir;
+  /** The chat's record folder; none for the window. */
+  recordHostRoot?: ChatDir;
 }): WorkspaceFsLayout {
   const mounts: WorkspaceFsMount[] = Object.values(folders ?? {}).map(
     (folder) => ({
       hostRoot: folder.path,
-      // A folder on the user's disk is theirs, and an `.instrument` dir in it
-      // is an ordinary directory of theirs rather than one of ours.
-      maskedEntries: [],
       shellRoot: shellPath(folder.path),
       // What may change in it is the rules' to say.
       readOnly: false,
@@ -309,9 +304,6 @@ export function buildWorkspaceFsLayout({
       ? {
           apps: {
             hostRoot: getWorkspaceConfig().appsDir,
-            // Ours rather than a chat's, and it holds no
-            // settings: an `.instrument` dir in it would be an ordinary one.
-            maskedEntries: [],
             shellRoot: shellPath(getWorkspaceConfig().appsDir),
             readOnly: false as const,
           },
@@ -322,15 +314,21 @@ export function buildWorkspaceFsLayout({
     skills: buildSkillMounts(),
     chat: {
       hostRoot: chatHostRoot,
-      maskedEntries: chatMaskedEntries(chatHostRoot),
       shellRoot: shellPath(chatHostRoot),
       readOnly: false,
     },
+    ...(recordHostRoot && {
+      record: {
+        hostRoot: recordHostRoot,
+        shellRoot: shellPath(recordHostRoot),
+        // What in it the agent reads or writes is the rules' to say.
+        readOnly: false as const,
+      },
+    }),
     temp: [
       ...(getWorkspaceConfig().tempFolders ?? tempFolders()).map(
         (hostRoot) => ({
           hostRoot,
-          maskedEntries: [],
           shellRoot: shellPath(hostRoot),
           readOnly: false,
         }),
@@ -341,7 +339,6 @@ export function buildWorkspaceFsLayout({
         ? [
             {
               hostRoot: AbsolutePathSchema.parse(HOST_TMPDIR),
-              maskedEntries: [],
               shellRoot: "/tmp",
               readOnly: false,
             },
@@ -422,12 +419,13 @@ export function folderHoldsWorkspace(folderPath: string): boolean {
   );
 }
 
-/** Every folder in the layout but the chat's own, in the order they are advertised. */
+/** Every folder in the layout but the chat's work folder, in the order they are advertised. */
 export function otherFolders(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
     ...layout.folders,
     ...layout.skills,
     ...(layout.apps ? [layout.apps] : []),
+    ...(layout.record ? [layout.record] : []),
   ];
 }
 
@@ -477,9 +475,9 @@ export function resolveHostPath(
  * reject every flag that lets the binary write or execute (for ripgrep:
  * `--pre`, `--pre-glob`, `--hostname-bin`, `-z`/`--search-zip`).
  *
- * Returns null for a path outside every mount, for a masked entry, and for a
- * symlink that resolves out of its own mount, so the caller reports a clean
- * error rather than reaching the host.
+ * Returns null for a path outside every mount, for one the rules keep the
+ * agent from reading, and for a symlink that resolves out of its own mount,
+ * so the caller reports a clean error rather than reaching the host.
  */
 export function resolveReadOnlyHostPath(
   layout: WorkspaceFsLayout,
@@ -497,7 +495,6 @@ export function resolveReadOnlyHostPath(
   // Nor do the rules reach a real binary on every platform, so a place they
   // keep closed or ask about is refused here too.
   return found === null ||
-    found.masked !== undefined ||
     (resolved.mount !== layout.chat && found.escapes) ||
     reachOf(layout.rules, resolved.hostPath, "read").level !== "allow"
     ? null
@@ -505,23 +502,9 @@ export function resolveReadOnlyHostPath(
 }
 
 /**
- * {@link classifyHostPath} for a shell path, through the mount that owns
- * it. Null for a path no mount owns.
- */
-export function classifyShellPath(
-  layout: WorkspaceFsLayout,
-  shellAbsPath: string,
-): ReturnType<typeof classifyHostPath> {
-  const resolved = resolveHostPath(layout, shellAbsPath);
-  return resolved === null
-    ? null
-    : classifyHostPath(layout, resolved.hostPath, resolved.mount);
-}
-
-/**
  * What a path on the disk is to the agent: the mount it is reached through
- * and its path there, the masked entry it is or is inside, and whether it
- * leaves that mount through a symlink. Null when no mount holds it.
+ * and its path there, and whether it leaves that mount through a symlink.
+ * Null when no mount holds it.
  *
  * The one place these are answered, for every consumer that holds a host
  * path: the file tools, the native hatches that reach mounts (`rg`, `du`,
@@ -532,12 +515,6 @@ export function classifyShellPath(
  * `via` is the mount the path was reached through, when the caller resolved a
  * shell path to get it; without one the deepest mount holding the path is
  * taken, by its spelling first and by where it really leads after.
- *
- * Masked is asked of the mount the path is reached through, by its path
- * there, and of the deepest mount whose real root holds where the path really
- * leads, by its path there. So a chat's private dir is masked however the
- * agent reached it, a chat's `tasks/` dir is masked from its own folder, and
- * each task inside it answers for its own private dir alone.
  */
 export function classifyHostPath(
   layout: WorkspaceFsLayout,
@@ -545,7 +522,6 @@ export function classifyHostPath(
   via?: WorkspaceFsMount,
 ): null | {
   escapes: boolean;
-  masked: MaskedEntry | undefined;
   mount: WorkspaceFsMount;
   shellPath: string;
 } {
@@ -585,7 +561,6 @@ export function classifyHostPath(
   if (reached === null) {
     return null;
   }
-  const real = held(mounts, (mount) => realRoots.get(mount) ?? null, canonical);
   const ownRoot = realRoots.get(reached.mount);
   return {
     // A path or a root that cannot be resolved cannot be shown to stay inside,
@@ -595,11 +570,6 @@ export function classifyHostPath(
       canonical === null ||
       ownRoot === null ||
       (ownRoot !== undefined && hostPathWithin(ownRoot, canonical) === null),
-    masked:
-      maskedEntryOf(reached.relative, reached.mount.maskedEntries) ??
-      (real
-        ? maskedEntryOf(real.relative, real.mount.maskedEntries)
-        : undefined),
     mount: reached.mount,
     shellPath: normalizePath(
       reached.relative === "/"
@@ -666,29 +636,12 @@ function buildSkillMounts(): WorkspaceFsMount[] {
     }
     mounts.set(hostRoot, {
       hostRoot,
-      // Every one of these belongs to a tool rather than to a chat,
-      // so an `.instrument` dir in one is an ordinary directory of theirs.
-      maskedEntries: [],
       shellRoot: shellPath(hostRoot),
       readOnly: id !== "workspace",
     });
   }
 
   return [...mounts.values()];
-}
-
-/**
- * What the chat mount masks: its private dir, and in a chat's own folder the
- * `tasks/` dir an earlier version kept its tasks in. The chat's folder mounts
- * writable, so without this those old folders would sit under it at
- * `tasks/<id>`, writable and with their private dirs in plain view.
- * Decided by where the folder is rather than by an id so that it holds for
- * every consumer handed only the chat's host root.
- */
-function chatMaskedEntries(chatHostRoot: ChatDir): MaskedEntry[] {
-  return nodePath.dirname(chatHostRoot) === chatsDir()
-    ? [CHAT_FOLDER_NAMES.private, TASKS_DIR_NAME]
-    : [CHAT_FOLDER_NAMES.private];
 }
 
 /**
@@ -755,9 +708,10 @@ export function hostPathOf(shellSpelled: string): string {
 /**
  * The rules the layout is held to: the chat's, or where none were given an
  * allow for each folder it reaches, plus the app's own over its folders. The
- * workspace is missing to the agent but for the chat's folder, the skills it
- * reads and the apps it writes; the chat's internals are missing inside it,
- * and so is this computer's folder for the workspace.
+ * workspace is missing to the agent but for the skills it reads, the apps it
+ * writes, and in its chat's record folder the attachments it reads and the
+ * handoff notes it writes; this computer's folder for the workspace is
+ * missing but for the chat's work folder.
  */
 function layoutRules(
   layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules },
@@ -782,9 +736,21 @@ function layoutRules(
     // the workspace, outside it.
     system("hidden", workspaceMachineDir()),
     system("allow", layout.chat.hostRoot),
-    ...layout.chat.maskedEntries.map((entry) =>
-      system("hidden", nodePath.join(layout.chat.hostRoot, entry)),
-    ),
+    ...(layout.record
+      ? [
+          system(
+            "readOnly",
+            nodePath.join(
+              layout.record.hostRoot,
+              CHAT_FOLDER_NAMES.attachments,
+            ),
+          ),
+          system(
+            "allow",
+            nodePath.join(layout.record.hostRoot, HANDOFF_NOTES_FILE_NAME),
+          ),
+        ]
+      : []),
     ...layout.skills.map((mount) =>
       system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
     ),

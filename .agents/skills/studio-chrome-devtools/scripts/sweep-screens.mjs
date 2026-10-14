@@ -160,10 +160,7 @@ async function firstChat(app) {
   for (const name of names) {
     try {
       const settings = JSON.parse(
-        readFileSync(
-          path.join(chatsDir, name, ".instrument", "settings.json"),
-          "utf8",
-        ),
+        readFileSync(path.join(chatsDir, name, "settings.json"), "utf8"),
       );
       if (typeof settings.chatSessionId === "string") {
         return { id: name, sessionId: settings.chatSessionId };

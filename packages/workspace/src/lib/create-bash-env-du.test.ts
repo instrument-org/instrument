@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -71,13 +70,6 @@ beforeAll(async () => {
 
   await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.writeFile(path.join(chatRoot, "work", "small.txt"), "s".repeat(10));
-  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
-    recursive: true,
-  });
-  await fs.writeFile(
-    path.join(chatRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
-    Buffer.alloc(5_000_000),
-  );
 
   await fs.mkdir(wideDir, { recursive: true });
   await Promise.all(
@@ -136,26 +128,14 @@ describe("du", () => {
     expect(result.stdout.trim().split("\n").at(-1)).toBe("4500\ttotal");
   });
 
-  it("neither lists nor counts the task's private dir", async () => {
+  it("lists and counts the work folder whole, hidden entries included", async () => {
+    await fs.writeFile(path.join(chatRoot, ".hidden"), "h".repeat(20));
     const listing = await run(`du -ab '${chatRoot}'`);
     const total = await run(`du -sb '${chatRoot}'`);
 
-    expect(listing.stdout).not.toMatch(/\.instrument/i);
-    expect(Number(total.stdout.split("\t")[0])).toBeLessThan(1_000_000);
-  });
-
-  it.each([
-    [CHAT_FOLDER_NAMES.private],
-    [CHAT_FOLDER_NAMES.private.toUpperCase()],
-  ])("reports the task's %s as absent", async (name) => {
-    const target = `${chatRoot}/${name}`;
-    const result = await run(`du -sb '${target}'`);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toBe(
-      `du: cannot access '${target}': No such file or directory\n`,
-    );
+    expect(listing.stdout).toContain(`\t${chatRoot}/work/small.txt\n`);
+    expect(listing.stdout).toContain(`\t${chatRoot}/.hidden\n`);
+    expect(Number(total.stdout.split("\t")[0])).toBe(30);
   });
 
   it("answers past the chat's traversal budget", async () => {

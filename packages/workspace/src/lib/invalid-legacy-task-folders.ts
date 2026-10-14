@@ -21,7 +21,7 @@ interface InvalidLegacyTaskFolder {
 }
 
 /** Why a folder is listed in Settings > Storage when its settings are the trouble. */
-export const UNREADABLE_SETTINGS_REASON =
+const UNREADABLE_SETTINGS_REASON =
   "Missing or unreadable settings (.instrument/settings.json)";
 
 /**

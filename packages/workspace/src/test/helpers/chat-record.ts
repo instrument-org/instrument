@@ -35,14 +35,10 @@ export function chatFor(
         title: `chat ${sessionId.slice(-6).toLowerCase()}`,
       }),
     );
-  const privateDir = path.join(
-    getWorkspaceConfig().chatsDir,
-    id,
-    ".instrument",
-  );
-  fs.mkdirSync(privateDir, { recursive: true });
+  const recordDir = path.join(getWorkspaceConfig().chatsDir, id);
+  fs.mkdirSync(recordDir, { recursive: true });
   fs.writeFileSync(
-    path.join(privateDir, "settings.json"),
+    path.join(recordDir, "settings.json"),
     JSON.stringify({
       chatSessionId: sessionId,
       name: "Instrument",

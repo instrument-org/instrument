@@ -5,9 +5,9 @@
  * Usage:
  *   pnpm script:run-bash                               # interactive REPL
  *   pnpm script:run-bash -- "echo hello"               # one-shot; exits with command's exit code
- *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one chat folder
+ *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one chat's work folder
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
- *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against an existing chat folder
+ *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against an existing chat
  *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
  *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
@@ -22,6 +22,7 @@ import "dotenv/config";
 import "./lib/define-globals-apply";
 
 import { noopModelCache } from "@instrument-org/ai-gateway";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { execa } from "execa";
 import { createRequire } from "node:module";
 import { makeToolBinIn } from "./lib/tool-bin-dir";
@@ -113,6 +114,9 @@ const rootDir = path.resolve(os.tmpdir(), "instrument-bash-repl");
 const chatsDir = args.chatsDir
   ? path.resolve(args.chatsDir)
   : path.join(rootDir, "chats");
+// Outside the workspace, as the app keeps this computer's folder for it.
+const machineDir = path.resolve(os.tmpdir(), "instrument-bash-repl-machine");
+const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
 
 const runtimeDir = path.join(rootDir, "runtime");
 
@@ -167,6 +171,8 @@ setWorkspaceConfig({
   trashItem: () => Promise.resolve(),
   uvBinPath,
   webSearch: unavailableWebSearchClient,
+  workFoldersDir: AbsolutePathSchema.parse(workFoldersDir),
+  workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
 });
 
 // On this thread unless INSTRUMENT_BASH_WORKER=1 asks for the bash worker.
@@ -177,12 +183,13 @@ if (process.env.INSTRUMENT_BASH_WORKER === "1") {
 const chatId = ChatIdSchema.parse(args.chatId ?? ulid().toLowerCase());
 
 const chatDir = path.join(chatsDir, chatId);
-await fs.mkdir(chatDir, { recursive: true });
-// Match initializeTask's guarantee: the agent-visible pair always exists
-// (the repl skips the template copy that normally scaffolds `work/`).
-for (const dirName of [CHAT_FOLDER_NAMES.attachments, CHAT_FOLDER_NAMES.work]) {
-  await fs.mkdir(path.join(chatDir, dirName), { recursive: true });
-}
+const workDir = path.join(workFoldersDir, chatId);
+// The record folder with somewhere for attachments, and the work folder with
+// the `work/` the template normally scaffolds, which the repl skips.
+await fs.mkdir(path.join(chatDir, CHAT_FOLDER_NAMES.attachments), {
+  recursive: true,
+});
+await fs.mkdir(path.join(workDir, CHAT_FOLDER_NAMES.work), { recursive: true });
 const sessionId = StoreId.newSessionId();
 // The shell finds its folder through the chat index, which the repl's folder,
 // made by hand, is put in.
@@ -208,7 +215,7 @@ const bash = await createBashEnv({
 });
 
 process.stderr.write(
-  `chat dir: ${chatDir}\nchat: ${chatId}  session: ${sessionId}\n\n`,
+  `work folder: ${workDir}\nrecord folder: ${chatDir}\nchat: ${chatId}  session: ${sessionId}\n\n`,
 );
 
 // The exit is explicit, so nothing a command left running (a background job,

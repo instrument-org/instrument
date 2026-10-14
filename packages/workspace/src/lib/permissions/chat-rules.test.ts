@@ -1,11 +1,17 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { execa } from "execa";
 import { describe, expect, it } from "vitest";
 
-import { ChatDirSchema } from "../../schemas/paths";
+import { ChatDirSchema, WorkDirSchema } from "../../schemas/paths";
 import {
   bwrapArgs,
   seatbeltAvailable,
@@ -16,7 +22,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { nativeReachFor } from "./chat-rules";
 
-const chatRoot = ChatDirSchema.parse(
+const chatRoot = WorkDirSchema.parse(
   realpathSync(mkdtempSync(path.join(os.tmpdir(), "chat-rules-"))),
 );
 const reach = nativeReachFor(
@@ -86,3 +92,50 @@ describe.runIf(seatbeltAvailable())("a chat's command on this Mac", () => {
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
   });
 });
+
+// The chat's record folder sits in the workspace, which the app's own rules
+// keep from the agent; what the person sent and the handoff notes are opened
+// in it by the rules the profile is built from, and nothing else.
+describe.runIf(seatbeltAvailable())(
+  "a chat's record folder on this Mac",
+  () => {
+    const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
+    const name = path.basename(chatRoot);
+    const record = path.join(rootDir, "chats", name);
+    const work = path.join(workspaceMachineDir, "work", name);
+    mkdirSync(path.join(record, "attachments"), { recursive: true });
+    mkdirSync(work, { recursive: true });
+    writeFileSync(path.join(record, "attachments", "sent.txt"), "sent");
+    writeFileSync(path.join(record, "settings.json"), "{}");
+    const layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(work),
+      recordHostRoot: ChatDirSchema.parse(record),
+    });
+    const recordReach = nativeReachFor(layout.rules, layout);
+
+    it.each([
+      ["reads what the person sent", `cat "${record}/attachments/sent.txt"`, 0],
+      ["refuses the settings", `cat "${record}/settings.json"`, 1],
+      [
+        "refuses a change to what the person sent",
+        `echo x > "${record}/attachments/planted"`,
+        1,
+      ],
+      ["writes the handoff notes", `echo x > "${record}/handoff-notes.md"`, 0],
+      [
+        "refuses a file planted in the record folder",
+        `echo x > "${record}/planted"`,
+        1,
+      ],
+      ["writes the work folder", `echo x > "${work}/planted"`, 0],
+    ])("%s", async (_name, command, exitCode) => {
+      const spawned = wrapNativeCommand(
+        "/bin/sh",
+        ["-c", command],
+        recordReach,
+      );
+      const result = await execa(spawned.file, spawned.args, { reject: false });
+      expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+    });
+  },
+);

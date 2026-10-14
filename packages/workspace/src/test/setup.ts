@@ -16,6 +16,10 @@ const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-test-"),
 );
 const tasksDir = path.join(rootDir, "tasks");
+// Outside the workspace, as this computer's folder for it is.
+const machineDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "instrument-workspace-machine-test-"),
+);
 const noop = () => {
   return;
 };
@@ -74,6 +78,8 @@ setWorkspaceConfig({
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   webSearch: unavailableWebSearchClient,
+  workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
+  workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

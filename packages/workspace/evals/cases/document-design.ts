@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { SKILL_NAMES } from "../../src/lib/skill-names";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { type Session } from "../../src/schemas/session";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
@@ -43,7 +43,7 @@ function pass(text: string, evidence: string): AssertionResult {
 
 /** The newest PDF under the task's work folder, the skills it copied aside. */
 async function newestPdf(chatId: ChatId) {
-  const work = path.join(chatDir(chatId), "work");
+  const work = path.join(workDir(chatId), "work");
   const found: { file: string; mtime: number }[] = [];
   const walk = async (at: string, depth: number) => {
     const entries = await fs.promises
@@ -174,7 +174,7 @@ const ranThePreview: Assertion = {
 const wroteADeck: Assertion = {
   check: async ({ chatId }) => {
     const text = "wrote a .pptx";
-    const work = path.join(chatDir(chatId), "work");
+    const work = path.join(workDir(chatId), "work");
     const decks = (
       await fs.promises.readdir(work, { recursive: true }).catch(() => [])
     ).filter((name) => String(name).toLowerCase().endsWith(".pptx"));

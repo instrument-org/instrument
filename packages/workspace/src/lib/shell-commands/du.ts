@@ -1,9 +1,7 @@
 import { defineCommand } from "just-bash";
-import { readdirSync } from "node:fs";
 import fs from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 
-import { maskedEntryOf } from "../mask-private-dir-fs";
 import { relativeWithin } from "../path-containment";
 import { reachOf } from "../permissions/rules";
 import {
@@ -12,7 +10,6 @@ import {
   resolveHostPath,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
-  type WorkspaceFsMount,
 } from "../workspace-fs-layout";
 
 const DU_COMMAND = {
@@ -36,15 +33,10 @@ interface DuOptions {
   unit: number;
 }
 
-/**
- * What a walk needs to know about one root: how to print it, where it is on
- * disk, and which of its entries the mount masks.
- */
+/** What a walk needs to know about one root: how to print it, and where it is on disk. */
 interface DuRoot {
   display: string;
   hostPath: string;
-  /** On a mount root, the masked entries the walk must not enter or count. */
-  maskedNames: readonly string[];
 }
 
 /**
@@ -67,10 +59,9 @@ interface DuRoot {
  * is rounded up to a 4 KiB cluster.
  *
  * Paths are printed as the agent typed them, never in the host's spelling. The walk
- * does not follow symlinks, counts a hard-linked file once, and skips the
- * private dir at the root of a mount that masks one, as the sandbox's own view
- * does. Anything it does not implement -- another flag, an operand outside
- * every mount -- goes to just-bash's `du` unchanged.
+ * does not follow symlinks and counts a hard-linked file once. Anything it does
+ * not implement -- another flag, an operand outside every mount -- goes to
+ * just-bash's `du` unchanged.
  */
 export function createDuCommand({
   layout,
@@ -276,24 +267,6 @@ export function parseDuArgs(
 }
 
 /**
- * The entries of a mount's root its masked entries name, as the disk spells
- * them, so the walk skips them by name without deciding what a masked entry
- * is: that is `maskedEntryOf`'s, which knows a disk that ignores case.
- */
-function maskedNamesIn(hostRoot: string, mount: WorkspaceFsMount): string[] {
-  if (mount.maskedEntries.length === 0) {
-    return [];
-  }
-  try {
-    return readdirSync(hostRoot).filter(
-      (name) => maskedEntryOf(`/${name}`, mount.maskedEntries) !== undefined,
-    );
-  } catch {
-    return [];
-  }
-}
-
-/**
  * Map one operand onto the disk, or null when it is something only the
  * shell's own filesystem can answer.
  */
@@ -305,18 +278,12 @@ function resolveOperand(
   const owner = resolveHostPath(layout, path);
   if (owner !== null) {
     const hostPath = resolveReadOnlyHostPath(layout, path);
-    // A masked entry, and a symlink out of its mount, read as absent here as
-    // they do everywhere else in the shell.
-    const relative = relativeWithin(owner.mount.shellRoot, path);
+    // A path the rules keep from the agent, and a symlink out of its mount,
+    // read as absent here as they do everywhere else in the shell.
     if (hostPath === null) {
       return { display, kind: "missing" };
     }
-    return {
-      display,
-      hostPath,
-      kind: "path",
-      maskedNames: relative === "/" ? maskedNamesIn(hostPath, owner.mount) : [],
-    };
+    return { display, hostPath, kind: "path" };
   }
 
   // A directory above mounts, such as `/Users`, holds mounts but no files of
@@ -333,12 +300,7 @@ function resolveOperand(
     process.platform !== "win32" &&
     reachOf(layout.rules, hostPathOf(path), "read").level === "allow"
   ) {
-    return {
-      display,
-      hostPath: hostPathOf(path),
-      kind: "path",
-      maskedNames: [],
-    };
+    return { display, hostPath: hostPathOf(path), kind: "path" };
   }
   const direct = inside.filter((mount) => {
     const relative = relativeWithin(path, mount.shellRoot);
@@ -354,11 +316,7 @@ function resolveOperand(
         const name = mount.shellRoot.slice(
           mount.shellRoot.lastIndexOf("/") + 1,
         );
-        return {
-          display: `${base}/${name}`,
-          hostPath: mount.hostRoot,
-          maskedNames: maskedNamesIn(mount.hostRoot, mount),
-        };
+        return { display: `${base}/${name}`, hostPath: mount.hostRoot };
       })
       .toSorted((a, b) => (a.display < b.display ? -1 : 1)),
     display,
@@ -460,7 +418,7 @@ function child(display, name) {
   return display === "/" ? "/" + name : display.replace(/\/+$/, "") + "/" + name;
 }
 
-function walk(hostPath, display, maskedNames, depth) {
+function walk(hostPath, display, depth) {
   let stat;
   try {
     stat = fs.lstatSync(hostPath);
@@ -480,10 +438,7 @@ function walk(hostPath, display, maskedNames, depth) {
     }
     names.sort();
     for (const name of names) {
-      if (maskedNames.includes(name)) {
-        continue;
-      }
-      total += walk(path.join(hostPath, name), child(display, name), [], depth + 1);
+      total += walk(path.join(hostPath, name), child(display, name), depth + 1);
     }
     if (depth <= options.maxDepth) emit(total, display);
   } else if (depth === 0 || (options.all && depth <= options.maxDepth)) {
@@ -499,11 +454,11 @@ try {
       errors.push("du: cannot access '" + operand.display + "': No such file or directory\n");
       exitCode = 1;
     } else if (operand.kind === "path") {
-      grand += walk(operand.hostPath, operand.display, operand.maskedNames, 0);
+      grand += walk(operand.hostPath, operand.display, 0);
     } else {
       let total = 0;
       for (const root of operand.children) {
-        total += walk(root.hostPath, root.display, root.maskedNames, 1);
+        total += walk(root.hostPath, root.display, 1);
       }
       if (options.maxDepth >= 0) emit(total, operand.display);
       grand += total;

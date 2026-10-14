@@ -14,9 +14,9 @@ const isWindows = process.platform === "win32";
 const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("chatVenvDir", () => {
-  it("resolves to .venv at the root of the chat's folder", () => {
+  it("resolves to .venv at the root of the chat's work folder", () => {
     expect(chatVenvDir(chatId).replaceAll("\\", "/")).toBe(
-      "/tmp/workspace/chats/test/.venv",
+      "/tmp/workspace-machine/work/test/.venv",
     );
   });
 });
@@ -24,8 +24,8 @@ describe("chatVenvDir", () => {
 describe("chatVenvPython", () => {
   it("points at the venv interpreter for the platform layout", () => {
     const expected = isWindows
-      ? "chats/test/.venv/Scripts/python.exe"
-      : "chats/test/.venv/bin/python";
+      ? "work/test/.venv/Scripts/python.exe"
+      : "work/test/.venv/bin/python";
     expect(chatVenvPython(chatId).replaceAll("\\", "/")).toContain(expected);
   });
 });
@@ -74,6 +74,6 @@ describe("uvSubprocessEnv", () => {
   it("prepends the uv binary dir and venv bin dir to PATH", () => {
     const dirs = (env.PATH ?? "").split(path.delimiter);
     expect(dirs[0]).toBe(path.dirname("/tmp/uv"));
-    expect(dirs[1]).toContain(path.join("chats", "test", ".venv"));
+    expect(dirs[1]).toContain(path.join("work", "test", ".venv"));
   });
 });

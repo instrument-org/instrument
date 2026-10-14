@@ -3,15 +3,16 @@ import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
   RelativePathSchema,
 } from "../schemas/paths";
+import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
-import { type MaskedEntry } from "./mask-private-dir-fs";
+import { remapMovedPath } from "./moved-paths";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
@@ -20,6 +21,7 @@ import { ruleRefusal } from "./permissions/rules-fs";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import {
   classifyHostPath,
+  hostPathOf,
   resolveHostPath,
   shellPath,
   type WorkspaceFsLayout,
@@ -115,9 +117,14 @@ export async function getSimilarPathSuggestions({
 /**
  * Resolve a read-path input against the workspace layout. Accepts relative
  * paths and absolute paths in the shell's spelling inside any mounted folder:
- * the chat's own, a folder it reaches, or a skill source. Any other absolute
- * path is an error that steers the agent toward a relative path or a folder
- * request.
+ * the chat's work folder, its record folder, a folder it reaches, or a skill
+ * source. Any other absolute path is an error that steers the agent toward a
+ * relative path or a folder request.
+ *
+ * A chat's files and its records were once one folder, and a path stored
+ * then is read where each went: a relative path in the work folder, or for
+ * `attachments/` one missing there in the record folder; an absolute path
+ * that is gone where a migration moved what held it (`remapMovedPath`).
  *
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
@@ -148,18 +155,66 @@ export function resolveAgentPath(options: {
   // which the layout resolves.
   const trimmedPath = shellPath(inputPath.trim());
   if (path.isAbsolute(trimmedPath)) {
-    return heldToRules(
+    const asTyped = heldToRules(
       layout,
       resolveAbsolutePath(layout, trimmedPath),
       "read",
     );
+    const hostSpelled = hostPathOf(trimmedPath);
+    const remapped = remapMovedPath(hostSpelled);
+    if (remapped === hostSpelled) {
+      return asTyped;
+    }
+    // Where it went, when the agent may read it there; otherwise what the
+    // path it named says, rather than one it never wrote.
+    const moved = heldToRules(
+      layout,
+      resolveAbsolutePath(layout, shellPath(remapped)),
+      "read",
+    );
+    return moved.isOk() ? moved : asTyped;
   }
 
   const result = resolveToolPath(layout, trimmedPath);
   if (result.isErr()) {
     return result;
   }
-  return ok({ ...result.value, mount: null });
+  return ok(
+    attachmentInRecordFolder(layout, result.value) ?? {
+      ...result.value,
+      mount: null,
+    },
+  );
+}
+
+/**
+ * A relative path under `attachments/` that the work folder does not hold,
+ * as the file the person sent in the record folder, where one is there.
+ */
+function attachmentInRecordFolder(
+  layout: WorkspaceFsLayout,
+  resolved: { absolutePath: AbsolutePath; displayPath: string },
+) {
+  const { record } = layout;
+  const relative = normalizePath(resolved.displayPath).replace(/^\.\//, "");
+  if (
+    !record ||
+    relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments ||
+    fileExistsSync(resolved.absolutePath)
+  ) {
+    return undefined;
+  }
+  const inRecord = applyUnicodeFallbacks(
+    absolutePathJoin(record.hostRoot, relative),
+  );
+  if (!fileExistsSync(inRecord)) {
+    return undefined;
+  }
+  return {
+    absolutePath: inRecord,
+    displayPath: shellPath(inRecord),
+    mount: record,
+  };
 }
 
 /**
@@ -203,11 +258,6 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
   });
   if (!absolutePath) {
     return executeError(`Path escapes the chat's folder: ${inputPath}`);
-  }
-
-  const masked = classifyHostPath(layout, absolutePath, layout.chat)?.masked;
-  if (masked !== undefined) {
-    return maskedEntryError(displayPath, masked);
   }
 
   return ok({ absolutePath, displayPath });
@@ -295,20 +345,6 @@ function fileExistsSync(filePath: string): boolean {
   }
 }
 
-function maskedEntryError(displayPath: string, entry: MaskedEntry) {
-  if (entry === TASKS_DIR_NAME) {
-    return executeError(
-      `"${displayPath}" is inside the ${TASKS_DIR_NAME}/ directory an earlier ` +
-        `version left in this folder, which is not accessible.`,
-    );
-  }
-  return executeError(
-    `"${displayPath}" is inside the private ${CHAT_FOLDER_NAMES.private} ` +
-      `directory, which holds task internals and is not accessible. Agent ` +
-      `outputs like screenshots live under ${CHAT_FOLDER_NAMES.work}/.`,
-  );
-}
-
 /**
  * Resolve an absolute path in the shell's spelling through the layout.
  * Absolute paths outside every mount error with steering toward a relative
@@ -325,14 +361,7 @@ function resolveAbsolutePath(layout: WorkspaceFsLayout, shellAbsPath: string) {
   }
 
   const { hostPath, mount } = resolved;
-
-  // Asked of the mount that owns the path rather than of the task mount alone:
-  // a chat's task mounts mask a private dir too, and the file tools reach them
-  // by a route the bash sandbox's mask does not cover.
   const found = classifyHostPath(layout, hostPath, mount);
-  if (found?.masked !== undefined) {
-    return maskedEntryError(normalizePath(shellAbsPath), found.masked);
-  }
 
   if (mount === layout.chat) {
     // Normalize a full path in the chat's folder into the same relative

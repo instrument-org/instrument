@@ -4,7 +4,10 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
+import {
+  type CaptureExceptionFunction,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import ms from "ms";
 import {
   type ActorRefFrom,
@@ -276,7 +279,7 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
-      workspaceMachineDir?: string;
+      workspaceMachineDir: string;
       modelCache: ModelCache;
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
@@ -319,11 +322,11 @@ export const workspaceMachine = setup({
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),
-      ...(input.workspaceMachineDir && {
-        workspaceMachineDir: AbsolutePathSchema.parse(
-          input.workspaceMachineDir,
-        ),
-      }),
+      workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
+      workFoldersDir: absolutePathJoin(
+        AbsolutePathSchema.parse(input.workspaceMachineDir),
+        WORKSPACE_MACHINE_ENTRIES.work,
+      ),
       modelCache: input.modelCache,
       ...(input.nativeSandbox && {
         nativeSandbox: input.nativeSandbox,

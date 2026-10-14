@@ -72,7 +72,7 @@ export function DeleteChatDialog({
           )}
         </div>
       }
-      description={`This chat, the tasks it started, and everything in their folders move to your ${trashTerminology}, where you can restore them. Files they saved to your own folders, like Documents/Instrument, stay where they are.`}
+      description={`This chat, the tasks it started, and everything in their folders move to your ${trashTerminology}, where you can restore them. Files they saved to your own folders stay where they are.`}
       items={[chat]}
       onDelete={async () => {
         try {

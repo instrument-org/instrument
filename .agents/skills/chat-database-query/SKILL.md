@@ -1,6 +1,6 @@
 ---
 name: chat-database-query
-description: Read a chat's .instrument/chat.db with safe read-only SQL. Use when an Instrument chat or task investigation needs raw messages, parts, sessions, or any other stored records.
+description: Read a chat's chat.db with safe read-only SQL. Use when an Instrument chat or task investigation needs raw messages, parts, sessions, or any other stored records.
 ---
 
 # Chat Database Query
@@ -13,7 +13,7 @@ pnpm --filter @instrument-org/workspace run script:query-chat-db <workspace>/cha
   --format table
 ```
 
-The first argument can be a chat's folder or the database itself. A chat's folder resolves to `.instrument/chat.db`. A chat's tasks have no folder or database of their own: each is a session in its chat's store, so query the chat's.
+The first argument can be a chat's folder or the database itself. A chat's record folder (`chats/<id>/`) resolves to its `chat.db`, or for a folder an earlier build left, to `.instrument/chat.db`. A chat's tasks have no folder or database of their own: each is a session in its chat's store, so query the chat's.
 
 The tool accepts one read-only `SELECT`, `WITH`, `EXPLAIN`, or `PRAGMA` statement. It opens the database read-only and denies SQLite operations other than reads. Use `--file query.sql` for a multi-line query, `--format json` for machine-readable output, or `--schema` to inspect available tables and indexes.
 

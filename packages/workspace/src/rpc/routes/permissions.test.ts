@@ -40,12 +40,14 @@ function createContext(): WorkspaceRPCContext {
   };
 }
 
+// A workspace of its own for each test, and this computer's folder for it,
+// where the folder rules are kept.
 beforeEach(() => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "permissions-route-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "permissions-route-")),
-    ),
+    rootDir: WorkspaceDirSchema.parse(rootDir),
+    workspaceMachineDir: AbsolutePathSchema.parse(`${rootDir}-machine`),
   });
 });
 

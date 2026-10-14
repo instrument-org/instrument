@@ -16,6 +16,7 @@ import {
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { permissionAnswerModelNote } from "../../lib/permission-answer-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
@@ -296,11 +297,22 @@ export namespace SessionMessage {
     parts: SessionMessagePart.Type[];
   };
 
+  /**
+   * Where the chat's record folder keeps what the person sent, as the agent
+   * spells it: an upload stored as `attachments/<name>` is named to the model
+   * at its full path there, since the agent's shell starts in the work
+   * folder, apart from the records.
+   */
+  export interface ModelNoteOptions {
+    attachmentsDir?: string;
+  }
+
   export async function toModelMessages(
     messages: WithParts[],
     tools: ToolSet,
+    options: ModelNoteOptions = {},
   ): Promise<ModelMessage[]> {
-    return convertToModelMessages(toUIMessages(messages), { tools });
+    return convertToModelMessages(toUIMessages(messages, options), { tools });
   }
 
   /**
@@ -308,7 +320,10 @@ export namespace SessionMessage {
    * user turn carries. The notes depend on the turns before them, so a caller
    * converting messages one at a time maps the whole list here first.
    */
-  export function toUIMessages(messages: WithParts[]): UIMessage[] {
+  export function toUIMessages(
+    messages: WithParts[],
+    { attachmentsDir }: ModelNoteOptions = {},
+  ): UIMessage[] {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
     // What the user had on screen, told again only when it differs from the
@@ -413,13 +428,13 @@ export namespace SessionMessage {
             const attachmentDescriptions = attachmentsPart.data.files
               .map((file) => {
                 const formattedSize = formatBytes(file.size);
-                return `- ${file.filePath} (${formattedSize})`;
+                return `- ${attachmentPathForModel(file.filePath, attachmentsDir)} (${formattedSize})`;
               })
               .join("\n");
 
             const attachmentText = dedent`
                   <uploaded_files>
-                  The user uploaded these files with this message. They are now available in the chat's folder at the paths listed below. Assume they are directly relevant to the user's request.
+                  The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
                   ${attachmentDescriptions}
                   </uploaded_files>
                 `;
@@ -706,4 +721,21 @@ export namespace SessionMessage {
       };
     });
   }
+}
+
+/**
+ * A stored attachment path as the model reads it: an upload, stored relative
+ * to the chat as `attachments/<name>`, at its full path in the record folder
+ * when that folder is given; a file attached where it lay in the work folder
+ * as stored, relative to where the shell starts.
+ */
+function attachmentPathForModel(
+  filePath: string,
+  attachmentsDir: string | undefined,
+): string {
+  const bare = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+  const prefix = `${CHAT_FOLDER_NAMES.attachments}/`;
+  return attachmentsDir !== undefined && bare.startsWith(prefix)
+    ? `${attachmentsDir}/${bare.slice(prefix.length)}`
+    : filePath;
 }

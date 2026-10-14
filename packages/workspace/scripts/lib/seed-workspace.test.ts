@@ -260,19 +260,29 @@ describe("seedWorkspace", () => {
     ).toEqual({ developerMode: true, theme: "dark" });
   });
 
-  it("copies the task's files to the paths it declares, in its chat's folder", async () => {
-    const { chatTask, seeded } = await seedIntoTempDir();
+  it("copies the task's files to the paths it declares, in its chat's work folder", async () => {
+    const { chatTask, seeded, userDataDir } = await seedIntoTempDir();
     const filedIn = at(seeded, 1).chat;
     if (!filedIn) {
       throw new Error("the task was seeded in no chat");
     }
-    const dir = chatDir(filedIn);
+    // Where the app keeps the work folder of a chat in the first workspace.
+    const dir = path.join(
+      userDataDir,
+      "workspaces-data",
+      "default",
+      "work",
+      filedIn,
+    );
 
     expect(chatTask.files.length).toBeGreaterThan(0);
     for (const file of chatTask.files) {
       expect(await fs.readFile(path.join(dir, file.to))).toEqual(
         await fs.readFile(file.from),
       );
+      await expect(
+        fs.access(path.join(chatDir(filedIn), file.to)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     }
   });
 

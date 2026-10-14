@@ -412,7 +412,7 @@ describe("agent-browser routing", () => {
   const chatId = ChatIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
   const command = commandFor(chatId, sessionId);
-  const chatRoot = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
+  const workRoot = `${MOCK_WORKSPACE_DIRS.work}/routing`;
   let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
@@ -560,10 +560,18 @@ describe("agent-browser routing", () => {
     },
   );
 
-  it("keeps the in-app browser's downloads inside the chat's folder", async () => {
+  it("keeps the in-app browser's downloads inside the chat's work folder", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
-    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${chatRoot}/downloads`);
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${workRoot}/downloads`);
+  });
+
+  it("keeps agent-browser's home, which holds the plugin it runs, out of the chat's folders", async () => {
+    const { env } = await spawnedWith(["open", "https://example.com"]);
+
+    expect(env.HOME).toBe(
+      `${MOCK_WORKSPACE_DIRS.machine}/browser/agent-browser-home/routing`,
+    );
   });
 
   it("keeps the host environment away from the in-app browser", async () => {

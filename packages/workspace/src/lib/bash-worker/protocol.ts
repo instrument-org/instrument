@@ -31,6 +31,8 @@ export const WORKER_CONFIG_KEYS = [
   "legacyTasksDir",
   "tempFolders",
   "uvBinPath",
+  // Where each chat's work folder is, which the shell starts in.
+  "workFoldersDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
 
 export type ExceptionProperties = Parameters<CaptureExceptionFunction>[1];

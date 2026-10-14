@@ -5,8 +5,9 @@ import {
   cdpHandlingOf,
   isKnownCdpMethod,
 } from "../../../lib/cdp-methods";
+import { getWorkspaceConfig } from "../../../lib/workspace-config";
 import { buildWorkspaceFsLayout } from "../../../lib/workspace-fs-layout";
-import { ChatDirSchema } from "../../../schemas/paths";
+import { ChatDirSchema, WorkDirSchema } from "../../../schemas/paths";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { BrowserTargetIdSchema, type WorkspaceConfig } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
@@ -21,7 +22,7 @@ import {
 const chatLayout = () =>
   Promise.resolve(
     buildWorkspaceFsLayout({
-      chatHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
+      chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/t1"),
     }),
   );
 
@@ -151,8 +152,11 @@ describe("createMainFrameLoadGate", () => {
 });
 
 describe("createLocalFileGate", () => {
+  // The chat's record folder, in the workspace, which the rules keep hidden.
+  const record = `${getWorkspaceConfig().rootDir}/chats/t1`;
   const layout = buildWorkspaceFsLayout({
-    chatHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
+    chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/t1"),
+    recordHostRoot: ChatDirSchema.parse(record),
   });
   const own = "file:///Users/me/Tasks/t1/work/page.html";
   const outside = "file:///Users/me/Desktop/private.html";
@@ -180,7 +184,7 @@ describe("createLocalFileGate", () => {
     { expected: false, url: own },
     { expected: false, url: `${own}?instrument-edit=n1` },
     { expected: true, url: outside },
-    { expected: true, url: "file:///Users/me/Tasks/t1/.instrument/task.db" },
+    { expected: true, url: `file://${record}/chat.db` },
   ])("judges a tab at $url closed: $expected", async ({ expected, url }) => {
     const { gate } = gateAt(url);
     await gate.load();

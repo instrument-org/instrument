@@ -838,9 +838,12 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).not.toContain("/Users/sam/Downloads");
   });
 
+  // An upload is kept in the chat's record folder while the agent's shell
+  // starts in its work folder, so the note names an upload at its full path;
+  // a file attached where it lay in the work folder keeps its relative path.
   it("lists a sent file at the path the agent reads it by", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
-    const sentFile = SessionMessagePart.coerce({
+    const sentFiles = SessionMessagePart.coerce({
       data: {
         files: [
           {
@@ -849,6 +852,13 @@ describe("SessionMessage.toModelMessages", () => {
             mimeType: "image/png",
             modifiedAt: 1_718_198_400_000,
             size: 18_545,
+          },
+          {
+            filename: "report.md",
+            filePath: "work/report.md",
+            mimeType: "text/markdown",
+            modifiedAt: 1_718_198_400_000,
+            size: 120,
           },
         ],
       },
@@ -860,18 +870,50 @@ describe("SessionMessage.toModelMessages", () => {
         id: StoreId.newMessageId(),
         metadata: messageMetadata,
         parts: [
-          sentFile,
+          sentFiles,
           { metadata: partMetadata, text: "what is this", type: "text" },
         ],
         role: "user",
       },
     ] satisfies SessionMessage.WithParts[];
+    const uploadedFilesNote = async (
+      options?: SessionMessage.ModelNoteOptions,
+    ) => {
+      const [message] = await SessionMessage.toModelMessages(
+        messages,
+        TOOLS_FOR_MODEL_OUTPUT,
+        options,
+      );
+      const content = Array.isArray(message?.content) ? message.content : [];
+      return content.flatMap((part) =>
+        part.type === "text" && part.text.includes("<uploaded_files>")
+          ? [part.text]
+          : [],
+      );
+    };
 
-    const note = JSON.stringify(
-      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
-    );
-    expect(note).toContain("now available in the chat's folder");
-    expect(note).not.toContain("--file");
+    expect(
+      await uploadedFilesNote({
+        attachmentsDir: "/workspace/chats/c/attachments",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "<uploaded_files>
+      The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
+      - /workspace/chats/c/attachments/screen.png (18KB)
+      - work/report.md (120B)
+      </uploaded_files>",
+      ]
+    `);
+    expect(await uploadedFilesNote()).toMatchInlineSnapshot(`
+      [
+        "<uploaded_files>
+      The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
+      - attachments/screen.png (18KB)
+      - work/report.md (120B)
+      </uploaded_files>",
+      ]
+    `);
   });
 
   // A tool's output schema outgrows the sessions already recorded against it,

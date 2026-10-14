@@ -3,7 +3,6 @@ import { normalizePath } from "../normalize-path";
 import { reachOf } from "../permissions/rules";
 import { ruleRefusal } from "../permissions/rules-fs";
 import {
-  classifyHostPath,
   resolveHostPath,
   shellPath,
   type WorkspaceFsLayout,
@@ -66,11 +65,7 @@ export async function rewriteNavigationArgToFileUrl(
   // A path the agent named that no folder holds is refused whatever its
   // spelling: passed on, the CLI would read `/Users/...` as a host name.
   const resolved = resolveHostPath(layout, parsed.path);
-  if (
-    resolved === null ||
-    classifyHostPath(layout, resolved.hostPath, resolved.mount)?.masked !==
-      undefined
-  ) {
+  if (resolved === null) {
     return { error: unreachableFileMessage(target.value) };
   }
   // A page the agent opens is a file it reads, held to the same rules.

@@ -55,6 +55,10 @@ beforeEach(() => {
       fs.rmSync(target, { force: true, recursive: true });
       return Promise.resolve();
     },
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(root, "machine", "work"),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
   });
   forgetChatFolders();
 });
@@ -110,20 +114,17 @@ async function readableChat(named: string): Promise<ChatId> {
   return id;
 }
 
-function privateFile(chatId: string, file: string) {
-  return path.join(root, "chats", chatId, ".instrument", file);
+function recordFile(chatId: string, file: string) {
+  return path.join(root, "chats", chatId, file);
 }
 
 async function seedBrokenChats() {
   await readableChat("2026-10-01-fine");
   await readableChat("2026-10-01-bad-settings");
-  fs.writeFileSync(
-    privateFile("2026-10-01-bad-settings", "settings.json"),
-    "{",
-  );
+  fs.writeFileSync(recordFile("2026-10-01-bad-settings", "settings.json"), "{");
   chatFor(StoreId.newSessionId(), ChatIdSchema.parse("2026-10-01-bad-db"));
   fs.writeFileSync(
-    privateFile("2026-10-01-bad-db", "chat.db"),
+    recordFile("2026-10-01-bad-db", "chat.db"),
     "not a database, just bytes long enough to be read as a header",
   );
   fs.mkdirSync(path.join(root, "chats", "Not A Chat"));
@@ -161,13 +162,13 @@ describe("storage.invalidFolders", () => {
           "at": "chats/2026-10-01-bad-db",
           "kind": "chat",
           "name": "2026-10-01-bad-db",
-          "reason": "Unreadable chat session (.instrument/chat.db)",
+          "reason": "Unreadable chat session (chat.db)",
         },
         {
           "at": "chats/2026-10-01-bad-settings",
           "kind": "chat",
           "name": "2026-10-01-bad-settings",
-          "reason": "Missing or unreadable settings (.instrument/settings.json)",
+          "reason": "Missing or unreadable settings (settings.json)",
         },
         {
           "at": "chats/Not A Chat",
@@ -179,10 +180,12 @@ describe("storage.invalidFolders", () => {
     `);
   });
 
-  it("trashes an unreadable chat and forgets it", async () => {
+  it("trashes an unreadable chat with its work folder, and forgets it", async () => {
     await seedBrokenChats();
     const badDb = ChatIdSchema.parse("2026-10-01-bad-db");
     expect(resolveChat(badDb) !== undefined).toBe(true);
+    const work = path.join(root, "machine", "work", badDb);
+    fs.mkdirSync(path.join(work, "work"), { recursive: true });
 
     await call(
       storage.invalidFolders.trash,
@@ -194,6 +197,7 @@ describe("storage.invalidFolders", () => {
     });
 
     expect(fs.existsSync(path.join(root, "chats", badDb))).toBe(false);
+    expect(fs.existsSync(work)).toBe(false);
     expect(invalid.map((folder) => folder.name)).not.toContain(badDb);
     expect(resolveChat(badDb) !== undefined).toBe(false);
     expect(sessionOfChat(badDb)).toBeUndefined();

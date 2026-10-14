@@ -6,14 +6,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
-import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
-import { absolutePathJoin } from "../absolute-path-join";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
   AGENT_BROWSER_PATH,
@@ -30,8 +28,12 @@ import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { askWindow } from "../chat/window-tab";
-import { getDownloadsDir, getScreenshotsDir } from "../chat-dir-utils";
-import { chatDir, resolveChat } from "../record-folders";
+import {
+  getAgentBrowserHomeDir,
+  getDownloadsDir,
+  getScreenshotsDir,
+} from "../chat-dir-utils";
+import { resolveChat } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -642,11 +644,7 @@ export function createAgentBrowserCommand({
     // already redirected via dedicated env vars (socket dir, screenshot dir,
     // download path); this is a per-chat sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
-    const homeDir = absolutePathJoin(
-      chatDir(chatId),
-      CHAT_FOLDER_NAMES.private,
-      "agent-browser-home",
-    );
+    const homeDir = getAgentBrowserHomeDir(chatId);
     const configPath = path.join(homeDir, "config.json");
 
     const commandArgs: string[] = [];

@@ -1,9 +1,6 @@
 export { AIUsageFilterSchema } from "./lib/ai-usage/schema";
 export { aiUsageCsv } from "./lib/ai-usage/store";
-export {
-  closeAllAgentBrowserSessions,
-  pruneExternalBrowserTmp,
-} from "./lib/agent-browser-cleanup";
+export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,
   catalogEntryMacApp,
@@ -104,6 +101,9 @@ export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir } from "./lib/record-folders";
+export { workDir } from "./lib/work-dir";
+export { entryExists, moveEntrySync } from "./lib/move-entry";
+export { readMovedPaths, remapMovedPath } from "./lib/moved-paths";
 export { chatTitle } from "./lib/chat-info";
 export { getChatSettings } from "./lib/chat-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";

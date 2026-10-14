@@ -152,6 +152,11 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   index: "index",
   /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
   keys: "keys",
+  /**
+   * Where migrations moved this computer's paths from and to, so a path
+   * stored before one is read back where it went (`remapMovedPath`).
+   */
+  movedPaths: "moved-paths.json",
   /** The process that has the workspace open. */
   openMark: "open.pid",
   /**
@@ -165,6 +170,11 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   state: "state.json",
   /** The window's size and place, and where the person left off in it. */
   window: "window",
+  /**
+   * Each chat's work folder, `work/<chat id>/`: where its agent's shell
+   * starts and what it makes lands. Its records stay in the workspace.
+   */
+  work: "work",
 } as const;
 
 // 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below

@@ -1,6 +1,6 @@
 # Masking the private dir stops the shell, not native interpreters
 
-**Status:** still open, known gap, checked 2026-10-02. Recorded 2026-07-20 while reviewing PR #66 (`workspace: hide the private dir from the agent's shell and file tools`). The private dir is still inside the task folder (`chats/<id>/tasks/<id>/.instrument/` or `tasks/<id>/.instrument/`). `python`/`python3` have since become the in-sandbox WASM CPython, which reads through the virtual filesystem and so is masked; the native interpreters this applies to are now `node` and `python-native`.
+**Status:** resolved by moving the records out. Recorded 2026-07-20 while reviewing PR #66 (`workspace: hide the private dir from the agent's shell and file tools`). A chat's records (`chat.db`, `settings.json`) now live in its record folder in the workspace, `chats/<id>/`, and the folder its agent works in is a separate work folder in the workspace's machine folder, so no record sits under a native process's working directory and the mask, with every check built on it, is deleted (`split-chat-records.ts` moves existing chats). The account below is kept for why.
 
 ## Context
 
@@ -30,18 +30,10 @@ Things that _are_ covered, and were checked rather than assumed:
 - Relative, absolute, `..`-traversal, from-a-subdirectory, runtime-assembled, and glob spellings all collapse to the same check, because `MountableFs` normalizes and strips the mount prefix before the decorator sees a path.
 - A symlink **planted directly on disk** pointing into the private dir does not leak: symlink resolution happens above the filesystem layer, so `cat` on the link routes the resolved path back through the mask and gets not-found.
 
-## What would actually close it
+## What closed it
 
-Move the private dir **out of the task root**, so it is not reachable by a relative path from a native process's `cwd` (e.g. a sibling `tasks/<id>.private/` or a central store). Then there is nothing to mask, and the bash decorator, the file-tool checks, and the inline-code guard can all be deleted.
-
-The cost is the on-disk layout change: `<task>/.instrument/{task.db,settings.json}` is documented in `CLAUDE.md` and assumed by `get-task-files` / `task-dir-utils`.
+Moving the private dir **out of the folder the agent works in**, so it is not reachable by a relative path from a native process's `cwd`. The records went to the chat's record folder and the work to a folder of its own; with nothing left to mask, the masked entries, the file-tool checks, `rg`'s deny globs and `du`'s skipped names were deleted.
 
 ## Guidance
 
-- Treat the mask as **friction that stops the agent from casually reading task internals**, which is what it is good at. Do not build anything on it that assumes the agent _cannot_ reach `.instrument`.
-- If the contents ever become genuinely sensitive (credentials, tokens), the layout change above is required first — masking is not sufficient.
-
-## Related
-
-- `packages/workspace/src/lib/mask-private-dir-fs.ts` — the decorator, with the reason it is a decorator rather than a nested mount.
-- Upstream `MountableFs` refuses to mount inside an existing mount, which is why the obvious two-line version does not work. A patch enabling nested mounts would let the decorator collapse back to a single `fs.mount(...)` call.
+- A record a native program must not read belongs outside every folder the chat's native reach opens, not inside one behind a mask: hiding a path in the shell's own filesystem holds only for the shell's own commands.

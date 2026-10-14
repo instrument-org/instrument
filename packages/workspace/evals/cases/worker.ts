@@ -30,7 +30,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -56,7 +56,7 @@ const MIN_DOCUMENT_BYTES = 4000;
 async function deliverables(chatId: ChatId): Promise<string[]> {
   const home = process.env.HOME ?? "";
   return [
-    ...(await filesUnder(chatDir(chatId))),
+    ...(await filesUnder(workDir(chatId))),
     ...(home
       ? await filesUnder(path.join(home, "Documents", "Instrument"))
       : []),

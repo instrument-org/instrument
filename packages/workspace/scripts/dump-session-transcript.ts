@@ -4,7 +4,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import {
+  CHAT_DB_FILE_NAME,
+  CHATS_DIR_NAME,
+  TASKS_DIR_NAME,
+} from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getChatSettings } from "../src/lib/chat-settings";
@@ -63,7 +67,7 @@ const sessionsResult = await Store.getSessions(chatId, {
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(dir, ".instrument", "chat.db")}: ${sessionsResult.error.message}`,
+    `Failed to load sessions from ${path.join(dir, CHAT_DB_FILE_NAME)}: ${sessionsResult.error.message}`,
   );
 }
 

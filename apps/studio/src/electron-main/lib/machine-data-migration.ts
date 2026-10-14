@@ -1,4 +1,5 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { entryExists, moveEntrySync } from "@instrument-org/workspace/electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -62,9 +63,6 @@ const WINDOW_FILES = ["layout.json", "view.json", "window-state.json"];
 
 /** The in-app browser's lists, which name this computer's files and apps. */
 const BROWSER_FILES = ["downloads.json", "external-app-links.json"];
-
-/** How many times a rename is tried on Windows, 100ms apart. */
-const RENAME_ATTEMPTS = 10;
 
 /** A SQLite file and the files beside it that must travel with it. */
 const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
@@ -159,15 +157,6 @@ export function moveMachineData({
   return { done, machineDir };
 }
 
-function entryExists(entry: string): boolean {
-  try {
-    fs.lstatSync(entry);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * `.layout-version` and `.legacy-projects-migrated`, which the layout sweep
  * left in `.instrument/`, as the fields it now keeps in `workspace.json`
@@ -201,10 +190,6 @@ function foldLayoutMarkers(workspacePath: string, done: string[]) {
   fs.rmSync(projectsFile, { force: true });
 }
 
-function isErrorCode(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
 /**
  * Move `from` to `to` where `to` is free. With `overwrite`, `from` replaces
  * what is at `to`: the stores' defaults, written there after an earlier move
@@ -232,49 +217,8 @@ function moveEntry({
     }
     fs.rmSync(to, { force: true, recursive: true });
   }
-  fs.mkdirSync(path.dirname(to), { recursive: true });
-  try {
-    renameRetrying(from, to);
-  } catch (error) {
-    if (!isErrorCode(error, "EXDEV")) {
-      throw error;
-    }
-    // Through a sibling, so a copy cut short is never taken for a finished
-    // one by the "already there" check.
-    const partial = `${to}.partial-${process.pid.toString()}`;
-    fs.rmSync(partial, { force: true, recursive: true });
-    fs.cpSync(from, partial, {
-      preserveTimestamps: true,
-      recursive: true,
-      verbatimSymlinks: true,
-    });
-    fs.renameSync(partial, to);
-    fs.rmSync(from, { force: true, recursive: true });
-  }
+  moveEntrySync(from, to);
   done.push(`moved ${from} to ${to}`);
-}
-
-/**
- * A rename, tried again for a moment on Windows, where a file another program
- * has open (an antivirus scan, the search indexer) refuses one until it lets
- * go.
- */
-function renameRetrying(from: string, to: string) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      fs.renameSync(from, to);
-      return;
-    } catch (error) {
-      if (
-        process.platform !== "win32" ||
-        attempt >= RENAME_ATTEMPTS ||
-        !["EACCES", "EBUSY", "EPERM"].some((code) => isErrorCode(error, code))
-      ) {
-        throw error;
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-    }
-  }
 }
 
 /** Every entry that moves, from where it was to where it goes. */

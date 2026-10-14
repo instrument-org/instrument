@@ -1,11 +1,18 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
-import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
+import { recordMovedPaths } from "./moved-paths";
 import { chatsDir } from "./record-folders";
 import {
   applyUnicodeFallbacks,
@@ -13,9 +20,11 @@ import {
   resolveToolPath,
   resolveWritableToolPath,
 } from "./resolve-agent-path";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildWorkspaceFsLayout,
   resolveReadOnlyHostPath,
+  type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 
 function abs(filePath: string) {
@@ -113,7 +122,7 @@ describe("applyUnicodeFallbacks", () => {
 });
 
 describe("resolveToolPath", () => {
-  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
+  const dir = WorkDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({ chatHostRoot: dir });
 
   it.each([
@@ -165,141 +174,72 @@ describe("resolveToolPath", () => {
   });
 });
 
-describe("private-dir (.instrument) restriction", () => {
-  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
+describe("dot folders", () => {
+  const dir = WorkDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({ chatHostRoot: dir });
 
   it.each([
-    { input: ".instrument", label: "the private dir itself" },
-    { input: ".instrument/state.json", label: "a relative private file" },
-    { input: "./.instrument/chat.db", label: "a dot-relative private file" },
-  ])("rejects $label via resolveToolPath", ({ input }) => {
-    const result = resolveToolPath(layout, input);
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.type).toBe("execute-error");
-      expect(result.error.message).toMatch(/private .* directory/);
-    }
+    ".instrument/notes.md",
+    "work/screenshots/shot.png",
+    "work/.tool-output/part-1.log",
+  ])("reads %s in the work folder like any other path", (input) => {
+    expect(resolveToolPath(layout, input).isOk()).toBe(true);
   });
 
-  it.each([
-    { input: `${dir}/.instrument`, label: "the full path of the private dir" },
-    {
-      input: `${dir}/.instrument/state.json`,
-      label: "the full path of a private file",
-    },
-    { input: `${dir}/.INSTRUMENT/state.json`, label: "an uppercase spelling" },
-    { input: `${dir}/.Instrument`, label: "a mixed-case spelling" },
-  ])("rejects $label via resolveAgentPath", ({ input }) => {
-    const result = resolveAgentPath({ inputPath: input, layout });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.type).toBe("execute-error");
-      expect(result.error.message).toMatch(/private .* directory/);
-    }
+  // A folder the user attached is theirs, and a directory of that name in it
+  // is an ordinary one rather than ours to hide.
+  it("leaves a folder's own .instrument dir alone", () => {
+    const attachedLayout = buildWorkspaceFsLayout({
+      folders: { a: attachment("id-a", "/ext/one/Docs") },
+      chatHostRoot: dir,
+    });
+
+    expect(
+      resolveAgentPath({
+        inputPath: "/ext/one/Docs/.instrument/notes.md",
+        layout: attachedLayout,
+      }).isOk(),
+    ).toBe(true);
   });
 
-  // The restriction is scoped to .instrument, not dot-dirs in general: the moved
-  // agent-facing outputs under work/ stay readable.
-  it.each(["work/screenshots/shot.png", "work/.tool-output/part-1.log"])(
-    "still allows agent-facing output path %s",
+  // A tasks folder in the work folder is one the agent made.
+  it.each(["tasks/todo.md", "work/tasks/notes.md", "attachments/brief.md"])(
+    "leaves %s in the work folder writable",
     (input) => {
-      expect(resolveToolPath(layout, input).isOk()).toBe(true);
+      expect(resolveWritableToolPath({ inputPath: input, layout }).isOk()).toBe(
+        true,
+      );
     },
   );
-
-  describe("a folder's private dir", () => {
-    // A folder the user attached is theirs, and a directory of that name in it
-    // is an ordinary one rather than ours to hide.
-    it("leaves a folder's own .instrument dir alone", () => {
-      const attachedLayout = buildWorkspaceFsLayout({
-        folders: { a: attachment("id-a", "/ext/one/Docs") },
-        chatHostRoot: dir,
-      });
-
-      expect(
-        resolveAgentPath({
-          inputPath: "/ext/one/Docs/.instrument/notes.md",
-          layout: attachedLayout,
-        }).isOk(),
-      ).toBe(true);
-    });
-  });
 });
 
-// A chat's folder may hold a tasks/ dir an earlier version kept its tasks in,
-// each with its private dir, and the folder mounts writable at its own path, so none
-// of these resolvers may reach that dir through it.
-describe("a chat's tasks dir", () => {
-  const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
-  const childId = "2026-09-26-child";
-  const layout = buildWorkspaceFsLayout({ chatHostRoot: chat });
-
-  it.each([
-    `tasks/${childId}/.instrument/settings.json`,
-    `tasks/${childId}/output/report.md`,
-    "tasks",
-    `${chat}/tasks/${childId}/.instrument/settings.json`,
-    `${chat}/tasks/${childId}/output/report.md`,
-    `${chat}/TASKS/${childId}/output/report.md`,
-  ])("refuses %s for reading and writing", (input) => {
-    const read = resolveAgentPath({ inputPath: input, layout });
-    expect(read.isErr()).toBe(true);
-    if (read.isErr()) {
-      expect(read.error.message).toMatch(/tasks\/ directory|private/);
-    }
-    expect(resolveWritableToolPath({ inputPath: input, layout }).isErr()).toBe(
-      true,
-    );
-  });
-
-  it("refuses the read-only host path a real binary receives", () => {
-    expect(
-      resolveReadOnlyHostPath(layout, `${chat}/tasks/${childId}`),
-    ).toBeNull();
-  });
-
-  it("leaves the chat's own files writable", () => {
-    expect(
-      resolveWritableToolPath({
-        inputPath: "attachments/brief.md",
-        layout,
-      }).isOk(),
-    ).toBe(true);
-    expect(
-      resolveWritableToolPath({
-        inputPath: "work/tasks/notes.md",
-        layout,
-      }).isOk(),
-    ).toBe(true);
-  });
-
-  // Only a chat's folder holds its tasks; a task's own `tasks` folder is an
-  // ordinary one of its own.
-  it("leaves a task's own tasks folder alone", () => {
-    const task = buildWorkspaceFsLayout({
-      chatHostRoot: ChatDirSchema.parse(path.join("/tmp", "task")),
-    });
-    expect(
-      resolveWritableToolPath({
-        inputPath: "tasks/todo.md",
-        layout: task,
-      }).isOk(),
-    ).toBe(true);
-  });
-});
-
-describe("another chat's folder, reached through a folder that holds the workspace", () => {
-  const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
-  const other = path.join(chatsDir(), "2026-09-26-other", "work", "notes.md");
+describe("another chat's folders, reached through a folder that holds them", () => {
+  const { workspaceMachineDir } = getWorkspaceConfig();
+  const workFolders = path.join(workspaceMachineDir, "work");
   const layout = buildWorkspaceFsLayout({
     folders: {
-      above: attachment("id-above", path.dirname(chatsDir())),
+      // Above both the workspace and this computer's folder for it.
+      above: attachment("id-above", path.dirname(path.dirname(chatsDir()))),
     },
-    chatHostRoot: chat,
+    chatHostRoot: WorkDirSchema.parse(
+      path.join(workFolders, "2026-09-26-chat"),
+    ),
+    recordHostRoot: ChatDirSchema.parse(
+      path.join(chatsDir(), "2026-09-26-chat"),
+    ),
   });
 
-  it("answers as missing for reading and writing", () => {
+  it.each([
+    ["its records", path.join(chatsDir(), "2026-09-26-other", "chat.db")],
+    [
+      "what it was sent",
+      path.join(chatsDir(), "2026-09-26-other", "attachments", "a.png"),
+    ],
+    [
+      "its work folder",
+      path.join(workFolders, "2026-09-26-other", "work", "notes.md"),
+    ],
+  ])("answers %s as missing for reading and writing", (_label, other) => {
     const read = resolveAgentPath({ inputPath: other, layout });
     expect(read.isErr() && read.error.message).toMatch(/No such file/);
     expect(resolveWritableToolPath({ inputPath: other, layout }).isErr()).toBe(
@@ -308,8 +248,196 @@ describe("another chat's folder, reached through a folder that holds the workspa
   });
 });
 
+// A chat's records and its work are two folders: the record folder in the
+// workspace, which the rules keep hidden but for what the person sent and the
+// agent's handoff notes, and the work folder in this computer's folder for
+// the workspace, where the shell starts.
+describe("a chat's record folder apart from its work folder", () => {
+  let previous: ReturnType<typeof getWorkspaceConfig>;
+  let tmpDir: string;
+  let machineDir: string;
+  let record: string;
+  let work: string;
+  let layout: WorkspaceFsLayout;
+
+  beforeEach(async () => {
+    previous = getWorkspaceConfig();
+    tmpDir = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), `${APP_NAME_SLUG}-records-`)),
+    );
+    const rootDir = path.join(tmpDir, "workspace");
+    machineDir = path.join(tmpDir, "machine");
+    setWorkspaceConfig({
+      ...previous,
+      chatsDir: abs(path.join(rootDir, "chats")),
+      rootDir: WorkspaceDirSchema.parse(rootDir),
+      workFoldersDir: abs(path.join(machineDir, "work")),
+      workspaceMachineDir: abs(machineDir),
+    });
+    record = path.join(rootDir, "chats", "2026-10-13-chat");
+    work = path.join(machineDir, "work", "2026-10-13-chat");
+    await fs.mkdir(path.join(record, "attachments"), { recursive: true });
+    await fs.mkdir(work, { recursive: true });
+    await fs.writeFile(path.join(record, "attachments", "sent.txt"), "sent");
+    await fs.writeFile(path.join(record, "settings.json"), "{}");
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(work),
+      recordHostRoot: ChatDirSchema.parse(record),
+    });
+  });
+
+  afterEach(async () => {
+    setWorkspaceConfig(previous);
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  it("reads attachments/ in the record folder when the work folder has none", () => {
+    const resolved = resolveAgentPath({
+      inputPath: "attachments/sent.txt",
+      layout,
+    })._unsafeUnwrap();
+    expect(resolved.absolutePath).toBe(
+      path.join(record, "attachments", "sent.txt"),
+    );
+    expect(resolved.displayPath).toBe(
+      path.join(record, "attachments", "sent.txt"),
+    );
+    expect(resolved.mount).toBe(layout.record);
+  });
+
+  it("reads attachments/ in the work folder first", async () => {
+    await fs.mkdir(path.join(work, "attachments"));
+    await fs.writeFile(path.join(work, "attachments", "sent.txt"), "made");
+
+    expect(
+      resolveAgentPath({
+        inputPath: "./attachments/sent.txt",
+        layout,
+      })._unsafeUnwrap(),
+    ).toEqual({
+      absolutePath: path.join(work, "attachments", "sent.txt"),
+      displayPath: "./attachments/sent.txt",
+      mount: null,
+    });
+  });
+
+  it("names the work folder for an attachment neither folder has", () => {
+    expect(
+      resolveAgentPath({
+        inputPath: "attachments/gone.txt",
+        layout,
+      })._unsafeUnwrap().absolutePath,
+    ).toBe(path.join(work, "attachments", "gone.txt"));
+  });
+
+  it("refuses to change what the person sent, and writes a relative path into the work folder", () => {
+    const write = resolveWritableToolPath({
+      inputPath: path.join(record, "attachments", "new.txt"),
+      layout,
+    });
+    expect(write._unsafeUnwrapErr().message).toContain("read-only");
+    expect(
+      resolveWritableToolPath({
+        inputPath: "attachments/new.txt",
+        layout,
+      })._unsafeUnwrap().absolutePath,
+    ).toBe(path.join(work, "attachments", "new.txt"));
+    expect(
+      resolveReadOnlyHostPath(layout, path.join(record, "attachments")),
+    ).toBe(path.join(record, "attachments"));
+  });
+
+  it("writes and reads the handoff notes", async () => {
+    const notes = path.join(record, "handoff-notes.md");
+    expect(
+      resolveWritableToolPath({
+        inputPath: notes,
+        layout,
+      })._unsafeUnwrap().absolutePath,
+    ).toBe(notes);
+    await fs.writeFile(notes, "notes");
+    expect(
+      resolveAgentPath({ inputPath: notes, layout })._unsafeUnwrap()
+        .absolutePath,
+    ).toBe(notes);
+  });
+
+  it.each(["settings.json", "chat.db", "planted.md", ""])(
+    "keeps '%s' in the record folder from the agent",
+    (name) => {
+      const target = name === "" ? record : path.join(record, name);
+      const read = resolveAgentPath({ inputPath: target, layout });
+      expect(read.isErr() && read.error.message).toMatch(/No such file/);
+      expect(
+        resolveWritableToolPath({ inputPath: target, layout }).isErr(),
+      ).toBe(true);
+      expect(resolveReadOnlyHostPath(layout, target)).toBeNull();
+    },
+  );
+
+  describe("a path into the folder before its work moved", () => {
+    beforeEach(async () => {
+      recordMovedPaths(machineDir, [
+        { from: path.dirname(record), to: path.join(machineDir, "work") },
+      ]);
+      await fs.mkdir(path.join(work, "work"), { recursive: true });
+      await fs.writeFile(path.join(work, "work", "report.md"), "report");
+    });
+
+    it("reads where the move took it", () => {
+      expect(
+        resolveAgentPath({
+          inputPath: path.join(record, "work", "report.md"),
+          layout,
+        })._unsafeUnwrap(),
+      ).toEqual({
+        absolutePath: path.join(work, "work", "report.md"),
+        displayPath: "./work/report.md",
+        mount: null,
+      });
+    });
+
+    it("reads what stayed where it was", () => {
+      expect(
+        resolveAgentPath({
+          inputPath: path.join(record, "attachments", "sent.txt"),
+          layout,
+        })._unsafeUnwrap().absolutePath,
+      ).toBe(path.join(record, "attachments", "sent.txt"));
+    });
+
+    it("follows no move for a write", () => {
+      expect(
+        resolveWritableToolPath({
+          inputPath: path.join(record, "work", "report.md"),
+          layout,
+        }).isErr(),
+      ).toBe(true);
+    });
+
+    it("keeps another chat's moved work from the agent", async () => {
+      const other = path.join(machineDir, "work", "2026-10-13-other", "work");
+      await fs.mkdir(other, { recursive: true });
+      await fs.writeFile(path.join(other, "theirs.md"), "theirs");
+      const typed = path.join(
+        path.dirname(record),
+        "2026-10-13-other",
+        "work",
+        "theirs.md",
+      );
+      const read = resolveAgentPath({ inputPath: typed, layout });
+      expect(read.isErr()).toBe(true);
+      // About the path it named, never the one the move would have led to.
+      const message = read.isErr() ? read.error.message : "";
+      expect(message).toContain(typed);
+      expect(message).not.toContain(machineDir);
+      expect(existsSync(path.join(other, "theirs.md"))).toBe(true);
+    });
+  });
+});
+
 describe("resolveAgentPath (full paths)", () => {
-  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
+  const dir = WorkDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
     folders: { a: attachment("id-a", "/ext/one/Docs") },
     chatHostRoot: dir,
@@ -363,7 +491,7 @@ describe("resolveAgentPath (full paths)", () => {
 });
 
 describe("resolveWritableToolPath", () => {
-  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
+  const dir = WorkDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
     folders: { a: attachment("id-a", "/ext/one/Docs") },
     chatHostRoot: dir,
@@ -443,7 +571,7 @@ describe("symlink containment in a folder", () => {
     );
     layout = buildWorkspaceFsLayout({
       folders: { Docs: attachment("docs", path.join(tmpDir, "Docs")) },
-      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
+      chatHostRoot: WorkDirSchema.parse(path.join(tmpDir, "task")),
     });
   });
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
-import { ChatDirSchema } from "../../schemas/paths";
+import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -12,7 +12,7 @@ import { createTabCommand } from "./tab";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
 const layout = buildWorkspaceFsLayout({
-  chatHostRoot: ChatDirSchema.parse("/work/chats/tab-command-chat"),
+  chatHostRoot: WorkDirSchema.parse("/work/chats/tab-command-chat"),
 });
 
 // A page tab, by the session id the window's page tabs carry, and the

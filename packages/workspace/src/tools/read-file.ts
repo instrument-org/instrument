@@ -5,7 +5,6 @@ import { isBinaryFile } from "isbinaryfile";
 import ms from "ms";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
-import path from "node:path";
 import { dedent, fork } from "radashi";
 import { z } from "zod";
 
@@ -46,7 +45,6 @@ import { systemNote } from "../lib/system-note";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { sessionLayout } from "../lib/session-layout";
-import { workDir } from "../lib/work-dir";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
@@ -483,7 +481,7 @@ export const ReadFile = setupTool({
     Reads a file from this conversation's folder, or from one of the user's folders. You can access any file directly by using this tool.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to this conversation's folder, or the full path of a file in one of the user's folders. E.g. ./${CHAT_FOLDER_NAMES.attachments}/upload.txt
+    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to this conversation's folder, or the full path of a file in one of the user's folders. E.g. ./${CHAT_FOLDER_NAMES.work}/notes.md
     - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
@@ -527,12 +525,6 @@ export const ReadFile = setupTool({
       const { files: entries, truncated: dirTruncated } = await listFiles(
         absolutePath,
         {
-          // The private dir is masked from the shell too, so listing it here
-          // would advertise a path every read of it rejects.
-          exclude:
-            path.resolve(absolutePath) === path.resolve(workDir(chatId))
-              ? [CHAT_FOLDER_NAMES.private]
-              : undefined,
           hidden: true,
           limit: DIRECTORY_LISTING_LIMIT,
         },

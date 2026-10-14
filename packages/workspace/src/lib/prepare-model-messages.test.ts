@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { SessionMessage } from "../schemas/session/message";
 
 import { type AnyAgent } from "../agents/types";
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema } from "../schemas/paths";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -770,9 +769,8 @@ describe("prepareModelMessages", () => {
 
     /** The boundary the session records, or undefined if it has never reset. */
     beforeEach(async () => {
-      await fs.rm(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.work), {
+      await fs.rm(path.join(chatDir(chatId), "handoff-notes.md"), {
         force: true,
-        recursive: true,
       });
     });
 
@@ -967,11 +965,9 @@ describe("prepareModelMessages", () => {
       });
 
       it("hands back the notes the agent left, in the request itself", async () => {
-        await fs.mkdir(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.work), {
-          recursive: true,
-        });
+        await fs.mkdir(chatDir(chatId), { recursive: true });
         await fs.writeFile(
-          path.join(chatDir(chatId), "work", "handoff-notes.md"),
+          path.join(chatDir(chatId), "handoff-notes.md"),
           "Format: the number, then the English word.",
           "utf8",
         );
@@ -996,7 +992,9 @@ describe("prepareModelMessages", () => {
         );
 
         expect(notice).toContain("No handoff notes were found");
-        expect(notice).toContain("work/handoff-notes.md");
+        expect(notice).toContain(
+          path.join(chatDir(chatId), "handoff-notes.md"),
+        );
       });
 
       // The failure this exists for was not the turn after the cut. An agent

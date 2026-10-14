@@ -9,6 +9,7 @@ import {
   type RelativePath,
   RelativePathSchema,
   type ChatDir,
+  type WorkDir,
 } from "../schemas/paths";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -27,22 +28,28 @@ interface PreparedUploadedFile {
   filename: string;
   filePath: AbsolutePath;
   input: FileUpload.Type;
-  // A source the chat's folder already holds is attached where it lies, so there is
-  // nothing to write and `filePath` names the file itself.
+  // A source the chat's work folder already holds is attached where it lies,
+  // so there is nothing to write and `filePath` names the file itself.
   isInChatFolder: boolean;
   mimeType: string;
   relativePath: RelativePath;
 }
 
 export async function writeUploadedAttachments({
-  dir,
   files,
   messageId,
+  recordDir,
   sessionId,
+  workDir,
 }: {
-  /** The folder the files land in, under `attachments/`: the chat's (`workDir`). */
-  dir: ChatDir;
   files?: FileUpload.Type[];
+  /** The chat's record folder, whose `attachments/` the files land in. */
+  recordDir: ChatDir;
+  /**
+   * The chat's work folder: a file already in it is attached where it lies,
+   * by its path there.
+   */
+  workDir: WorkDir;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
@@ -51,8 +58,9 @@ export async function writeUploadedAttachments({
 
     if (files && files.length > 0) {
       const preparedFiles = yield* await prepareUploadedFiles({
-        dir,
         files,
+        recordDir,
+        workDir,
       });
 
       for (const preparedFile of preparedFiles) {
@@ -159,14 +167,16 @@ async function getUniqueFilename(
 }
 
 function prepareUploadedFiles({
-  dir,
   files,
+  recordDir,
+  workDir,
 }: {
-  dir: ChatDir;
   files: FileUpload.Type[];
+  recordDir: ChatDir;
+  workDir: WorkDir;
 }) {
   return safeTry(async function* () {
-    const inputDir = getChatAttachmentsDir(dir);
+    const inputDir = getChatAttachmentsDir(recordDir);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -179,10 +189,14 @@ function prepareUploadedFiles({
       if ("path" in file) {
         yield* await validatePathUpload({ file });
 
-        // A file the chat's folder already holds is attached where it lies. Copying it
-        // into `attachments/` would fork it: the agent would work on the copy
-        // while the original the user pointed at silently went stale.
-        const inChatPath = chatAttachmentPath({ dir, filePath: file.path });
+        // A file the chat's work folder already holds is attached where it
+        // lies. Copying it into `attachments/` would fork it: the agent would
+        // work on the copy while the original the user pointed at silently
+        // went stale.
+        const inChatPath = chatAttachmentPath({
+          dir: workDir,
+          filePath: file.path,
+        });
         if (inChatPath) {
           preparedFiles.push({
             filename: file.filename,
@@ -210,7 +224,7 @@ function prepareUploadedFiles({
 
       preparedFiles.push({
         filename: uniqueFilename,
-        filePath: absolutePathJoin(dir, relativePath),
+        filePath: absolutePathJoin(recordDir, relativePath),
         input: file,
         isInChatFolder: false,
         mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
@@ -223,15 +237,14 @@ function prepareUploadedFiles({
 }
 
 /**
- * The relative spelling of a path already inside the chat's folder, or undefined
- * for one outside it. The private dir counts as outside: the agent may not read
- * it, so a file dragged out of there is copied in like any other outside file.
+ * The relative spelling of a path already inside the chat's work folder, or
+ * undefined for one outside it.
  */
 function chatAttachmentPath({
   dir,
   filePath,
 }: {
-  dir: ChatDir;
+  dir: WorkDir;
   filePath: AbsolutePath;
 }): RelativePath | undefined {
   const relative = normalizePath(path.relative(dir, filePath));
@@ -239,8 +252,7 @@ function chatAttachmentPath({
     relative === "" ||
     relative === ".." ||
     relative.startsWith("../") ||
-    path.isAbsolute(relative) ||
-    relative.split("/")[0] === CHAT_FOLDER_NAMES.private
+    path.isAbsolute(relative)
   ) {
     return undefined;
   }

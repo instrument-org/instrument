@@ -428,7 +428,8 @@ describe("sessionMachine", () => {
       [MOCK_WORKSPACE_DIRS.chatTemplate]: {
         "package.json": "{}",
       },
-      [MOCK_WORKSPACE_DIRS.chats]: {
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatFolder]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: {
         [chatFolder]: {
           "image.png": mockFs.load(
             path.resolve(

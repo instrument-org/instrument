@@ -12,6 +12,7 @@ import {
   CHATGPT_ACCOUNT_PROVIDER_CONFIG,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
+  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import { writeFileSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -85,8 +86,25 @@ export function buildReportWorkspaceConfig(
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     webSearch: unavailableWebSearchClient,
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(
+        absoluteWorkspaceDir,
+        EVAL_MACHINE_DIR_NAME,
+        WORKSPACE_MACHINE_ENTRIES.work,
+      ),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, EVAL_MACHINE_DIR_NAME),
+    ),
   };
 }
+
+/**
+ * Where a run keeps what the app keeps on this computer for its workspace,
+ * each chat's work folder among it: inside the run's own folder, so a saved
+ * run carries both halves of every chat.
+ */
+export const EVAL_MACHINE_DIR_NAME = "machine";
 
 /**
  * Approximate, and marked as such wherever it is printed: only OpenRouter

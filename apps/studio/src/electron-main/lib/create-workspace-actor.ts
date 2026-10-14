@@ -26,7 +26,6 @@ import {
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
-  pruneExternalBrowserTmp,
   setBashWorkerFactory,
   stopWorkspaceSkillWatcher,
   warmBashWorker,
@@ -79,11 +78,13 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
 export function createWorkspaceActor() {
   const rootDir = getWorkspaceFolder();
 
-  // Normalize the on-disk layout of any legacy tasks before the workspace reads
-  // them. Idempotent; a failure must not block boot.
+  // Normalize the on-disk layout of any legacy tasks, and take each chat's
+  // work out of its records, before the workspace reads them. Idempotent; a
+  // failure must not block boot.
   try {
     const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({
+      machineDir: workspaceMachineDir(),
       marks: workspaceLayoutMarks(rootDir),
       rootDir,
     });
@@ -101,6 +102,14 @@ export function createWorkspaceActor() {
     if (migration.legacyTasks.leftOver > 0) {
       logger.warn(
         `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
+      );
+    }
+    for (const step of migration.chatRecords.done) {
+      logger.info(`Chat records: ${step}`);
+    }
+    if (migration.chatRecords.failed > 0) {
+      logger.warn(
+        `Left ${migration.chatRecords.failed} chat entr${migration.chatRecords.failed === 1 ? "y" : "ies"} to move on the next boot`,
       );
     }
     if (migration.removedBrowserProfileCloneCount > 0) {
@@ -123,16 +132,6 @@ export function createWorkspaceActor() {
       { scopes: ["studio"] },
     );
   }
-
-  // Reclaims cloned Chrome profiles a crash left behind. Off the boot path:
-  // nothing waits on it, and the dir it clears is only read by an external
-  // browser launch, which cannot happen before the workspace is up.
-  void pruneExternalBrowserTmp({ rootDir }).catch((error: unknown) => {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
-    );
-  });
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.

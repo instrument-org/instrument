@@ -1,7 +1,4 @@
-import {
-  PRIVATE_FOLDER_NAME,
-  SETTINGS_FILE_NAME,
-} from "@instrument-org/shared";
+import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -24,9 +21,9 @@ import { getWorkspaceConfig } from "./workspace-config";
  * kept current by whatever makes or trashes a chat. An id it does not know
  * is looked for on disk where a chat would be before it is called not found,
  * so a folder made behind its back is found; one moved behind its back (the
- * layout migration) calls `forgetChatFolders`. A `tasks/` folder an earlier
- * version left inside a chat is nobody's: a chat's tasks are sessions in its
- * store.
+ * layout migration) calls `forgetChatFolders`. A chat's tasks are sessions
+ * in its store, and its work is in its work folder (`workDir`), apart from
+ * the record folder named here.
  */
 interface Index {
   /** Each chat's one session, by its id. */
@@ -47,7 +44,8 @@ let index: Index | undefined;
 let handed: Map<ChatId, ChatDir> | undefined;
 
 /**
- * The folder a chat lives in. The window, which is no chat, has a folder of
+ * The folder a chat's records live in: its `chat.db`, `settings.json`,
+ * `attachments/` and handoff notes. The window, which is no chat, has one of
  * its own in the workspace's `.instrument/`. An id no chat has throws
  * `TypedError.NotFound` rather than naming a folder that is not there; ask
  * `resolveChat` where an unknown id is an answer rather than a mistake.
@@ -169,10 +167,7 @@ export function storedChatSession(
   let parsed: unknown;
   try {
     parsed = JSON.parse(
-      fs.readFileSync(
-        path.join(chatFolder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
-        "utf8",
-      ),
+      fs.readFileSync(path.join(chatFolder, SETTINGS_FILE_NAME), "utf8"),
     );
   } catch {
     return { problem: "unreadable-settings" };

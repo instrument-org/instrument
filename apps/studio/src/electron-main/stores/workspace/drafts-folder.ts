@@ -43,8 +43,13 @@ function recordPathOf(dir: string) {
  * Holds the one kept key {@link DRAFTS_KEY} for the kept-state store. Remembers
  * what it last wrote or read for each draft, so a keystroke rewrites only the
  * draft it changed, and a change on disk is told apart from its own writes.
+ * An attachment's absolute path is read through `whereNow`, which names
+ * where a migration moved a file a draft attached before it ran.
  */
-export function createDraftsFolder(root: string) {
+export function createDraftsFolder(
+  root: string,
+  whereNow: (file: string) => string = (file) => file,
+) {
   const known = new Map<string, DraftFiles>();
 
   const readDisk = (): Map<string, DraftFiles> => {
@@ -96,7 +101,9 @@ export function createDraftsFolder(root: string) {
     }
     return {
       ...withPaths(record, (file) =>
-        path.isAbsolute(file) ? file : path.join(draftDirOf(root, id), file),
+        path.isAbsolute(file)
+          ? whereNow(file)
+          : path.join(draftDirOf(root, id), file),
       ),
       id,
       words: files.words,

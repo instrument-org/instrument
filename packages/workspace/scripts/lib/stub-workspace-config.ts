@@ -55,6 +55,12 @@ export function createStubWorkspaceConfig({
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     webSearch: unavailableWebSearchClient,
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "machine", "work"),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "machine"),
+    ),
     ...overrides,
   };
 }

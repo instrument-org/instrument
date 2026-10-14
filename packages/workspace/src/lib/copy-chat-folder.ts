@@ -2,18 +2,15 @@ import { ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
 
 export function copyChatFolder({
-  includePrivateFolder,
   sourceDir,
   targetDir,
 }: {
-  includePrivateFolder: boolean;
   sourceDir: AbsolutePath;
   targetDir: AbsolutePath;
 }) {
@@ -30,12 +27,6 @@ export function copyChatFolder({
         filter: (src) => {
           const relativePath = path.relative(sourceDir, src);
           if (relativePath === "") {
-            return true;
-          }
-          if (
-            includePrivateFolder &&
-            relativePath.startsWith(CHAT_FOLDER_NAMES.private)
-          ) {
             return true;
           }
           return !ignore.ignores(normalizePath(relativePath));

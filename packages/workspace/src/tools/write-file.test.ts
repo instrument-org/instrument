@@ -7,7 +7,7 @@ import {
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
 import { grantFolder } from "../lib/chat/grants";
-import { chatDir } from "../lib/record-folders";
+import { workDir } from "../lib/work-dir";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -41,7 +41,7 @@ describe("WriteFile - toModelOutput", () => {
   });
 
   it("returns a bare success line for a new file", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
 
     const input = {
       content: "const x = 2;",
@@ -61,7 +61,7 @@ describe("WriteFile - toModelOutput", () => {
 
   it("returns a bare success line for an overwritten file", async () => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.chats]: {
+      [MOCK_WORKSPACE_DIRS.work]: {
         [chatId]: { "index.ts": "const x = 1;" },
       },
     });
@@ -89,14 +89,14 @@ describe("WriteFile - path policy", () => {
   });
 
   it("writes the chat's own folder by its full path", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
 
     const result = await runTool(
       WriteFile,
       makeExecuteArgs({
         content: "report",
         explanation: "test",
-        filePath: `${chatDir(chatId)}/output/report.md`,
+        filePath: `${workDir(chatId)}/output/report.md`,
       }),
     );
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
@@ -134,6 +134,7 @@ describe("WriteFile - path policy", () => {
     mockFs({
       "/ext/Docs": {},
       [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} },
     });
     await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
 

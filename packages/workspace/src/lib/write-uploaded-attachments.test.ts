@@ -5,21 +5,29 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
-import { type ChatDir, ChatDirSchema } from "../schemas/paths";
+import {
+  type ChatDir,
+  ChatDirSchema,
+  type WorkDir,
+  WorkDirSchema,
+} from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the copy is concerned";
 
 let root: string;
-let dir: ChatDir;
+let recordDir: ChatDir;
+let workDir: WorkDir;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(
     path.join(os.tmpdir(), "write-uploaded-attachments-"),
   );
-  dir = ChatDirSchema.parse(path.join(root, "task"));
-  await fs.mkdir(dir, { recursive: true });
+  recordDir = ChatDirSchema.parse(path.join(root, "workspace", "chats", "c"));
+  workDir = WorkDirSchema.parse(path.join(root, "machine", "work", "c"));
+  await fs.mkdir(recordDir, { recursive: true });
+  await fs.mkdir(workDir, { recursive: true });
 });
 
 afterEach(async () => {
@@ -28,10 +36,11 @@ afterEach(async () => {
 
 async function attach(files: FileUpload.Type[]) {
   const result = await writeUploadedAttachments({
-    dir,
     files,
     messageId: StoreId.newMessageId(),
+    recordDir,
     sessionId: StoreId.newSessionId(),
+    workDir,
   });
   if (result.isErr()) {
     throw result.error;
@@ -52,7 +61,7 @@ async function writeSourceFile(filePath: string, content = CONTENT) {
 }
 
 describe("writeUploadedAttachments", () => {
-  it("copies a file from outside the task into attachments", async () => {
+  it("copies a file from outside the chat into its record folder's attachments", async () => {
     const file = await writeSourceFile(path.join(root, "outside", "photo.jpg"));
 
     const [attached] = await attach([file]);
@@ -62,48 +71,52 @@ describe("writeUploadedAttachments", () => {
     );
     await expect(
       fs.readFile(
-        path.join(dir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+        path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
         "utf8",
       ),
     ).resolves.toBe(CONTENT);
+    await expect(
+      fs.access(path.join(workDir, CHAT_FOLDER_NAMES.attachments)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  // The user's way of saying "this one": reveal a file the task already holds
-  // and drag it back into the composer. Copying it into `attachments/` would
-  // fork it, so the attachment names the file where it already lives.
-  it("attaches a file the task already holds where it lies", async () => {
+  // The user's way of saying "this one": reveal a file the chat's work folder
+  // already holds and drag it back into the composer. Copying it into
+  // `attachments/` would fork it, so the attachment names the file where it
+  // already lives, by its path in the work folder.
+  it("attaches a file the work folder already holds where it lies", async () => {
     const file = await writeSourceFile(
-      path.join(dir, CHAT_FOLDER_NAMES.downloads, "photo.jpg"),
+      path.join(workDir, CHAT_FOLDER_NAMES.downloads, "photo.jpg"),
     );
 
     const [attached] = await attach([file]);
 
     expect(attached?.filePath).toBe(`${CHAT_FOLDER_NAMES.downloads}/photo.jpg`);
     await expect(
-      fs.readdir(path.join(dir, CHAT_FOLDER_NAMES.attachments)),
+      fs.readdir(path.join(recordDir, CHAT_FOLDER_NAMES.attachments)),
     ).resolves.toEqual([]);
-  });
-
-  // The private dir is off-limits to the agent, so a file dragged out of it is
-  // copied in like any other outside file rather than referenced in place.
-  it("copies a file out of the private dir into attachments", async () => {
-    const file = await writeSourceFile(
-      path.join(dir, CHAT_FOLDER_NAMES.private, "notes.jpg"),
-    );
-
-    const [attached] = await attach([file]);
-
-    expect(attached?.filePath).toBe(
-      `${CHAT_FOLDER_NAMES.attachments}/notes.jpg`,
-    );
   });
 
   it("gives a copy its own name when one is already attached", async () => {
     await writeSourceFile(
-      path.join(dir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+      path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
       "the one attached earlier",
     );
     const file = await writeSourceFile(path.join(root, "outside", "photo.jpg"));
+
+    const [attached] = await attach([file]);
+
+    expect(attached?.filePath).toBe(
+      `${CHAT_FOLDER_NAMES.attachments}/photo-1.jpg`,
+    );
+  });
+
+  // The record folder is not where the agent works, so a file sent before and
+  // sent again is a new attachment rather than a path in the work folder.
+  it("copies a file from the chat's own attachments as a new one", async () => {
+    const file = await writeSourceFile(
+      path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+    );
 
     const [attached] = await attach([file]);
 

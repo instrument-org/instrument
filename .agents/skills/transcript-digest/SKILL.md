@@ -13,7 +13,7 @@ node .agents/skills/transcript-digest/scripts/digest.mjs <chat>-transcript.md --
 node .agents/skills/transcript-digest/scripts/digest.mjs <file> --json                       # the same, structured
 ```
 
-No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it opens the chat's own database (`.instrument/chat.db` in the folder the transcript's `chatDir` names), takes every session whose `parentId` is the chat's, which is each task the chat started, and exports each through `script:dump-session-transcript --session` (the `session-transcript` skill). A chat whose folder is not here is reported as not found rather than failing the run.
+No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it opens the chat's own database (`chat.db` in the record folder the transcript's `chatDir` names, or `.instrument/chat.db` in one an earlier build left), takes every session whose `parentId` is the chat's, which is each task the chat started, and exports each through `script:dump-session-transcript --session` (the `session-transcript` skill). A chat whose folder is not here is reported as not found rather than failing the run.
 
 ## How to use it
 

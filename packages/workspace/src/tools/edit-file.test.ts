@@ -61,7 +61,7 @@ function makeExecuteArgs(
 
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
-    [MOCK_WORKSPACE_DIRS.chats]: {
+    [MOCK_WORKSPACE_DIRS.work]: {
       [chatId]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,
@@ -245,7 +245,7 @@ describe("EditFile", () => {
       `);
       await expect(
         fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.chats, chatId, "index.ts"),
+          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "index.ts"),
           "utf8",
         ),
       ).resolves.toBe(original);

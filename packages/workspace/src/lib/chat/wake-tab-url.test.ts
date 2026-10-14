@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { ChatDirSchema } from "../../schemas/paths";
+import { WorkDirSchema } from "../../schemas/paths";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { chatSpellingOfUrl } from "./wake";
 
@@ -12,7 +12,7 @@ vi.mock(import("../session-layout"), async (importOriginal) => ({
   ...(await importOriginal()),
   sessionLayout: () =>
     Promise.resolve(
-      buildWorkspaceFsLayout({ chatHostRoot: ChatDirSchema.parse(chatRoot) }),
+      buildWorkspaceFsLayout({ chatHostRoot: WorkDirSchema.parse(chatRoot) }),
     ),
 }));
 

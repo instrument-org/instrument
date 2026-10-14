@@ -1,18 +1,13 @@
 import { defineCommand } from "just-bash";
-import { existsSync, realpathSync } from "node:fs";
-import nodePath from "node:path";
+import { existsSync } from "node:fs";
 
-import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { hostPathWithin } from "../host-path";
-import { normalizePath } from "../normalize-path";
 import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
 import {
   otherFolders,
-  classifyShellPath,
   outsideFolderRefusal,
   resolveHostPath,
   resolveReadOnlyHostPath,
@@ -79,9 +74,6 @@ const DENIED_SHORT_FLAG = "z";
  */
 const VALUE_SHORT_FLAGS = new Set("ABCEMTdefgjmrt");
 
-/** Glob metacharacters, each matched literally inside a one-member class. */
-const GLOB_METACHARACTERS = /[*?[{}\\]/g;
-
 export function createRgCommand({
   layout,
   chatId,
@@ -108,19 +100,11 @@ export function createRgCommand({
     }
 
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
-    const masked = maskSearchRoots(bridged.args, layout, hostCwd);
-    if ("error" in masked) {
-      return { exitCode: 2, stderr: `${masked.error}\n`, stdout: "" };
-    }
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
       RG_DISK_PATH,
-      [
-        "--no-config",
-        "--path-separator=/",
-        ...withPrivateDirDenied(masked.args, masked.globs),
-      ],
+      ["--no-config", "--path-separator=/", ...bridged.args],
       {
         cancelSignal: ctx.signal,
         cwd: hostCwd,
@@ -174,24 +158,15 @@ export function createRgCommand({
 
 /**
  * Resolve the shell's spelling of a path to the host path ripgrep has to
- * receive (the same path on macOS and Linux, drive-lettered on Windows), and
- * refuse the ones that name the private dir.
+ * receive (the same path on macOS and Linux, drive-lettered on Windows).
  *
  * Only arguments that name a folder the chat reaches are resolved. Anything
  * else starting with `/` is left alone: it is far more likely to be a regex
  * (`rg '/api/'`) than a path, and a real absolute path is no wider a
  * capability than the `python` and `node` hatches already documented in the
- * agent sandbox. A path that resolves
- * into the private dir, or out of its folder through a symlink, is refused.
- *
- * The private-dir question is asked of every argument that is not a flag, not
- * only of the ones naming a folder, because ripgrep applies no glob filter to a
- * file named on the command line: the deny glob covers the walk, and
- * `rg NEEDLE .instrument/state.json` goes straight past it. Which positional is
- * the pattern and which is a path would take parsing every flag this wrapper
- * deliberately hands through, so it asks the cheaper question. A *pattern* that
- * resolves into the private dir is refused too, which is a search worth
- * refusing. Everything after `--` is an operand, a leading dash included.
+ * agent sandbox. A path the rules keep from the agent, or one that leads out
+ * of its folder through a symlink, is refused. Everything after `--` is an
+ * operand, a leading dash included.
  */
 function bridgePathArgs(
   args: string[],
@@ -209,25 +184,6 @@ function bridgePathArgs(
     if (!owner) {
       const isOperand = operandsOnly || !arg.startsWith("-");
       operandsOnly ||= arg === "--";
-      const masked = isOperand
-        ? classifyShellPath(layout, resolvePath(arg))?.masked
-        : undefined;
-      if (masked === CHAT_FOLDER_NAMES.private) {
-        return {
-          error: `${RG_COMMAND.name}: "${arg}" references the private ${CHAT_FOLDER_NAMES.private} directory, which holds chat internals.`,
-        };
-      }
-      // The dir itself is left to the deny globs: a bare `tasks` argument is
-      // as likely a pattern as a path, and refusing a search for the word
-      // would cost more than it guards.
-      if (
-        masked === TASKS_DIR_NAME &&
-        !isMaskedDirItself(layout, resolvePath(arg), TASKS_DIR_NAME)
-      ) {
-        return {
-          error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
-        };
-      }
       // A path outside every folder the chat reaches is refused here the
       // way the shell's own commands refuse it, and asked for the same way,
       // rather than read by the real binary the rules hold to less.
@@ -284,15 +240,6 @@ function operandRefusal(
   });
 }
 
-/** A path's real location, or null for one that does not exist. */
-function canonicalPath(hostPath: string): null | string {
-  try {
-    return realpathSync(hostPath);
-  } catch {
-    return null;
-  }
-}
-
 function deniedFlag(arg: string): null | string {
   if (arg.startsWith("--")) {
     const name = arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
@@ -313,202 +260,4 @@ function deniedFlag(arg: string): null | string {
     }
   }
   return null;
-}
-
-function escapeGlob(literal: string): string {
-  return literal.replaceAll(GLOB_METACHARACTERS, (character) =>
-    character === "\\" && nodePath.sep === "\\" ? "/" : `[${character}]`,
-  );
-}
-
-/**
- * Where ripgrep finds an operand: joined to its working directory as typed
- * rather than normalized, so `..` after a symlink resolves the way the
- * operating system resolves it.
- */
-function hostOperand(hostCwd: string, arg: string): string {
-  return nodePath.isAbsolute(arg) ? arg : `${hostCwd}${nodePath.sep}${arg}`;
-}
-
-/** Two parts of a printed path, joined the way ripgrep joins them. */
-function joinPrinted(parent: string, child: string): string {
-  if (parent === "" || child === "") {
-    return parent || child;
-  }
-  return parent.endsWith("/") ? `${parent}${child}` : `${parent}/${child}`;
-}
-
-/**
- * The deny globs that keep ripgrep's walk out of every masked entry (the
- * private dir, and a chat's `tasks/` dir) of every mount the search reaches,
- * with the arguments respelled where a glob could not otherwise name them.
- *
- * ripgrep walks the real directories, so the shell's mask does not apply, and no glob applies to a file named on the command line either --
- * that half is `bridgePathArgs`'s.
- *
- * A glob cannot simply be anchored at the mount root. ripgrep anchors every
- * glob at its working directory and matches it against each path as printed,
- * after dropping one leading `./` and, from an absolute path, the working
- * directory's own canonical spelling. So a root reached as `..`, `../work/..`
- * or an absolute path to the folder prints as that spelling followed by what is under it,
- * and each of those needs a glob of its own: one per masked entry, per
- * operand whose real location holds a masked mount root, plus one for the
- * walk from the working directory itself. Any argument could be the operand
- * (which one is the pattern would take parsing every flag), so each is asked;
- * a pattern that happens to name a directory above a mount root only adds a
- * glob that excludes the same entries. Where the operand is spelled with a
- * `.` or empty segment that the printed path does not match literally
- * (`././..`, `..//`), it is normalized, which only shortens the spelling the
- * matches are printed with.
- *
- * Each glob is passed twice because ripgrep builds one matcher from every
- * `--glob` and then adds every `--iglob` to it, so a case-insensitive include
- * outranks a case-sensitive exclude no matter which order they were typed in:
- * without the second, `--iglob '.INSTRUMENT/**'` searches the dir. The pair of
- * them also means the exclusion holds for a filesystem that would tell those
- * two directory names apart.
- */
-function maskSearchRoots(
-  args: string[],
-  layout: WorkspaceFsLayout,
-  hostCwd: string,
-): { args: string[]; globs: string[] } | { error: string } {
-  const maskedRoots = [layout.chat, ...otherFolders(layout)]
-    .filter((mount) => mount.maskedEntries.length > 0)
-    .map((mount) => ({
-      entries: mount.maskedEntries,
-      root: canonicalPath(mount.hostRoot) ?? nodePath.resolve(mount.hostRoot),
-    }));
-  const cwd = canonicalPath(hostCwd) ?? hostCwd;
-
-  const denied = new Set<string>();
-  const denyBelow = (spelling: string, reached: string) => {
-    for (const { entries, root } of maskedRoots) {
-      const rest = remainderWithin(reached, root);
-      if (rest === null) {
-        continue;
-      }
-      for (const entry of entries) {
-        denied.add(
-          `/${escapeGlob(joinPrinted(joinPrinted(spelling, rest), entry))}/**`,
-        );
-      }
-    }
-  };
-  const reachesMaskedRoot = (reached: string) =>
-    maskedRoots.some(({ root }) => remainderWithin(reached, root) !== null);
-
-  denyBelow("", cwd);
-
-  const respelled: string[] = [];
-  let operandsOnly = false;
-  for (const arg of args) {
-    const isOperand = operandsOnly || !arg.startsWith("-");
-    operandsOnly ||= arg === "--";
-    // An empty argument names no path: it is the pattern that matches
-    // every line.
-    const reached =
-      isOperand && arg !== "" ? canonicalPath(hostOperand(hostCwd, arg)) : null;
-    if (reached === null || !reachesMaskedRoot(reached)) {
-      respelled.push(arg);
-      continue;
-    }
-    const spelling = printedSpelling(arg);
-    if (spelling !== null) {
-      denyBelow(spelling, reached);
-      respelled.push(arg);
-      continue;
-    }
-    const normalized = nodePath.normalize(arg);
-    const normalizedSpelling = printedSpelling(normalized);
-    if (
-      normalizedSpelling === null ||
-      canonicalPath(hostOperand(hostCwd, normalized)) !== reached
-    ) {
-      return {
-        error: `${RG_COMMAND.name}: ${arg}: path is not accessible; spell it without \`.\` or empty segments`,
-      };
-    }
-    denyBelow(normalizedSpelling, reached);
-    respelled.push(normalized);
-  }
-
-  return {
-    args: respelled,
-    globs: [...denied].flatMap((glob) => [
-      "--glob",
-      `!${glob}`,
-      "--iglob",
-      `!${glob}`,
-    ]),
-  };
-}
-
-/**
- * Whether a shell path names a masked entry of the chat's folder itself rather than
- * something inside it.
- */
-function isMaskedDirItself(
-  layout: WorkspaceFsLayout,
-  path: string,
-  entry: string,
-): boolean {
-  return (
-    normalizePath(path).toLowerCase() ===
-    `${layout.chat.shellRoot}/${entry}`.toLowerCase()
-  );
-}
-
-/**
- * What of an operand ripgrep's glob matcher sees in front of each path under
- * it, or null for a spelling it would not match literally. `.` contributes
- * nothing, since ripgrep drops the leading `./` it prints under it.
- */
-function printedSpelling(arg: string): null | string {
-  const posix = nodePath.sep === "\\" ? arg.replaceAll("\\", "/") : arg;
-  if (posix === "." || posix === "./") {
-    return "";
-  }
-  if (posix === "/") {
-    return posix;
-  }
-  const unprefixed = posix.startsWith("./") ? posix.slice(2) : posix;
-  const spelling =
-    unprefixed.length > 1 && unprefixed.endsWith("/")
-      ? unprefixed.slice(0, -1)
-      : unprefixed;
-  const segments = spelling.split("/");
-  const plain = segments.every(
-    (segment, index) =>
-      segment !== "." &&
-      (segment !== "" || (index === 0 && segments.length > 1)),
-  );
-  return plain ? spelling : null;
-}
-
-/**
- * The part of `hostPath` under `parent` as ripgrep prints it below the
- * parent's spelling: "" for the parent itself, or null for a path outside it.
- */
-function remainderWithin(parent: string, hostPath: string): null | string {
-  return hostPathWithin(parent, hostPath)?.slice(1) ?? null;
-}
-
-/**
- * The agent's arguments with the private-dir deny globs after them.
- *
- * After, because ripgrep's glob precedence is last-wins: prepended, any
- * positive glob the agent passes overrides them, including a bare `-g '**'`
- * typed without meaning anything by it. Still ahead of a `--` though, since
- * everything past that is a path operand rather than a flag.
- */
-function withPrivateDirDenied(
-  args: string[],
-  globs: readonly string[],
-): string[] {
-  const operandsFrom = args.indexOf("--");
-
-  return operandsFrom === -1
-    ? [...args, ...globs]
-    : [...args.slice(0, operandsFrom), ...globs, ...args.slice(operandsFrom)];
 }

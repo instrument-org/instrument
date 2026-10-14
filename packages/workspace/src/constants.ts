@@ -2,17 +2,13 @@ export const REGISTRY_FOLDER_NAMES = {
   skills: "skills",
 } as const;
 
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
-
 export const CHAT_FOLDER_NAMES = {
+  // agent-browser's home for one chat, under the workspace's machine folder
+  // (getAgentBrowserHomeDir).
+  agentBrowserHome: "agent-browser-home",
   attachments: "attachments",
   browserSession: "browser-session",
   downloads: "downloads",
-  // agent-browser's temp dir for external-browser invocations. Lives at the
-  // workspace root rather than in a task (see getExternalBrowserTmpDir): what
-  // lands there is a copy of the host's browser state, not task content.
-  externalBrowserTmp: "external-browser-tmp",
-  private: PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
   // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the chat's folder so tempfile spill
@@ -41,8 +37,11 @@ export const MEMORY_DIR_NAME = "memory";
 // settings in `.instrument/settings.json` and its instructions in
 // `instructions.md`.
 export const TOPICS_DIR_NAME = "topics";
-// A chat's SQLite store, every session in it, in its `.instrument/` private dir.
+// A chat's SQLite store, every session in it, in its record folder.
 export const CHAT_DB_FILE_NAME = "chat.db";
+// The notes the agent keeps for whoever carries a chat on after its context
+// runs out, in the chat's record folder (handoffNotesPath).
+export const HANDOFF_NOTES_FILE_NAME = "handoff-notes.md";
 // What the store was named in a 1.x task and in a chat before the layout
 // sweep renamed it: read by the migrations alone.
 export const LEGACY_TASK_DB_FILE_NAME = "task.db";

@@ -130,6 +130,7 @@ const actor = createActor(workspaceMachine, {
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),
     runtimeDir: path.resolve("../../../workspace.local/runtime"),
+    workspaceMachineDir: path.resolve("../../../workspace.local/machine"),
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(

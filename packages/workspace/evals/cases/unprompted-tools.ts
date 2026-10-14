@@ -18,7 +18,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { Store } from "../../src/lib/store";
 import { shellPath } from "../../src/lib/workspace-fs-layout";
 import { type Session } from "../../src/schemas/session";
@@ -145,7 +145,7 @@ async function filesWritten(
         ),
     ) + 2000;
   const files = new Set(
-    [HOME, chatDir(ctx.chatId), ...extra].flatMap((dir) =>
+    [HOME, workDir(ctx.chatId), ...extra].flatMap((dir) =>
       recentFilesUnder(dir, since),
     ),
   );

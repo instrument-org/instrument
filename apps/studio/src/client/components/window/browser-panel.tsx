@@ -13,11 +13,14 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
   InputGroup,
   InputGroupAddon,
@@ -611,6 +614,11 @@ export function BrowserPanel({
               >
                 <MagnifyingGlassIcon className="size-4" />
                 Find in page
+                <DropdownMenuShortcut>
+                  {formatAcceleratorText(
+                    WINDOW_SHORTCUTS.findInPage.accelerator,
+                  )}
+                </DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {

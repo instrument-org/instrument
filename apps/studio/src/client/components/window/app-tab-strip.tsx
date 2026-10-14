@@ -13,8 +13,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -64,7 +67,10 @@ export function AppTabStrip({
   tabs: { id: TabId; pathname: string }[];
 }) {
   const presentationOf = useAppTabPresentation({ chatTitles, childTitles });
-  const { closed, reopen } = useClosedAppTabs({ chatTitles, childTitles });
+  const { closed, firstIsReopenedByKey, reopen } = useClosedAppTabs({
+    chatTitles,
+    childTitles,
+  });
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
@@ -105,7 +111,13 @@ export function AppTabStrip({
             setMenu({ id, x: event.clientX, y: event.clientY });
           }
         }}
-        newMenu={<ClosedTabsMenu closed={closed} onReopen={reopen} />}
+        newMenu={
+          <ClosedTabsMenu
+            closed={closed}
+            firstIsReopenedByKey={firstIsReopenedByKey}
+            onReopen={reopen}
+          />
+        }
         onNew={onNew}
         onReorder={(keys) => {
           onReorder(
@@ -148,6 +160,7 @@ export function AppTabStrip({
             id={menu.id}
             isLast={tabs.at(-1)?.id === menu.id}
             isOnly={tabs.length === 1}
+            isSelected={selectedId === menu.id}
             onClose={onClose}
             onCloseOthers={onCloseOthers}
             onCloseToRight={onCloseToRight}
@@ -162,12 +175,15 @@ export function AppTabStrip({
 
 /**
  * A tab's own menu: reload and copy it, then close it or the tabs around it.
- * In developer mode, a screen's tab can also be shown without it.
+ * In developer mode, a screen's tab can also be shown without it. The tab up
+ * names the window's keys beside Reload and Close Tab, since those keys act
+ * on it and on no other.
  */
 function TabMenu({
   id,
   isLast,
   isOnly,
+  isSelected,
   onClose,
   onCloseOthers,
   onCloseToRight,
@@ -177,6 +193,7 @@ function TabMenu({
   id: TabId;
   isLast: boolean;
   isOnly: boolean;
+  isSelected: boolean;
   onClose: (id: TabId) => void;
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;
@@ -192,6 +209,11 @@ function TabMenu({
         <DropdownMenuItem onClick={reload}>
           <ArrowClockwiseIcon className="size-4" />
           <span>Reload</span>
+          {isSelected ? (
+            <DropdownMenuShortcut>
+              {formatAcceleratorText(WINDOW_SHORTCUTS.reloadPage.accelerator)}
+            </DropdownMenuShortcut>
+          ) : null}
         </DropdownMenuItem>
       )}
       <DropdownMenuItem
@@ -227,6 +249,11 @@ function TabMenu({
       >
         <XIcon className="size-4" />
         <span>Close Tab</span>
+        {isSelected ? (
+          <DropdownMenuShortcut>
+            {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
+          </DropdownMenuShortcut>
+        ) : null}
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={isOnly}

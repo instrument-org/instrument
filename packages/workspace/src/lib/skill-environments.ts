@@ -16,10 +16,11 @@ import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 import {
   MANAGED_PYTHON_VERSION,
   nearestVenv,
+  venvBinDir,
   venvPython,
   venvSitePackages,
 } from "./uv";
-import { hasUsableVenv, type VenvError } from "./venv";
+import { hasUsableVenv, untilAborted, type VenvError } from "./venv";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
@@ -183,13 +184,9 @@ export function ensurePythonEnvironment({
   signal?: AbortSignal;
   skillDir: AbsolutePath;
 }): Promise<PythonEnvironmentResult> {
-  return untilAborted(
-    ensurePythonHere({ chatId, skillDir }),
-    signal,
-    (error) => ({
-      error,
-    }),
-  );
+  return untilAborted(ensurePythonHere({ chatId, skillDir }), signal, () => ({
+    error: CANCELLED,
+  }));
 }
 
 /**
@@ -284,7 +281,7 @@ export async function ensureNodeEnvironment({
       (staging) => buildNodeEnvironment({ chatId, skillDir, staging }),
     ),
     signal,
-    (cancelled) => cancelled,
+    () => CANCELLED,
   );
   return error ? { error } : { dir: target };
 }
@@ -317,33 +314,20 @@ export async function skillPythonToRun({
   /** The script on the host, where the command runs one. */
   script: string | undefined;
   signal?: AbortSignal;
-}): Promise<
-  | { error: VenvError }
-  | {
-      /** The environment whose site-packages go behind the interpreter's. */
-      layer?: AbsolutePath;
-      /** The skill environment `python` runs in, where it runs in one. */
-      venv?: AbsolutePath;
-    }
-> {
-  const withEnvironment = (hostPath: string | undefined) => {
-    const folder =
-      hostPath === undefined ? undefined : trustedSkillFolder(hostPath);
-    return folder && pythonEnvironmentOf(folder) ? folder : undefined;
-  };
-  const near = nearestVenv(chatId, cwd);
-  const scriptSkill = withEnvironment(script);
+}): Promise<{ error: VenvError } | SkillPython> {
+  const scriptSkill =
+    script === undefined
+      ? undefined
+      : await skillEnvironmentHolding({
+          chatId,
+          cwd,
+          hostPath: script,
+          signal,
+        });
   if (scriptSkill !== undefined) {
-    const built = await ensurePythonEnvironment({
-      chatId,
-      signal,
-      skillDir: scriptSkill,
-    });
-    return "error" in built || near === undefined
-      ? built
-      : { layer: near, venv: built.venv };
+    return scriptSkill;
   }
-  const loaded = withEnvironment(loadedSkillDir);
+  const loaded = skillWithEnvironment(loadedSkillDir);
   if (loaded === undefined) {
     return {};
   }
@@ -352,7 +336,7 @@ export async function skillPythonToRun({
     signal,
     skillDir: loaded,
   });
-  if (near === undefined) {
+  if (nearestVenv(chatId, cwd) === undefined) {
     return built;
   }
   // The agent's own code runs in its `.venv` either way; a skill
@@ -360,12 +344,72 @@ export async function skillPythonToRun({
   return "error" in built ? {} : { layer: built.venv };
 }
 
+/** Where Python runs with a skill's environment: in it, behind it, or both. */
+interface SkillPython {
+  /** The environment whose site-packages go behind the interpreter's. */
+  layer?: AbsolutePath;
+  /** The skill environment Python runs in, where it runs in one. */
+  venv?: AbsolutePath;
+}
+
 /**
- * The environment's folder on PATH: `bin` on macOS and Linux, `Scripts` on
- * Windows, as uv lays a virtualenv out.
+ * The environment of the skill holding `hostPath` (a script in it, or its
+ * folder), built first where it is missing, with the `.venv` nearest `cwd`
+ * layered behind it, so the skill's own versions win and what `pip install`
+ * put there is found too. Undefined where no skill with a Python environment
+ * holds the path.
  */
-export function environmentBinDir(venv: AbsolutePath): string {
-  return path.dirname(venvPython(venv));
+export async function skillEnvironmentHolding({
+  chatId,
+  cwd,
+  hostPath,
+  signal,
+}: {
+  chatId: ChatId;
+  cwd: string;
+  hostPath: string;
+  signal?: AbortSignal;
+}): Promise<
+  undefined | { error: VenvError } | (SkillPython & { venv: AbsolutePath })
+> {
+  const skillDir = skillWithEnvironment(hostPath);
+  if (skillDir === undefined) {
+    return undefined;
+  }
+  const built = await ensurePythonEnvironment({ chatId, signal, skillDir });
+  const near = nearestVenv(chatId, cwd);
+  return "error" in built || near === undefined
+    ? built
+    : { layer: near, venv: built.venv };
+}
+
+/** The folder of the skill holding `hostPath`, where it has a Python environment. */
+function skillWithEnvironment(
+  hostPath: string | undefined,
+): AbsolutePath | undefined {
+  const folder =
+    hostPath === undefined ? undefined : trustedSkillFolder(hostPath);
+  return folder && pythonEnvironmentOf(folder) ? folder : undefined;
+}
+
+/**
+ * The variables Python runs with in `venv`, a skill's environment, with
+ * `layer` behind it: the environment's programs first on PATH and it named
+ * the active virtualenv, so a Python the script starts runs there too, and
+ * the layer's site-packages after the interpreter's own
+ * ({@link pythonLayerEnv}). Over `env`, the command's own.
+ */
+export function skillPythonEnv(
+  { layer, venv }: SkillPython,
+  env: Record<string, string>,
+): Record<string, string> {
+  return {
+    ...(venv && {
+      PATH: [venvBinDir(venv), env.PATH].filter(Boolean).join(path.delimiter),
+      VIRTUAL_ENV: venv,
+    }),
+    ...(layer && pythonLayerEnv(layer, env.PYTHONPATH)),
+  };
 }
 
 // Several chats' first use of one skill land together. Reuse the build in
@@ -604,39 +648,8 @@ async function copySkillFiles(from: AbsolutePath, to: AbsolutePath) {
   });
 }
 
-/**
- * Waits for `work` unless `signal` ends the wait first, which leaves the
- * work running for whoever else waits on it.
- */
-function untilAborted<T>(
-  work: Promise<T>,
-  signal: AbortSignal | undefined,
-  cancelled: (error: VenvError) => T,
-): Promise<T> {
-  if (signal === undefined) {
-    return work;
-  }
-  const error = {
-    exitCode: 1,
-    output: "Setting up the skill's packages was cancelled.\n",
-  };
-  if (signal.aborted) {
-    return Promise.resolve(cancelled(error));
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => {
-      resolve(cancelled(error));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-    work.then(
-      (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (reason: unknown) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(reason instanceof Error ? reason : new Error(String(reason)));
-      },
-    );
-  });
-}
+/** What a wait for a skill's packages that `signal` cut short answers. */
+const CANCELLED: VenvError = {
+  exitCode: 1,
+  output: "Setting up the skill's packages was cancelled.\n",
+};

@@ -35,13 +35,19 @@ export function workVenvDir(chatId: ChatId): AbsolutePath {
 }
 
 /**
- * A virtualenv's interpreter: `bin/python` on macOS and Linux,
- * `Scripts/python.exe` on Windows, as uv lays them out.
+ * A virtualenv's folder of programs, which goes on PATH: `bin` on macOS and
+ * Linux, `Scripts` on Windows, as uv lays them out.
  */
+export function venvBinDir(venvDir: AbsolutePath): AbsolutePath {
+  return absolutePathJoin(venvDir, isWindows ? "Scripts" : "bin");
+}
+
+/** A virtualenv's interpreter, in its {@link venvBinDir}. */
 export function venvPython(venvDir: AbsolutePath): AbsolutePath {
-  return isWindows
-    ? absolutePathJoin(venvDir, "Scripts", "python.exe")
-    : absolutePathJoin(venvDir, "bin", "python");
+  return absolutePathJoin(
+    venvBinDir(venvDir),
+    isWindows ? "python.exe" : "python",
+  );
 }
 
 /**
@@ -103,7 +109,7 @@ export function uvSubprocessEnv({
 
   const pathDirs = [
     path.dirname(uvBinPath),
-    ...(venvDir ? [path.join(venvDir, isWindows ? "Scripts" : "bin")] : []),
+    ...(venvDir ? [venvBinDir(venvDir)] : []),
     ...(process.env.PATH ? [process.env.PATH] : []),
   ];
 

@@ -6,14 +6,8 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { ensureManagedPython } from "../run-uv";
-import {
-  ensurePythonEnvironment,
-  environmentBinDir,
-  pythonEnvironmentOf,
-  pythonLayerEnv,
-  trustedSkillFolder,
-} from "../skill-environments";
-import { getUvBinPath, nearestVenv, withPythonVersionNote } from "../uv";
+import { skillEnvironmentHolding, skillPythonEnv } from "../skill-environments";
+import { getUvBinPath, withPythonVersionNote } from "../uv";
 import { venvToInstallInto } from "../venv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
@@ -64,13 +58,9 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       env: skill
         ? {
             ...env,
-            PATH: [environmentBinDir(skill.venv), env.PATH]
-              .filter(Boolean)
-              .join(path.delimiter),
             UV_NO_SYNC: "1",
             UV_PROJECT_ENVIRONMENT: skill.venv,
-            VIRTUAL_ENV: skill.venv,
-            ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
+            ...skillPythonEnv(skill, env),
           }
         : env,
       hostCwd,
@@ -100,27 +90,17 @@ async function skillProjectEnvironment({
 }): Promise<
   { error: string } | { layer?: AbsolutePath; venv: AbsolutePath } | undefined
 > {
-  if (args[0] !== "run") {
+  const project = args[0] === "run" ? projectArg(args) : undefined;
+  if (project === undefined) {
     return undefined;
   }
-  const project = projectArg(args);
-  const folder =
-    project === undefined
-      ? undefined
-      : trustedSkillFolder(path.resolve(hostCwd, project));
-  if (folder === undefined || pythonEnvironmentOf(folder) === undefined) {
-    return undefined;
-  }
-  const built = await ensurePythonEnvironment({
+  const skill = await skillEnvironmentHolding({
     chatId,
+    cwd: hostCwd,
+    hostPath: path.resolve(hostCwd, project),
     signal: ctx.signal,
-    skillDir: folder,
   });
-  if ("error" in built) {
-    return { error: built.error.output };
-  }
-  const layer = nearestVenv(chatId, hostCwd);
-  return layer === undefined ? built : { layer, venv: built.venv };
+  return skill && "error" in skill ? { error: skill.error.output } : skill;
 }
 
 /** The folder `--project` or `--directory` names, before any `--`. */

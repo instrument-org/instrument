@@ -5,11 +5,7 @@ import path from "node:path";
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import {
-  environmentBinDir,
-  pythonLayerEnv,
-  skillPythonToRun,
-} from "../skill-environments";
+import { skillPythonEnv, skillPythonToRun } from "../skill-environments";
 import { venvPython } from "../uv";
 import { pythonToRun } from "../venv";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -104,17 +100,8 @@ async function runNativePython(
     // site-packages), as a virtualenv reads none.
     env: {
       ...env,
-      ...(skill.venv
-        ? {
-            PATH: [environmentBinDir(skill.venv), env.PATH]
-              .filter(Boolean)
-              .join(path.delimiter),
-            VIRTUAL_ENV: skill.venv,
-          }
-        : interpreter.venv
-          ? {}
-          : { PYTHONNOUSERSITE: "1" }),
-      ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
+      ...(interpreter.venv ? {} : { PYTHONNOUSERSITE: "1" }),
+      ...skillPythonEnv(skill, env),
     },
     // Buffer, not the latin1-packed string: execa UTF-8 encodes string
     // input, which would double-encode every non-ASCII byte.

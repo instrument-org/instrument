@@ -4,7 +4,6 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -15,14 +14,8 @@ import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 vi.mock(import("../venv"), () => ({ pythonToRun: vi.fn() }));
-vi.mock(import("../skill-environments"), () => ({
-  environmentBinDir: (venv: string) => path.join(venv, "bin"),
-  pythonLayerEnv: (layer: string, pythonPath: string | undefined) => ({
-    INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(layer, "site-packages"),
-    PYTHONPATH: ["/runtime/environments/site", pythonPath]
-      .filter(Boolean)
-      .join(path.delimiter),
-  }),
+vi.mock(import("../skill-environments"), async (importOriginal) => ({
+  ...(await importOriginal()),
   skillPythonToRun: vi.fn(),
 }));
 
@@ -95,11 +88,7 @@ describe("python", () => {
     {
       absent: [],
       env: {
-        INSTRUMENT_EXTRA_SITE_PACKAGES: "/work/.venv/site-packages",
         PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
-        PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
-          path.delimiter,
-        ),
         VIRTUAL_ENV: skillEnv,
       },
       interpreter: "/runtime/environments/0123/bin/python",
@@ -108,20 +97,16 @@ describe("python", () => {
     },
     {
       absent: ["PYTHONNOUSERSITE", "VIRTUAL_ENV"],
-      env: {
-        INSTRUMENT_EXTRA_SITE_PACKAGES:
-          "/runtime/environments/0123/site-packages",
-        PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
-          path.delimiter,
-        ),
-      },
+      env: {},
       interpreter: "/work/.venv/bin/python",
       name: "the agent's own code in its .venv with the skill's environment layered behind it",
       skill: { layer: skillEnv },
     },
   ])("runs $name", async ({ absent, env, interpreter, skill }) => {
     const { execa } = await import("execa");
-    const { skillPythonToRun } = await import("../skill-environments");
+    const { pythonLayerEnv, skillPythonToRun } =
+      await import("../skill-environments");
+    const layered = skill.layer ? pythonLayerEnv(skill.layer, "/mine") : {};
     vi.mocked(skillPythonToRun).mockResolvedValueOnce(skill);
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
@@ -146,7 +131,7 @@ describe("python", () => {
       interpreter,
       ["-u", "/runtime/skills/pdf/scripts/x.py"],
       expect.objectContaining({
-        env: expect.objectContaining(env),
+        env: expect.objectContaining({ ...env, ...layered }),
       }),
     );
     for (const name of absent) {

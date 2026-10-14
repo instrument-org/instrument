@@ -97,17 +97,17 @@ export async function ensureVenv({
     return undefined;
   }
 
-  const existing = inFlightVenvCreation.get(venv);
-  if (existing) {
-    return awaitVenvCreation({ creation: existing, signal });
+  let creation = inFlightVenvCreation.get(venv);
+  if (!creation) {
+    creation = createVenv(venv, chatId).finally(() =>
+      inFlightVenvCreation.delete(venv),
+    );
+    inFlightVenvCreation.set(venv, creation);
   }
-
-  const creation = createVenv(venv, chatId).finally(() =>
-    inFlightVenvCreation.delete(venv),
-  );
-
-  inFlightVenvCreation.set(venv, creation);
-  return awaitVenvCreation({ creation, signal });
+  return untilAborted(creation, signal, () => ({
+    exitCode: 1,
+    output: "Python environment setup was cancelled.",
+  }));
 }
 
 export function setVenvCreator(
@@ -116,43 +116,38 @@ export function setVenvCreator(
   createVenv = next;
 }
 
-function awaitVenvCreation({
-  creation,
-  signal,
-}: {
-  creation: Promise<undefined | VenvError>;
-  signal?: AbortSignal;
-}) {
+/**
+ * Waits for `work` unless `signal` ends the wait first, answering
+ * `cancelled()` then, which leaves the work running for whoever else waits
+ * on it.
+ */
+export function untilAborted<T>(
+  work: Promise<T>,
+  signal: AbortSignal | undefined,
+  cancelled: () => T,
+): Promise<T> {
   if (signal === undefined) {
-    return creation;
+    return work;
   }
-
   if (signal.aborted) {
-    return Promise.resolve(cancelledVenvCreation());
+    return Promise.resolve(cancelled());
   }
-
-  const abortSignal = signal;
-  return new Promise<undefined | VenvError>((resolve) => {
-    function onAbort() {
-      abortSignal.removeEventListener("abort", onAbort);
-      resolve(cancelledVenvCreation());
-    }
-
-    const finish = (result: undefined | VenvError) => {
-      abortSignal.removeEventListener("abort", onAbort);
-      resolve(result);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      resolve(cancelled());
     };
-
-    abortSignal.addEventListener("abort", onAbort, { once: true });
-    void creation.then(finish);
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (reason: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(reason instanceof Error ? reason : new Error(String(reason)));
+      },
+    );
   });
-}
-
-function cancelledVenvCreation(): VenvError {
-  return {
-    exitCode: 1,
-    output: "Python environment setup was cancelled.",
-  };
 }
 
 /**

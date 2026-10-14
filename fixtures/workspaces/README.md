@@ -10,7 +10,7 @@ documents/
                        the settings │
   chats/                            │
     red-and-blue-squares/           ├──▶  <userDataDir>/
-      session.json  ── the chat     │       workspace/chats/red-and-blue-squares/
+      session.json  ── the chat     │       workspace/.instrument/chats/red-and-blue-squares/
       files/        ── its folders' │         chat.db  (the chat and its tasks)
       tasks/                        │         settings.json
         generated-pdf/              │       workspaces-data/default/work/

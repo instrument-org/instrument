@@ -107,6 +107,7 @@ const config: KnipConfig = {
       ignoreBinaries: [
         "which",
         "ldd",
+        "mkfifo", // System tool a test puts a pipe where the handoff notes go with
         "ps",
         "security",
         "taskkill",

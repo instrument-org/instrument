@@ -16,6 +16,7 @@ import {
   isLocalAddress,
 } from "./local-page-address";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 function layoutFor(chatRoot: string, docsRoot: string, recordRoot?: string) {
@@ -86,8 +87,7 @@ describe("agentPathOfFileUrl", () => {
     );
     await fs.mkdir(path.join(root, "task/work"), { recursive: true });
     record = path.join(
-      getWorkspaceConfig().rootDir,
-      "chats",
+      workspaceLayout(getWorkspaceConfig().rootDir).chatsDir,
       path.basename(root),
     );
     await fs.mkdir(path.join(record, "attachments"), { recursive: true });

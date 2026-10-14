@@ -157,8 +157,8 @@ const SANDBOX_MAX_COMMANDS = 10_000_000;
 const SANDBOX_MAX_TRAVERSAL = 300_000;
 
 /**
- * The same budget for walks over a folder that holds the workspace (the
- * user's whole home folder), counted on their own (`WalkBudget`). A stray
+ * The same budget for walks over a folder that holds the app's own data
+ * (the user's whole home folder), counted on their own (`WalkBudget`). A stray
  * `find` over the home folder is the likeliest runaway walk there is, and the
  * budget counts entries rather than time: 300,000 of them costs a few
  * seconds of `find` on macOS and over half a minute on Windows, all on the

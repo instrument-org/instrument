@@ -4,7 +4,11 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
-import { ChatDirSchema, WorkspaceDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -59,9 +63,11 @@ beforeAll(async () => {
     ),
   );
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
-  // The home folder holds the workspace, which is what marks it as home.
+  // The home folder holds this computer's folder for the app, which is what
+  // marks it as home.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    machineDir: AbsolutePathSchema.parse(path.join(home, "app-data")),
     rootDir: WorkspaceDirSchema.parse(path.join(home, "workspace")),
   });
 }, 60_000);

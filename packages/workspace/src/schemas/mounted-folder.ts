@@ -12,7 +12,8 @@ export namespace MountedFolder {
 
   // What the agent may do in the folder. "read-write" is the agent working
   // in it: the mount is writable and edits land on the user's real files. A
-  // folder holding the workspace mounts read-only (`effectiveFolderAccess`).
+  // folder overlapping the app's own data mounts read-only
+  // (`effectiveFolderAccess`).
   export const AccessSchema = z.enum(["read-only", "read-write"]);
 
   export type Access = z.output<typeof AccessSchema>;

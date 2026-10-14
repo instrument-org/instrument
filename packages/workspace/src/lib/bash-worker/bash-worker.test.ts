@@ -23,6 +23,7 @@ import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import { getWorkspaceSkillsDir } from "../workspace-skills-dir";
 import {
   beginSkillChangeTracking,
@@ -41,7 +42,10 @@ let chatId: ChatId;
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-worker-"));
-  const chatRoot = path.join(root, "chats", `01k${"worker".padEnd(23, "0")}`);
+  const chatRoot = path.join(
+    workspaceLayout(root).chatsDir,
+    `01k${"worker".padEnd(23, "0")}`,
+  );
   // Its settings name a session, so the chat is found again on disk after a
   // test below reads the index afresh.
   await fs.mkdir(chatRoot, { recursive: true });
@@ -54,7 +58,7 @@ beforeAll(async () => {
   // its records, as the app keeps them.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
+    chatsDir: AbsolutePathSchema.parse(workspaceLayout(root).chatsDir),
     rootDir: WorkspaceDirSchema.parse(path.join(root)),
     workFoldersDir: AbsolutePathSchema.parse(
       path.join(root, "machine", "work"),

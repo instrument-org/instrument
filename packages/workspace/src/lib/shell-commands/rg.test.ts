@@ -17,6 +17,7 @@ import { createBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import { type ChatIdSchema } from "../../schemas/chat-id";
 
 const model = createMockAIGatewayModel();
@@ -250,7 +251,7 @@ describe("rg command in a chat", () => {
     const machineDir = path.join(tmpDir, "machine");
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
+      chatsDir: AbsolutePathSchema.parse(workspaceLayout(rootDir).chatsDir),
       rootDir: WorkspaceDirSchema.parse(rootDir),
       workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
       workspaceMachineDir: AbsolutePathSchema.parse(machineDir),

@@ -6,6 +6,7 @@ import {
   isKnownCdpMethod,
 } from "../../../lib/cdp-methods";
 import { getWorkspaceConfig } from "../../../lib/workspace-config";
+import { workspaceLayout } from "../../../lib/workspace-layout";
 import { buildWorkspaceFsLayout } from "../../../lib/workspace-fs-layout";
 import { ChatDirSchema, WorkDirSchema } from "../../../schemas/paths";
 import { ChatIdSchema } from "../../../schemas/chat-id";
@@ -153,7 +154,7 @@ describe("createMainFrameLoadGate", () => {
 
 describe("createLocalFileGate", () => {
   // The chat's record folder, in the workspace, which the rules keep hidden.
-  const record = `${getWorkspaceConfig().rootDir}/chats/t1`;
+  const record = `${workspaceLayout(getWorkspaceConfig().rootDir).chatsDir}/t1`;
   const layout = buildWorkspaceFsLayout({
     chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/t1"),
     recordHostRoot: ChatDirSchema.parse(record),

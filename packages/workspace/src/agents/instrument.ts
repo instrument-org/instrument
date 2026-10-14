@@ -35,7 +35,7 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import {
   effectiveFolderAccess,
-  folderHoldsWorkspace,
+  folderHoldsAppData,
   shellPath,
 } from "../lib/workspace-fs-layout";
 import {
@@ -101,7 +101,7 @@ export const instrumentAgent = setupAgent({
                 writableInside:
                   access === "read-only" &&
                   folder.access === "read-write" &&
-                  folderHoldsWorkspace(folder.path),
+                  folderHoldsAppData(folder.path),
               };
             }),
             intro:

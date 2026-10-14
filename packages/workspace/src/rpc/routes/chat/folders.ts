@@ -18,7 +18,7 @@ import { distinct, liveRead } from "../../live-read";
 /**
  * The folders a chat reaches, by the name each is mounted under: more than
  * it holds grants for (folder-reach.ts). Each carries the access its mount
- * gets, so a folder holding the workspace (the home folder) reads as
+ * gets, so a folder holding the app's own data (the home folder) reads as
  * read-only, the way the agent meets it.
  */
 const folders = base

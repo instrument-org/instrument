@@ -28,7 +28,7 @@ import {
   buildWorkspaceFsLayout,
   classifyHostPath,
   effectiveFolderAccess,
-  folderHoldsWorkspace,
+  folderHoldsAppData,
   hostPathOf,
   outsideFolderRefusal,
   shellPath,
@@ -324,15 +324,15 @@ describe("buildBashFs", () => {
       expect(existsSync("/etc/instrument-test")).toBe(false);
     });
 
-    it("refuses the workspace plainly", async () => {
+    it("refuses the workspace's records plainly", async () => {
       const bash = await makeBash();
-      const { rootDir } = getWorkspaceConfig();
-      await fs.mkdir(rootDir, { recursive: true });
-      await fs.writeFile(path.join(rootDir, "secret.txt"), "secret");
+      const { dataDir } = workspaceLayout(getWorkspaceConfig().rootDir);
+      await fs.mkdir(dataDir, { recursive: true });
+      await fs.writeFile(path.join(dataDir, "secret.txt"), "secret");
       const result = await bash.exec(
-        `cat ${rootDir}/secret.txt; ls ${rootDir}`,
+        `cat ${dataDir}/secret.txt; ls ${dataDir}`,
       );
-      await fs.rm(path.join(rootDir, "secret.txt"));
+      await fs.rm(path.join(dataDir, "secret.txt"));
       expect(result.stdout).not.toContain("secret");
       expect(result.stderr).toContain("Permission denied");
       expect(result.stderr).not.toContain("No such file or directory");
@@ -340,15 +340,15 @@ describe("buildBashFs", () => {
 
     it("holds a link to the rules of where it leads", async () => {
       const bash = await makeBash();
-      const { rootDir } = getWorkspaceConfig();
-      await fs.mkdir(rootDir, { recursive: true });
-      await fs.writeFile(path.join(rootDir, "secret.txt"), "secret");
+      const { dataDir } = workspaceLayout(getWorkspaceConfig().rootDir);
+      await fs.mkdir(dataDir, { recursive: true });
+      await fs.writeFile(path.join(dataDir, "secret.txt"), "secret");
       await fs.symlink(
-        path.join(rootDir, "secret.txt"),
+        path.join(dataDir, "secret.txt"),
         path.join(tmpDir, "link.txt"),
       );
       const result = await bash.exec(`cat ${tmpDir}/link.txt`);
-      await fs.rm(path.join(rootDir, "secret.txt"));
+      await fs.rm(path.join(dataDir, "secret.txt"));
       expect(result.stdout).toBe("");
       expect(result.exitCode).not.toBe(0);
     });
@@ -501,19 +501,27 @@ describe("effectiveFolderAccess", () => {
   let tmpDir: string;
   let previousConfig: ReturnType<typeof getWorkspaceConfig>;
 
+  // This computer's folder for the app, and a workspace in a folder the
+  // person picked, in their Documents.
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `${APP_NAME_SLUG}-folder-access-test-`),
     );
-    await fs.mkdir(path.join(tmpDir, "workspace"));
+    await fs.mkdir(path.join(tmpDir, "machine"));
+    await fs.mkdir(path.join(tmpDir, "Documents", "picked", ".instrument"), {
+      recursive: true,
+    });
     await fs.mkdir(path.join(tmpDir, "elsewhere"));
     previousConfig = getWorkspaceConfig();
     setWorkspaceConfig({
       ...previousConfig,
       chatsDir: AbsolutePathSchema.parse(
-        workspaceLayout(path.join(tmpDir, "workspace")).chatsDir,
+        workspaceLayout(path.join(tmpDir, "Documents", "picked")).chatsDir,
       ),
-      rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+      machineDir: AbsolutePathSchema.parse(path.join(tmpDir, "machine")),
+      rootDir: WorkspaceDirSchema.parse(
+        path.join(tmpDir, "Documents", "picked"),
+      ),
     });
   });
 
@@ -526,29 +534,41 @@ describe("effectiveFolderAccess", () => {
     return effectiveFolderAccess({ access: "read-write", path: folderPath });
   }
 
-  it("grants read-write to a folder clear of the workspace", () => {
+  it("grants read-write to a folder clear of the app's data", () => {
     expect(accessFor(path.join(tmpDir, "elsewhere"))).toBe("read-write");
+  });
+
+  it("grants read-write to the workspace's own folder and one holding it", () => {
+    expect(accessFor(path.join(tmpDir, "Documents", "picked"))).toBe(
+      "read-write",
+    );
+    expect(accessFor(path.join(tmpDir, "Documents"))).toBe("read-write");
+  });
+
+  it("refuses a folder inside the workspace's .instrument/ or this computer's folder", () => {
+    expect(
+      accessFor(path.join(tmpDir, "Documents", "picked", ".instrument", "x")),
+    ).toBe("read-only");
+    expect(accessFor(path.join(tmpDir, "machine", "x"))).toBe("read-only");
   });
 
   // Built by hand rather than with path.join, which would normalize the
   // segments away before the code under test ever sees them. A hand-edited
   // state.json is exactly where an unnormalized path comes from.
-  it("refuses a folder that spells the workspace through .. segments", () => {
-    expect(accessFor(`${tmpDir}/elsewhere/../workspace`)).toBe("read-only");
+  it("refuses a folder that spells this computer's folder through .. segments", () => {
+    expect(accessFor(`${tmpDir}/elsewhere/../machine`)).toBe("read-only");
   });
 
-  it("refuses a folder that reaches the workspace through a symlink", async () => {
-    const link = path.join(tmpDir, "link-to-workspace");
-    await fs.symlink(path.join(tmpDir, "workspace"), link);
+  it("refuses a folder that reaches this computer's folder through a symlink", async () => {
+    const link = path.join(tmpDir, "link-to-machine");
+    await fs.symlink(path.join(tmpDir, "machine"), link);
     expect(accessFor(link)).toBe("read-only");
   });
 
-  it("refuses a folder whose symlinked parent contains the workspace", async () => {
+  it("refuses a folder whose symlinked parent contains this computer's folder", async () => {
     const link = path.join(tmpDir, "link-to-root");
     await fs.symlink(tmpDir, link);
-    expect(accessFor(path.join(link, "workspace", "projects"))).toBe(
-      "read-only",
-    );
+    expect(accessFor(path.join(link, "machine", "keys"))).toBe("read-only");
   });
 
   it("judges the folder given rather than the attachment it came from", () => {
@@ -563,16 +583,17 @@ describe("effectiveFolderAccess", () => {
     );
   });
 
-  it("knows a folder that holds the workspace from one beside or inside it", async () => {
-    expect(folderHoldsWorkspace(tmpDir)).toBe(true);
+  it("knows a folder that holds this computer's folder from one beside or inside it", async () => {
+    expect(folderHoldsAppData(tmpDir)).toBe(true);
     const link = path.join(tmpDir, "link-to-root-again");
     await fs.symlink(tmpDir, link);
-    expect(folderHoldsWorkspace(link)).toBe(true);
-    expect(folderHoldsWorkspace(path.join(tmpDir, "workspace"))).toBe(false);
-    expect(folderHoldsWorkspace(path.join(tmpDir, "elsewhere"))).toBe(false);
-    expect(folderHoldsWorkspace(path.join(tmpDir, "workspace", "tasks"))).toBe(
+    expect(folderHoldsAppData(link)).toBe(true);
+    expect(folderHoldsAppData(path.join(tmpDir, "machine"))).toBe(false);
+    expect(folderHoldsAppData(path.join(tmpDir, "elsewhere"))).toBe(false);
+    expect(folderHoldsAppData(path.join(tmpDir, "machine", "keys"))).toBe(
       false,
     );
+    expect(folderHoldsAppData(path.join(tmpDir, "Documents"))).toBe(false);
   });
 });
 

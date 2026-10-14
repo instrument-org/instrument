@@ -21,6 +21,7 @@ import {
   resolveWritableToolPath,
 } from "./resolve-agent-path";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 import {
   buildWorkspaceFsLayout,
   resolveReadOnlyHostPath,
@@ -271,12 +272,12 @@ describe("a chat's record folder apart from its work folder", () => {
     machineDir = path.join(tmpDir, "machine");
     setWorkspaceConfig({
       ...previous,
-      chatsDir: abs(path.join(rootDir, "chats")),
+      chatsDir: abs(workspaceLayout(rootDir).chatsDir),
       rootDir: WorkspaceDirSchema.parse(rootDir),
       workFoldersDir: abs(path.join(machineDir, "work")),
       workspaceMachineDir: abs(machineDir),
     });
-    record = path.join(rootDir, "chats", "2026-10-13-chat");
+    record = path.join(workspaceLayout(rootDir).chatsDir, "2026-10-13-chat");
     work = path.join(machineDir, "work", "2026-10-13-chat");
     await fs.mkdir(path.join(record, "attachments"), { recursive: true });
     await fs.mkdir(work, { recursive: true });

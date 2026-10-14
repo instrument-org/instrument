@@ -37,7 +37,7 @@ const inRuntime = (folders: readonly string[]) =>
     .map((folder) => path.relative(runtimeDir, folder).replaceAll("\\", "/"));
 
 describe("nativeReachFor", () => {
-  it("opens the runtime caches and config, and the managed Pythons and bin links only for reading", () => {
+  it("opens the runtime caches and config, and the managed Pythons, skill environments and bin links only for reading", () => {
     expect({
       readOnly: inRuntime(reach.readOnly),
       readWrite: inRuntime(reach.readWrite),
@@ -47,6 +47,7 @@ describe("nativeReachFor", () => {
           "skills",
           "bin",
           "python",
+          "environments",
         ],
         "readWrite": [
           "caches",

@@ -29,6 +29,7 @@ export async function runUvCommand({
   signal,
   stdin,
   chatId,
+  writable = [],
 }: {
   args: string[];
   cwd?: AbsolutePath;
@@ -41,6 +42,11 @@ export async function runUvCommand({
   signal?: AbortSignal;
   stdin?: string;
   chatId: ChatId;
+  /**
+   * Folders the command may change beyond what the chat may: a skill
+   * environment the app is building for it.
+   */
+  writable?: AbsolutePath[];
 }) {
   const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({
     chatId,
@@ -49,12 +55,13 @@ export async function runUvCommand({
   // Held to the chat's reach like any command of its own: uv runs the
   // chat's virtualenv interpreter to read it, and that interpreter, with the
   // `.pth` files beside it, is the chat's to change.
+  const reach = await chatNativeReach(chatId);
   let spawned: ReturnType<typeof wrapNativeCommand>;
   try {
     spawned = wrapNativeCommand(
       getUvBinPath(),
       args,
-      (await chatNativeReach(chatId)) ?? null,
+      reach ? { ...reach, readWrite: [...reach.readWrite, ...writable] } : null,
     );
   } catch (error) {
     if (error instanceof NativeSandboxUnavailableError) {

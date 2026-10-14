@@ -25,12 +25,14 @@ export const CHAT_FOLDER_NAMES = {
 /**
  * The variables the agent's shell sets, naming the folders it works with:
  * its chat's work folder, where every command starts; what the person sent
- * the chat, in its record folder; and the output folder, where finished work
- * goes. Every program the shell starts sees them too.
+ * the chat, in its record folder; the output folder, where finished work
+ * goes; and the folder of the skill it loaded last, where that skill's
+ * scripts run from. Every program the shell starts sees them too.
  */
 export const FOLDER_VARIABLES = {
   attachments: "INSTRUMENT_ATTACHMENTS",
   output: "INSTRUMENT_OUTPUT",
+  skill: "INSTRUMENT_SKILL_DIR",
   work: "INSTRUMENT_WORK",
 } as const;
 export const TASKS_DIR_NAME = "tasks";

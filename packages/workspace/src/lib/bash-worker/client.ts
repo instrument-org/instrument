@@ -6,6 +6,7 @@ import { omit, pick } from "radashi";
 import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { ensureVenv } from "../venv";
+import { ensurePythonEnvironmentHere } from "../skill-environments";
 import {
   currentShellOutputSink,
   type ShellOutputSink,
@@ -306,6 +307,18 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
         requestId: message.requestId,
         result,
         type: "venv-result",
+      });
+      return;
+    }
+    case "python-environment": {
+      const result = await ensurePythonEnvironmentHere({
+        chatId: message.chatId,
+        skillDir: message.skillDir,
+      });
+      instance.post({
+        requestId: message.requestId,
+        result,
+        type: "python-environment-result",
       });
       return;
     }

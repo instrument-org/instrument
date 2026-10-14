@@ -4,16 +4,21 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { createPythonCommand } from "./python";
+import { createPythonCommand, pythonScript } from "./python";
 import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 vi.mock(import("../venv"), () => ({ pythonToRun: vi.fn() }));
+vi.mock(import("../skill-environments"), () => ({
+  environmentBinDir: (venv: string) => path.join(venv, "bin"),
+  skillPythonToRun: vi.fn(),
+}));
 
 const realFs = new InMemoryFs();
 
@@ -62,6 +67,55 @@ describe("python", () => {
         env: expect.objectContaining({ PYTHONNOUSERSITE: "1" }),
       }),
     );
+  });
+
+  it("runs a skill's script in the skill's environment, which what it starts finds too", async () => {
+    const { execa } = await import("execa");
+    const { skillPythonToRun } = await import("../skill-environments");
+    const venv = AbsolutePathSchema.parse("/runtime/environments/0123");
+    vi.mocked(skillPythonToRun).mockResolvedValueOnce({ venv });
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-u", "/runtime/skills/pdf/scripts/x.py"], {
+      ...mockCtx,
+      env: new Map([["INSTRUMENT_SKILL_DIR", "/runtime/skills/pdf"]]),
+    });
+
+    expect(vi.mocked(skillPythonToRun)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loadedSkillDir: "/runtime/skills/pdf",
+        script: "/runtime/skills/pdf/scripts/x.py",
+      }),
+    );
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.stringContaining("/runtime/environments/0123/bin/python"),
+      ["-u", "/runtime/skills/pdf/scripts/x.py"],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
+          VIRTUAL_ENV: venv,
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    [["script.py", "--flag"], "script.py"],
+    [["-u", "-B", "job/run.py"], "job/run.py"],
+    [["-W", "ignore", "run.py"], "run.py"],
+    [["-Wignore", "run.py"], "run.py"],
+    [["-uW", "ignore", "run.py"], "run.py"],
+    [["--", "-odd.py"], "-odd.py"],
+    [["-c", "print(1)"], undefined],
+    [["-uc", "print(1)"], undefined],
+    [["-m", "http.server"], undefined],
+    [["-"], undefined],
+    [[], undefined],
+  ])("finds the script in %j", (args, script) => {
+    expect(pythonScript(args)).toBe(script);
   });
 
   it("passes -c code with a real path through unchanged", async () => {

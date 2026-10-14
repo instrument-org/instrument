@@ -1,10 +1,17 @@
 import { type CommandContext, defineCommand } from "just-bash";
+import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { ensureManagedPython } from "../run-uv";
+import {
+  ensurePythonEnvironment,
+  environmentBinDir,
+  pythonEnvironmentOf,
+  trustedSkillFolder,
+} from "../skill-environments";
 import { getUvBinPath, withPythonVersionNote } from "../uv";
 import { venvToInstallInto } from "../venv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -40,14 +47,89 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     }
 
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
-    const result = await runUv({
-      args: hostPathArgs(args),
+    const finalArgs = hostPathArgs(args);
+    const skill = await skillProjectEnvironment({
+      args: finalArgs,
+      chatId,
       ctx,
-      env,
+      hostCwd,
+    });
+    if (skill && "error" in skill) {
+      return { exitCode: 1, stderr: skill.error, stdout: "" };
+    }
+    const result = await runUv({
+      args: finalArgs,
+      ctx,
+      env: skill
+        ? {
+            ...env,
+            PATH: [environmentBinDir(skill.venv), env.PATH]
+              .filter(Boolean)
+              .join(path.delimiter),
+            UV_NO_SYNC: "1",
+            UV_PROJECT_ENVIRONMENT: skill.venv,
+            VIRTUAL_ENV: skill.venv,
+          }
+        : env,
       hostCwd,
     });
     return result;
   });
+}
+
+/**
+ * For `uv run --project <skill folder>`, the skill's own environment, which
+ * no chat may write, so uv runs in it as it stands (`UV_NO_SYNC`, which
+ * leaves the lockfile alone too) rather than making a `.venv` in the
+ * skill's folder. Undefined for any other command.
+ */
+async function skillProjectEnvironment({
+  args,
+  chatId,
+  ctx,
+  hostCwd,
+}: {
+  args: string[];
+  chatId: ChatId;
+  ctx: CommandContext;
+  hostCwd: AbsolutePath;
+}): Promise<{ error: string } | { venv: AbsolutePath } | undefined> {
+  if (args[0] !== "run") {
+    return undefined;
+  }
+  const project = projectArg(args);
+  const folder =
+    project === undefined
+      ? undefined
+      : trustedSkillFolder(path.resolve(hostCwd, project));
+  if (folder === undefined || pythonEnvironmentOf(folder) === undefined) {
+    return undefined;
+  }
+  const built = await ensurePythonEnvironment({
+    chatId,
+    signal: ctx.signal,
+    skillDir: folder,
+  });
+  return "error" in built ? { error: built.error.output } : built;
+}
+
+/** The folder `--project` or `--directory` names, before any `--`. */
+function projectArg(args: string[]): string | undefined {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? "";
+    if (arg === "--") {
+      return undefined;
+    }
+    for (const option of ["--project", "--directory"]) {
+      if (arg === option) {
+        return args[index + 1];
+      }
+      if (arg.startsWith(`${option}=`)) {
+        return arg.slice(option.length + 1);
+      }
+    }
+  }
+  return undefined;
 }
 
 /**

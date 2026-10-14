@@ -155,7 +155,11 @@ function cancelledVenvCreation(): VenvError {
   };
 }
 
-function hasUsableVenv(venv: AbsolutePath) {
+/**
+ * Whether a virtualenv runs: its interpreter and config are there, and so is
+ * the Python it was made from.
+ */
+export function hasUsableVenv(venv: AbsolutePath) {
   const config = path.join(venv, "pyvenv.cfg");
   if (!existsSync(venvPython(venv)) || !existsSync(config)) {
     return false;

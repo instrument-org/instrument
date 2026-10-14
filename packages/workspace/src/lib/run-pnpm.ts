@@ -21,6 +21,7 @@ export async function runPnpmCommand({
   signal,
   stdin,
   chatId,
+  writable = [],
 }: {
   args: string[];
   cwd?: AbsolutePath;
@@ -31,11 +32,20 @@ export async function runPnpmCommand({
   /** Raw bytes; a string would be UTF-8 re-encoded by execa (see subprocessStdin). */
   stdin?: Buffer;
   chatId: ChatId;
+  /**
+   * Folders the command may change beyond what the chat may: a skill
+   * environment the app is building for it.
+   */
+  writable?: AbsolutePath[];
 }) {
   const sink = currentShellOutputSink();
   // A skill's install runs outside any shell call, and is held to the
   // chat's reach all the same.
-  const reach = await chatNativeReach(chatId);
+  const chatReach = await chatNativeReach(chatId);
+  const reach = chatReach && {
+    ...chatReach,
+    readWrite: [...chatReach.readWrite, ...writable],
+  };
   const subprocess = execaNodeForChat(
     chatId,
     getWorkspaceConfig().pnpmBinPath,

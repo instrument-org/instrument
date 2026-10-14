@@ -70,7 +70,14 @@ export type FromWorker =
   | { pid: number; state: "settled" | "started"; type: "tree" }
   /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath };
+  | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath }
+  /** A skill's Python environment, built on main, which builds each one once. */
+  | {
+      chatId: ChatId;
+      requestId: number;
+      skillDir: AbsolutePath;
+      type: "python-environment";
+    };
 
 export type ToWorker =
   | {
@@ -99,6 +106,11 @@ export type ToWorker =
       requestId: number;
       result: undefined | VenvError;
       type: "venv-result";
+    }
+  | {
+      requestId: number;
+      result: { error: VenvError } | { venv: AbsolutePath };
+      type: "python-environment-result";
     }
   | { seq: number; type: "chunk-ack" };
 

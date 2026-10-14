@@ -10,6 +10,7 @@ import { parentPort } from "node:worker_threads";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setVenvCreator, type VenvError } from "../venv";
+import { setPythonEnvironmentBuilder } from "../skill-environments";
 import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
@@ -57,6 +58,12 @@ const toolCalls = new Map<
 >();
 const chunkAcks = new Map<number, () => void>();
 const venvRequests = new Map<number, (result: undefined | VenvError) => void>();
+const environmentRequests = new Map<
+  number,
+  (
+    result: Extract<ToWorker, { type: "python-environment-result" }>["result"],
+  ) => void
+>();
 let nextCallId = 0;
 let nextChunkSeq = 0;
 let nextVenvRequestId = 0;
@@ -75,7 +82,8 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // State the main thread owns: which turn a skill write belongs to, the process
-// trees to end if this worker dies, and the one creator of every venv.
+// trees to end if this worker dies, and the one creator of every venv and
+// skill environment.
 setAskForwarder(({ asker, kind, target }) => {
   post({ asker, kind, target, type: "ask" });
 });
@@ -99,6 +107,15 @@ setVenvCreator(
       const requestId = nextVenvRequestId++;
       venvRequests.set(requestId, resolve);
       post({ chatId, requestId, type: "venv", venv });
+    }),
+);
+
+setPythonEnvironmentBuilder(
+  ({ chatId, skillDir }) =>
+    new Promise((resolve) => {
+      const requestId = nextVenvRequestId++;
+      environmentRequests.set(requestId, resolve);
+      post({ chatId, requestId, skillDir, type: "python-environment" });
     }),
 );
 
@@ -140,6 +157,11 @@ port.on("message", (message: ToWorker) => {
     case "venv-result": {
       venvRequests.get(message.requestId)?.(message.result);
       venvRequests.delete(message.requestId);
+      return;
+    }
+    case "python-environment-result": {
+      environmentRequests.get(message.requestId)?.(message.result);
+      environmentRequests.delete(message.requestId);
       return;
     }
   }

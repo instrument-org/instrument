@@ -95,22 +95,47 @@ function startAgainOnExit() {
     app.relaunch();
     return;
   }
-  // An AppImage runs from a mount that goes away when it exits, so it starts
-  // again from the image.
-  const executable = process.env.APPIMAGE ?? process.execPath;
-  const bash = existsSync("/bin/bash");
+  const { args, file } = restartCommand({
+    argv: process.argv.slice(1),
+    bash: existsSync("/bin/bash"),
+    // An AppImage runs from a mount that goes away when it exits, so it
+    // starts again from the image.
+    executable: process.env.APPIMAGE ?? process.execPath,
+    pid: process.pid,
+  });
+  spawn(file, args, { detached: true, stdio: "ignore" }).unref();
+}
+
+/**
+ * The shell that waits for `pid` to exit and then becomes `executable` with
+ * `argv`. Its one program found by name, `sleep`, is looked for on the
+ * system's own PATH (`command -p`), not the app's, whose first folder is the
+ * runtime folder's `bin/`; `kill` is the shell's own. The PATH it inherits
+ * is left as it is, since the app it starts inherits it in turn.
+ */
+export function restartCommand({
+  argv,
+  bash,
+  executable,
+  pid,
+}: {
+  argv: readonly string[];
+  /** Whether there is a `/bin/bash`, which can close every inherited file. */
+  bash: boolean;
+  executable: string;
+  pid: number;
+}): { args: string[]; file: string } {
   const closeInherited = bash
     ? 'for fd in /proc/$$/fd/*; do n=${fd##*/}; [ "$n" -gt 2 ] 2>/dev/null && eval "exec $n>&-" 2>/dev/null; done; '
     : "";
-  spawn(
-    bash ? "/bin/bash" : "/bin/sh",
-    [
+  return {
+    args: [
       "-c",
-      `${closeInherited}while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"`,
-      String(process.pid),
+      `${closeInherited}while kill -0 "$0" 2>/dev/null; do command -p sleep 0.1; done; exec "$@"`,
+      String(pid),
       executable,
-      ...process.argv.slice(1),
+      ...argv,
     ],
-    { detached: true, stdio: "ignore" },
-  ).unref();
+    file: bash ? "/bin/bash" : "/bin/sh",
+  };
 }

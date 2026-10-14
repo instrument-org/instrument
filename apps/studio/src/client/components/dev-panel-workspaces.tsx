@@ -117,6 +117,11 @@ export function ManageWorkspacesDialog({
                       open
                     </span>
                   )}
+                  {!row.isReachable && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      folder not found
+                    </span>
+                  )}
                   {row.identity.createdBy.kind === "agent" && (
                     <span className="truncate text-xs text-muted-foreground">
                       agent: {row.identity.createdBy.purpose}

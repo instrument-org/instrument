@@ -155,7 +155,8 @@ describe("createWorkspace", () => {
 });
 
 describe("listWorkspaces", () => {
-  it("lists strays, drops entries whose folder is gone, and marks the resolved one", () => {
+  it("lists strays, keeps entries it cannot reach, and marks the resolved one", () => {
+    fs.mkdirSync(resolved.path);
     const { path: kept } = createWorkspace({
       color: "gray",
       copySignInsFrom: null,
@@ -163,10 +164,10 @@ describe("listWorkspaces", () => {
       name: "Kept",
       userDataDir,
     });
-    const gone = path.join(userDataDir, "elsewhere", "clean-room");
+    const gone = path.join(userDataDir, "elsewhere", "unplugged");
     updateRegistry(userDataDir, (registry) => ({
       ...registry,
-      workspaces: [...registry.workspaces, { id: "clean-room", path: gone }],
+      workspaces: [...registry.workspaces, { id: "unplugged", path: gone }],
     }));
     const stray = path.join(userDataDir, "workspaces", "stray");
     writeWorkspaceIdentity(stray, {
@@ -179,33 +180,84 @@ describe("listWorkspaces", () => {
 
     const listed = listWorkspaces({ resolved, userDataDir });
     expect(
-      listed.map(({ id, isRegistered, isResolved, path: dir }) => ({
-        dir,
-        id,
-        isRegistered,
-        isResolved,
-      })),
+      listed.map(
+        ({ id, isReachable, isRegistered, isResolved, path: dir }) => ({
+          dir,
+          id,
+          isReachable,
+          isRegistered,
+          isResolved,
+        }),
+      ),
     ).toEqual([
       {
         dir: resolved.path,
         id: "default",
+        isReachable: true,
         isRegistered: true,
         isResolved: true,
       },
-      { dir: kept, id: "kept", isRegistered: true, isResolved: false },
-      { dir: stray, id: "stray", isRegistered: false, isResolved: false },
+      {
+        dir: kept,
+        id: "kept",
+        isReachable: true,
+        isRegistered: true,
+        isResolved: false,
+      },
+      {
+        dir: gone,
+        id: "unplugged",
+        isReachable: false,
+        isRegistered: true,
+        isResolved: false,
+      },
+      {
+        dir: stray,
+        id: "stray",
+        isReachable: true,
+        isRegistered: false,
+        isResolved: false,
+      },
     ]);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "kept",
+      "unplugged",
     ]);
 
     expect(registerStray({ dir: stray, resolved, userDataDir })).toBe(true);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "kept",
+      "unplugged",
       "stray",
     ]);
+  });
+
+  it("takes a folder spelled through a link, or in another case where the disk ignores it, for the one registered", () => {
+    const { path: kept } = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Kept",
+      userDataDir,
+    });
+    const link = path.join(userDataDir, "link-to-kept");
+    fs.symlinkSync(kept, link);
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [
+        ...registry.workspaces,
+        { id: "kept-again", path: link },
+        { id: "kept-shouting", path: kept.toUpperCase() },
+      ],
+    }));
+
+    const ids = readRegistry(userDataDir).workspaces.map((w) => w.id);
+    const foldsCase = fs.existsSync(kept.toUpperCase());
+    expect(ids).toEqual(
+      foldsCase ? ["default", "kept"] : ["default", "kept", "kept-shouting"],
+    );
   });
 });
 

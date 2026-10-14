@@ -285,6 +285,7 @@ export const workspaceMachine = setup({
       modelCache: ModelCache;
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
+      outputDir?: string;
       pnpmBinPath: string;
       refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
       registryDir: string;
@@ -336,6 +337,9 @@ export const workspaceMachine = setup({
         nativeSandbox: input.nativeSandbox,
       }),
       nodeExecEnv: input.nodeExecEnv,
+      ...(input.outputDir && {
+        outputDir: AbsolutePathSchema.parse(input.outputDir),
+      }),
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       ...(input.refreshExpiredCredentials
         ? { refreshExpiredCredentials: input.refreshExpiredCredentials }

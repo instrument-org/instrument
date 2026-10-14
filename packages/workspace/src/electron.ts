@@ -104,6 +104,10 @@ export { chatDir } from "./lib/record-folders";
 export { workDir } from "./lib/work-dir";
 export { entryExists, moveEntrySync } from "./lib/move-entry";
 export { readMovedPaths, remapMovedPath } from "./lib/moved-paths";
+export {
+  instrumentFolderInDocuments,
+  outputFolderPath,
+} from "./lib/chat/output-folder";
 export { chatTitle } from "./lib/chat-info";
 export { getChatSettings } from "./lib/chat-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";

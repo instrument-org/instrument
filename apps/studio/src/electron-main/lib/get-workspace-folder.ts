@@ -3,6 +3,7 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app } from "electron";
 import path from "node:path";
 
+import { pathWithin } from "./path-identity";
 import { getResolvedWorkspace } from "./workspaces";
 
 export function getWorkspaceFolder(): string {
@@ -16,6 +17,16 @@ export function getWorkspaceFolder(): string {
  */
 export function machineDir(): string {
   return app.getPath("userData");
+}
+
+/**
+ * Whether the resolved workspace is kept in the app's own data (the default
+ * one until the person picks a folder for it, and those made from the dev
+ * panel) rather than in a folder the person picked, whose top level is
+ * theirs: their finished work goes there.
+ */
+export function workspaceInAppData(): boolean {
+  return pathWithin(getWorkspaceFolder(), machineDir());
 }
 
 /**

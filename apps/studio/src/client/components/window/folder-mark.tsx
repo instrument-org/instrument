@@ -2,7 +2,7 @@ import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { OUTPUT_FOLDER } from "@/shared/computer-href";
+import { useOutputFolder } from "@/client/lib/output-folder";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
@@ -29,6 +29,7 @@ export function FolderMark({
   path: string;
 }) {
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const outputFolder = useOutputFolder();
   const home = window.api.homeDir;
   const iconClassName = cn(
     "shrink-0 text-muted-foreground",
@@ -51,9 +52,6 @@ export function FolderMark({
   if (place?.kind === "cloud") {
     return <CloudIcon className={iconClassName} />;
   }
-  const outputFolder =
-    places.data?.pinned.find((each) => each.kind === "output")?.path ??
-    expandHomePath(OUTPUT_FOLDER, home);
   return (
     <FileSystemFolderGlyph
       className={cn("w-auto shrink-0", large ? "h-3.5" : "h-3")}

@@ -208,6 +208,14 @@ export interface WorkspaceConfig {
    */
   machineDir: AbsolutePath;
   /**
+   * Where finished work goes when nobody said where (`outputFolderPath`):
+   * the workspace's own folder once the person picked where it is kept,
+   * whose top level is theirs. Absent while the workspace is kept in the
+   * app's own data, and wherever there is no person's folder (tests,
+   * scripts, evals), and then it is `Instrument` in their Documents.
+   */
+  outputDir?: AbsolutePath;
+  /**
    * This computer's own folder for the workspace, outside it: the folder
    * rules (`permissions.json`), the in-app browser's profile, the apps'
    * installed servers, the app's keys and window state, and each chat's

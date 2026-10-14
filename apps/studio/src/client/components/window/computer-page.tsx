@@ -763,8 +763,7 @@ export function ComputerPage({
   // written to history for the back button to return to.
   const settled = loaded.root === root;
   // The recents are rooted nowhere, so no place in the list is the one open.
-  // A root under `~` (the Instrument folder a fresh Finder opens at) is the
-  // same folder spelled out below the home folder.
+  // A root under `~` is the same folder spelled out below the home folder.
   const rootHostPath = isRecents
     ? undefined
     : root === "~"

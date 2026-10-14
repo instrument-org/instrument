@@ -46,7 +46,7 @@ import {
  * to the same chat however the files and their bytes arrived.
  */
 
-export type FoldedMarks = {
+type FoldedMarks = {
   [F in MarkField]?: Extract<MarkRecord, { field: F }>;
 };
 

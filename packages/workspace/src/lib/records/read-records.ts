@@ -21,7 +21,7 @@ export interface ReadCursor {
 
 export const FILE_START: ReadCursor = { lastSeq: -1, offset: 0 };
 
-export interface ReadRecord<R> {
+interface ReadRecord<R> {
   /** The line that held it, which tells a copy of a record from another record. */
   line: string;
   /** Where its line starts in the file. */

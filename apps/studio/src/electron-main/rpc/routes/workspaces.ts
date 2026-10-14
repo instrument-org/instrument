@@ -22,12 +22,12 @@ import {
   WorkspaceColorSchema,
   WorkspaceIdentitySchema,
 } from "@/electron-main/lib/workspaces";
+import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
 import { shell } from "electron";
 import { execFile } from "node:child_process";
-import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
@@ -61,6 +61,8 @@ const WorkspaceRowSchema = z.object({
   id: z.string(),
   identity: WorkspaceIdentitySchema,
   isDefault: z.boolean(),
+  /** Whether its folder is there to read; an unreachable one stays listed. */
+  isReachable: z.boolean(),
   isRegistered: z.boolean(),
   isResolved: z.boolean(),
   lastOpenedAt: z.number().nullable(),
@@ -107,6 +109,7 @@ const list = devOnly
         id: listing.id,
         identity: listing.identity,
         isDefault: listing.isDefault,
+        isReachable: listing.isReachable,
         isRegistered: listing.isRegistered,
         isResolved: listing.isResolved,
         lastOpenedAt: listing.lastOpenedAt,
@@ -198,8 +201,8 @@ const remove = devOnly
       resolved: getResolvedWorkspace(),
       userDataDir: userDataDir(),
     });
-    const listing = listings.find(
-      (candidate) => path.resolve(candidate.path) === path.resolve(input.path),
+    const listing = listings.find((candidate) =>
+      samePath(candidate.path, input.path),
     );
     if (!listing) {
       throw errors.NOT_FOUND({ message: "No such workspace" });
@@ -225,8 +228,12 @@ const remove = devOnly
     }
     // Read before the folder goes, since the id that says the machine folder
     // is its own is in it. Its keys and browser profiles go to the Trash too.
+    // A folder that cannot be reached is only taken off the list: nothing of
+    // it can be read to say what is its own.
     const ownMachineDir = machineDirOwnedBy(userDataDir(), listing);
-    await shell.trashItem(listing.path);
+    if (listing.isReachable) {
+      await shell.trashItem(listing.path);
+    }
     if (ownMachineDir !== undefined) {
       await shell.trashItem(ownMachineDir);
     }

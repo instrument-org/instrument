@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
+import { pathKey, pathWithin, samePath } from "./path-identity";
 import {
   CURRENT_SETTINGS_VERSION,
   workspaceSettingsDirOf,
@@ -12,10 +13,10 @@ import {
 import {
   createdWorkspacesDir,
   DEFAULT_WORKSPACE_ID,
-  defaultWorkspacePath,
   hasWorkspaceIdentity,
   machineDirOwnedBy,
   openElsewhereBy,
+  readRegistry,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   LOCAL_ID_LENGTH,
@@ -39,6 +40,11 @@ export interface WorkspaceListing {
   /** Registered and in the list, or found on disk with nobody listing it. */
   isRegistered: boolean;
   isResolved: boolean;
+  /**
+   * Whether its folder is there to read: one on a disk not plugged in, or
+   * one macOS stopped the app reading, is listed all the same.
+   */
+  isReachable: boolean;
   lastOpenedAt: null | number;
   /** Another live process holding it open, from its advisory mark. */
   openElsewhereBy: null | number;
@@ -131,9 +137,9 @@ export function keysDirOf(
 
 /**
  * Every workspace this machine knows plus any found on disk unregistered. A
- * registered workspace whose folder is gone is dropped from the registry as
- * it is listed: whoever removed the folder (Finder, studio-drive's reaping of
- * its clean rooms) meant it gone.
+ * registered workspace whose folder cannot be reached is listed as such and
+ * kept: a disk not plugged in, or a folder macOS stopped the app reading,
+ * comes back, and only the person removing it from the list forgets it.
  */
 export function listWorkspaces({
   resolved,
@@ -142,35 +148,27 @@ export function listWorkspaces({
   resolved: ResolvedWorkspace;
   userDataDir: string;
 }): WorkspaceListing[] {
-  const registry = updateRegistry(userDataDir, (current) => ({
-    ...current,
-    workspaces: current.workspaces.filter(
-      (entry) => entry.id === DEFAULT_WORKSPACE_ID || isDirectory(entry.path),
-    ),
-  }));
+  const registry = readRegistry(userDataDir);
 
-  // By folder rather than by id: the folder is what a delete would remove.
-  const defaultPath = path.resolve(defaultWorkspacePath(userDataDir));
-  const resolvedPath = path.resolve(resolved.path);
   const listed: WorkspaceListing[] = registry.workspaces.map((entry) => {
-    const entryPath = path.resolve(entry.path);
+    const isResolved = entry.id === resolved.id;
     return {
       id: entry.id,
       identity: readWorkspaceIdentity(entry.path),
-      isDefault: entryPath === defaultPath,
+      isDefault: entry.id === DEFAULT_WORKSPACE_ID,
+      isReachable: isDirectory(entry.path),
       isRegistered: true,
-      isResolved: entryPath === resolvedPath,
+      isResolved,
       lastOpenedAt: entry.lastOpenedAt ?? null,
-      openElsewhereBy:
-        entryPath === resolvedPath
-          ? null
-          : openElsewhereBy(openMarkDirOf(userDataDir, entry)),
+      openElsewhereBy: isResolved
+        ? null
+        : openElsewhereBy(openMarkDirOf(userDataDir, entry)),
       path: entry.path,
     };
   });
 
   const registeredPaths = new Set(
-    registry.workspaces.map((entry) => path.resolve(entry.path)),
+    registry.workspaces.map((entry) => pathKey(entry.path)),
   );
   let strays: string[] = [];
   try {
@@ -180,7 +178,7 @@ export function listWorkspaces({
       .map((entry) => path.join(createdWorkspacesDir(userDataDir), entry.name))
       .filter(
         (dir) =>
-          !registeredPaths.has(path.resolve(dir)) && hasWorkspaceIdentity(dir),
+          !registeredPaths.has(pathKey(dir)) && hasWorkspaceIdentity(dir),
       );
   } catch {
     // No workspaces folder yet.
@@ -192,6 +190,7 @@ export function listWorkspaces({
       id: path.basename(dir),
       identity: readWorkspaceIdentity(dir),
       isDefault: false,
+      isReachable: true,
       isRegistered: false,
       isResolved: false,
       lastOpenedAt: null,
@@ -217,8 +216,7 @@ export function registerStray({
   userDataDir: string;
 }): boolean {
   const stray = listWorkspaces({ resolved, userDataDir }).find(
-    (listing) =>
-      !listing.isRegistered && path.resolve(listing.path) === path.resolve(dir),
+    (listing) => !listing.isRegistered && samePath(listing.path, dir),
   );
   if (!stray) {
     return false;
@@ -246,13 +244,12 @@ export function unregisterWorkspace({
 }): void {
   updateRegistry(userDataDir, (current) => ({
     active:
-      current.workspaces.find(
-        (entry) => path.resolve(entry.path) === path.resolve(dir),
-      )?.id === current.active
+      current.workspaces.find((entry) => samePath(entry.path, dir))?.id ===
+      current.active
         ? DEFAULT_WORKSPACE_ID
         : current.active,
     workspaces: current.workspaces.filter(
-      (entry) => path.resolve(entry.path) !== path.resolve(dir),
+      (entry) => !samePath(entry.path, dir),
     ),
   }));
 }
@@ -275,11 +272,7 @@ export function whyNotDeletable(
   if (listing.isDefault) {
     return "The default workspace cannot be deleted";
   }
-  const toUserData = path.relative(
-    path.resolve(listing.path),
-    path.resolve(userDataDir),
-  );
-  if (!toUserData.startsWith("..") && !path.isAbsolute(toUserData)) {
+  if (pathWithin(userDataDir, listing.path)) {
     return "This folder holds the app's own data";
   }
   if (listing.isResolved) {

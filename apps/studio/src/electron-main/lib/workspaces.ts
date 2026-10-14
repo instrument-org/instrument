@@ -7,6 +7,8 @@ import path from "node:path";
 import { ulid } from "ulid";
 import { z } from "zod";
 
+import { pathKey, samePath } from "./path-identity";
+
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
  *
@@ -414,8 +416,8 @@ function chooseWorkspace({
 }): ResolvedWorkspace {
   if (pin) {
     if (path.isAbsolute(pin)) {
-      const known = current.workspaces.find(
-        (entry) => path.resolve(entry.path) === path.resolve(pin),
+      const known = current.workspaces.find((entry) =>
+        samePath(entry.path, pin),
       );
       const moved = known ? undefined : movedTo(current, pin);
       return toResolved(
@@ -492,9 +494,12 @@ function isDirectory(dir: string) {
 
 /**
  * The default workspace first, always at this userData's own folder whatever
- * the file says, and each folder listed once: a second entry for a folder
- * already listed (the default one under another id, say) would let it be
- * mistaken for a different workspace.
+ * the file says, and each folder listed once, by the folder its path names
+ * however it is spelled (`pathKey`): a second entry for a folder already
+ * listed (the default one under another id, say) would let it be mistaken
+ * for a different workspace. An entry whose folder cannot be reached stays:
+ * a disk not plugged in, or a folder macOS stopped the app reading, comes
+ * back.
  */
 function normalize(
   registry: WorkspaceRegistry,
@@ -512,7 +517,7 @@ function normalize(
     { ...defaultEntry, path: defaultWorkspacePath(userDataDir) },
     ...others,
   ]) {
-    const key = path.resolve(entry.path);
+    const key = pathKey(entry.path);
     if (!seen.has(key)) {
       seen.add(key);
       workspaces.push(entry);
@@ -802,8 +807,4 @@ function readOwner(machineDir: string): string | undefined {
       readJson(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner)),
     );
   return parsed.success ? parsed.data.workspaceId : undefined;
-}
-
-function samePath(a: string, b: string) {
-  return path.resolve(a) === path.resolve(b);
 }

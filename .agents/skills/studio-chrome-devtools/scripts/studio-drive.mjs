@@ -62,6 +62,15 @@
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
 //
+// An instance booted here never comes on screen by itself. Its windows render,
+// take input, and answer screenshots off screen, and keep drawing once
+// covered, minimized, or on another Space, so a run never has to raise one,
+// and the person at the machine keeps their focus and their Space: anything put
+// on screen, even without focus, can scroll a display to another Space. A
+// person takes one over by clicking its Dock icon. `--visible` puts the window
+// up as a hand-started run would, for a run that needs the window's real
+// pixels on screen (`screencapture -l`).
+//
 // `--inspect <port>` also opens the main process's V8 inspector on that port,
 // which is what `main-stalls.mjs` measures the main thread through.
 //
@@ -454,6 +463,7 @@ async function cmdBoot(
     keepTabs,
     ownPrivacy,
     purpose: rawPurpose,
+    visible,
     withSignIns,
   },
 ) {
@@ -487,6 +497,12 @@ async function cmdBoot(
       fail(
         `The running instance on port ${existing.port} was booted ${existing.ownPrivacy ? "with" : "without"} --own-privacy.\n` +
           `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it the other way.`,
+      );
+    }
+    if (visible && existing.offScreen) {
+      fail(
+        `The running instance on port ${existing.port} was booted without --visible, so it stays off screen until someone clicks its Dock icon.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it with --visible.`,
       );
     }
     if (existing.hot !== undefined && existing.hot !== hot) {
@@ -574,6 +590,7 @@ async function cmdBoot(
         STUDIO_DRIVE_COLOR: color,
         STUDIO_OWN_PRIVACY: ownPrivacy ? "1" : undefined,
         STUDIO_DRIVE_PURPOSE: purpose,
+        STUDIO_DRIVE_VISIBLE: visible ? "1" : undefined,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
         // and never reveals the main one, which reads as a hang.
@@ -599,6 +616,7 @@ async function cmdBoot(
     hot: Boolean(hot),
     ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
+    ...(!visible && { offScreen: true }),
     ...(ownPrivacy && { ownPrivacy: true }),
     pid: child.pid,
     port,
@@ -883,6 +901,7 @@ try {
           keepTabs: argv.includes("--keep-tabs"),
           ownPrivacy: argv.includes("--own-privacy"),
           purpose: flag(argv, "--purpose"),
+          visible: argv.includes("--visible"),
           withSignIns: argv.includes("--with-sign-ins"),
         }),
       );

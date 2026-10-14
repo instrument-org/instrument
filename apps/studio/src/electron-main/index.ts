@@ -31,6 +31,7 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
+import { showHeldWindows } from "@/electron-main/windows/on-screen";
 import { revealChat } from "@/electron-main/windows/reveal-chat";
 import {
   DEV_INSTANCE_COLORS,
@@ -328,6 +329,11 @@ async function bootstrapPrimaryInstance() {
   startAppCatalog();
 
   app.on("activate", function () {
+    // An agent's instance waiting off screen comes up when its Dock icon is
+    // clicked.
+    if (showHeldWindows()) {
+      return;
+    }
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {

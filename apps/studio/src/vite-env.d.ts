@@ -75,6 +75,8 @@ declare namespace NodeJS {
       STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
+      /** Dev only: `1` when studio-drive booted this instance with its windows on screen (`--visible`). */
+      STUDIO_DRIVE_VISIBLE: string | undefined;
       /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
       STUDIO_LOG_LEVEL: string | undefined;
       /** Dev only: `1` when studio-drive booted this instance with its own macOS privacy grants (`--own-privacy`). */

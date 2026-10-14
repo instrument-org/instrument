@@ -65,7 +65,7 @@ describe("node's tools global", () => {
 
   it("leaves a tools global an earlier preload set alone", async () => {
     const result = await run(
-      `echo 'globalThis.tools = "theirs";' > work/theirs.mjs && node --import ./work/theirs.mjs -e 'console.log(tools)'`,
+      `echo 'globalThis.tools = "theirs";' > theirs.mjs && node --import ./theirs.mjs -e 'console.log(tools)'`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("theirs\n");

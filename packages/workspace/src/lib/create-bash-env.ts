@@ -882,6 +882,9 @@ export async function createLocalBashEnv({
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
     resolveExternalCommand: createPathProgramResolver(chatId),
+    // A redirect into a folder that does not exist fails, as in bash, rather
+    // than making the folder on the disk.
+    redirectCreatesDirectories: false,
   });
 
   // Order matters: the alias runs first so the recorded command list names

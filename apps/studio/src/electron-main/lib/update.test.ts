@@ -23,7 +23,7 @@ const autoUpdater = vi.hoisted(() => ({
   forceDevUpdateConfig: false,
   isUpdaterActive: () => true,
   logger: undefined as unknown,
-  on: vi.fn(),
+  on: vi.fn<(event: string, listener: (info: object) => void) => void>(),
   quitAndInstall: vi.fn(),
   setFeedURL: vi.fn(),
 }));
@@ -32,9 +32,9 @@ vi.mock("electron-updater", () => ({ default: { autoUpdater } }));
 
 const userData = path.join(os.tmpdir(), "studio-update-test-user-data");
 const app = vi.hoisted(() => ({
-  getPath: () => "",
+  getPath: (): string => "",
   getVersion: () => "1.6.6",
-  on: vi.fn(),
+  on: vi.fn<(event: string, listener: () => void) => void>(),
   quit: vi.fn(),
 }));
 app.getPath = () => userData;
@@ -42,7 +42,9 @@ app.getPath = () => userData;
 vi.mock("electron", () => ({ app }));
 
 // The Debian install hands its script to `sh`, which a test must not run.
-const spawn = vi.hoisted(() => vi.fn(() => ({ unref: vi.fn() })));
+const spawn = vi.hoisted(() =>
+  vi.fn((_file: string, _args: string[]) => ({ unref: vi.fn() })),
+);
 vi.mock("node:child_process", () => ({ spawn }));
 
 // The port the app's updater is built on, kept so a test can drive it as the

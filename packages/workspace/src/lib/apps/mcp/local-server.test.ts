@@ -74,17 +74,22 @@ describe("prepareLocalServer", () => {
     const prepared = await prepareLocalServer({ manifest, slug: "drafts" });
 
     expect(prepared.isOk()).toBe(true);
-    const env = vi.mocked(execa).mock.calls[0]?.[2]?.env;
     const { buildCaches, buildConfig } = runtimeLayout(
       getWorkspaceConfig().runtimeDir,
     );
-    expect(env).toMatchObject({
-      npm_config_globalconfig: path.join(buildConfig, "npmrc-global"),
-      npm_config_userconfig: path.join(buildConfig, "npmrc"),
-      pnpm_config_store_dir: path.join(buildCaches, "pnpm-store"),
-      pnpm_config_userconfig: path.join(buildConfig, "npmrc"),
-      XDG_CONFIG_HOME: buildConfig,
-    });
+    expect(execa).toHaveBeenCalledWith(
+      getWorkspaceConfig().pnpmBinPath,
+      ["add", "@agiletortoise/drafts-mcp-server", "--ignore-workspace"],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          npm_config_globalconfig: path.join(buildConfig, "npmrc-global"),
+          npm_config_userconfig: path.join(buildConfig, "npmrc"),
+          pnpm_config_store_dir: path.join(buildCaches, "pnpm-store"),
+          pnpm_config_userconfig: path.join(buildConfig, "npmrc"),
+          XDG_CONFIG_HOME: buildConfig,
+        }),
+      }),
+    );
     expect(fs.readFileSync(path.join(buildConfig, "npmrc"), "utf8")).toBe("");
   });
 });

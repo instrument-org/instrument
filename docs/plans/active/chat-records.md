@@ -1,6 +1,6 @@
 # Plan: chat records as append-only logs, one per session per device
 
-Status: approved to build on branch `chat-records`, stacked on `workspace-layout`; phase 0 (this spec) written, phases 1 and 2 in progress. Nothing merges to main until it has been reviewed.
+Status: approved to build on branch `chat-records`, stacked on `workspace-layout`; phases 1 and 2 built (`packages/workspace/src/lib/records/`, not wired into the app), phase 3 next. Nothing merges to main until it has been reviewed.
 
 A chat's record today is a SQLite file, `chat.db`, inside the workspace's `.instrument/` folder, which the person may put in iCloud Drive, Dropbox or OneDrive. A sync engine copies files whole and can upload a database mid-transaction, and today's store rewrites nearly every row after its first write (a streaming part is saved whole every 100 ms). This plan makes the record append-only JSONL that a sync engine can carry safely, keeps one rebuildable SQLite database on each computer, and rebuilds the read side around what the window draws today.
 
@@ -40,7 +40,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 ```
 <workspace>/.instrument/chats/<chat id>/        travels with the workspace
   <session id>.<device id>.jsonl                one per session per device
-  <session id>.<device id>.2.jsonl              only after recovery refused the first (see Recovery)
+  <session id>.<device id>.2.jsonl              after this device read newer records from another device's log, or recovery refused the first
   marks.<device id>.jsonl                       the person's marks, from this device
   blobs/sha256-<hex>.<ext>                       written once through a temp name
   attachments/                                  as today, until instrument-folder.md moves it out
@@ -69,16 +69,20 @@ Every line is one JSON object, keys in this order so a reader can skip by prefix
 
 | `t` | Fields after the envelope | Fold rule | Replaces |
 |---|---|---|---|
-| `session` | `format`, `id`, `chat`, `createdAt`, `device`, `app`; a task adds `parent`, `forkedAt`, `handle`, `title`; a device continuing another device's session adds `continues: {<device>: <seq>}` | First line of every log. A file whose first line is not a header is refused, not repaired. | the immutable half of `sessions:<s>` |
+| `session` | `format`, `id`, `chat`, `createdAt`, `device`, `app`; a task adds `parent`, `forkedAt`, `handle`, `title`; every log after the first adds `continues: {<log stem>: <seq>}`, how far its writer had read each earlier log of the session (a stem is `dev_X` or `dev_X.2`) | First line of every log. A file whose first line is not a header is refused, not repaired. | the immutable half of `sessions:<s>` |
 | `message` | `message: {id, role, metadata}`, today's `SessionMessage` | Newest snapshot per id wins. Messages ordered by id (ULID), as today. | `messages:<s>:<m>` |
 | `part` | `part`, today's part with `base64Data` swapped for `blob`, `mediaType`, `bytes` | Newest snapshot per part id wins. Parts ordered by id under their message. | `parts:<s>:<m>:<p>` |
 | `retract` | `messages: [ids]`, `why` | Drops those messages and their parts from the fold. Ids are never reused. | `removeMessage` |
 | `rollover` | `after`, `usableTokens` | Newest wins; same meaning as `rolledOverAfterMessageId` today. | two session fields |
 | `stopped` | `by: user, chat or app` | Applies until a message that starts a turn follows it. | `stoppedBy` |
 | `told` | `what: folders, apps, memory, processes or browser`, `value` | Newest per `what` wins; `null` clears. | the five baseline keys and `browser-state:<s>` |
-| `mark` (marks file only) | `session`, `field` (title, starred, archived, unread, topics, stoppedAt), `value`, `device` | Across every device's marks file, newest `at` per (session, field) wins, ties broken by device id. An unsettled title never beats a settled one. | the mark half of `sessions:<s>` |
+| `mark` (marks file only, no header) | `session`, `field`, `value`, `device`. Values: title `{text, settled}`; starred and archived a boolean; unread `{byUser}` or `null`; topics an array of topic ids; stoppedAt an ISO date | Across every device's marks file, newest `at` per (session, field) wins, ties going to the larger device id. An unsettled title never beats a settled one. | the mark half of `sessions:<s>` |
 
-A session's history is its own logs; a task's is its parent's fold up to `forkedAt` (by message id, never by byte offset), then its own logs. Two devices whose logs each continue past the point the other last saw is a fork; the fold keeps both continuations and flags the session. Its display is outside v1.
+A session's history is its own logs; a task's is its parent's fold up to `forkedAt` (by message id, never by byte offset), then its own logs.
+
+Records from several logs of one session are ordered by place: the sum of the header's `continues` plus the record's own `seq`, ties going to `at`, then the log, then a hash of the line. That holds because a device that has read another device's newer records starts its next log with a header saying so, rather than appending to the old one. Two logs that each hold records past what the other's writer had read of that session are a fork: the fold keeps both continuations and flags the session. Its display is outside v1. A record is known by its log, place, `seq` and line hash, so an identical copy from a sync conflict folds once and a copy whose bytes differ keeps both.
+
+Dates inside `told` values and tool outputs come back as ISO strings; their readers coerce them.
 
 ## Writing
 

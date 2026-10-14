@@ -15,9 +15,9 @@ import { type AppUpdaterStatus } from "./update-status";
 import { startWorkspaceAfresh } from "./workspace-management";
 import { type WorkspaceRefusal } from "./workspace-refusal";
 import {
-  hasWorkspaceIdentity,
   registerWorkspaceFolder,
   updateRegistry,
+  workspaceFolderState,
 } from "./workspaces";
 
 /**
@@ -191,9 +191,26 @@ export async function showWorkspaceRefusal({
     if (dir === undefined) {
       return;
     }
-    const registered = hasWorkspaceIdentity(dir)
-      ? registerWorkspaceFolder({ dir, userDataDir })
-      : undefined;
+    const found = workspaceFolderState(dir);
+    if (found === "denied") {
+      // Whether the chats are there can't be told, so starting over is not
+      // offered as if the folder were empty.
+      await show({
+        body: [
+          `${APP_NAME} doesn’t have permission to read “${escapeHtml(path.basename(dir))}”. Give ${APP_NAME} access to it, then choose it again.`,
+        ],
+        buttons: [
+          { action: "quit", label: "Quit" },
+          { action: "choose-folder", label: "Choose Folder…", primary: true },
+        ],
+        title: `${APP_NAME} can’t read that folder`,
+      });
+      return;
+    }
+    const registered =
+      found === "workspace"
+        ? registerWorkspaceFolder({ dir, userDataDir })
+        : undefined;
     if (registered === undefined) {
       await show({
         body: [

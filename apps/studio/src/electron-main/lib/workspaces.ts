@@ -194,6 +194,28 @@ export function hasWorkspaceIdentity(workspacePath: string): boolean {
   );
 }
 
+/**
+ * What a folder holds for the app: a workspace, nothing it can tell because
+ * the system will not let it read there (a folder it was given no access
+ * to), or no workspace. `hasWorkspaceIdentity` takes a refused read for no
+ * workspace, which would tell the person their chats are not there.
+ */
+export function workspaceFolderState(
+  dir: string,
+): "denied" | "none" | "workspace" {
+  try {
+    fs.readFileSync(
+      path.join(workspaceLayout(dir).dataDir, IDENTITY_FILENAME),
+      "utf8",
+    );
+    return "workspace";
+  } catch (error) {
+    const code =
+      error instanceof Error && "code" in error ? error.code : undefined;
+    return code === "EACCES" || code === "EPERM" ? "denied" : "none";
+  }
+}
+
 export function readRegistry(userDataDir: string): WorkspaceRegistry {
   return readRegistryFile(userDataDir).registry;
 }

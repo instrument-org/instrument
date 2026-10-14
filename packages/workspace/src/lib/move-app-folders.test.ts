@@ -84,7 +84,8 @@ describe("moveAppFoldersIntoDataDir", () => {
 
     const result = move();
 
-    expect(result.failed).toBe(0);
+    // Counted, so the sweep runs again rather than leaving it for good.
+    expect(result.failed).toBe(1);
     expect(result.done).toContain(
       `left ${at("drafts", "b", "draft.md")}: ${at(".instrument", "drafts", "b", "draft.md")} is already there`,
     );

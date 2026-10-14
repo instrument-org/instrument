@@ -57,7 +57,10 @@ const RECORD_ENTRY_NAMES = new Set([
 export interface ChatRecordsSplit {
   /** One line per chat that changed, and one per entry left or failed. */
   done: string[];
-  /** Entries that could not be moved, which the next sweep tries again. */
+  /**
+   * Entries that could not be moved, because the move failed or their new
+   * place is taken, which the next sweep tries again.
+   */
   failed: number;
 }
 
@@ -86,8 +89,9 @@ export interface ChatRecordsSplit {
  * new place is taken has its entries moved into it one by one, and an entry
  * still taken is left where it was. Settings move only after the database,
  * so a chat whose database could not move stays listed nowhere rather than
- * opening an empty one. Anything that fails is left in place for the next
- * sweep. Records where the work went (`recordMovedPaths`), so a path stored
+ * opening an empty one. Anything that fails, or whose place is taken, is
+ * left in place and counted (`failed`), so the sweep is not marked done and
+ * the next one tries it again. Records where the work went (`recordMovedPaths`), so a path stored
  * before is found where it went. Synchronous, with no store open.
  */
 export function splitChatRecords({
@@ -162,6 +166,15 @@ function readDirs(dir: string): string[] {
 }
 
 /**
+ * Leaves an entry whose new place is taken where it was, counted as failed
+ * so the next sweep tries it again.
+ */
+function leave(split: ChatRecordsSplit, from: string, to: string) {
+  split.failed++;
+  split.done.push(`left ${from}: ${to} is already there`);
+}
+
+/**
  * Runs one step of a chat's split, counting it as failed and logging why
  * when it throws, so the rest of the chat goes on.
  */
@@ -202,7 +215,7 @@ function splitOne({
       continue;
     }
     if (entryExists(to)) {
-      split.done.push(`left ${from}: ${to} is already there`);
+      leave(split, from, to);
       databaseMoved = false;
       continue;
     }
@@ -216,7 +229,7 @@ function splitOne({
   if (databaseMoved && entryExists(settings)) {
     const to = path.join(recordDir, SETTINGS_FILE_NAME);
     if (entryExists(to)) {
-      split.done.push(`left ${settings}: ${to} is already there`);
+      leave(split, settings, to);
     } else {
       step(split, `move ${settings}`, () => {
         moveEntrySync(settings, to);
@@ -264,7 +277,7 @@ function splitOne({
     if (entryExists(taskRecords)) {
       const to = path.join(setAsideDir, task);
       if (entryExists(to)) {
-        split.done.push(`left ${taskRecords}: ${to} is already there`);
+        leave(split, taskRecords, to);
       } else {
         step(split, `set aside ${taskRecords}`, () => {
           moveEntrySync(taskRecords, to);
@@ -299,7 +312,7 @@ function splitOne({
     step(split, `move ${from}`, () => {
       if (
         mergeEntrySync(from, path.join(workDir, entry), (left, taken) => {
-          split.done.push(`left ${left}: ${taken} is already there`);
+          leave(split, left, taken);
         })
       ) {
         moved.push(entry);

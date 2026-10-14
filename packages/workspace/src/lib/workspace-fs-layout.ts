@@ -914,6 +914,38 @@ export function operandRefusal(
 }
 
 /**
+ * What the agent reads about a file it named for a program the sandbox does
+ * not hold, which reads or writes it as the person: held to the rules as the
+ * shell's own commands hold the path, and to them again where it really
+ * leads, since that program follows a link out of the folder it sits in.
+ * Undefined where the path is open.
+ */
+export function unsandboxedOperandRefusal(
+  layout: WorkspaceFsLayout,
+  path: string,
+  op: "read" | "write",
+): string | undefined {
+  const inMount = resolveHostPath(layout, path);
+  const hostPath = inMount?.hostPath ?? hostPathOf(path);
+  const spelled =
+    inMount === null
+      ? outsideFolderRefusal(layout, path, op)
+      : ruleRefusal({ hostPath, op, rules: layout.rules, spell: shellPath });
+  if (spelled !== undefined) {
+    return spelled;
+  }
+  const real = canonicalizeThroughMissing(hostPath);
+  return real === null || real === hostPath
+    ? undefined
+    : ruleRefusal({
+        hostPath: real,
+        op,
+        rules: layout.rules,
+        spell: shellPath,
+      });
+}
+
+/**
  * A path outside every mount that the person could allow: the folder a
  * card names for it, or the nearest one on disk holding that, asked for
  * (never the home folder whole or the disk root), and what the agent reads

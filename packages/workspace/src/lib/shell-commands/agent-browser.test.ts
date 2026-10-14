@@ -1,7 +1,17 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import {
@@ -12,6 +22,11 @@ import { browserTargetOf } from "../../types";
 import { updateHeldTabs } from "../held-tabs";
 import { sessionLayout } from "../session-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
 import {
   agentBrowserCommandDescription,
   browserFreeReadEnv,
@@ -289,8 +304,14 @@ describe("browserFreeReadEnv", () => {
 
 describe("resolveAgentBrowserPathArgs", () => {
   let fs = new InMemoryFs();
+  let layout: WorkspaceFsLayout;
 
   beforeEach(async () => {
+    createMockChatConfig(ChatIdSchema.parse("paths"));
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse("/Users/sam/chat"),
+      rules: { home: "/Users/sam", rules: [], withoutAsking: false },
+    });
     fs = new InMemoryFs();
     await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
     await fs.mkdir("/Users/sam/chat/work", { recursive: true });
@@ -311,6 +332,7 @@ describe("resolveAgentBrowserPathArgs", () => {
         "/Users/sam/chat/work/image.png",
       ],
       { cwd: "/Users/sam/chat/work", fs },
+      layout,
     );
 
     expect(result).toEqual({
@@ -333,10 +355,11 @@ describe("resolveAgentBrowserPathArgs", () => {
     },
     { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
   ])("refuses an upload of a $name", async ({ path }) => {
-    const result = await resolveAgentBrowserPathArgs(["upload", "@e1", path], {
-      cwd: "/Users/sam/chat",
-      fs,
-    });
+    const result = await resolveAgentBrowserPathArgs(
+      ["upload", "@e1", path],
+      { cwd: "/Users/sam/chat", fs },
+      layout,
+    );
 
     expect(result).toEqual({ error: `Upload file not found: "${path}".` });
   });
@@ -345,6 +368,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     const result = await resolveAgentBrowserPathArgs(
       ["fill", "@e1", "attachments/image.png"],
       { cwd: "/Users/sam/chat", fs },
+      layout,
     );
 
     expect(result).toEqual({
@@ -363,10 +387,11 @@ describe("resolveAgentBrowserPathArgs", () => {
       name: "a wait function opening with a regex",
     },
   ])("passes $name through as typed", async ({ args }) => {
-    const result = await resolveAgentBrowserPathArgs(args, {
-      cwd: "/Users/sam/chat",
-      fs,
-    });
+    const result = await resolveAgentBrowserPathArgs(
+      args,
+      { cwd: "/Users/sam/chat", fs },
+      layout,
+    );
 
     expect(result).toEqual({ args });
   });
@@ -375,6 +400,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     const result = await resolveAgentBrowserPathArgs(
       ["screenshot", "/Users/sam/chat/work/page.png"],
       { cwd: "/Users/sam/chat", fs },
+      layout,
     );
 
     expect(result).toEqual({
@@ -400,11 +426,155 @@ describe("resolveAgentBrowserPathArgs", () => {
       ["screenshot", "@e2"],
     ],
   ])("resolves %j's file operands only", async (args, expected) => {
-    const result = await resolveAgentBrowserPathArgs(args, {
-      cwd: "/Users/sam/chat/work",
-      fs,
-    });
+    const result = await resolveAgentBrowserPathArgs(
+      args,
+      { cwd: "/Users/sam/chat/work", fs },
+      layout,
+    );
     expect(result).toEqual({ args: expected });
+  });
+});
+
+/**
+ * The CLI and its browser read and write files as the person, outside the
+ * sandbox, so a file operand meets the folder rules before it is handed on:
+ * a folder closed in Settings, a read-only one, and a link in the work
+ * folder to a closed file, against the work folder the defaults write to.
+ */
+describe("agent-browser file operands and the folder rules", () => {
+  let root = "";
+  let layout: WorkspaceFsLayout;
+  let ctx = mockCtx;
+
+  beforeEach(async () => {
+    createMockChatConfig(ChatIdSchema.parse("rules"));
+    root = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "agent-browser-rules-")),
+    );
+    for (const folder of ["work", "closed", "shelf"]) {
+      mkdirSync(path.join(root, folder));
+    }
+    writeFileSync(path.join(root, "closed", "secret.txt"), "secret");
+    writeFileSync(path.join(root, "closed", "baseline.png"), "png");
+    writeFileSync(path.join(root, "shelf", "form.pdf"), "pdf");
+    writeFileSync(path.join(root, "work", "photo.png"), "png");
+    symlinkSync(
+      path.join(root, "closed", "secret.txt"),
+      path.join(root, "work", "notes.txt"),
+    );
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(path.join(root, "work")),
+      rules: {
+        home: root,
+        rules: [
+          { level: "never", path: path.join(root, "closed"), source: "folder" },
+          {
+            level: "readOnly",
+            path: path.join(root, "shelf"),
+            source: "folder",
+          },
+        ],
+        withoutAsking: false,
+      },
+    });
+    ctx = {
+      ...mockCtx,
+      cwd: path.join(root, "work"),
+      fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
+    };
+  });
+
+  afterEach(() => {
+    rmSync(root, { force: true, recursive: true });
+  });
+
+  const resolve = async (args: string[]) => {
+    const result = await resolveAgentBrowserPathArgs(args, ctx, layout);
+    return "error" in result
+      ? { error: result.error.replaceAll(root, "<root>") }
+      : { args: result.args.map((arg) => arg.replaceAll(root, "<root>")) };
+  };
+
+  it.each([
+    { args: ["upload", "@e1", "../closed/secret.txt"], name: "an upload" },
+    {
+      args: ["upload", "@e1", "notes.txt"],
+      name: "an upload through a link in the work folder",
+    },
+    {
+      args: ["diff", "screenshot", "--baseline", "../closed/baseline.png"],
+      name: "a diff baseline",
+    },
+  ])("refuses $name from a closed folder", async ({ args }) => {
+    const result = await resolve(args);
+
+    expect(result).toEqual({
+      error: expect.stringContaining(
+        "is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+      ),
+    });
+  });
+
+  it("names the operand and why, as the shell's other commands do", async () => {
+    expect(await resolve(["upload", "@e1", "../closed/secret.txt"]))
+      .toMatchInlineSnapshot(`
+      {
+        "error": "../closed/secret.txt: Permission denied
+      "<root>/closed/secret.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+      }
+    `);
+  });
+
+  it.each([
+    { args: ["screenshot", "../closed/page.png"] },
+    { args: ["screenshot", "@e1", "../closed/page"] },
+    { args: ["pdf", "../closed/page"] },
+    { args: ["download", "@e1", "../closed/report.csv"] },
+    { args: ["record", "start", "--fps", "10", "../closed/take.webm"] },
+    { args: ["trace", "stop", "../closed/trace.json"] },
+    { args: ["profiler", "stop", "../closed/profile.json"] },
+    { args: ["network", "har", "stop", "../closed/traffic.har"] },
+    {
+      args: [
+        "diff",
+        "screenshot",
+        "--baseline",
+        "photo.png",
+        "-o",
+        "../closed/d.png",
+      ],
+    },
+  ])("refuses $args writing into a closed folder", async ({ args }) => {
+    expect(await resolve(args)).toEqual({
+      error: expect.stringContaining("Permission denied"),
+    });
+  });
+
+  it("refuses a write into a read-only folder and reads from it", async () => {
+    expect(await resolve(["pdf", "../shelf/page.pdf"])).toEqual({
+      error: expect.stringContaining("is read-only."),
+    });
+    expect(await resolve(["upload", "@e1", "../shelf/form.pdf"])).toEqual({
+      args: ["upload", "@e1", "<root>/shelf/form.pdf"],
+    });
+  });
+
+  it.each([
+    [["screenshot"], ["screenshot"]],
+    [
+      ["screenshot", "shot.png"],
+      ["screenshot", "<root>/work/shot.png"],
+    ],
+    [
+      ["download", "@e1", "report.csv"],
+      ["download", "@e1", "<root>/work/report.csv"],
+    ],
+    [
+      ["upload", "@e1", "photo.png"],
+      ["upload", "@e1", "<root>/work/photo.png"],
+    ],
+  ])("lets %j work in the work folder", async (args, expected) => {
+    expect(await resolve(args)).toEqual({ args: expected });
   });
 });
 

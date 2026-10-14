@@ -37,7 +37,11 @@ import { resolveChat } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hostPathOf, type WorkspaceFsLayout } from "../workspace-fs-layout";
+import {
+  hostPathOf,
+  unsandboxedOperandRefusal,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
@@ -380,24 +384,6 @@ export function isDaemonConfigRace(output: string): boolean {
 }
 
 /**
- * Whether a file subcommand's operand names a file rather than a selector,
- * a ref, a URL or a word like `start`: a path spelled as one, or a name
- * ending in an extension these subcommands write or read.
- */
-function looksLikeFilePath(value: string): boolean {
-  if (value.includes("://") || /^[@#[-]/.test(value)) {
-    return false;
-  }
-  return (
-    /^(?:\/|\.{1,2}\/)/.test(value) ||
-    (!value.startsWith(".") && value.includes("/")) ||
-    /\.(?:png|jpe?g|webp|pdf|webm|mp4|har|json|zip|cpuprofile|txt|html?)$/i.test(
-      value,
-    )
-  );
-}
-
-/**
  * Subcommands whose operands include a file the browser process reads or
  * writes. Every other subcommand's operands are text the page receives as
  * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
@@ -415,11 +401,121 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
   "upload",
 ]);
 
+type Operand = { index: number; value: string };
+type FileOperand = { index: number; op: "read" | "write" };
+
+/**
+ * The operands of a file subcommand that name a file, and whether the
+ * browser process reads or writes it, picked out the way the CLI's own
+ * parser picks them (`cli/src/commands.rs` upstream; keep in step when the
+ * pinned version moves). `operands` are the subcommand's own, after it.
+ */
+function fileOperandsOf(
+  subcommand: string | undefined,
+  operands: Operand[],
+): FileOperand[] {
+  const writes = (operand: Operand | undefined): FileOperand[] =>
+    operand ? [{ index: operand.index, op: "write" }] : [];
+  const [first, second, third] = operands;
+  switch (subcommand) {
+    case "diff": {
+      // `--baseline <file>` is read, `--output <file>` written.
+      return operands.flatMap((operand, i): FileOperand[] => {
+        const next = operands[i + 1];
+        if (!next) {
+          return [];
+        }
+        if (operand.value === "-b" || operand.value === "--baseline") {
+          return [{ index: next.index, op: "read" }];
+        }
+        return operand.value === "-o" || operand.value === "--output"
+          ? writes(next)
+          : [];
+      });
+    }
+    case "download": {
+      return writes(second);
+    }
+    case "network": {
+      return first?.value === "har" && second?.value === "stop"
+        ? writes(third)
+        : [];
+    }
+    case "pdf": {
+      return writes(first);
+    }
+    case "profiler":
+    case "trace": {
+      return first?.value === "stop" ? writes(second) : [];
+    }
+    case "record": {
+      if (first?.value !== "start" && first?.value !== "restart") {
+        return [];
+      }
+      return writes(
+        positionalsOf(operands.slice(1), {
+          bool: ["--contact-sheet", "--cursor"],
+          valued: ["--contact-sheet-threshold", "--fps"],
+        })[0],
+      );
+    }
+    case "screenshot": {
+      const positionals = positionalsOf(operands, {
+        bool: ["--full", "--if-changed", "-f"],
+        valued: ["--threshold"],
+      });
+      if (positionals.length > 1) {
+        return writes(positionals[1]);
+      }
+      const [only] = positionals;
+      return only && isScreenshotPath(only.value) ? writes(only) : [];
+    }
+    case "upload": {
+      return operands.slice(1).map(({ index }) => ({ index, op: "read" }));
+    }
+    default: {
+      return [];
+    }
+  }
+}
+
+/** The operands that are not a flag or a flag's value. */
+function positionalsOf(
+  operands: Operand[],
+  flags: { bool: string[]; valued: string[] },
+): Operand[] {
+  const positionals: Operand[] = [];
+  for (let i = 0; i < operands.length; i++) {
+    const value = operands[i]?.value ?? "";
+    if (flags.valued.includes(value)) {
+      i++;
+    } else if (!flags.bool.includes(value)) {
+      const operand = operands[i];
+      if (operand) {
+        positionals.push(operand);
+      }
+    }
+  }
+  return positionals;
+}
+
+/** Whether `screenshot`'s only operand is the file it writes rather than a selector. */
+function isScreenshotPath(value: string): boolean {
+  const relative = value.startsWith("./") || value.startsWith("../");
+  const selector = !relative && /^[.#@]/.test(value);
+  return (
+    !selector &&
+    (relative || value.includes("/") || /\.(?:png|jpe?g|webp)$/.test(value))
+  );
+}
+
 /**
  * Spell the file operands of subcommands that take a file as the host does,
- * and check every file operand of `upload` exists. CDP reports success for
- * missing files, so the wrapper must fail before handing them to the browser
- * process.
+ * refuse one the folder rules keep from the agent, and check every file
+ * operand of `upload` exists. The CLI and the browser it drives run outside
+ * the sandbox, so the rules are asked here, as `rg` and `du` ask them of
+ * theirs. CDP reports success for missing files, so the wrapper must fail
+ * before handing them to the browser process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
@@ -430,6 +526,7 @@ export async function resolveAgentBrowserPathArgs(
       resolvePath(cwd: string, path: string): string;
     };
   },
+  layout: WorkspaceFsLayout,
 ): Promise<{ args: string[] } | { error: string }> {
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
   const textOperands = new Set(
@@ -437,21 +534,26 @@ export async function resolveAgentBrowserPathArgs(
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
-  const fileOperands = new Set(
-    subcommand !== undefined && FILE_OPERAND_SUBCOMMANDS.has(subcommand)
-      ? subArgs
-          .slice(1)
-          .filter(({ value }) => looksLikeFilePath(value))
-          .map(({ index }) => index)
-      : [],
-  );
+  const fileOperands = fileOperandsOf(subcommand, subArgs.slice(1));
+  for (const { index, op } of fileOperands) {
+    const arg = args[index] ?? "";
+    const refusal = unsandboxedOperandRefusal(
+      layout,
+      ctx.fs.resolvePath(ctx.cwd, arg),
+      op,
+    );
+    if (refusal !== undefined) {
+      return { error: `${arg}: Permission denied\n${refusal}` };
+    }
+  }
+  const fileIndexes = new Set(fileOperands.map(({ index }) => index));
   // The daemon outlives the shell's `cd` and resolves a relative path
   // against the folder it was launched in, so a file operand goes to it
   // absolute.
   const resolved = args.map((arg, index) =>
     textOperands.has(index)
       ? arg
-      : fileOperands.has(index)
+      : fileIndexes.has(index)
         ? hostPathOf(ctx.fs.resolvePath(ctx.cwd, arg))
         : (hostPathArgs([arg])[0] ?? arg),
   );
@@ -630,6 +732,7 @@ export function createAgentBrowserCommand({
     const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs.args,
       ctx,
+      layout,
     );
     if ("error" in bridgedArgs) {
       return {

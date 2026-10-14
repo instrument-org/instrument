@@ -3,6 +3,7 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { addChildTask } from "../../src/lib/chat/children";
+import { renameChat } from "../../src/lib/chat/chats";
 import { newMessage } from "../../src/lib/new-message";
 import { Store } from "../../src/lib/store";
 import { updateChatSettings } from "../../src/lib/chat-settings";
@@ -105,6 +106,10 @@ export async function startRun(
       chatId,
     )
   )._unsafeUnwrap();
+  // Named the way a person names a chat, which settles its title: otherwise a
+  // chat case's first exchange retitles it, and a task case's chat stays a
+  // placeholder, and `report <dir>` finds a run's case by that name.
+  await renameChat(chatId, name);
 
   workspaceRef.send({
     type: "createSession",

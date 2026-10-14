@@ -198,12 +198,21 @@ export async function generateReport({
       rollupModelURIs.add(taskModelURI);
     }
 
-    // `task.title` is the case name the harness passed at creation, so the pair
-    // that names a run survives even without the runs that produced it: a report
-    // over a past workspace dir is still filed by case and model rather than by
-    // a slug of the prompt with a numeric suffix, which named nothing anyone
-    // could act on.
-    const caseName = run?.name ?? caseForRoots ?? task.title;
+    const rootSession = run
+      ? { id: run.sessionId, title: run.name }
+      : await runSessionOf(chatId);
+    if (!rootSession) {
+      continue;
+    }
+
+    // The session a run went to carries its case's name, which the harness
+    // gave it at creation (`startRun`): the task a task case started, whose
+    // chat stays a placeholder, or the chat a chat case opened. So the pair
+    // that names a run survives even without the runs that produced it: a
+    // report over a past workspace dir is still matched to its case and filed
+    // by case and model rather than by a placeholder or a slug of the prompt,
+    // which named nothing anyone could act on.
+    const caseName = run?.name ?? caseForRoots ?? rootSession.title;
     const evalCase =
       evalCasesByName.get(caseName) ??
       evalCasesByName.get(task.id) ??
@@ -222,13 +231,6 @@ export async function generateReport({
       label = `${key.label}-${n}`;
     }
     claimedDirs.add(relativeDir);
-
-    const rootSession = run
-      ? { id: run.sessionId }
-      : await runSessionOf(chatId, label);
-    if (!rootSession) {
-      continue;
-    }
 
     const markdown = await getSessionMarkdown({
       includeContextMessages,
@@ -458,25 +460,33 @@ export async function generateReport({
 }
 
 /**
- * The session a run past its process went to, read from its chat: the
- * chat's own conversation when anything was said in it, else the task a
- * task case started from the empty chat.
+ * The session a run past its process went to, read from its chat, with its
+ * title: the chat's own conversation when the case's prompt was typed there,
+ * else the task a task case started from the empty chat. A task case's chat
+ * is not always empty: the task's finish can wake it, which writes a
+ * text-less message there and a turn after it.
  */
 async function runSessionOf(
   chatId: ChatId,
-  label: string,
-): Promise<undefined | { id: StoreId.Session }> {
+): Promise<undefined | { id: StoreId.Session; title: string }> {
   const own = resolveChat(chatId) ? sessionOfChat(chatId) : undefined;
   if (!own) {
-    process.stderr.write(`Warning: ${label} has no session, skipping.\n`);
+    process.stderr.write(`Warning: ${chatId} has no session, skipping.\n`);
     return undefined;
   }
-  const said = await Store.getMessageIds(own, chatId);
-  if (said.isOk() && said.value.length > 0) {
-    return { id: own };
-  }
-  const [task] = await listChildTasks(chatId);
-  return { id: task?.id ?? own };
+  const said = await Store.getMessagesWithParts({ chatId, sessionId: own });
+  const typed =
+    said.isOk() &&
+    said.value.some(
+      (message) =>
+        message.role === "user" &&
+        message.parts.some(
+          (part) => part.type === "text" && part.text.trim() !== "",
+        ),
+    );
+  const id = typed ? own : ((await listChildTasks(chatId))[0]?.id ?? own);
+  const session = await Store.getSession(id, chatId);
+  return { id, title: session.isOk() ? session.value.title : chatId };
 }
 
 function truncate(text: string): string {

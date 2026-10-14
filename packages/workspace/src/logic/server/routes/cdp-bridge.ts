@@ -356,7 +356,7 @@ export function createLocalFileGate({
 export function notYourFile(url: string) {
   return {
     code: -32_000,
-    message: `${url} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html).`,
+    message: `${url} is not a file you can open. Open a file by the path you reach it at (agent-browser open site/page.html).`,
   };
 }
 

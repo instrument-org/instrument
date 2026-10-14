@@ -7,6 +7,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { outputFolderPath } from "./chat/output-folder";
 import { createBashEnv } from "./create-bash-env";
 import { RG_DISK_PATH } from "./ripgrep";
 
@@ -70,6 +71,23 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
       stderr: "",
       stdout: `args=a b c cwd=${chatRoot}/sub in=piped\n`,
     });
+  });
+
+  it("names the work, attachments and output folders to the shell and to every program it starts", async () => {
+    await writeProgram(
+      binDir,
+      "folder-vars",
+      'printf "%s\\n" "$INSTRUMENT_WORK" "$INSTRUMENT_ATTACHMENTS" "$INSTRUMENT_OUTPUT"',
+    );
+    const result = await run(
+      'echo "$INSTRUMENT_WORK"; echo "$INSTRUMENT_ATTACHMENTS"; echo "$INSTRUMENT_OUTPUT"; folder-vars',
+    );
+    const folders = [
+      chatRoot,
+      path.join(chatRoot, "attachments"),
+      outputFolderPath(),
+    ];
+    expect(result.stdout.split("\n")).toEqual([...folders, ...folders, ""]);
   });
 
   it("runs a real system program", async () => {

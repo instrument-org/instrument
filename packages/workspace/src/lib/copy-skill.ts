@@ -8,7 +8,6 @@ import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
 import { SKILL_COPY_IGNORE } from "./skill-artifact-ignore";
 import { type SkillSourceId } from "./skills";
-import { getChatWorkDir } from "./chat-dir-utils";
 
 /**
  * Copy a skill into a task, restoring anything a previous load left missing.
@@ -34,7 +33,7 @@ export async function copySkill({
   skillSource: SkillSourceId;
 }): Promise<{ alreadyLoaded: boolean; destDir: AbsolutePath }> {
   const destDir = absolutePathJoin(
-    getChatWorkDir(dir),
+    dir,
     CHAT_FOLDER_NAMES.skills,
     skillSource,
     skillName,

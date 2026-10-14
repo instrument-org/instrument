@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { sessionLayout } from "../lib/session-layout";
 import { pathExists } from "../lib/path-exists";
@@ -44,9 +44,9 @@ export const WriteFile = setupTool({
     Writes a file, creating parent directories as needed.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./${CHAT_FOLDER_NAMES.work}/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./sales/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
-    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html <folder>/foo.html\`.  `,
+    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp site/foo.html <folder>/foo.html\`.  `,
   execute: async ({ input, partId, sessionId, signal, chatId }) => {
     const layout = await sessionLayout({ chatId, partId, sessionId });
     const pathResult = resolveWritableToolPath({

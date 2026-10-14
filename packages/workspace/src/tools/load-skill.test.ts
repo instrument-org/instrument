@@ -65,13 +65,7 @@ function baseExecuteArgs() {
 }
 
 function copiedSkillDir(name: string, source = APP_NAME_SLUG) {
-  return path.join(
-    dir,
-    CHAT_FOLDER_NAMES.work,
-    CHAT_FOLDER_NAMES.skills,
-    source,
-    name,
-  );
+  return path.join(dir, CHAT_FOLDER_NAMES.skills, source, name);
 }
 
 async function createSkill({
@@ -153,7 +147,7 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("copies skill directory to work/skills/<source>/<name> on load", async () => {
+  it("copies skill directory to skills/<source>/<name> on load", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },
       name: "my-skill",
@@ -261,9 +255,9 @@ describe("LoadSkill", () => {
     }
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "work/skills/instrument/my-skill/references/notes.md",
-        "work/skills/instrument/my-skill/scripts/lib/helper.ts",
-        "work/skills/instrument/my-skill/scripts/run.ts",
+        "skills/instrument/my-skill/references/notes.md",
+        "skills/instrument/my-skill/scripts/lib/helper.ts",
+        "skills/instrument/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -470,7 +464,7 @@ describe("LoadSkill", () => {
     ).resolves.toBe("original");
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "work/skills/instrument/my-skill/scripts/run.ts",
+        "skills/instrument/my-skill/scripts/run.ts",
       ]
     `);
   });
@@ -538,7 +532,7 @@ describe("LoadSkill", () => {
     expect(notes).toMatchInlineSnapshot(`
       "This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
-      This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`work/skills/instrument/my-skill/SKILL.md\` for the rest before following it."
+      This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`skills/instrument/my-skill/SKILL.md\` for the rest before following it."
     `);
   });
 
@@ -678,7 +672,7 @@ describe("LoadSkill", () => {
       Everything below is the text of the skill "docx".
 
       # Body",
-        "workspace": "This skill lives at \`<workspace skills>/docx\`; edit it there to change the skill for future tasks (the \`work/\` copy is only for this task).
+        "workspace": "This skill lives at \`<workspace skills>/docx\`; edit it there to change the skill for future tasks (the copy under \`skills/\` is only for this chat).
 
       Everything below is the text of the skill "docx".
 
@@ -929,7 +923,7 @@ describe("LoadSkill", () => {
     expect(value).toMatchInlineSnapshot(`
       "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
-      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/claude/third-party && pnpm install\` yourself if you trust it.
+      This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd skills/claude/third-party && pnpm install\` yourself if you trust it.
 
       This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into the chat's \`.venv\` yourself if you trust it.
 

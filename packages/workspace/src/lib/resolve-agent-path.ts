@@ -129,7 +129,7 @@ export async function getSimilarPathSuggestions({
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
  * - `displayPath` — what to echo back to the agent: relative for the chat's folder
- *   (./work/...), the absolute path in the shell's spelling everywhere else.
+ *   (./sales/report.md), the absolute path in the shell's spelling everywhere else.
  * - `mount` — the mount other than the chat's that owns the path, or null when the
  *   path is in the chat's folder.
  */
@@ -300,7 +300,7 @@ export function resolveWritableToolPath(options: {
   if (mount?.readOnly) {
     return executeError(
       `"${displayPath}" is in a read-only folder and cannot be written. ` +
-        `Copy what you need into this conversation's folder (e.g. cp '${displayPath}' work/) and change the copy.`,
+        `Copy what you need into this conversation's folder (e.g. cp '${displayPath}' .) and change the copy.`,
     );
   }
   // The owning mount rides along so a caller whose output contract is

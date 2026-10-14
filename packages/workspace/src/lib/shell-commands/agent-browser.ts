@@ -247,7 +247,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
        run snapshot -i yourself only for what that leaves out
 
   Inspecting a file you created:
-    agent-browser open work/report.html     Chat files load in the browser
+    agent-browser open site/report.html     Chat files load in the browser
     agent-browser open /full/path/x.html    A relative path, a full path, or a
                                             file:// URL of either all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.

@@ -20,7 +20,18 @@ export const CHAT_FOLDER_NAMES = {
   // read them, but the logs are noise for the user so they stay out of the
   // browsable file index.
   toolOutput: ".tool-output",
-  work: "work",
+} as const;
+
+/**
+ * The variables the agent's shell sets, naming the folders it works with:
+ * its chat's work folder, where every command starts; what the person sent
+ * the chat, in its record folder; and the output folder, where finished work
+ * goes. Every program the shell starts sees them too.
+ */
+export const FOLDER_VARIABLES = {
+  attachments: "INSTRUMENT_ATTACHMENTS",
+  output: "INSTRUMENT_OUTPUT",
+  work: "INSTRUMENT_WORK",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
 // One folder per chat at the workspace root, its tasks included: a task is a

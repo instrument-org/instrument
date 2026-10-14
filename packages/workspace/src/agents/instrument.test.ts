@@ -318,6 +318,20 @@ describe("instrumentAgent", () => {
     );
   });
 
+  it("names its folders by the variables the shell sets", () => {
+    for (const named of [
+      "Every command starts in your work folder, `$INSTRUMENT_WORK`",
+      "`$INSTRUMENT_ATTACHMENTS`, read where they are",
+      "`$INSTRUMENT_OUTPUT`",
+      "Throwaway files go in `$TMPDIR`",
+    ]) {
+      expect(prompt).toContain(named);
+    }
+    for (const gone of ["package root", "virtualenv", "`work/"]) {
+      expect(prompt).not.toContain(gone);
+    }
+  });
+
   it("names no flag or mount the task command does not have", () => {
     for (const gone of [
       "--fresh",

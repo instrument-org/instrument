@@ -1,6 +1,7 @@
 import { type ByteString, latin1FromBytes } from "just-bash";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
+import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { gitSubprocessEnv } from "../git";
@@ -108,9 +109,15 @@ export function resolveCommandContext(
   if (process.platform === "win32" && shellEnv.TZ?.includes("/")) {
     delete shellEnv.TZ;
   }
-  // The shell's temp folder, the system's unless the agent set another, in
-  // the spelling a program on this computer reads.
-  for (const name of ["TEMP", "TMP", "TMPDIR"]) {
+  // The shell's temp folder, the system's unless the agent set another, and
+  // the folders it names for the agent, in the spelling a program on this
+  // computer reads.
+  for (const name of [
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    ...Object.values(FOLDER_VARIABLES),
+  ]) {
     const value = shellEnv[name];
     if (value !== undefined) {
       shellEnv[name] = hostPathOf(value);

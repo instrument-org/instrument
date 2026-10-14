@@ -15,6 +15,7 @@ import {
 import ms from "ms";
 import { dedent } from "radashi";
 
+import { FOLDER_VARIABLES } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
@@ -105,6 +106,8 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
+import { getChatAttachmentsDir } from "./chat-dir-utils";
+import { outputFolderPath } from "./chat/output-folder";
 import { foundManagedPython } from "./run-uv";
 import { getUvBinPath, nearestVenv, venvPython } from "./uv";
 import { workDir } from "./work-dir";
@@ -633,7 +636,7 @@ export function createBashDescription() {
 
     IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -666,6 +669,23 @@ export function createBashDescription() {
     Specialized commands:
     ${specializedCommands}
   `.trim();
+}
+
+/**
+ * The folders the agent works with, by the names the shell gives them: its
+ * work folder, what the person sent the chat (none for the window), and the
+ * output folder, in the shell's spelling.
+ */
+function folderVariables(layout: WorkspaceFsLayout): Record<string, string> {
+  return {
+    ...(layout.record && {
+      [FOLDER_VARIABLES.attachments]: shellPath(
+        getChatAttachmentsDir(layout.record.hostRoot),
+      ),
+    }),
+    [FOLDER_VARIABLES.output]: shellPath(outputFolderPath()),
+    [FOLDER_VARIABLES.work]: layout.chat.shellRoot,
+  };
 }
 
 /**
@@ -827,6 +847,7 @@ export async function createLocalBashEnv({
       // The home the rules hold, so `~` in the shell is the folder its
       // native commands call home, rather than just-bash's default of `/`.
       HOME: shellPath(rules.home),
+      ...folderVariables(layout),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       // The system's temp folder, which every program it runs gets too.

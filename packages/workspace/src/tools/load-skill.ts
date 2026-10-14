@@ -71,7 +71,7 @@ export const LoadSkill = setupTool({
       // True when the body was longer than `SKILL_CONTENT_LIMIT` and only its
       // head was inlined, so the model is told where to read the rest.
       contentTruncated: z.boolean(),
-      // Relative folder the copy landed in under `work/skills`.
+      // Relative folder the copy landed in under `skills/`.
       directory: z.string(),
       files: z.array(z.string()),
       installResults: z.array(SkillInstallResultSchema).optional(),
@@ -147,7 +147,6 @@ export const LoadSkill = setupTool({
     });
 
     const relativeSkillRoot = normalizedPathJoin(
-      CHAT_FOLDER_NAMES.work,
       CHAT_FOLDER_NAMES.skills,
       directory,
     );
@@ -249,7 +248,7 @@ export const LoadSkill = setupTool({
       };
     }
 
-    const skillRoot = `${CHAT_FOLDER_NAMES.work}/${CHAT_FOLDER_NAMES.skills}/${output.directory}`;
+    const skillRoot = `${CHAT_FOLDER_NAMES.skills}/${output.directory}`;
 
     const contentSection = output.contentTruncated
       ? `\n\nThis skill's SKILL.md is longer than ${SKILL_CONTENT_LIMIT} characters, so only its beginning is below. Read \`${skillRoot}/SKILL.md\` for the rest before following it.`
@@ -264,7 +263,7 @@ export const LoadSkill = setupTool({
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
         `For an operation a script already covers, read it and run it with \`${NODE_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
-        `Run a script by its full path from the chat's folder (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts <input> --output ${CHAT_FOLDER_NAMES.work}/out\` or \`python ${skillRoot}/scripts/<script>.py <input> --output ${CHAT_FOLDER_NAMES.work}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${CHAT_FOLDER_NAMES.work}/\` won't be where your relative paths point.`,
+        `Run a script by its full path from your work folder (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts <input> --output <job>/out\` or \`python ${skillRoot}/scripts/<script>.py <input> --output <job>/out\`); do NOT \`cd\` into the skill folder to run it, or your relative paths won't point into your work folder.`,
         `For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's preinstalled libraries (see its recipes) instead of bending a script's flags to fit.`,
       ].join(" ");
 
@@ -285,7 +284,7 @@ export const LoadSkill = setupTool({
     const customizeHint = `Copy it into \`${workspaceSkillsPath}/\` to change it.`;
     const originSection =
       output.origin === "workspace"
-        ? `\n\nThis skill lives at \`${workspaceSkillsPath}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${CHAT_FOLDER_NAMES.work}/\` copy is only for this task).`
+        ? `\n\nThis skill lives at \`${workspaceSkillsPath}/${output.skillName}\`; edit it there to change the skill for future tasks (the copy under \`${CHAT_FOLDER_NAMES.skills}/\` is only for this chat).`
         : output.origin === "in-repo"
           ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the workspace's skills folder (\`${workspaceSkillsPath}/\`), so you cannot edit it in place from here. ${customizeHint}`
           : output.origin === "instrument"

@@ -48,10 +48,10 @@ export function getDownloadsDir(dir: WorkDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.downloads);
 }
 
-// Browser screenshots the agent captures. Under work/ so the agent can read
+// Browser screenshots the agent captures, in its work folder so it can read
 // them back (it is handed their paths) and the user can browse them.
 export function getScreenshotsDir(dir: WorkDir): AbsolutePath {
-  return absolutePathJoin(getChatWorkDir(dir), CHAT_FOLDER_NAMES.screenshots);
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.screenshots);
 }
 
 /**
@@ -60,13 +60,6 @@ export function getScreenshotsDir(dir: WorkDir): AbsolutePath {
  */
 export function getChatAttachmentsDir(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
-}
-
-// Scratch: source, scripts, and intermediate files the agent writes. Holds no
-// package of its own, so what lands here resolves the chat's dependencies by
-// walking up to the root like anything else in the chat's folder.
-export function getChatWorkDir(dir: WorkDir): AbsolutePath {
-  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.work);
 }
 
 /** A chat's settings and where the person left off, in its record folder. */

@@ -54,11 +54,12 @@ describe("workspace skill watcher", () => {
     const stopSecond = await startWatchingWorkspaceSkills();
     try {
       await stopFirst();
-      await fs.writeFile(
-        path.join(workspaceLayout(root).skillsDir, "kept.md"),
-        "",
-      );
-      await expect(nextEvent).resolves.toMatchObject({ done: false });
+      await expect(
+        writeUntilPublished(
+          path.join(workspaceLayout(root).skillsDir, "kept.md"),
+          nextEvent,
+        ),
+      ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();
       await stopSecond();
@@ -78,11 +79,12 @@ describe("workspace skill watcher", () => {
     const stopFresh = await startWatchingWorkspaceSkills();
     try {
       await stopStale();
-      await fs.writeFile(
-        path.join(workspaceLayout(root).skillsDir, "fresh.md"),
-        "",
-      );
-      await expect(nextEvent).resolves.toMatchObject({ done: false });
+      await expect(
+        writeUntilPublished(
+          path.join(workspaceLayout(root).skillsDir, "fresh.md"),
+          nextEvent,
+        ),
+      ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();
       await stopFresh();
@@ -126,6 +128,31 @@ describe("workspace skill watcher", () => {
     }
   }, 15_000);
 });
+
+/**
+ * Writes `file` until the watcher publishes a change. On Windows a single
+ * change has gone unheard by the native watcher under load, so one write is
+ * not enough; a watcher that stopped hears none of them.
+ */
+async function writeUntilPublished(
+  file: string,
+  nextEvent: Promise<IteratorResult<unknown>>,
+) {
+  let heard: IteratorResult<unknown> | undefined;
+  void nextEvent.then((event) => {
+    heard = event;
+  });
+  return vi.waitFor(
+    async () => {
+      if (heard) {
+        return heard;
+      }
+      await fs.writeFile(file, String(Date.now()));
+      throw new Error(`No change heard yet for ${file}`);
+    },
+    { interval: 1000, timeout: 10_000 },
+  );
+}
 
 async function setupWorkspace() {
   const workspaceRoot = await fs.mkdtemp(

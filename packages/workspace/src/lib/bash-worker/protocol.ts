@@ -1,11 +1,11 @@
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
-import { type ChatDir } from "../../schemas/paths";
+import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
-import { type ChatVenvError } from "../ensure-chat-venv";
+import { type VenvError } from "../venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
 /**
@@ -68,7 +68,7 @@ export type FromWorker =
   | { pid: number; state: "settled" | "started"; type: "tree" }
   /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; chatId: ChatId; type: "venv" };
+  | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath };
 
 export type ToWorker =
   | {
@@ -95,7 +95,7 @@ export type ToWorker =
   | { callId: number; type: "tool-result"; value: string }
   | {
       requestId: number;
-      result: ChatVenvError | undefined;
+      result: undefined | VenvError;
       type: "venv-result";
     }
   | { seq: number; type: "chunk-ack" };

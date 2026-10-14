@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { existsSync } from "node:fs";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
@@ -10,6 +11,7 @@ import {
   withInstallerClosed,
   wrapNativeCommand,
 } from "./native-sandbox";
+import { runtimeLayout } from "./runtime-dir";
 import { uvToolsEnvFor } from "./tool-isolation-env";
 import {
   getUvBinPath,
@@ -18,6 +20,7 @@ import {
   withPythonVersionNote,
 } from "./uv";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workDir } from "./work-dir";
 
 export async function runUvCommand({
   args,
@@ -39,7 +42,10 @@ export async function runUvCommand({
   stdin?: string;
   chatId: ChatId;
 }) {
-  const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({ chatId });
+  const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({
+    chatId,
+    cwd: cwd ?? workDir(chatId),
+  });
   // Held to the chat's reach like any command of its own: uv runs the
   // chat's virtualenv interpreter to read it, and that interpreter, with the
   // `.pth` files beside it, is the chat's to change.
@@ -112,6 +118,69 @@ export function ensureManagedPython(): Promise<
       return failure;
     });
   return managedPython;
+}
+
+let managedInterpreter: string | undefined;
+
+/**
+ * The managed Python's interpreter, where `managedPythonInterpreter` has
+ * found it.
+ */
+export function foundManagedPython(): string | undefined {
+  return managedInterpreter;
+}
+
+/**
+ * The managed Python's own interpreter, which `python` runs where no
+ * virtualenv is near: installed first when it is not, and asked of uv,
+ * which knows where it keeps it. Remembered once found.
+ */
+export async function managedPythonInterpreter(): Promise<
+  ManagedPythonFailure | { path: string }
+> {
+  const failure = await ensureManagedPython();
+  if (failure) {
+    return failure;
+  }
+  if (managedInterpreter !== undefined && existsSync(managedInterpreter)) {
+    return { path: managedInterpreter };
+  }
+  const { runtimeDir } = getWorkspaceConfig();
+  const spawned = withInstallerClosed(getUvBinPath(), [
+    "python",
+    "find",
+    "--no-project",
+    MANAGED_PYTHON_VERSION,
+  ]);
+  // From the Pythons' own folder, with no virtualenv in the environment, so
+  // uv answers with the managed interpreter rather than one a project or a
+  // `.venv` beside it would pick.
+  const result = await execa(spawned.file, spawned.args, {
+    all: true,
+    cwd: runtimeLayout(runtimeDir).python,
+    env: {
+      ...inheritedEnv(),
+      ...uvToolsEnvFor(runtimeDir),
+      UV_PYTHON_DOWNLOADS: "never",
+    },
+    extendEnv: false,
+    reject: false,
+    stdin: "ignore",
+  });
+  if (result.exitCode !== 0) {
+    return {
+      exitCode: result.exitCode ?? 1,
+      output: withPythonVersionNote(
+        filterShellOutput(
+          result.all ||
+            result.shortMessage ||
+            "uv failed without diagnostic output.",
+        ),
+      ),
+    };
+  }
+  managedInterpreter = result.stdout.trim();
+  return { path: managedInterpreter };
 }
 
 /**

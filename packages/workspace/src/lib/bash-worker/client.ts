@@ -5,7 +5,7 @@ import { omit, pick } from "radashi";
 
 import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
-import { ensureChatVenv } from "../ensure-chat-venv";
+import { ensureVenv } from "../venv";
 import {
   currentShellOutputSink,
   type ShellOutputSink,
@@ -298,7 +298,10 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       return;
     }
     case "venv": {
-      const result = await ensureChatVenv({ chatId: message.chatId });
+      const result = await ensureVenv({
+        chatId: message.chatId,
+        venv: message.venv,
+      });
       instance.post({
         requestId: message.requestId,
         result,

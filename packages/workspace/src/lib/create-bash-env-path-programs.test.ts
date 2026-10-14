@@ -136,6 +136,9 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
   });
 
   it("names the program one of our commands runs", async () => {
+    // A virtualenv at the root of the work folder, which `python` runs in.
+    await fs.mkdir(path.join(chatRoot, ".venv"), { recursive: true });
+    await fs.writeFile(path.join(chatRoot, ".venv", "pyvenv.cfg"), "");
     const venvPython = path.join(chatRoot, ".venv", "bin", "python");
     const result = await run(
       [

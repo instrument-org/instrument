@@ -105,7 +105,9 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
-import { chatVenvPython, getUvBinPath } from "./uv";
+import { foundManagedPython } from "./run-uv";
+import { getUvBinPath, nearestVenv, venvPython } from "./uv";
+import { workDir } from "./work-dir";
 import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createWalkBudget, type WalkBudget } from "./walk-budget";
@@ -526,12 +528,21 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
     [NODE_COMMAND.name]: () => process.execPath,
     [OSASCRIPT_COMMAND.name]: () => OSASCRIPT_PATH,
     [PNPM_COMMAND.name]: () => getWorkspaceConfig().pnpmBinPath,
-    [PYTHON_COMMAND.name]: chatVenvPython,
-    [PYTHON3_COMMAND.name]: chatVenvPython,
+    [PYTHON_COMMAND.name]: pythonProgram,
+    [PYTHON3_COMMAND.name]: pythonProgram,
     [RG_COMMAND.name]: () => RG_DISK_PATH,
     [SHORTCUTS_COMMAND.name]: () => SHORTCUTS_PATH,
     [UV_COMMAND.name]: () => getUvBinPath(),
   };
+
+/**
+ * The interpreter `python` runs in the work folder: its virtualenv's, or the
+ * managed Python's own.
+ */
+function pythonProgram(chatId: ChatId): string | undefined {
+  const venv = nearestVenv(chatId, workDir(chatId));
+  return venv ? venvPython(venv) : foundManagedPython();
+}
 
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
@@ -620,7 +631,7 @@ export function createBashDescription() {
 
     IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the real interpreter in this conversation's virtualenv, and \`${NODE_COMMAND.name}\` is a real Node with this conversation's packages. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
+    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
     IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 

@@ -1,16 +1,15 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { type AbsolutePath } from "../schemas/paths";
+import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { hostPathWithin } from "./host-path";
 import { runtimeLayout } from "./runtime-dir";
 import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
-// The chat's virtualenv, at the root of its folder so it ships with the chat
-// and stays isolated from other chats. The root is also the agent's working directory,
-// which is where uv and python look for a venv when nothing points them at one.
 const VENV_DIR_NAME = ".venv";
 
 // Pin the managed interpreter to a stable version. Without this, uv
@@ -27,20 +26,44 @@ export function getUvBinPath(): AbsolutePath {
   return getWorkspaceConfig().uvBinPath;
 }
 
-/** Absolute path to the task's virtualenv directory (`.venv`). */
-export function chatVenvDir(chatId: ChatId): AbsolutePath {
+/**
+ * The virtualenv at the root of the chat's work folder, which the first
+ * `pip install` with none nearer makes, and which a loaded skill's Python
+ * dependencies install into.
+ */
+export function workVenvDir(chatId: ChatId): AbsolutePath {
   return absolutePathJoin(workDir(chatId), VENV_DIR_NAME);
 }
 
 /**
- * Absolute path to the venv's interpreter. uv lays out `bin/python` on unix and
- * `Scripts/python.exe` on Windows; route python/python3 here directly so they
- * share the same environment that `uv pip` installs into.
+ * A virtualenv's interpreter: `bin/python` on macOS and Linux,
+ * `Scripts/python.exe` on Windows, as uv lays them out.
  */
-export function chatVenvPython(chatId: ChatId): AbsolutePath {
-  const binDir = isWindows ? "Scripts" : "bin";
-  const python = isWindows ? "python.exe" : "python";
-  return absolutePathJoin(chatVenvDir(chatId), binDir, python);
+export function venvPython(venvDir: AbsolutePath): AbsolutePath {
+  return isWindows
+    ? absolutePathJoin(venvDir, "Scripts", "python.exe")
+    : absolutePathJoin(venvDir, "bin", "python");
+}
+
+/**
+ * The virtualenv a Python command run in `cwd` uses: the nearest `.venv`
+ * from `cwd` up to the root of the chat's work folder, and for a command run
+ * outside that folder, the one at its root. Undefined where there is none.
+ */
+export function nearestVenv(
+  chatId: ChatId,
+  cwd: string,
+): AbsolutePath | undefined {
+  const root = workDir(chatId);
+  const within = hostPathWithin(root, cwd);
+  const segments = within === null ? [] : within.split("/").filter(Boolean);
+  for (let depth = segments.length; depth >= 0; depth--) {
+    const venv = path.join(root, ...segments.slice(0, depth), VENV_DIR_NAME);
+    if (existsSync(path.join(venv, "pyvenv.cfg"))) {
+      return AbsolutePathSchema.parse(venv);
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -49,20 +72,23 @@ export function chatVenvPython(chatId: ChatId): AbsolutePath {
  * to `python`/`uv` finds them on PATH. Pins uv to isolated, writable dirs under
  * userData rather than the person's home, and to a managed CPython so it never silently
  * uses a random host Python. `VIRTUAL_ENV` points uv and the interpreter at the
- * task's `.venv`.
+ * virtualenv nearest `cwd`, where there is one.
  */
 export function uvSubprocessEnv({
   chatId,
+  cwd,
 }: {
   chatId: ChatId;
+  /** The command's working folder, on the host. */
+  cwd: string;
 }): Record<string, string> {
   const { runtimeDir, uvBinPath } = getWorkspaceConfig();
   const { caches } = runtimeLayout(runtimeDir);
-  const venvDir = chatVenvDir(chatId);
+  const venvDir = nearestVenv(chatId, cwd);
 
   const pathDirs = [
     path.dirname(uvBinPath),
-    path.join(venvDir, isWindows ? "Scripts" : "bin"),
+    ...(venvDir ? [path.join(venvDir, isWindows ? "Scripts" : "bin")] : []),
     ...(process.env.PATH ? [process.env.PATH] : []),
   ];
 
@@ -82,7 +108,7 @@ export function uvSubprocessEnv({
     PATH: pathDirs.join(path.delimiter),
     TERM: "dumb",
     U2NET_HOME: path.join(caches, "u2net"),
-    VIRTUAL_ENV: venvDir,
+    ...(venvDir ? { VIRTUAL_ENV: venvDir } : {}),
     ...uvToolsEnvFor(runtimeDir),
     // The managed Python is the app's to install (installManagedPython), in
     // a folder no chat may write, so a chat's uv uses the one there and

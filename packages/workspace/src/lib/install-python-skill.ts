@@ -1,8 +1,8 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
-import { ensureChatVenv } from "./ensure-chat-venv";
 import { runUvCommand } from "./run-uv";
-import { chatVenvPython } from "./uv";
+import { venvPython, workVenvDir } from "./uv";
+import { ensureVenv } from "./venv";
 import { workDir } from "./work-dir";
 
 type PythonSkillInstallResult =
@@ -18,12 +18,13 @@ export async function installPythonSkill({
   skillDir: AbsolutePath;
   chatId: ChatId;
 }): Promise<PythonSkillInstallResult> {
-  // The chat's folder, so uv discovers the venv where it now lives rather than
-  // relying on VIRTUAL_ENV alone.
+  // Into the virtualenv at the root of the work folder, which `python` there
+  // runs in, made now where there is none.
   const dir = workDir(chatId);
-  const python = chatVenvPython(chatId);
+  const venv = workVenvDir(chatId);
+  const python = venvPython(venv);
 
-  const venvError = await ensureChatVenv({ signal, chatId });
+  const venvError = await ensureVenv({ chatId, signal, venv });
   if (venvError !== undefined) {
     return { ...venvError, state: "failure" };
   }

@@ -2,17 +2,17 @@ import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
-import { ensureChatVenv } from "../ensure-chat-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { ensureManagedPython } from "../run-uv";
 import { getUvBinPath, withPythonVersionNote } from "../uv";
+import { venvToInstallInto } from "../venv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager, backing `python` and `pip` with the chat's virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager, backing `python` and `pip`. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 
@@ -23,8 +23,6 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       return blocked;
     }
 
-    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
-
     // The chat's uv may not write the managed Python, so the app installs
     // it before the first command that could look for it.
     const python = await ensureManagedPython();
@@ -32,16 +30,16 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       return { exitCode: python.exitCode, stderr: python.output, stdout: "" };
     }
 
-    // `uv pip` requires the venv to exist (VIRTUAL_ENV points at .venv).
-    // Ensure it here so `uv pip install` works even before any `python`/`pip`
-    // call has run, matching the behavior of the `pip` custom command.
+    // `uv pip` installs into a venv, so one is made where there is none,
+    // as the `pip` command makes one.
     if (args[0] === "pip") {
-      const venvError = await ensureVenvForCommand({ ctx, chatId });
+      const venvError = await installVenvError({ chatId, ctx });
       if (venvError !== undefined) {
         return { exitCode: 1, stderr: venvError, stdout: "" };
       }
     }
 
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const result = await runUv({
       args: hostPathArgs(args),
       ctx,
@@ -53,19 +51,23 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
 }
 
 /**
- * Create the task's `.venv` if it does not yet have a usable interpreter.
- * The first call (machine-wide) downloads a managed CPython, so it can take a
- * few seconds.
+ * Makes the virtualenv an install from the shell's folder goes into, where
+ * there is none near, and says why when it could not. The first one on this
+ * computer waits for the managed Python to download, a few seconds.
  */
-export async function ensureVenvForCommand({
-  ctx,
+export async function installVenvError({
   chatId,
+  ctx,
 }: {
-  ctx: CommandContext;
   chatId: ChatId;
+  ctx: CommandContext;
 }): Promise<string | undefined> {
-  const result = await ensureChatVenv({ signal: ctx.signal, chatId });
-  return result?.output;
+  const result = await venvToInstallInto({
+    chatId,
+    cwd: resolveCommandContext(chatId, ctx).hostCwd,
+    signal: ctx.signal,
+  });
+  return "error" in result ? result.error.output : undefined;
 }
 
 /**

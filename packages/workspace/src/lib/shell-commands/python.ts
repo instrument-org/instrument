@@ -2,20 +2,19 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { pythonToRun } from "../venv";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { chatVenvPython } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext } from "./utils";
-import { ensureVenvForCommand } from "./uv";
 
 /**
- * `python` (and `python3`) is the interpreter in the chat's virtualenv, a real
- * process held to the same native sandbox as every other binary the shell
- * runs. It is where `pip install` puts packages, so a script imports what was
- * installed.
+ * `python` (and `python3`) is the interpreter in the virtualenv nearest the
+ * shell's folder, where `pip install` put packages, or the managed Python's
+ * own where there is none: a real process held to the same native sandbox
+ * as every other binary the shell runs.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python as a real process in the chat's virtualenv (.venv), with the standard library and whatever \`pip\` installed. It reads and writes the folders you reach where they sit.`,
+  description: `Run Python as a real process: in the nearest \`.venv\` up to this conversation's folder, with what \`pip\` installed there, or with the standard library alone. It reads and writes the folders you reach where they sit.`,
   name: "python",
 } as const;
 
@@ -44,7 +43,7 @@ function createPythonCommandNamed(chatId: ChatId, name: string) {
   );
 }
 
-/** Run the interpreter in the chat's virtualenv as a real subprocess. */
+/** Run the interpreter for the shell's folder as a real subprocess. */
 async function runNativePython(
   chatId: ChatId,
   name: string,
@@ -66,15 +65,21 @@ async function runNativePython(
   const finalArgs = hostPathArgs(args);
   const stdin = latin1FromBytes(ctx.stdin);
 
-  const venvError = await ensureVenvForCommand({ ctx, chatId });
-  if (venvError !== undefined) {
-    return { exitCode: 1, stderr: venvError, stdout: "" };
+  const interpreter = await pythonToRun({
+    chatId,
+    cwd: hostCwd,
+    signal: ctx.signal,
+  });
+  if ("error" in interpreter) {
+    return { exitCode: 1, stderr: interpreter.error.output, stdout: "" };
   }
 
-  const result = await execShim(chatVenvPython(chatId), finalArgs, {
+  const result = await execShim(interpreter.python, finalArgs, {
     cancelSignal: ctx.signal,
     cwd: hostCwd,
-    env,
+    // The managed Python run bare reads no packages of the person's own
+    // (their user site-packages), as a virtualenv reads none.
+    env: interpreter.venv ? env : { ...env, PYTHONNOUSERSITE: "1" },
     // Buffer, not the latin1-packed string: execa UTF-8 encodes string
     // input, which would double-encode every non-ASCII byte.
     ...(stdin ? { input: Buffer.from(stdin, "latin1") } : { stdin: "ignore" }),

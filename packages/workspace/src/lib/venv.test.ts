@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import { ensureChatVenv } from "./ensure-chat-venv";
+import { workVenvDir } from "./uv";
+import { ensureVenv, pythonToRun, venvToInstallInto } from "./venv";
 
 vi.mock(import("node:fs"), () => ({
   existsSync: vi.fn(() => false),
@@ -11,7 +12,7 @@ vi.mock(import("node:fs"), () => ({
 }));
 vi.mock(import("./run-uv"));
 
-describe("ensureChatVenv", () => {
+describe("ensureVenv", () => {
   it("has the app install the managed Python before the chat's uv makes the venv", async () => {
     const { ensureManagedPython, runUvCommand } = await import("./run-uv");
     vi.mocked(ensureManagedPython).mockClear();
@@ -24,7 +25,9 @@ describe("ensureChatVenv", () => {
 
     const chatId = createMockChatConfig(ChatIdSchema.parse("cold-python"));
 
-    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    await expect(
+      ensureVenv({ chatId, venv: workVenvDir(chatId) }),
+    ).resolves.toBeUndefined();
     expect(
       vi.mocked(ensureManagedPython).mock.invocationCallOrder[0],
     ).toBeLessThan(vi.mocked(runUvCommand).mock.invocationCallOrder[0] ?? 0);
@@ -40,7 +43,9 @@ describe("ensureChatVenv", () => {
 
     const chatId = createMockChatConfig(ChatIdSchema.parse("python-offline"));
 
-    await expect(ensureChatVenv({ chatId })).resolves.toEqual({
+    await expect(
+      ensureVenv({ chatId, venv: workVenvDir(chatId) }),
+    ).resolves.toEqual({
       exitCode: 2,
       output: "download failed",
     });
@@ -59,7 +64,9 @@ describe("ensureChatVenv", () => {
 
     const chatId = createMockChatConfig(ChatIdSchema.parse("incomplete-venv"));
 
-    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    await expect(
+      ensureVenv({ chatId, venv: workVenvDir(chatId) }),
+    ).resolves.toBeUndefined();
     expect(runUvCommand).toHaveBeenCalledTimes(1);
     // `--clear` is what lets uv replace the unusable venv rather than refuse.
     expect(vi.mocked(runUvCommand).mock.calls[0]?.[0].args).toContain(
@@ -84,7 +91,9 @@ describe("ensureChatVenv", () => {
 
     const chatId = createMockChatConfig(ChatIdSchema.parse("moved-python"));
 
-    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    await expect(
+      ensureVenv({ chatId, venv: workVenvDir(chatId) }),
+    ).resolves.toBeUndefined();
     expect(vi.mocked(existsSync).mock.lastCall?.[0]).toBe(
       "/gone/python/cpython-3.12-macos-aarch64-none/bin",
     );
@@ -105,7 +114,9 @@ describe("ensureChatVenv", () => {
 
     const chatId = createMockChatConfig(ChatIdSchema.parse("usable-venv"));
 
-    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    await expect(
+      ensureVenv({ chatId, venv: workVenvDir(chatId) }),
+    ).resolves.toBeUndefined();
     expect(runUvCommand).not.toHaveBeenCalled();
   });
 
@@ -124,13 +135,15 @@ describe("ensureChatVenv", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("venv-race"));
     const firstSignal = new AbortController();
     const secondSignal = new AbortController();
-    const first = ensureChatVenv({
+    const first = ensureVenv({
+      chatId,
       signal: firstSignal.signal,
-      chatId,
+      venv: workVenvDir(chatId),
     });
-    const second = ensureChatVenv({
-      signal: secondSignal.signal,
+    const second = ensureVenv({
       chatId,
+      signal: secondSignal.signal,
+      venv: workVenvDir(chatId),
     });
 
     await vi.waitFor(() => {
@@ -150,5 +163,50 @@ describe("ensureChatVenv", () => {
     complete?.();
 
     await expect(second).resolves.toBeUndefined();
+  });
+});
+
+describe("venvToInstallInto", () => {
+  it("makes the venv at the root of the work folder where none is near", async () => {
+    const { runUvCommand } = await import("./run-uv");
+    vi.mocked(runUvCommand).mockReset();
+    vi.mocked(runUvCommand).mockResolvedValueOnce({
+      combined: "",
+      exitCode: 0,
+      stdout: "",
+    });
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("first-install"));
+
+    await expect(
+      venvToInstallInto({
+        chatId,
+        cwd: "/tmp/workspace-machine/work/first-install/job",
+      }),
+    ).resolves.toEqual({ venv: workVenvDir(chatId) });
+    expect(vi.mocked(runUvCommand).mock.calls[0]?.[0]).toMatchObject({
+      args: ["venv", "--clear", "--python", "3.12", workVenvDir(chatId)],
+      cwd: "/tmp/workspace-machine/work/first-install",
+    });
+  });
+});
+
+describe("pythonToRun", () => {
+  it("runs the managed Python's own interpreter, and makes no venv, where none is near", async () => {
+    const { managedPythonInterpreter, runUvCommand } = await import("./run-uv");
+    vi.mocked(runUvCommand).mockReset();
+    vi.mocked(managedPythonInterpreter).mockResolvedValueOnce({
+      path: "/runtime/python/cpython-3.12/bin/python3.12",
+    });
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("no-venv"));
+
+    await expect(
+      pythonToRun({ chatId, cwd: "/tmp/workspace-machine/work/no-venv" }),
+    ).resolves.toEqual({
+      python: "/runtime/python/cpython-3.12/bin/python3.12",
+      venv: undefined,
+    });
+    expect(runUvCommand).not.toHaveBeenCalled();
   });
 });

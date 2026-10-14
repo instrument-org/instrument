@@ -4,17 +4,16 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { createPythonCommand } from "./python";
 import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
-vi.mock("./uv", () => ({
-  ensureVenvForCommand: vi.fn(),
-}));
+vi.mock(import("../venv"), () => ({ pythonToRun: vi.fn() }));
 
 const realFs = new InMemoryFs();
 
@@ -30,8 +29,39 @@ describe("python", () => {
     stdin: EMPTY_BYTES,
   });
 
+  beforeEach(async () => {
+    const { pythonToRun } = await import("../venv");
+    vi.mocked(pythonToRun).mockResolvedValue({
+      python: "/work/.venv/bin/python",
+      venv: AbsolutePathSchema.parse("/work/.venv"),
+    });
+  });
+
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  it("runs the managed Python bare, reading no user site-packages, where no venv is near", async () => {
+    const { execa } = await import("execa");
+    const { pythonToRun } = await import("../venv");
+    vi.mocked(pythonToRun).mockResolvedValueOnce({
+      python: "/runtime/python/bin/python3.12",
+      venv: undefined,
+    });
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "print(1)"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.stringContaining("python3.12"),
+      ["-c", "print(1)"],
+      expect.objectContaining({
+        env: expect.objectContaining({ PYTHONNOUSERSITE: "1" }),
+      }),
+    );
   });
 
   it("passes -c code with a real path through unchanged", async () => {

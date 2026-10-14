@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createBashEnv } from "../../lib/create-bash-env";
 import { folderReach } from "../../lib/chat/folder-reach";
+import { lastLoadedSkillDir } from "../../lib/loaded-skill";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
@@ -73,6 +74,12 @@ const runBash = base
     const chatId = resolveChat(input.chatId);
     const bash = await createBashEnv({
       folders: await folderReach(input.chatId),
+      // The skill the session loaded last, as the agent's own shell names it.
+      loadedSkillDir: await lastLoadedSkillDir({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+        signal,
+      }),
       role: chatId ? "chat" : "task",
       sessionId: input.sessionId,
       chatId: input.chatId,

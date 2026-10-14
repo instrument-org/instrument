@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { rememberLoadedSkill } from "../../lib/loaded-skill";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { ChatDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
@@ -48,6 +49,18 @@ describe("workspace.debug.runBash", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("out\n");
     expect(result.stderr).toBe("err\n");
+  });
+
+  it("names the skill the session loaded last, as the agent's shell does", async () => {
+    const skillDir = path.join(tmpDir, "skills", "pdf");
+    rememberLoadedSkill(sessionId, skillDir);
+    const result = await call(
+      debug.runBash,
+      { command: 'printf %s "$INSTRUMENT_SKILL_DIR"', sessionId, chatId },
+      { context: createContext() },
+    );
+
+    expect(result.stdout).toBe(skillDir);
   });
 
   // The real callers never abort the oRPC signal, so the route's own timeout

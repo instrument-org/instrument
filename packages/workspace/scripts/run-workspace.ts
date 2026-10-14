@@ -26,6 +26,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { startRun } from "../evals/lib/start-run";
 import { env } from "./lib/env";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 const PROVIDER_CONFIGS: AIGatewayProviderConfig.Type[] = [
   {
@@ -118,6 +119,7 @@ const actor = createActor(workspaceMachine, {
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
     modelCache: noopModelCache,
     nodeExecEnv: {},

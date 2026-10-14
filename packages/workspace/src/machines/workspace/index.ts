@@ -271,6 +271,7 @@ export const workspaceMachine = setup({
       appVersion: string;
       browser: BrowserConfig;
       captureException: CaptureExceptionFunction;
+      deviceId: WorkspaceConfig["deviceId"];
       driveNames?: WorkspaceConfig["driveNames"];
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       finderEntries?: WorkspaceConfig["finderEntries"];
@@ -315,6 +316,7 @@ export const workspaceMachine = setup({
       appVersion: input.appVersion,
       browser: input.browser,
       captureException: input.captureException,
+      deviceId: input.deviceId,
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }

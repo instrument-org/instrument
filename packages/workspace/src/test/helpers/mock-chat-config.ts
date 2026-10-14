@@ -39,6 +39,7 @@ import { type BrowserConfig, type WorkspaceConfig } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
+import { newDeviceId } from "../../lib/records/device-id";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 // Outside the workspace, as this computer's folder for it is.
@@ -127,6 +128,7 @@ export function createMockChatConfig(
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     modelCache: options.catalog
       ? { ...noopModelCache, read: () => options.catalog }

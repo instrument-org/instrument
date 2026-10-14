@@ -22,6 +22,7 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
+  type DeviceId,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -74,7 +75,7 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-export function createWorkspaceActor() {
+export function createWorkspaceActor(deviceId: DeviceId) {
   const rootDir = getWorkspaceFolder();
 
   // The layout sweeps bring what 1.x and the 2.0 betas left into the shape
@@ -106,6 +107,7 @@ export function createWorkspaceActor() {
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       captureException: captureServerException,
+      deviceId,
       ...(process.platform === "win32"
         ? { driveNames: windowsDriveNames }
         : {}),

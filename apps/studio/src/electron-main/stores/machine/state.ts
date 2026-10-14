@@ -12,6 +12,14 @@ import { z } from "zod";
  * Per-workspace state is in `workspace/state.ts`.
  */
 const MachineStateSchema = z.object({
+  /**
+   * This install's device id, which every chat record it writes is filed
+   * under, and the SHA-256 of the machine's own id it was made on. Read as
+   * plain strings and checked by `chooseDeviceId`, so a value this build
+   * cannot use costs a new id rather than the rest of this file.
+   */
+  deviceId: z.string().optional(),
+  hardwareId: z.string().optional(),
   lastLaunchedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
 });

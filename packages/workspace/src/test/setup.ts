@@ -12,6 +12,7 @@ import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { unavailableWebSearchClient } from "../schemas/web-search";
+import { newDeviceId } from "../lib/records/device-id";
 
 const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-test-"),
@@ -61,6 +62,7 @@ setWorkspaceConfig({
     subscribeEvents: noopCleanup,
   },
   captureException: noop,
+  deviceId: newDeviceId(),
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},

@@ -29,6 +29,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../src/types";
 import { EVAL_MACHINE_DIR_NAME } from "./lib/run-record";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 /**
  * Color is off unless a terminal is going to read it. Every consumer of this
@@ -65,6 +66,7 @@ export function buildReportWorkspaceConfig(
     captureException: () => {
       return;
     },
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => [],
     modelCache: noopModelCache,
     nodeExecEnv: {},

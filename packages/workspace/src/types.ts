@@ -12,6 +12,7 @@ import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
 import { type FinderEntry } from "./lib/chat/finder-entries";
+import { type DeviceId } from "./lib/records/device-id";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type WebSearchClient } from "./schemas/web-search";
@@ -147,6 +148,13 @@ export interface WorkspaceConfig {
   appVersion: string;
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
+  /**
+   * This install of the app on this machine, which every chat record this
+   * process writes is filed under: the only writer of each log and marks
+   * file whose name carries it. Chosen before the workspace starts, from
+   * what the machine's state holds and the hardware it runs on.
+   */
+  deviceId: DeviceId;
   /**
    * What the system's file manager calls each drive at `roots` (`C:\`), by
    * its root, for the Files sidebar's Locations: "Local Disk (C:)" on

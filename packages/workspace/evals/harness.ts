@@ -72,6 +72,7 @@ import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
 import { makeToolBinIn } from "../scripts/lib/tool-bin-dir";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
@@ -600,6 +601,7 @@ export async function runEvals(
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
+      deviceId: newDeviceId(),
       getAIProviderConfigs: () => providerConfigs,
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches

@@ -10,6 +10,7 @@ import {
 import { unavailableWebSearchClient } from "../../src/schemas/web-search";
 import { createStubBrowserConfig } from "../../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../../src/types";
+import { newDeviceId } from "../../src/lib/records/device-id";
 
 export function createStubWorkspaceConfig({
   overrides,
@@ -34,6 +35,7 @@ export function createStubWorkspaceConfig({
     captureException: () => {
       return;
     },
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => [],
     // On for the dev harnesses, which exist to exercise the real thing. The
     // app ships with it off until the macOS permission prompt is handled.

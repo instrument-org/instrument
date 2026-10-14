@@ -58,6 +58,7 @@ import { ChatIdSchema } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 function parseArgs(argv: string[]) {
   const attach: {
@@ -156,6 +157,7 @@ setWorkspaceConfig({
   captureException: () => {
     return;
   },
+  deviceId: newDeviceId(),
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},

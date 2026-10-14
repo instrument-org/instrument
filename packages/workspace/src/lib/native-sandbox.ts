@@ -153,7 +153,9 @@ export function seatbeltProfile(
     const filter = (spelled: string) =>
       rule.dotEntries
         ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
-        : `(subpath ${sbplString(spelled)})`;
+        : rule.file
+          ? `(literal ${sbplString(spelled)})`
+          : `(subpath ${sbplString(spelled)})`;
     // A socket in a closed place is how another program hands out what the
     // place holds (1Password's or gpg's agent signs with keys the agent may
     // not read), so connecting to one is closed with it, as the ssh-agent's
@@ -636,8 +638,14 @@ export function bwrapArgs(
   add(path.dirname(standIn), "read", 3);
   for (const rule of rules) {
     const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    // A file the user sent that runs code when its folder is used (an
+    // `.envrc`) opens to reading alone, as the rules have it.
     const access =
-      level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
+      level === "allow" && !(rule.file && runsCodeByName(rule.path))
+        ? "write"
+        : level === "allow" || level === "readOnly"
+          ? "read"
+          : "none";
     const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];
     for (const target of targets) {
       add(target, access, ruleRank(rule));
@@ -785,12 +793,14 @@ export function bwrapArgs(
       ours.add(closed);
     }
   }
+  // A file the user sent that is gone is not a folder to make.
   const allowedByName = new Set(
     rules
       .filter(
         (rule) =>
           rule.level === "allow" &&
           !rule.dotEntries &&
+          !rule.file &&
           (rule.source === "grant" || rule.source === "folder"),
       )
       .map((rule) => rule.path),
@@ -881,6 +891,14 @@ export function bwrapArgs(
     }
   }
   return [...args, ...sessionSockets, ...remountLater];
+}
+
+/** Whether a path is, or is in, a name that runs code when its folder is used. */
+function runsCodeByName(target: string): boolean {
+  const slashed = target.replaceAll(path.sep, "/");
+  return [".git", ...DANGEROUS_NAMES].some(
+    (name) => slashed.endsWith(`/${name}`) || slashed.includes(`/${name}/`),
+  );
 }
 
 /**

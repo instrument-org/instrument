@@ -12,10 +12,12 @@ import { StoreId } from "./store-id";
  * it alone. "card" is an allow from a permission card (or `task folder
  * --add`), "attached" a folder the user sent with a message. Where it mounts
  * is derived from its path and when it was granted (folder-reach.ts), never
- * stored.
+ * stored. A grant of `kind` "file" is a file the user sent, opened alone:
+ * the rules allow it, and nothing mounts it.
  */
 const ChatGrantSchema = z.object({
   grantedAt: z.coerce.date(),
+  kind: z.literal("file").optional(),
   path: AbsolutePathSchema,
   source: z.enum(["attached", "card"]),
 });

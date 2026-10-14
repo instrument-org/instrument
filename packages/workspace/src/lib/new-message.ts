@@ -23,7 +23,7 @@ import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
 import { chatDir, resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
-import { grantFolder } from "./chat/grants";
+import { grantFile, grantFolder } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
@@ -45,6 +45,7 @@ export async function newMessage({
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
+  /** Files the user sent with the message, each from the disk granted to the chat where it is. */
   files?: FileUpload.Type[];
   /** Folders the user sent with the message, each granted to the chat. */
   folders?: { path: string }[];
@@ -173,6 +174,12 @@ export async function newMessage({
 
     if (uploadResult.isErr()) {
       return uploadResult;
+    }
+
+    for (const file of files ?? []) {
+      if ("path" in file) {
+        await grantFile({ chatId, path: file.path });
+      }
     }
 
     const { part } = uploadResult.value;

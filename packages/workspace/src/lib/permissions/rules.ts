@@ -111,6 +111,8 @@ export interface Rule {
   appData?: true;
   /** Every hidden entry directly in `path`, rather than `path` itself. */
   dotEntries?: true;
+  /** Set for a file the user sent, which the rule opens alone. */
+  file?: true;
   level: Access;
   path: string;
   /** Set for a folder the person said not now to in this chat. */
@@ -171,10 +173,15 @@ export function rulesFor({
   for (const folder of settings.folders) {
     rules.push({ level: folder.level, path: folder.path, source: "folder" });
   }
-  for (const allowed of [
-    ...grants.map((grant) => grant.path),
-    ...extraAllows,
-  ]) {
+  for (const grant of grants) {
+    rules.push({
+      ...(grant.kind === "file" && { file: true }),
+      level: "allow",
+      path: grant.path,
+      source: "grant",
+    });
+  }
+  for (const allowed of extraAllows) {
     rules.push({ level: "allow", path: allowed, source: "grant" });
   }
   // An Always allow for the folder or one holding it, given in Settings or

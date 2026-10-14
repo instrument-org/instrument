@@ -33,6 +33,32 @@ export async function grantFolder({
   path: string;
   source: ChatGrant["source"];
 }): Promise<ChatGrant> {
+  return addGrant(chatId, { path, source });
+}
+
+/**
+ * Grants a chat a file the user sent, read and write, where it is on disk:
+ * the rules open that file alone, whatever its folder's place says, as they
+ * open a folder sent with a message.
+ */
+export async function grantFile({
+  chatId,
+  path,
+}: {
+  chatId: ChatId;
+  path: string;
+}): Promise<ChatGrant> {
+  return addGrant(chatId, { kind: "file", path, source: "attached" });
+}
+
+async function addGrant(
+  chatId: ChatId,
+  {
+    kind,
+    path,
+    source,
+  }: { kind?: ChatGrant["kind"]; path: string; source: ChatGrant["source"] },
+): Promise<ChatGrant> {
   const wanted = AbsolutePathSchema.parse(path);
   let granted: ChatGrant | undefined;
   await updateChatRecord(chatDir(chatId), "settings", (record) => {
@@ -41,11 +67,16 @@ export async function grantFolder({
     if (granted) {
       return record.raw;
     }
-    granted = { grantedAt: getCurrentDate(), path: wanted, source };
+    granted = {
+      grantedAt: getCurrentDate(),
+      ...(kind && { kind }),
+      path: wanted,
+      source,
+    };
     return { ...record.raw, grants: [...grants, granted] };
   });
   if (!granted) {
-    throw new Error(`Folder ${path} was not granted`);
+    throw new Error(`${path} was not granted`);
   }
   return { ...granted, path: wanted };
 }

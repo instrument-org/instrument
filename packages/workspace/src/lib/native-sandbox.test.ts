@@ -389,6 +389,9 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(path.join(closed, "key"), "s");
+  // A file the person sent from the closed folder, open alone.
+  const sent = path.join(closed, "sent.md");
+  writeFileSync(sent, "d");
   writeFileSync(path.join(asks, "other.txt"), "o");
   writeFileSync(path.join(granted, "brief.md"), "b");
   writeFileSync(path.join(home, "notes.md"), "n");
@@ -399,6 +402,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     { level: "ask", path: asks, source: "place" },
     { dotEntries: true, level: "ask", path: home, source: "place" },
     { level: "allow", path: granted, source: "grant" },
+    { file: true, level: "allow", path: sent, source: "grant" },
   ]);
 
   async function run(file: string, args: string[]) {
@@ -416,6 +420,17 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
       0,
     ],
     ["refuses a closed folder", ["cat", path.join(closed, "key")], 1],
+    ["reads a file sent from a closed folder", ["cat", sent], 0],
+    [
+      "changes a file sent from a closed folder in place",
+      ["sh", "-c", `echo x > ${sent}`],
+      0,
+    ],
+    [
+      "refuses a new file beside one sent from a closed folder",
+      ["sh", "-c", `echo x > ${path.join(closed, "new")}`],
+      1,
+    ],
     [
       "refuses a closed folder by its Data-volume path",
       ["cat", `/System/Volumes/Data${path.join(closed, "key")}`],
@@ -582,6 +597,9 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(path.join(closed, "key"), "s");
+  // A file the person sent from the closed folder, open alone.
+  const sent = path.join(closed, "sent.md");
+  writeFileSync(sent, "d");
   writeFileSync(path.join(asks, "other.txt"), "o");
   writeFileSync(path.join(granted, "brief.md"), "b");
   writeFileSync(path.join(home, "notes.md"), "n");
@@ -592,6 +610,7 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     { level: "ask", path: asks, source: "place" },
     { dotEntries: true, level: "ask", path: home, source: "place" },
     { level: "allow", path: granted, source: "grant" },
+    { file: true, level: "allow", path: sent, source: "grant" },
   ]);
 
   it.each([
@@ -599,6 +618,17 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     ["reads in a granted folder", `cat ${path.join(granted, "brief.md")}`, 0],
     ["writes in a granted folder", `echo x > ${path.join(granted, "new")}`, 0],
     ["refuses a closed folder", `cat ${path.join(closed, "key")}`, 1],
+    ["reads a file sent from a closed folder", `cat ${sent}`, 0],
+    [
+      "changes a file sent from a closed folder in place",
+      `echo x > ${sent}`,
+      0,
+    ],
+    [
+      "refuses a new file beside one sent from a closed folder",
+      `echo x > ${path.join(closed, "new")}`,
+      1,
+    ],
     ["refuses a place that asks", `cat ${path.join(asks, "other.txt")}`, 1],
     ["refuses a hidden folder", `cat ${path.join(home, ".hidden", "x")}`, 1],
     [
@@ -693,6 +723,35 @@ describe("bwrapArgs", () => {
     for (const link of planted) {
       rmSync(link, { force: true });
     }
+    rmSync(home, { force: true, recursive: true });
+  });
+
+  it("binds a file the person sent alone, never makes one that is gone, and binds one that runs code read-only", () => {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+    const closed = path.join(home, "Private");
+    mkdirSync(closed);
+    const sent = path.join(closed, "report.md");
+    const envrc = path.join(closed, ".envrc");
+    const gone = path.join(closed, "deleted.md");
+    writeFileSync(sent, "r");
+    writeFileSync(envrc, "e");
+    const args = bwrapArgs(
+      reachOver(home, [
+        { level: "never", path: closed, source: "folder" },
+        ...[sent, envrc, gone].map(
+          (file): Rule => ({
+            file: true,
+            level: "allow",
+            path: file,
+            source: "grant",
+          }),
+        ),
+      ]),
+    ).join(" ");
+    expect(args).toContain(`--bind ${sent} ${sent}`);
+    expect(args).toContain(`--ro-bind ${envrc} ${envrc}`);
+    expect(args).not.toContain(gone);
+    expect(existsSync(gone)).toBe(false);
     rmSync(home, { force: true, recursive: true });
   });
 

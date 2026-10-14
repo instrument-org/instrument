@@ -46,7 +46,9 @@ export async function folderReach(
     const granted = (grants ?? (await chatGrants(chatId))).toSorted(
       (a, b) => a.grantedAt.getTime() - b.grantedAt.getTime(),
     );
-    for (const grant of granted) {
+    // A file the user sent is open by the rules alone, in whichever folder
+    // holds it; it is no folder to reach.
+    for (const grant of granted.filter((each) => each.kind !== "file")) {
       add({
         access: "read-write",
         id: MountedFolder.IdSchema.parse(`grant:${grant.path}`),

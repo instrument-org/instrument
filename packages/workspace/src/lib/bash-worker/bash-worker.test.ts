@@ -23,6 +23,7 @@ import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { workspaceLayout } from "../workspace-layout";
 import { getWorkspaceSkillsDir } from "../workspace-skills-dir";
 import {
@@ -90,8 +91,17 @@ function currentWorker() {
 /**
  * Whether the process is still running. A child whose worker died is never
  * reaped, so it lingers as a zombie that `kill(pid, 0)` still reports.
+ * Windows keeps no zombies, so there `kill(pid, 0)` answers.
  */
 function isAlive(pid: number) {
+  if (process.platform === "win32") {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const state = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], {
     encoding: "utf8",
   }).stdout.trim();
@@ -140,7 +150,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     );
     expect(result).toMatchObject({
       exitCode: 0,
-      stdout: `hi\n${workDir(chatId)}/work\n`,
+      stdout: `hi\n${shellPath(workDir(chatId))}/work\n`,
     });
     expect(result.metadata?.commands).toEqual(["cd", "echo", "cat", "pwd"]);
   });
@@ -173,7 +183,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     const bashOptions = options();
     const turn = { id: chatId, sessionId: bashOptions.sessionId };
     await beginSkillChangeTracking(turn);
-    const skill = `${getWorkspaceSkillsDir()}/tracked`;
+    const skill = `${shellPath(getWorkspaceSkillsDir())}/tracked`;
 
     await withTurnContext(turn, () =>
       remoteBash(bashOptions).exec(
@@ -243,12 +253,13 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         chatId: recordChat,
       };
       const bash = remoteBash(bashOptions);
-      chatBash = (command) => bash.exec(command.replaceAll("<record>", record));
+      chatBash = (command) =>
+        bash.exec(command.replaceAll("<record>", shellPath(record)));
     });
 
     it("starts in the work folder", async () => {
       const result = await chatBash("pwd");
-      expect(result.stdout).toBe(`${workDir(recordChat)}\n`);
+      expect(result.stdout).toBe(`${shellPath(workDir(recordChat))}\n`);
     });
 
     it("reads what the person sent, and copies it into the work folder", async () => {

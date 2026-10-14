@@ -18,6 +18,7 @@ import { createRemoteBash, setBashWorkerFactory } from "./bash-worker/client";
 import { type BashEnvOptions, createLocalBashEnv } from "./create-bash-env";
 import { updatePermissionSettings } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * A read the rules refuse says `Permission denied`, the way a builtin prints
@@ -125,41 +126,60 @@ describe.each(Object.entries(shells))(
   "a refused read %s",
   { timeout: WORKER_TIMEOUT_MS },
   (_where, shell) => {
+    // The folders as the shell names them.
+    const shown = (...segments: string[]) => shellPath(path.join(...segments));
+
     it("says Permission denied for a file and a folder the rules close", async () => {
       const bash = await shell();
       const result = await bash.exec(
-        `cat ${docs}/locked/secret.txt; ls ${docs}/locked`,
+        `cat ${shown(docs)}/locked/secret.txt; ls ${shown(docs)}/locked`,
       );
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain(
-        `cat: ${docs}/locked/secret.txt: Permission denied\n`,
+        `cat: ${shown(docs)}/locked/secret.txt: Permission denied\n`,
       );
       expect(result.stderr).toContain(
-        `ls: ${docs}/locked: Permission denied\n`,
+        `ls: ${shown(docs)}/locked: Permission denied\n`,
       );
       expect(result.stderr).not.toContain("No such file or directory");
     });
 
-    it("reads outside every mount where the rules allow, and says Permission denied where they close", async () => {
+    // Windows has no one root to read its drives from, so there the shell
+    // reads nothing outside the folders it mounts.
+    it.skipIf(process.platform === "win32")(
+      "reads outside every mount where the rules allow",
+      async () => {
+        const bash = await shell();
+        const result = await bash.exec(`cat ${shown(elsewhere)}/open.txt`);
+        expect(result.stdout).toBe("open\n");
+      },
+    );
+
+    it("says Permission denied outside every mount where the rules close", async () => {
       const bash = await shell();
-      const result = await bash.exec(`cat ${elsewhere}/open.txt; ls ${closed}`);
-      expect(result.stdout).toBe("open\n");
-      expect(result.stderr).toContain(`ls: ${closed}: Permission denied\n`);
+      const result = await bash.exec(`ls ${shown(closed)}`);
+      expect(result.stderr).toContain(
+        `ls: ${shown(closed)}: Permission denied\n`,
+      );
     });
 
     it("raises a card for a folder a later command lists, and none for one a walk passes", async () => {
       const bash = await shell();
-      const walked = await bash.exec(`find ${docs} -name x`);
+      const walked = await bash.exec(`find ${shown(docs)} -name x`);
       expect(walked.stderr).not.toContain("Waiting on the person");
-      const listed = await bash.exec(`ls ${docs}; ls ${docs}/asks`);
+      const listed = await bash.exec(
+        `ls ${shown(docs)}; ls ${shown(docs)}/asks`,
+      );
       expect(listed.stderr).toContain(
-        `Waiting on the person to allow ${JSON.stringify(path.join(docs, "asks"))}.`,
+        `Waiting on the person to allow ${JSON.stringify(shown(docs, "asks"))}.`,
       );
     });
 
     it("refuses the workspace's machine folder plainly, its folder rules with it", async () => {
       const bash = await shell();
-      const result = await bash.exec(`cat ${tmpDir}/machine/permissions.json`);
+      const result = await bash.exec(
+        `cat ${shown(tmpDir, "machine", "permissions.json")}`,
+      );
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain("Permission denied");
       expect(result.stderr).toContain("Instrument's own data");
@@ -168,9 +188,9 @@ describe.each(Object.entries(shells))(
 
     it("still says a missing file is missing", async () => {
       const bash = await shell();
-      const result = await bash.exec(`cat ${docs}/missing.txt`);
+      const result = await bash.exec(`cat ${shown(docs)}/missing.txt`);
       expect(result.stderr).toBe(
-        `cat: ${docs}/missing.txt: No such file or directory\n`,
+        `cat: ${shown(docs)}/missing.txt: No such file or directory\n`,
       );
     });
   },

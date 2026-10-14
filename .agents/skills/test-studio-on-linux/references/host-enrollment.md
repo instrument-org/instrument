@@ -44,6 +44,7 @@ The unit must:
 - Launch the configured executable with `--remote-debugging-port=<installed.cdpPort>`.
 - Pass the same display-platform flag the installed desktop entry uses, so what you test is the path real users get rather than a different rendering backend.
 - Set a short `TimeoutStopSec`. An app whose main thread is blocked by a desktop-modal prompt never processes `SIGTERM`, and the default stop timeout makes every stop in that state look like a hang.
+- Set `ExitType=cgroup`. When the app restarts itself (moving the Instrument folder, choosing it again, a workspace switch), it leaves a process in the unit that starts the new one once the old one exits. By default systemd ends the unit as soon as the main process exits and kills that process with it; a desktop launch runs in a scope, which outlives it.
 - Redirect output to a host-local log outside any checkout.
 - Omit an install section. The launcher is started on demand and must not come up with the session.
 

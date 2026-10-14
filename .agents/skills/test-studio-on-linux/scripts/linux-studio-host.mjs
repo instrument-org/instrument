@@ -918,7 +918,8 @@ def preview_processes():
 /**
  * Python that runs a preview as a transient user unit, which inherits the
  * graphical session's environment the way the installed unit does, and waits
- * for its renderer.
+ * for its renderer. The unit lasts as long as any process in it, so a restart
+ * the app makes for itself survives the exit of the process that started it.
  */
 function previewStartScript(name, timeoutSeconds) {
   return `${baseScript(PREVIEW_TARGET)}
@@ -938,6 +939,7 @@ if not existing["live"]:
     subprocess.run(
         [
             "systemd-run", "--user", "--collect", "--unit=" + target["unit"],
+            "--property=ExitType=cgroup",
             "--setenv=DISABLE_AUTO_UPDATE_POLLING=true",
             "--working-directory=" + os.path.dirname(executable),
             executable, "--remote-debugging-port=%d" % target["cdpPort"],

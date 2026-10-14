@@ -25,6 +25,10 @@ import {
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import { finishPendingMove, hideAppFolder } from "./lib/workspace-move";
+import {
+  inspectWorkspaceFolder,
+  setWorkspaceRefusal,
+} from "./lib/workspace-refusal";
 import { pathWithin } from "./lib/path-identity";
 import {
   markWorkspaceOpen,
@@ -104,8 +108,20 @@ function openWorkspace() {
   logger.info(
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
-  // A workspace made here for the first time outside the app's own data is
-  // hidden the way the app's part of one is on Windows, once it exists.
+  // A folder made by a newer build, or one that cannot be read, is not
+  // opened: the boot says so in a window of its own and starts nothing else.
+  const refusal = inspectWorkspaceFolder({ userDataDir, workspace });
+  if (refusal) {
+    logger.warn(
+      refusal.kind === "newer"
+        ? `Not opening ${workspace.path}: a newer build made it`
+        : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
+    );
+    setWorkspaceRefusal(refusal);
+    return;
+  }
+  // A workspace made here for the first time outside the app's own data has
+  // its `.instrument` hidden on Windows once it exists.
   const dataDir = workspaceLayout(workspace.path).dataDir;
   const createdOutsideAppData =
     !fs.existsSync(dataDir) && !pathWithin(workspace.path, userDataDir);

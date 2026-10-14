@@ -53,3 +53,22 @@ export async function relaunchApp({
   app.quit();
   return "relaunching";
 }
+
+/**
+ * Exit and come back up at once, for a window shown before anything opened
+ * (`workspace-refusal.ts`): there is nothing running to ask about or tear
+ * down. Answers false, having done nothing, for a run that cannot bring
+ * itself back.
+ */
+export function restartNow(): boolean {
+  if (!canRelaunch()) {
+    return false;
+  }
+  if (app.isPackaged) {
+    app.relaunch();
+    app.exit(0);
+  } else {
+    app.exit(DEV_RELAUNCH_EXIT_CODE);
+  }
+  return true;
+}

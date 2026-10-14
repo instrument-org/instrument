@@ -1027,6 +1027,16 @@ function dotEntriesIn(folder: string): string[] {
   }
 }
 
+/**
+ * Whether a native command started now runs held to the rules: a reach
+ * applies here and a system sandbox can hold it.
+ */
+export function nativeCommandsSandboxed(): boolean {
+  return (
+    currentReach() !== undefined && (seatbeltAvailable() || bwrapAvailable())
+  );
+}
+
 function currentReach(): NativeReach | undefined {
   const held = heldNativeReach();
   if (held) {

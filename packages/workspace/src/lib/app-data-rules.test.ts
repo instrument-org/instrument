@@ -25,6 +25,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import {
   type NativeReach,
   bwrapArgs,
+  bwrapAvailable,
   refusalNote,
   refusedPathIn,
   seatbeltAvailable,
@@ -785,6 +786,46 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       );
       expect(walkedWrong(walked, root)).toEqual([]);
     });
+
+    // Held by the sandbox, ripgrep can pass through a closed folder but not
+    // list it, so a walk takes no way on through one: each is left out
+    // whole, and the search ends without an error.
+    it.runIf(
+      shape.workspace !== undefined && (seatbeltAvailable() || bwrapAvailable()),
+    ).each([
+      ["the workspace", ["-uuu", "--files", paths.workspace], paths.work],
+      ["the workspace it was cd'd into", ["-uuu", "--files"], paths.workspace],
+    ])(
+      "rg held by the sandbox walks %s with no error",
+      async (_name, args, cwd) => {
+        const searched = withAppDataLeftOut(args, layout, cwd, {
+          sandboxed: true,
+        });
+        if ("error" in searched) {
+          throw new Error(searched.error);
+        }
+        const spawned = wrapNativeCommand(
+          RG_DISK_PATH,
+          ["--no-config", "--path-separator=/", ...searched.args],
+          nativeReachFor(layout.rules, layout),
+        );
+        const listed = await execa(spawned.file, spawned.args, {
+          cwd,
+          reject: false,
+        });
+        expect(listed.stderr).toBe("");
+        expect(listed.exitCode).toBe(0);
+        const walked = new Set(
+          listed.stdout
+            .split("\n")
+            .filter(Boolean)
+            .map((printed) => path.resolve(cwd, printed)),
+        );
+        expect(
+          files.filter(({ hostPath, open }) => !open && walked.has(hostPath)),
+        ).toEqual([]);
+      },
+    );
 
     it.skipIf(process.platform === "win32")(
       "du leaves it out of the home folder",

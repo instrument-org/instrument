@@ -5,6 +5,7 @@ import nodePath from "node:path";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin, realHostPath } from "../host-path";
+import { nativeCommandsSandboxed } from "../native-sandbox";
 import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
@@ -110,7 +111,9 @@ export function createRgCommand({
     }
 
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
-    const searched = withAppDataLeftOut(bridged.args, layout, hostCwd);
+    const searched = withAppDataLeftOut(bridged.args, layout, hostCwd, {
+      sandboxed: nativeCommandsSandboxed(),
+    });
     if ("error" in searched) {
       return { exitCode: 2, stderr: `${searched.error}\n`, stdout: "" };
     }
@@ -299,11 +302,18 @@ function deniedFlag(arg: string): null | string {
  * `--iglob` after each `--glob`, and the last glob matching a path decides,
  * so no glob of the agent's brings back what they leave out. They go ahead
  * of a `--`, since everything past it is a path.
+ *
+ * Where the native sandbox holds ripgrep, a folder it closes can be passed
+ * through but not listed, so a walk could never take the way on to what
+ * opens inside it, and listing it would fail the whole search with exit 2.
+ * There each closed folder a walk reaches is left out whole. What opens in
+ * it is still searched by naming it (`rg x .instrument/skills`).
  */
 export function withAppDataLeftOut(
   args: readonly string[],
   layout: WorkspaceFsLayout,
   hostCwd: string,
+  { sandboxed = false }: { sandboxed?: boolean } = {},
 ): { args: string[] } | { error: string } {
   const { closed, open } = appDataBounds(layout);
   // A closed folder inside another is left out with it, unless something
@@ -322,7 +332,10 @@ export function withAppDataLeftOut(
       ),
   );
   const below = new Map(
-    outermost.map((folder) => [folder, leftOutBelow(folder, open)]),
+    outermost.map((folder) => [
+      folder,
+      sandboxed ? [""] : leftOutBelow(folder, open),
+    ]),
   );
   // What to leave out of a walk from `reached`, relative to it: the left-out
   // folders it holds, and where it starts inside one (a `cd` passes through

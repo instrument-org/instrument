@@ -18,11 +18,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { folderLabel } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, typedHostPath } from "@instrument-org/shared";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -324,7 +323,10 @@ function InstrumentFolder() {
     }
   };
 
-  const name = picked ? folderLabel(picked.path) : "";
+  // Where the folder is rather than its name: the suggested folder is
+  // itself called Instrument, and "Move your Instrument folder to
+  // “Instrument”" reads as moving it into itself.
+  const where = picked ? typedHostPath(picked.path, window.api.homeDir) : "";
   const opensInstead = picked?.verdict.kind === "workspace";
 
   return (
@@ -364,7 +366,7 @@ function InstrumentFolder() {
       </p>
       <div className="rounded-lg border bg-muted/40 px-3 py-2 select-text">
         <code className="font-mono text-xs break-all text-foreground">
-          {folder.path}
+          {typedHostPath(folder.path, window.api.homeDir)}
         </code>
       </div>
       <AlertDialog
@@ -379,8 +381,8 @@ function InstrumentFolder() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {opensInstead
-                ? `“${name}” is already an Instrument folder`
-                : `Move your Instrument folder to “${name}”?`}
+                ? `“${where}” is already an Instrument folder`
+                : `Move your Instrument folder to “${where}”?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {opensInstead

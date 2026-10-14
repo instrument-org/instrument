@@ -1,7 +1,7 @@
 import {
   APP_NAME,
-  displayHostPath,
   MANUAL_DOWNLOAD_URL,
+  typedHostPath,
 } from "@instrument-org/shared";
 import { app, BrowserWindow, dialog, nativeTheme, shell } from "electron";
 import os from "node:os";
@@ -59,9 +59,12 @@ export async function showWorkspaceRefusal({
   refusal: WorkspaceRefusal;
   userDataDir: string;
 }): Promise<void> {
+  // Spelled as Settings spells it, and free to wrap after a separator rather
+  // than in the middle of a name, though not right after where it starts
+  // (`~/`, `/`, `C:\`), which would leave that alone at the end of a line.
   const where = escapeHtml(
-    displayHostPath(refusal.workspace.path, os.homedir()),
-  );
+    typedHostPath(refusal.workspace.path, os.homedir()),
+  ).replaceAll(/(?<=[^/\\~:])[/\\]/g, "$&<wbr>");
   const pinned = refusal.workspace.pinned;
   const window = new BrowserWindow({
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1c1c1e" : "#ffffff",
@@ -75,6 +78,10 @@ export async function showWorkspaceRefusal({
     webPreferences: { partition: "workspace-refusal", sandbox: true },
     width: WIDTH,
   });
+  // Off the Mac a window carries Electron's default menu bar, the app's own
+  // being built only for a launch that opens a workspace, and its File, Edit
+  // and View have nothing to do on this page.
+  window.removeMenu();
   // Nothing but this window runs, so closing it is quitting, unless the app
   // is already on its way out to restart or to install an update, whose own
   // exit closes the window.
@@ -176,6 +183,9 @@ export async function showWorkspaceRefusal({
       defaultPath: refusal.workspace.path,
       message: "Choose your Instrument folder.",
       properties: ["openDirectory", "createDirectory"],
+      // What the panel's own title bar says on Linux and Windows, where it
+      // would otherwise read "Open File".
+      title: "Choose your Instrument folder",
     });
     const [dir] = result.canceled ? [] : result.filePaths;
     if (dir === undefined) {
@@ -391,7 +401,7 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 
 main { padding: 26px 26px 20px; display: flex; flex-direction: column; gap: 8px; }
 h1 { margin: 0 0 2px; font-size: 15px; font-weight: 600; line-height: 1.35; }
 p { margin: 0; color: var(--muted); }
-code { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--fg); word-break: break-all; -webkit-user-select: text; user-select: text; }
+code { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--fg); overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .progress { height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; margin-top: 6px; }
 .progress > div { height: 100%; background: var(--fg); }
 footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }

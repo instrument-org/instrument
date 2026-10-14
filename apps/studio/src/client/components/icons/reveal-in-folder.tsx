@@ -1,8 +1,8 @@
 import { IconWithFallback } from "@/client/components/icon-with-fallback";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useFileManagerApp } from "@/client/hooks/use-file-open-target";
 import { hasFilesView } from "@/client/lib/show-in-files";
 import { isMacOS } from "@/client/lib/utils";
-import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 
 /** The system's file manager: the Finder's own icon on the Mac, drawn as a glyph until it arrives or where it cannot be rendered. */
@@ -34,7 +34,7 @@ export function ShowInFolderIcon({
   return kind === "file" ? (
     <FolderOpenIcon className={className} />
   ) : (
-    <FileTextIcon className={className} />
+    <PlaceIcon className={className} place="files" />
   );
 }
 

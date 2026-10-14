@@ -5,6 +5,7 @@ import {
   folderNameFromPath,
   parentSegmentFromPath,
   shortenHomePath,
+  typedHostPath,
 } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
@@ -276,5 +277,31 @@ describe("expandHomePath", () => {
     },
   ])("writes $path out as $expected", ({ expected, home, path }) => {
     expect(expandHomePath(path, home)).toBe(expected);
+  });
+});
+
+describe("typedHostPath", () => {
+  it.each([
+    {
+      expected: "~/Documents/Instrument",
+      home: "/Users/sam",
+      label: "a folder in home",
+      path: "/Users/sam/Documents/Instrument",
+    },
+    {
+      expected: "/Volumes/Backup/Instrument",
+      home: "/Users/sam",
+      label: "a folder outside home",
+      path: "/Volumes/Backup/Instrument",
+    },
+    // File Explorer takes no `~`, so a Windows path stays whole.
+    {
+      expected: String.raw`C:\Users\sam\Documents\Instrument`,
+      home: String.raw`C:\Users\sam`,
+      label: "a Windows folder in home",
+      path: String.raw`C:\Users\sam\Documents\Instrument`,
+    },
+  ])("spells $label as $expected", ({ expected, home, path }) => {
+    expect(typedHostPath(path, home)).toBe(expected);
   });
 });

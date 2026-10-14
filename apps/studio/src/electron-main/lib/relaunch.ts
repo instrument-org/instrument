@@ -1,5 +1,6 @@
 import { app } from "electron";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 
 import { requestQuitApproval } from "./quit";
 
@@ -81,6 +82,13 @@ export function restartNow(): boolean {
  * namespaces are off) dies at startup, and a Debian install loses the
  * `pkexec` its updates authenticate with. A process Node starts inherits
  * nothing of the kind.
+ *
+ * It does inherit every file this process holds open without close-on-exec,
+ * which Chromium leaves on many (its caches, locks, sockets, the debug
+ * port), and would hand them all to the app it starts, a generation more on
+ * each restart. Where there is a bash, the shell closes everything above
+ * standard error first; `sh` (dash) can only name a file below 10, so
+ * without bash they pass through.
  */
 function startAgainOnExit() {
   if (process.platform !== "linux") {
@@ -90,11 +98,15 @@ function startAgainOnExit() {
   // An AppImage runs from a mount that goes away when it exits, so it starts
   // again from the image.
   const executable = process.env.APPIMAGE ?? process.execPath;
+  const bash = existsSync("/bin/bash");
+  const closeInherited = bash
+    ? 'for fd in /proc/$$/fd/*; do n=${fd##*/}; [ "$n" -gt 2 ] 2>/dev/null && eval "exec $n>&-" 2>/dev/null; done; '
+    : "";
   spawn(
-    "/bin/sh",
+    bash ? "/bin/bash" : "/bin/sh",
     [
       "-c",
-      'while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"',
+      `${closeInherited}while kill -0 "$0" 2>/dev/null; do sleep 0.1; done; exec "$@"`,
       String(process.pid),
       executable,
       ...process.argv.slice(1),

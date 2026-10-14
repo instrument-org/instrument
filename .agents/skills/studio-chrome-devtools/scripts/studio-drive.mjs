@@ -706,7 +706,17 @@ async function cmdBoot(
           cdp.close();
         }
       } catch {
-        // Renderer not serving a target yet; keep waiting.
+        // Renderer not serving a target yet; keep waiting. A launch that
+        // refused its workspace never serves one, only its own window, which
+        // is drivable as it is.
+        try {
+          (
+            await openCdp(`http://127.0.0.1:${port}`, { page: "refusal" })
+          ).close();
+          return { ...session, refusal: true, reused: false };
+        } catch {
+          // Not that either.
+        }
       }
     }
     if (Date.now() > deadline) {

@@ -225,6 +225,15 @@ async function pickTarget(origin, page = "app") {
     );
   }
 
+  // The window a launch shows in place of the app when it refuses the
+  // workspace (workspace-refusal-window.ts): a page of its own, from a data:
+  // URL, with no renderer and no `__studioDrive` behind it.
+  const refusal = list.find(
+    (t) => t.type === "page" && t.url.startsWith("data:text/html"),
+  );
+  if (page === "refusal") {
+    return refusal ?? fail("No window refusing the workspace is open.");
+  }
   const pages = list.filter(
     (t) => t.type === "page" && t.url.includes("/renderer/"),
   );
@@ -234,7 +243,9 @@ async function pickTarget(origin, page = "app") {
   if (!wanted) {
     if (pages.length === 0) {
       fail(
-        `No Studio renderer among ${list.length} target(s). Is the window open?`,
+        refusal
+          ? "The launch refused its workspace, and only that window is open: pass --page refusal to drive it."
+          : `No Studio renderer among ${list.length} target(s). Is the window open?`,
       );
     }
     fail(
@@ -1105,7 +1116,8 @@ export async function assertRenderable(cdp) {
   const status = await evaluate(
     cdp,
     `(() => {
-      const root = document.querySelector('[data-testid="app-page"]') ?? document.querySelector("#root");
+      // A refused workspace's window has no #root, only its one <main>.
+      const root = document.querySelector('[data-testid="app-page"]') ?? document.querySelector("#root") ?? document.querySelector("main");
       const rect = root?.getBoundingClientRect();
       return {
         hidden: document.visibilityState !== "visible",

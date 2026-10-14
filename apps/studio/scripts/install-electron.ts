@@ -16,9 +16,12 @@ import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -39,6 +42,10 @@ const INSTALL_OVERRIDES = [
   "npm_config_arch",
   "npm_config_platform",
 ];
+
+// A copy no checkout has installed from or into for this long goes. A clone
+// outlives the copy it came from, so this never breaks a checkout.
+const COPY_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 // What electron's installer writes to `path.txt` on macOS.
 const EXECUTABLE = "Electron.app/Contents/MacOS/Electron";
@@ -123,5 +130,25 @@ if (!holdsBuild(copyDir)) {
         `[install-electron] could not keep a copy for other checkouts: ${String(error)}\n`,
       );
     }
+  }
+}
+
+// Keep this version's copy fresh, and drop the copies of versions nobody has
+// installed lately, along with anything a crashed install left half made.
+if (holdsBuild(copyDir)) {
+  utimesSync(copyDir, new Date(), new Date());
+}
+const copiesDir = path.dirname(copyDir);
+for (const name of readdirSync(copiesDir)) {
+  const dir = path.join(copiesDir, name);
+  try {
+    if (
+      dir !== copyDir &&
+      Date.now() - statSync(dir).mtimeMs > COPY_MAX_AGE_MS
+    ) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  } catch {
+    // Another install dropped it first.
   }
 }

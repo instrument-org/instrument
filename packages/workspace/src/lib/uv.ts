@@ -3,6 +3,7 @@ import path from "node:path";
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
+import { runtimeLayout } from "./runtime-dir";
 import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
@@ -55,7 +56,8 @@ export function uvSubprocessEnv({
 }: {
   chatId: ChatId;
 }): Record<string, string> {
-  const { uvBinPath, uvDataDir } = getWorkspaceConfig();
+  const { runtimeDir, uvBinPath } = getWorkspaceConfig();
+  const { caches } = runtimeLayout(runtimeDir);
   const venvDir = chatVenvDir(chatId);
 
   const pathDirs = [
@@ -76,12 +78,12 @@ export function uvSubprocessEnv({
     // run-pnpm.ts) so `os.homedir()`/`Path.home()` match the tsx/node hatches
     // and stay writable, rather than resolving to a fake isolated dir.
     ...(process.env.HOME ? { HOME: process.env.HOME } : {}),
-    HF_HOME: path.join(uvDataDir, "huggingface"),
+    HF_HOME: path.join(caches, "huggingface"),
     PATH: pathDirs.join(path.delimiter),
     TERM: "dumb",
-    U2NET_HOME: path.join(uvDataDir, "u2net"),
+    U2NET_HOME: path.join(caches, "u2net"),
     VIRTUAL_ENV: venvDir,
-    ...uvToolsEnvFor(uvDataDir),
+    ...uvToolsEnvFor(runtimeDir),
     // The managed Python is the app's to install (installManagedPython), in
     // a folder no chat may write, so a chat's uv uses the one there and
     // fails plainly on any other version rather than trying a download.

@@ -32,6 +32,7 @@ import { inheritedEnv } from "./native-env";
 import { accountCanWrite } from "./permissions/account-can-write";
 import { raiseAsk } from "./permissions/asks";
 import { type Rule } from "./permissions/rules";
+import { runtimeLayout } from "./runtime-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
@@ -135,10 +136,7 @@ describe("a read-only folder inside a place that opens without asking", () => {
   });
 
   it("binds the closed-file stand-in's folder read-only under bubblewrap", () => {
-    const standIn = path.join(
-      path.dirname(getWorkspaceConfig().uvDataDir),
-      "sandbox",
-    );
+    const standIn = runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox;
     const args = bwrapArgs(reach).join(" ");
     expect(args).toContain(`--ro-bind ${realpathSync(standIn)}`);
   });
@@ -641,8 +639,7 @@ describe("bwrapArgs", () => {
     const planted = [
       path.join(os.tmpdir(), `instrument-closed-${process.getuid?.() ?? 0}`),
       path.join(
-        path.dirname(getWorkspaceConfig().uvDataDir),
-        "sandbox",
+        runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox,
         "closed-file",
       ),
     ];

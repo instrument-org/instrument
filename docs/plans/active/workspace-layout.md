@@ -40,11 +40,12 @@ No "vault" anywhere. `packages/workspace` keeps its name for now; renaming it (t
   workspaces.json                              each workspace's id and where its folder is
   machine preferences, updater state
   runtime/                                     shared by every workspace, rebuildable
-    bin/                                       git, node, pnpm, rg, uv, python on PATH
+    bin/                                       git, node, pnpm, rg, uv on PATH
     python/                                    the managed interpreter, read-only to chats
-    caches/                                    uv, the pnpm store, npm, model downloads
+    caches/                                    uv and its tools, the pnpm store, npm, model downloads
     config/                                    where programs keep their settings
     skills/<name>/                             the skills the app ships, read-only
+    sandbox/                                   bubblewrap's stand-in for a closed file
     environments/<lockfile hash>/              one per skill dependency set, read-only
   workspaces/<workspace id>/                   this machine's data for one workspace
     keys/                                      provider keys, app sign-ins, ChatGPT and Claude accounts
@@ -86,7 +87,7 @@ Everything else there (other chats, their work folders, `chat.db`, `settings.jso
 
 Each phase ends with types, lint and the related tests green, and is committed on the branch before the next starts.
 
-1. **`runtime/`.** Move the managed Python, uv and node-tools caches and config, the `bin/` links and the prepared skills under `runtime/`. Old copies are deleted on boot; they are rebuilt on use.
+1. **`runtime/`.** Move the managed Python, uv and node-tools caches and config, the `bin/` links and the prepared skills under `runtime/`, laid out by `runtimeLayout` from one `runtimeDir` in the config. Old copies are deleted on boot; they are rebuilt on use, and a chat's `.venv` made from the old interpreter is made again on its next Python command. `bin/` gains `uv` but no `python`: the shell's `python` is the chat's `.venv`, which every native command it starts has ahead of `bin/` (a script `pnpm` runs aside); the managed interpreter is installed on first use, after `bin/` is made; and a `python` in `bin/` would also stand in for the person's own in every program the app starts. Phase 4 decides it with the venv that follows the folder.
 2. **Machine data per workspace.** Studio's workspace stores split: secrets (provider configs, app credentials and OAuth, ChatGPT account and plan), browser sessions and history, window and layout state, downloads, connection state and permissions move to `workspaces/<workspace id>/`; what follows the person stays in the workspace. Marker dotfiles fold into `workspace.json`.
 3. **Records apart from work.** `chats/<id>/` holds `chat.db`, `settings.json` and `attachments/` only (no `.instrument/` inside it, no `tasks/`, no template). `workDir(chatId)` moves to the machine. Existing chats migrate: their old folder's working contents move to the new work folder, so relative links keep resolving against it, with the record folder as the fallback for `attachments/`. Masking, the per-chat package template, and `tasks/` handling are deleted.
 4. **The agent's environment.** The variables, the prompt's folder section rewritten, `.venv` and `node_modules` that follow the folder, the pnpm package-root guard removed, the sandbox rule set above.

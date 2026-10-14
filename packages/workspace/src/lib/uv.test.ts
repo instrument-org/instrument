@@ -32,13 +32,12 @@ describe("chatVenvPython", () => {
 
 describe("uvSubprocessEnv", () => {
   const env = uvSubprocessEnv({ chatId });
+  const runtime = "/tmp/workspace/runtime";
 
-  it("isolates uv's cache/python/tool dirs under uvDataDir", () => {
-    expect(env.UV_CACHE_DIR).toBe(path.join("/tmp/workspace/uv-data", "cache"));
-    expect(env.UV_PYTHON_INSTALL_DIR).toBe(
-      path.join("/tmp/workspace/uv-data", "python"),
-    );
-    expect(env.UV_TOOL_DIR).toBe(path.join("/tmp/workspace/uv-data", "tools"));
+  it("keeps uv's cache and tools in the runtime caches, and its Pythons in their own folder", () => {
+    expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "caches", "uv"));
+    expect(env.UV_PYTHON_INSTALL_DIR).toBe(path.join(runtime, "python"));
+    expect(env.UV_TOOL_DIR).toBe(path.join(runtime, "caches", "uv-tools"));
   });
 
   it("pins uv to managed Python, which the app installs, and ignores host config", () => {
@@ -65,15 +64,11 @@ describe("uvSubprocessEnv", () => {
   });
 
   it("redirects model/data caches to app-managed dirs without overriding HOME", () => {
-    expect(env.XDG_CACHE_HOME).toBe(
-      path.join("/tmp/workspace/uv-data", "cache-home"),
-    );
-    expect(env.HF_HOME).toBe(
-      path.join("/tmp/workspace/uv-data", "huggingface"),
-    );
-    expect(env.U2NET_HOME).toBe(path.join("/tmp/workspace/uv-data", "u2net"));
+    expect(env.XDG_CACHE_HOME).toBe(path.join(runtime, "caches"));
+    expect(env.HF_HOME).toBe(path.join(runtime, "caches", "huggingface"));
+    expect(env.U2NET_HOME).toBe(path.join(runtime, "caches", "u2net"));
     // HOME stays the real host home (or unset), never the isolated dir.
-    expect(env.HOME).not.toBe(path.join("/tmp/workspace/uv-data", "home"));
+    expect(env.HOME).toBe(process.env.HOME);
   });
 
   it("prepends the uv binary dir and venv bin dir to PATH", () => {

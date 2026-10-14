@@ -75,7 +75,7 @@ A reply names its files itself, in a fence and in links, and nothing walks the t
 
 Both need the skills mount added. Neither is load-bearing today, because `work/skills/` is task-relative and reaches both surfaces as an ordinary task path. The move is what surfaces them, and a skill file the agent cannot link to is a worse answer than the copy it replaces.
 
-Bundled skills cannot run from the app bundle: `registry/skills` ships via `extraResources` into a signed, hardened-runtime, notarized bundle that the updater replaces wholesale, so nothing may write a `node_modules` there. They are materialized once per machine instead, into `userData/skills/<name>/`, beside the existing app-managed `bin` and `uv`. That is outside the workspace deliberately, so several workspaces or a workspace the user relocates all source from one prepared set.
+Bundled skills cannot run from the app bundle: `registry/skills` ships via `extraResources` into a signed, hardened-runtime, notarized bundle that the updater replaces wholesale, so nothing may write a `node_modules` there. They are materialized once per machine instead, into `userData/runtime/skills/<name>/`, beside the app-managed `bin` links and managed Python in the runtime folder. That is outside the workspace deliberately, so several workspaces or a workspace the user relocates all source from one prepared set.
 
 Third-party skills are mounted with whatever dependency state they already have. We do not install for skills we do not ship, and the ecosystem rarely needs it: `anthropic-skills` contains no `package.json` at all, and one large real-world skill audited for this plan has zero dependencies across 147 files and already documents running its scripts from a base directory the harness reports.
 
@@ -97,7 +97,7 @@ A fingerprint committed alongside each skill and checked in CI is worth having f
 
 Two locations, each with one job:
 
-- `userData/skills/<name>/node_modules` for a bundled skill's own shipped scripts. One install per skill, shared by every task and workspace.
+- `userData/runtime/skills/<name>/node_modules` for a bundled skill's own shipped scripts. One install per skill, shared by every task and workspace.
 - `<task>/node_modules` for everything the agent writes. It runs `pnpm add` itself, and `load_skill` reports the range the skill was tested against.
 
 Skills keep caret ranges rather than exact pins: portable to any package manager, still picking up patch fixes, guarded by the existing 7-day `minimumReleaseAge`, with reproducibility coming from CI installing and testing the bundled set together.

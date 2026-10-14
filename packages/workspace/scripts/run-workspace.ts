@@ -126,16 +126,15 @@ const actor = createActor(workspaceMachine, {
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",
     ),
-    preparedSkillsDir: path.resolve("../../../workspace.local/prepared-skills"),
     registryDir,
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),
+    runtimeDir: path.resolve("../../../workspace.local/runtime"),
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(
       (result) => result.stdout.trim() || "uv",
     ),
-    uvDataDir: path.resolve("../../../workspace.local/uv-data"),
     webSearch: unavailableWebSearchClient,
   },
   inspect(event) {

@@ -124,9 +124,9 @@ async function installManagedPython() {
   const spawned = withInstallerClosed(getUvBinPath(), [
     "python",
     "install",
-    // Into uv's data folder alone: no `python3.12` in ~/.local/bin, and
-    // nothing in the Windows registry, where the person's own tools would
-    // find it.
+    // Into the runtime folder's `python/` alone: no `python3.12` in
+    // ~/.local/bin, and nothing in the Windows registry, where the person's
+    // own tools would find it.
     "--no-bin",
     "--no-registry",
     MANAGED_PYTHON_VERSION,
@@ -135,7 +135,7 @@ async function installManagedPython() {
     all: true,
     env: {
       ...inheritedEnv(),
-      ...uvToolsEnvFor(getWorkspaceConfig().uvDataDir),
+      ...uvToolsEnvFor(getWorkspaceConfig().runtimeDir),
     },
     extendEnv: false,
     reject: false,

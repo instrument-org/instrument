@@ -11,6 +11,7 @@ import {
   seatbeltAvailable,
   wrapNativeCommand,
 } from "../native-sandbox";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { nativeReachFor } from "./chat-rules";
@@ -22,34 +23,58 @@ const reach = nativeReachFor(
   { home: os.homedir(), rules: [], withoutAsking: false },
   buildWorkspaceFsLayout({ chatHostRoot: chatRoot }),
 );
-const uvData = getWorkspaceConfig().uvDataDir;
-const pythons = path.join(uvData, "python");
+const runtimeDir = getWorkspaceConfig().runtimeDir;
+const runtime = runtimeLayout(runtimeDir);
+const inRuntime = (folders: readonly string[]) =>
+  folders
+    .filter((folder) => folder.startsWith(runtimeDir))
+    .map((folder) => path.relative(runtimeDir, folder).replaceAll("\\", "/"));
 
 describe("nativeReachFor", () => {
-  it("keeps the managed Pythons read-only, with the rest of uv's folder writable", () => {
-    expect(reach.readOnly).toContain(pythons);
-    expect(reach.readWrite).toContain(uvData);
+  it("opens the runtime caches and config, and the managed Pythons and bin links only for reading", () => {
+    expect({
+      readOnly: inRuntime(reach.readOnly),
+      readWrite: inRuntime(reach.readWrite),
+    }).toMatchInlineSnapshot(`
+      {
+        "readOnly": [
+          "skills",
+          "bin",
+          "python",
+        ],
+        "readWrite": [
+          "caches",
+          "config",
+        ],
+      }
+    `);
   });
 
-  it("binds the managed Pythons read-only over uv's folder under bubblewrap, made first if missing", () => {
+  it("binds the runtime caches and config read-write, made first if missing, and the managed Pythons read-only under bubblewrap", () => {
+    mkdirSync(runtime.python, { recursive: true });
     const args = bwrapArgs(reach).join(" ");
-    expect(existsSync(pythons)).toBe(true);
-    const [data, python] = [realpathSync(uvData), realpathSync(pythons)];
-    expect(args).toContain(`--bind ${data} ${data}`);
-    expect(args.indexOf(`--ro-bind ${python} ${python}`)).toBeGreaterThan(
-      args.indexOf(`--bind ${data} ${data}`),
-    );
+    expect(existsSync(runtime.caches)).toBe(true);
+    expect(existsSync(runtime.config)).toBe(true);
+    for (const folder of [runtime.caches, runtime.config]) {
+      const real = realpathSync(folder);
+      expect(args).toContain(`--bind ${real} ${real}`);
+    }
+    const python = realpathSync(runtime.python);
+    expect(args).toContain(`--ro-bind ${python} ${python}`);
   });
 });
 
 describe.runIf(seatbeltAvailable())("a chat's command on this Mac", () => {
-  mkdirSync(pythons, { recursive: true });
+  mkdirSync(runtime.python, { recursive: true });
+  mkdirSync(runtime.bin, { recursive: true });
 
   it.each([
-    ["refuses a file in the managed Pythons", pythons, 1],
-    ["writes uv's cache", path.join(uvData, "cache"), 0],
-    ["writes the models' cache", path.join(uvData, "cache-home"), 0],
-    ["writes matplotlib's folder", path.join(uvData, "matplotlib"), 0],
+    ["refuses a file in the managed Pythons", runtime.python, 1],
+    ["refuses a file among the bin links", runtime.bin, 1],
+    ["writes uv's cache", path.join(runtime.caches, "uv"), 0],
+    ["writes the models' cache", path.join(runtime.caches, "huggingface"), 0],
+    ["writes matplotlib's folder", path.join(runtime.caches, "matplotlib"), 0],
+    ["writes a program's settings", path.join(runtime.config, "pnpm"), 0],
     ["writes the chat's own folder", chatRoot, 0],
   ])("%s", async (_name, folder, exitCode) => {
     const spawned = wrapNativeCommand(

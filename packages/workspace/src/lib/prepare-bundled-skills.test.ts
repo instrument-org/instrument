@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { prepareBundledSkills } from "./prepare-bundled-skills";
+import { runtimeLayout } from "./runtime-dir";
 
 const temporaryDirs: string[] = [];
 
@@ -25,12 +26,12 @@ async function setup() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "prepare-skills-"));
   temporaryDirs.push(root);
   const config = {
-    preparedSkillsDir: AbsolutePathSchema.parse(path.join(root, "prepared")),
     registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
     rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    runtimeDir: AbsolutePathSchema.parse(path.join(root, "runtime")),
     systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
   };
-  return { config, root };
+  return { config, prepared: runtimeLayout(config.runtimeDir).skills };
 }
 
 const listed = async (dir: string) =>
@@ -38,7 +39,7 @@ const listed = async (dir: string) =>
 
 describe("prepareBundledSkills", () => {
   it("copies both bundled sources into one folder, the system's copy winning a shared name", async () => {
-    const { config } = await setup();
+    const { config, prepared } = await setup();
     await write(
       path.join(config.systemSkillsDir, "guide", "SKILL.md"),
       "system guide",
@@ -62,7 +63,7 @@ describe("prepareBundledSkills", () => {
 
     await prepareBundledSkills(config);
 
-    expect(await listed(config.preparedSkillsDir)).toMatchInlineSnapshot(`
+    expect(await listed(prepared)).toMatchInlineSnapshot(`
       [
         "guide",
         "guide/SKILL.md",
@@ -75,39 +76,33 @@ describe("prepareBundledSkills", () => {
       ]
     `);
     expect(
-      await fs.readFile(
-        path.join(config.preparedSkillsDir, "shared", "SKILL.md"),
-        "utf8",
-      ),
+      await fs.readFile(path.join(prepared, "shared", "SKILL.md"), "utf8"),
     ).toBe("system");
   });
 
   it("replaces what an earlier launch prepared, so a skill the app dropped is gone", async () => {
-    const { config } = await setup();
-    await write(
-      path.join(config.preparedSkillsDir, "dropped", "SKILL.md"),
-      "old",
-    );
+    const { config, prepared } = await setup();
+    await write(path.join(prepared, "dropped", "SKILL.md"), "old");
     await write(path.join(config.systemSkillsDir, "guide", "SKILL.md"), "new");
 
     await prepareBundledSkills(config);
 
-    expect(await listed(config.preparedSkillsDir)).toMatchInlineSnapshot(`
+    expect(await listed(prepared)).toMatchInlineSnapshot(`
       [
         "guide",
         "guide/SKILL.md",
       ]
     `);
-    expect(
-      await listed(path.dirname(config.preparedSkillsDir)),
-    ).not.toContainEqual(expect.stringMatching(/prepared\./));
+    expect(await listed(path.dirname(prepared))).not.toContainEqual(
+      expect.stringMatching(/skills\./),
+    );
   });
 
   it("prepares an empty folder when the bundled sources are missing", async () => {
-    const { config } = await setup();
+    const { config, prepared } = await setup();
 
     await prepareBundledSkills(config);
 
-    expect(await listed(config.preparedSkillsDir)).toEqual([]);
+    expect(await listed(prepared)).toEqual([]);
   });
 });

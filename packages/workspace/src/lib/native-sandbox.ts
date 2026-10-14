@@ -28,6 +28,7 @@ import {
   ruleRank,
   type Rules,
 } from "./permissions/rules";
+import { runtimeLayout } from "./runtime-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
@@ -841,15 +842,14 @@ export function bwrapArgs(
 
 /**
  * An empty file with no permissions, bound over a closed file. It lives in
- * the app's own data folder, which no sandboxed command may change, and is
- * looked at without following a link: anything there that is not that
- * file is removed and the file made anew, never changed in place, so a
+ * the runtime folder's `sandbox/`, which no sandboxed command may change,
+ * and is looked at without following a link: anything there that is not
+ * that file is removed and the file made anew, never changed in place, so a
  * link planted there can lead nowhere.
  */
 function unreadableFile(): string {
   const file = path.join(
-    path.dirname(getWorkspaceConfig().uvDataDir),
-    "sandbox",
+    runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox,
     "closed-file",
   );
   let found: Stats | undefined;

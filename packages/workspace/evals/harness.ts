@@ -69,7 +69,7 @@ import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
-import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
+import { makeToolBinIn } from "../scripts/lib/tool-bin-dir";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
@@ -578,6 +578,9 @@ export async function runEvals(
   // SDK among them.
   setBashWorkerFactory(createTsxBashWorker);
 
+  const runtimeDir = path.join(workspaceRootDir, "runtime");
+  makeToolBinIn(runtimeDir);
+
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();
   const stopStandInWindow = standInWindow.listen();
@@ -610,16 +613,14 @@ export async function runEvals(
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: PNPM_BIN,
-      preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
+      runtimeDir,
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(
         (result) => result.stdout.trim() || "uv",
       ),
-      toolBinDir: toolBinDirIn(workspaceRootDir),
-      uvDataDir: path.join(workspaceRootDir, "uv-data"),
       webSearch: unavailableWebSearchClient,
     },
   });

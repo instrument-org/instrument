@@ -62,11 +62,9 @@ setWorkspaceConfig({
   modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-  preparedSkillsDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "prepared-skills"),
-  ),
   registryDir: AbsolutePathSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
+  runtimeDir: AbsolutePathSchema.parse(path.join(rootDir, "runtime")),
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
@@ -75,7 +73,6 @@ setWorkspaceConfig({
   tempFolders: [],
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
-  uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
 });
 

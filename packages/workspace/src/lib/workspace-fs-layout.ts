@@ -32,6 +32,7 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { chatsDir } from "./record-folders";
+import { runtimeLayout } from "./runtime-dir";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
 import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
@@ -654,7 +655,9 @@ function buildSkillMounts(): WorkspaceFsMount[] {
 
   for (const { dir, id } of getSkillSources(config)) {
     const bundled = BUNDLED_SOURCE_IDS.has(id);
-    const hostRoot = bundled ? config.preparedSkillsDir : dir;
+    const hostRoot = bundled
+      ? AbsolutePathSchema.parse(runtimeLayout(config.runtimeDir).skills)
+      : dir;
     // Both bundled ids reach the prepared directory, and the first one to
     // claim it stands for both.
     if (mounts.has(hostRoot)) {

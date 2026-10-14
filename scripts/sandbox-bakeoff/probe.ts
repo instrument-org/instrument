@@ -788,8 +788,8 @@ const env: NodeJS.ProcessEnv = {
     path.dirname(process.execPath),
     theirEnv.PATH,
   ].join(":"),
-  ...nodeToolsEnvFor(path.join(appData, "node-tools")),
-  ...uvToolsEnvFor(path.join(appData, "uv")),
+  ...nodeToolsEnvFor(appData),
+  ...uvToolsEnvFor(appData),
   pnpm_config_update_notifier: "false",
 };
 

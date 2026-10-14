@@ -2,10 +2,12 @@ import { execa } from "execa";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pick } from "radashi";
 
 import { type AbsolutePath } from "../../../schemas/paths";
 import { absolutePathJoin } from "../../absolute-path-join";
 import { commandLineToolsEnv } from "../../command-line-tools-env";
+import { uvToolsEnvFor } from "../../tool-isolation-env";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type LocalMcpAppManifest } from "../manifest";
 
@@ -224,7 +226,7 @@ function packageName(spec: string): string {
  * server belongs to the workspace rather than to whichever task calls it.
  */
 function uvEnv(): Record<string, string> {
-  const { uvBinPath, uvDataDir } = getWorkspaceConfig();
+  const { runtimeDir, uvBinPath } = getWorkspaceConfig();
   return {
     ...commandLineToolsEnv(),
     ...(process.env.HOME ? { HOME: process.env.HOME } : {}),
@@ -233,12 +235,14 @@ function uvEnv(): Record<string, string> {
       ...(process.env.PATH ? [process.env.PATH] : []),
     ].join(path.delimiter),
     TERM: "dumb",
-    UV_CACHE_DIR: path.join(uvDataDir, "cache"),
+    ...pick(uvToolsEnvFor(runtimeDir), [
+      "UV_CACHE_DIR",
+      "UV_PYTHON_INSTALL_DIR",
+      "UV_TOOL_DIR",
+      "XDG_CACHE_HOME",
+    ]),
     UV_NO_CONFIG: "1",
     UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
     UV_PYTHON_PREFERENCE: "only-managed",
-    UV_TOOL_DIR: path.join(uvDataDir, "tools"),
-    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
   };
 }

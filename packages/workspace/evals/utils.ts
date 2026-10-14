@@ -68,11 +68,11 @@ export function buildReportWorkspaceConfig(
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    preparedSkillsDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "prepared-skills"),
-    ),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
+    runtimeDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "runtime"),
+    ),
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "system-skills"),
     ),
@@ -84,9 +84,6 @@ export function buildReportWorkspaceConfig(
     ),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
-    uvDataDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "uv-data"),
-    ),
     webSearch: unavailableWebSearchClient,
   };
 }

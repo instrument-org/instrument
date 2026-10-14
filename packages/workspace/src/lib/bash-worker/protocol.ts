@@ -22,15 +22,13 @@ export const WORKER_CONFIG_KEYS = [
   "nativeSandbox",
   "nodeExecEnv",
   "pnpmBinPath",
-  "preparedSkillsDir",
   "registryDir",
   "rootDir",
+  "runtimeDir",
   "systemSkillsDir",
   "legacyTasksDir",
   "tempFolders",
-  "toolBinDir",
   "uvBinPath",
-  "uvDataDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
 
 export type ExceptionProperties = Parameters<CaptureExceptionFunction>[1];

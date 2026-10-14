@@ -10,8 +10,7 @@ import { folderReach } from "../chat/folder-reach";
 import { chatGrants } from "../chat/grants";
 import { chatDenials } from "./denials";
 import { type NativeReach } from "../native-sandbox";
-import { nodeToolsDir } from "../tool-isolation";
-import { uvPythonInstallDir } from "../tool-isolation-env";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { readPermissionSettings, type Rules, rulesFor } from "./rules";
@@ -105,20 +104,20 @@ export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,
 ): NativeReach {
-  const { toolBinDir, uvDataDir } = getWorkspaceConfig();
+  const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
   return {
     readOnly: [
       ...layout.skills.map((mount) => mount.hostRoot),
-      ...(toolBinDir ? toolBinFolders(toolBinDir) : []),
+      ...toolBinFolders(runtime.bin),
       // The managed Pythons every chat's virtualenv runs on, which the app
       // installs (installManagedPython): a file one chat put there would run
-      // in every other. The rest of uv's folder, its caches, stays open.
-      uvPythonInstallDir(uvDataDir),
+      // in every other.
+      runtime.python,
     ],
     readWrite: [
       layout.chat.hostRoot,
-      uvDataDir,
-      nodeToolsDir(),
+      runtime.caches,
+      runtime.config,
       ...(layout.apps ? [layout.apps.hostRoot] : []),
     ],
     rules,

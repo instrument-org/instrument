@@ -1,14 +1,16 @@
 import { cp, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
+import { AbsolutePathSchema } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
 import { pathExists } from "./path-exists";
+import { runtimeLayout } from "./runtime-dir";
 import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
 
 /**
- * Copies the skills the app ships into `preparedSkillsDir`, the one folder
- * the bundled skills mount reads them from: the app bundle is signed
- * and replaced whole by the updater, so nothing reads from it in place.
+ * Copies the skills the app ships into the runtime folder's `skills/`, the
+ * one folder the bundled skills mount reads them from: the app bundle is
+ * signed and replaced whole by the updater, so nothing reads from it in place.
  *
  * Copied fresh at every launch, a few megabytes, so the folder always holds
  * the build that is running and a skill dropped from the app is gone from
@@ -20,10 +22,12 @@ import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
 export async function prepareBundledSkills(
   config: Pick<
     WorkspaceConfig,
-    "preparedSkillsDir" | "registryDir" | "rootDir" | "systemSkillsDir"
+    "registryDir" | "rootDir" | "runtimeDir" | "systemSkillsDir"
   >,
 ): Promise<void> {
-  const target = config.preparedSkillsDir;
+  const target = AbsolutePathSchema.parse(
+    runtimeLayout(config.runtimeDir).skills,
+  );
   // Named for this process, so two instances sharing a machine's folder
   // never build into the same one.
   const staging = `${target}.preparing-${process.pid}`;

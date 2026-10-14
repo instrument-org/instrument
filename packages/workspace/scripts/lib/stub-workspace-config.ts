@@ -42,13 +42,11 @@ export function createStubWorkspaceConfig({
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    preparedSkillsDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "prepared-skills"),
-    ),
     registryDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry"),
     ),
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
+    runtimeDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "runtime")),
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "system-skills"),
     ),
@@ -56,7 +54,6 @@ export function createStubWorkspaceConfig({
     legacyTasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
-    uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),
     webSearch: unavailableWebSearchClient,
     ...overrides,
   };

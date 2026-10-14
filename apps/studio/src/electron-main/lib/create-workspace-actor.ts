@@ -44,7 +44,6 @@ import { createBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
-import { getBinDirectoryPath } from "./setup-bin-directory";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
@@ -53,6 +52,7 @@ import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
+import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
 import { windowsDriveNames } from "./windows-drives";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
@@ -177,20 +177,15 @@ export function createWorkspaceActor() {
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
-      // Beside the app-managed `bin` and `uv`, and outside the workspace: the
-      // set is prepared per machine, so several workspaces or a workspace the
-      // user moves all source from one copy of it.
-      preparedSkillsDir: path.join(app.getPath("userData"), "skills"),
       refreshExpiredCredentials: refreshExpiredTokens,
       registryDir: getRegistryDir(),
       rootDir,
+      runtimeDir: getRuntimeDir(),
       systemSkillsDir: app.isPackaged
         ? path.join(process.resourcesPath, SYSTEM_SKILLS_DIR_NAME)
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
-      toolBinDir: getBinDirectoryPath(),
-      uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,
     },
   });
@@ -209,10 +204,17 @@ export function createWorkspaceActor() {
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
   // In the background: a shell builds its mounts per command, so the bundled
-  // skills appear in the shell for the first command after this lands.
-  prepareBundledSkills(workspaceConfig).catch((error: unknown) => {
-    logger.warn("Could not prepare the bundled skills", error);
-  });
+  // skills appear in the shell for the first command after this lands. What
+  // the runtime folder replaced goes once its skills are in place, the `bin`
+  // links having been made before the workspace started.
+  prepareBundledSkills(workspaceConfig)
+    .catch((error: unknown) => {
+      logger.warn("Could not prepare the bundled skills", error);
+    })
+    .then(() => removeFormerRuntime())
+    .catch((error: unknown) => {
+      logger.warn("Could not remove the former runtime folders", error);
+    });
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.

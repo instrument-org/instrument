@@ -212,14 +212,17 @@ export interface WorkspaceConfig {
    */
   nativeSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
-  // Where the skills the app ships are prepared for use. They cannot run from
-  // the bundle -- it is signed, notarized, and replaced wholesale by the updater,
-  // so nothing may write a `node_modules` there -- so they are materialized once
-  // per machine here instead. Outside the workspace deliberately: several
-  // workspaces, or a workspace the user moves, all source from one prepared set.
-  preparedSkillsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  /**
+   * The one folder on this computer for what the app can always rebuild,
+   * shared by every workspace on it and never inside one: the `bin` links,
+   * the managed Python, the caches and config of the app's own uv, pnpm and
+   * npm, and the skills the app ships, prepared there since nothing may
+   * write into the signed bundle the updater replaces. `runtimeLayout` names
+   * its folders.
+   */
+  runtimeDir: AbsolutePath;
   // Where every chat's folder is, `chats/` under the root.
   chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
@@ -244,13 +247,6 @@ export interface WorkspaceConfig {
   // the home folder by its English name: Windows moves Desktop and Documents
   // into OneDrive, and Linux names them in the desktop's language.
   knownFolders?: Record<KnownFolder, string>;
-  // The app's folder on PATH that links `node`, `pnpm`, `uv` and the rest,
-  // which a package script or bin shim finds `node` through. Native commands
-  // may read it whatever the rules say about the folder it sits in.
-  toolBinDir?: AbsolutePath;
-  // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
-  // app's userData so uv never writes into the person's home.
-  uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }
 export type KnownFolder =

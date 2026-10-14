@@ -24,7 +24,7 @@ import "./lib/define-globals-apply";
 import { noopModelCache } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
 import { createRequire } from "node:module";
-import { toolBinDirIn } from "./lib/tool-bin-dir";
+import { makeToolBinIn } from "./lib/tool-bin-dir";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -114,7 +114,10 @@ const chatsDir = args.chatsDir
   ? path.resolve(args.chatsDir)
   : path.join(rootDir, "chats");
 
+const runtimeDir = path.join(rootDir, "runtime");
+
 await fs.mkdir(chatsDir, { recursive: true });
+makeToolBinIn(runtimeDir);
 
 const uvBinPath = AbsolutePathSchema.parse(
   await execa({ reject: false })`which uv`.then(
@@ -153,20 +156,16 @@ setWorkspaceConfig({
       "pnpm.mjs",
     ),
   ),
-  preparedSkillsDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "prepared-skills"),
-  ),
   registryDir: WorkspaceDirSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
+  runtimeDir: AbsolutePathSchema.parse(runtimeDir),
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
   chatsDir: AbsolutePathSchema.parse(chatsDir),
   legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
-  toolBinDir: AbsolutePathSchema.parse(toolBinDirIn(rootDir)),
   trashItem: () => Promise.resolve(),
   uvBinPath,
-  uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
 });
 

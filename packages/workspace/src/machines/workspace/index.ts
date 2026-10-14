@@ -280,15 +280,13 @@ export const workspaceMachine = setup({
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
-      preparedSkillsDir: string;
       refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
       registryDir: string;
       rootDir: string;
+      runtimeDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
-      toolBinDir?: string;
       uvBinPath: string;
-      uvDataDir: string;
       macHelperBinPath?: string;
       knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
@@ -326,16 +324,13 @@ export const workspaceMachine = setup({
       }),
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
-      preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
       ...(input.refreshExpiredCredentials
         ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
         : {}),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
+      runtimeDir: AbsolutePathSchema.parse(input.runtimeDir),
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
-      ...(input.toolBinDir && {
-        toolBinDir: AbsolutePathSchema.parse(input.toolBinDir),
-      }),
       chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
       legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
@@ -345,7 +340,6 @@ export const workspaceMachine = setup({
         : {
             macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
           }),
-      uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
       webSearch: input.webSearch,
     };
     // Publish the single per-process config so code can read it via

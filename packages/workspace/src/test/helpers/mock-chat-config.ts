@@ -125,18 +125,15 @@ export function createMockChatConfig(
       : noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
-    preparedSkillsDir: AbsolutePathSchema.parse(
-      `${MOCK_WORKSPACE_DIR}/prepared-skills`,
-    ),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     chatsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
+    runtimeDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/runtime`),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     legacyTasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     tempFolders: [],
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
-    uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
   };
 

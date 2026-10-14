@@ -3,7 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { nodeToolsDir } from "./tool-isolation";
+import { runtimeLayout } from "./runtime-dir";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /** What the preload sends for `tools.<slug>.<tool>(args)`. */
 export interface ToolCallMessage {
@@ -121,13 +122,16 @@ export async function answerToolCall(
 }
 
 /**
- * The preload as a `file:` URL for `--import`, written into the app's own
- * node-tools folder, which every native command may read inside the sandbox.
+ * The preload as a `file:` URL for `--import`, written into the runtime
+ * folder's caches, which every native command may read inside the sandbox.
  * Written whenever what is there differs, so a build's preload replaces an
  * older one and a deleted file comes back.
  */
 export async function nodeToolsPreloadUrl(): Promise<string> {
-  const file = path.join(nodeToolsDir(), "tools-preload.mjs");
+  const file = path.join(
+    runtimeLayout(getWorkspaceConfig().runtimeDir).caches,
+    "tools-preload.mjs",
+  );
   const current = await fs.readFile(file, "utf8").catch(() => undefined);
   if (current !== NODE_TOOLS_PRELOAD) {
     await fs.mkdir(path.dirname(file), { recursive: true });

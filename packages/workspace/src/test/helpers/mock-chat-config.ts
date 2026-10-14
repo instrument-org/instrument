@@ -41,19 +41,22 @@ import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
 import { newDeviceId } from "../../lib/records/device-id";
 
-const MOCK_WORKSPACE_DIR = "/tmp/workspace";
+// Resolved, so on Windows each carries the current drive (`C:\tmp\workspace`)
+// as every folder the app holds does there. A path with no drive is resolved
+// against `process.cwd()`, which the agent's shell blocks while a command runs.
+const MOCK_WORKSPACE_DIR = path.resolve("/tmp/workspace");
 // Outside the workspace, as this computer's folder for it is.
-const MOCK_WORKSPACE_MACHINE_DIR = "/tmp/workspace-machine";
+const MOCK_WORKSPACE_MACHINE_DIR = path.resolve("/tmp/workspace-machine");
 const MOCK_WORKSPACE_LAYOUT = workspaceLayout(MOCK_WORKSPACE_DIR);
 
 export const MOCK_WORKSPACE_DIRS = {
-  registry: `${MOCK_WORKSPACE_DIR}/registry`,
-  systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
+  registry: path.join(MOCK_WORKSPACE_DIR, "registry"),
+  systemSkills: path.join(MOCK_WORKSPACE_DIR, "system-skills"),
   apps: MOCK_WORKSPACE_LAYOUT.appsDir,
   chats: MOCK_WORKSPACE_LAYOUT.chatsDir,
   machine: MOCK_WORKSPACE_MACHINE_DIR,
-  tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
-  work: `${MOCK_WORKSPACE_MACHINE_DIR}/${WORKSPACE_MACHINE_ENTRIES.work}`,
+  tasks: path.join(MOCK_WORKSPACE_DIR, TASKS_DIR_NAME),
+  work: path.join(MOCK_WORKSPACE_MACHINE_DIR, WORKSPACE_MACHINE_ENTRIES.work),
 } as const;
 
 // Provider configs registered by createMockChatConfig. The singleton's
@@ -134,16 +137,18 @@ export function createMockChatConfig(
       ? { ...noopModelCache, read: () => options.catalog }
       : noopModelCache,
     nodeExecEnv: {},
-    pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
+    pnpmBinPath: AbsolutePathSchema.parse(path.resolve("/tmp/pnpm")),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     chatsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
-    runtimeDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/runtime`),
+    runtimeDir: AbsolutePathSchema.parse(
+      path.join(MOCK_WORKSPACE_DIR, "runtime"),
+    ),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     legacyTasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     tempFolders: [],
     trashItem: () => Promise.resolve(),
-    uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
+    uvBinPath: AbsolutePathSchema.parse(path.resolve("/tmp/uv")),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
     workFoldersDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.work),
     machineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),

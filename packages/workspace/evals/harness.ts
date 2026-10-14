@@ -53,13 +53,13 @@ import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
+import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { startRun } from "./lib/start-run";
 import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
   c,
   costOfUsage,
-  EVAL_MACHINE_DIR_NAME,
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
@@ -725,6 +725,14 @@ export async function runEvals(
       // every run behind it.
       creating = created.then(_.noop, _.noop);
       const { id, sessionId } = await created;
+      await recordRun(workspaceRootDir, {
+        chatId: id,
+        home: os.homedir(),
+        modelLabel,
+        name: evalCase.name,
+        sessionId,
+        trial,
+      });
 
       // Written straight onto the task rather than passed through `create`,
       // which has no input for it: every turn of this run then reads it, the

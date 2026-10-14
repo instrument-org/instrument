@@ -28,6 +28,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../src/types";
+import { EVAL_MACHINE_DIR_NAME } from "./lib/run-record";
 
 /**
  * Color is off unless a terminal is going to read it. Every consumer of this
@@ -98,13 +99,6 @@ export function buildReportWorkspaceConfig(
     ),
   };
 }
-
-/**
- * Where a run keeps what the app keeps on this computer for its workspace,
- * each chat's work folder among it: inside the run's own folder, so a saved
- * run carries both halves of every chat.
- */
-export const EVAL_MACHINE_DIR_NAME = "machine";
 
 /**
  * Approximate, and marked as such wherever it is printed: only OpenRouter

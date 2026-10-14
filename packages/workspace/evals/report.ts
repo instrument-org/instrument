@@ -30,8 +30,9 @@ import {
   systemPromptDigest,
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
+import { readRunRecord } from "./lib/run-record";
 import { renderUserView } from "./lib/user-view";
-import { type StoreId } from "../src/schemas/store-id";
+import { StoreId } from "../src/schemas/store-id";
 import { type ChatId } from "../src/schemas/chat-id";
 
 interface RollupSummary {
@@ -198,21 +199,26 @@ export async function generateReport({
       rollupModelURIs.add(taskModelURI);
     }
 
-    const rootSession = run
-      ? { id: run.sessionId, title: run.name }
+    // A run this process did not watch is known by what the harness recorded
+    // when it started (`recordRun`), so a report over a past workspace dir is
+    // still matched to its case and filed by case, model and trial rather
+    // than by a chat title or a slug of the prompt, which named nothing anyone
+    // could act on.
+    const recorded = run
+      ? undefined
+      : await readRunRecord(absoluteWorkspaceDir, chatId);
+    const known = run ?? recorded;
+    const rootSession = known
+      ? { id: StoreId.SessionSchema.parse(known.sessionId), title: known.name }
       : await runSessionOf(chatId);
     if (!rootSession) {
       continue;
     }
 
-    // The session a run went to carries its case's name, which the harness
-    // gave it at creation (`startRun`): the task a task case started, whose
-    // chat stays a placeholder, or the chat a chat case opened. So the pair
-    // that names a run survives even without the runs that produced it: a
-    // report over a past workspace dir is still matched to its case and filed
-    // by case and model rather than by a placeholder or a slug of the prompt,
-    // which named nothing anyone could act on.
-    const caseName = run?.name ?? caseForRoots ?? rootSession.title;
+    // A run from before runs were recorded: the session it went to carries
+    // its case's name, which the harness gave it at creation (`startRun`),
+    // unless the app has titled it since.
+    const caseName = known?.name ?? caseForRoots ?? rootSession.title;
     const evalCase =
       evalCasesByName.get(caseName) ??
       evalCasesByName.get(task.id) ??
@@ -221,9 +227,9 @@ export async function generateReport({
       )?.[1];
 
     const key = runKey({
-      modelLabel: run?.modelLabel ?? modelLabelFor(taskModelURI ?? "unknown"),
+      modelLabel: known?.modelLabel ?? modelLabelFor(taskModelURI ?? "unknown"),
       name: caseName,
-      trial: run?.trial ?? 1,
+      trial: known?.trial ?? 1,
     });
     let { dir: relativeDir, label } = key;
     for (let n = 2; claimedDirs.has(relativeDir); n += 1) {

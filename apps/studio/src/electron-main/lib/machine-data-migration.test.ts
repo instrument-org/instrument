@@ -1,3 +1,4 @@
+import childProcess from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -293,7 +294,11 @@ describe("moveMachineData", () => {
       }
       rename(from, to);
     });
-    const copy = vi.spyOn(fs, "cpSync");
+    // ditto on macOS, which carries extended attributes; Node's copy elsewhere.
+    const copy =
+      process.platform === "darwin"
+        ? vi.spyOn(childProcess, "execFileSync")
+        : vi.spyOn(fs, "cpSync");
 
     const { machineDir } = moveMachineData({
       userDataDir,

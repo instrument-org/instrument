@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -5,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTempDir } from "../test/helpers/temp-dir";
 import {
   asidesOf,
+  copyEntrySync,
   moveEntrySync,
   placeEntrySync,
   removeEntrySync,
@@ -94,6 +96,97 @@ describe("moving across volumes", () => {
     expect(listing(outside)).toEqual(["keep.txt"]);
   });
 });
+
+describe("a partial copy an earlier run left", () => {
+  it("goes before the entry is placed, whichever process left it", () => {
+    const from = path.join(dir.path, "a", "photos");
+    write(path.join(from, "beach.jpg"), "mine");
+    const to = path.join(dir.path, "b", "photos");
+    write(path.join(`${to}.partial-99999`, "beach.jpg"), "cut short");
+    write(path.join(dir.path, "b", "photos.partial-notes.txt"), "theirs");
+    acrossVolumes(from);
+
+    moveEntrySync(from, to);
+
+    expect(fs.readdirSync(path.join(dir.path, "b")).toSorted()).toEqual([
+      "photos",
+      "photos.partial-notes.txt",
+    ]);
+    expect(listing(to)).toEqual(["beach.jpg"]);
+  });
+});
+
+/** Sets an extended attribute as Finder does a tag, with the system's own tool. */
+function setAttribute(entry: string, name: string, value: string) {
+  execFileSync("/usr/bin/xattr", ["-w", name, value, entry]);
+}
+
+function attribute(entry: string, name: string) {
+  return execFileSync("/usr/bin/xattr", ["-p", name, entry], {
+    encoding: "utf8",
+  }).trim();
+}
+
+// A move across volumes is a copy, and Node's copies drop extended
+// attributes: a Finder tag, where a download came from, a resource fork.
+describe.runIf(process.platform === "darwin")(
+  "extended attributes across volumes",
+  () => {
+    const TAG = "com.instrument.test-tag";
+
+    it("copies them on a file and a folder, links staying links", () => {
+      const from = path.join(dir.path, "a", "work");
+      write(path.join(from, "report.md"), "mine");
+      setAttribute(path.join(from, "report.md"), TAG, "red");
+      setAttribute(from, TAG, "blue");
+      fs.symlinkSync("report.md", path.join(from, "latest.md"));
+      const to = path.join(dir.path, "b", "work");
+
+      copyEntrySync(from, to);
+
+      expect(attribute(path.join(to, "report.md"), TAG)).toBe("red");
+      expect(attribute(to, TAG)).toBe("blue");
+      expect(fs.readlinkSync(path.join(to, "latest.md"))).toBe("report.md");
+    });
+
+    it("keeps them through a move to a second volume", () => {
+      const image = path.join(dir.path, "volume.dmg");
+      const volume = path.join(dir.path, "volume");
+      execFileSync("/usr/bin/hdiutil", [
+        "create",
+        "-size",
+        "8m",
+        "-fs",
+        "APFS",
+        "-volname",
+        "MoveTest",
+        "-quiet",
+        "-o",
+        image,
+      ]);
+      execFileSync("/usr/bin/hdiutil", [
+        "attach",
+        image,
+        "-nobrowse",
+        "-mountpoint",
+        volume,
+        "-quiet",
+      ]);
+      try {
+        const from = path.join(dir.path, "Downloads", "invoice.pdf");
+        write(from, "pdf");
+        setAttribute(from, TAG, "red");
+
+        moveEntrySync(from, path.join(volume, "invoice.pdf"));
+
+        expect(fs.existsSync(from)).toBe(false);
+        expect(attribute(path.join(volume, "invoice.pdf"), TAG)).toBe("red");
+      } finally {
+        execFileSync("/usr/bin/hdiutil", ["detach", volume, "-quiet"]);
+      }
+    });
+  },
+);
 
 describe("removeEntrySync", () => {
   it("unlinks a link to a folder, leaving the folder", () => {

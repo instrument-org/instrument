@@ -4,7 +4,7 @@ import {
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
-import { spawn, spawnSync } from "node:child_process";
+import childProcess, { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -674,7 +674,7 @@ describe("finishPendingMove", () => {
     }>([
       {
         fault: () => {
-          failWhen("cpSync", (from) => from === original(), "part-way");
+          failWhen("copy", (from) => from === original(), "part-way");
         },
         launches: 1,
         name: "the copy stops part-way",
@@ -933,13 +933,15 @@ function listing(dir: string): string[] {
     .toSorted();
 }
 
-type FaultyMethod = "cpSync" | "renameSync" | "rmSync";
+/** `copy` is the copy across volumes: ditto on macOS, `fs.cpSync` elsewhere. */
+type FaultyMethod = "copy" | "renameSync" | "rmSync";
 
 /** How an injected fault fails: as a move across volumes, part of the way, or outright. */
 type Failure = "EXDEV" | "part-way" | "refused";
 
 const real = {
   cpSync: fs.cpSync,
+  execFileSync: childProcess.execFileSync,
   renameSync: fs.renameSync,
   rmSync: fs.rmSync,
 };
@@ -958,7 +960,7 @@ function failWhen(
   when: (from: string, to: string) => boolean,
   failure: Failure = "refused",
 ) {
-  if (!vi.isMockFunction(fs[method])) {
+  if (!vi.isMockFunction(method === "copy" ? fs.cpSync : fs[method])) {
     faults = faults.filter((fault) => fault.method !== method);
     spyOn(method);
   }
@@ -975,7 +977,23 @@ function spyOn(method: FaultyMethod) {
       code: failure === "EXDEV" ? "EXDEV" : "EIO",
     });
   switch (method) {
-    case "cpSync": {
+    case "copy": {
+      vi.spyOn(childProcess, "execFileSync").mockImplementation(
+        (file, args, options) => {
+          const [from = "", to = ""] = args ?? [];
+          const failure = fault(from, to);
+          const copied = real.execFileSync(file, args, options);
+          if (failure === undefined) {
+            return copied;
+          }
+          // ditto copies whole or not at all, so part of the way is the
+          // copy with all but its first few files gone.
+          for (const extra of listing(to).slice(4)) {
+            fs.unlinkSync(path.join(to, extra));
+          }
+          throw injected(failure);
+        },
+      );
       vi.spyOn(fs, "cpSync").mockImplementation((from, to, options) => {
         const failure = fault(String(from), String(to));
         if (failure === undefined) {

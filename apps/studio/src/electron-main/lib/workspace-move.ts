@@ -8,7 +8,6 @@ import {
   entryExists,
   isDirectorySync,
   mergeEntrySync,
-  PARTIAL_INFIX,
   placeEntrySync,
   placePaths,
   recordMovedPaths,
@@ -486,7 +485,6 @@ function makeMove({
             done.push(`found no records at ${fromData} to move to ${to}`);
             return { done, workspace };
           }
-          removePartialCopies(toData);
           const how = placeEntrySync(fromData, toData, (copy) => {
             const copyMark = randomUUID();
             updatePendingMove(userDataDir, workspace.id, { copyMark });
@@ -820,20 +818,5 @@ function moveTheRest({
     mergeEntrySync(entry, path.join(to, name), (left, taken) => {
       done.push(`left ${left}: ${taken} is already there`);
     });
-  }
-}
-
-/** Copies a launch cut short left beside the target's records. */
-function removePartialCopies(toData: string) {
-  let names: string[];
-  try {
-    names = fs.readdirSync(path.dirname(toData));
-  } catch {
-    return;
-  }
-  for (const name of names) {
-    if (name.startsWith(`${path.basename(toData)}${PARTIAL_INFIX}`)) {
-      removeEntrySync(path.join(path.dirname(toData), name));
-    }
   }
 }

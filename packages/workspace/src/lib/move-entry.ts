@@ -1,3 +1,4 @@
+import childProcess from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -14,7 +15,7 @@ export const ASIDE_INFIX = ".moved-";
  * What a copy being made across volumes is called after the name it is
  * renamed to once whole, before the process that makes it.
  */
-export const PARTIAL_INFIX = ".partial-";
+const PARTIAL_INFIX = ".partial-";
 
 /**
  * Moves a file or folder to a place that is free: renamed where both are on
@@ -39,12 +40,14 @@ export function moveEntrySync(from: string, to: string): void {
 
 /**
  * Puts a file or folder at a place that is free: renamed where both are on
- * one volume, and otherwise copied, links as links, to a sibling of `to`
- * (`<to>.partial-<pid>`) and renamed into place once whole, so a copy cut
- * short is never taken for a finished one. `beforeRename` runs on the whole
- * copy before it takes its place. Answers which it did: a copy leaves `from`
- * where it was, for the caller to remove. Throws when a step fails, leaving
- * `from` where it was and `to` free but for a partial copy.
+ * one volume, and otherwise copied as {@link copyEntrySync} copies it to a
+ * sibling of `to` (`<to>.partial-<pid>`) and renamed into place once whole,
+ * so a copy cut short is never taken for a finished one. A partial copy an
+ * earlier run left beside `to`, from whichever process, goes first: `from` is
+ * still whole, so it was only ever a copy of it. `beforeRename` runs on the
+ * whole copy before it takes its place. Answers which it did: a copy leaves
+ * `from` where it was, for the caller to remove. Throws when a step fails,
+ * leaving `from` where it was and `to` free but for a partial copy.
  */
 export function placeEntrySync(
   from: string,
@@ -52,6 +55,9 @@ export function placeEntrySync(
   beforeRename?: (copy: string) => void,
 ): "copied" | "renamed" {
   fs.mkdirSync(path.dirname(to), { recursive: true });
+  for (const partial of partialCopiesOf(to)) {
+    removeEntrySync(partial);
+  }
   try {
     renameRetrying(from, to);
     return "renamed";
@@ -61,15 +67,49 @@ export function placeEntrySync(
     }
   }
   const partial = `${to}${PARTIAL_INFIX}${process.pid.toString()}`;
-  removeEntrySync(partial);
-  fs.cpSync(from, partial, {
+  copyEntrySync(from, partial);
+  beforeRename?.(partial);
+  renameRetrying(partial, to);
+  return "copied";
+}
+
+/**
+ * Copies a file or folder to a free place, links as links and timestamps
+ * kept. On macOS through `ditto`, which also carries what Node's copies leave
+ * behind: extended attributes (Finder tags, where a download came from),
+ * resource forks and ACLs. ditto follows a link given as the whole entry, so
+ * that one is copied as Node copies it.
+ */
+export function copyEntrySync(from: string, to: string): void {
+  if (process.platform === "darwin" && !fs.lstatSync(from).isSymbolicLink()) {
+    childProcess.execFileSync(DITTO_PATH, [from, to], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    return;
+  }
+  fs.cpSync(from, to, {
     preserveTimestamps: true,
     recursive: true,
     verbatimSymlinks: true,
   });
-  beforeRename?.(partial);
-  renameRetrying(partial, to);
-  return "copied";
+}
+
+const DITTO_PATH = "/usr/bin/ditto";
+
+/** The partial copies {@link placeEntrySync} left beside `to`, by any process. */
+function partialCopiesOf(to: string): string[] {
+  const prefix = `${path.basename(to)}${PARTIAL_INFIX}`;
+  try {
+    return fs
+      .readdirSync(path.dirname(to))
+      .filter(
+        (name) =>
+          name.startsWith(prefix) && /^\d+$/.test(name.slice(prefix.length)),
+      )
+      .map((name) => path.join(path.dirname(to), name));
+  } catch {
+    return [];
+  }
 }
 
 /**

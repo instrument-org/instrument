@@ -110,7 +110,6 @@ export {
   isDirectorySync,
   mergeEntrySync,
   moveEntrySync,
-  PARTIAL_INFIX,
   placeEntrySync,
   removeEntrySync,
   removeIfEmptySync,

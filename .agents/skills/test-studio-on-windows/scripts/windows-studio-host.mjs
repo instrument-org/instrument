@@ -627,24 +627,23 @@ $profile | ConvertTo-Json -Depth 8 -Compress`;
 }
 
 /**
- * PowerShell that drops installed dependencies left inside a task by a live agent
- * run. Nothing else in a seeded workspace grows: a seeded transcript never
- * installs anything, and a reseed rebuilds the rest anyway.
+ * PowerShell that drops installed dependencies a live agent run left at the top
+ * of a chat's work folder, `workspaces-data\<local id>\work\<chat id>\` in the
+ * application data. Nothing else in a seeded workspace grows: a seeded
+ * transcript never installs anything, and a reseed rebuilds the rest anyway.
  */
 function reapFunction() {
   return `function Remove-StaleWorkArtifacts([string] $dir) {
   $removed = @()
-  $workspace = Join-Path $dir 'workspace'
-  # Tasks no chat owns, chats, and each chat's own tasks.
-  $chats = @(Get-ChildItem -LiteralPath (Join-Path $workspace 'chats') -Directory -ErrorAction SilentlyContinue)
-  $records = @(Get-ChildItem -LiteralPath (Join-Path $workspace 'tasks') -Directory -ErrorAction SilentlyContinue) + $chats
-  foreach ($chat in $chats) {
-    $records += @(Get-ChildItem -LiteralPath (Join-Path $chat.FullName 'tasks') -Directory -ErrorAction SilentlyContinue)
+  # Every workspace's machine folder, and each chat's work folder in it.
+  $workDirs = @()
+  foreach ($machine in @(Get-ChildItem -LiteralPath (Join-Path $dir 'workspaces-data') -Directory -ErrorAction SilentlyContinue)) {
+    $workDirs += @(Get-ChildItem -LiteralPath (Join-Path $machine.FullName 'work') -Directory -ErrorAction SilentlyContinue)
   }
   $cutoff = (Get-Date).AddDays(-${WORK_ARTIFACT_MAX_AGE_DAYS})
-  foreach ($task in $records) {
+  foreach ($work in $workDirs) {
     foreach ($name in @('.venv', 'node_modules')) {
-      $artifact = Join-Path $task.FullName (Join-Path 'work' $name)
+      $artifact = Join-Path $work.FullName $name
       if ((Test-Path -LiteralPath $artifact) -and (Get-Item -LiteralPath $artifact -Force).LastWriteTime -lt $cutoff) {
         Remove-Item -LiteralPath $artifact -Recurse -Force -ErrorAction SilentlyContinue
         $removed += $artifact

@@ -38,7 +38,7 @@ export function ParquetViewer({ url }: { url: string }) {
     throw error;
   }
   if (!data) {
-    throw new Error("This file holds no readable Parquet data.");
+    throw new Error("Instrument couldn’t find any Parquet data in this file.");
   }
 
   // Keyed by url so a second file starts on a fresh grid rather than inheriting

@@ -62,19 +62,19 @@ function useAnswer(chatId: ChatId, ask: Ask) {
  * in the home folder, as the workspace's passwords place lists them.
  */
 const SIGN_IN_LINES: Record<string, string> = {
-  ".aws": "This folder holds the keys to your Amazon Web Services account.",
-  ".azure": "This folder holds your sign-in to Microsoft Azure.",
-  ".config/gcloud": "This folder holds your sign-in to Google Cloud.",
-  ".config/gh": "This folder holds your sign-in to GitHub.",
-  ".config/op": "This folder holds your sign-in to 1Password.",
+  ".aws": "This folder has the keys to your Amazon Web Services account.",
+  ".azure": "This folder has your sign-in to Microsoft Azure.",
+  ".config/gcloud": "This folder has your sign-in to Google Cloud.",
+  ".config/gh": "This folder has your sign-in to GitHub.",
+  ".config/op": "This folder has your sign-in to 1Password.",
   ".docker/config.json":
-    "This file holds your sign-ins to the places Docker gets images from.",
-  ".git-credentials": "This file holds the passwords git signs in with.",
-  ".gnupg": "This folder holds the keys you sign and encrypt things with.",
-  ".kube": "This folder holds the keys to your Kubernetes clusters.",
-  ".netrc": "This file holds passwords for websites and servers.",
-  ".password-store": "This folder holds your saved passwords.",
-  ".ssh": "This folder holds the keys you sign in to other computers with.",
+    "This file has your sign-ins to the places Docker gets images from.",
+  ".git-credentials": "This file has the passwords git signs in with.",
+  ".gnupg": "This folder has the keys you sign and encrypt things with.",
+  ".kube": "This folder has the keys to your Kubernetes clusters.",
+  ".netrc": "This file has passwords for websites and servers.",
+  ".password-store": "This folder has your saved passwords.",
+  ".ssh": "This folder has the keys you sign in to other computers with.",
 };
 
 /** What a folder of sign-ins holds, said plainly; undefined for any other folder. */

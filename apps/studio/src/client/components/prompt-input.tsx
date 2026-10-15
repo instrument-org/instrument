@@ -433,17 +433,13 @@ export const PromptInput = ({
 
     if (duplicates.length > 0) {
       const names = duplicates.join(", ");
-      toast.info(
-        duplicates.length === 1
-          ? `“${names}” is already added`
-          : `Some folders are already added`,
-        {
-          description:
-            duplicates.length === 1
-              ? "That folder is already attached."
-              : `${names} are already attached.`,
-        },
-      );
+      if (duplicates.length === 1) {
+        toast.info(`“${names}” is already added`);
+      } else {
+        toast.info("Some folders are already added", {
+          description: `${names} are already attached.`,
+        });
+      }
     }
 
     if (newFolders.length === 0) {
@@ -506,9 +502,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`“${folderLabel(folderPath)}” is already added`, {
-        description: "That folder is already attached.",
-      });
+      toast.info(`“${folderLabel(folderPath)}” is already added`);
       return;
     }
 

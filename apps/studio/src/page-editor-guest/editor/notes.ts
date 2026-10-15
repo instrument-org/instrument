@@ -62,7 +62,7 @@ export function structWhy(v: Blocked, act: "delete" | "duplicate") {
       return "A script makes this, so it is not in the file.";
     }
     case "root": {
-      return "This holds the whole page.";
+      return "This is the whole page.";
     }
     case "script-reads": {
       return `A script uses ${v.detail ?? "it"}, so ${verb} it could break the page.`;

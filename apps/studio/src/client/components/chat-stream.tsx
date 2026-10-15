@@ -971,11 +971,10 @@ export function ChatStream({
       <WarningIcon />
       <AlertDescription className="flex flex-col gap-3">
         <div className="text-xs">
-          Instrument paused after working on its own for a while. Continue to
-          let it keep going.
+          Instrument paused after working on its own for a while.
         </div>
         <Button onClick={onContinue} size="sm" variant="secondary">
-          Resume the agent
+          Keep going
         </Button>
       </AlertDescription>
     </Alert>

@@ -608,20 +608,20 @@ function reportNotes(notes: ReplayNotes) {
     toast.message("Kept your version", {
       description:
         notes.keptYours === 1
-          ? "The agent also changed a cell you edited; yours was kept."
-          : `The agent also changed ${notes.keptYours} cells you edited; yours were kept.`,
+          ? "Instrument also changed a cell you edited, and your version was kept."
+          : `Instrument also changed ${notes.keptYours} cells you edited, and your versions were kept.`,
     });
   }
   if (notes.byPosition > 0) {
     toast.message("Your edits were matched by row and column", {
       description:
-        "The agent changed the rows or columns you edited, so your edits were matched by row number and column name.",
+        "Instrument changed the rows or columns you edited, so check that your edits are where you expect.",
     });
   }
   if (notes.lost > 0) {
     toast.message("Some edits were not applied", {
       description:
-        "The agent removed or changed rows you edited or deleted before your change was saved.",
+        "Instrument removed or changed rows you edited or deleted before your change was saved.",
     });
   }
 }

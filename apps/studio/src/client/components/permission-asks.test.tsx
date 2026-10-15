@@ -76,8 +76,7 @@ describe("PermissionAsksForPart", () => {
 
       await screen.findByText(/^Let Instrument use/);
       expect(
-        screen.queryByText("This folder holds your sign-in to GitHub.") !==
-          null,
+        screen.queryByText("This folder has your sign-in to GitHub.") !== null,
       ).toBe(holds);
     },
   );

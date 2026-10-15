@@ -35,8 +35,9 @@ describe("workspace skill watcher", () => {
     try {
       const skillDir = path.join(workspaceLayout(root).skillsDir, "review");
       await fs.mkdir(path.join(skillDir, "scripts"), { recursive: true });
-      await fs.writeFile(path.join(skillDir, "scripts", "run.ts"), "");
-      await expect(nextEvent).resolves.toMatchObject({ done: false });
+      await expect(
+        writeUntilPublished(path.join(skillDir, "scripts", "run.ts"), nextEvent),
+      ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();
       await stop();
@@ -115,12 +116,15 @@ describe("workspace skill watcher", () => {
     );
     try {
       await fs.writeFile(path.join(generatedDir, "index.js"), "");
-      await fs.writeFile(path.join(skillsDir, "review", "SKILL.md"), "");
       await vi.waitFor(
-        () => {
+        async () => {
+          // Written on each attempt for the same reason
+          // `writeUntilPublished` does it: one change can go unheard, and
+          // waiting on a single write that was missed only waits.
+          await fs.writeFile(path.join(skillsDir, "review", "SKILL.md"), "");
           expect(files).toContain(path.join("review", "SKILL.md"));
         },
-        { timeout: 10_000 },
+        { interval: 1000, timeout: 10_000 },
       );
       expect(files.some((file) => file.includes("node_modules"))).toBe(false);
     } finally {

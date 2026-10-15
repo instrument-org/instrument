@@ -88,7 +88,7 @@ What the hook does not cover: type errors, tests in another package that import 
 - **React** 19.2 / **react-dom** 19.2
 - **TypeScript** 7.0 (the native compiler)
 - **Zod** 4.x
-- **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
+- **Vite** 8.x (Rolldown/Oxc) / **Vitest** 5.x (browser locators and `toHaveTextContent` match exactly; `toMatchTextContent` takes a substring or RegExp)
 - **AI SDK** 7.x
 - **better-auth** 1.7.x
 - **pnpm** 11.28.0 (`packageManager`) / **Node** >=24.21.0 (`engines`)

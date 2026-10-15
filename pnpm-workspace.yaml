@@ -31,7 +31,7 @@ catalog:
   "@types/node": 24.13.1
   "@types/react": ^19.3.0
   "@types/react-dom": ^19.3.0
-  "@vitejs/plugin-react": ^6.0.5
+  "@vitejs/plugin-react": ^6.1.2
   ai: ^7.0.134
   better-auth: ^1.7.7
   hono: ^4.13.13
@@ -39,8 +39,8 @@ catalog:
   react-dom: ^19.3.0
   typescript: 7.0.2
   typescript-result: ^3.5.2
-  vite: ^8.3.1
-  vitest: ^4.1.11
+  vite: ^8.3.4
+  vitest: ^5.0.3
   zod: ^4.6.5
 
 ignoredOptionalDependencies:

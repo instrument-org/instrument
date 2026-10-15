@@ -40,7 +40,7 @@ electron.vite.config*.mjs
 # page, the Playwright trace of the run that failed, and the attachments the
 # reporter links from its output. All are reproduced by re-running the failure,
 # so none is worth keeping.
-.vitest-attachments/
+.vitest/
 __screenshots__/
 __traces__/
 

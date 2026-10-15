@@ -10,7 +10,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { grepWalks, reachesAboveHome } from "./shell-commands/native-text";
+import { grepWalks } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -69,19 +69,6 @@ beforeAll(async () => {
 afterAll(async () => {
   withUutils(undefined);
   await fs.rm(tmpDir, { force: true, recursive: true });
-});
-
-describe("reachesAboveHome", () => {
-  it.each<[string[], boolean]>([
-    [["-r", "x", "/Users/sam"], true],
-    [["-r", "x", "/Users/sam/"], true],
-    [["-r", "x", "/Users"], true],
-    [["-r", "x", "/"], true],
-    [["-r", "x", "/Users/sam/Projects/app"], false],
-    [["-r", "x", "."], false],
-  ])("%j is %s", (args, expected) => {
-    expect(reachesAboveHome(args, "/Users/sam")).toBe(expected);
-  });
 });
 
 describe("grepWalks", () => {

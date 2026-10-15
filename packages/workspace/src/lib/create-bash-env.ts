@@ -46,11 +46,6 @@ import {
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
-import {
-  createNativeTextCommand,
-  nativeTextRoutes,
-  uutilsProgram,
-} from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
@@ -541,12 +536,8 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
-  // A text command uutils answers is described by that program.
-  const route = nativeTextRoutes().find((each) => each.name === name);
   try {
-    program = route
-      ? uutilsProgram(route.binary)
-      : COMMAND_PROGRAMS[name]?.(chatId);
+    program = COMMAND_PROGRAMS[name]?.(chatId);
   } catch {
     // A program this platform cannot carry (dugite's git elsewhere) runs
     // nothing, so there is nothing to name.
@@ -601,13 +592,9 @@ const CHAT_COMMAND_LINES = [
 ];
 
 export function createBashDescription() {
-  const allowedCommandNames = [
-    ...new Set([
-      ...getCommandNames(),
-      // The GNU text commands the bundled uutils add beside the builtins.
-      ...nativeTextRoutes().map((route) => route.name),
-    ]),
-  ].filter((name) => !BROKEN_COMMANDS.has(name));
+  const allowedCommandNames = getCommandNames().filter(
+    (name) => !BROKEN_COMMANDS.has(name),
+  );
 
   const namedOnly = allowedCommandNames
     .filter((name) => !(name in DESCRIBED_COMMANDS))
@@ -786,11 +773,6 @@ export async function createLocalBashEnv({
       // not carry its `(?i)` and root-level-glob bugs.
       createRgCommand({ layout, chatId }),
       createDuCommand({ layout }),
-      // After the bundled commands, so the uutils programs shadow the
-      // builtins they answer for.
-      ...nativeTextRoutes().map((route) =>
-        createNativeTextCommand(route, { chatId, layout }),
-      ),
       ...specializedCommands,
       // After the bundled commands so these shadow just-bash's own `kill` and
       // `wait`, which act on host pids this sandbox deliberately cannot name.

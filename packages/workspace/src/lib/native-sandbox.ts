@@ -477,45 +477,6 @@ export function withInstallerClosed(
 }
 
 /**
- * A reach's profile, built once: a shell makes its reach once per call, so a
- * loop of native commands builds it once rather than per command.
- */
-const profiles = new WeakMap<NativeReach, string>();
-function profileOf(reach: NativeReach): string {
-  let profile = profiles.get(reach);
-  if (profile === undefined) {
-    profile = seatbeltProfile(reach);
-    profiles.set(reach, profile);
-  }
-  return profile;
-}
-
-/**
- * A profile compiled to Seatbelt's bytecode, base64, by the helper that
- * applies it (`sbexec compile`), cached by the profile's text so each set of
- * rules compiles once per launch. It is held here and handed to the helper
- * in its arguments, never kept in a file a sandboxed program could rewrite.
- * Undefined when the helper cannot compile it, which falls back to
- * sandbox-exec.
- */
-const compiled = new Map<string, string | undefined>();
-function compiledProfile(helper: string, profile: string): string | undefined {
-  if (!compiled.has(profile)) {
-    try {
-      compiled.set(
-        profile,
-        execFileSync(helper, ["compile"], { input: profile }).toString(
-          "base64",
-        ),
-      );
-    } catch {
-      compiled.set(profile, undefined);
-    }
-  }
-  return compiled.get(profile);
-}
-
-/**
  * The command to spawn for a native binary, held to `reach` under Seatbelt
  * or bubblewrap. Where neither can apply, the command comes back unchanged
  * and `reach` is absent.
@@ -533,12 +494,11 @@ export function wrapNativeCommand(
   }
   const seatbelt = seatbeltState();
   if (seatbelt === "works") {
-    const profile = profileOf(reach);
-    const helper = appEnv.INSTRUMENT_SEATBELT_HELPER;
-    const bytecode = helper ? compiledProfile(helper, profile) : undefined;
-    return helper && bytecode
-      ? { args: ["run", bytecode, file, ...args], file: helper, reach }
-      : { args: ["-p", profile, file, ...args], file: SANDBOX_EXEC, reach };
+    return {
+      args: ["-p", seatbeltProfile(reach), file, ...args],
+      file: SANDBOX_EXEC,
+      reach,
+    };
   }
   const bwrap = bwrapState();
   if (seatbelt === "failed" || bwrap === "failed") {

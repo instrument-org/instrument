@@ -29,12 +29,6 @@ export function getUvBinPath(): string {
   return getResourcePath("uv", binaryName);
 }
 
-// The uutils binaries are vendored into `resources/uutils/` (see
-// scripts/download-uutils.ts) and deep-signed beside uv.
-export function getUutilsDir(): string {
-  return getResourcePath("uutils");
-}
-
 // Added to PATH so that child processes (the users's apps) can access the binaries
 // as if they were installed globally. We don't use these ourselves due to issues
 // with orphaned processes on Windows.

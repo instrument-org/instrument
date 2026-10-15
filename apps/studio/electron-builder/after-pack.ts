@@ -13,7 +13,6 @@ import {
   resolvePackagedFfmpeg,
   resolvePackagedPnpm,
   resolvePackagedRipgrep,
-  resolvePackagedUutilsDir,
   resolvePackagedUv,
   resolveResourcesDir,
   resolveUnpackedDir,
@@ -31,7 +30,6 @@ import {
   verifyThirdPartyNotices,
 } from "./verify-licenses";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
-import { expectedUutils, verifyUutilsDir } from "./verify-uutils";
 import { verifyUvBinary } from "./verify-uv";
 
 export function runAfterPack(context: AfterPackContext) {
@@ -39,7 +37,6 @@ export function runAfterPack(context: AfterPackContext) {
   pruneUnreachableGitTooling(context);
   verifyPackagedRipgrep(context);
   verifyPackagedUv(context);
-  verifyPackagedUutils(context);
   verifyPackagedPnpm(context);
   verifyPackagedFfmpeg(context);
   verifyPackagedMacBridge(context);
@@ -287,18 +284,4 @@ function verifyPackagedUv(context: AfterPackContext) {
   console.log(
     `afterPack: verified uv at ${binaryPath} (${size} bytes, ${detail})`,
   );
-}
-
-function verifyPackagedUutils(context: AfterPackContext) {
-  const platformName = context.electronPlatformName;
-  if (!isElectronPlatform(platformName)) {
-    throw new Error(`Unsupported electron platform: ${platformName}`);
-  }
-  const dir = resolvePackagedUutilsDir(context.appOutDir, platformName);
-  const verified = verifyUutilsDir(
-    dir,
-    expectedUutils(platformName, Arch[context.arch]),
-    { execute: canExecuteForTarget({ arch: context.arch, platformName }) },
-  );
-  console.log(`afterPack: verified uutils at ${dir} (${verified.join(", ")})`);
 }

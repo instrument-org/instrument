@@ -210,21 +210,7 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     places.push(
       { id: "icloud", paths: [inOwnHome(iCloudDrivePath())] },
       { id: "drives", paths: ["/Volumes"] },
-      {
-        homeDotEntries: true,
-        id: "appFiles",
-        // The Music, TV and Photos libraries are those apps' files too, and
-        // macOS asks before a program reads them, in a dialog a command
-        // waits on: closed here, a native walk over the home folder is
-        // refused there by the sandbox and never reaches macOS's question.
-        paths: inHome(
-          "Library",
-          "Music/Music",
-          "Music/iTunes",
-          "Movies/TV",
-          "Pictures/Photos Library.photoslibrary",
-        ),
-      },
+      { homeDotEntries: true, id: "appFiles", paths: inHome("Library") },
     );
   } else if (process.platform === "linux") {
     places.push(

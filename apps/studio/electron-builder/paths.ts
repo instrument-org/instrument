@@ -109,21 +109,6 @@ export function resolveResourcesDir(
 }
 
 /**
- * The packaged uutils folder within the unpacked tree, vendored into
- * `resources/uutils/` by scripts/download-uutils.ts.
- */
-export function resolvePackagedUutilsDir(
-  appOutDir: string,
-  platformName: ElectronPlatform,
-) {
-  return path.join(
-    resolveUnpackedDir(appOutDir, platformName),
-    "resources",
-    "uutils",
-  );
-}
-
-/**
  * Resolve the packaged `app.asar.unpacked` directory for a given build. macOS
  * nests it inside the `.app` bundle; Windows/Linux place it under `resources/`.
  */

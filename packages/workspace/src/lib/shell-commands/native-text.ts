@@ -1,5 +1,6 @@
 import { type Command, defineCommand, type ExecResult } from "just-bash";
 import { existsSync } from "node:fs";
+import os from "node:os";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -86,6 +87,30 @@ function dateWantsNative(args: string[]): boolean {
   );
 }
 
+/**
+ * A walk from the home folder or above it on macOS. A native program that
+ * opens Desktop, Documents or Music there makes macOS ask the person, in a
+ * dialog the walk waits on until someone answers; the builtin asks the rules
+ * first and never opens a folder they keep for asking.
+ */
+export function walksHomeOnMac(
+  args: string[],
+  home = os.homedir(),
+  platform = process.platform,
+): boolean {
+  return (
+    platform === "darwin" &&
+    // The home folder, or a folder that holds it.
+    args.some((arg) => {
+      if (!nodePath.isAbsolute(arg)) {
+        return false;
+      }
+      const dir = nodePath.resolve(arg);
+      return dir === "/" || isAtOrUnder(dir, home);
+    })
+  );
+}
+
 /** A recursive search, which the builtin walks on the shell's thread. */
 function grepWantsNative(args: string[]): boolean {
   return args.some(
@@ -121,7 +146,8 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     mode: "native",
     name: "find",
     platforms: UNIX,
-    wantsBuiltin: (args) => args.some((arg) => /^-newer[a-zB]t$/.test(arg)),
+    wantsBuiltin: (args) =>
+      args.some((arg) => /^-newer[a-zB]t$/.test(arg)) || walksHomeOnMac(args),
   },
   {
     binary: "grep",
@@ -130,7 +156,9 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     // On Windows a recursive grep prints `reports\b.md:...`, which nothing
     // respells for the shell, so the builtin keeps walking there.
     wantsNative: (args) =>
-      process.platform !== "win32" && grepWantsNative(args),
+      process.platform !== "win32" &&
+      grepWantsNative(args) &&
+      !walksHomeOnMac(args),
   },
   {
     binary: "coreutils",

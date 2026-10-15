@@ -13,6 +13,7 @@ import { createBashEnv } from "./create-bash-env";
 import {
   quietRefusedFolders,
   rejectedOption,
+  walksHomeOnMac,
 } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -88,6 +89,20 @@ describe("rejectedOption", () => {
     ["", 1, "", false],
   ])("%j exit %i stdout %j is %s", (stderr, exitCode, stdout, expected) => {
     expect(rejectedOption({ exitCode, stderr, stdout })).toBe(expected);
+  });
+});
+
+describe("walksHomeOnMac", () => {
+  it.each<[string[], NodeJS.Platform, boolean]>([
+    [["/Users/sam", "-name", "x"], "darwin", true],
+    [["/Users", "-name", "x"], "darwin", true],
+    [["/"], "darwin", true],
+    [["-r", "x", "/Users/sam/"], "darwin", true],
+    [["/Users/sam/Projects/app"], "darwin", false],
+    [[".", "-name", "x"], "darwin", false],
+    [["/home/sam"], "linux", false],
+  ])("%j on %s is %s", (args, platform, expected) => {
+    expect(walksHomeOnMac(args, "/Users/sam", platform)).toBe(expected);
   });
 });
 

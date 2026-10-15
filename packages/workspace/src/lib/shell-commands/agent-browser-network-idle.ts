@@ -10,7 +10,7 @@ import { parseAgentBrowserArgs } from "./agent-browser-args";
  * and product page measured did that, as did most news and shop pages, so the
  * wait cost 25 seconds and told the agent nothing.
  */
-export const NETWORK_IDLE_TIMEOUT_MS = 5000;
+const NETWORK_IDLE_TIMEOUT_MS = 5000;
 
 /** What the agent reads when the capped wait gives up. */
 export const NETWORK_IDLE_GAVE_UP = `The network did not go quiet within ${NETWORK_IDLE_TIMEOUT_MS / 1000} seconds, which a page that keeps a connection open never does. The page has loaded, so act on it, or wait for what you need with \`wait --text\`, \`wait <selector>\` or \`wait --url\`.\n`;

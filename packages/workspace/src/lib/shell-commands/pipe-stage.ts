@@ -40,6 +40,16 @@ import { collectAndForward, currentShellOutputSink } from "./output-sink";
 /** Streams a stage left for the next one, by the token the shell carries. */
 const handoffStreams = new Map<string, Readable>();
 
+/**
+ * Producers' stdouts a relayed consumer stopped reading before they ended.
+ * Windows has no SIGPIPE, so such a producer fails its next write and says so
+ * on stderr; it is reported as a POSIX one would end.
+ */
+const cutOff = new WeakSet<Readable>();
+
+/** What a program prints when the pipe it writes to has closed on Windows. */
+const BROKEN_PIPE = /Broken pipe|pipe is being closed|os error 232/i;
+
 /** What a finished stage reports, shaped like `execShim`'s result. */
 export interface StageResult {
   exitCode: number | undefined;
@@ -227,8 +237,14 @@ export function startPipeStage(
   if (!options.offerHandoff) {
     linkCancel(options.cancelSignal);
   }
+  // On Windows the stage's end of the previous stage's pipe is the one libuv
+  // opened for overlapped I/O, and a program that reads its stdin
+  // synchronously (uutils, ripgrep: Rust's std) aborts on it with
+  // "operation failed to complete synchronously". There the bytes are relayed
+  // through this process instead, still as a stream with backpressure.
+  const relay = upstream !== undefined && process.platform === "win32";
   const stdio: StdioOptions = [
-    upstream ?? (options.input ? "pipe" : "ignore"),
+    relay ? "pipe" : (upstream ?? (options.input ? "pipe" : "ignore")),
     "pipe",
     "pipe",
     ...(options.onMessage ? (["ipc"] as const) : []),
@@ -247,11 +263,30 @@ export function startPipeStage(
   } finally {
     // The program holds its own copy of the read end now. Closing ours is
     // what lets the producer see a closed pipe once this stage exits.
-    upstream?.destroy();
+    if (!relay) {
+      upstream?.destroy();
+    }
+  }
+  if (relay && upstream && child.stdin) {
+    const stdin = child.stdin;
+    // A stage that exits early closes its stdin; the producer then finds
+    // its pipe closed, as it would reading straight from it.
+    const close = () => {
+      if (!upstream.readableEnded) {
+        cutOff.add(upstream);
+      }
+      upstream.destroy();
+    };
+    stdin.on("error", close);
+    child.once("close", close);
+    upstream.on("error", () => stdin.destroy());
+    upstream.pipe(stdin);
+    resumeReading(upstream);
   }
   const handsOn =
     options.offerHandoff && child.stdout !== null && holdUnread(child.stdout);
-  if (options.input && child.stdin) {
+  // Bytes the shell gave a stage only stand in for the pipe it did not get.
+  if (options.input && child.stdin && !relay) {
     child.stdin.on("error", () => {});
     child.stdin.end(options.input);
   }
@@ -306,8 +341,18 @@ export function startPipeStage(
     child.on("close", (code, signal) => resolve(shellStatus(code, signal)));
   });
   const finish = async (stdout: Promise<string>): Promise<StageResult> => {
-    const [exitCode, err, out] = await Promise.all([exited, stderr, stdout]);
+    const [status, written, out] = await Promise.all([exited, stderr, stdout]);
     await streamed;
+    // A producer whose reader stopped early ends as it would on POSIX: the
+    // status of SIGPIPE, and none of its complaint about the closed pipe.
+    // Some (uutils' seq) exit 0 after saying so, which counts the same.
+    const wasCutOff = child.stdout !== null && cutOff.has(child.stdout);
+    const lines = written.split(/(?<=\n)/);
+    const err = wasCutOff
+      ? lines.filter((line) => !BROKEN_PIPE.test(line)).join("")
+      : written;
+    const exitCode =
+      wasCutOff && (status !== 0 || err !== written) ? 141 : status;
     await finishTreeTermination?.();
     const noted = withShimNotes({
       cwd: options.cwd,

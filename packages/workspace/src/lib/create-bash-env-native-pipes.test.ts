@@ -87,6 +87,9 @@ describe.runIf(vendored)("native pipelines", () => {
     "rg -c w1 words.txt | sort",
     "rg --files . 2>/dev/null | sort | head -3",
     "sort words.txt | uniq > uniq.txt; wc -l < uniq.txt",
+    // A consumer that has to wait for its input: on Windows a program reading
+    // the producer's pipe directly blocks on an overlapped handle and aborts.
+    "node -e 'setTimeout(() => console.log(\"b\\na\"), 300)' | sort | uniq -c",
     "printf 'b\\na\\n' | sort | head -1",
   ])("prints what the buffered path prints: %s", async (command) => {
     const streamed = await run(command);
@@ -98,6 +101,16 @@ describe.runIf(vendored)("native pipelines", () => {
       "node -e 'setInterval(() => process.stdout.write(\"y\\n\".repeat(1000)), 1)' | head -3",
     );
     expect(result.stdout).toBe("y\ny\ny\n");
+  });
+
+  // On Windows, with no SIGPIPE, the producer reports the closed pipe itself;
+  // it is told as POSIX would end it.
+  it("ends a producer cut off by its reader with SIGPIPE's status, quietly", async () => {
+    const result = await run(
+      "set -o pipefail; seq 1 100000 | head -1; echo $? ${PIPESTATUS[@]}",
+    );
+    expect(result.stdout).toBe("1\n141 141 0\n");
+    expect(result.stderr).toBe("");
   });
 
   it("reports each stage's status for PIPESTATUS and pipefail", async () => {

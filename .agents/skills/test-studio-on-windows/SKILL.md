@@ -164,6 +164,25 @@ node "$WINDOWS_HOST" stop --host "$HOST" --target installed
 
 Stopping either dev target terminates every Studio development process whose command line belongs to the configured checkout, and stops both dev tasks: they run the same command from the same checkout, and a process does not carry which workspace it was pointed at. Do not use it when another person or agent is intentionally using that same checkout.
 
+## Measuring anything that runs a program
+
+A command run straight over SSH lands in a session-0 / network-logon token,
+and that alone fails things that have nothing to do with what is being
+tested: every binary importing USER32 dies with `STATUS_DLL_INIT_FAILED`
+(`0xC0000142`) whatever policy it was given. A sandbox bake-off run that way
+recorded node and git as unable to start under MXC, which went into an
+architecture doc as a blocker and was wrong for two months.
+
+So anything whose result depends on a program actually starting -- a sandbox
+probe, a native command, a benchmark -- runs in the interactive session, the
+way the scheduled tasks here already do, and not through a bare `ssh host
+<command>`. Reading files, inspecting state and running the test suite are
+unaffected and stay as they are.
+
+The tell is a failure that is the same for every policy, including the most
+permissive one you can write. A containment result that does not change when
+you grant everything is measuring the session, not the sandbox.
+
 ## Troubleshooting
 
 - `start` reports an interactive-session failure: log into or unlock the Windows account, then retry.

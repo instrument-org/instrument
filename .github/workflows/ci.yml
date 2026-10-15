@@ -27,6 +27,29 @@ jobs:
         run: pnpm check:spelling
       - run: pnpm check-and-test:ci
 
+  # The workspace package's own tests, on the one platform whose filesystem
+  # answers differently everywhere the agent meets it: a drive letter where a
+  # mount would be, a second short name beside every folder name, a file a
+  # delete cannot take while something holds it open. Nothing ran here until
+  # these tests did, and what they found included a way around the folder
+  # rules, so the suite runs on Windows from now on. Types, lint and the build
+  # say the same thing on every platform and stay on the job above.
+  workspace-windows:
+    name: Workspace Tests (Windows)
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # FIXME rename "registry"
+          submodules: recursive # Some tests use the registry
+      - uses: ./.github/actions/setup-binary-caches
+      - uses: ./.github/actions/prepare
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: pnpm --filter @instrument-org/workspace run test:ci
+
   # Its own job so the Chromium download never sits in front of everything else,
   # and so a flake here reads as a browser failure rather than as the whole
   # check being red.

@@ -15,7 +15,6 @@ import { ComposerFrame } from "@/client/components/composer-frame";
 import {
   DictationButton,
   DictationCancel,
-  DictationReadout,
   DictationWave,
   landingWords,
 } from "@/client/components/dictation-controls";
@@ -875,45 +874,29 @@ export const PromptInput = ({
       <ComposerFrame
         actions={
           <>
-            <div
-              className={cn(
-                "flex min-w-0 items-center gap-3",
-                dictating ? "flex-1" : "shrink-0",
-              )}
-              // The draft's head reads this to give the row its whole width.
-              data-dictating={dictating || undefined}
-            >
-              {dictating ? (
-                <DictationReadout dictation={dictation} />
-              ) : (
-                addMenu && (
-                  <ComposerAddMenu
-                    actions={actions}
-                    bounds={composerBounds}
-                    disabled={disabled || isLoading}
-                    onReturnFocus={() => {
-                      promptEditorRef.current?.focus();
-                    }}
-                    onSelectSkill={(skill) => {
-                      promptEditorRef.current?.insertText(
-                        skillMentionToken(skill.id),
-                      );
-                    }}
-                    onViewChange={setMenuView}
-                    places={composerPlaces}
-                    skills={userInvocableSkills}
-                    view={menuView}
-                  />
-                )
+            <div className="flex min-w-0 shrink-0 items-center gap-1">
+              {addMenu && (
+                <ComposerAddMenu
+                  actions={actions}
+                  bounds={composerBounds}
+                  disabled={disabled || isLoading}
+                  onReturnFocus={() => {
+                    promptEditorRef.current?.focus();
+                  }}
+                  onSelectSkill={(skill) => {
+                    promptEditorRef.current?.insertText(
+                      skillMentionToken(skill.id),
+                    );
+                  }}
+                  onViewChange={setMenuView}
+                  places={composerPlaces}
+                  skills={userInvocableSkills}
+                  view={menuView}
+                />
               )}
             </div>
 
-            <div
-              className={cn(
-                "flex min-w-0 items-center justify-end gap-4",
-                dictating ? "shrink-0" : "flex-1",
-              )}
-            >
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
               {!dictating &&
                 features.context_ring &&
                 id &&
@@ -1184,13 +1167,8 @@ export const PromptInput = ({
           bounds={composerBounds}
           defaultValue={value}
           dictating={dictating}
-          // A pill shows the words being heard where they will land, between
-          // Cancel and Stop; a block shows them in its bar instead.
-          dictatingWords={
-            variant === "pill" && dictating
-              ? landingWords(dictation)
-              : undefined
-          }
+          // The words being heard show where they will land.
+          dictatingWords={dictating ? landingWords(dictation) : undefined}
           disabled={disabled || isLoading}
           key={draftKeyString(draftKey)}
           onChange={setValue}

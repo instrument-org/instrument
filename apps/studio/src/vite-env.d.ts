@@ -45,6 +45,8 @@ declare namespace NodeJS {
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
       /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
       INSTRUMENT_DEV_SUPERVISOR: string | undefined;
+      /** `0` keeps every pipeline stage on the buffered path, for comparing it with streaming between native commands. */
+      INSTRUMENT_NATIVE_PIPES: string | undefined;
       /**
        * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
        * `auto`; anything else is ignored. See

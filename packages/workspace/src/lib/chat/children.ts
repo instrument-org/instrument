@@ -3,6 +3,7 @@ import { z } from "zod";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
+import { ChatReads } from "../chat-reads";
 import { createWriteQueue } from "../create-write-queue";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -74,7 +75,8 @@ export async function listChildTasks(
   if (!chatSession) {
     return [];
   }
-  const sessions = await Store.getSessions(chatId, {
+  const sessions = await ChatReads.sessions({
+    chatId,
     includeChildSessions: true,
   });
   if (sessions.isErr()) {
@@ -92,7 +94,7 @@ export async function childTask(
   sessionId: StoreId.Session,
 ): Promise<ChatTask | undefined> {
   const chatSession = sessionOfChat(chatId);
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   return chatSession && session.isOk() && session.value.parentId === chatSession
     ? taskOf(chatId, session.value)
     : undefined;
@@ -125,7 +127,7 @@ export function touchTask(
   changes: Pick<Session.Type, "stoppedBy"> = {},
 ): Promise<void> {
   return taskWrites(sessionId, async () => {
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return;
     }

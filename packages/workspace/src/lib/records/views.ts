@@ -246,6 +246,55 @@ export async function modelHistoryView(
   );
 }
 
+/**
+ * Every message of the session with every part it holds, oldest first, each
+ * call's returned bytes read back from its blob: what a transcript saved or
+ * copied out of the chat carries, where the conversation and the steps each
+ * carry a side of it. No context rollover applies, since a transcript is the
+ * whole session rather than a request built from it.
+ */
+export async function everyMessageView(
+  read: ChatRead,
+  sessionId: StoreId.Session,
+  options: HistoryOptions = {},
+): Promise<SessionMessage.WithParts[]> {
+  const load = cachedLoad(read.load);
+  return Promise.all(
+    messagesOf(read, sessionId, options).map(async (message) => ({
+      ...message,
+      parts: await Promise.all(
+        message.parts
+          .map(withSentFoldersWhereTheyAre)
+          .map((part) => inflated(part, load)),
+      ),
+    })),
+  );
+}
+
+/**
+ * What the session's context meter shows: the input tokens the last reply
+ * that reported any was built from. Zero where no reply has reported one.
+ */
+export function contextTokensView(
+  read: ChatRead,
+  sessionId: StoreId.Session,
+): number {
+  return inputTokensIn(messagesOf(read, sessionId, {}));
+}
+
+/** The same count, read from messages already in hand. */
+export function inputTokensIn(messages: SessionMessage.Type[]): number {
+  const reported = messages.findLast(
+    (message) =>
+      message.role === "assistant" &&
+      Number.isFinite(message.metadata.usage?.inputTokens) &&
+      (message.metadata.usage?.inputTokens ?? 0) > 0,
+  );
+  return reported?.role === "assistant"
+    ? (reported.metadata.usage?.inputTokens ?? 0)
+    : 0;
+}
+
 /** What the person and the agent said in the session, in words, oldest first. */
 export function searchView(read: ChatRead, sessionId: StoreId.Session): Said[] {
   return saidIn(historyOf(read.chat, sessionId));

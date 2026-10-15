@@ -1,6 +1,6 @@
 import { UNTITLED_CHAT_TITLE } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 
 const defaultUntitledChatPattern = new RegExp(
   `^${UNTITLED_CHAT_TITLE}(?: \\d+)?$`,
@@ -15,7 +15,8 @@ export async function generateSessionTitle({
 }): Promise<string> {
   const baseTitle = UNTITLED_CHAT_TITLE;
 
-  const sessionsResult = await Store.getSessions(chatId, {
+  const sessionsResult = await ChatReads.sessions({
+    chatId,
     includeChildSessions: true,
     signal,
   });

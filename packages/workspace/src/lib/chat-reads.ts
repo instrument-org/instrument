@@ -8,7 +8,11 @@ import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
 import { sessionOf } from "./records/session-of";
 import {
+  contextTokensView,
   conversationView,
+  everyMessageView,
+  inputTokensIn,
+  listView,
   liveView,
   mergeViews,
   messageIdsView,
@@ -176,6 +180,84 @@ export namespace ChatReads {
             (messages) => saidIn(messages.toSorted((a, b) => byId(a.id, b.id))),
           ),
     );
+  }
+
+  /**
+   * What the session's context meter shows: the input tokens the last reply
+   * that reported any was built from.
+   */
+  export function contextTokens({
+    chatId,
+    sessionId,
+    signal,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+    signal?: AbortSignal;
+  }): ResultAsync<number, Failure> {
+    return recorded(chatId).andThen((records) =>
+      records?.held
+        ? okAsync(contextTokensView(records.read, sessionId))
+        : Store.getMessages({ chatId, sessionId }, { signal }).map(
+            inputTokensIn,
+          ),
+    );
+  }
+
+  /**
+   * The chat's sessions: its own conversation, and with
+   * `includeChildSessions` the tasks it has started too.
+   */
+  export function sessions({
+    chatId,
+    includeChildSessions = false,
+    signal,
+  }: {
+    chatId: ChatId;
+    includeChildSessions?: boolean;
+    signal?: AbortSignal;
+  }): ResultAsync<Session.Type[], Failure> {
+    return recorded(chatId).andThen((records) =>
+      records?.held
+        ? okAsync(
+            listView(records.read).filter(
+              (each) => includeChildSessions || !each.parentId,
+            ),
+          )
+        : Store.getSessions(chatId, { includeChildSessions, signal }),
+    );
+  }
+
+  /**
+   * The session with every message and every part it holds: what a saved or
+   * copied transcript carries.
+   */
+  export function sessionWithMessages({
+    chatId,
+    sessionId,
+    signal,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+    signal?: AbortSignal;
+  }): ResultAsync<Session.WithMessagesAndParts, Failure> {
+    return recorded(chatId).andThen((records) => {
+      const found = records?.held
+        ? records.read.chat.sessions.find(({ id }) => id === sessionId)
+        : undefined;
+      if (!found || !records) {
+        return Store.getSessionWithMessagesAndParts(sessionId, chatId, {
+          signal,
+        });
+      }
+      return ResultAsync.fromPromise(
+        everyMessageView(records.read, sessionId).then((messages) => ({
+          ...sessionOf(found),
+          messages,
+        })),
+        storageError,
+      );
+    });
   }
 
   /**

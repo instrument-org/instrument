@@ -10,7 +10,7 @@ import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
 import { closeAsksOf, openAsksOf } from "../../lib/permissions/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
-import { Store } from "../../lib/store";
+import { ChatReads } from "../../lib/chat-reads";
 import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
@@ -31,10 +31,7 @@ const byIdWithMessagesAndParts = base
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
     const chatId = id;
-    const session = await Store.getSessionWithMessagesAndParts(
-      sessionId,
-      chatId,
-    );
+    const session = await ChatReads.sessionWithMessages({ chatId, sessionId });
 
     if (session.isErr()) {
       throw toORPCError(session.error, errors);
@@ -54,7 +51,8 @@ const list = base
   .handler(async ({ errors, input }) => {
     const { id, includeChildSessions } = input;
     const chatId = id;
-    const sessions = await Store.getSessions(chatId, {
+    const sessions = await ChatReads.sessions({
+      chatId,
       includeChildSessions,
     });
     if (sessions.isErr()) {
@@ -217,24 +215,12 @@ const contextTokens = base
     const { id, sessionId } = input;
     const chatId = id;
 
-    const messages = await Store.getMessages({ sessionId, chatId });
-    if (messages.isErr()) {
-      throw toORPCError(messages.error, errors);
+    const inputTokens = await ChatReads.contextTokens({ chatId, sessionId });
+    if (inputTokens.isErr()) {
+      throw toORPCError(inputTokens.error, errors);
     }
 
-    const lastWithTokens = messages.value.findLast(
-      (m) =>
-        m.role === "assistant" &&
-        Number.isFinite(m.metadata.usage?.inputTokens) &&
-        (m.metadata.usage?.inputTokens ?? 0) > 0,
-    );
-
-    const inputTokens =
-      lastWithTokens?.role === "assistant"
-        ? (lastWithTokens.metadata.usage?.inputTokens ?? 0)
-        : 0;
-
-    return { inputTokens };
+    return { inputTokens: inputTokens.value };
   });
 
 const live = {

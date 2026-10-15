@@ -19,7 +19,7 @@ import {
   shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { resolveCommandContext, subprocessStdin } from "./utils";
 
@@ -164,7 +164,11 @@ export function createRgCommand({
               { rewriteSeparators: false },
             ),
         );
-        return { exitCode: result.exitCode ?? 1, ...streams };
+        return {
+          exitCode: result.exitCode ?? 1,
+          ...streams,
+          ...binaryStdout(result),
+        };
       },
     );
   });

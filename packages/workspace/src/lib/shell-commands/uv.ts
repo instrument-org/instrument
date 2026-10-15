@@ -7,7 +7,7 @@ import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { ensureManagedPython } from "../run-uv";
 import { getUvBinPath, withPythonVersionNote } from "../uv";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
@@ -104,6 +104,7 @@ export async function runUv({
       ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
         withPythonVersionNote(filterShellOutput(text)),
       ),
+      ...binaryStdout(result),
     }),
   );
 }

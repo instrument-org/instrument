@@ -129,8 +129,6 @@ describe.runIf(vendored)("native pipelines", () => {
     expect(result.stderr).toContain("two\n");
   });
 
-  // The buffered path decodes a program's output as UTF-8, so these bytes
-  // reach a file or a builtin altered; between two programs they do not.
   it("carries binary data between programs byte for byte", async () => {
     const bytes = [0, 255, 128, 10, 200, 13];
     const result = await run(

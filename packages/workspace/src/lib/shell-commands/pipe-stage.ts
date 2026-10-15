@@ -57,7 +57,10 @@ export interface StageResult {
   isMaxBuffer: boolean;
   shortMessage?: string;
   stderr: string;
+  /** stdout decoded as UTF-8, for reading what the program said. */
   stdout: string;
+  /** stdout exactly as the program wrote it. */
+  stdoutBytes: Buffer;
 }
 
 export interface StageHandoff {
@@ -213,6 +216,7 @@ export function startPipeStage(
       isMaxBuffer: false,
       stderr: `${error.message}\n`,
       stdout: "",
+      stdoutBytes: Buffer.alloc(0),
     });
   }
   const sink = currentShellOutputSink();
@@ -324,7 +328,9 @@ export function startPipeStage(
       live?.end();
     }
   };
-  const stderr = collect(child.stderr, live, endLive);
+  const stderr = collect(child.stderr, live, endLive).then((bytes) =>
+    bytes.toString("utf8"),
+  );
   let isMaxBuffer = false;
   const collectStdout = () =>
     collect(child.stdout, live, endLive, options.maxStdout, () => {
@@ -340,8 +346,13 @@ export function startPipeStage(
     });
     child.on("close", (code, signal) => resolve(shellStatus(code, signal)));
   });
-  const finish = async (stdout: Promise<string>): Promise<StageResult> => {
-    const [status, written, out] = await Promise.all([exited, stderr, stdout]);
+  const finish = async (stdout: Promise<Buffer>): Promise<StageResult> => {
+    const [status, written, outBytes] = await Promise.all([
+      exited,
+      stderr,
+      stdout,
+    ]);
+    const out = outBytes.toString("utf8");
     await streamed;
     // A producer whose reader stopped early ends as it would on POSIX: the
     // status of SIGPIPE, and none of its complaint about the closed pipe.
@@ -370,6 +381,7 @@ export function startPipeStage(
       shortMessage: spawnError?.message,
       stderr: noted.stderr,
       stdout: isMaxBuffer ? "" : out,
+      stdoutBytes: isMaxBuffer ? Buffer.alloc(0) : outBytes,
     };
   };
   if (!handsOn || !child.stdout) {
@@ -394,7 +406,7 @@ export function startPipeStage(
         if (untaken) {
           absorbThenClose(stdout);
         }
-        return finish(Promise.resolve(""));
+        return finish(Promise.resolve(Buffer.alloc(0)));
       })();
       return settled;
     },
@@ -403,9 +415,9 @@ export function startPipeStage(
 }
 
 /**
- * Read a stream to the end as UTF-8, as execa decodes output, copying each
- * chunk to `live` when a background run is watching. Past `max` bytes it
- * calls `onMax` and keeps nothing more.
+ * Read a stream's bytes to the end, copying each chunk to `live` when a
+ * background run is watching. Past `max` bytes it calls `onMax` and keeps
+ * nothing more.
  */
 function collect(
   stream: Readable | null,
@@ -413,17 +425,17 @@ function collect(
   onEnd: () => void,
   max = Number.POSITIVE_INFINITY,
   onMax?: () => void,
-): Promise<string> {
+): Promise<Buffer> {
   if (!stream) {
     onEnd();
-    return Promise.resolve("");
+    return Promise.resolve(Buffer.alloc(0));
   }
   const chunks: Buffer[] = [];
   let size = 0;
   return new Promise((resolve) => {
     const done = () => {
       onEnd();
-      resolve(Buffer.concat(chunks).toString("utf8"));
+      resolve(Buffer.concat(chunks));
     };
     stream.on("data", (chunk: Buffer) => {
       if (size > max) {

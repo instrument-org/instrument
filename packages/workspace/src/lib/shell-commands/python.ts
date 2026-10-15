@@ -4,7 +4,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { chatVenvPython } from "../uv";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext } from "./utils";
 import { ensureVenvForCommand } from "./uv";
@@ -94,6 +94,7 @@ async function runNativePython(
       ...mapStreams(shimOutput(result, name), (text) =>
         filterShellOutput(text),
       ),
+      ...binaryStdout(result),
     }),
   );
 }

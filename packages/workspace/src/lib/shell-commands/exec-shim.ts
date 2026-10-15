@@ -1,4 +1,6 @@
 import { execa, type Options } from "execa";
+import { bytesOutput, unsafeBytesFromLatin1 } from "just-bash";
+import { isUtf8 } from "node:buffer";
 import { type Serializable } from "node:child_process";
 import path from "node:path";
 
@@ -25,8 +27,8 @@ export interface ShimStreams {
 /**
  * Options a shim may set. The output-shaping ones are fixed by `execShim`, so
  * they are excluded rather than merely overridden: leaving them settable would
- * let a caller ask for buffers or line arrays, and the merged output this
- * returns is a string by construction.
+ * let a caller ask for line arrays or a different decoding, and this returns
+ * stdout as its exact bytes and as UTF-8 text by construction.
  *
  * `detached` is fixed for a different reason: `watchSubprocessTree` signals the
  * process group named by the child's own pid, which is a group only because the
@@ -129,6 +131,7 @@ export async function execShim(
       shortMessage: undefined,
       stderr: `${error.message}\n`,
       stdout: "",
+      stdoutBytes: Buffer.alloc(0),
     };
   }
   const subprocess = execa(spawned.file, spawned.args, {
@@ -144,6 +147,9 @@ export async function execShim(
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,
     detached: sink !== undefined && process.platform !== "win32",
+    // Bytes, so stdout reaches the shell as the program wrote it; decoding
+    // it is up to whoever reads it as text.
+    encoding: "buffer",
     reject: false,
     stripFinalNewline: false,
   });
@@ -167,8 +173,9 @@ export async function execShim(
   const result = await subprocess;
   await streamed;
   await finishTreeTermination?.();
-  const stderr = typeof result.stderr === "string" ? result.stderr : "";
-  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const stderr = asBuffer(result.stderr).toString("utf8");
+  const stdoutBytes = asBuffer(result.stdout);
+  const stdout = stdoutBytes.toString("utf8");
   const noted = withShimNotes({
     cwd:
       typeof subprocessOptions.cwd === "string"
@@ -192,13 +199,36 @@ export async function execShim(
     // Set when the subprocess failed without producing output of its own, which
     // is the only diagnostic a shim can report in that case.
     shortMessage: result.shortMessage,
-    // execa types these as possibly an array (when `lines` is on) or a buffer
-    // (when `encoding` is set). Neither is settable here, so the string branch
-    // is the only reachable one; narrowing rather than asserting keeps that
-    // guarantee checked.
     stderr: noted.stderr,
     stdout,
+    stdoutBytes,
   };
+}
+
+/**
+ * One of execa's buffered outputs as a Buffer over the same memory. With
+ * `encoding: "buffer"` and `lines` unsettable, a Uint8Array is the only shape
+ * it can take; narrowing rather than asserting keeps that checked.
+ */
+function asBuffer(output: unknown): Buffer {
+  return output instanceof Uint8Array
+    ? Buffer.from(output.buffer, output.byteOffset, output.byteLength)
+    : Buffer.alloc(0);
+}
+
+/**
+ * A native program's stdout for the shell when it is not UTF-8 text: its
+ * exact bytes, marked as bytes, so a redirect writes them and the next
+ * command reads them unchanged. Only the shell's final output decodes them,
+ * for display. Text gives nothing here and keeps the string the command
+ * rendered from it (redacted, progress collapsed), which the shell encodes
+ * as UTF-8; the rendering's line handling would corrupt bytes.
+ */
+export function binaryStdout(result: { stdoutBytes: Buffer }) {
+  const bytes = result.stdoutBytes;
+  return bytes.length === 0 || isUtf8(bytes)
+    ? {}
+    : bytesOutput(unsafeBytesFromLatin1(bytes.toString("latin1")));
 }
 
 /**

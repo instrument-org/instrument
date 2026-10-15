@@ -1,0 +1,149 @@
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { CHAT_FOLDER_NAMES } from "../constants";
+import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { createBashEnv } from "./create-bash-env";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+
+/**
+ * A native program's stdout reaching a redirect, a builtin, or another
+ * program through the shell: every byte as the program wrote it, on the
+ * streamed path and on the buffered one (`INSTRUMENT_NATIVE_PIPES=0`), where
+ * every stage's output passes through the shell. The uutils cases need the
+ * binaries Studio's postinstall vendors.
+ */
+const UUTILS_DIR = path.resolve(
+  import.meta.dirname,
+  "../../../../apps/studio/resources/uutils",
+);
+const vendored = existsSync(
+  path.join(
+    UUTILS_DIR,
+    process.platform === "win32" ? "coreutils.exe" : "coreutils",
+  ),
+);
+
+/** Every byte value, then the start of a PNG, whose second byte is not UTF-8. */
+const BINARY = Buffer.concat([
+  Buffer.from(Array.from({ length: 256 }, (_, i) => i)),
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+]);
+
+/** A node program that writes `bytes` to stdout. */
+const writes = (bytes: Buffer) =>
+  `node -e 'process.stdout.write(Buffer.from("${bytes.toString("base64")}", "base64"))'`;
+
+const sessionId = StoreId.newSessionId();
+let tmpDir: string;
+let chatRoot: string;
+let chatId: ChatId;
+
+async function run(command: string) {
+  const bash = await createBashEnv({ chatId, sessionId });
+  return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
+}
+
+async function buffered(command: string) {
+  process.env.INSTRUMENT_NATIVE_PIPES = "0";
+  try {
+    return await run(command);
+  } finally {
+    delete process.env.INSTRUMENT_NATIVE_PIPES;
+  }
+}
+
+const paths = [
+  ["streamed", run],
+  ["buffered", buffered],
+] as const;
+
+const read = (name: string) => fs.readFile(path.join(chatRoot, name));
+
+beforeAll(async () => {
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-binary-output-"));
+  chatRoot = path.join(tmpDir, "chats", "binary-output");
+  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
+    recursive: true,
+  });
+  await fs.writeFile(path.join(chatRoot, "binary.bin"), BINARY);
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
+  const { uutilsDir: _, ...config } = getWorkspaceConfig();
+  setWorkspaceConfig(
+    vendored
+      ? { ...config, uutilsDir: AbsolutePathSchema.parse(UUTILS_DIR) }
+      : config,
+  );
+});
+
+afterAll(async () => {
+  const { uutilsDir: _, ...config } = getWorkspaceConfig();
+  setWorkspaceConfig(config);
+  await fs.rm(tmpDir, { force: true, recursive: true });
+});
+
+describe.each(paths)("a native program's binary stdout, %s", (name, exec) => {
+  it("reaches a file through a redirect", async () => {
+    const result = await exec(`${writes(BINARY)} > ${name}-redirect.bin`);
+    expect(result.exitCode).toBe(0);
+    expect(await read(`${name}-redirect.bin`)).toEqual(BINARY);
+  });
+
+  it("reaches a builtin through a pipe", async () => {
+    const result = await exec(`${writes(BINARY)} | base64 -w0`);
+    expect(result.stdout).toBe(BINARY.toString("base64"));
+  });
+
+  it("reaches sha256sum through a pipe", async () => {
+    const result = await exec(`${writes(BINARY)} | sha256sum`);
+    expect(result.stdout).toBe(
+      `${createHash("sha256").update(BINARY).digest("hex")}  -\n`,
+    );
+  });
+
+  it("carries a builtin's bytes through a program to a file", async () => {
+    const result = await exec(
+      `cat binary.bin | node -e 'process.stdin.pipe(process.stdout)' > ${name}-cat.bin`,
+    );
+    expect(result.exitCode).toBe(0);
+    expect(await read(`${name}-cat.bin`)).toEqual(BINARY);
+  });
+
+  it.runIf(vendored)("comes from uutils head -c into a file", async () => {
+    const result = await exec(`head -c 260 binary.bin > ${name}-head.bin`);
+    expect(result.exitCode).toBe(0);
+    expect(await read(`${name}-head.bin`)).toEqual(BINARY.subarray(0, 260));
+  });
+});
+
+describe("a native program's stdout shown as the shell's output", () => {
+  it("shows UTF-8 text as written", async () => {
+    const result = await run(`node -e 'console.log("héllo ✓ 日本")'`);
+    expect(result.stdout).toBe("héllo ✓ 日本\n");
+  });
+
+  it("still redacts credentials in text", async () => {
+    const result = await run(
+      `node -e 'console.log("https://user:secret@example.com")'`,
+    );
+    expect(result.stdout).toBe("https://***@example.com\n");
+  });
+
+  // The shell decodes output that is not UTF-8 as builtin cat's is shown:
+  // one character per byte. A file it reaches holds the bytes themselves.
+  it("shows text with an invalid byte one character per byte", async () => {
+    const bytes = Buffer.concat([
+      Buffer.from("héllo "),
+      Buffer.from([0x89, 0x0a]),
+    ]);
+    const result = await run(writes(bytes));
+    expect(result.stdout).toBe("hÃ©llo \u0089\n");
+  });
+});

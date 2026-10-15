@@ -17,7 +17,7 @@ import {
   shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
@@ -696,6 +696,7 @@ export function createNativeTextCommand(
             route.printsPaths && process.platform === "win32"
               ? streams.stdout.replaceAll("\\", "/")
               : streams.stdout,
+          ...binaryStdout(result),
         };
       },
     );

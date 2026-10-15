@@ -36,7 +36,7 @@ export async function answerAgentBrowser(
     return;
   }
   vi.mocked(spawn).mockImplementation((...given: unknown[]) => {
-    const answer = answerFor(given[1]);
+    const answered = answerFor(given[1]);
     const options = given[2];
     const stdio =
       typeof options === "object" && options !== null && "stdio" in options
@@ -45,13 +45,13 @@ export async function answerAgentBrowser(
     const streams: unknown[] = Array.isArray(stdio) ? stdio : [];
     const [, stdout, stderr] = streams;
     if (typeof stdout === "number") {
-      writeSync(stdout, answer.stdout);
+      writeSync(stdout, answered.stdout);
     }
     if (typeof stderr === "number") {
-      writeSync(stderr, answer.stderr);
+      writeSync(stderr, answered.stderr);
     }
     const child = new ChildProcess();
-    setImmediate(() => child.emit("exit", answer.exitCode));
+    setImmediate(() => child.emit("exit", answered.exitCode));
     return child;
   });
 }

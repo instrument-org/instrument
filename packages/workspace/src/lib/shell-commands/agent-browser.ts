@@ -954,10 +954,10 @@ export function createAgentBrowserCommand({
         args: resolvedArgs,
         exitCode,
         read: async (signal) => {
-          const run = (args: string[]) =>
+          const run = (readArgs: string[]) =>
             runAgentBrowser({
               ...spawnOptions,
-              args: [...connectionArgs, ...args],
+              args: [...connectionArgs, ...readArgs],
               cancelSignal: signal,
               input: undefined,
             });

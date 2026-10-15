@@ -606,7 +606,7 @@ export async function runEvals(
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
-      // it the agent falls back to osascript, as a build without it would.
+      // it the agent has no way into them, as a build without it has none.
       ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
         ? { macHelperBinPath: MAC_HELPER_BIN }
         : {}),

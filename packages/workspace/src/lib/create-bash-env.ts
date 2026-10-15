@@ -69,11 +69,6 @@ import {
   SHORTCUTS_PATH,
 } from "./shell-commands/shortcuts";
 import {
-  createOsascriptCommand,
-  OSASCRIPT_COMMAND,
-  OSASCRIPT_PATH,
-} from "./shell-commands/osascript";
-import {
   createPip3Command,
   createPipCommand,
   PIP3_COMMAND,
@@ -179,6 +174,18 @@ function stubCommand(
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // searches only the shell's own PATH; replaced below
 ]);
+
+/**
+ * What the agent hears for `osascript`: the commands that reach the apps it
+ * would have scripted, the helper's where this build carries it.
+ */
+function osascriptRefusal(): string {
+  const helper =
+    getWorkspaceConfig().macHelperBinPath === undefined
+      ? ""
+      : ` Calendar and Reminders have the \`${CALENDAR_COMMAND.name}\` command, and Contacts the \`${CONTACTS_COMMAND.name}\` command.`;
+  return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} The person's own automations run with \`${SHORTCUTS_COMMAND.name}\`. Any other app has no way in from here, so tell the person what you couldn't do in it.`;
+}
 
 const STATIC_STUB_COMMANDS = [
   stubCommand(
@@ -453,10 +460,13 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     platforms: ["darwin"],
   },
   {
-    description: OSASCRIPT_COMMAND.description,
-    factory: ({ layout, chatId }) => createOsascriptCommand(chatId, layout),
-    listInDescription: true,
-    name: OSASCRIPT_COMMAND.name,
+    description: "Refuses AppleScript the agent writes.",
+    // AppleScript the agent writes would have to run outside the sandbox to
+    // reach an app, which no check of its text can make safe. By its path,
+    // osascript runs inside the sandbox, where no app takes its Apple Events.
+    factory: () => stubCommand("osascript", osascriptRefusal()),
+    listInDescription: false,
+    name: "osascript",
     platforms: ["darwin"],
   },
   {
@@ -537,7 +547,6 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
     [FFPROBE_COMMAND.name]: () => FFPROBE_PATH,
     [GIT_COMMAND.name]: () => gitBinaryPath(),
     [NODE_COMMAND.name]: () => process.execPath,
-    [OSASCRIPT_COMMAND.name]: () => OSASCRIPT_PATH,
     [PNPM_COMMAND.name]: () => getWorkspaceConfig().pnpmBinPath,
     [PYTHON_COMMAND.name]: pythonProgram,
     [PYTHON3_COMMAND.name]: pythonProgram,

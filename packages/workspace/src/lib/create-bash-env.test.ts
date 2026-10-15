@@ -1,6 +1,11 @@
+import { mkdir } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBashDescription } from "./create-bash-env";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { createBashDescription, createLocalBashEnv } from "./create-bash-env";
+import { chatDir } from "./record-folders";
 
 describe("createBashDescription", () => {
   // Pinned so the snapshot holds the macOS-only commands wherever it runs.
@@ -70,7 +75,6 @@ describe("createBashDescription", () => {
         mail - Read, search, draft, send, and file email in Mail on this Mac, across every account added to it. \`mail list\`, \`mail search <words>\` and \`mail read <id>\` read it, with lists as one JSON object per line; \`mail draft\` opens a message in Mail for the person to look over and send, and \`mail send\` sends one (\`--to\`, \`--subject\`, \`--attach <file>\`, and the message on stdin); \`mail accounts\`, \`mail mailboxes\` and \`mail move <id> <mailbox>\` cover the rest, and \`mail help\` has every flag. The first time a chat uses Mail the person is asked to allow it, and macOS asks them once to let Instrument control it.
         notes - Read and write the person's notes in Notes on this Mac, iCloud's included. \`notes list\` and \`notes search <words>\` find them, one JSON object per line, \`notes read <id>\` prints one, \`notes create --title <title>\` makes one and \`notes append <id>\` adds to one, with the text on stdin; \`notes folders\` names the folders, and \`notes help\` has every flag. The first time a chat uses Notes the person is asked to allow it, and macOS asks them once to let Instrument control it.
         messages - Send an iMessage or a text from Messages on this Mac: \`messages send --to <phone or email> [--sms]\`, with the message on stdin. Messages can't be read from here, only sent, so send only what the person asked you to send, worded as they saw it. The first time a chat uses Messages the person is asked to allow it, and macOS asks them once to let Instrument control it.
-        osascript - Run AppleScript (\`osascript -e '...'\`, or a script file saved as text) against the apps on this Mac that publish a scripting dictionary: Mail, Notes, Music, Photos, Finder, Safari, Keynote and the like. For Calendar, Reminders, and Contacts, use the \`calendar\` and \`contacts\` commands instead when they are listed: they are faster and read every account. An app with no dictionary cannot be scripted this way. Each app needs the person's yes in Instrument first: the first script to an app shows them a card, and you hear when they answer. A script may only use the app's own terms; one that runs a shell or other code (\`do shell script\`, \`run script\`, a raw \`«event …»\` code, the Objective-C bridge) is refused, so do that part in your own shell. A script to an app is AppleScript text: JavaScript for Automation and compiled scripts are refused there, since their code can't be checked. macOS also asks the user the first time each app is controlled, and the command waits on their answer. Error -1743 means they declined, and only they can change it, under System Settings, Privacy & Security, Automation. Working an app's windows through System Events (keystrokes, clicks, reading its buttons and windows) is refused: reach an app through a file it imports, its URL scheme, or its own scripting terms.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
         uv - Python package and environment manager, backing \`python\` and \`pip\`. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
@@ -122,5 +126,34 @@ describe("createBashDescription", () => {
     const description = createBashDescription();
     expect(description).not.toContain("python-native");
     expect(description).not.toContain("js-exec");
+  });
+});
+
+describe("osascript", () => {
+  beforeEach(() => {
+    vi.stubGlobal("process", { ...process, platform: "darwin" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("refuses AppleScript the agent writes, and names the commands that reach the apps", async () => {
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("osascript-refused"),
+    );
+    await mkdir(chatDir(chatId), { recursive: true });
+    const bash = await createLocalBashEnv({
+      chatId,
+      sessionId: StoreId.newSessionId(),
+    });
+    const result = await bash.exec(
+      `osascript -e 'tell application "Notes" to get name of every note'`,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "osascript: AppleScript you write doesn't run here.",
+    );
+    expect(result.stderr).toContain("`mail`, `notes` and `messages` commands");
   });
 });

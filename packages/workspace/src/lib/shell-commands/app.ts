@@ -117,7 +117,8 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       no key, takes env:<VAR> when the server reads one from its environment,
       and the user has to allow it to run before it does. When it drives an
       app on this Mac, --mac-app takes that app's bundle identifier
-      (\`osascript -e 'id of app "Drafts"'\` prints it), and the app is drawn
+      (\`plutil -extract CFBundleIdentifier raw /Applications/Drafts.app/Contents/Info.plist\`
+      prints it), and the app is drawn
       with that app's icon. --web names a service worked on its own site in
       ${APP_NAME}'s browser, for one with no sign-in the card can open: the
       user signs in there (at --sign-in, when the login page is not the
@@ -250,17 +251,29 @@ const runApp = defineSubcommands<AppCommandContext>({
 });
 
 /** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
-const NATIVE_COMMANDS: Record<string, string> = {
+const HELPER_COMMANDS: Record<string, string> = {
   "com.apple.AddressBook": "contacts",
   "com.apple.iCal": "calendar",
   "com.apple.reminders": "calendar",
 };
 
-/** The task command that reaches a Mac app through the helper, where this build carries it. */
+/** Mac apps the app's own scripts drive, by bundle id, with the task command that reaches each. */
+const SCRIPTED_COMMANDS: Record<string, string> = {
+  "com.apple.MobileSMS": "messages",
+  "com.apple.Notes": "notes",
+  "com.apple.mail": "mail",
+};
+
+/** The task command that reaches a Mac app, where this build has one: a script's on macOS, the helper's where the build carries it. */
 function nativeCommandFor(bundleId: string): string | undefined {
-  return getWorkspaceConfig().macHelperBinPath === undefined
-    ? undefined
-    : NATIVE_COMMANDS[bundleId];
+  const scripted =
+    process.platform === "darwin" ? SCRIPTED_COMMANDS[bundleId] : undefined;
+  return (
+    scripted ??
+    (getWorkspaceConfig().macHelperBinPath === undefined
+      ? undefined
+      : HELPER_COMMANDS[bundleId])
+  );
 }
 
 /** The catalog, as lines: what each service is and how it is reached. */
@@ -296,7 +309,11 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it ${native === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            ? native === undefined
+              ? entry.family === "apple"
+                ? `none: ${APP_NAME} has no way into ${way.name} in this build, so tell the user that rather than looking for another way in.`
+                : `${start} --web ${entry.home ?? `https://${entry.domain}`}  (${APP_NAME} has no way into ${way.name} in this build, so ${entry.name} is worked on its site)`
+              : `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name}, which reads every account added there. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
             : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
@@ -804,7 +821,7 @@ async function runNew(input: SubcommandInput) {
     input.value("mac-app") !== undefined
   ) {
     throw new Error(
-      `a Mac app a task drives with osascript needs no app folder and no \`${APP_COMMAND.name} new\`: do what the user asked in it with osascript.`,
+      `a Mac app needs no app folder and no \`${APP_COMMAND.name} new\`: \`${APP_COMMAND.name} catalog <name>\` says which command reaches it, when one does.`,
     );
   }
   if ([mcp, api, local, web].filter(Boolean).length !== 1) {

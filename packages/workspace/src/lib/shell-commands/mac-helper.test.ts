@@ -70,7 +70,7 @@ describe("mac helper commands", () => {
     );
   });
 
-  it("points at osascript in a build without the helper", async () => {
+  it("says there is no other way in, in a build without the helper", async () => {
     const { macHelperBinPath: _absent, ...without } = config;
     setWorkspaceConfig(without);
 
@@ -80,6 +80,8 @@ describe("mac helper commands", () => {
     ).execute(["events"], ctx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("use osascript");
+    expect(result.stderr).toBe(
+      "calendar is not available in this build, which has no other way into Calendar and Reminders. Tell the person what you couldn't do.\n",
+    );
   });
 });

@@ -7,7 +7,7 @@ import { resolveCommandContext } from "./utils";
 
 export const CALENDAR_COMMAND = {
   description:
-    "Read and add to Calendar and Reminders on this Mac through Apple's own interface, in well under a second; prefer it to osascript for either app. " +
+    "Read and add to Calendar and Reminders on this Mac through Apple's own interface, in well under a second. " +
     "`calendar events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]` lists events (today when no dates are given); " +
     "`calendar reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]` lists incomplete reminders, or every one with --all; " +
     "`calendar calendars` names every calendar, and `calendar lists` every reminder list, with its account and whether it takes additions; " +
@@ -21,7 +21,7 @@ export const CALENDAR_COMMAND = {
 
 export const CONTACTS_COMMAND = {
   description:
-    "Look people up in Contacts on this Mac through Apple's own interface, in well under a second; prefer it to osascript. " +
+    "Look people up in Contacts on this Mac through Apple's own interface, in well under a second. " +
     "`contacts [--search <words>] [--limit <n>]` lists the people whose name, nickname, company, title, email, or phone holds every word, with their emails, phones, and birthday, as JSON. " +
     "macOS asks the user once; exit code 2 means they declined, and only they can change it in System Settings.",
   name: "contacts",
@@ -42,7 +42,7 @@ export function createMacHelperCommand(
     if (binPath === undefined) {
       return {
         exitCode: 1,
-        stderr: `${command.name} is not available in this build; use osascript instead.\n`,
+        stderr: `${command.name} is not available in this build, which has no other way into ${command === CALENDAR_COMMAND ? "Calendar and Reminders" : "Contacts"}. Tell the person what you couldn't do.\n`,
         stdout: "",
       };
     }

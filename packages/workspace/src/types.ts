@@ -244,11 +244,11 @@ export interface WorkspaceConfig {
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   /**
-   * Whether native commands (node, python, uv, pnpm, ffmpeg, git,
-   * osascript) are held to Settings › Permissions with Seatbelt on macOS. A
-   * plain flag, because native commands run in the bash worker, which is sent
-   * a snapshot of the config with each command. Off, native commands run
-   * unwrapped, as they do off macOS.
+   * Whether native commands (node, python, uv, pnpm, ffmpeg, git) are held
+   * to Settings › Permissions with Seatbelt on macOS. A plain flag, because
+   * native commands run in the bash worker, which is sent a snapshot of the
+   * config with each command. Off, native commands run unwrapped, as they do
+   * off macOS.
    */
   nativeSandbox?: boolean;
   pnpmBinPath: AbsolutePath;

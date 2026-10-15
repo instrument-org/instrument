@@ -311,8 +311,8 @@ export function seatbeltProfile(
   );
   // No Apple Events and no opening apps: a command could otherwise have
   // another app do what the profile keeps it from, outside any sandbox.
-  // osascript reaches an app only when the person allowed that app, and then
-  // runs unwrapped (osascript.ts).
+  // The app's own scripts reach an app only when the person allowed that
+  // app, and then run unwrapped (app-scripts.ts).
   texts.push(
     "(deny appleevent-send)",
     "(deny lsopen)",

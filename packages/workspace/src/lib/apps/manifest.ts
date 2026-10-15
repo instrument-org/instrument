@@ -202,7 +202,7 @@ const LocalMcpAppManifestSchema = z
       .string()
       .regex(/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/, {
         message:
-          'macApp must be a bundle identifier, like "com.apple.Notes"; `osascript -e \'id of app "Notes"\'` prints one.',
+          'macApp must be a bundle identifier, like "com.apple.Notes"; `plutil -extract CFBundleIdentifier raw /Applications/<App>.app/Contents/Info.plist` prints one.',
       })
       .optional(),
     name: z.string().min(1),

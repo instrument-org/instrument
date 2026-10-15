@@ -62,6 +62,17 @@ function chooseQuestions(sessions: Session.WithMessagesAndParts[]): string[] {
 
 const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/;
 
+/** `command` run as a command: first in the script, or after a separator. */
+function runs(command: string): RegExp {
+  return new RegExp(String.raw`(?:^|[\n;&|(]\s*)${command}\b`);
+}
+
+/** Work in one of the Mac's own apps, through the command made for it. */
+const WORKS_IN_A_MAC_APP = runs("(?:calendar|contacts|mail|messages|notes)");
+
+/** Words going out to someone through one of the Mac's own apps. */
+const SENDS = runs("(?:mail|messages) send");
+
 function result(
   text: string,
   passed: boolean,
@@ -117,7 +128,8 @@ const askedTheRoadFirst: Assertion = {
       chooseQuestions(sessions).length > 0 ||
       (assistantTexts(sessions)[0]?.trim().endsWith("?") ?? false);
     const startedFirst = bashCommands(sessions).some(
-      (command) => STARTS_A_TASK.test(command) || /\bosascript\b/.test(command),
+      (command) =>
+        STARTS_A_TASK.test(command) || WORKS_IN_A_MAC_APP.test(command),
     );
     return result(text, asked && !startedFirst, trail(sessions));
   },
@@ -145,7 +157,7 @@ const draftedBeforeSending: Assertion = {
       said.includes("```message"),
     );
     const sentFirst = bashCommands(sessions).some(
-      (command) => STARTS_A_TASK.test(command) || /\bosascript\b/.test(command),
+      (command) => STARTS_A_TASK.test(command) || SENDS.test(command),
     );
     return result(text, drafted && !sentFirst, trail(sessions));
   },
@@ -161,30 +173,29 @@ async function childCommands(
   );
 }
 
-/** A Mac app is reached through the command made for it, not a subprocess. */
-const reachedTheAppWithOsascript: Assertion = {
-  check: async ({ childSessions, sessions }) => {
-    const text = "drove the app with osascript";
-    const commands = [
-      ...bashCommands(sessions),
-      ...(await childCommands(childSessions)),
-    ];
-    const direct = commands.some((command) =>
-      /(?:^|[\n;&|(]\s*)osascript\b/.test(command),
-    );
-    const smuggled = commands.some(
-      (command) =>
-        /subprocess|child_process|execSync|spawnSync/.test(command) &&
-        /osascript/.test(command),
-    );
-    return result(
-      text,
-      direct && !smuggled,
-      commands.map((command) => command.slice(0, 160)).join(" | "),
-    );
-  },
-  text: "drove the app with osascript",
-};
+/**
+ * A Mac app is reached through the command made for it, and no AppleScript
+ * is tried on the way, which the shell refuses.
+ */
+function reachedTheAppWith(command: string): Assertion {
+  const text = `drove the app with \`${command}\``;
+  return {
+    check: async ({ childSessions, sessions }) => {
+      const commands = [
+        ...bashCommands(sessions),
+        ...(await childCommands(childSessions)),
+      ];
+      const direct = commands.some((ran) => runs(command).test(ran));
+      const scripted = commands.some((ran) => /\bosascript\b/.test(ran));
+      return result(
+        text,
+        direct && !scripted,
+        commands.map((ran) => ran.slice(0, 160)).join(" | "),
+      );
+    },
+    text,
+  };
+}
 
 /**
  * Work that cannot be done the way it was asked says so, and names the road
@@ -233,7 +244,7 @@ export const REACH_EVALS = [
     // The same ask carried through: the user picks the Mac's own app, and
     // the reminder lands there.
     answers: [pickTheMacApp(/reminder/i)],
-    assertions: [connectedNothingUnasked, reachedTheAppWithOsascript],
+    assertions: [connectedNothingUnasked, reachedTheAppWith("calendar")],
     kind: "chat",
     name: "reach-follow-through-reminder",
     prompt: "Remind me on October 8 at noon to try the new ARC Raiders update.",
@@ -274,15 +285,14 @@ export const REACH_EVALS = [
   }),
   defineEval({
     // A task told what to do in so many words, as a fork is.
-    assertions: [reachedTheAppWithOsascript],
+    assertions: [reachedTheAppWith("calendar")],
     name: "reach-task-reminders",
     prompt:
       'Create a reminder in the user\'s macOS Reminders app for October 8, 2026 at 12:00 PM local time. Title it "Try the ARC Raiders: Frozen Trail update". Confirm briefly when it is set; if macOS requires permission or interaction, report exactly what the user needs to allow.',
   }),
   defineEval({
-    // An app with a scripting dictionary, which osascript still drives in
-    // the app's own terms: the guard on narrowing what the command claims.
-    assertions: [reachedTheAppWithOsascript],
+    // Notes, which the `notes` command drives through the app's own script.
+    assertions: [reachedTheAppWith("notes")],
     name: "reach-task-notes",
     prompt:
       'Add a note to the user\'s Notes app titled "Taco night" listing tortillas, black beans, salsa, and limes. Confirm briefly when it is added.',

@@ -897,6 +897,26 @@ describe("convertChat", () => {
     expect(await recordFiles(dir)).toEqual(await recordFiles(clean));
   });
 
+  it("converts one whose records a run cut off mid-append", async () => {
+    vi.useFakeTimers({ now: at(500), toFake: ["Date"] });
+    const clean = chatPath("torn-clean");
+    await writeEveryKindChat(clean);
+    expect((await convertChat(clean, OPTIONS)).kind).toBe("converted");
+
+    const dir = chatPath("torn");
+    const chat = await writeEveryKindChat(dir);
+    await asTheAppReadsIt(dir, chat, (session) => saveSession(chat, session));
+    // What a crash mid-append leaves: a line with no newline after it. Every
+    // reader of these files leaves those bytes for the next read.
+    const marks = path.join(dir, marksFileName(DEVICE_A));
+    await fs.appendFile(marks, '{"t":"mark","seq":9,"at":');
+
+    const result = await convertChat(dir, OPTIONS);
+
+    expect(result.kind).toBe("converted");
+    expect(await listing(dir)).toEqual(EVERY_KIND_FILES);
+  });
+
   it("keeps a chat whose records hold turns a build took before it ran", async () => {
     const dir = chatPath("half-written");
     const chat = await writeEveryKindChat(dir);

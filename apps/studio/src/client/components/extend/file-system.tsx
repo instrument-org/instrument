@@ -5300,24 +5300,23 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   return (
     <InlineScrollArea2
       orientation="horizontal"
-      // The viewport's own content wrapper is `display: table` inline, and a
-      // percentage height inside a table box is a minimum rather than a
-      // bound: each column grew to its rows and the outer viewport, which
-      // only scrolls sideways, clipped them, so nothing answered the wheel.
-      // A block wrapper holds the columns to the viewport's height, and the
-      // trail still overflows it sideways for the horizontal scroll.
-      viewportClassName="overscroll-x-contain [&>div]:block!"
+      viewportClassName="overscroll-x-contain"
+      viewportProps={{ disableImplicitContentElement: true }}
       viewportRef={scrollContainerRef}
     >
       {/* The Content part's ResizeObserver tells the scroll area when the
             trail shrinks (deselect, shallower selection) so the horizontal
-            scrollbar hides; the viewport alone only observes its own box. Its
-            built-in inline min-width (fit-content) would beat a min-w-full
-            class, so the full-width floor is inline too. */}
+            scrollbar hides; the viewport alone only observes its own box.
+            Content's built-in inline style is `display: table`, and a
+            percentage height inside a table box is a minimum rather than a
+            bound: each column would grow to its rows and the viewport, which
+            only scrolls sideways, would clip them so nothing answered the
+            wheel. The inline flex display holds the columns to the viewport's
+            height; the inline min-width keeps the full-width floor. */}
       <InlineScrollAreaContent
         className={cn("flex h-full", isBeside ? "w-full" : "w-max")}
         data-file-system-listing=""
-        style={{ minWidth: "100%" }}
+        style={{ display: "flex", minWidth: "100%" }}
       >
         {listedColumnPaths.map((columnPath, columnIndex) => {
           if (
@@ -6388,8 +6387,10 @@ function InlineScrollArea2({
     </ScrollAreaPrimitive.Root>
   );
 }
-function InlineScrollAreaContent(props: React.ComponentProps<"div">) {
-  return <div {...props} />;
+function InlineScrollAreaContent(
+  props: React.ComponentProps<typeof ScrollAreaPrimitive.Content>,
+) {
+  return <ScrollAreaPrimitive.Content {...props} />;
 }
 function InlineSpinner({ className, ...props }: InlineRegistryIconProps) {
   return (

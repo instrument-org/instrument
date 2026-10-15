@@ -1040,17 +1040,24 @@ function dotEntriesIn(folder: string): string[] {
 }
 
 function currentReach(): NativeReach | undefined {
-  const held = heldNativeReach();
-  if (held) {
-    return held;
-  }
+  return heldNativeReach() ?? appNativeReach();
+}
+
+/**
+ * The reach of a native command the app starts on its own, outside any
+ * chat: it may change nothing on disk except `readWrite`. Undefined when
+ * native commands run unsandboxed.
+ */
+export function appNativeReach(
+  readWrite: readonly string[] = [],
+): NativeReach | undefined {
   if (!getWorkspaceConfig().nativeSandbox) {
     return undefined;
   }
   const home = os.homedir();
   return {
     readOnly: [],
-    readWrite: [],
+    readWrite,
     rules: {
       home,
       rules: credentialPlaces(home).map((denied) => ({

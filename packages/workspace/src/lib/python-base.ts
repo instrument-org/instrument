@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { execa } from "execa";
@@ -10,7 +11,11 @@ import { type ChatId } from "../schemas/chat-id";
 import { filterShellOutput } from "./filter-shell-output";
 import { readJsonRecordSync, updateJsonRecord } from "./json-record-file";
 import { inheritedEnv } from "./native-env";
-import { withInstallerClosed, wrapNativeCommand } from "./native-sandbox";
+import {
+  appNativeReach,
+  withInstallerClosed,
+  wrapNativeCommand,
+} from "./native-sandbox";
 import { ensureManagedPython } from "./run-uv";
 import {
   RELEASE_AGE_DAYS,
@@ -490,24 +495,37 @@ async function importEverything(
   if (found.exitCode !== 0 || !python) {
     return failureOf(found);
   }
-  const spawned = wrapNativeCommand(python, [
-    "-I",
-    "-B",
-    "-c",
-    `import sys; sys.path.append(${JSON.stringify(dir)}); ${PYTHON_BASE_SPEC.map(({ smoke }) => `import ${smoke}`).join("; ")}`,
-  ]);
-  const result = await execa(spawned.file, spawned.args, {
-    all: true,
-    cancelSignal: AbortSignal.timeout(SMOKE_TIMEOUT_MS),
-    env: {
-      ...inheritedEnv(process.env, spawned.reach),
-      MPLBACKEND: "Agg",
-    },
-    extendEnv: false,
-    reject: false,
-    stdin: "ignore",
-  });
-  return result.exitCode === 0 ? undefined : failureOf(result);
+  // Packages write config and caches on import (matplotlib's under
+  // ~/.matplotlib), and fall back to the temp folder when they cannot, so
+  // the check gets a temp folder of its own it may change.
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "python-base-"));
+  try {
+    const spawned = wrapNativeCommand(
+      python,
+      [
+        "-I",
+        "-B",
+        "-c",
+        `import sys; sys.path.append(${JSON.stringify(dir)}); ${PYTHON_BASE_SPEC.map(({ smoke }) => `import ${smoke}`).join("; ")}`,
+      ],
+      appNativeReach([temp]),
+    );
+    const result = await execa(spawned.file, spawned.args, {
+      all: true,
+      cancelSignal: AbortSignal.timeout(SMOKE_TIMEOUT_MS),
+      env: {
+        ...inheritedEnv(process.env, spawned.reach),
+        MPLBACKEND: "Agg",
+        TMPDIR: temp,
+      },
+      extendEnv: false,
+      reject: false,
+      stdin: "ignore",
+    });
+    return result.exitCode === 0 ? undefined : failureOf(result);
+  } finally {
+    await fs.rm(temp, { force: true, recursive: true });
+  }
 }
 
 /**

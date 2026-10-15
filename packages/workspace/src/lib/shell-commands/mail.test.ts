@@ -21,7 +21,11 @@ import { WorkDirSchema } from "../../schemas/paths";
 import { chatLayout } from "../../test/helpers/chat-layout";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { grantApp } from "../permissions/apps";
-import { buildBashFs, buildWorkspaceFsLayout } from "../workspace-fs-layout";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  shellPath,
+} from "../workspace-fs-layout";
 import { createMailCommand, MAIL_SCRIPTS } from "./mail";
 
 vi.mock("execa");
@@ -352,7 +356,7 @@ describe("mail's attachments and the folder rules", () => {
     const result = await createMailCommand(chatId, ruled).execute(
       ["draft", "--to", "sam@example.com", "--attach", file],
       createCommandContext({
-        cwd: path.join(root, "work"),
+        cwd: shellPath(path.join(root, "work")),
         env: new Map<string, string>(),
         fs: await buildBashFs(ruled, { maxFileReadSize: 1024 * 1024 }),
         stdin: EMPTY_BYTES,

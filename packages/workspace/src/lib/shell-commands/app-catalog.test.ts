@@ -23,6 +23,20 @@ async function catalog(...words: string[]) {
   return result.stdout;
 }
 
+/**
+ * The catalog as a Mac reads it. The scripted commands run only on macOS, so
+ * the lines that name one are there and nowhere else.
+ */
+async function catalogOnMac(...words: string[]) {
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  try {
+    return await catalog(...words);
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform });
+  }
+}
+
 describe("app catalog", () => {
   // The helper is the only way into Reminders, so a build without it says
   // there is none rather than naming a command it lacks.
@@ -169,13 +183,13 @@ describe("app catalog", () => {
   });
 
   it("works the Mac's own apps with nothing to connect", async () => {
-    const text = await catalog("apple notes");
+    const text = await catalogOnMac("apple notes");
     expect(text).toContain("set up: nothing to connect");
     expect(text).not.toContain("account is added");
   });
 
   it("reaches Gmail through Mail until its sign-in client clears", async () => {
-    const text = await catalog("gmail");
+    const text = await catalogOnMac("gmail");
     expect(text).toContain(
       "set up: nothing to connect, and no `app new`: when the user asks for something in Mail",
     );

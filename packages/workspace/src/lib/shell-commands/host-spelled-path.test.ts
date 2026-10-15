@@ -4,56 +4,71 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../../schemas/mounted-folder";
-import { ChatDirSchema } from "../../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { createBashEnv } from "../create-bash-env";
-import { shellPath } from "../workspace-fs-layout";
-import { type ChatId } from "../../schemas/chat-id";
+import { updatePermissionSettings } from "../permissions/rules";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
 /**
  * Every command that hands a path to a program on the disk, each naming a
- * path the way this computer names one. A program opens such a path whatever
- * the shell makes of it, so every one of these is held to the rules the
- * shell's own spelling of the same path is held to; a new command of this
- * kind belongs here.
+ * file the rules close. A program opens the path it is given whatever the
+ * shell makes of that spelling, so a command of this kind resolves its
+ * argument before asking the rules, and the two spellings of one file meet
+ * the same answer. A new command of this kind belongs here.
  *
- * Only Windows spells a path a second way, so this is where it runs. On macOS
- * and Linux the shell's spelling is the computer's, and
- * `shellPathOfHostSpelling` (tested in `workspace-fs-layout.test.ts`) is what
- * answers for the resolution these commands share.
+ * On Windows the test names the closed file the way the computer names it
+ * (`C:\Users\sam\Docs\locked\secret.txt`), which is the spelling the shell
+ * makes nothing of; on macOS and Linux there is only the one spelling, and
+ * these are plain refusal cases.
  */
 const BRIDGING_COMMANDS = [
-  { command: (named: string) => `rg NEEDLE '${named}'`, name: "rg" },
+  {
+    command: (named: string) => `rg NEEDLE '${named}'`,
+    name: "rg",
+    under: "secret.txt",
+  },
   {
     command: (named: string) => `rg --file='${named}' .`,
     name: "rg, in a flag's value",
+    under: "secret.txt",
   },
-  { command: (named: string) => `du -sh '${named}'`, name: "du" },
-  { command: (named: string) => `git init '${named}'`, name: "git" },
+  {
+    command: (named: string) => `du -sh '${named}'`,
+    name: "du",
+    under: "secret.txt",
+  },
+  {
+    command: (named: string) => `git init '${named}'`,
+    name: "git",
+    under: "repo",
+  },
 ] as const;
 
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let chatRoot: string;
-let outsideDir: string;
-let attachedDir: string;
+let docs: string;
+let closed: string;
 let chatId: ChatId;
 
-async function run(command: string, attach = false) {
+async function run(command: string) {
   const bash = await createBashEnv({
-    folders: attach
-      ? {
-          Docs: {
-            access: "read-only",
-            id: MountedFolder.IdSchema.parse("docs-id"),
-            path: ChatDirSchema.parse(attachedDir),
-          },
-        }
-      : undefined,
+    folders: {
+      Docs: {
+        access: "read-write",
+        id: MountedFolder.IdSchema.parse("docs-id"),
+        path: ChatDirSchema.parse(docs),
+      },
+    },
     sessionId,
     chatId,
   });
@@ -64,59 +79,65 @@ beforeEach(async () => {
   tmpDir = await fs.realpath(
     await fs.mkdtemp(path.join(os.tmpdir(), "host-spelled-")),
   );
-  chatRoot = path.join(tmpDir, "chats", "test");
-  outsideDir = path.join(tmpDir, "outside");
-  attachedDir = path.join(tmpDir, "Docs");
+  const chatRoot = path.join(tmpDir, "chats", "test");
+  docs = path.join(tmpDir, "Docs");
+  closed = path.join(docs, "locked");
   await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
-  await fs.mkdir(outsideDir, { recursive: true });
-  await fs.mkdir(attachedDir, { recursive: true });
-  await fs.writeFile(path.join(outsideDir, "secret.txt"), "NEEDLE outside\n");
-  await fs.writeFile(path.join(attachedDir, "note.md"), "NEEDLE attached\n");
+  await fs.mkdir(closed, { recursive: true });
+  await fs.writeFile(path.join(closed, "secret.txt"), "NEEDLE closed\n");
+  await fs.writeFile(path.join(docs, "note.md"), "NEEDLE in Docs\n");
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
+  // The rules live in the workspace's machine folder, which the mock chats
+  // share across test files, so this file keeps a workspace of its own.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(tmpDir, "machine")),
+  });
+  await updatePermissionSettings((settings) => ({
+    ...settings,
+    folders: [
+      {
+        addedAt: new Date(),
+        level: "never",
+        path: AbsolutePathSchema.parse(closed),
+      },
+    ],
+  }));
 });
 
 afterEach(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe.runIf(process.platform === "win32")(
-  "a path spelled the way this computer spells it",
-  () => {
-    it.each(BRIDGING_COMMANDS)(
-      "$name refuses one outside every folder the chat reaches",
-      async ({ command }) => {
-        const named = path.join(outsideDir, "secret.txt");
-
-        const result = await run(command(named));
-
-        expect(result.exitCode).not.toBe(0);
-        expect(result.stderr).toContain(shellPath(named));
-        expect(result.stdout).not.toContain("NEEDLE");
-      },
-    );
-
-    it("writes nothing where git was refused", async () => {
-      const named = path.join(outsideDir, "repo");
-
-      const result = await run(`git init '${named}'`);
+describe("a path spelled the way this computer spells it", () => {
+  it.each(BRIDGING_COMMANDS)(
+    "$name refuses one the rules close",
+    async ({ command, under }) => {
+      const result = await run(command(path.join(closed, under)));
 
       expect(result.exitCode).not.toBe(0);
-      await expect(fs.stat(named)).rejects.toThrow();
-    });
+      expect(result.stderr).not.toBe("");
+      expect(result.stdout).not.toContain("NEEDLE");
+    },
+  );
 
-    it.each([
-      { command: (named: string) => `rg NEEDLE '${named}'`, name: "rg" },
-      { command: (named: string) => `du -sh '${named}'`, name: "du" },
-    ])(
-      "$name reads one inside a folder the chat reaches",
-      async ({ command }) => {
-        const named = path.join(attachedDir, "note.md");
+  it("writes nothing where git was refused", async () => {
+    const named = path.join(closed, "repo");
 
-        const result = await run(command(named), true);
+    const result = await run(`git init '${named}'`);
 
-        expect(result.stderr).toBe("");
-        expect(result.exitCode).toBe(0);
-      },
-    );
-  },
-);
+    expect(result.exitCode).not.toBe(0);
+    await expect(fs.stat(named)).rejects.toThrow();
+  });
+
+  it.each([
+    { command: (named: string) => `rg NEEDLE '${named}'`, name: "rg" },
+    { command: (named: string) => `du -sh '${named}'`, name: "du" },
+  ])("$name reads one the rules open", async ({ command }) => {
+    const result = await run(command(path.join(docs, "note.md")));
+
+    expect(result.stderr).toBe("");
+    expect(result.exitCode).toBe(0);
+  });
+});

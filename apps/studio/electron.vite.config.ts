@@ -450,6 +450,17 @@ const require = __cjs_mod__.createRequire(import.meta.url);
           "@extend-ai/react-xlsx > regl",
           "react-dom/server",
         ],
+        rolldownOptions: {
+          // Dependencies like TanStack Router open their files with "use
+          // client", which only means something to React Server Components.
+          // The optimizer only bundles dependencies, so dropping it is safe.
+          onwarn(warning, warn) {
+            if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
+              return;
+            }
+            warn(warning);
+          },
+        },
       },
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),

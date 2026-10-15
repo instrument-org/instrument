@@ -16,7 +16,6 @@ import {
   DictationButton,
   DictationCancel,
   DictationReadout,
-  DictationSendTip,
   DictationWave,
   landingWords,
 } from "@/client/components/dictation-controls";
@@ -885,11 +884,7 @@ export const PromptInput = ({
               data-dictating={dictating || undefined}
             >
               {dictating ? (
-                <>
-                  <DictationWave dictation={dictation} />
-                  <DictationCancel dictation={dictation} />
-                  <DictationReadout dictation={dictation} />
-                </>
+                <DictationReadout dictation={dictation} />
               ) : (
                 addMenu && (
                   <ComposerAddMenu
@@ -961,12 +956,21 @@ export const PromptInput = ({
                 />
               )}
 
-              <div className="flex shrink-0 items-center gap-1.5">
+              {/* While dictating: the wave, then Cancel and Stop together.
+                  Send waits until the words land; Enter still sends. */}
+              <div
+                className={cn(
+                  "flex shrink-0 items-center",
+                  dictating ? "gap-1" : "gap-1.5",
+                )}
+              >
+                <DictationWave className="mr-1" dictation={dictation} />
+                <DictationCancel dictation={dictation} />
                 <DictationButton
                   dictation={dictation}
                   disabled={disabled || isLoading}
                 />
-                <DictationSendTip dictation={dictation}>
+                {!dictating && (
                   <Button
                     aria-label="Send"
                     className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
@@ -980,7 +984,7 @@ export const PromptInput = ({
                       <ArrowUpIcon className="size-5" />
                     )}
                   </Button>
-                </DictationSendTip>
+                )}
               </div>
             </div>
           </>
@@ -1049,12 +1053,7 @@ export const PromptInput = ({
         // a block or a draft always has room over its words.
         notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
-          variant === "pill" && dictating ? (
-            <div className="flex items-center gap-2 pl-1.5">
-              <DictationWave dictation={dictation} />
-              <DictationCancel dictation={dictation} size="sm" />
-            </div>
-          ) : variant === "pill" ? (
+          variant === "pill" ? (
             // The picker has no button of its own here: it hangs off an empty
             // box over the plus, so its panel opens from the plus when the menu
             // or the notice asks for it.
@@ -1144,13 +1143,19 @@ export const PromptInput = ({
                     selectedSessionId={selectedSessionId}
                   />
                 )}
-              <DictationButton
-                dictation={dictation}
-                disabled={disabled || isLoading}
-                size="sm"
-              />
+              {/* While dictating: the wave, then Cancel and Stop together.
+                  Send waits until the words land; Enter still sends. */}
+              <div className="flex shrink-0 items-center gap-1">
+                <DictationWave className="mr-1" dictation={dictation} />
+                <DictationCancel dictation={dictation} size="sm" />
+                <DictationButton
+                  dictation={dictation}
+                  disabled={disabled || isLoading}
+                  size="sm"
+                />
+              </div>
               {beforeSend}
-              <DictationSendTip dictation={dictation}>
+              {!dictating && (
                 <Button
                   aria-label="Send"
                   className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
@@ -1164,7 +1169,7 @@ export const PromptInput = ({
                     <ArrowUpIcon className="size-4" />
                   )}
                 </Button>
-              </DictationSendTip>
+              )}
             </>
           ) : undefined
         }

@@ -61,7 +61,7 @@ export function DictationButton({
               dictation.stop();
             }}
           >
-            {working && phase.pressed === "stop" ? (
+            {working ? (
               <Spinner className={icon} delay={0} />
             ) : (
               <StopIcon className="size-3.5" weight="fill" />
@@ -99,7 +99,7 @@ export function DictationButton({
 }
 
 /**
- * Throws the recording away, as a round ✕ at the bar's left. Only while there
+ * Throws the recording away, as a round ✕ between the wave and Stop. Only while there
  * is audio to lose: once it has been sent there is nothing here to discard,
  * so it goes invisible but keeps its place, and nothing beside it moves as
  * the words land.
@@ -373,8 +373,8 @@ export function useDictatedText({
 
 /**
  * A textarea with dictation along its foot, inside the box: the microphone at
- * the right, and while recording, Cancel and the words being heard along
- * the foot. What is already in the box stays, editable, and gets the new
+ * the right, and while recording, the words being heard along the foot with
+ * the wave, Cancel and Stop together at its right. What is already in the box stays, editable, and gets the new
  * words after it.
  */
 export function DictatedTextarea({
@@ -386,40 +386,17 @@ export function DictatedTextarea({
     <div className="relative">
       <Textarea className={cn("pb-10", className)} {...props} />
       <div className="pointer-events-none absolute inset-x-2 bottom-1.5 flex items-center gap-2 [&>*]:pointer-events-auto">
-        <DictationWave dictation={dictation} />
-        <DictationCancel dictation={dictation} size="sm" />
         <DictationReadout dictation={dictation} />
-        <DictationButton
-          className="ml-auto"
-          dictation={dictation}
-          disabled={props.disabled}
-          size="sm"
-        />
+        <div className="ml-auto flex items-center gap-1">
+          <DictationWave className="mr-1" dictation={dictation} />
+          <DictationCancel dictation={dictation} size="sm" />
+          <DictationButton
+            dictation={dictation}
+            disabled={props.disabled}
+            size="sm"
+          />
+        </div>
       </div>
     </div>
-  );
-}
-
-/**
- * Send, named in a tooltip while dictating like the bar's other controls. It
- * stops first: the words land, then the message goes.
- */
-export function DictationSendTip({
-  children,
-  dictation,
-}: {
-  children: React.ReactElement;
-  dictation: Dictation;
-}) {
-  if (!isDictating(dictation.phase)) {
-    return children;
-  }
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>
-        <p>Send</p>
-      </TooltipContent>
-    </Tooltip>
   );
 }

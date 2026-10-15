@@ -10,12 +10,14 @@ import path from "node:path";
 
 const MIN_BINARY_BYTES = 200_000;
 
-/** The binaries a target carries; Windows on ARM gets coreutils alone. */
+/** The binaries a target carries, as download-uutils.ts vendors them. */
 export function expectedUutils(platform: string, arch: string): string[] {
   const names =
-    platform === "win32" && arch === "arm64"
-      ? ["coreutils"]
-      : ["coreutils", "diffutils", "find", "grep", "xargs"];
+    platform !== "win32"
+      ? ["coreutils", "diffutils", "grep", "xargs"]
+      : arch === "arm64"
+        ? ["coreutils"]
+        : ["coreutils", "diffutils"];
   return names.map((name) => (platform === "win32" ? `${name}.exe` : name));
 }
 

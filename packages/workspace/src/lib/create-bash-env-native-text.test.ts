@@ -10,11 +10,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import {
-  quietRefusedFolders,
-  rejectedOption,
-  walksHomeOnMac,
-} from "./shell-commands/native-text";
+import { grepWalks, reachesAboveHome } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -75,54 +71,28 @@ afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe("rejectedOption", () => {
-  it.each([
-    ["sort: invalid option -- 'g'\n", 2, "", true],
-    ["grep: invalid option -- 'H'\n", 2, "", true],
-    ["ls: unrecognized option '--full-time'\n", 2, "", true],
-    ["find: unknown predicate '-L'\n", 1, "", true],
-    ["xargs: invalid option -- 'I'\n", 1, "", true],
-    // Failing at the work is not an option it lacks.
-    ["sort: a.txt: No such file or directory\n", 2, "", false],
-    // It printed something, so it ran.
-    ["grep: invalid option -- 'H'\n", 2, "partial\n", false],
-    ["", 1, "", false],
-  ])("%j exit %i stdout %j is %s", (stderr, exitCode, stdout, expected) => {
-    expect(rejectedOption({ exitCode, stderr, stdout })).toBe(expected);
+describe("reachesAboveHome", () => {
+  it.each<[string[], boolean]>([
+    [["-r", "x", "/Users/sam"], true],
+    [["-r", "x", "/Users/sam/"], true],
+    [["-r", "x", "/Users"], true],
+    [["-r", "x", "/"], true],
+    [["-r", "x", "/Users/sam/Projects/app"], false],
+    [["-r", "x", "."], false],
+  ])("%j is %s", (args, expected) => {
+    expect(reachesAboveHome(args, "/Users/sam")).toBe(expected);
   });
 });
 
-describe("walksHomeOnMac", () => {
-  it.each<[string[], NodeJS.Platform, boolean]>([
-    [["/Users/sam", "-name", "x"], "darwin", true],
-    [["/Users", "-name", "x"], "darwin", true],
-    [["/"], "darwin", true],
-    [["-r", "x", "/Users/sam/"], "darwin", true],
-    [["/Users/sam/Projects/app"], "darwin", false],
-    [[".", "-name", "x"], "darwin", false],
-    [["/home/sam"], "linux", false],
-  ])("%j on %s is %s", (args, platform, expected) => {
-    expect(walksHomeOnMac(args, "/Users/sam", platform)).toBe(expected);
-  });
-});
-
-describe("quietRefusedFolders", () => {
-  it("counts the folders the sandbox refused instead of listing each", () => {
-    expect(
-      quietRefusedFolders(
-        [
-          "Error: /Users/sam/.ssh: Operation not permitted (os error 1)",
-          "find: ‘x’: No such file or directory",
-          "Error: /Users/sam/Library: Operation not permitted (os error 1)",
-          "",
-        ].join("\n"),
-      ),
-    ).toMatchInlineSnapshot(`
-      "find: ‘x’: No such file or directory
-      find: left out 2 folders the person keeps closed
-      "
-    `);
-    expect(quietRefusedFolders("find: other\n")).toBe("find: other\n");
+describe("grepWalks", () => {
+  it.each<[string[], boolean]>([
+    [["-r", "x"], true],
+    [["-ril", "x"], true],
+    [["-R", "x"], true],
+    [["--recursive", "x"], true],
+    [["-H", "x", "a.txt"], false],
+  ])("%j is %s", (args, expected) => {
+    expect(grepWalks(args)).toBe(expected);
   });
 });
 
@@ -147,15 +117,15 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     });
   });
 
-  it("hands an option the builtin refuses to uutils", async () => {
+  it("answers grep -H, which the builtin refuses", async () => {
     const result = await run("grep -H one a.txt");
     expect(result.stdout).toBe("a.txt:one\n");
   });
 
   it("names the program for a native command and the builtin otherwise", async () => {
-    const result = await run("type -t grep; command -v sort");
-    const [grep, sort] = result.stdout.trim().split("\n");
-    expect(grep).toBe("builtin");
+    const result = await run("type -t tr; command -v sort");
+    const [tr, sort] = result.stdout.trim().split("\n");
+    expect(tr).toBe("builtin");
     expect(sort).toMatch(/uutils\/coreutils(?:\.exe)?$/);
   });
 
@@ -173,13 +143,12 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     expect(result.stdout.trim()).toBe("16");
   });
 
-  it.skipIf(process.platform === "win32")(
-    "leaves find -newermt, which uutils cannot parse, to the builtin",
-    async () => {
-      const result = await run("find . -name 'a.txt' -newermt 2000-01-01");
-      expect(result).toMatchObject({ exitCode: 0, stdout: "./a.txt\n" });
-    },
-  );
+  it("leaves find to the builtin, which reads -newermt", async () => {
+    const result = await run(
+      "type -t find; find . -name 'a.txt' -newermt 2000-01-01",
+    );
+    expect(result.stdout).toBe("builtin\n./a.txt\n");
+  });
 
   it("reads an empty pipe as empty rather than waiting", async () => {
     const result = await run("true | sort | wc -l");

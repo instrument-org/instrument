@@ -1,4 +1,4 @@
-import { type Command, defineCommand, type ExecResult } from "just-bash";
+import { type Command, defineCommand } from "just-bash";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import nodePath from "node:path";
@@ -20,32 +20,19 @@ import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 /** The bundled uutils binaries, by their base name. */
-type UutilsBinary = "coreutils" | "diffutils" | "find" | "grep" | "xargs";
+type UutilsBinary = "coreutils" | "diffutils" | "grep" | "xargs";
 
 /**
- * A GNU text command the bundled uutils answer.
- *
- * `native` runs the uutils program every time: the shell's own either does
- * not exist or answers differently from GNU on ordinary input (`sort -n` reads
- * `1e3` as a thousand, `uniq -c` pads to four columns, `find` walks on the
- * thread the shell runs on).
- *
- * `fallback` runs the shell's own first, which costs nothing to start, and
- * the uutils program only when the call needs what the builtin lacks:
- * when `wantsNative` says so before running, or when the builtin refuses an
- * option (`grep -H`, `head -q`, `xargs -I{}`). These are the commands models
- * run inside loops, where a native start per iteration adds up.
+ * A GNU text command the bundled uutils answer, every time it runs on the
+ * platforms it lists. Which commands are here is a fixed table rather than a
+ * decision made per call, so a command answers the same way in a loop as on
+ * its own.
  */
 interface NativeTextRoute {
   binary: UutilsBinary;
-  mode: "fallback" | "native";
   name: string;
   /** Where the uutils program answers it; elsewhere the builtin keeps it. */
   platforms?: NodeJS.Platform[];
-  /** A fallback command's calls the builtin answers wrongly without saying so. */
-  wantsNative?: (args: string[]) => boolean;
-  /** A native command's calls uutils cannot answer and the builtin can. */
-  wantsBuiltin?: (args: string[]) => boolean;
   /** Operands it writes rather than reads (`sort -o out`, `dd of=out`). */
   writes?: (args: string[]) => string[];
   /**
@@ -53,6 +40,8 @@ interface NativeTextRoute {
    * separator the shell spells as a slash.
    */
   printsPaths?: boolean;
+  /** Walks the folders it is given, which the sandbox may refuse on the way. */
+  walks?: (args: string[]) => boolean;
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
@@ -75,44 +64,8 @@ function sortOutput(args: string[]): string[] {
   return out;
 }
 
-/** A relative date, a `-r FILE` reference, or a GNU `%-d` padding flag. */
-function dateWantsNative(args: string[]): boolean {
-  return args.some(
-    (arg) =>
-      /%[-_0^#]/.test(arg) ||
-      /^(?:-r|--reference|-I|--iso-8601|-R|--rfc)/.test(arg) ||
-      /\b(?:ago|next|last|yesterday|tomorrow|now|days?|weeks?|months?|years?|hours?|minutes?)\b/i.test(
-        arg,
-      ),
-  );
-}
-
-/**
- * A walk from the home folder or above it on macOS. A native program that
- * opens Desktop, Documents or Music there makes macOS ask the person, in a
- * dialog the walk waits on until someone answers; the builtin asks the rules
- * first and never opens a folder they keep for asking.
- */
-export function walksHomeOnMac(
-  args: string[],
-  home = os.homedir(),
-  platform = process.platform,
-): boolean {
-  return (
-    platform === "darwin" &&
-    // The home folder, or a folder that holds it.
-    args.some((arg) => {
-      if (!nodePath.isAbsolute(arg)) {
-        return false;
-      }
-      const dir = nodePath.resolve(arg);
-      return dir === "/" || isAtOrUnder(dir, home);
-    })
-  );
-}
-
-/** A recursive search, which the builtin walks on the shell's thread. */
-function grepWantsNative(args: string[]): boolean {
+/** A recursive search. */
+export function grepWalks(args: string[]): boolean {
   return args.some(
     (arg) =>
       arg === "--recursive" ||
@@ -121,101 +74,62 @@ function grepWantsNative(args: string[]): boolean {
   );
 }
 
+/**
+ * Whether one of the arguments is the home folder or a folder holding it.
+ * On macOS a native program walking there opens Desktop, Documents and
+ * Music, and macOS puts up its own privacy dialog for each, which the walk
+ * waits on until someone answers; the builtin asks the rules before it opens
+ * a folder and never opens one they keep for asking.
+ */
+export function reachesAboveHome(args: string[], home = os.homedir()): boolean {
+  return args.some((arg) => {
+    if (!nodePath.isAbsolute(arg)) {
+      return false;
+    }
+    const dir = nodePath.resolve(arg);
+    return dir === "/" || isAtOrUnder(dir, home);
+  });
+}
+
+/**
+ * Not here, so the builtin answers: `find` (findutils 0.10.0 parses no
+ * `-newermt` date, prints backslashes on Windows, and walks into macOS's
+ * privacy dialogs), `tr` (ties the builtin and runs in loops), and `diff`,
+ * `sed` and `awk` (the uutils ones fail cases the builtins pass).
+ */
 const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
-  { binary: "coreutils", mode: "native", name: "sort", writes: sortOutput },
-  { binary: "coreutils", mode: "native", name: "uniq" },
-  { binary: "coreutils", mode: "native", name: "comm" },
-  { binary: "coreutils", mode: "native", name: "join" },
-  { binary: "coreutils", mode: "native", name: "realpath", printsPaths: true },
-  { binary: "coreutils", mode: "native", name: "shuf" },
-  { binary: "coreutils", mode: "native", name: "numfmt" },
-  { binary: "coreutils", mode: "native", name: "od" },
+  { binary: "coreutils", name: "sort", writes: sortOutput },
+  { binary: "coreutils", name: "uniq" },
+  { binary: "coreutils", name: "comm" },
+  { binary: "coreutils", name: "join" },
+  { binary: "coreutils", name: "cut" },
+  { binary: "coreutils", name: "wc" },
+  { binary: "coreutils", name: "head" },
+  { binary: "coreutils", name: "tail" },
+  { binary: "coreutils", name: "date" },
+  { binary: "coreutils", name: "seq" },
+  { binary: "coreutils", name: "od" },
+  { binary: "coreutils", name: "sha256sum" },
+  { binary: "coreutils", name: "md5sum" },
+  { binary: "coreutils", name: "numfmt" },
+  { binary: "coreutils", name: "realpath", printsPaths: true },
+  { binary: "coreutils", name: "shuf" },
   {
     binary: "coreutils",
-    mode: "native",
     name: "dd",
     writes: (args) =>
       args.filter((arg) => arg.startsWith("of=")).map((arg) => arg.slice(3)),
   },
-  { binary: "diffutils", mode: "native", name: "cmp" },
-  // On Windows uutils' find joins what it prints with backslashes, so a
-  // `-path '*/.*'` or `-prune` pattern written with slashes matches nothing.
-  // Its -newermt reads no date at all in 0.10.0, which the builtin does.
-  {
-    binary: "find",
-    mode: "native",
-    name: "find",
-    platforms: UNIX,
-    wantsBuiltin: (args) =>
-      args.some((arg) => /^-newer[a-zB]t$/.test(arg)) || walksHomeOnMac(args),
-  },
-  {
-    binary: "grep",
-    mode: "fallback",
-    name: "grep",
-    // On Windows a recursive grep prints `reports\b.md:...`, which nothing
-    // respells for the shell, so the builtin keeps walking there.
-    wantsNative: (args) =>
-      process.platform !== "win32" &&
-      grepWantsNative(args) &&
-      !walksHomeOnMac(args),
-  },
-  {
-    binary: "coreutils",
-    mode: "fallback",
-    name: "date",
-    wantsNative: dateWantsNative,
-  },
-  { binary: "coreutils", mode: "fallback", name: "cut" },
-  { binary: "coreutils", mode: "fallback", name: "wc" },
-  { binary: "coreutils", mode: "fallback", name: "head" },
-  { binary: "coreutils", mode: "fallback", name: "tail" },
-  { binary: "coreutils", mode: "fallback", name: "seq" },
-  { binary: "coreutils", mode: "fallback", name: "sha256sum" },
-  { binary: "coreutils", mode: "fallback", name: "md5sum" },
   // uutils builds `stat` for Unix only.
-  { binary: "coreutils", mode: "fallback", name: "stat", platforms: UNIX },
-  // What uutils' xargs starts is a program on the PATH, and Windows has none
-  // for `echo`, `printf` or the rest of what models hand it.
-  { binary: "xargs", mode: "fallback", name: "xargs", platforms: UNIX },
+  { binary: "coreutils", name: "stat", platforms: UNIX },
+  { binary: "diffutils", name: "cmp" },
+  // On Windows a recursive grep prints relative paths with backslashes,
+  // which nothing respells for the shell.
+  { binary: "grep", name: "grep", platforms: UNIX, walks: grepWalks },
+  // What xargs starts is a program on the PATH, and Windows has none for
+  // `echo`, `printf` or most of what models hand it.
+  { binary: "xargs", name: "xargs", platforms: UNIX },
 ];
-
-/** What the shell's builtins print when they refuse an option. */
-const REJECTED_OPTION =
-  /^[\w.-]+: (?:invalid option|unrecognized option|unknown option|illegal option|invalid argument|unknown predicate|unknown primary|option requires an argument|missing argument)/m;
-
-/**
- * Whether the builtin turned the call down for an option it does not know,
- * as opposed to failing at the work: it printed nothing and said so.
- */
-export function rejectedOption(result: ExecResult): boolean {
-  return (
-    result.exitCode !== 0 &&
-    result.stdout === "" &&
-    REJECTED_OPTION.test(result.stderr)
-  );
-}
-
-/** How uutils' find reports a folder the native sandbox refused. */
-const FIND_REFUSED =
-  /^Error: .*: (?:Operation not permitted|Permission denied) \(os error \d+\)$/;
-
-/**
- * find's stderr with each folder the sandbox refused on the way left out
- * and counted in one line instead: over the home folder that is one line per
- * closed entry, dozens of them, where the shell's own find passes them
- * quietly.
- */
-export function quietRefusedFolders(stderr: string): string {
-  const lines = stderr.split("\n");
-  const kept = lines.filter((line) => !FIND_REFUSED.test(line));
-  const left = lines.length - kept.length;
-  if (left === 0) {
-    return stderr;
-  }
-  const rest = kept.join("\n");
-  return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed\n`;
-}
 
 /** The bundled program for a route, when this build carries it. */
 export function uutilsProgram(binary: UutilsBinary): string | undefined {
@@ -311,18 +225,16 @@ export function createNativeTextCommand(
   { chatId, layout }: { chatId: ChatId; layout: WorkspaceFsLayout },
 ): Command {
   return defineCommand(route.name, async (args, ctx) => {
-    if (ctx.origCommand !== undefined && route.wantsBuiltin?.(args)) {
-      return await ctx.origCommand(args);
-    }
+    const walks = route.walks?.(args) ?? false;
+    // The one call that does not go to uutils: a walk from the home folder
+    // on macOS, which would hang on the system's privacy dialogs.
     if (
-      route.mode === "fallback" &&
       ctx.origCommand !== undefined &&
-      !route.wantsNative?.(args)
+      walks &&
+      process.platform === "darwin" &&
+      reachesAboveHome(args)
     ) {
-      const builtin = await ctx.origCommand(args);
-      if (!rejectedOption(builtin)) {
-        return builtin;
-      }
+      return await ctx.origCommand(args);
     }
     const program = uutilsProgram(route.binary);
     if (program === undefined) {
@@ -354,7 +266,7 @@ export function createNativeTextCommand(
         // A walk was checked where it starts; a folder it passes that the
         // sandbox refuses is skipped without a card, as the shell's own
         // walks skip one.
-        ...(route.name === "find" ? { walks: true as const } : {}),
+        ...(walks ? { walks: true as const } : {}),
         // `sort` with no file reads stdin, so an empty pipe has to reach it
         // as one, and no pipe as nothing to read.
         ...((stdin ?? ctx.stdinConnected)
@@ -370,10 +282,7 @@ export function createNativeTextCommand(
     );
     return {
       exitCode: result.exitCode ?? 1,
-      stderr:
-        route.name === "find"
-          ? quietRefusedFolders(streams.stderr)
-          : streams.stderr,
+      stderr: streams.stderr,
       stdout:
         route.printsPaths && process.platform === "win32"
           ? streams.stdout.replaceAll("\\", "/")

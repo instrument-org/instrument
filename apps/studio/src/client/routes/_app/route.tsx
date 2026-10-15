@@ -41,7 +41,12 @@ import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
-import { taskHref, tasksHref } from "@/client/components/window/tab-location";
+import { folderOf } from "@/client/components/window/host-path";
+import {
+  type TabLocation,
+  taskHref,
+  tasksHref,
+} from "@/client/components/window/tab-location";
 import {
   tabSurfaceAtom,
   useTabSurface,
@@ -454,8 +459,11 @@ function RouteScreen({ href }: { href: string }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
   const tabId = useTabId();
-  const { view: screenView, walked: walkedFolder } =
-    useAtomValue(tabSurfaceAtom)[tabId] ?? {};
+  const {
+    picked,
+    view: screenView,
+    walked: walkedFolder,
+  } = useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
   // The row's head and tail: where a folder puts its sidebar's toggle,
   // its views, sort and filter, and its Ask and search, and a file's viewer a
@@ -468,15 +476,18 @@ function RouteScreen({ href }: { href: string }) {
     chatTitles: shell.chatTitles,
     taskTitles: shell.childTitles,
   });
-  const location =
-    fromHref.kind === "folder" && screenView?.folder
-      ? {
-          ...fromHref,
-          ...(walkedFolder
-            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
-            : { path: screenView.folder.display }),
-        }
-      : fromHref;
+  const location: TabLocation =
+    // Several picked beside a file stand where it stood.
+    fromHref.kind === "file" && picked !== undefined
+      ? { kind: "folder", path: folderOf(fromHref.path), picked }
+      : fromHref.kind === "folder" && screenView?.folder
+        ? {
+            ...fromHref,
+            ...(walkedFolder
+              ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+              : { path: screenView.folder.display }),
+          }
+        : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
   // there would only offer to leave for the web. A new tab's own menu takes

@@ -82,6 +82,8 @@ export type TabLocation =
       hostPath?: string;
       kind: "folder";
       path: string;
+      /** How many are picked in it, when that is several and they stand in for a file open beside it: the place is then them. */
+      picked?: number;
     }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
@@ -122,9 +124,17 @@ export function locationCrumbs(
     // A path reads the same whichever screen said it: the folder browser
     // hands over a path with the home folder as `~`, and a file arrives as it
     // sits on the disk.
-    case "file":
-    case "folder": {
+    case "file": {
       return pathCrumbs(location.path, { home, volumes });
+    }
+    // Several picked are the place, under the folder they are in.
+    case "folder": {
+      return location.picked === undefined
+        ? pathCrumbs(location.path, { home, volumes })
+        : [
+            ...pathCrumbs(location.path, { home, linksLast: true, volumes }),
+            { label: `${location.picked} items` },
+          ];
     }
     case "newTab":
     case "page": {
@@ -209,7 +219,16 @@ function join(base: string, name: string, separator: string) {
  */
 function pathCrumbs(
   path: string,
-  { home, volumes }: { home: string; volumes: Volume[] },
+  {
+    home,
+    linksLast = false,
+    volumes,
+  }: {
+    home: string;
+    /** Whether the last name is somewhere to go too, for a place inside it. */
+    linksLast?: boolean;
+    volumes: Volume[];
+  },
 ): LocationCrumb[] {
   const hostPath = expandHomePath(path, home);
   // A place kept inside the home folder, iCloud Drive or a cloud service's
@@ -246,7 +265,7 @@ function pathCrumbs(
           ? home
           : (volume?.path ?? startOf(name, separator))
         : join(at, name, separator);
-    return !rooted || index === names.length - 1
+    return !rooted || (index === names.length - 1 && !linksLast)
       ? { label: name }
       : { label: name, path: at, to: { href: folderHref(at), kind: "screen" } };
   });

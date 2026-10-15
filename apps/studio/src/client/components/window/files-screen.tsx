@@ -55,7 +55,6 @@ import {
 } from "./computer-page";
 import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
-import { GlyphButton } from "./glyph-button";
 import { reachablePath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
@@ -220,6 +219,8 @@ export function FilesScreen({
   const isFileOpen = isBesideLayout && file !== undefined;
   const [isFolderShown, setFolderShown] = useState(true);
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
+  // Where the folder puts Ask and its menu for several picked.
+  const [pickedSlot, setPickedSlot] = useState<HTMLDivElement | null>(null);
   // From the file going until it has slid away.
   const [isClosing, setClosing] = useState(false);
   const [wasFileOpen, setWasFileOpen] = useState(isFileOpen);
@@ -514,6 +515,10 @@ export function FilesScreen({
     : undefined;
 
   useTabSurface(
+    "picked",
+    isFileOpen && besidePicked.length > 1 ? besidePicked.length : null,
+  );
+  useTabSurface(
     "walked",
     activeFile || !folder
       ? null
@@ -688,6 +693,7 @@ export function FilesScreen({
                       isResizing: draggedWidth !== null,
                       onEmpty: onBesideEmpty,
                       onPick: onBesidePick,
+                      pickedInto: pickedSlot,
                       toggle: (
                         <TreeToggle
                           isOpen={isFolderShown}
@@ -800,7 +806,16 @@ export function FilesScreen({
                                 </div>
                                 {isPresent &&
                                   rowTail &&
-                                  createPortal(closeButton, rowTail)}
+                                  createPortal(
+                                    <>
+                                      <div
+                                        className="flex items-center gap-0.5"
+                                        ref={setPickedSlot}
+                                      />
+                                      {closeButton}
+                                    </>,
+                                    rowTail,
+                                  )}
                               </>
                             ) : (
                               <div className="relative size-full">
@@ -951,9 +966,8 @@ function WhilePresent({
   return children(isPresent);
 }
 
-/** Several picked in the folder beside a file: the last few as a loose pile in the file's place, and Ask about them all. */
+/** Several picked in the folder beside a file: the last few as a loose pile in the file's place. */
 function SeveralPicked({ items }: { items: ChosenItem[] }) {
-  const { askAbout } = useWindow();
   const { resolvedTheme } = useTheme();
   const shown = items.slice(-PILE_POSES.length);
   const poses = PILE_POSES.slice(-shown.length);
@@ -991,16 +1005,6 @@ function SeveralPicked({ items }: { items: ChosenItem[] }) {
           {kinds.join(", ")}
         </div>
       </div>
-      {askAbout && (
-        <GlyphButton
-          onClick={() => {
-            askAbout(items);
-          }}
-          size="sm"
-        >
-          Ask
-        </GlyphButton>
-      )}
     </div>
   );
 }

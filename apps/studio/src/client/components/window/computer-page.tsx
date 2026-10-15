@@ -237,6 +237,14 @@ export interface FolderOnScreen {
 }
 
 /**
+ * The column edge where the row crosses it: a divider as tall as the
+ * controls rather than a line through the row, so the controls line up with
+ * the column they act on without the row being cut into cells.
+ */
+const EDGE_DIVIDER_CLASSNAME =
+  "relative after:absolute after:top-1/2 after:right-0 after:h-5 after:w-px after:-translate-y-1/2 after:bg-border after:transition-opacity";
+
+/**
  * This Mac, browsed the way the Finder browses it: a sidebar of the places a
  * person keeps things and every volume, and the folder the browser is rooted
  * in, opened as the app's own user so every folder opens. A folder is shown
@@ -282,6 +290,8 @@ export function ComputerPage({
     onEmpty: () => void;
     /** Everything picked, a folder the columns stand in included, whenever it changes. */
     onPick: (picked: ChosenItem[]) => void;
+    /** Where Ask and the menu for several picked go, in the file's section of the row. */
+    pickedInto: HTMLElement | null;
     toggle: ReactNode;
     width: number;
   };
@@ -1340,6 +1350,27 @@ export function ComputerPage({
     afterMenu.current?.();
     afterMenu.current = null;
   };
+  /** Ask about what is selected, or the folder on screen where nothing is. */
+  const askButton = () => {
+    const about =
+      selectedItems.length > 1
+        ? `${selectedItems.length} items`
+        : (segmentsOf(
+            hostPathOfItem(selectedItem) || (folderOnScreenPath ?? ""),
+          ).at(-1) ?? "this folder");
+    return (
+      <GlyphButton
+        className={TOOLBAR_CONTROL_CLASSNAME}
+        onClick={() => {
+          draftAbout(selectedItems.length > 0 ? selectedItems : [selectedItem]);
+        }}
+        size="sm"
+        title={`Ask about “${about}”`}
+      >
+        <span className="@max-lg/finder:sr-only">Ask</span>
+      </GlyphButton>
+    );
+  };
   /** What the folder's menus do to a row, or to the folder where there is none. */
   const menuActionsFor = (item: FileSystemItem | undefined) => {
     // A row of several selected stands for all of them, as it does in the
@@ -1672,12 +1703,13 @@ export function ComputerPage({
           ? createPortal(
               <div
                 className={cn(
-                  "-ml-2 flex h-10 shrink-0 items-center gap-1 border-r pl-2 transition-[width,border-color] [interpolate-size:allow-keywords]",
+                  "-ml-2 flex h-10 shrink-0 items-center gap-1 pl-2 transition-[width] [interpolate-size:allow-keywords]",
+                  EDGE_DIVIDER_CLASSNAME,
                   BESIDE_MOTION_CLASSNAME,
                   beside?.isResizing && "transition-none",
                   isBesideOpen && beside.isFolderShown
-                    ? "border-border pr-2"
-                    : "border-transparent",
+                    ? "pr-2 after:opacity-100"
+                    : "after:opacity-0",
                 )}
                 style={{
                   width:
@@ -1688,11 +1720,12 @@ export function ComputerPage({
               >
                 <div
                   className={cn(
-                    "flex h-10 shrink-0 items-center border-r transition-[width,border-color] [interpolate-size:allow-keywords]",
+                    "flex h-10 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
+                    EDGE_DIVIDER_CLASSNAME,
                     BESIDE_MOTION_CLASSNAME,
                     !isBesideOpen && placesVisible && !isNarrow
-                      ? "border-border"
-                      : "border-transparent",
+                      ? "after:opacity-100"
+                      : "after:opacity-0",
                   )}
                   style={{
                     // Less the section's own inset, so its edge is the places'.
@@ -1724,6 +1757,22 @@ export function ComputerPage({
               rowLead,
             )
           : createPortal(placesToggle, rowLead))}
+      {/* Several picked beside a file stand in the file's place, so what acts
+          on them goes where the file's own actions were. */}
+      {isBesideOpen &&
+        beside.pickedInto &&
+        selectedItems.length > 1 &&
+        createPortal(
+          <>
+            {askAbout ? askButton() : null}
+            <FolderOverflowMenu
+              {...menuActionsFor(selectedItem)}
+              item={selectedItem}
+              onClosed={afterMenuClosed}
+            />
+          </>,
+          beside.pickedInto,
+        )}
       {isNarrow && isPlacesOpen && (
         <button
           aria-label="Hide the sidebar"
@@ -1993,31 +2042,7 @@ export function ComputerPage({
                 )}
                 renderHeaderPrimary={
                   askAbout && (selectedItem || folderOnScreenPath !== undefined)
-                    ? () => {
-                        const about =
-                          selectedItems.length > 1
-                            ? `${selectedItems.length} items`
-                            : (segmentsOf(
-                                hostPathOfItem(selectedItem) ||
-                                  (folderOnScreenPath ?? ""),
-                              ).at(-1) ?? "this folder");
-                        return (
-                          <GlyphButton
-                            className={TOOLBAR_CONTROL_CLASSNAME}
-                            onClick={() => {
-                              draftAbout(
-                                selectedItems.length > 0
-                                  ? selectedItems
-                                  : [selectedItem],
-                              );
-                            }}
-                            size="sm"
-                            title={`Ask about “${about}”`}
-                          >
-                            <span className="@max-lg/finder:sr-only">Ask</span>
-                          </GlyphButton>
-                        );
-                      }
+                    ? askButton
                     : undefined
                 }
                 // Where the folder's contents would be: the whole browser for

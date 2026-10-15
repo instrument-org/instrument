@@ -398,6 +398,9 @@ function Field({ location }: { location: TabLocation }) {
       (destination) => destination.id === "open",
     );
     const isHere = index === crumbs.length - 1;
+    // Several picked read as a count, set apart from the folder it is in.
+    const isCount =
+      isHere && location.kind === "folder" && location.picked !== undefined;
     // Where you are keeps its whole name. The walk down to it gives its
     // letters up as the box narrows, each part on its own: an equal
     // share of what is left over, never more than its name needs and
@@ -408,7 +411,10 @@ function Field({ location }: { location: TabLocation }) {
     // and held to the mark's width it would stand in a gap wider than
     // itself: it keeps its own width instead.
     const size = isHere
-      ? "max-w-full shrink-0 truncate"
+      ? cn(
+          "max-w-full shrink-0 truncate",
+          isCount && "rounded-md bg-foreground/8 font-medium",
+        )
       : crumb.label.length <= 2
         ? "shrink-0"
         : "min-w-6 max-w-max flex-1 truncate";

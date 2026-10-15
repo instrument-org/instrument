@@ -16,6 +16,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { claudeCodeEnvironment } from "./environment";
+import { type ReplayFrame } from "./prompt";
 import { SESSION_CWD } from "./resume-record";
 
 /** The MCP server name our tools are served under, and so their prefix. */
@@ -71,7 +72,7 @@ export class ClaudeCodeSession {
   seen: string[] = [];
   private closed = false;
   private idleTimer: NodeJS.Timeout | undefined;
-  private readonly input = new Pushable<SDKUserMessage>();
+  private readonly input = new Pushable<SDKUserMessage | AssistantFrame>();
   private readonly query: Query;
   private readonly results = new Map<string, Deferred<CallToolResult>>();
   private readonly stderrTail: string[] = [];
@@ -139,7 +140,11 @@ export class ClaudeCodeSession {
         systemPrompt: shape.systemPrompt,
         tools: shape.builtInTools,
       },
-      prompt: this.input,
+      // Assistant messages of history go in on the same input as the user's.
+      // The SDK types that input as user messages only, but writes each one
+      // to Claude Code as it is, and Claude Code reads an assistant message
+      // there as one of its own.
+      prompt: this.input as AsyncIterable<SDKUserMessage>,
     });
     this.messages = this.query[Symbol.asyncIterator]();
     this.touch();
@@ -191,6 +196,63 @@ export class ClaudeCodeSession {
       uuid,
     });
     this.forkPoint = uuid;
+  }
+
+  /**
+   * Gives a process that has seen nothing our history as its own, then sends
+   * the last frame, which starts the step. Each earlier user-side frame is
+   * appended without a turn, and Claude Code acknowledges it with a result of
+   * no turns before the next goes in: sent together, a user frame would be
+   * merged into the next one that asks for a turn, out of order.
+   */
+  async replay(frames: ReplayFrame[]) {
+    for (const [index, frame] of frames.entries()) {
+      const last = index === frames.length - 1;
+      if (frame.role === "assistant") {
+        this.input.push({
+          message: {
+            content: frame.content,
+            role: "assistant",
+            ...(frame.model && { model: frame.model }),
+          },
+          parent_tool_use_id: null,
+          type: "assistant",
+        });
+        continue;
+      }
+      if (last) {
+        this.send(frame.content);
+        return;
+      }
+      this.input.push({
+        client_composed: true,
+        message: { content: frame.content, role: "user" },
+        parent_tool_use_id: null,
+        shouldQuery: false,
+        type: "user",
+        uuid: randomUUID(),
+      });
+      await this.acknowledged();
+    }
+  }
+
+  /** Waits for Claude Code to take a frame that asked for no turn. */
+  private async acknowledged() {
+    while (true) {
+      const next = await this.messages.next();
+      if (next.done) {
+        throw new Error(
+          `Claude Code exited during the replay.\n${this.stderr}`,
+        );
+      }
+      if (next.value.type !== "result") {
+        continue;
+      }
+      if (next.value.num_turns !== 0 || next.value.is_error) {
+        throw new Error("Claude Code ran a turn on a frame of history.");
+      }
+      return;
+    }
   }
 
   /**
@@ -319,6 +381,17 @@ class Deferred<T> {
       this.resolve = resolve;
     });
   }
+}
+
+/** An assistant message of history, written to Claude Code's input as is. */
+interface AssistantFrame {
+  message: {
+    content: ContentBlockParam[];
+    model?: string;
+    role: "assistant";
+  };
+  parent_tool_use_id: null;
+  type: "assistant";
 }
 
 /** An async iterable fed by `push`, which the CLI reads its turns from. */

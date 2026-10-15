@@ -658,6 +658,11 @@ const BWRAP = "/usr/bin/bwrap";
  */
 export interface MxcFilesystemPolicy {
   deniedPaths: string[];
+  /**
+   * Folders a program may look at (stat, list) without reading what is in
+   * them; a deny at the same folder still refuses listing it.
+   */
+  enumeratePaths: string[];
   readonlyPaths: string[];
   readwritePaths: string[];
 }
@@ -775,8 +780,26 @@ export function mxcFilesystemPolicy(
       .filter((entry) => entry.access === access)
       .map((entry) => entry.path)
       .toSorted();
+  // A program opening a file in an open folder looks at each folder above
+  // it on the way (Node's realpath lstats every one), so those answer what
+  // they are, as the Seatbelt profile's metadata reads do. A closed one
+  // still refuses to be listed or read: its deny outranks this.
+  const above = new Map<string, string>();
+  for (const entry of entries.values()) {
+    if (entry.access === "deny") {
+      continue;
+    }
+    for (
+      let folder = path.dirname(entry.path);
+      folder !== path.dirname(folder);
+      folder = path.dirname(folder)
+    ) {
+      above.set(fold(folder), folder);
+    }
+  }
   return {
     deniedPaths: listed("deny"),
+    enumeratePaths: [...above.values()].toSorted(),
     readonlyPaths: listed("read"),
     readwritePaths: listed("write"),
   };
@@ -851,11 +874,15 @@ export function mxcRequest({
   env: Record<string, string | undefined>;
   filesystem: MxcFilesystemPolicy;
 }) {
+  const { enumeratePaths, ...lists } = filesystem;
   return {
     version: "1.0.0",
     containment: "processcontainer",
     fallback: { allowDaclMutation: false },
-    filesystem,
+    filesystem: lists,
+    ...(enumeratePaths.length > 0
+      ? { processContainer: { filesystem: { enumeratePaths } } }
+      : {}),
     network: {
       egress: { default: "allow" },
       ingress: { default: "allow", hostLoopback: "allow" },

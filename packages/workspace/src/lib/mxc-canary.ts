@@ -49,15 +49,15 @@ export type MxcLaunch = (
     cwd: string;
     env: Record<string, string | undefined>;
     /** Changes the generated policy: only for proving a failure is caught. */
-    policy?: (filesystem: {
-      deniedPaths: string[];
-      readonlyPaths: string[];
-      readwritePaths: string[];
-    }) => {
-      deniedPaths: string[];
-      readonlyPaths: string[];
-      readwritePaths: string[];
-    };
+    policy?: <
+      Policy extends {
+        deniedPaths: string[];
+        readonlyPaths: string[];
+        readwritePaths: string[];
+      },
+    >(
+      filesystem: Policy,
+    ) => Policy;
   },
 ) => { args: string[]; file: string };
 

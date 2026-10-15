@@ -160,8 +160,7 @@ export function ModelPicker({
     (modelURI ? (modelNameFromURI(modelURI) ?? null) : null);
   // Nothing connected yet: the panel is only a way to connect something, with
   // no search or provider rail around an empty list.
-  const isEmpty =
-    !isLoading && !isError && !models?.length && !errors?.length;
+  const isEmpty = !isLoading && !isError && !models?.length && !errors?.length;
   const placeholderText = isLoading
     ? "Loading models..."
     : isError
@@ -961,8 +960,8 @@ function NoModelsYet({ onAddProvider }: { onAddProvider: () => void }) {
       </div>
       <p className="text-base font-medium">No models yet</p>
       <p className="text-sm text-muted-foreground">
-        Log in to {APP_NAME} for a free trial, or use the ChatGPT or Claude
-        plan you already pay for.
+        Log in to {APP_NAME} for a free trial, or use the ChatGPT or Claude plan
+        you already pay for.
       </p>
       <Button autoFocus onClick={onAddProvider} variant="brand">
         <PlusIcon className="size-4" />

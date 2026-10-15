@@ -29,6 +29,7 @@ ODFRecalcMode = "ODFRecalcMode"
 styl = "styl"
 # The British name of a LICENSE file, matched as a file name.
 licence = "licence"
+LICENCE = "LICENCE"
 # A chat title cut at its length cap in a migration test's snapshot.
 sprin = "sprin"
 # A stem an eval regex matches so "excluded" and "excluding" both count.

@@ -16,12 +16,7 @@ import {
   readPermissionSettings,
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
-import {
-  appBundleId,
-  appReach,
-  grantApp,
-  reachesEveryFile,
-} from "../../lib/permissions/apps";
+import { appBundleId, grantApp } from "../../lib/permissions/apps";
 import { closeAsk, openAsks } from "../../lib/permissions/asks";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
@@ -223,15 +218,6 @@ const removeApp = base
     ),
   );
 
-/** What the rules make of an app for one chat, for its card. */
-const appReachRoute = base
-  .input(z.object({ app: z.string(), id: ChatIdSchema }))
-  .output(z.object({ level: LevelSchema, reachesEveryFile: z.boolean() }))
-  .handler(async ({ input }) => ({
-    level: await appReach(input.id, input.app),
-    reachesEveryFile: reachesEveryFile(input.app),
-  }));
-
 /**
  * The chat's open asks, as its cards draw them, oldest first, read again
  * whenever the chat's state moves.
@@ -325,7 +311,6 @@ const answer = base
 export const permissions = {
   answer,
   liveAsks,
-  appReach: appReachRoute,
   get,
   removeApp,
   setApp,

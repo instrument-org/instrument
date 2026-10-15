@@ -49,7 +49,7 @@ async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
  * any other way the agent acts on the app, which asks here by the app's
  * bundle id.
  */
-export async function appReach(chatId: ChatId, app: string): Promise<Level> {
+async function appReach(chatId: ChatId, app: string): Promise<Level> {
   const rule = (await readPermissionSettings()).apps.find((known) =>
     isFor(known, app),
   );
@@ -172,24 +172,4 @@ export function appBundleId(app: string): Promise<string | undefined> {
     bundleIds.set(name.toLowerCase(), known);
   }
   return known;
-}
-
-/**
- * Apps that reach every file on the computer, or run any command, once they
- * may be controlled.
- */
-const REACHES_EVERY_FILE = [
-  "Finder",
-  "System Events",
-  "Terminal",
-  "iTerm",
-  "iTerm2",
-  "com.apple.finder",
-  "com.apple.systemevents",
-  "com.apple.Terminal",
-  "com.googlecode.iterm2",
-];
-
-export function reachesEveryFile(app: string): boolean {
-  return REACHES_EVERY_FILE.some((known) => sameApp(known, app));
 }

@@ -7,7 +7,6 @@ import {
 } from "@/client/components/window/host-path";
 import { folderLabel } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
-import { osConventions } from "@/client/lib/utils";
 import {
   type ChatId,
   isToolPart,
@@ -194,15 +193,8 @@ function PermissionAskCard({
   explanation: string | undefined;
 }) {
   const { isBusy, send } = useAnswer(chatId, ask);
-  const name = permissionTargetName(ask.kind, ask.target);
   const shown = quotedTarget(ask.kind, ask.target);
   const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
-  const reach = useQuery({
-    ...rpcClient.workspace.permissions.appReach.queryOptions({
-      input: { app: ask.target, id: chatId },
-    }),
-    enabled: ask.kind === "app" && !compact,
-  });
   const choose = async () => {
     const picked = await rpcClient.utils.showFolderPicker.call({
       buttonLabel: "Allow",
@@ -218,9 +210,7 @@ function PermissionAskCard({
       <ToolCard className="mt-0 rounded-xl">
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-sm">
-              {`Let Instrument use ${shown}?`}
-            </p>
+            <p className="truncate text-sm">{`Let Instrument use ${shown}?`}</p>
             {explanation ? (
               <p className="truncate text-xs text-muted-foreground">
                 {explanation}
@@ -256,9 +246,7 @@ function PermissionAskCard({
   return (
     <ToolCard>
       <ToolCardSection collapsedHeight={256}>
-        <p className="text-sm">
-          {`Let Instrument use ${shown}?`}
-        </p>
+        <p className="text-sm">{`Let Instrument use ${shown}?`}</p>
         {explanation ? (
           <p className="mt-1 text-sm text-muted-foreground">{explanation}</p>
         ) : null}
@@ -266,10 +254,6 @@ function PermissionAskCard({
         {ask.kind === "folder" ? (
           <p className="mt-1 text-xs break-all text-muted-foreground">
             {readablePath(ask.target)}
-          </p>
-        ) : reach.data?.reachesEveryFile ? (
-          <p className="mt-1 text-xs text-muted-foreground">
-            {`Allowing ${name} lets Instrument reach every file on your ${osConventions().computerKind}.`}
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">

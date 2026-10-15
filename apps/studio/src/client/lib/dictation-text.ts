@@ -1,8 +1,8 @@
 /**
- * Puts dictated words at the end of what is already written, on a line of
- * their own when there is something there. Nothing already written is
- * replaced: only trailing spaces on the last line give way, and a box that
- * already ends on a fresh line is written on rather than given another.
+ * Puts dictated words at the end of what is already written, after a space
+ * on the same line, so several takes in a row read as one run of sentences.
+ * Nothing already written is replaced: trailing spaces on the last line give
+ * way to the one space, and a box that ends on a fresh line is written on.
  */
 export function appendDictatedText(existing: string, dictated: string): string {
   const words = dictated.trim();
@@ -13,7 +13,7 @@ export function appendDictatedText(existing: string, dictated: string): string {
   if (!base.trim()) {
     return words;
   }
-  return base.endsWith("\n") ? base + words : `${base}\n${words}`;
+  return base.endsWith("\n") ? base + words : `${base} ${words}`;
 }
 
 /**

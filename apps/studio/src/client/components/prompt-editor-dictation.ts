@@ -1,22 +1,19 @@
 import { type EditorState, Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
 
+import { dictationLead } from "./prompt-editor-model";
+
 /**
- * What the editor shows around dictation: while someone dictates, a mark at
- * the end of the words where theirs will land, with the words being heard
- * before it when the box shows them, and once they land, a wash over them
- * that fades, so the eye finds where they went.
+ * What the editor shows while someone dictates: at the end of the words,
+ * where theirs will land, the words being heard (when the box shows them)
+ * and a mark at the spot.
  */
 type DictationState = {
   dictating: boolean;
-  landed?: { from: number; to: number };
   words?: { interim: string; settled: string };
 };
 
 export const dictationKey = new PluginKey<DictationState>("dictation");
-
-/** How long the wash over landed words lasts; the CSS animation matches it. */
-export const DICTATION_LANDED_MS = 1600;
 
 export const dictationPlugin = () =>
   new Plugin<DictationState>({
@@ -25,70 +22,49 @@ export const dictationPlugin = () =>
       decorations: (state) => decorationsOf(state),
     },
     state: {
-      apply: (tr, previous) => {
-        const meta = tr.getMeta(dictationKey) as
-          | Partial<DictationState>
-          | undefined;
-        const landed = previous.landed && {
-          from: tr.mapping.map(previous.landed.from, 1),
-          to: tr.mapping.map(previous.landed.to, -1),
-        };
-        return {
-          dictating: previous.dictating,
-          ...(landed && landed.to > landed.from && { landed }),
-          ...(previous.words && { words: previous.words }),
-          ...meta,
-        };
-      },
+      apply: (tr, previous) => ({
+        ...previous,
+        ...(tr.getMeta(dictationKey) as Partial<DictationState> | undefined),
+      }),
       init: () => ({ dictating: false }),
     },
   });
 
 function decorationsOf(state: EditorState) {
-  const { dictating, landed, words } = dictationKey.getState(state) ?? {
+  const { dictating, words } = dictationKey.getState(state) ?? {
     dictating: false,
   };
-  const decorations: Decoration[] = [];
-  if (dictating) {
-    // The end of the last paragraph, where appended words begin: on a line
-    // of their own when it has something in it, as they will land.
-    const newLine = (state.doc.lastChild?.content.size ?? 0) > 0;
-    const shown = words && (words.settled || words.interim) ? words : undefined;
-    decorations.push(
-      Decoration.widget(
-        state.doc.content.size - 1,
-        () => landingOf(shown, newLine && shown !== undefined),
-        {
-          ignoreSelection: true,
-          key: `dictation-landing:${shown ? `${shown.settled}|${shown.interim}` : ""}`,
-          side: 1,
-        },
-      ),
-    );
+  if (!dictating) {
+    return DecorationSet.empty;
   }
-  if (landed) {
-    decorations.push(
-      Decoration.inline(landed.from, landed.to, { class: "dictation-landed" }),
-    );
-  }
-  return decorations.length
-    ? DecorationSet.create(state.doc, decorations)
-    : DecorationSet.empty;
+  // The end of the last line, where the words are appended: after a space
+  // when the line has something in it and doesn't end on one, as they land.
+  const lead = dictationLead(state.doc);
+  const shown = words && (words.settled || words.interim) ? words : undefined;
+  return DecorationSet.create(state.doc, [
+    Decoration.widget(
+      state.doc.content.size - 1,
+      () => landingOf(shown, lead),
+      {
+        ignoreSelection: true,
+        key: `dictation-landing:${lead}${shown ? `${shown.settled}|${shown.interim}` : ""}`,
+        side: 1,
+      },
+    ),
+  ]);
 }
 
 /** The words being heard, if the box shows them, then the mark where they land. */
 function landingOf(
   words: { interim: string; settled: string } | undefined,
-  newLine: boolean,
+  lead: string,
 ) {
   const landing = document.createElement("span");
-  landing.className = newLine
-    ? "dictation-words dictation-words-line"
-    : "dictation-words";
+  landing.className = "dictation-words";
   landing.contentEditable = "false";
   if (words) {
     landing.setAttribute("aria-live", "polite");
-    landing.append(words.settled);
+    landing.append(lead + words.settled);
     if (words.interim) {
       const interim = document.createElement("span");
       interim.className = "dictation-interim";

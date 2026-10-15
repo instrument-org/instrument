@@ -2,7 +2,7 @@ import { EditorState, TextSelection } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 
 import {
-  appendDictatedParagraph,
+  appendDictated,
   deleteTokenBackward,
   promptDocFromText,
   promptSchema,
@@ -78,7 +78,7 @@ describe("app mentions", () => {
   });
 });
 
-describe("appendDictatedParagraph", () => {
+describe("appendDictated", () => {
   it.each([
     [
       "an empty box takes the words in its only line",
@@ -87,10 +87,10 @@ describe("appendDictatedParagraph", () => {
       "[Hello there.](dictated:)",
     ],
     [
-      "written text gets them on a line of their own",
-      "Draft this",
+      "written text gets them after a space on its line",
+      "Draft this.",
       "Then send it.",
-      "Draft this\n[Then send it.](dictated:)",
+      "Draft this. [Then send it.](dictated:)",
     ],
     [
       "a box ending on a fresh line is written on",
@@ -102,17 +102,17 @@ describe("appendDictatedParagraph", () => {
       "several dictated lines stay several",
       "Draft",
       "One\nTwo",
-      "Draft\n[One](dictated:)\n[Two](dictated:)",
+      "Draft [One](dictated:)\n[Two](dictated:)",
     ],
     [
       "a skill already in the box is left as its token",
       "Use [$release](skill:release)",
       "now",
-      "Use [$release](skill:release)\n[now](dictated:)",
+      "Use [$release](skill:release) [now](dictated:)",
     ],
   ])("%s", (_case, existing, dictated, expected) => {
     const state = stateWithCaretAtEnd(existing);
-    const next = state.apply(appendDictatedParagraph(state, dictated));
+    const next = state.apply(appendDictated(state, dictated));
     expect(promptTextFromDoc(next.doc)).toBe(expected);
   });
 
@@ -129,7 +129,7 @@ describe("appendDictatedParagraph", () => {
 
   it("leaves words typed after dictated ones unmarked", () => {
     const state = stateWithCaretAtEnd("");
-    const said = state.apply(appendDictatedParagraph(state, "Said"));
+    const said = state.apply(appendDictated(state, "Said"));
     const typed = said.apply(
       said.tr.insertText(" typed", said.doc.content.size - 1),
     );
@@ -143,7 +143,7 @@ describe("appendDictatedParagraph", () => {
       schema: promptSchema,
       selection: TextSelection.create(doc, 3),
     });
-    const next = state.apply(appendDictatedParagraph(state, "More."));
+    const next = state.apply(appendDictated(state, "More."));
     expect(next.selection.from).toBe(3);
   });
 });

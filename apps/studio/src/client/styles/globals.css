@@ -20,15 +20,11 @@
   margin: 0;
 }
 
-/* The words being heard, where they will land: on a line of their own after
-   what is written, the stretch still being heard fainter, then a short bar
-   marking the spot. Not part of the text, so the caret never enters it. */
+/* The words being heard, where they will land: at the end of the last line,
+   the stretch still being heard fainter, then a short bar marking the spot.
+   Not part of the text, so the caret never enters it. */
 .prompt-editor .dictation-words {
   user-select: none;
-}
-
-.prompt-editor .dictation-words-line {
-  display: block;
 }
 
 .prompt-editor .dictation-interim {
@@ -49,22 +45,6 @@
 @keyframes dictation-landing {
   50% {
     opacity: 0.25;
-  }
-}
-
-/* Dictated words that just landed, washed in brand and fading, so the eye
-   finds where they went. DICTATION_LANDED_MS matches the duration. */
-.prompt-editor .dictation-landed {
-  border-radius: 3px;
-  animation: dictation-landed 1.6s ease-out both;
-}
-
-@keyframes dictation-landed {
-  from {
-    background-color: color-mix(in oklab, var(--brand-500) 22%, transparent);
-  }
-  to {
-    background-color: transparent;
   }
 }
 

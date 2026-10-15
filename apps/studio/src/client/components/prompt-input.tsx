@@ -1112,6 +1112,21 @@ export const PromptInput = ({
               }
             : undefined
         }
+        below={
+          // While dictating, under the words: the wave, then Cancel and Stop
+          // together. Send waits until the words land; Enter still sends.
+          variant === "pill" && dictating ? (
+            <div className="flex items-center justify-end gap-1">
+              <DictationWave className="mr-1" dictation={dictation} />
+              <DictationCancel dictation={dictation} size="sm" />
+              <DictationButton
+                dictation={dictation}
+                disabled={disabled || isLoading}
+                size="sm"
+              />
+            </div>
+          ) : undefined
+        }
         ref={setComposerBounds}
         trailing={
           variant === "pill" ? (
@@ -1126,17 +1141,20 @@ export const PromptInput = ({
                     selectedSessionId={selectedSessionId}
                   />
                 )}
-              {/* While dictating: the wave, then Cancel and Stop together.
-                  Send waits until the words land; Enter still sends. */}
-              <div className="flex shrink-0 items-center gap-1">
-                <DictationWave className="mr-1" dictation={dictation} />
-                <DictationCancel dictation={dictation} size="sm" />
+              {dictating ? (
+                // Holds the room the mic and Send take, so the words keep the
+                // width they will land at while the controls sit below them.
+                <div aria-hidden="true" className="flex gap-1">
+                  <span className="size-7" />
+                  <span className="size-7" />
+                </div>
+              ) : (
                 <DictationButton
                   dictation={dictation}
                   disabled={disabled || isLoading}
                   size="sm"
                 />
-              </div>
+              )}
               {beforeSend}
               {!dictating && (
                 <Button

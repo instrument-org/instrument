@@ -182,31 +182,48 @@ export function promptDocFromText(value: string) {
 }
 
 /**
- * Puts dictated words at the end of the document, as a paragraph of their
- * own when the last one has something in it, and into it when it is empty
- * (an empty box, or one that already ends on a fresh line). The words carry
- * the dictated mark; nothing already written is touched, and the step undoes
- * as one.
+ * Puts dictated words at the end of the document, after a space on its last
+ * line, so several takes in a row read as one run of sentences; into the last
+ * line itself when it is empty (an empty box, or one that ends on a fresh
+ * line). The words carry the dictated mark and the space before them does
+ * not; nothing already written is touched, and the step undoes as one.
  */
-export function appendDictatedParagraph(
-  state: EditorState,
-  text: string,
-): Transaction {
-  const paragraphs = text
-    .trim()
-    .split("\n")
-    .map((line) =>
-      promptSchema.nodes.paragraph.create(
-        null,
-        Fragment.from(line ? textNodes(line, [dictatedMark()]) : []),
+/**
+ * The space dictated words need before them at the end of `doc`: none on an
+ * empty last line or after a space, one after anything else, a chip included.
+ */
+export function dictationLead(doc: ProseMirrorNode): "" | " " {
+  const end = doc.lastChild?.lastChild;
+  if (!end) {
+    return "";
+  }
+  return end.isText && /\s$/.test(end.text ?? "") ? "" : " ";
+}
+
+export function appendDictated(state: EditorState, text: string): Transaction {
+  const [first = "", ...rest] = text.trim().split("\n");
+  const { doc } = state;
+  const lineEnd = doc.content.size - 1;
+  const lead = dictationLead(doc);
+  const tr = state.tr.insert(
+    lineEnd,
+    Fragment.from([
+      ...(lead ? [promptSchema.text(lead)] : []),
+      ...(first ? textNodes(first, [dictatedMark()]) : []),
+    ]),
+  );
+  if (rest.length > 0) {
+    tr.insert(
+      tr.doc.content.size,
+      rest.map((line) =>
+        promptSchema.nodes.paragraph.create(
+          null,
+          Fragment.from(line ? textNodes(line, [dictatedMark()]) : []),
+        ),
       ),
     );
-  const { doc } = state;
-  const last = doc.lastChild;
-  const end = doc.content.size;
-  return last && last.content.size === 0
-    ? state.tr.replaceWith(end - last.nodeSize, end, paragraphs)
-    : state.tr.insert(end, paragraphs);
+  }
+  return tr;
 }
 
 export function promptTextFromDoc(doc: ProseMirrorNode) {

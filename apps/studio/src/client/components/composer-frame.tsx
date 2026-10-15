@@ -22,6 +22,7 @@ export function ComposerFrame({
   actions,
   actionsInto,
   attachments,
+  below,
   children,
   extras,
   layout = "block",
@@ -42,6 +43,8 @@ export function ComposerFrame({
    * words. Nothing is drawn until the element exists.
    */
   actionsInto?: HTMLElement | null;
+  /** A pill's row under its words, while something needs the room beside them. */
+  below?: React.ReactNode;
   /** Attached files, above the editor. Absent when nothing is attached. */
   attachments?: React.ReactNode;
   /** The editor. Fills the row it is given and scrolls past it. */
@@ -161,6 +164,11 @@ export function ComposerFrame({
             {trailing}
           </div>
         </div>
+        {below ? (
+          <div className="pt-1" data-slot="composer-below">
+            {below}
+          </div>
+        ) : null}
       </div>
     );
   }

@@ -49,14 +49,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import {
-  DICTATION_LANDED_MS,
-  dictationKey,
-  dictationPlugin,
-} from "./prompt-editor-dictation";
+import { dictationKey, dictationPlugin } from "./prompt-editor-dictation";
 import {
   appOfNode,
-  appendDictatedParagraph,
+  appendDictated,
   deleteTokenBackward,
   deleteTokenForward,
   promptDocFromPastedText,
@@ -111,7 +107,7 @@ const editorPlugins = () => [
  * mirroring the text stays accurate without a round trip back through props.
  */
 export interface PromptEditorRef {
-  /** Put dictated words at the end, on a line of their own when the box has text. */
+  /** Put dictated words at the end, after a space on the last line. */
   appendDictation: (text: string) => void;
   clear: () => void;
   focus: () => void;
@@ -614,31 +610,13 @@ export function PromptEditor({
       if (!view) {
         return;
       }
-      // The words start in the box's last paragraph when it is empty, else
-      // in a new one after it, and run to the end; that span gets the wash.
-      const { doc } = view.state;
-      const last = doc.lastChild;
-      const from =
-        last && last.content.size === 0
-          ? doc.content.size - last.nodeSize + 1
-          : doc.content.size + 1;
-      const tr = appendDictatedParagraph(view.state, text);
-      tr.setMeta(dictationKey, {
-        landed: { from, to: tr.doc.content.size - 1 },
-      });
+      const tr = appendDictated(view.state, text);
       // Someone typing while the words were transcribed keeps their caret;
       // otherwise it goes after the words, ready to carry on from them.
       if (!view.hasFocus()) {
         tr.setSelection(TextSelection.atEnd(tr.doc)).scrollIntoView();
       }
       view.dispatch(tr);
-      setTimeout(() => {
-        if (!view.isDestroyed) {
-          view.dispatch(
-            view.state.tr.setMeta(dictationKey, { landed: undefined }),
-          );
-        }
-      }, DICTATION_LANDED_MS);
     },
     clear: () => {
       replaceDocument("");

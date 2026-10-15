@@ -12,16 +12,16 @@ describe("appendDictatedText", () => {
     ],
     ["a box of only spaces takes them too", "   ", "Hello.", "Hello."],
     [
-      "written text gets them on a new line",
-      "Draft this",
+      "written text gets them after a space on its line",
+      "Draft this.",
       "Then send it.",
-      "Draft this\nThen send it.",
+      "Draft this. Then send it.",
     ],
     [
-      "trailing spaces give way to the new line",
-      "Draft this  ",
+      "trailing spaces give way to the one space",
+      "Draft this.  ",
       "Then send it.",
-      "Draft this\nThen send it.",
+      "Draft this. Then send it.",
     ],
     [
       "a fresh line is written on",
@@ -29,7 +29,7 @@ describe("appendDictatedText", () => {
       "Then send it.",
       "Draft this\nThen send it.",
     ],
-    ["the dictated words are trimmed", "Draft", "  hi  ", "Draft\nhi"],
+    ["the dictated words are trimmed", "Draft", "  hi  ", "Draft hi"],
     ["nothing dictated leaves the box alone", "Draft  ", "   ", "Draft  "],
   ])("%s", (_case, existing, dictated, expected) => {
     expect(appendDictatedText(existing, dictated)).toBe(expected);
@@ -43,7 +43,7 @@ describe("appendDictatedTextWithin", () => {
       "Note",
       "short words",
       40,
-      "Note\nshort words",
+      "Note short words",
       false,
     ],
     [
@@ -51,7 +51,7 @@ describe("appendDictatedTextWithin", () => {
       "Note",
       "one two three",
       13,
-      "Note\none two",
+      "Note one two",
       true,
     ],
     [
@@ -59,7 +59,7 @@ describe("appendDictatedTextWithin", () => {
       "Note",
       "one two three",
       12,
-      "Note\none two",
+      "Note one two",
       true,
     ],
     ["a full box is left as it was", "Full", "more", 4, "Full", true],

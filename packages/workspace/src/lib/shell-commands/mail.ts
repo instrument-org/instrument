@@ -139,7 +139,11 @@ end messageLine
 on findMessage(theId, accountName, boxName)
 	set theBoxes to my searchedBoxes(accountName, boxName)
 	tell application id "com.apple.mail"
-		if boxName is "" then set theBoxes to {inbox} & theBoxes
+		-- Mail's own inbox holds every account's, so it is searched only when
+		-- the call named no account: with one named, searching it would find
+		-- and act on another account's message while the refusal, and the
+		-- mailbox a move files into, both say the named one.
+		if boxName is "" and accountName is "" then set theBoxes to {inbox} & theBoxes
 		repeat with i from 1 to count of theBoxes
 			try
 				set found to (messages of (item i of theBoxes) whose id is theId)

@@ -23,7 +23,16 @@ export const PageAfterSchema = z.object({
   kind: z.enum(["delta", "full", "unchanged"]),
   /** Lines of a full snapshot left out to keep the attachment bounded. */
   omittedLines: z.number().int().optional(),
+  /**
+   * What the page itself says went wrong or went through, from the element it
+   * marked as its message. A control renaming itself is all the snapshot
+   * shows of a refused sign-in; this is the sentence beside it.
+   */
+  said: z.string().optional(),
   text: z.string(),
+  /** The page this is of, which the snapshot's own lines never name. */
+  title: z.string().optional(),
+  url: z.string().optional(),
 });
 
 export type PageAfter = z.output<typeof PageAfterSchema>;
@@ -33,6 +42,21 @@ export const FOLLOW_UP_SNAPSHOT_ARGS = ["snapshot", "-i", "--delta"];
 
 /** Run ahead of the snapshot, so a navigation the change started has a DOM. */
 export const FOLLOW_UP_WAIT_ARGS = ["wait", "--load", "domcontentloaded"];
+
+/** Names the page the snapshot is of: its own lines never do. */
+export const FOLLOW_UP_TABS_ARGS = ["tab", "list", "--json"];
+
+/**
+ * The page's own message about what just happened, from the element it marked
+ * as one. A refused sign-in renames its button and says why beside it, and
+ * the interactive snapshot carries the renamed button alone. Exits non-zero
+ * on a page with no such element, which is most pages, so a failure here is
+ * an answer and not an error.
+ */
+export const FOLLOW_UP_SAID_ARGS = ["find", "role", "alert", "text"];
+
+/** How much of the page's own message is carried; it is a sentence, not a page. */
+const SAID_CHAR_BUDGET = 400;
 
 /** What `snapshot -i` prints for a page with no controls in it. */
 const NO_CONTROLS = "(no interactive elements)";
@@ -130,33 +154,42 @@ export function pageEffect(args: string[]): "changes" | "none" | "reads" {
  * to snapshot it; each read clears it; everything else leaves it alone, so the
  * last change wins and a chain ending in a read attaches nothing.
  */
+/** What one follow-up read of the page came back with. */
+export interface PageRead {
+  /** The page's own message, where it marked one. */
+  said?: string;
+  snapshot: string;
+  title?: string;
+  url?: string;
+}
+
 export class BrowserFollowUp {
   #pending:
     | {
         after: string;
-        snapshot: (signal: AbortSignal) => Promise<string | undefined>;
+        read: (signal: AbortSignal) => Promise<PageRead | undefined>;
       }
     | undefined;
 
   note({
     args,
     exitCode,
-    snapshot,
+    read,
   }: {
     args: string[];
     exitCode: number;
-    snapshot: (signal: AbortSignal) => Promise<string | undefined>;
+    read: (signal: AbortSignal) => Promise<PageRead | undefined>;
   }) {
     const effect = pageEffect(args);
     if (effect === "reads") {
       this.#pending = undefined;
     } else if (effect === "changes" && exitCode === 0) {
       const { subcommand = "" } = parseAgentBrowserArgs(args);
-      this.#pending = { after: subcommand, snapshot };
+      this.#pending = { after: subcommand, read };
     }
   }
 
-  /** Snapshot the page if it is still pending, once. */
+  /** Read the page if it is still pending, once. */
   async take(signal: AbortSignal): Promise<PageAfter | undefined> {
     const pending = this.#pending;
     this.#pending = undefined;
@@ -164,15 +197,26 @@ export class BrowserFollowUp {
       return undefined;
     }
     try {
-      const output = await pending.snapshot(
+      const page = await pending.read(
         AbortSignal.any([signal, AbortSignal.timeout(FOLLOW_UP_TIMEOUT_MS)]),
       );
-      return output === undefined
+      if (page === undefined) {
+        return undefined;
+      }
+      const parsed = parseFollowUpSnapshot(page.snapshot, pending.after);
+      return parsed === undefined
         ? undefined
-        : parseFollowUpSnapshot(output, pending.after);
+        : {
+            ...parsed,
+            ...(page.said === undefined
+              ? {}
+              : { said: clip(page.said, SAID_CHAR_BUDGET) }),
+            ...(page.title === undefined ? {} : { title: page.title }),
+            ...(page.url === undefined ? {} : { url: page.url }),
+          };
     } catch {
-      // The command the model ran already succeeded; a snapshot that could not
-      // be taken leaves it to take one itself, as it would have anyway.
+      // The command the model ran already succeeded; a page that could not be
+      // read leaves it to read one itself, as it would have anyway.
       return undefined;
     }
   }
@@ -281,13 +325,23 @@ function parseDelta(text: string) {
  */
 export function pageAfterText(page: PageAfter): string {
   const source = `\`agent-browser ${FOLLOW_UP_SNAPSHOT_ARGS.join(" ")}\``;
+  const where = pageName(page);
+  const head = `Page after \`${page.after}\`${where === undefined ? "" : ` on ${where}`} (${source}, run for you)`;
+  // Ahead of the controls, since it is the page's answer to what was just
+  // done and the controls are what is left to do next.
+  const said =
+    page.said === undefined ? [] : [`The page's own message: ${page.said}`];
   switch (page.kind) {
     case "unchanged": {
-      return `Page after \`${page.after}\` (${source}, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it.`;
+      return [
+        `${head}: no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it.`,
+        ...said,
+      ].join("\n");
     }
     case "delta": {
       return [
-        `Page after \`${page.after}\` (${source}, run for you): only what changed since the page's last snapshot is below, and every other element and ref is as it was. If you no longer have that snapshot, run \`agent-browser snapshot -i\`.`,
+        `${head}: only what changed since the page's last snapshot is below, and every other element and ref is as it was. If you no longer have that snapshot, run \`agent-browser snapshot -i\`.`,
+        ...said,
         page.text ||
           "Its structure changed, but no element was added or removed.",
       ].join("\n");
@@ -298,9 +352,68 @@ export function pageAfterText(page: PageAfter): string {
           ? ""
           : `\n${page.omittedLines} more lines are not shown. Run \`agent-browser snapshot -i\` for all of them, or add \`-s <selector>\` for one region.`;
       return [
-        `Page after \`${page.after}\` (${source}, run for you). Act on these refs directly instead of taking another snapshot; run one only for what this leaves out (\`snapshot -i --urls\` for link addresses).`,
+        `${head}. Act on these refs directly instead of taking another snapshot; run one only for what this leaves out (\`snapshot -i --urls\` for link addresses).`,
+        ...said,
         page.text + omitted,
       ].join("\n");
     }
   }
+}
+
+const TabsSchema = z.object({
+  data: z.object({
+    tabs: z.array(
+      z.object({
+        active: z.boolean().optional(),
+        title: z.string().optional(),
+        url: z.string().optional(),
+      }),
+    ),
+  }),
+});
+
+/**
+ * The title and address of the tab the commands are acting on, from
+ * {@link FOLLOW_UP_TABS_ARGS}. Nothing for output that is not the JSON
+ * expected, or a tab that reports neither: the attachment is worth having
+ * without them.
+ */
+export function activeTab(output: string): { title?: string; url?: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    return {};
+  }
+  const tabs = TabsSchema.safeParse(parsed);
+  if (!tabs.success) {
+    return {};
+  }
+  const active =
+    tabs.data.data.tabs.find((tab) => tab.active) ?? tabs.data.data.tabs[0];
+  const title = active?.title?.trim();
+  return {
+    ...(title ? { title } : {}),
+    ...(active?.url ? { url: active.url } : {}),
+  };
+}
+
+/** The page's own message, cut to one sentence's worth. */
+function clip(text: string, budget: number): string {
+  const oneLine = text.replaceAll(/\s*\n\s*/g, " ").trim();
+  return oneLine.length > budget ? `${oneLine.slice(0, budget)}…` : oneLine;
+}
+
+/**
+ * The page the attachment is of, named the way a person would: its title and
+ * its address, or whichever of the two came back. Nothing where neither did,
+ * and then the attachment says what it said before any of this, since a line
+ * naming no page is worse than a line that does not mention one.
+ */
+function pageName(page: PageAfter): string | undefined {
+  const title = page.title?.trim();
+  if (page.url === undefined) {
+    return title ? `“${title}”` : undefined;
+  }
+  return title ? `“${title}”, ${page.url}` : page.url;
 }

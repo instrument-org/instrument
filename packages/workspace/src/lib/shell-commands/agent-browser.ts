@@ -51,7 +51,10 @@ import {
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 import {
   currentBrowserFollowUp,
+  activeTab,
+  FOLLOW_UP_SAID_ARGS,
   FOLLOW_UP_SNAPSHOT_ARGS,
+  FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
@@ -950,23 +953,36 @@ export function createAgentBrowserCommand({
       currentBrowserFollowUp()?.note({
         args: resolvedArgs,
         exitCode,
-        snapshot: async (signal) => {
+        read: async (signal) => {
+          const run = (args: string[]) =>
+            runAgentBrowser({
+              ...spawnOptions,
+              args: [...connectionArgs, ...args],
+              cancelSignal: signal,
+              input: undefined,
+            });
           // A click returns before the page it navigated to has loaded, and a
           // snapshot of a loading document has no controls in it. Resolves at
           // once on a page that is already past loading.
-          await runAgentBrowser({
-            ...spawnOptions,
-            args: [...connectionArgs, ...FOLLOW_UP_WAIT_ARGS],
-            cancelSignal: signal,
-            input: undefined,
-          });
-          const snapshot = await runAgentBrowser({
-            ...spawnOptions,
-            args: [...connectionArgs, ...FOLLOW_UP_SNAPSHOT_ARGS],
-            cancelSignal: signal,
-            input: undefined,
-          });
-          return snapshot.exitCode === 0 ? scrub(snapshot.stdout) : undefined;
+          await run(FOLLOW_UP_WAIT_ARGS);
+          const snapshot = await run(FOLLOW_UP_SNAPSHOT_ARGS);
+          if (snapshot.exitCode !== 0) {
+            return undefined;
+          }
+          // Together, since neither decides whether there is an attachment
+          // and one page's worth of either is a line of text.
+          const [tabs, said] = await Promise.all([
+            run(FOLLOW_UP_TABS_ARGS),
+            run(FOLLOW_UP_SAID_ARGS),
+          ]);
+          const active = activeTab(tabs.exitCode === 0 ? tabs.stdout : "");
+          return {
+            ...(said.exitCode === 0 && said.stdout.trim()
+              ? { said: scrub(said.stdout).trim() }
+              : {}),
+            snapshot: scrub(snapshot.stdout),
+            ...active,
+          };
         },
       });
     }

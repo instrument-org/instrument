@@ -766,12 +766,28 @@ describe("agent-browser routing", () => {
       snapshotArgs: undefined,
     },
   ])(
-    "follows $name with a snapshot of the same page only when it has one",
+    "follows $name with a read of the same page only when it has one",
     async ({ args, snapshotArgs }) => {
-      await answerAgentBrowser({
-        exitCode: 0,
-        stderr: "",
-        stdout: "unchanged (revision 2)\n",
+      await answerAgentBrowser((given) => {
+        if (given.includes("list")) {
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({
+              data: {
+                tabs: [{ active: true, title: "Sign in", url: "http://x/in" }],
+              },
+            }),
+          };
+        }
+        if (given.includes("alert")) {
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: "That password is wrong.\n",
+          };
+        }
+        return { exitCode: 0, stderr: "", stdout: "unchanged (revision 2)\n" };
       });
       const followUp = new BrowserFollowUp();
 
@@ -786,16 +802,51 @@ describe("agent-browser routing", () => {
         expect(calls).toHaveLength(1);
         return;
       }
-      expect(page).toMatchObject({ after: "click", kind: "unchanged" });
-      expect(calls).toHaveLength(3);
+      expect(page).toMatchObject({
+        after: "click",
+        kind: "unchanged",
+        said: "That password is wrong.",
+        title: "Sign in",
+        url: "http://x/in",
+      });
+      expect(calls).toHaveLength(5);
       expect(calls[1]?.slice(-3)).toEqual([
         "wait",
         "--load",
         "domcontentloaded",
       ]);
       expect(calls[2]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
+      // Together, so either order is the one that happened.
+      expect(
+        calls
+          .slice(3)
+          .map((call) => call.join(" "))
+          .toSorted(),
+      ).toEqual([
+        expect.stringContaining("find role alert text"),
+        expect.stringContaining("tab list --json"),
+      ]);
     },
   );
+
+  it("attaches the page without its name or message when neither read works", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("list") || given.includes("alert")
+        ? { exitCode: 1, stderr: "no", stdout: "" }
+        : { exitCode: 0, stderr: "", stdout: "unchanged (revision 2)\n" },
+    );
+    const followUp = new BrowserFollowUp();
+
+    await withBrowserFollowUp(followUp, () =>
+      command.execute(["click", "@e1"], commandCtx),
+    );
+
+    expect(await followUp.take(new AbortController().signal)).toEqual({
+      after: "click",
+      kind: "unchanged",
+      text: "",
+    });
+  });
 
   it("keeps the in-app browser's downloads inside the chat's work folder", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);

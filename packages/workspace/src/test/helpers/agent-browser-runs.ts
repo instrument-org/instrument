@@ -10,18 +10,33 @@ import { vi } from "vitest";
  * `execa`, and `node:child_process` with `spawn` passing through to the real
  * one until it is answered here.
  */
-export async function answerAgentBrowser(answer: {
+export interface AgentBrowserAnswer {
   exitCode: number;
   stderr: string;
   stdout: string;
-}): Promise<void> {
+}
+
+/**
+ * One answer for every run, or a function given each run's arguments, for a
+ * command whose own follow-up reads the page more than once and reads
+ * something different each time.
+ */
+export async function answerAgentBrowser(
+  answer: AgentBrowserAnswer | ((args: string[]) => AgentBrowserAnswer),
+): Promise<void> {
+  const answerFor = (args: unknown): AgentBrowserAnswer =>
+    typeof answer === "function"
+      ? answer(Array.isArray(args) ? args.map(String) : [])
+      : answer;
   const { execa } = await import("execa");
   // execa's result carries far more than a run of the CLI reads back.
-  vi.mocked(execa).mockResolvedValue(answer as never);
+  vi.mocked(execa).mockImplementation(((...given: unknown[]) =>
+    Promise.resolve(answerFor(given[1]))) as never);
   if (process.platform !== "win32") {
     return;
   }
   vi.mocked(spawn).mockImplementation((...given: unknown[]) => {
+    const answer = answerFor(given[1]);
     const options = given[2];
     const stdio =
       typeof options === "object" && options !== null && "stdio" in options

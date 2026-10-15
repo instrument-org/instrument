@@ -20,6 +20,7 @@ import {
   mapStreams,
   shimOutput,
 } from "./exec-shim";
+import { type StageResult, startPipeStage } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 type PathLookup = {
@@ -198,7 +199,7 @@ function createPathProgramCommand(
   name: string,
   hostPath: string,
 ): Command {
-  return defineCommand(name, async (args, ctx) => {
+  const command = defineCommand(name, async (args, ctx) => {
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     // cmd.exe runs a batch file; CreateProcess cannot.
@@ -208,25 +209,55 @@ function createPathProgramCommand(
           ["/d", "/s", "/c", hostPath, ...hostPathArgs(args)],
         ]
       : [hostPath, hostPathArgs(args)];
-    const result = await execShim(file, fileArgs, {
-      cancelSignal: ctx.signal,
-      cwd: hostCwd,
-      env: {
-        ...getWorkspaceConfig().nodeExecEnv,
-        ...env,
-        // A program that builds or installs packages uses the app's own npm
-        // config, store and node-gyp headers, never the person's.
-        ...nodeToolsEnv(),
-        // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
-        ...ffmpegSubprocessEnv(env.PATH),
-      },
-      ...(stdin ? { input: stdin } : { stdin: "ignore" }),
-    });
-    return {
+    const programEnv = {
+      ...getWorkspaceConfig().nodeExecEnv,
+      ...env,
+      // A program that builds or installs packages uses the app's own npm
+      // config, store and node-gyp headers, never the person's.
+      ...nodeToolsEnv(),
+      // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
+      ...ffmpegSubprocessEnv(env.PATH),
+    };
+    const report = (result: StageResult) => ({
       exitCode: result.exitCode ?? 1,
       ...mapStreams(shimOutput(result, name), (text) =>
         filterShellOutput(collapseProgress(text)),
       ),
-    };
+    });
+    // Beside another native stage, the bytes go program to program.
+    if (
+      process.env.INSTRUMENT_NATIVE_PIPES !== "0" &&
+      process.platform !== "win32" &&
+      (ctx.offerPipeHandoff || ctx.stdinHandoff !== undefined)
+    ) {
+      const stage = startPipeStage(file, fileArgs, {
+        cancelSignal: ctx.signal,
+        cwd: hostCwd,
+        env: programEnv,
+        input: stdin,
+        offerHandoff: ctx.offerPipeHandoff === true,
+        stdinHandoff: ctx.stdinHandoff,
+      });
+      if (!("token" in stage)) {
+        return report(await stage);
+      }
+      return {
+        exitCode: 0,
+        pipeHandoff: {
+          settle: async (options) => report(await stage.settle(options)),
+          token: stage.token,
+        },
+        stderr: "",
+        stdout: "",
+      };
+    }
+    const result = await execShim(file, fileArgs, {
+      cancelSignal: ctx.signal,
+      cwd: hostCwd,
+      env: programEnv,
+      ...(stdin ? { input: stdin } : { stdin: "ignore" }),
+    });
+    return report(result);
   });
+  return { ...command, acceptsPipeHandoff: true };
 }

@@ -31,6 +31,7 @@ Out of scope entirely: the person themselves, malware already on the computer, a
 - **Whether a file exists.** A refusal can reveal that a name exists in a folder the agent may not read. File names and sizes are not treated as secrets.
 - **The app's own records from the agent's view.** Other chats' records and the workspace's settings are closed to the agent so it does not wander into or rewrite the app's state, not because they are secret from the person. They are closed to it as files, and it reaches them on purpose through the `chat` and `memory` commands.
 - **Running out the person's computer.** A runaway command is stopped by timeouts and limits, not prevented from starting.
+- **Each thing the agent does, one at a time.** What the person allows is a folder and an app, and nothing finer. Every command the agent runs inside what they allowed is the agent's own, and no one is asked about it: a person asked to answer for each one would stop reading the questions, which is worse than not asking. So "the agent did something in a folder I opened that I did not ask for" is not what the folder settings are for; what limits it is which folders and apps are open at all, and the model's judgment inside them. A classifier that reads each tool call and raises the few that are genuinely dangerous is the way that line could move, and it is not in this release.
 
 ## Windows
 

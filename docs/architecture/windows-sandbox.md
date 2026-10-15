@@ -16,6 +16,8 @@ Settings › Permissions says so on Windows, in plain words, with a link to this
 
 Microsoft's MXC (`@microsoft/mxc-sdk`, AppContainer-based) is the candidate. It is deny-by-default, so the rules become a list of the folders a program may reach: the user's tool folders, the chat's folder, and the folders granted. It needs Windows 11 24H2 or later and a one-time administrator step.
 
+Each program starts in a container of its own, about 55 ms on top of starting it, so a pipeline pays that start once per stage, and the bytes the app relays between stages on Windows cross the container's boundary at each one. [The plan](../plans/active/windows-sandbox-mxc.md) has the measurements.
+
 Its filesystem policy works in our probes. What blocks adopting it is [microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464): inside its base container a program cannot turn an open file back into a drive-letter path (`GetFinalPathNameByHandleW` with `VOLUME_NAME_DOS` is refused). Node's `fs.realpath` fails on every path, and Git for Windows cannot read its working directory unless the drive root is readable, which would turn an allow list back into a deny list. In the sandbox bake-off, node and git also failed to start with `STATUS_DLL_INIT_FAILED`.
 
 Once that is fixed upstream, Windows 11 24H2 and later run native programs under MXC, generated from the same rules as Seatbelt and bubblewrap, behind the same `wrapNativeCommand` seam, and the notice in Settings goes away there. Older Windows stays as it is, with the notice.

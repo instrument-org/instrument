@@ -213,12 +213,17 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
   const originalLines = content.split("\n");
   const searchLines = find.split("\n");
 
-  if (searchLines.length < 3) {
-    return;
-  }
-
   if (searchLines.at(-1) === "") {
     searchLines.pop();
+  }
+
+  // Counted after the trailing newline's empty line is dropped, so a search
+  // of two lines that ends in one is two lines here. Taken before, it passed
+  // as three, left no middle line to compare, and the pair of anchors then
+  // accepted whatever sat between them: `foo();\nbar();\n` replaced
+  // `foo();\n  const keep = 1;\nbar();\n` whole.
+  if (searchLines.length < 3) {
+    return;
   }
 
   const firstLineSearch = searchLines[0]?.trim();
@@ -295,14 +300,14 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
       let matchStartIndex = 0;
       for (let k = 0; k < startLine; k++) {
         const line = originalLines[k];
-        if (line) {
+        if (line !== undefined) {
           matchStartIndex += line.length + 1;
         }
       }
       let matchEndIndex = matchStartIndex;
       for (let k = startLine; k <= endLine; k++) {
         const line = originalLines[k];
-        if (line) {
+        if (line !== undefined) {
           matchEndIndex += line.length;
           if (k < endLine) {
             matchEndIndex += 1; // Add newline character except for the last line
@@ -354,14 +359,14 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
     let matchStartIndex = 0;
     for (let k = 0; k < startLine; k++) {
       const line = originalLines[k];
-      if (line) {
+      if (line !== undefined) {
         matchStartIndex += line.length + 1;
       }
     }
     let matchEndIndex = matchStartIndex;
     for (let k = startLine; k <= endLine; k++) {
       const line = originalLines[k];
-      if (line) {
+      if (line !== undefined) {
         matchEndIndex += line.length;
         if (k < endLine) {
           matchEndIndex += 1;

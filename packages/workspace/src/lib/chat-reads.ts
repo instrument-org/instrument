@@ -13,6 +13,9 @@ import {
   mergeViews,
   messageIdsView,
   modelHistoryView,
+  type Said,
+  saidIn,
+  searchView,
   stepsView,
 } from "./records/views";
 import { Store } from "./store";
@@ -151,6 +154,28 @@ export namespace ChatReads {
         storageError,
       );
     });
+  }
+
+  /**
+   * What the person and the agent said in the session, in words, oldest
+   * first: what the chat's own search reads.
+   */
+  export function said({
+    chatId,
+    sessionId,
+    signal,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+    signal?: AbortSignal;
+  }): ResultAsync<Said[], Failure> {
+    return recorded(chatId).andThen((records) =>
+      records?.held
+        ? okAsync(searchView(records.read, sessionId))
+        : Store.getMessagesWithParts({ chatId, sessionId }, { signal }).map(
+            (messages) => saidIn(messages.toSorted((a, b) => byId(a.id, b.id))),
+          ),
+    );
   }
 
   /**

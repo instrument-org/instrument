@@ -37,7 +37,7 @@ interface HistoryOptions {
 }
 
 /** One message's words in a search: who said them, and what. */
-interface Said {
+export interface Said {
   id: StoreId.Message;
   role: "assistant" | "user";
   text: string;
@@ -248,7 +248,12 @@ export async function modelHistoryView(
 
 /** What the person and the agent said in the session, in words, oldest first. */
 export function searchView(read: ChatRead, sessionId: StoreId.Session): Said[] {
-  return historyOf(read.chat, sessionId).flatMap((message) => {
+  return saidIn(historyOf(read.chat, sessionId));
+}
+
+/** The same words, read from a transcript already in hand. */
+export function saidIn(messages: SessionMessage.WithParts[]): Said[] {
+  return messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") {
       return [];
     }

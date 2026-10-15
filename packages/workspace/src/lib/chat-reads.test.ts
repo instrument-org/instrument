@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { alphabetical } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -212,6 +213,23 @@ async function storedHistory(chatId: ChatId, sessionId: StoreId.Session) {
   return (
     await Store.getMessagesWithParts({ chatId, sessionId })
   )._unsafeUnwrap();
+}
+
+/**
+ * The lines the chat command read off a store transcript before the search
+ * view answered it: every message somebody said, in words, oldest first.
+ */
+function storedSaid(messages: SessionMessage.WithParts[]) {
+  return alphabetical(messages, (message) => message.id).flatMap((message) => {
+    if (message.role !== "user" && message.role !== "assistant") {
+      return [];
+    }
+    const text = message.parts
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join(" ")
+      .trim();
+    return text ? [{ id: message.id, role: message.role, text }] : [];
+  });
 }
 
 /** The output of the call that read a file, wherever it is in the history. */
@@ -483,5 +501,50 @@ describe("the transcript a chat is drawn and told from", () => {
       });
       live.clear();
     }
+  });
+});
+
+describe("what a chat's own search reads", () => {
+  it("gives the lines the store gave, a task's from its chat's on", async () => {
+    const { chatId, sessionId } = await startChat();
+    const { asked } = await writeTurn(chatId, sessionId, {
+      text: "Which of these are overdue?",
+    });
+    const task = await addChildTask(chatId, {
+      createdAt: new Date(),
+      forkedAtMessageId: asked.id,
+      id: StoreId.newSessionId(),
+      title: "Check the dates",
+      updatedAt: new Date(),
+    });
+    (
+      await Store.saveMessageWithParts(
+        userMessage(task.id, "Two of them."),
+        chatId,
+      )
+    )._unsafeUnwrap();
+    await landed(chatId);
+
+    const said = (await ChatReads.said({ chatId, sessionId }))._unsafeUnwrap();
+    expect(said).toEqual(storedSaid(await storedHistory(chatId, sessionId)));
+    expect(said.map((line) => `${line.role}: ${line.text}`)).toEqual([
+      "user: Which of these are overdue?",
+      "assistant: One file.",
+    ]);
+    expect(
+      (await ChatReads.said({ chatId, sessionId: task.id }))._unsafeUnwrap(),
+    ).toEqual(storedSaid(await storedHistory(chatId, task.id)));
+  });
+
+  it("reads the store for a chat whose records hold its header and no message", async () => {
+    const { chatId, sessionId } = await startChat();
+    await landed(chatId);
+    installChatRecords(undefined);
+    await writeTurn(chatId, sessionId, { text: "Which of these are overdue?" });
+    installChatRecords(records.service);
+
+    expect(
+      (await ChatReads.said({ chatId, sessionId }))._unsafeUnwrap(),
+    ).toEqual(storedSaid(await storedHistory(chatId, sessionId)));
   });
 });

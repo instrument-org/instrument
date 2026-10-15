@@ -7,6 +7,7 @@ import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { StoreRecords } from "./store-records";
 
 /** The granted folders a session was last told of, by path. */
 const FoldersBaselineSchema = z.array(z.object({ path: z.string() }));
@@ -51,6 +52,7 @@ export function setFoldersBaseline(
       storage,
       { signal },
     );
+    StoreRecords.told(chatId, sessionId, "folders", folders);
     return ok(undefined);
   });
 }

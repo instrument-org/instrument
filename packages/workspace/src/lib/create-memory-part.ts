@@ -15,6 +15,7 @@ import {
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { StoreRecords } from "./store-records";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /** How many memories a whole note lists before the rest are counted. */
@@ -75,6 +76,7 @@ export async function createMemoryPart({
       ToldSchema,
       storage.value,
     );
+    StoreRecords.told(chatId, sessionId, "memory", digests);
 
     const metadata = {
       createdAt,
@@ -144,12 +146,14 @@ export async function recordMemoryReported({
     storage.value,
   );
   const told = omit(reported.isOk() ? reported.value : {}, [name]);
+  const digests = memory ? { ...told, ...memoryDigests([memory]) } : told;
   await setParsedStorageItem(
     StorageKey.memoryReported(sessionId),
-    memory ? { ...told, ...memoryDigests([memory]) } : told,
+    digests,
     ToldSchema,
     storage.value,
   );
+  StoreRecords.told(chatId, sessionId, "memory", digests);
 }
 
 /**
@@ -169,6 +173,7 @@ export async function resetMemoryReported({
     return;
   }
   await storage.value.removeItem(StorageKey.memoryReported(sessionId));
+  StoreRecords.told(chatId, sessionId, "memory", null);
 }
 
 function noteRow(memory: Memory) {

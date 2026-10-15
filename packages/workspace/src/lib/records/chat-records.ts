@@ -1151,6 +1151,15 @@ export function installChatRecords(records: ChatRecords | undefined): void {
   installed = records;
 }
 
+/**
+ * The chat records this process writes, or nothing where none are in place.
+ * A workspace puts them there as it opens; a process that only reads chats
+ * writes no record, and neither does a test that has not asked for one.
+ */
+export function writingChatRecords(): ChatRecords | undefined {
+  return installed;
+}
+
 /** Whether a message is one whose line is synced once written. */
 function isCommitMessage(message: SessionMessage.Type): boolean {
   return (

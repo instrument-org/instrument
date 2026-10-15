@@ -8,6 +8,7 @@ import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { StoreRecords } from "./store-records";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -132,13 +133,14 @@ export function recordVisitedHosts({
       visitedHosts = withVisit(visitedHosts, url);
     }
     const storage = yield* getSessionsStoreStorage(chatId);
-    yield* setParsedStorageItem(
+    const state = yield* setParsedStorageItem(
       StorageKey.browserState(sessionId),
       { ...current, lastUsedAt: new Date(), visitedHosts },
       BrowserStateSchema,
       storage,
       { signal },
     );
+    StoreRecords.told(chatId, sessionId, "browser", state);
     return ok(undefined);
   });
 }

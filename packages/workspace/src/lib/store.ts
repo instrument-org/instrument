@@ -17,6 +17,7 @@ import {
   setParsedStorageItem,
 } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { StoreRecords } from "./store-records";
 import { type StoreWrite } from "./wrap-storage";
 
 export namespace Store {
@@ -408,6 +409,7 @@ export namespace Store {
         ],
         { signal },
       );
+      StoreRecords.retract(chatId, sessionId, messageId);
       return ok(undefined);
     });
   }
@@ -428,6 +430,7 @@ export namespace Store {
         { signal },
       );
 
+      StoreRecords.message(chatId, savedMessage);
       return ok(savedMessage);
     });
   }
@@ -526,6 +529,7 @@ export namespace Store {
           part,
         });
       }
+      StoreRecords.messageWithParts(chatId, message);
       return ok(message);
     });
   }
@@ -560,6 +564,7 @@ export namespace Store {
         });
       }
 
+      StoreRecords.part(chatId, savedPart);
       return ok(savedPart);
     });
   }
@@ -624,6 +629,7 @@ export namespace Store {
         { signal },
       );
 
+      StoreRecords.session(chatId, savedSession);
       return ok(savedSession);
     });
   }

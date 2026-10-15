@@ -25,7 +25,11 @@ import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
-import { sessionOfChat } from "../../lib/record-folders";
+import { chatDir, sessionOfChat } from "../../lib/record-folders";
+import {
+  ChatRecords,
+  installChatRecords,
+} from "../../lib/records/chat-records";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceLayout } from "../../lib/workspace-layout";
 import { workspaceServerLogic } from "../../logic/server";
@@ -368,6 +372,17 @@ export const workspaceMachine = setup({
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every ChatId.
     setWorkspaceConfig(workspaceConfig);
+    // The one writer of this device's logs and marks files while the
+    // workspace is open, which every write to a chat's store appends
+    // through (`lib/store-records.ts`).
+    installChatRecords(
+      new ChatRecords({
+        app: workspaceConfig.appVersion,
+        device: workspaceConfig.deviceId,
+        dirOf: chatDir,
+        onError: workspaceConfig.captureException,
+      }),
+    );
     registerAIUsageTelemetry();
     return {
       config: workspaceConfig,

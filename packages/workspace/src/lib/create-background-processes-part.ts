@@ -9,6 +9,7 @@ import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { StoreRecords } from "./store-records";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const ReportedProcessesSchema = z.array(
@@ -107,6 +108,7 @@ export async function createBackgroundProcessesPart({
       ReportedProcessesSchema,
       storage.value,
     );
+    StoreRecords.told(chatId, sessionId, "processes", stillThere);
 
     return {
       data: { ended, running },

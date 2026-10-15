@@ -11,6 +11,7 @@ import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { StoreRecords } from "./store-records";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const ChatAppsBaselineSchema = z.record(
@@ -57,6 +58,7 @@ export function setChatAppsBaseline(
       storage,
       { signal },
     );
+    StoreRecords.told(chatId, sessionId, "apps", apps);
     return ok(undefined);
   });
 }

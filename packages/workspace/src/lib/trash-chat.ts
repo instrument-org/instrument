@@ -24,6 +24,7 @@ import {
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
+import { StoreRecords } from "./store-records";
 
 /**
  * Puts a chat in the trash with every task it started, which are sessions in
@@ -92,6 +93,10 @@ export async function trashChat({
         if (disposeResult.isErr()) {
           return err(disposeResult.error);
         }
+        // Its records let go once every session of it has stopped and before
+        // the folder goes: an append landing after the delete would make the
+        // folder again.
+        await StoreRecords.close(id);
 
         // Whether it was a chat, read before the index forgets it.
         const known = resolveChat(chatId) !== undefined;

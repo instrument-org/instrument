@@ -42,17 +42,15 @@ export type BrowserSkill = z.output<typeof BrowserSkillSchema>;
  */
 export async function browserSkillToDeliver({
   sessionId,
-  signal,
   chatId,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<BrowserSkill | undefined> {
   try {
     const [messages, session] = await Promise.all([
-      ChatReads.modelHistory({ chatId, sessionId, signal }),
-      ChatReads.session({ chatId, sessionId, signal }),
+      ChatReads.modelHistory({ chatId, sessionId }),
+      ChatReads.session({ chatId, sessionId }),
     ]);
     if (messages.isErr()) {
       return undefined;

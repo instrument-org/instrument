@@ -69,7 +69,6 @@ export async function prepareModelMessages({
   const messageResults = await ChatReads.modelHistory({
     chatId,
     sessionId,
-    signal,
     usable,
   });
 
@@ -101,7 +100,7 @@ export async function prepareModelMessages({
   // window: a reported count from before a reset describes a request that is no
   // longer being sent, and taking it at face value would roll the session over
   // again on every turn, eating another slice of history each time.
-  const sessionResult = await ChatReads.session({ chatId, sessionId, signal });
+  const sessionResult = await ChatReads.session({ chatId, sessionId });
   const session = sessionResult.isOk() ? sessionResult.value : undefined;
 
   // Recorded before anything is measured or reset, so the transcript says the
@@ -204,7 +203,7 @@ export async function prepareModelMessages({
       // because the row is what is written: the store is still what keeps a
       // session, and a row written from anything but itself would carry the
       // other side's answer for every field the boundary is not.
-      const stored = await ChatReads.session({ chatId, sessionId, signal });
+      const stored = await ChatReads.session({ chatId, sessionId });
       const saveResult = await stored.asyncAndThen((row) =>
         ChatWrites.saveSession(
           {

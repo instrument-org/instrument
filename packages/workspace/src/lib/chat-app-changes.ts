@@ -8,11 +8,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { isConnected } from "./apps/connection";
 import { listApps } from "./apps/store";
 import { ChatReads } from "./chat-reads";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
-import { StoreRecords } from "./store-records";
+import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const ChatAppsBaselineSchema = z.record(
@@ -48,20 +44,8 @@ export function setChatAppsBaseline(
   chatId: ChatId,
   sessionId: StoreId.Session,
   apps: ChatAppsBaseline,
-  { signal }: { signal?: AbortSignal } = {},
 ) {
-  return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(chatId);
-    yield* setParsedStorageItem(
-      StorageKey.chatAppsBaseline(sessionId),
-      apps,
-      ChatAppsBaselineSchema,
-      storage,
-      { signal },
-    );
-    StoreRecords.told(chatId, sessionId, "apps", apps);
-    return ok(undefined);
-  });
+  return ChatWrites.told(chatId, sessionId, "apps", apps);
 }
 
 /**
@@ -78,32 +62,22 @@ export function setChatAppsBaseline(
 export function detectChatAppChanges({
   messageId,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const storage = yield* getSessionsStoreStorage(chatId);
       const stored = await ChatReads.told({
         chatId,
-        fromStore: () =>
-          getParsedStorageItem(
-            StorageKey.chatAppsBaseline(sessionId),
-            ChatAppsBaselineSchema,
-            storage,
-            { signal },
-          ),
         schema: ChatAppsBaselineSchema,
         sessionId,
         what: "apps",
       });
       const current = await currentChatApps();
-      yield* setChatAppsBaseline(chatId, sessionId, current, { signal });
+      yield* setChatAppsBaseline(chatId, sessionId, current);
       // Missing on the first message of a session, whose context already
       // lists the apps as they stand.
       if (stored.isErr() || stored.value === undefined) {

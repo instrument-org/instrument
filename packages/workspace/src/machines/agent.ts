@@ -109,11 +109,10 @@ export const agentMachine = setup({
         stopReason?: StopReason;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const messageIdsResult = await ChatReads.messageIds({
         chatId: input.chatId,
         sessionId: input.sessionId,
-        signal,
       });
 
       if (messageIdsResult.isErr()) {
@@ -138,7 +137,6 @@ export const agentMachine = setup({
         chatId: input.chatId,
         only: new Set(runMessageIds),
         sessionId: input.sessionId,
-        signal,
       });
       if (runMessages.isErr()) {
         throw new Error(
@@ -297,11 +295,10 @@ export const agentMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const messageResults = await ChatReads.modelHistory({
         chatId: input.chatId,
         sessionId: input.sessionId,
-        signal,
       });
 
       if (messageResults.isErr()) {

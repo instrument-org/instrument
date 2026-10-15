@@ -103,19 +103,16 @@ export function detectEnvironmentChange({
   chatId,
   messageId,
   sessionId,
-  signal,
 }: {
   chatId: ChatId;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const messages = yield* ChatReads.modelHistory({
         chatId,
         sessionId,
-        signal,
       });
       const told = lastToldEnvironment(messages, sessionId);
       const change =

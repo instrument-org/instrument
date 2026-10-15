@@ -25,12 +25,10 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
 export function detectFolderChanges({
   messageId,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
@@ -47,9 +45,7 @@ export function detectFolderChanges({
           path: folder.path,
         }));
 
-      const baseline = yield* getFoldersBaseline(chatId, sessionId, {
-        signal,
-      });
+      const baseline = yield* getFoldersBaseline(chatId, sessionId);
 
       // Re-baseline regardless of the outcome so the next message diffs against
       // the set as it stands now.
@@ -57,7 +53,6 @@ export function detectFolderChanges({
         chatId,
         sessionId,
         current.map(({ path }) => ({ path })),
-        { signal },
       );
 
       if (!baseline) {

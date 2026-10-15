@@ -78,7 +78,6 @@ const runBash = base
       loadedSkillDir: await lastLoadedSkillDir({
         chatId: input.chatId,
         sessionId: input.sessionId,
-        signal,
       }),
       role: chatId ? "chat" : "task",
       sessionId: input.sessionId,

@@ -1,4 +1,4 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { type z } from "zod";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -14,36 +14,24 @@ import {
   contextTokensView,
   conversationView,
   everyMessageView,
-  inputTokensIn,
   listView,
   liveView,
   mergeViews,
   messageIdsView,
   modelHistoryView,
   type Said,
-  saidIn,
   searchView,
   stepsView,
 } from "./records/views";
-import { Store } from "./store";
-import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
 /**
- * What a reader takes from a chat while its records are written beside the
- * store: the records' own views where the records hold the chat, and the
- * store where they do not.
+ * What a reader takes from a chat: the views over its records, and nothing
+ * else. The counterpart of {@link ChatWrites}.
  *
- * The records hold a chat once they hold a message of it. Everything else
- * reads the store: a process that writes no records at all (a script, a test
- * that has not asked for them), and a chat an earlier build wrote, whose
- * records carry a header and the person's marks and no message until the
- * converter has run over it.
- *
- * The gate is the chat rather than the session, since both sides are written
- * for every session of a chat at once, and a task reads its chat's messages
- * before its own. What a running turn holds in memory is outside the gate:
- * it is this process's own, and stands over the written messages whichever
- * side wrote them.
+ * Every read is of the chat rather than of one session, since a chat is one
+ * fold and a task reads its chat's messages before its own. What a running
+ * turn holds in memory is read with them: it is this process's own, and
+ * stands over what has been written.
  */
 export namespace ChatReads {
   /**
@@ -57,26 +45,19 @@ export namespace ChatReads {
     chatId,
     inherited,
     sessionId,
-    signal,
     usable,
   }: {
     chatId: ChatId;
     inherited?: boolean;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
     /** The window the request is being built for, which retires a boundary drawn under a smaller one. */
     usable?: number;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
-    return recorded(chatId).andThen((records) =>
-      records?.held
-        ? ResultAsync.fromPromise(
-            modelHistoryView(records.read, sessionId, { inherited, usable }),
-            storageError,
-          )
-        : Store.getMessagesWithParts(
-            { chatId, inherited, sessionId },
-            { signal },
-          ),
+    return read(chatId).andThen((chat) =>
+      ResultAsync.fromPromise(
+        modelHistoryView(chat, sessionId, { inherited, usable }),
+        storageError,
+      ),
     );
   }
 
@@ -89,18 +70,12 @@ export namespace ChatReads {
   export function messageIds({
     chatId,
     sessionId,
-    signal,
   }: {
     chatId: ChatId;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
   }): ResultAsync<StoreId.Message[], Failure> {
-    return recorded(chatId).andThen((records) =>
-      records?.held
-        ? okAsync(messageIdsView(records.read, sessionId, { inherited: false }))
-        : Store.getMessageIds(sessionId, chatId, { signal }).map((ids) =>
-            ids.toSorted(byId),
-          ),
+    return read(chatId).map((chat) =>
+      messageIdsView(chat, sessionId, { inherited: false }),
     );
   }
 
@@ -120,43 +95,24 @@ export namespace ChatReads {
     inherited,
     only,
     sessionId,
-    signal,
   }: {
     bytes?: boolean;
     chatId: ChatId;
     inherited?: boolean;
     only?: ReadonlySet<StoreId.Message>;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
-    return recorded(chatId).andThen((records) => {
-      // The running turn is this process's own memory, so it stands over
-      // what was written whichever side wrote it.
-      const live = records
-        ? liveView(records.read, sessionId, { only })
-        : undefined;
-      if (!records?.held) {
-        return Store.getMessagesWithParts(
-          {
-            chatId,
-            inherited,
-            ...(only && { messageIds: [...only] }),
-            sessionId,
-          },
-          { signal },
-        ).map((written) =>
-          live?.length ? mergeViews(written, live) : written,
-        );
-      }
+    return read(chatId).andThen((chat) => {
       const options = { inherited, only };
       return ResultAsync.fromPromise(
-        stepsView(records.read, sessionId, { ...options, bytes }).then(
-          (steps) =>
-            mergeViews(
-              conversationView(records.read, sessionId, options),
-              steps,
-              live ?? [],
-            ),
+        stepsView(chat, sessionId, { ...options, bytes }).then((steps) =>
+          mergeViews(
+            conversationView(chat, sessionId, options),
+            steps,
+            // The running turn is this process's own memory, and stands over
+            // what has been written.
+            liveView(chat, sessionId, { only }),
+          ),
         ),
         storageError,
       );
@@ -170,19 +126,11 @@ export namespace ChatReads {
   export function said({
     chatId,
     sessionId,
-    signal,
   }: {
     chatId: ChatId;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
   }): ResultAsync<Said[], Failure> {
-    return recorded(chatId).andThen((records) =>
-      records?.held
-        ? okAsync(searchView(records.read, sessionId))
-        : Store.getMessagesWithParts({ chatId, sessionId }, { signal }).map(
-            (messages) => saidIn(messages.toSorted((a, b) => byId(a.id, b.id))),
-          ),
-    );
+    return read(chatId).map((chat) => searchView(chat, sessionId));
   }
 
   /**
@@ -192,19 +140,11 @@ export namespace ChatReads {
   export function contextTokens({
     chatId,
     sessionId,
-    signal,
   }: {
     chatId: ChatId;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
   }): ResultAsync<number, Failure> {
-    return recorded(chatId).andThen((records) =>
-      records?.held
-        ? okAsync(contextTokensView(records.read, sessionId))
-        : Store.getMessages({ chatId, sessionId }, { signal }).map(
-            inputTokensIn,
-          ),
-    );
+    return read(chatId).map((chat) => contextTokensView(chat, sessionId));
   }
 
   /**
@@ -213,35 +153,27 @@ export namespace ChatReads {
    * was given, the processes it left running. Each is written as a record
    * when it changes, and read back here to be compared with what holds now,
    * so the agent is told only the difference.
-   *
-   * `fromStore` is that fact's own read of the store, for a chat whose
-   * records are not held yet. It goes when the store does.
    */
-  export function told<Schema extends z.ZodType, StoreFailure>({
+  export function told<Schema extends z.ZodType>({
     chatId,
-    fromStore,
     schema,
     sessionId,
     what,
   }: {
     chatId: ChatId;
-    fromStore: () => ResultAsync<undefined | z.output<Schema>, StoreFailure>;
     schema: Schema;
     sessionId: StoreId.Session;
     what: ToldWhat;
-  }): ResultAsync<undefined | z.output<Schema>, Failure | StoreFailure> {
-    return recorded(chatId).andThen((records) => {
-      if (!records?.held) {
-        return fromStore();
-      }
-      const held = toldView(records.read, sessionId, what);
+  }): ResultAsync<undefined | z.output<Schema>, Failure> {
+    return read(chatId).map((chat) => {
+      const held = toldView(chat, sessionId, what);
       if (held === undefined || held === null) {
-        return okAsync(undefined);
+        return undefined;
       }
       const parsed = schema.safeParse(held);
       // A fact this build cannot read is one the agent is told again in
       // full, which is what a missing one does: the record stays as written.
-      return okAsync(parsed.success ? parsed.data : undefined);
+      return parsed.success ? parsed.data : undefined;
     });
   }
 
@@ -252,20 +184,12 @@ export namespace ChatReads {
   export function sessions({
     chatId,
     includeChildSessions = false,
-    signal,
   }: {
     chatId: ChatId;
     includeChildSessions?: boolean;
-    signal?: AbortSignal;
   }): ResultAsync<Session.Type[], Failure> {
-    return recorded(chatId).andThen((records) =>
-      records?.held
-        ? okAsync(
-            listView(records.read).filter(
-              (each) => includeChildSessions || !each.parentId,
-            ),
-          )
-        : Store.getSessions(chatId, { includeChildSessions, signal }),
+    return read(chatId).map((chat) =>
+      listView(chat).filter((each) => includeChildSessions || !each.parentId),
     );
   }
 
@@ -276,23 +200,17 @@ export namespace ChatReads {
   export function sessionWithMessages({
     chatId,
     sessionId,
-    signal,
   }: {
     chatId: ChatId;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
   }): ResultAsync<Session.WithMessagesAndParts, Failure> {
-    return recorded(chatId).andThen((records) => {
-      const found = records?.held
-        ? records.read.chat.sessions.find(({ id }) => id === sessionId)
-        : undefined;
-      if (!found || !records) {
-        return Store.getSessionWithMessagesAndParts(sessionId, chatId, {
-          signal,
-        });
+    return read(chatId).andThen((chat) => {
+      const found = chat.chat.sessions.find(({ id }) => id === sessionId);
+      if (!found) {
+        return errAsync(missingSession(chatId, sessionId));
       }
       return ResultAsync.fromPromise(
-        everyMessageView(records.read, sessionId).then((messages) => ({
+        everyMessageView(chat, sessionId).then((messages) => ({
           ...sessionOf(found),
           messages,
         })),
@@ -308,58 +226,43 @@ export namespace ChatReads {
   export function session({
     chatId,
     sessionId,
-    signal,
   }: {
     chatId: ChatId;
     sessionId: StoreId.Session;
-    signal?: AbortSignal;
   }): ResultAsync<Session.Type, Failure> {
-    return recorded(chatId).andThen((records) => {
-      const found = records?.held
-        ? records.read.chat.sessions.find(({ id }) => id === sessionId)
-        : undefined;
+    return read(chatId).andThen((chat) => {
+      const found = chat.chat.sessions.find(({ id }) => id === sessionId);
       return found
         ? okAsync(sessionOf(found))
-        : Store.getSession(sessionId, chatId, { signal });
+        : errAsync(missingSession(chatId, sessionId));
     });
   }
 }
 
-/** What a read of a chat fails with, whichever side holds it. */
+/** What a read of a chat fails with. */
 type Failure = TypedError.NotFound | TypedError.Parse | TypedError.Storage;
 
 /**
- * The chat as its records stand, and whether they are what holds it: `held`
- * is false for a chat whose messages are still the store's, whose running
- * turn this process holds all the same. Nothing at all where this process
- * writes no records, or their read failed, which is reported and answered
- * from the store, since the store is written for every chat.
+ * The chat as its records stand, with the writes still on their way to disk
+ * over the fold and the running turn beside it. A process with no records in
+ * place holds no chat at all, which every reader here is told rather than
+ * left to assume.
  */
-function recorded(
-  chatId: ChatId,
-): ResultAsync<{ held: boolean; read: ChatRead } | undefined, Failure> {
+function read(chatId: ChatId): ResultAsync<ChatRead, Failure> {
   const records = writingChatRecords();
   if (!records) {
-    return okAsync(undefined);
+    return errAsync(
+      new TypedError.Storage(`No records are in place to read chat ${chatId}`),
+    );
   }
-  return ResultAsync.fromSafePromise(
-    records
-      .read(chatId)
-      .then((read) => ({
-        held: read.chat.sessions.some((each) => each.messages.length > 0),
-        read,
-      }))
-      .catch((error: unknown) => {
-        report(error);
-        return undefined;
-      }),
-  );
+  return ResultAsync.fromPromise(records.read(chatId), storageError);
 }
 
-function report(error: unknown): void {
-  if (hasWorkspaceConfig()) {
-    getWorkspaceConfig().captureException(error, { scopes: ["workspace"] });
-  }
+function missingSession(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): TypedError.NotFound {
+  return new TypedError.NotFound(`Chat ${chatId} has no session ${sessionId}`);
 }
 
 function storageError(error: unknown): TypedError.Storage {
@@ -367,11 +270,4 @@ function storageError(error: unknown): TypedError.Storage {
     error instanceof Error ? error.message : String(error),
     { cause: error },
   );
-}
-
-function byId(a: string, b: string): number {
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
 }

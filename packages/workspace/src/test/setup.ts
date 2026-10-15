@@ -9,11 +9,7 @@ import path from "node:path";
 import { afterAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
-import {
-  ChatRecords,
-  installChatRecords,
-  writingChatRecords,
-} from "../lib/records/chat-records";
+import { ChatRecords, installChatRecords } from "../lib/records/chat-records";
 import { chatDir } from "../lib/record-folders";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
@@ -96,19 +92,17 @@ setWorkspaceConfig({
 // opens. `chatDir` is read per write, so a test that points the config at
 // another folder is followed there. Nothing is synced: nothing here has to
 // survive a power cut.
-installChatRecords(
-  new ChatRecords({
-    app: "0.0.0-test",
-    device: newDeviceId(),
-    dirOf: chatDir,
-    fsync: false,
-  }),
-);
+const testRecords = new ChatRecords({
+  app: "0.0.0-test",
+  device: newDeviceId(),
+  dirOf: chatDir,
+  fsync: false,
+});
+installChatRecords(testRecords);
 
 afterAll(async () => {
-  const records = writingChatRecords();
   installChatRecords(undefined);
-  await records?.dispose();
+  await testRecords.dispose();
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

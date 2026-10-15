@@ -28,7 +28,6 @@ export async function getUsageSummary(
     const sessions = await ChatReads.sessions({
       chatId,
       includeChildSessions: true,
-      signal,
     });
     if (sessions.isErr()) {
       return emptyUsageSummary();
@@ -46,7 +45,6 @@ export async function getUsageSummary(
         chatId,
         inherited: false,
         sessionId: each,
-        signal,
       });
       return messages.isOk() ? messages.value : [];
     },

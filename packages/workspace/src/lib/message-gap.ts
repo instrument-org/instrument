@@ -43,14 +43,12 @@ export function detectMessageGap({
   messageId,
   sentAt,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   /** When the message being assembled was sent, so the part matches its message. */
   sentAt: Date;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
@@ -58,7 +56,6 @@ export function detectMessageGap({
       const messages = yield* ChatReads.modelHistory({
         chatId,
         sessionId,
-        signal,
       });
 
       // ulid sorts oldest to newest, and the store makes no ordering promise.

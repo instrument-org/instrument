@@ -77,14 +77,12 @@ export function continuesOwnReply(
  */
 export async function turnNoteFor({
   sessionId,
-  signal,
   chatId,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<string | undefined> {
-  const messages = await ChatReads.modelHistory({ chatId, sessionId, signal });
+  const messages = await ChatReads.modelHistory({ chatId, sessionId });
   if (messages.isErr()) {
     return undefined;
   }

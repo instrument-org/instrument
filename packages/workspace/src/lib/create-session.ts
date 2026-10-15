@@ -10,15 +10,12 @@ import { ChatReads } from "./chat-reads";
 
 export async function createSession({
   sessionId,
-  signal,
   chatId,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   const title = await generateSessionTitle({
-    signal,
     chatId,
   });
   const now = new Date();

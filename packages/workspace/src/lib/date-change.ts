@@ -25,12 +25,10 @@ import { getCurrentDate } from "./get-current-date";
 export function detectDateChange({
   messageId,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
@@ -38,7 +36,6 @@ export function detectDateChange({
       const messages = yield* ChatReads.modelHistory({
         chatId,
         sessionId,
-        signal,
       });
 
       // ulid sorts oldest to newest, and the store makes no ordering promise.

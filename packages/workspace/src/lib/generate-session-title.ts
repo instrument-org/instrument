@@ -7,10 +7,8 @@ const defaultUntitledChatPattern = new RegExp(
 );
 
 export async function generateSessionTitle({
-  signal,
   chatId,
 }: {
-  signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<string> {
   const baseTitle = UNTITLED_CHAT_TITLE;
@@ -18,7 +16,6 @@ export async function generateSessionTitle({
   const sessionsResult = await ChatReads.sessions({
     chatId,
     includeChildSessions: true,
-    signal,
   });
 
   if (sessionsResult.isErr()) {

@@ -25,16 +25,14 @@ export function rememberLoadedSkill(
 export async function lastLoadedSkillDir({
   chatId,
   sessionId,
-  signal,
 }: {
   chatId: ChatId;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
 }): Promise<string | undefined> {
   if (loaded.has(sessionId)) {
     return loaded.get(sessionId);
   }
-  const messages = await ChatReads.modelHistory({ chatId, sessionId, signal });
+  const messages = await ChatReads.modelHistory({ chatId, sessionId });
   if (messages.isErr()) {
     return undefined;
   }

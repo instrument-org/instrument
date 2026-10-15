@@ -221,7 +221,6 @@ const live = {
           bytes: true,
           chatId: input.id,
           sessionId: input.sessionId,
-          signal,
         });
         if (initial.isErr()) {
           throw toORPCError(initial.error, errors);
@@ -250,7 +249,6 @@ const live = {
               chatId: input.id,
               only: batch.updated,
               sessionId: input.sessionId,
-              signal,
             });
 
             if (messages.isOk()) {
@@ -271,7 +269,6 @@ const live = {
                 bytes: true,
                 chatId: input.id,
                 sessionId: input.sessionId,
-                signal,
               });
               if (reload.isErr()) {
                 throw toORPCError(reload.error, errors);

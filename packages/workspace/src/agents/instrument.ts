@@ -141,7 +141,7 @@ export const instrumentAgent = setupAgent({
 
     return [systemMessage, userMessage];
   },
-  onFinish: async ({ parentMessageId, sessionId, signal, chatId }) => {
+  onFinish: async ({ parentMessageId, sessionId, chatId }) => {
     const skillChanges = await consumeSkillChanges({ id: chatId, sessionId });
 
     // Skills live outside the working folder, in the shared writable
@@ -164,7 +164,6 @@ export const instrumentAgent = setupAgent({
         chatId,
         inherited: false,
         sessionId,
-        signal,
       });
       const start = own.findIndex(({ id }) => id === parentMessageId);
       const messages = start === -1 ? [] : own.slice(start);

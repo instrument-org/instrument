@@ -198,7 +198,6 @@ export const llmRequestLogic = fromPromise<
       chatId: input.chatId,
       only: new Set([assistantMessage.id]),
       sessionId: input.sessionId,
-      signal,
     });
     if (readBack.isErr()) {
       getWorkspaceConfig().captureException(readBack.error, {
@@ -239,7 +238,6 @@ export const llmRequestLogic = fromPromise<
   // the steps already taken. See `lib/turn-note.ts`.
   const turnNote = await turnNoteFor({
     sessionId: input.sessionId,
-    signal,
     chatId: input.chatId,
   });
   if (turnNote !== undefined) {

@@ -5,7 +5,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ChatReads } from "./chat-reads";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
+import { ChatWrites } from "./chat-writes";
 import {
   listMemories,
   type Memory,
@@ -13,10 +13,6 @@ import {
   memoryDir,
   memoryHeadline,
 } from "./memory/store";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
-import { StoreRecords } from "./store-records";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /** How many memories a whole note lists before the rest are counted. */
@@ -55,18 +51,8 @@ export async function createMemoryPart({
     const memories = await listMemories(memoryDir());
     const digests = memoryDigests(memories);
 
-    const storage = await getSessionsStoreStorage(chatId);
-    if (storage.isErr()) {
-      return undefined;
-    }
     const reported = await ChatReads.told({
       chatId,
-      fromStore: () =>
-        getParsedStorageItem(
-          StorageKey.memoryReported(sessionId),
-          ToldSchema,
-          storage.value,
-        ),
       schema: ToldSchema,
       sessionId,
       what: "memory",
@@ -78,13 +64,7 @@ export async function createMemoryPart({
       return undefined;
     }
 
-    await setParsedStorageItem(
-      StorageKey.memoryReported(sessionId),
-      digests,
-      ToldSchema,
-      storage.value,
-    );
-    StoreRecords.told(chatId, sessionId, "memory", digests);
+    await ChatWrites.told(chatId, sessionId, "memory", digests);
 
     const metadata = {
       createdAt,
@@ -144,31 +124,15 @@ export async function recordMemoryReported({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<void> {
-  const storage = await getSessionsStoreStorage(chatId);
-  if (storage.isErr()) {
-    return;
-  }
   const reported = await ChatReads.told({
     chatId,
-    fromStore: () =>
-      getParsedStorageItem(
-        StorageKey.memoryReported(sessionId),
-        ToldSchema,
-        storage.value,
-      ),
     schema: ToldSchema,
     sessionId,
     what: "memory",
   });
   const told = omit(reported.isOk() ? (reported.value ?? {}) : {}, [name]);
   const digests = memory ? { ...told, ...memoryDigests([memory]) } : told;
-  await setParsedStorageItem(
-    StorageKey.memoryReported(sessionId),
-    digests,
-    ToldSchema,
-    storage.value,
-  );
-  StoreRecords.told(chatId, sessionId, "memory", digests);
+  await ChatWrites.told(chatId, sessionId, "memory", digests);
 }
 
 /**
@@ -183,12 +147,7 @@ export async function resetMemoryReported({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<void> {
-  const storage = await getSessionsStoreStorage(chatId);
-  if (storage.isErr()) {
-    return;
-  }
-  await storage.value.removeItem(StorageKey.memoryReported(sessionId));
-  StoreRecords.told(chatId, sessionId, "memory", null);
+  await ChatWrites.told(chatId, sessionId, "memory", undefined);
 }
 
 function noteRow(memory: Memory) {

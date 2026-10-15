@@ -5,11 +5,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type BrowserTargetId } from "../types";
 import { ChatReads } from "./chat-reads";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
-import { StoreRecords } from "./store-records";
+import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -60,36 +56,13 @@ function withVisit(hosts: string[] | undefined, url: string): string[] {
   return [...rest, host].slice(-VISITED_HOSTS_MAX);
 }
 
-export function getBrowserState(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  { signal }: { signal?: AbortSignal } = {},
-) {
+export function getBrowserState(chatId: ChatId, sessionId: StoreId.Session) {
   return ChatReads.told({
     chatId,
-    fromStore: () => storedBrowserState(chatId, sessionId, { signal }),
     schema: z.unknown(),
     sessionId,
     what: "browser",
   }).map((held) => (held === undefined ? undefined : browserStateOf(held)));
-}
-
-/** What the store holds, as written: the shape is settled by its reader. */
-function storedBrowserState(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  { signal }: { signal?: AbortSignal },
-) {
-  return safeTry<unknown, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(chatId);
-    const result = await getParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      z.unknown(),
-      storage,
-      { signal },
-    );
-    return ok(result.isErr() ? undefined : result.value);
-  });
 }
 
 /**
@@ -127,17 +100,15 @@ export function navigateTarget({
  */
 export function recordVisitedHosts({
   sessionId,
-  signal,
   chatId,
   urls,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
   urls: string[];
 }) {
   return safeTry(async function* () {
-    const current = yield* getBrowserState(chatId, sessionId, { signal });
+    const current = yield* getBrowserState(chatId, sessionId);
     const known = new Set(current?.visitedHosts);
     // Every command runs through here with every tab it holds, so only a host
     // the session has not been on is worth a write; one it has been on stays
@@ -153,15 +124,12 @@ export function recordVisitedHosts({
     for (const url of fresh) {
       visitedHosts = withVisit(visitedHosts, url);
     }
-    const storage = yield* getSessionsStoreStorage(chatId);
-    const state = yield* setParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      { ...current, lastUsedAt: new Date(), visitedHosts },
-      BrowserStateSchema,
-      storage,
-      { signal },
-    );
-    StoreRecords.told(chatId, sessionId, "browser", state);
+    const state = BrowserStateSchema.parse({
+      ...current,
+      lastUsedAt: new Date(),
+      visitedHosts,
+    });
+    yield* ChatWrites.told(chatId, sessionId, "browser", state);
     return ok(undefined);
   });
 }

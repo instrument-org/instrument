@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { okAsync } from "neverthrow";
-import { alphabetical } from "radashi";
 import { z } from "zod";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,22 +13,20 @@ import { chatFor } from "../test/helpers/chat-record";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 import { withTestRecords } from "../test/helpers/with-test-records";
 import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { addChildTask, touchTask } from "./chat/children";
 import { createSession } from "./create-session";
 import { isToolPart } from "./is-tool-part";
 import { forgetChatFolders } from "./record-folders";
-import { installChatRecords } from "./records/chat-records";
-import { Store } from "./store";
-import { StoreRecords } from "./store-records";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
- * The reads that assemble what goes to the model, against the store they came
- * off: for the same chat, written through the store with its records written
- * beside it, the records answer what the store answers.
+ * What each read of a chat gives back, for a chat written the way the app
+ * writes one: its history as the model is sent it, the transcript it is drawn
+ * from, the standing facts its session was told, and the lines its own search
+ * reads.
  *
- * Dates are frozen except where a test moves the clock on purpose, so the
- * moment the store stamps a row is the moment the record beside it carries.
+ * Dates are frozen except where a test moves the clock on purpose.
  */
 
 const records = withTestRecords();
@@ -72,11 +68,6 @@ async function startChat(): Promise<{
   const chatId = chatFor(sessionId);
   (await createSession({ chatId, sessionId }))._unsafeUnwrap();
   return { chatId, sessionId };
-}
-
-/** Waits for every record the store's writes queued to be in its log. */
-async function landed(chatId: ChatId): Promise<void> {
-  await StoreRecords.close(chatId);
 }
 
 function userMessage(
@@ -164,18 +155,20 @@ function reply(
   };
 }
 
-/** A turn of the chat's, through the store: what the user asked and the reply. */
+/** A turn of the chat's: what the user asked and the reply. */
 async function writeTurn(
   chatId: ChatId,
   sessionId: StoreId.Session,
   { base64Data = PNG, text = "What is in this folder?" } = {},
-): Promise<{ asked: SessionMessage.WithParts }> {
+): Promise<{
+  answered: SessionMessage.WithParts;
+  asked: SessionMessage.WithParts;
+}> {
   const asked = userMessage(sessionId, text);
-  (await Store.saveMessageWithParts(asked, chatId))._unsafeUnwrap();
-  (
-    await Store.saveMessageWithParts(reply(sessionId, { base64Data }), chatId)
-  )._unsafeUnwrap();
-  return { asked };
+  (await ChatWrites.saveMessageWithParts(asked, chatId))._unsafeUnwrap();
+  const answered = reply(sessionId, { base64Data });
+  (await ChatWrites.saveMessageWithParts(answered, chatId))._unsafeUnwrap();
+  return { answered, asked };
 }
 
 /** A reply that has started, with nothing of its own written yet. */
@@ -211,29 +204,6 @@ function streaming(
   };
 }
 
-async function storedHistory(chatId: ChatId, sessionId: StoreId.Session) {
-  return (
-    await Store.getMessagesWithParts({ chatId, sessionId })
-  )._unsafeUnwrap();
-}
-
-/**
- * The lines the chat command read off a store transcript before the search
- * view answered it: every message somebody said, in words, oldest first.
- */
-function storedSaid(messages: SessionMessage.WithParts[]) {
-  return alphabetical(messages, (message) => message.id).flatMap((message) => {
-    if (message.role !== "user" && message.role !== "assistant") {
-      return [];
-    }
-    const text = message.parts
-      .flatMap((part) => (part.type === "text" ? [part.text] : []))
-      .join(" ")
-      .trim();
-    return text ? [{ id: message.id, role: message.role, text }] : [];
-  });
-}
-
 /** The output of the call that read a file, wherever it is in the history. */
 function fileOutput(messages: SessionMessage.WithParts[]): unknown {
   const part = messages
@@ -243,9 +213,9 @@ function fileOutput(messages: SessionMessage.WithParts[]): unknown {
 }
 
 describe("the reads that build a model request", () => {
-  it("gives what the store gives for the same chat, its task and the bytes a call returned", async () => {
+  it("gives the chat's history, its task's, and the bytes a call returned", async () => {
     const { chatId, sessionId } = await startChat();
-    const { asked } = await writeTurn(chatId, sessionId);
+    const { answered, asked } = await writeTurn(chatId, sessionId);
     const task = await addChildTask(chatId, {
       createdAt: new Date(),
       forkedAtMessageId: asked.id,
@@ -254,14 +224,12 @@ describe("the reads that build a model request", () => {
       updatedAt: new Date(),
     });
     const reported = userMessage(task.id, "Eleven files.");
-    (await Store.saveMessageWithParts(reported, chatId))._unsafeUnwrap();
-    await landed(chatId);
+    (await ChatWrites.saveMessageWithParts(reported, chatId))._unsafeUnwrap();
 
-    const stored = await storedHistory(chatId, sessionId);
     const history = (
       await ChatReads.modelHistory({ chatId, sessionId })
     )._unsafeUnwrap();
-    expect(history).toEqual(stored);
+    expect(history).toEqual([asked, answered]);
     // The bytes came back from the blob that holds them, not from the log.
     expect(fileOutput(history)).toMatchObject({ base64Data: PNG });
     expect(await fs.readdir(path.join(records.dirOf(chatId), "blobs"))).toEqual(
@@ -273,7 +241,7 @@ describe("the reads that build a model request", () => {
       (
         await ChatReads.modelHistory({ chatId, sessionId: task.id })
       )._unsafeUnwrap(),
-    ).toEqual(await storedHistory(chatId, task.id));
+    ).toEqual([asked, reported]);
     expect(
       (
         await ChatReads.modelHistory({
@@ -286,63 +254,15 @@ describe("the reads that build a model request", () => {
 
     expect(
       (await ChatReads.messageIds({ chatId, sessionId }))._unsafeUnwrap(),
-    ).toEqual(stored.map((message) => message.id));
-    // A task's ids are its own, never its chat's: the store cannot inherit
-    // them, and a task that reads its chat's would never look empty, which is
-    // what tells a started task from one nobody has written in.
+    ).toEqual([asked.id, answered.id]);
+    // A task's ids are its own, never its chat's: a task that read its chat's
+    // would never look empty, which is what tells a started task from one
+    // nobody has written in.
     expect(
       (
         await ChatReads.messageIds({ chatId, sessionId: task.id })
       )._unsafeUnwrap(),
-    ).toEqual(
-      (await Store.getMessageIds(task.id, chatId))._unsafeUnwrap().toSorted(),
-    );
-    expect(
-      (
-        await ChatReads.messageIds({ chatId, sessionId: task.id })
-      )._unsafeUnwrap(),
-    ).not.toEqual(
-      (await ChatReads.messageIds({ chatId, sessionId }))._unsafeUnwrap(),
-    );
-  });
-
-  it("reads the store for a chat whose records hold its header and no message", async () => {
-    const { chatId, sessionId } = await startChat();
-    await landed(chatId);
-    // What an earlier build left: the conversation in the store alone, and
-    // records that say the session began and nothing since.
-    installChatRecords(undefined);
-    await writeTurn(chatId, sessionId);
-    installChatRecords(records.service);
-
-    const held = await records.service.read(chatId);
-    expect(held.chat.sessions.map(({ id }) => id)).toEqual([sessionId]);
-    expect(held.chat.sessions.flatMap((session) => session.messages)).toEqual(
-      [],
-    );
-
-    const stored = await storedHistory(chatId, sessionId);
-    expect(stored).toHaveLength(2);
-    expect(
-      (await ChatReads.modelHistory({ chatId, sessionId }))._unsafeUnwrap(),
-    ).toEqual(stored);
-    expect(
-      (await ChatReads.messageIds({ chatId, sessionId }))._unsafeUnwrap(),
-    ).toEqual(stored.map((message) => message.id));
-    expect(
-      (await ChatReads.session({ chatId, sessionId }))._unsafeUnwrap(),
-    ).toEqual((await Store.getSession(sessionId, chatId))._unsafeUnwrap());
-  });
-
-  it("reads the store where this process writes no records", async () => {
-    installChatRecords(undefined);
-    const { chatId, sessionId } = await startChat();
-    await writeTurn(chatId, sessionId);
-
-    expect(
-      (await ChatReads.modelHistory({ chatId, sessionId }))._unsafeUnwrap(),
-    ).toEqual(await storedHistory(chatId, sessionId));
-    expect(await fs.readdir(records.dir)).toEqual([]);
+    ).toEqual([reported.id]);
   });
 
   it("leaves a call whose file is gone an error that says so", async () => {
@@ -351,7 +271,6 @@ describe("the reads that build a model request", () => {
     await writeTurn(chatId, sessionId, {
       base64Data: Buffer.from("a chart nobody kept").toString("base64"),
     });
-    await landed(chatId);
 
     const blobs = path.join(records.dirOf(chatId), "blobs");
     for (const name of await fs.readdir(blobs)) {
@@ -372,9 +291,8 @@ describe("the reads that build a model request", () => {
     });
   });
 
-  it("gives the session the store gives, bar what only the records date", async () => {
+  it("dates a session by its newest record, and lets a stop go when a turn starts after it", async () => {
     const { chatId, sessionId } = await startChat();
-    const stamped = new Date();
     vi.setSystemTime(new Date(NOW.getTime() + 60_000));
     const { asked } = await writeTurn(chatId, sessionId);
     const task = await addChildTask(chatId, {
@@ -384,26 +302,20 @@ describe("the reads that build a model request", () => {
       title: "Count them",
       updatedAt: new Date(),
     });
-    await landed(chatId);
 
-    const storedChat = (
-      await Store.getSession(sessionId, chatId)
-    )._unsafeUnwrap();
-    const chatSession = (
-      await ChatReads.session({ chatId, sessionId })
-    )._unsafeUnwrap();
     // When a session was last updated is the newest record's date, where the
-    // store keeps the moment its row was last written.
-    expect(storedChat.updatedAt).toEqual(stamped);
-    expect(chatSession.updatedAt).toEqual(new Date(NOW.getTime() + 60_000));
-    expect({ ...chatSession, updatedAt: storedChat.updatedAt }).toEqual(
-      storedChat,
-    );
+    // store kept the moment its row was last written.
+    expect(
+      (await ChatReads.session({ chatId, sessionId }))._unsafeUnwrap(),
+    ).toMatchObject({
+      createdAt: NOW,
+      id: sessionId,
+      updatedAt: new Date(NOW.getTime() + 60_000),
+    });
 
     // A stop holds until a message starts a turn after it, so a task the
     // person stopped and then sent to reads as running again.
     await touchTask(chatId, task.id, { stoppedBy: "user" });
-    await landed(chatId);
     expect(
       (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
         .stoppedBy,
@@ -411,17 +323,12 @@ describe("the reads that build a model request", () => {
 
     vi.setSystemTime(new Date(NOW.getTime() + 120_000));
     (
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         userMessage(task.id, "Carry on."),
         chatId,
       )
     )._unsafeUnwrap();
-    await landed(chatId);
 
-    const stoppedTask = (
-      await Store.getSession(task.id, chatId)
-    )._unsafeUnwrap();
-    expect(stoppedTask.stoppedBy).toBe("user");
     expect(
       (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
         .stoppedBy,
@@ -430,104 +337,78 @@ describe("the reads that build a model request", () => {
 });
 
 describe("the transcript a chat is drawn and told from", () => {
-  it("gives what the store gives, the steps behind the conversation and all", async () => {
+  it("gives both halves of the split, the steps behind the conversation and all", async () => {
     const { chatId, sessionId } = await startChat();
-    await writeTurn(chatId, sessionId);
-    await landed(chatId);
+    const { answered, asked } = await writeTurn(chatId, sessionId);
 
-    const stored = await storedHistory(chatId, sessionId);
-    // Both halves of the split are in it: what the chat view draws, and the
-    // reasoning and calls behind it.
-    expect(stored.at(-1)?.parts.map((part) => part.type)).toEqual([
+    const transcript = (
+      await ChatReads.transcript({ bytes: true, chatId, sessionId })
+    )._unsafeUnwrap();
+    expect(transcript).toEqual([asked, answered]);
+    // What the chat view draws and the reasoning and calls behind it are both
+    // in it, in the order the reply made them.
+    expect(transcript.at(-1)?.parts.map((part) => part.type)).toEqual([
       "reasoning",
       "tool-bash",
       "tool-read_file",
       "text",
     ]);
-    const transcript = (
-      await ChatReads.transcript({ bytes: true, chatId, sessionId })
-    )._unsafeUnwrap();
-    expect(transcript).toEqual(stored);
     expect(fileOutput(transcript)).toMatchObject({ base64Data: PNG });
 
     // One message alone, for a reader following a change to it.
-    const changed = stored.at(-1);
     expect(
       (
         await ChatReads.transcript({
           bytes: true,
           chatId,
-          only: new Set(changed ? [changed.id] : []),
+          only: new Set([answered.id]),
           sessionId,
         })
       )._unsafeUnwrap(),
-    ).toEqual([changed]);
+    ).toEqual([answered]);
   });
 
-  it("reads the store for a chat whose records hold its header and no message", async () => {
+  it("reads a running turn's parts over the written ones", async () => {
     const { chatId, sessionId } = await startChat();
-    await landed(chatId);
-    installChatRecords(undefined);
     await writeTurn(chatId, sessionId);
-    installChatRecords(records.service);
 
+    const replying = underWay(sessionId);
+    (await ChatWrites.saveMessage(replying, chatId))._unsafeUnwrap();
+    (
+      await ChatWrites.savePart(streaming(replying, "Partial"), chatId)
+    )._unsafeUnwrap();
+
+    const transcript = (
+      await ChatReads.transcript({ chatId, sessionId })
+    )._unsafeUnwrap();
+    expect(transcript.at(-1)).toMatchObject({
+      id: replying.id,
+      parts: [{ state: "streaming", text: "Partial" }],
+    });
+
+    // Once the turn has let go of it, the written reply stands alone.
+    records.service.live(chatId, sessionId).clear();
     expect(
-      (
-        await ChatReads.transcript({ bytes: true, chatId, sessionId })
-      )._unsafeUnwrap(),
-    ).toEqual(await storedHistory(chatId, sessionId));
-  });
-
-  it("reads a running turn's parts over the written ones, whichever side holds them", async () => {
-    const held = await startChat();
-    await writeTurn(held.chatId, held.sessionId);
-    await landed(held.chatId);
-
-    // An earlier build's chat: its conversation is the store's alone.
-    const stored = await startChat();
-    await landed(stored.chatId);
-    installChatRecords(undefined);
-    await writeTurn(stored.chatId, stored.sessionId);
-    installChatRecords(records.service);
-
-    for (const chat of [held, stored]) {
-      const replying = underWay(chat.sessionId);
-      (await Store.saveMessage(replying, chat.chatId))._unsafeUnwrap();
-      const live = records.service.live(chat.chatId, chat.sessionId);
-      live.setMessage(replying);
-      live.setPart(streaming(replying, "Partial"));
-
-      const transcript = (
-        await ChatReads.transcript({
-          chatId: chat.chatId,
-          sessionId: chat.sessionId,
-        })
-      )._unsafeUnwrap();
-      expect(transcript.at(-1)).toMatchObject({
-        id: replying.id,
-        parts: [{ state: "streaming", text: "Partial" }],
-      });
-      live.clear();
-    }
+      (await ChatReads.transcript({ chatId, sessionId }))
+        ._unsafeUnwrap()
+        .at(-1),
+    ).toMatchObject({ id: replying.id, parts: [] });
   });
 });
 
 describe("the standing facts a session was told", () => {
   const schema = z.array(z.object({ path: z.string() }));
-  const never = () => okAsync<undefined | { path: string }[], Error>(undefined);
 
   it("reads back what the session was last told, and not an earlier one", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    StoreRecords.told(chatId, sessionId, "folders", [{ path: "/a" }]);
-    StoreRecords.told(chatId, sessionId, "folders", [{ path: "/b" }]);
-    await landed(chatId);
+    await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+    await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/b" }]);
 
     expect(
       (
         await ChatReads.told({
           chatId,
-          fromStore: never,
           schema,
           sessionId,
           what: "folders",
@@ -539,37 +420,25 @@ describe("the standing facts a session was told", () => {
   it.each([
     { name: "one never told", told: undefined },
     { name: "one told it no longer holds", told: null },
-  ])(
-    "answers nothing for $name, without reading the store",
-    async ({ told }) => {
-      const { chatId, sessionId } = await startChat();
-      await writeTurn(chatId, sessionId);
-      if (told === null) {
-        StoreRecords.told(chatId, sessionId, "folders", [{ path: "/a" }]);
-        StoreRecords.told(chatId, sessionId, "folders", undefined);
-      }
-      await landed(chatId);
-      const fromStore = vi.fn(never);
+  ])("answers nothing for $name", async ({ told }) => {
+    const { chatId, sessionId } = await startChat();
+    await writeTurn(chatId, sessionId);
+    if (told === null) {
+      await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+      await ChatWrites.told(chatId, sessionId, "folders", undefined);
+    }
 
-      expect(
-        (
-          await ChatReads.told({
-            chatId,
-            fromStore,
-            schema,
-            sessionId,
-            what: "folders",
-          })
-        )._unsafeUnwrap(),
-      ).toBeUndefined();
-      expect(fromStore).not.toHaveBeenCalled();
-    },
-  );
+    expect(
+      (
+        await ChatReads.told({ chatId, schema, sessionId, what: "folders" })
+      )._unsafeUnwrap(),
+    ).toBeUndefined();
+  });
 
   it("gives a task what its chat was told before it forked", async () => {
     const { chatId, sessionId } = await startChat();
     const { asked } = await writeTurn(chatId, sessionId);
-    StoreRecords.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+    await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/a" }]);
     const task = await addChildTask(chatId, {
       createdAt: new Date(),
       forkedAtMessageId: asked.id,
@@ -577,13 +446,11 @@ describe("the standing facts a session was told", () => {
       title: "Count them",
       updatedAt: new Date(),
     });
-    await landed(chatId);
 
     expect(
       (
         await ChatReads.told({
           chatId,
-          fromStore: never,
           schema,
           sessionId: task.id,
           what: "folders",
@@ -595,14 +462,12 @@ describe("the standing facts a session was told", () => {
   it("answers nothing for a fact written in a shape this build cannot read", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    StoreRecords.told(chatId, sessionId, "folders", { folders: "/a" });
-    await landed(chatId);
+    await ChatWrites.told(chatId, sessionId, "folders", { folders: "/a" });
 
     expect(
       (
         await ChatReads.told({
           chatId,
-          fromStore: never,
           schema,
           sessionId,
           what: "folders",
@@ -610,31 +475,10 @@ describe("the standing facts a session was told", () => {
       )._unsafeUnwrap(),
     ).toBeUndefined();
   });
-
-  it("reads the store where this process writes no records", async () => {
-    installChatRecords(undefined);
-    const { chatId, sessionId } = await startChat();
-    const fromStore = vi.fn(() =>
-      okAsync<undefined | { path: string }[], Error>([{ path: "/stored" }]),
-    );
-
-    expect(
-      (
-        await ChatReads.told({
-          chatId,
-          fromStore,
-          schema,
-          sessionId,
-          what: "folders",
-        })
-      )._unsafeUnwrap(),
-    ).toEqual([{ path: "/stored" }]);
-    expect(fromStore).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("what a chat's own search reads", () => {
-  it("gives the lines the store gave, a task's from its chat's on", async () => {
+  it("gives every line somebody said, a task's from its chat's on", async () => {
     const { chatId, sessionId } = await startChat();
     const { asked } = await writeTurn(chatId, sessionId, {
       text: "Which of these are overdue?",
@@ -647,33 +491,22 @@ describe("what a chat's own search reads", () => {
       updatedAt: new Date(),
     });
     (
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         userMessage(task.id, "Two of them."),
         chatId,
       )
     )._unsafeUnwrap();
-    await landed(chatId);
 
     const said = (await ChatReads.said({ chatId, sessionId }))._unsafeUnwrap();
-    expect(said).toEqual(storedSaid(await storedHistory(chatId, sessionId)));
     expect(said.map((line) => `${line.role}: ${line.text}`)).toEqual([
       "user: Which of these are overdue?",
       "assistant: One file.",
     ]);
+    // A task's lines start with its chat's, up to where it forked.
     expect(
-      (await ChatReads.said({ chatId, sessionId: task.id }))._unsafeUnwrap(),
-    ).toEqual(storedSaid(await storedHistory(chatId, task.id)));
-  });
-
-  it("reads the store for a chat whose records hold its header and no message", async () => {
-    const { chatId, sessionId } = await startChat();
-    await landed(chatId);
-    installChatRecords(undefined);
-    await writeTurn(chatId, sessionId, { text: "Which of these are overdue?" });
-    installChatRecords(records.service);
-
-    expect(
-      (await ChatReads.said({ chatId, sessionId }))._unsafeUnwrap(),
-    ).toEqual(storedSaid(await storedHistory(chatId, sessionId)));
+      (await ChatReads.said({ chatId, sessionId: task.id }))
+        ._unsafeUnwrap()
+        .map((line) => `${line.role}: ${line.text}`),
+    ).toEqual(["user: Which of these are overdue?", "user: Two of them."]);
   });
 });

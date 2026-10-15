@@ -138,11 +138,10 @@ export const sessionMachine = setup({
     getLastMessageId: fromPromise<
       StoreId.Message | undefined,
       { sessionId: StoreId.Session; chatId: ChatId }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const result = await ChatReads.messageIds({
         chatId: input.chatId,
         sessionId: input.sessionId,
-        signal,
       });
       if (result.isErr()) {
         throw new Error(result.error.message);
@@ -186,11 +185,10 @@ export const sessionMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input: { sessionId, chatId }, signal }) => {
+    >(async ({ input: { sessionId, chatId } }) => {
       const existingSession = await ChatReads.session({
         chatId,
         sessionId,
-        signal,
       });
       // Every session is written before its first message: a chat's with
       // the chat, a task's when the chat starts it.

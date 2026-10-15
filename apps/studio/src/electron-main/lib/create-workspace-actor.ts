@@ -55,7 +55,11 @@ import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { windowsDriveNames } from "./windows-drives";
-import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
+import {
+  getPNPMBinPath,
+  getUutilsDir,
+  getUvBinPath,
+} from "./setup-bin-directory";
 
 const CHAT_TEMPLATE_DIR_NAME = "chat-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
@@ -190,6 +194,7 @@ export function createWorkspaceActor() {
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
+      uutilsDir: getUutilsDir(),
       toolBinDir: getBinDirectoryPath(),
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,

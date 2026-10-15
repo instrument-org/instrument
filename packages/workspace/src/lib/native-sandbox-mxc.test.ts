@@ -45,19 +45,26 @@ function reachOver(
   };
 }
 
-/** The policy with the test's own folders spelled from `~`, for snapshots. */
+/** The disk's root here: `/`, or `C:\` on Windows. */
+const ROOT = path.parse(base).root;
+
+/**
+ * The policy with the test's folders spelled from `~` and the root as `/`,
+ * with `/` between parts, so a snapshot reads the same on every platform.
+ */
 function policyOf(reach: NativeReach, closed: string[] = []) {
   const policy = mxcFilesystemPolicy(reach, {
-    appFolders: ["/app"],
-    closed,
-    root: "/",
+    appFolders: [path.join(ROOT, "app")],
+    closed: closed.map((folder) => path.join(ROOT, folder)),
+    root: ROOT,
   });
   const spell = (listed: string[]) =>
     listed
       .map((each) =>
-        each.startsWith(reach.rules.home)
+        (each.startsWith(reach.rules.home)
           ? `~${each.slice(reach.rules.home.length)}`
-          : each,
+          : `/${each.slice(ROOT.length)}`
+        ).replaceAll("\\", "/"),
       )
       .toSorted();
   return {
@@ -100,7 +107,7 @@ describe("mxcFilesystemPolicy", () => {
       ],
       { readWrite: [path.join(at, "chat")] },
     );
-    expect(policyOf(reach, ["/state"])).toMatchInlineSnapshot(`
+    expect(policyOf(reach, ["state"])).toMatchInlineSnapshot(`
       {
         "deniedPaths": [
           "/state",
@@ -261,7 +268,7 @@ describe("mxcFilesystemPolicy", () => {
     const policy = mxcFilesystemPolicy(reach, {
       appFolders: [],
       closed: [],
-      root: "/",
+      root: ROOT,
     });
     for (const rule of rules) {
       const read = reachOf(reach.rules, rule.path, "read").level === "allow";

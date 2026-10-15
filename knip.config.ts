@@ -99,7 +99,11 @@ const config: KnipConfig = {
         "scripts/*.ts!",
       ],
       ignore: ["fixtures/**/*"],
-      ignoreBinaries: ["ldd", "xcode-select"],
+      ignoreBinaries: [
+        "ldd",
+        "xcode-select",
+        "reg.exe", // Windows' registry tool, for the build the MXC canary's verdict is kept per (src/lib/mxc-canary.ts)
+      ],
       ignoreDependencies: [
         "@types/json-schema", // Types the ai package's JSONSchema7 re-export, never imported by name
       ],

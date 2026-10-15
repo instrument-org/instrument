@@ -705,7 +705,7 @@ export function createNativeTextCommand(
     // A program takes the previous native stage's stdout as its fd 0; the
     // arguments it hands to the builtin read the bytes instead.
     acceptsPipeHandoff: (args: string[]) =>
-      uutilsProgram(route.binary) !== undefined &&
+      routeProgram(route) !== undefined &&
       route.builtinFor?.matches(args) !== true,
   };
 }

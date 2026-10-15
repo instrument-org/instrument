@@ -49,18 +49,29 @@ export type RecordFileName =
 const COPY_PATTERN = [
   " [0-9]+",
   " \\([^)]*\\)",
-  "-.+",
+  "-[^.]+",
   "\\.sync-conflict-[0-9]{8}-[0-9]{6}-[0-9A-Z]+",
 ]
   .map((suffix) => `(?:${suffix})`)
   .join("|");
 
+/**
+ * The suffixes a copied name carries, matched once and then kept: the match
+ * is made inside a lookahead and repeated through its own backreference, so
+ * the engine settles on one way of dividing them instead of searching every
+ * way. Written as a plain repeat (`(?:a|b)+`), each hyphen segment of a name
+ * that fails to match doubles the work twice over: a 70-character name took
+ * 125 ms, a 102-character one minutes, on the thread that draws the window
+ * and for every entry of a folder a sync engine also writes to.
+ */
+const COPY_SUFFIXES = `(?:(?=(?<copy>(?:${COPY_PATTERN})+))\\k<copy>)?`;
+
 const LOG_NAME = new RegExp(
-  `^(ses_[0-9A-HJKMNP-TV-Z]{26})\\.(${DEVICE_ID_PATTERN})(?:\\.(${GENERATION_PATTERN}))?((?:${COPY_PATTERN})+)?\\.jsonl$`,
+  `^(ses_[0-9A-HJKMNP-TV-Z]{26})\\.(${DEVICE_ID_PATTERN})(?:\\.(${GENERATION_PATTERN}))?${COPY_SUFFIXES}\\.jsonl$`,
 );
 
 const MARKS_NAME = new RegExp(
-  `^marks\\.(${DEVICE_ID_PATTERN})((?:${COPY_PATTERN})+)?\\.jsonl$`,
+  `^marks\\.(${DEVICE_ID_PATTERN})${COPY_SUFFIXES}\\.jsonl$`,
 );
 
 /**
@@ -73,7 +84,7 @@ export function parseRecordFileName(name: string): RecordFileName | undefined {
   if (marks) {
     const device = DeviceIdSchema.safeParse(marks[1]);
     return device.success
-      ? { kind: "marks", device: device.data, ...copyOf(marks[2]) }
+      ? { kind: "marks", device: device.data, ...copyOf(marks.groups?.copy) }
       : undefined;
   }
   const log = LOG_NAME.exec(name);
@@ -92,7 +103,7 @@ export function parseRecordFileName(name: string): RecordFileName | undefined {
     device: device.data,
     generation,
     stem: logStem(device.data, generation),
-    ...copyOf(log[4]),
+    ...copyOf(log.groups?.copy),
   };
 }
 

@@ -82,6 +82,19 @@ describe("record file names", () => {
   ])("leaves %s alone", (name) => {
     expect(parseRecordFileName(name)).toBeUndefined();
   });
+
+  // The folder a sync engine writes to holds whatever names it puts there,
+  // and every entry of it is read while a chat opens. A name built out of
+  // many of the segments a copied name carries used to take minutes to
+  // refuse, four times as long for every two more.
+  it("refuses a name of many copy segments at once", () => {
+    const name = `marks.${DEVICE_A}${"-a".repeat(120)}.txt`;
+    const started = performance.now();
+
+    expect(parseRecordFileName(name)).toBeUndefined();
+
+    expect(performance.now() - started).toBeLessThan(50);
+  });
 });
 
 function logName(generation: number, copy?: string): RecordFileName {

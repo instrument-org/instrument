@@ -1,7 +1,7 @@
 
 # A part the store took is not a record yet
 
-**Status:** fixed 2026-10-15 in `llm-request.ts`. The gap it describes is still open for readers other than the turn; see "What is still true" below.
+**Status:** closed 2026-10-15. Fixed first in `llm-request.ts`, then closed for every reader by the write gate: a chat is written through `ChatWrites`, which waits for each append, so there is no window in which a part has been taken and is not in the records. See "How it was closed" below.
 
 A chat's records are appended through a per-chat write queue (`StoreRecords.append`), and nothing waits on an append: `Store.savePart` resolves when the store has the part, and calls `StoreRecords.part` without awaiting it. So for as long as the chat's queue is, a part the store has taken is in the records not yet.
 
@@ -49,8 +49,10 @@ live?.clear();
 
 `landed` awaits the chat's current queue tail. A chat's appends go in order, so the one queued last standing means every earlier one is standing. It does not loop over the tail, so a task still writing to the same chat cannot hold up its parent's reply.
 
-## What is still true
+## How it was closed
 
-Between `Store.savePart` resolving and the append landing, a part is visible only through the turn's live memory, and `StoreRecords.part` takes it out of live (`forget`) before queuing the append rather than when the append lands. Any reader in that window sees neither. For the renderer that means a tool call drawn a moment late, which is why this was never noticed.
+The window was a property of writing in two places: the store took the part, and the records were told afterwards by something nobody waited on. With the store gone there is one door, `ChatWrites`, and every function on it waits for its append, so a write that has resolved is a write a read will find.
 
-`ChatRecords.live` already has the primitive for doing it in the right order — `settle`, "takes a part out of the turn's memory and appends it as settled", which holds the pending write before dropping the memory copy. It is used in one test and nowhere in production. Wiring `StoreRecords.part` to it closes the window for every reader; measured on its own it does not fix the turn, because `live?.clear()` was wiping the memory copy regardless, so it was left out of the fix rather than carried as an unmeasured change.
+A part still arriving never reaches a log at all now: `ChatWrites.savePart` puts it in the turn's memory, and the snapshot that settles it goes through `ChatRecords.live.settle`, which was built for exactly this and had been used only in a test. `settle` holds the pending write before it drops the memory copy, so the part is in one of the two at every moment. `llm-request` no longer waits for a queue on its way out, because there is nothing of its own left in flight.
+
+What remains true is the shape of the trap rather than the trap: a write nobody waits on is a message the person sent and the chat does not have, which is why nothing on the write side is fire-and-forget any more.

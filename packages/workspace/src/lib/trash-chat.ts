@@ -17,6 +17,7 @@ import {
   sessionOfChat,
 } from "./record-folders";
 import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
+import { writingChatRecords } from "./records/chat-records";
 import { workDir } from "./work-dir";
 import { listChildTasks } from "./chat/children";
 import {
@@ -24,7 +25,6 @@ import {
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
-import { StoreRecords } from "./store-records";
 
 /**
  * Puts a chat in the trash with every task it started, which are sessions in
@@ -96,7 +96,7 @@ export async function trashChat({
         // Its records let go once every session of it has stopped and before
         // the folder goes: an append landing after the delete would make the
         // folder again.
-        await StoreRecords.close(id);
+        await writingChatRecords()?.close(id);
 
         // Whether it was a chat, read before the index forgets it.
         const known = resolveChat(chatId) !== undefined;

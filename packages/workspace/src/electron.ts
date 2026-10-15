@@ -105,6 +105,7 @@ export {
   convertWorkspaceChats,
   type WorkspaceConversion,
 } from "./lib/records/convert/convert-chat";
+export { chatRecords } from "./lib/records/chat-records";
 export { StoreRecords } from "./lib/store-records";
 export {
   chooseDeviceId,

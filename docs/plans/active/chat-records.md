@@ -129,6 +129,8 @@ One file in `workspaces-data/<local id>/`, WAL, `synchronous = NORMAL`, owned by
 
 ## Read side
 
+A chat has two doors. `ChatReads` answers from the views over one fold, with the writes still on their way to disk over it and the running turn beside them; `ChatWrites` is the only way anything is written, and waits for each append, since a write nobody waits on is a message the person sent and the chat does not have. A process with no records in place holds no chat at all.
+
 Each open chat has one fold in memory, updated by its own appends. Views read the fold or the index; nothing reads a message at a time.
 
 | View | Serves | Replaces | Built from |
@@ -152,6 +154,7 @@ A chat being opened is checked first for a log that is not downloaded (`st_block
 - Move each converted `chat.db` to `set-aside/chat-db/` on this computer, out of the synced folder. Deleting the set-aside copies is a later release's call.
 - Bump `formatVersion` in `workspace.json`, so an older build refuses the folder (`workspace-refusal.ts`) instead of showing empty chats.
 - The 1.x migration (`migrate-legacy-tasks.ts`) writes logs directly, so no `chat.db` writer survives. Beta.61 data reaches `.instrument/chats/<id>/chat.db` through the layout migration and converts from there.
+- The reader the converter uses keeps the layers under it alive: the key-value table, `superjson`, the store migrations and the interrupted-call sweep are all how a `chat.db` is read. Phase 4 deletes the writer, not the reader.
 
 ### What the acceptance run covered
 
@@ -167,7 +170,7 @@ What that install's own history leaves to the fixture in `convert-chat.test.ts`:
 | 1 | Log layer: record schemas, append with newline repair and commit-point fsync, handle closed after each burst, whole-line reader, blobs, device id | Unit tests, including torn lines and a crash mid-write |
 | 2 | Fold, and a fake sync engine for tests | Property tests: any file order, duplicates, truncations or conflict copies give the same chat, or a flagged fork; never a crash or a silent loss |
 | 3 | `workspace.db`: index with per-file cursors, rebuild, activity log moved in; `index/`, `ai-usage.db` and the window store removed | A rebuild matches the incremental index exactly |
-| 4 | Swap the store: records written when they settle, the six views in place of the `Store` queries, renderer routes pointed at the views; `Store`, the KV table, superjson and delta persistence deleted | The app runs on the new store |
+| 4 | Swap the store: records written when they settle, the six views in place of the `Store` queries, renderer routes pointed at the views; the `Store` and its writes to the key-value table deleted, and nothing persisted while a part streams | The app runs on the new store |
 | 5 | Converter, and the 1.x migration writing logs | A clone of a real install (392 chats) converts with zero differences; a chat that differs stays on `chat.db` |
 | 6 | Everything visible in the Instrument folder, and the machine-side cleanups: [instrument-folder.md](instrument-folder.md) | As that plan says |
 

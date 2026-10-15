@@ -34,7 +34,7 @@ import {
   setBashWorkerFactory,
   settleWorkspaceDb,
   stopWorkspaceSkillWatcher,
-  StoreRecords,
+  chatRecords,
   warmBashWorker,
   workspaceMachine,
   workspaceRouter,
@@ -332,12 +332,14 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           ]);
           // Last, so the stops the tasks just wrote are on disk: every chat's
           // records are landed and synced before the process goes.
-          await StoreRecords.settle().catch((error: unknown) => {
-            captureServerException(
-              error instanceof Error ? error : new Error(String(error)),
-              { scopes: ["studio"] },
-            );
-          });
+          await chatRecords()
+            .dispose()
+            .catch((error: unknown) => {
+              captureServerException(
+                error instanceof Error ? error : new Error(String(error)),
+                { scopes: ["studio"] },
+              );
+            });
         }),
       },
       delays: {

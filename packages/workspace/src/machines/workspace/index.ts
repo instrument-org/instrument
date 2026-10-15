@@ -362,8 +362,8 @@ export const workspaceMachine = setup({
     // getWorkspaceConfig() instead of threading it through every ChatId.
     setWorkspaceConfig(workspaceConfig);
     // The one writer of this device's logs and marks files while the
-    // workspace is open, which every write to a chat's store appends
-    // through (`lib/store-records.ts`).
+    // workspace is open, and what every read and write of a chat goes
+    // through (`lib/chat-reads.ts`, `lib/chat-writes.ts`).
     installChatRecords(
       new ChatRecords({
         app: workspaceConfig.appVersion,

@@ -2,7 +2,6 @@ import { alphabetical } from "radashi";
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
-import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { listBackgroundProcesses } from "../background-processes";
 import { getChatAgentStatus } from "../get-chat-agent-status";
@@ -24,52 +23,12 @@ const RunningTaskSchema = z.object({
   title: z.string(),
   /** When something last happened in it, in ms. */
   updatedAt: z.number(),
-  /**
-   * What it has stopped to ask the user for. Present while its agent is alive
-   * but paused on an ask, which is running to the machine and stalled to the
-   * user, so a reader takes this over the step.
-   */
-  waiting: z.string().optional(),
 });
 
 export const ChatActivitySchema = z.object({
   running: RunningTaskSchema.array(),
 });
 export type ChatActivity = z.output<typeof ChatActivitySchema>;
-
-/** What a pending ask is waiting for, in the user's terms. */
-const ASKS: Record<string, string> = {
-  choose: "Waiting for you to answer",
-  connect_app: "Waiting for you to sign in",
-};
-
-/**
- * What a transcript's last turn stopped to ask the user for, when it ended on
- * an ask rather than on words: the ask's tool call is still waiting for its
- * input to be answered.
- */
-export function askIn(
-  messages: SessionMessage.WithParts[],
-): string | undefined {
-  const last = messages.findLast((message) => message.role === "assistant");
-  for (const part of last?.parts ?? []) {
-    const name = part.type.startsWith("tool-")
-      ? part.type.slice("tool-".length)
-      : undefined;
-    if (
-      name &&
-      ASKS[name] &&
-      "state" in part &&
-      (part.state === "input-available" || part.state === "input-streaming")
-    ) {
-      // The question itself where there is one, since that is what the user
-      // is being asked; the generic line where the ask has no words of its
-      // own.
-      return (name === "choose" && questionOf(part)) || ASKS[name];
-    }
-  }
-  return undefined;
-}
 
 /** A session, in the store of the record that holds it. */
 export interface SessionRef {
@@ -180,8 +139,9 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
   const running = await Promise.all(
     children.map(async (child) => {
       const chat = sessionOfChat(child.chatId);
+      const step = await latestStep({ sessionId: child.id, chatId });
       return {
-        ...(await runningLines({ sessionId: child.id, chatId })),
+        ...(step ? { step } : {}),
         sessionId: child.id,
         ...(chat ? { chat } : {}),
         title: child.title,
@@ -190,34 +150,6 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
     }),
   );
   return { running };
-}
-
-/**
- * The lines a task at work is read by, from one read of its transcript: the
- * label on its latest step, and what it has paused to ask the user for. Both
- * can be present at once, since the ask sits where a step would; a reader
- * takes the ask first, because a task paused on one is going nowhere until
- * it is answered.
- */
-export async function runningLines(
-  ref: SessionRef,
-): Promise<{ step?: string; waiting?: string }> {
-  // Newest first, as far back as the step: the ask is only ever in the
-  // newest assistant message, which comes first.
-  let waiting: string | undefined;
-  let askRead = false;
-  let step: string | undefined;
-  for await (const message of newestFirst(ref)) {
-    if (!askRead && message.role === "assistant") {
-      waiting = askIn([message]);
-      askRead = true;
-    }
-    step = latestStepIn([message]);
-    if (step !== undefined) {
-      break;
-    }
-  }
-  return { ...(step ? { step } : {}), ...(waiting ? { waiting } : {}) };
 }
 
 /**
@@ -230,15 +162,4 @@ export async function turnStartedAt(
 ): Promise<Date | undefined> {
   return (await ownMessages(ref)).findLast((message) => message.role === "user")
     ?.metadata.createdAt;
-}
-
-/** The words of a choice put to the user, when the call carries them. */
-function questionOf(part: SessionMessagePart.Type): string {
-  const input: unknown = "input" in part ? part.input : undefined;
-  return typeof input === "object" &&
-    input !== null &&
-    "question" in input &&
-    typeof input.question === "string"
-    ? input.question.trim()
-    : "";
 }

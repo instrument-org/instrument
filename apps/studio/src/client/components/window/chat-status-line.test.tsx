@@ -1,9 +1,6 @@
-import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { statusLine } from "./chat-status-line";
-
-const chatId = StoreId.newSessionId();
 
 const title = "Lisbon trip";
 type ChatAt = Parameters<typeof statusLine>[0]["chat"];
@@ -63,18 +60,6 @@ describe("statusLine", () => {
       "nothing in a chat that has only talked",
       { chat: idle, listed: [] },
       undefined,
-    ],
-    [
-      "what a stalled task needs",
-      {
-        chat: at("waiting", {
-          runningTasks: [
-            { id: chatId, title: "Itinerary", waiting: "Needs your dates" },
-          ],
-        }),
-        listed: [],
-      },
-      { text: "Needs your dates", tone: "wait" },
     ],
     [
       "that the chat waits on the user",

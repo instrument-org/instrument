@@ -253,10 +253,6 @@ export function statusLine({
       tone: "run",
     };
   }
-  const waiting = chat.runningTasks.find((task) => task.waiting);
-  if (waiting?.waiting) {
-    return { text: waiting.waiting, tone: "wait" };
-  }
   if (chat.state === "waiting") {
     return { text: "Waiting on you", tone: "wait" };
   }

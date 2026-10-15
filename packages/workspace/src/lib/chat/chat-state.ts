@@ -6,10 +6,8 @@ export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
  * through.
  *
  * - **working**: something of the chat's is moving. Its own turn, from the
- *   moment a message reaches its session until that turn ends, unless the
- *   turn stands on a question of its own the user has not written past; a
- *   task at work, unless it stands on an ask; or a wake on its way to start a
- *   turn.
+ *   moment a message reaches its session until that turn ends; a task at
+ *   work; or a wake on its way to start a turn.
  * - **waiting**: a card or a question waits on the user. It outranks work,
  *   being the part only the user can move along, unless they have written
  *   since it was asked: the turn their message starts is what the chat is on
@@ -27,34 +25,29 @@ export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
 export function chatStateOf({
   askedAt,
   failed,
-  ownAskedAt,
   ownTurn,
   spokeAt,
   stopped,
-  tasks,
+  tasksAtWork,
   wakeOnItsWay,
 }: {
   /** When the newest of what waits on the user was asked, in ms; none when nothing does. */
   askedAt: number | undefined;
   /** The chat's last turn ended in an error with nothing sent after it. */
   failed: boolean;
-  /** When the chat's own newest reply asked the user something, in ms; none when it asks nothing. */
-  ownAskedAt: number | undefined;
   /** The chat's own session has a turn: a message has reached it, and the turn it starts has not ended. */
   ownTurn: boolean;
   /** When the user last sent a message, in ms. */
   spokeAt: number;
   /** The user stopped the chat's own turn, and no turn has started since. */
   stopped: boolean;
-  /** The tasks of the chat's at work, each with what it stands on asking, if anything. */
-  tasks: { waiting?: string }[];
+  /** A task of the chat's is at work. */
+  tasksAtWork: boolean;
   /** A wake is on its way to start a turn in one of the chat's sessions. */
   wakeOnItsWay: boolean;
 }): { ownWorking: boolean; state: ChatState; working: boolean } {
-  const ownStandsOnAsk = ownAskedAt !== undefined && ownAskedAt > spokeAt;
-  const ownWorking = ownTurn && !ownStandsOnAsk;
-  const working =
-    ownWorking || tasks.some((task) => !task.waiting) || wakeOnItsWay;
+  const ownWorking = ownTurn;
+  const working = ownWorking || tasksAtWork || wakeOnItsWay;
   const hasAsk = askedAt !== undefined;
   const state =
     hasAsk && askedAt > spokeAt

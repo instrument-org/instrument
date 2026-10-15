@@ -1,6 +1,6 @@
 # agent-browser's network-idle wait reports success when it times out
 
-**Status:** worked around in the wrapper (`agent-browser-network-idle.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network stayed busy. The upstream bug is open; nothing has been filed.
+**Status:** worked around in the wrapper (`agent-browser-wait.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network stayed busy. The upstream bug is open; nothing has been filed.
 
 ## Symptom
 

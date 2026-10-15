@@ -1,4 +1,4 @@
-import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { Bash, createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,7 +26,7 @@ import {
   BrowserFollowUp,
   withBrowserFollowUp,
 } from "./agent-browser-follow-up";
-import { NETWORK_IDLE_GAVE_UP } from "./agent-browser-network-idle";
+import { NETWORK_IDLE_GAVE_UP, namedWaitGaveUp } from "./agent-browser-wait";
 
 vi.mock("execa");
 
@@ -514,6 +514,54 @@ describe("agent-browser routing", () => {
       stderr: "",
       stdout: NETWORK_IDLE_GAVE_UP,
     });
+  });
+
+  it("keeps a named wait's timeout a failure through a chain and says what to do next", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stderr: "",
+        stdout: "✓ Done\n",
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stderr: "✗ Wait timed out after 10000ms\n",
+        stdout: "",
+      } as never);
+    const bash = new Bash({
+      customCommands: [
+        createAgentBrowserCommand({
+          chatId,
+          layout: await sessionLayout({ chatId, sessionId }),
+          sessionId,
+        }),
+      ],
+      cwd: "/Users/sam/chat",
+      fs: commandCtx.fs,
+    });
+
+    const result = await bash.exec(
+      'agent-browser click @e197 && agent-browser wait --url "**/wiki/MOSFET" && agent-browser get title',
+    );
+
+    const spawned = vi
+      .mocked(execa)
+      .mock.calls.map((call) => [...call][1])
+      .map((args) => (Array.isArray(args) ? args.map(String) : []));
+    expect(spawned).toHaveLength(2);
+    expect(spawned[1]?.slice(-5)).toEqual([
+      "wait",
+      "--url",
+      "**/wiki/MOSFET",
+      "--timeout",
+      "10000",
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("✓ Done\n");
+    expect(result.stderr).toBe(
+      namedWaitGaveUp({ condition: "**/wiki/MOSFET", kind: "url" }),
+    );
   });
 
   it("passes upload files to the browser absolute", async () => {

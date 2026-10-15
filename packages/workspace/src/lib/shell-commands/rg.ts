@@ -19,7 +19,8 @@ import {
   shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const RG_COMMAND = {
@@ -41,7 +42,7 @@ export const RG_COMMAND = {
  */
 const RG_MAX_STDOUT = 8 * 1024 * 1024;
 
-const RG_MAX_STDOUT_ERROR = `${RG_COMMAND.name}: stopped after ${RG_MAX_STDOUT / 1024 / 1024} MB of output, which the app collects in full before a pipe or redirection sees any of it. Narrow it inside rg: \`--iglob '*name*'\` (case-insensitive) or \`-g '*.ext'\` to filter paths, a narrower folder, or \`-l\` / \`-m N\` to shorten a content search.\n`;
+const RG_MAX_STDOUT_ERROR = `${RG_COMMAND.name}: stopped after ${RG_MAX_STDOUT / 1024 / 1024} MB of output, which the app collects in full when it ends the command or goes to a shell builtin (awk, sed, jq, a loop). Piped into a native command (head, sort, grep, wc) it streams with no limit. Otherwise narrow it inside rg: \`--iglob '*name*'\` (case-insensitive) or \`-g '*.ext'\` to filter paths, a narrower folder, or \`-l\` / \`-m N\` to shorten a content search.\n`;
 
 /**
  * Flags that make ripgrep run another program: `--pre`/`--pre-glob` hand every
@@ -90,7 +91,7 @@ export function createRgCommand({
   layout: WorkspaceFsLayout;
   chatId: ChatId;
 }) {
-  return defineCommand(RG_COMMAND.name, async (args, ctx) => {
+  const command = defineCommand(RG_COMMAND.name, async (args, ctx) => {
     const denied = args.map((arg) => deniedFlag(arg)).find(Boolean);
     if (denied) {
       return {
@@ -114,7 +115,8 @@ export function createRgCommand({
     }
     const stdin = subprocessStdin(ctx.stdin);
 
-    const result = await execShim(
+    return runNative(
+      ctx,
       RG_DISK_PATH,
       [
         "--no-config",
@@ -141,35 +143,32 @@ export function createRgCommand({
         // what `stdinConnected` (a local patch on just-bash) is for.
         ...((stdin ?? ctx.stdinConnected)
           ? { input: stdin ?? Buffer.alloc(0) }
-          : { stdin: "ignore" }),
+          : { stdin: "ignore" as const }),
+      },
+      (result) => {
+        if (result.isMaxBuffer) {
+          // The prefix it wrote is dropped rather than returned: piped onward
+          // it reads as a complete listing, and a filter over it silently
+          // misses everything past the cut.
+          return { exitCode: 2, stderr: RG_MAX_STDOUT_ERROR, stdout: "" };
+        }
+        const streams = mapStreams(
+          shimOutput(result, RG_COMMAND.name),
+          (text) =>
+            filterShellOutput(
+              text,
+              // `--path-separator=/` already makes ripgrep print POSIX paths,
+              // so the separator rewrite has nothing to fix here and would
+              // only corrupt backslashes inside matched lines and `--json`
+              // escapes.
+              { rewriteSeparators: false },
+            ),
+        );
+        return { exitCode: result.exitCode ?? 1, ...streams };
       },
     );
-
-    if (result.isMaxBuffer) {
-      // The prefix it wrote is dropped rather than returned: piped onward it
-      // reads as a complete listing, and a filter over it silently misses
-      // everything past the cut.
-      return {
-        exitCode: 2,
-        stderr: RG_MAX_STDOUT_ERROR,
-        stdout: "",
-      };
-    }
-
-    const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
-      filterShellOutput(
-        text,
-        // `--path-separator=/` already makes ripgrep print POSIX paths, so the
-        // separator rewrite has nothing to fix here and would only corrupt
-        // backslashes inside matched lines and `--json` escapes.
-        { rewriteSeparators: false },
-      ),
-    );
-    return {
-      exitCode: result.exitCode ?? 1,
-      ...streams,
-    };
   });
+  return { ...command, acceptsPipeHandoff: true };
 }
 
 /**

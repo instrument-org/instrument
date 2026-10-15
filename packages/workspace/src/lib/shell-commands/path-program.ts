@@ -14,13 +14,8 @@ import { nodeToolsEnv } from "../tool-isolation";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { hostPathOf, shellPath } from "../workspace-fs-layout";
-import {
-  collapseProgress,
-  execShim,
-  mapStreams,
-  shimOutput,
-} from "./exec-shim";
-import { type StageResult, startPipeStage } from "./pipe-stage";
+import { collapseProgress, mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 type PathLookup = {
@@ -218,46 +213,23 @@ function createPathProgramCommand(
       // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
       ...ffmpegSubprocessEnv(env.PATH),
     };
-    const report = (result: StageResult) => ({
-      exitCode: result.exitCode ?? 1,
-      ...mapStreams(shimOutput(result, name), (text) =>
-        filterShellOutput(collapseProgress(text)),
-      ),
-    });
-    // Beside another native stage, the bytes go program to program.
-    if (
-      process.env.INSTRUMENT_NATIVE_PIPES !== "0" &&
-      process.platform !== "win32" &&
-      (ctx.offerPipeHandoff || ctx.stdinHandoff !== undefined)
-    ) {
-      const stage = startPipeStage(file, fileArgs, {
+    return runNative(
+      ctx,
+      file,
+      fileArgs,
+      {
         cancelSignal: ctx.signal,
         cwd: hostCwd,
         env: programEnv,
-        input: stdin,
-        offerHandoff: ctx.offerPipeHandoff === true,
-        stdinHandoff: ctx.stdinHandoff,
-      });
-      if (!("token" in stage)) {
-        return report(await stage);
-      }
-      return {
-        exitCode: 0,
-        pipeHandoff: {
-          settle: async (options) => report(await stage.settle(options)),
-          token: stage.token,
-        },
-        stderr: "",
-        stdout: "",
-      };
-    }
-    const result = await execShim(file, fileArgs, {
-      cancelSignal: ctx.signal,
-      cwd: hostCwd,
-      env: programEnv,
-      ...(stdin ? { input: stdin } : { stdin: "ignore" }),
-    });
-    return report(result);
+        ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
+      },
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, name), (text) =>
+          filterShellOutput(collapseProgress(text)),
+        ),
+      }),
+    );
   });
   return { ...command, acceptsPipeHandoff: true };
 }

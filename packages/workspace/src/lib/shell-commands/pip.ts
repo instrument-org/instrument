@@ -28,7 +28,7 @@ export function createPipCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
 }
 
 function createPipCommandNamed(chatId: ChatId, name: string) {
-  return defineCommand(name, async (args, ctx) => {
+  const command = defineCommand(name, async (args, ctx) => {
     // `uv pip --version` is not a valid uv subcommand; intercept and return a
     // pip-compatible version string so agents that probe with `pip --version`
     // get a useful response rather than a confusing uv usage error.
@@ -36,7 +36,8 @@ function createPipCommandNamed(chatId: ChatId, name: string) {
       const { env, hostCwd } = resolveCommandContext(chatId, ctx);
       const uvResult = await runUv({
         args: ["--version"],
-        ctx,
+        // Its output is read here, so it never goes on to the next stage.
+        ctx: { signal: ctx.signal, stdin: ctx.stdin },
         env,
         hostCwd,
       });
@@ -62,4 +63,5 @@ function createPipCommandNamed(chatId: ChatId, name: string) {
       hostCwd,
     });
   });
+  return { ...command, acceptsPipeHandoff: true };
 }

@@ -4,7 +4,8 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { chatVenvPython } from "../uv";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext } from "./utils";
 import { ensureVenvForCommand } from "./uv";
 
@@ -39,9 +40,12 @@ export function createPythonCommand(
 }
 
 function createPythonCommandNamed(chatId: ChatId, name: string) {
-  return defineCommand(name, (args, ctx) =>
-    runNativePython(chatId, name, args, ctx),
-  );
+  return {
+    ...defineCommand(name, (args, ctx) =>
+      runNativePython(chatId, name, args, ctx),
+    ),
+    acceptsPipeHandoff: true,
+  };
 }
 
 /** Run the interpreter in the chat's virtualenv as a real subprocess. */
@@ -71,17 +75,25 @@ async function runNativePython(
     return { exitCode: 1, stderr: venvError, stdout: "" };
   }
 
-  const result = await execShim(chatVenvPython(chatId), finalArgs, {
-    cancelSignal: ctx.signal,
-    cwd: hostCwd,
-    env,
-    // Buffer, not the latin1-packed string: execa UTF-8 encodes string
-    // input, which would double-encode every non-ASCII byte.
-    ...(stdin ? { input: Buffer.from(stdin, "latin1") } : { stdin: "ignore" }),
-  });
-
-  return {
-    exitCode: result.exitCode ?? 1,
-    ...mapStreams(shimOutput(result, name), (text) => filterShellOutput(text)),
-  };
+  return runNative(
+    ctx,
+    chatVenvPython(chatId),
+    finalArgs,
+    {
+      cancelSignal: ctx.signal,
+      cwd: hostCwd,
+      env,
+      // Buffer, not the latin1-packed string: execa UTF-8 encodes string
+      // input, which would double-encode every non-ASCII byte.
+      ...(stdin
+        ? { input: Buffer.from(stdin, "latin1") }
+        : { stdin: "ignore" as const }),
+    },
+    (result) => ({
+      exitCode: result.exitCode ?? 1,
+      ...mapStreams(shimOutput(result, name), (text) =>
+        filterShellOutput(text),
+      ),
+    }),
+  );
 }

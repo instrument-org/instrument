@@ -17,7 +17,8 @@ import {
   shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 /** The bundled uutils binaries, by their base name. */
@@ -90,7 +91,7 @@ const XARGS_LONG_VALUE = new Set([
 ]);
 
 /**
- * Asks for parallel runs (`-P N`, `-PN`, `-0P4`, `--max-procs=N`), in the
+ * Asks for parallel runs (`-P N`, `-ON`, `-0P4`, `--max-procs=N`), in the
  * options before the command xargs starts. uutils xargs 0.10.0 accepts `-P`
  * and runs one at a time; the builtin runs that many at once.
  */
@@ -511,7 +512,7 @@ export function createNativeTextCommand(
   route: NativeTextRoute,
   { chatId, layout }: { chatId: ChatId; layout: WorkspaceFsLayout },
 ): Command {
-  return defineCommand(route.name, async (args, ctx) => {
+  const command = defineCommand(route.name, async (args, ctx) => {
     const walks = route.walks?.(args) ?? false;
     const program = uutilsProgram(route.binary);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
@@ -546,7 +547,8 @@ export function createNativeTextCommand(
       ...hostPathArgs(programArgs),
     ];
     const windows = process.platform === "win32";
-    const result = await execShim(
+    return runNative(
+      ctx,
       program,
       // uutils on Windows expands `*`, `?` and `[...]` in any argument that
       // reached it unquoted, and Node quotes only those holding a space:
@@ -573,23 +575,33 @@ export function createNativeTextCommand(
           ? { input: stdin ?? Buffer.alloc(0) }
           : { stdin: "ignore" as const }),
       },
+      (result) => {
+        // Text tools print data rather than progress, so there is no
+        // carriage return redraw to collapse; what they print is still
+        // filtered for credentials like any native output.
+        const streams = mapStreams(shimOutput(result, route.name), (text) =>
+          filterShellOutput(text),
+        );
+        return {
+          exitCode: result.exitCode ?? 1,
+          stderr:
+            route.name === "find"
+              ? quietRefusedFolders(streams.stderr)
+              : streams.stderr,
+          stdout:
+            route.printsPaths && process.platform === "win32"
+              ? streams.stdout.replaceAll("\\", "/")
+              : streams.stdout,
+        };
+      },
     );
-    // Text tools print data rather than progress, so there is no carriage
-    // return redraw to collapse; what they print is still filtered for
-    // credentials like any native output.
-    const streams = mapStreams(shimOutput(result, route.name), (text) =>
-      filterShellOutput(text),
-    );
-    return {
-      exitCode: result.exitCode ?? 1,
-      stderr:
-        route.name === "find"
-          ? quietRefusedFolders(streams.stderr)
-          : streams.stderr,
-      stdout:
-        route.printsPaths && process.platform === "win32"
-          ? streams.stdout.replaceAll("\\", "/")
-          : streams.stdout,
-    };
   });
+  return {
+    ...command,
+    // A program takes the previous native stage's stdout as its fd 0; the
+    // arguments it hands to the builtin read the bytes instead.
+    acceptsPipeHandoff: (args: string[]) =>
+      uutilsProgram(route.binary) !== undefined &&
+      route.builtinFor?.matches(args) !== true,
+  };
 }

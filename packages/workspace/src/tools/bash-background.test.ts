@@ -311,7 +311,9 @@ describe("bash background processes, end to end", () => {
     expect(result.output).toContain("quick");
   }, 30_000);
 
-  it("appends final shell output when a pipeline transforms live output", async () => {
+  // Between two programs the bytes go through an OS pipe, so the live view
+  // carries what the pipeline prints and never what one stage hands the next.
+  it("streams what a promoted pipeline prints, not what its stages pass along", async () => {
     await fs.writeFile(
       path.join(chatRoot, "work", "producer.js"),
       'setTimeout(() => process.stdout.write("lower\\n"), 700);\n',
@@ -331,9 +333,52 @@ describe("bash background processes, end to end", () => {
     const readOutput = await read(processId, 10_000);
 
     expect(readOutput.output).not.toContain("is still running");
-    expect(readOutput.output).toContain("[final shell output]");
+    expect(readOutput.output).not.toContain("[final shell output]");
+    expect(readOutput.output).not.toContain("lower");
     expect(readOutput.output).toContain("LOWER");
   }, 30_000);
+
+  it.each([
+    [
+      "a pipeline",
+      "node work/linger.js a | node work/linger.js b | wc -l",
+      ["a", "b"],
+    ],
+    [
+      "xargs -P",
+      "printf 'c\\nd\\n' | xargs -P 2 -I {} node work/linger.js {}",
+      ["c", "d"],
+    ],
+  ])(
+    "kills every program of %s promoted to the background",
+    async (_, command, names) => {
+      await fs.writeFile(
+        path.join(chatRoot, "work", "linger.js"),
+        'require("fs").writeFileSync(`work/${process.argv[2]}.pid`, String(process.pid));\nsetInterval(() => console.log("tick"), 100);\n',
+        "utf8",
+      );
+
+      const started = await bash(command, 700);
+      const processId = started.processId ?? "";
+      expect(processId).not.toBe("");
+      const pids = await Promise.all(
+        names.map(async (name) =>
+          Number(
+            await fs.readFile(
+              path.join(chatRoot, "work", `${name}.pid`),
+              "utf8",
+            ),
+          ),
+        ),
+      );
+      expect(pids.every(processExists)).toBe(true);
+
+      const killed = await kill(processId);
+      expect(killed.output).toContain(`Stopped ${processId}`);
+      expect(pids.filter(processExists)).toEqual([]);
+    },
+    30_000,
+  );
 });
 
 function processExists(pid: number) {

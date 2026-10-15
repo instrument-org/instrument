@@ -118,8 +118,10 @@ import { roleLayout } from "./session-layout";
 
 /**
  * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
- * (`maxOutputSize`); maxHeredocSize unchanged (64 MiB). Pipelines buffer
- * rather than stream, so a file passes through `cat big.csv | wc -l` whole, and
+ * (`maxOutputSize`); maxHeredocSize unchanged (64 MiB). A pipeline stage that
+ * is a builtin buffers rather than streams (only native programs side by side
+ * stream, through an OS pipe), so a file passes through `cat big.csv | wc -l`
+ * whole, and
  * an output bound below the read bound fails a file the agent may read. The
  * shell runs in a worker thread, so carrying it costs the window nothing.
  */
@@ -148,7 +150,7 @@ const SANDBOX_MAX_COMMANDS = 10_000_000;
 /**
  * Operations and entries one traversal may spend, both 1,000,000 by default.
  * A home folder reaches that after about twenty seconds and returns nothing to
- * show for it, since a pipeline stage buffers rather than streams. This is the
+ * show for it, since a builtin pipeline stage buffers rather than streams. This is the
  * backstop rather than the fix, so it is set to give up while the user is still
  * watching without failing work a task legitimately does: a whole monorepo
  * checkout with its `node_modules`, the heaviest tree a task holds, is about
@@ -649,7 +651,7 @@ export function createBashDescription() {
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
       - Use the \`${TOOL_NAMES.editFile}\`/\`${TOOL_NAMES.writeFile}\` tools instead of \`sed\`/\`awk\`/redirects for editing.
       - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`, or \`--iglob '*report*'\` to ignore case. It composes, so \`rg -l TODO | head\` works.
-      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\`, never by piping \`rg --files\` into another command: a pipe stage only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
+      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\` rather than by piping \`rg --files\` into another command. A shell builtin such as \`awk\`, \`sed\` or a \`while read\` loop only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
       - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\`: \`rg\` is the real ripgrep binary and far faster.
       - For audio, video, or image inspection, prefer \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\` over \`file\`.
 

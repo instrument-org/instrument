@@ -6,6 +6,7 @@ import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
 
 import {
+  type NativeReach,
   NativeSandboxUnavailableError,
   refusalNote,
   refusedPathIn,
@@ -168,34 +169,20 @@ export async function execShim(
   await finishTreeTermination?.();
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const refused =
-    spawned.reach && !walks && result.exitCode !== 0
-      ? refusedPathIn(
-          `${stderr}\n${stdout}`,
-          spawned.reach,
-          typeof subprocessOptions.cwd === "string"
-            ? subprocessOptions.cwd
-            : undefined,
-        )
-      : undefined;
-  const refusal = refused && refusalNote(refused);
-  // A program that reached a developer tool stub on a Mac without the tools
-  // fails with the stub's own error, which does not say what to do.
-  // `xcode-select --install` reports a request the sandbox refused and still
-  // exits 0, so its own output is read whatever the exit code, and it fails.
-  const installRefused =
-    path.basename(file) === "xcode-select" &&
-    `${stderr}\n${stdout}`.includes("no install could be requested");
-  const missingTools =
-    result.exitCode !== 0 || installRefused
-      ? commandLineToolsNote(`${stderr}\n${stdout}`)
-      : undefined;
-  const notes = [
-    ...(refusal ? [`${refusal}\n`] : []),
-    ...(missingTools ? [missingTools] : []),
-  ].join("");
+  const noted = withShimNotes({
+    cwd:
+      typeof subprocessOptions.cwd === "string"
+        ? subprocessOptions.cwd
+        : undefined,
+    exitCode: result.exitCode,
+    file,
+    reach: spawned.reach,
+    stderr,
+    stdout,
+    walks,
+  });
   return {
-    exitCode: installRefused && result.exitCode === 0 ? 1 : result.exitCode,
+    exitCode: noted.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
     file,
@@ -209,10 +196,58 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
+    stderr: noted.stderr,
+    stdout,
+  };
+}
+
+/**
+ * A finished program's exit code and stderr with what the app adds to them:
+ * the note for a path the sandbox refused, and the note for a developer tool
+ * stub on a Mac without the tools.
+ */
+export function withShimNotes({
+  cwd,
+  exitCode,
+  file,
+  reach,
+  stderr,
+  stdout,
+  walks,
+}: {
+  cwd: string | undefined;
+  exitCode: number | undefined;
+  file: string;
+  reach: NativeReach | undefined;
+  stderr: string;
+  stdout: string;
+  walks: boolean | undefined;
+}): { exitCode: number | undefined; stderr: string } {
+  const refused =
+    reach && !walks && exitCode !== 0
+      ? refusedPathIn(`${stderr}\n${stdout}`, reach, cwd)
+      : undefined;
+  const refusal = refused && refusalNote(refused);
+  // A program that reached a developer tool stub on a Mac without the tools
+  // fails with the stub's own error, which does not say what to do.
+  // `xcode-select --install` reports a request the sandbox refused and still
+  // exits 0, so its own output is read whatever the exit code, and it fails.
+  const installRefused =
+    path.basename(file) === "xcode-select" &&
+    `${stderr}\n${stdout}`.includes("no install could be requested");
+  const missingTools =
+    exitCode !== 0 || installRefused
+      ? commandLineToolsNote(`${stderr}\n${stdout}`)
+      : undefined;
+  const notes = [
+    ...(refusal ? [`${refusal}\n`] : []),
+    ...(missingTools ? [missingTools] : []),
+  ].join("");
+  return {
+    exitCode: installRefused && exitCode === 0 ? 1 : exitCode,
     stderr: notes
       ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${notes}`
       : stderr,
-    stdout,
   };
 }
 

@@ -7,7 +7,8 @@ import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { ensureManagedPython } from "../run-uv";
 import { getUvBinPath, withPythonVersionNote } from "../uv";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const UV_COMMAND = {
@@ -17,7 +18,7 @@ export const UV_COMMAND = {
 } as const;
 
 export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
-  return defineCommand(UV_COMMAND.name, async (args, ctx) => {
+  const command = defineCommand(UV_COMMAND.name, async (args, ctx) => {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
       return blocked;
@@ -50,6 +51,7 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     });
     return result;
   });
+  return { ...command, acceptsPipeHandoff: true };
 }
 
 /**
@@ -79,23 +81,31 @@ export async function runUv({
   hostCwd,
 }: {
   args: string[];
-  ctx: CommandContext;
+  ctx: Pick<
+    CommandContext,
+    "offerPipeHandoff" | "signal" | "stdin" | "stdinHandoff"
+  >;
   env: Record<string, string>;
   hostCwd: AbsolutePath;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
-  const result = await execShim(getUvBinPath(), args, {
-    cancelSignal: ctx.signal,
-    cwd: hostCwd,
-    env,
-    ...(stdin ? { input: stdin } : { stdin: "ignore" }),
-  });
-  return {
-    exitCode: result.exitCode ?? 1,
-    ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
-      withPythonVersionNote(filterShellOutput(text)),
-    ),
-  };
+  return runNative(
+    ctx,
+    getUvBinPath(),
+    args,
+    {
+      cancelSignal: ctx.signal,
+      cwd: hostCwd,
+      env,
+      ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
+    },
+    (result) => ({
+      exitCode: result.exitCode ?? 1,
+      ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
+        withPythonVersionNote(filterShellOutput(text)),
+      ),
+    }),
+  );
 }
 
 // `uv self update` would mutate the app-managed binary; block it like pnpm

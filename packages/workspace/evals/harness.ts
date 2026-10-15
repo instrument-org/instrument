@@ -73,6 +73,11 @@ import { type WorkspaceConfig } from "../src/types";
 import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
+/** The Seatbelt launcher the same build makes, which native commands start through. */
+const SEATBELT_LAUNCHER = path.resolve(
+  import.meta.dirname,
+  "../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
+);
 const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
@@ -602,6 +607,9 @@ export async function runEvals(
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
       // it the agent falls back to osascript, as a build without it would.
+      ...(process.platform === "darwin" && fs.existsSync(SEATBELT_LAUNCHER)
+        ? { seatbeltHelperPath: SEATBELT_LAUNCHER }
+        : {}),
       ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
         ? { macHelperBinPath: MAC_HELPER_BIN }
         : {}),

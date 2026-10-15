@@ -253,6 +253,11 @@ const config: Configuration = {
         from: "native/mac-helper/.build/bridge/instrument-mac.node",
         to: "bin/instrument-mac.node",
       },
+      // The Seatbelt launcher native commands start through.
+      {
+        from: "native/mac-helper/.build/bridge/instrument-seatbelt",
+        to: "bin/instrument-seatbelt",
+      },
     ],
     extendInfo: {
       // A preview claims no document types: installing one must not change

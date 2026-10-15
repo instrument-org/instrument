@@ -290,6 +290,7 @@ export const workspaceMachine = setup({
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
+      seatbeltHelperPath?: string;
       knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
     },
@@ -345,6 +346,9 @@ export const workspaceMachine = setup({
         : {
             macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
           }),
+      ...(input.seatbeltHelperPath && {
+        seatbeltHelperPath: AbsolutePathSchema.parse(input.seatbeltHelperPath),
+      }),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
       webSearch: input.webSearch,
     };

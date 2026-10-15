@@ -116,6 +116,11 @@ const chatsDir = args.chatsDir
 
 await fs.mkdir(chatsDir, { recursive: true });
 
+const SEATBELT_LAUNCHER = path.resolve(
+  import.meta.dirname,
+  "../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
+);
+
 const uvBinPath = AbsolutePathSchema.parse(
   await execa({ reject: false })`which uv`.then(
     ({ stdout }) => stdout.trim() || "/usr/bin/uv",
@@ -167,6 +172,15 @@ setWorkspaceConfig({
   trashItem: () => Promise.resolve(),
   uvBinPath,
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
+  // The Seatbelt launcher `pnpm --filter @instrument-org/studio
+  // build:mac-helper` builds, so native commands start the way the app's
+  // do; without it they start through sandbox-exec.
+  ...(await fs
+    .access(SEATBELT_LAUNCHER)
+    .then(() => ({
+      seatbeltHelperPath: AbsolutePathSchema.parse(SEATBELT_LAUNCHER),
+    }))
+    .catch(() => ({}))),
   webSearch: unavailableWebSearchClient,
 });
 

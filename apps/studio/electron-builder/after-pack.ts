@@ -30,6 +30,7 @@ import {
   verifyThirdPartyNotices,
 } from "./verify-licenses";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
+import { verifySeatbeltHelper } from "./verify-seatbelt-helper";
 import { verifyUvBinary } from "./verify-uv";
 
 export function runAfterPack(context: AfterPackContext) {
@@ -171,6 +172,14 @@ function verifyPackagedMacBridge(context: AfterPackContext) {
       `afterPack: verified ${name} at ${file} (${statSync(file).size} bytes)`,
     );
   }
+  const seatbelt = path.join(binDir, "instrument-seatbelt");
+  const { size } = verifySeatbeltHelper(seatbelt, {
+    execute: canExecuteForTarget({
+      arch: context.arch,
+      platformName: "darwin",
+    }),
+  });
+  console.log(`afterPack: verified ${seatbelt} (${size} bytes)`);
 }
 
 /**

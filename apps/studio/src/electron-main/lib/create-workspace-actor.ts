@@ -4,6 +4,7 @@ import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   finderEntries,
   macHelperBinPath,
+  seatbeltHelperPath,
   resolveAlias,
 } from "@/electron-main/lib/mac-native";
 import {
@@ -156,6 +157,7 @@ export function createWorkspaceActor() {
       finderEntries,
       resolveAlias,
       macHelperBinPath: macHelperBinPath(),
+      seatbeltHelperPath: seatbeltHelperPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // Beside the other per-machine state rather than in the workspace: the

@@ -48,7 +48,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 
 On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the uutils-build patch reads: the paths they walk come back joined with `/`, as the shell spells them, and `-path` and `-prune` patterns written with `/` match (uutils/findutils#907, uutils/grep#143). `stat` stays the builtin there, since uutils does not build it for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
 
-The last column names the arguments that send one call to the builtin on every platform. uutils xargs 0.10.0 accepts `-P` but runs its commands one at a time, while the builtin runs that many at once, so an `xargs` with `-P N`, `-PN` or `--max-procs` in its options (`xargsRunsParallel`) is the builtin's. Drop the rule once a uutils release runs `-P` in parallel.
+The last column names the arguments that send one call to the builtin on every platform. uutils xargs 0.10.0 accepts `-P` but runs its commands one at a time, while the builtin runs that many at once, so an `xargs` with `-P N`, `-ON` or `--max-procs` in its options (`xargsRunsParallel`) is the builtin's. Drop the rule once a uutils release runs `-P` in parallel.
 
 `find` gets a prune of every `.instrument` folder by name and of the chat's `tasks/` by path ahead of the caller's expression, and only its start points are held to the rules as paths; each folder the sandbox refuses on the way is counted in one stderr line. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin.
 
@@ -69,6 +69,19 @@ The last column names the arguments that send one call to the builtin on every p
 | anything else on the PATH | itself | all |
 
 `du` is ours but not a process: it walks the real folders in a worker thread.
+
+## When a pipeline streams
+
+just-bash runs a pipeline's stages one after another and hands each stage the previous one's whole stdout, so a builtin stage starts only once the stage before it has finished. Two native programs side by side are the exception: the producer returns while it is still running, and the consumer takes its stdout as its own fd 0, so the bytes go from program to program through an OS pipe and never through the shell (`shell-commands/pipe-stage.ts`, on the `pipe handoffs` part of the just-bash patch). That gives the shell what a real one does for those stages:
+
+- A consumer that stops early ends the producer: `rg … | head -5` stops the walk, and the producer's status is 141 (SIGPIPE), as in bash.
+- Nothing between them is held in memory or counted against the output limits, so `rg`'s 8 MB cap and the 256 MiB output bound apply only to what the pipeline collects at its end or hands to a builtin.
+- Bytes cross unchanged, binary included. The buffered path decodes a program's output as UTF-8, which alters bytes that are not.
+- A background run's live output carries what the last stage prints and every stage's stderr, never what one stage hands the next.
+
+Every command in the table above streams where it runs as uutils, and so do `rg`, `git`, `python`, `pip`, `uv`, `node` and any program on the PATH. A stage that is a builtin, a function or a compound command (`while read`, `{ …; }`) gets the bytes instead, as before: the producer's output is collected when that stage starts. So does a consumer whose fd 0 a redirection replaces, and a producer that redirects its stdout or merges stderr into it (`> file`, `2>&1`, `|&`); `2>/dev/null` on a producer keeps it streaming, and a consumer may redirect its own output. Each stage is its own process under its own sandbox wrap, so a refused path is still attributed to the stage that hit it, and a kill or an abort stops every stage through its own process tree.
+
+`INSTRUMENT_NATIVE_PIPES=0` in the app's environment turns streaming off, which is how to compare a pipeline against the buffered path. Holding a producer's stdout unread until the consumer starts uses a private member of Node's child stdio streams (`_handle.readStop`); where it is missing, the stage falls back to the buffered path on its own, and `pipe-stage.test.ts` fails if a Node or Electron upgrade changes it.
 
 ## What stays a builtin, and why
 

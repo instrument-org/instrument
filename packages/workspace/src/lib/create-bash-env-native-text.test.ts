@@ -10,7 +10,11 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { grepWalks } from "./shell-commands/native-text";
+import {
+  findWithHiddenEntriesPruned,
+  grepWalks,
+  quietRefusedFolders,
+} from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -69,6 +73,44 @@ beforeAll(async () => {
 afterAll(async () => {
   withUutils(undefined);
   await fs.rm(tmpDir, { force: true, recursive: true });
+});
+
+describe("quietRefusedFolders", () => {
+  it("counts the folders the sandbox refused instead of listing each", () => {
+    expect(
+      quietRefusedFolders(
+        [
+          "Error: /Users/sam/.ssh: Operation not permitted (os error 1)",
+          "find: ‘x’: No such file or directory",
+          "Error: /Users/sam/Library: Operation not permitted (os error 1)",
+          "",
+        ].join("\n"),
+      ),
+    ).toMatchInlineSnapshot(`
+      "find: ‘x’: No such file or directory
+      find: left out 2 folders the person keeps closed
+      "
+    `);
+    expect(quietRefusedFolders("find: other\n")).toBe("find: other\n");
+  });
+});
+
+describe("findWithHiddenEntriesPruned", () => {
+  it.each<[string[], string[], string]>([
+    [[], [], "( -name .instrument ) -prune -o ( -true ) -print"],
+    [
+      ["-L", "tree", "-name", "*.md"],
+      ["./tasks"],
+      "-L tree ( -name .instrument -o -path ./tasks ) -prune -o ( -name *.md ) -print",
+    ],
+    [
+      [".", "-type", "f", "-printf", "%f\\n"],
+      [],
+      ". ( -name .instrument ) -prune -o ( -type f -printf %f\\n )",
+    ],
+  ])("%j pruning %j", (args, paths, expected) => {
+    expect(findWithHiddenEntriesPruned(args, paths).join(" ")).toBe(expected);
+  });
 });
 
 describe("grepWalks", () => {
@@ -130,12 +172,28 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     expect(result.stdout.trim()).toBe("16");
   });
 
-  it("leaves find to the builtin, which reads -newermt", async () => {
-    const result = await run(
-      "type -t find; find . -name 'a.txt' -newermt 2000-01-01",
-    );
-    expect(result.stdout).toBe("builtin\n./a.txt\n");
-  });
+  it.skipIf(process.platform === "win32")(
+    "answers find with uutils, -printf and -prune included",
+    async () => {
+      const result = await run(
+        "command -v find; find . -path ./.instrument -prune -o -name '*.txt' -printf '%f\\n' | sort",
+      );
+      const [program, ...names] = result.stdout.trim().split("\n");
+      expect(program).toMatch(/uutils\/find$/);
+      expect(names).toEqual(["a.txt", "b.txt", "dupes.txt", "nums.txt"]);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "keeps the private folder out of a native find",
+    async () => {
+      const plain = await run("find . -name '*.txt' | sort");
+      const listed = await run("find . | sort");
+      expect(plain.stdout).not.toContain(CHAT_FOLDER_NAMES.private);
+      expect(listed.stdout).not.toContain(CHAT_FOLDER_NAMES.private);
+      expect(plain.stdout).toContain("./a.txt");
+    },
+  );
 
   it("reads an empty pipe as empty rather than waiting", async () => {
     const result = await run("true | sort | wc -l");

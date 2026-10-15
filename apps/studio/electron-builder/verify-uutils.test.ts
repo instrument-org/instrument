@@ -11,8 +11,8 @@ const names = expectedUutils(process.platform, process.arch);
 
 describe("expectedUutils", () => {
   it.each([
-    ["darwin", "arm64", ["coreutils", "diffutils", "grep", "xargs"]],
-    ["linux", "x64", ["coreutils", "diffutils", "grep", "xargs"]],
+    ["darwin", "arm64", ["coreutils", "diffutils", "find", "grep", "xargs"]],
+    ["linux", "x64", ["coreutils", "diffutils", "find", "grep", "xargs"]],
     ["win32", "x64", ["coreutils.exe", "diffutils.exe"]],
     ["win32", "arm64", ["coreutils.exe"]],
   ])("%s %s", (platform, arch, expected) => {

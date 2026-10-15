@@ -70,7 +70,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-aarch64-apple-darwin.tar.xz",
-      binaries: ["xargs"],
+      binaries: ["find", "xargs"],
       sha256:
         "f2f7a6071f6b321f62d54f2e9303a3bd18c348fdc5464253e4f24ac3bfc55b04",
     },
@@ -100,7 +100,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-x86_64-apple-darwin.tar.xz",
-      binaries: ["xargs"],
+      binaries: ["find", "xargs"],
       sha256:
         "d74273aab28e95c253570e3f1958387dc98e2b73f569674c30173d78876fb50b",
     },
@@ -130,7 +130,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-aarch64-unknown-linux-musl.tar.xz",
-      binaries: ["xargs"],
+      binaries: ["find", "xargs"],
       sha256:
         "c2dad7fbf0cd6b108f833b0a42651f3ad796b6dfa71d303ca1ab51eed3ce3afe",
     },
@@ -160,7 +160,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-x86_64-unknown-linux-musl.tar.xz",
-      binaries: ["xargs"],
+      binaries: ["find", "xargs"],
       sha256:
         "e7c10ea19e1dce2549aaf6f35e15bf42a5e8141d6100c499b6d6fc9b25ea9209",
     },

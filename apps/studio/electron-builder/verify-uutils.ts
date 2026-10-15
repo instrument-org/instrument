@@ -14,7 +14,7 @@ const MIN_BINARY_BYTES = 200_000;
 export function expectedUutils(platform: string, arch: string): string[] {
   const names =
     platform !== "win32"
-      ? ["coreutils", "diffutils", "grep", "xargs"]
+      ? ["coreutils", "diffutils", "find", "grep", "xargs"]
       : arch === "arm64"
         ? ["coreutils"]
         : ["coreutils", "diffutils"];

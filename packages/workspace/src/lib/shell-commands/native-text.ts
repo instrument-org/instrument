@@ -4,7 +4,8 @@ import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { isAtOrUnder } from "../path-containment";
+import { CHAT_FOLDER_NAMES } from "../../constants";
+import { isAtOrUnder, relativeWithin } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -19,7 +20,7 @@ import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 /** The bundled uutils binaries, by their base name. */
-type UutilsBinary = "coreutils" | "diffutils" | "grep" | "xargs";
+type UutilsBinary = "coreutils" | "diffutils" | "find" | "grep" | "xargs";
 
 /**
  * A GNU text command the bundled uutils answer, every time it runs on the
@@ -74,9 +75,9 @@ export function grepWalks(args: string[]): boolean {
 }
 
 /**
- * Not here, so the builtin answers: `find` (findutils 0.10.0 parses no
- * `-newermt` date and prints backslashes on Windows), `tr` (ties the builtin and runs in loops), and `diff`,
- * `sed` and `awk` (the uutils ones fail cases the builtins pass).
+ * Not here, so the builtin answers: `tr` (ties the builtin and runs in
+ * loops), `diff`, `sed` and `awk` (the uutils ones fail cases the builtins
+ * pass), and on Windows `find`, `grep` and `xargs`.
  */
 const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "coreutils", name: "sort", writes: sortOutput },
@@ -107,10 +108,141 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // On Windows a recursive grep prints relative paths with backslashes,
   // which nothing respells for the shell.
   { binary: "grep", name: "grep", platforms: UNIX, walks: grepWalks },
+  // On Windows uutils' find prints backslashes, which `-path '*/.*'` and
+  // `-prune` patterns written with slashes never match, and a sandboxed
+  // spawn there will cost far more than the builtin's walk.
+  { binary: "find", name: "find", platforms: UNIX, walks: () => true },
   // What xargs starts is a program on the PATH, and Windows has none for
   // `echo`, `printf` or most of what models hand it.
   { binary: "xargs", name: "xargs", platforms: UNIX },
 ];
+
+/** find's own options before its start points. */
+const FIND_LEADING = /^-(?:[HLP]|D|O\d?)$/;
+
+/** The actions that stop find adding its own -print. */
+const FIND_ACTIONS = new Set([
+  "-delete",
+  "-exec",
+  "-execdir",
+  "-fls",
+  "-fprint",
+  "-fprint0",
+  "-fprintf",
+  "-ls",
+  "-ok",
+  "-okdir",
+  "-print",
+  "-print0",
+  "-printf",
+  "-quit",
+]);
+
+/** A find command line split into its options, start points and expression. */
+function splitFind(args: string[]): {
+  expression: string[];
+  options: string[];
+  starts: string[];
+} {
+  let index = 0;
+  const options: string[] = [];
+  while (index < args.length && FIND_LEADING.test(args[index] ?? "")) {
+    const option = args[index] ?? "";
+    options.push(option);
+    // -D takes a value of its own.
+    if (option === "-D" && index + 1 < args.length) {
+      options.push(args[index + 1] ?? "");
+      index += 1;
+    }
+    index += 1;
+  }
+  const starts: string[] = [];
+  while (index < args.length && !/^[-(!,]/.test(args[index] ?? "")) {
+    starts.push(args[index] ?? "");
+    index += 1;
+  }
+  return { expression: args.slice(index), options, starts };
+}
+
+/**
+ * find's arguments with the entries the app hides pruned before the
+ * caller's expression runs: every `.instrument` folder by name, and each
+ * `pathsToPrune` (the chat's `tasks/` as each start point spells it). The
+ * shell's own find never lists them, and the native sandbox does not hide
+ * them. An expression with no action of its own gets an explicit -print, so
+ * the pruned folder is not printed by the one find would add.
+ */
+export function findWithHiddenEntriesPruned(
+  args: string[],
+  pathsToPrune: string[],
+): string[] {
+  const { expression, options, starts } = splitFind(args);
+  const pruned = [
+    "-name",
+    ".instrument",
+    ...pathsToPrune.flatMap((each) => ["-o", "-path", each]),
+  ];
+  const acts = expression.some((arg) => FIND_ACTIONS.has(arg));
+  return [
+    ...options,
+    ...starts,
+    "(",
+    ...pruned,
+    ")",
+    "-prune",
+    "-o",
+    "(",
+    ...(expression.length > 0 ? expression : ["-true"]),
+    ")",
+    ...(acts ? [] : ["-print"]),
+  ];
+}
+
+/**
+ * The chat's hidden entries other than `.instrument` (which is pruned by
+ * name) that a walk from each start point reaches, spelled as find prints
+ * them from that start: `./tasks` from the chat's folder.
+ */
+function maskedUnder(
+  starts: string[],
+  layout: WorkspaceFsLayout,
+  resolvePath: (arg: string) => string,
+): string[] {
+  return starts.flatMap((start) => {
+    const resolved = resolvePath(start);
+    const spelled = start.replace(/\/+$/, "");
+    return layout.chat.maskedEntries
+      .filter((entry) => entry !== CHAT_FOLDER_NAMES.private)
+      .flatMap((entry) => {
+        const rest = relativeWithin(
+          resolved,
+          `${layout.chat.shellRoot}/${entry}`,
+        );
+        return rest === null || rest === "/" ? [] : [`${spelled}${rest}`];
+      });
+  });
+}
+
+/** How uutils' find reports a folder the native sandbox refused. */
+const FIND_REFUSED =
+  /^Error: .*: (?:Operation not permitted|Permission denied) \(os error \d+\)$/;
+
+/**
+ * find's stderr with each folder the sandbox refused on the way left out
+ * and counted in one line instead: over the home folder that is a line per
+ * closed entry, dozens of them, where the shell's own find passes them
+ * quietly.
+ */
+export function quietRefusedFolders(stderr: string): string {
+  const lines = stderr.split("\n");
+  const kept = lines.filter((line) => !FIND_REFUSED.test(line));
+  const left = lines.length - kept.length;
+  if (left === 0) {
+    return stderr;
+  }
+  const rest = kept.join("\n");
+  return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed\n`;
+}
 
 /** The bundled program for a route, when this build carries it. */
 export function uutilsProgram(binary: UutilsBinary): string | undefined {
@@ -217,19 +349,27 @@ export function createNativeTextCommand(
             stdout: "",
           };
     }
-    const refusal = operandRefusal(route, args, layout, (arg) =>
-      ctx.fs.resolvePath(ctx.cwd, arg),
-    );
+    const resolvePath = (arg: string) => ctx.fs.resolvePath(ctx.cwd, arg);
+    // find's arguments after its start points are an expression, patterns
+    // rather than paths.
+    const starts = route.name === "find" ? splitFind(args).starts : undefined;
+    const refusal = operandRefusal(route, starts ?? args, layout, resolvePath);
     if (refusal) {
       return { exitCode: 2, stderr: `${refusal}\n`, stdout: "" };
     }
+    const programArgs = starts
+      ? findWithHiddenEntriesPruned(
+          args,
+          maskedUnder(starts.length > 0 ? starts : ["."], layout, resolvePath),
+        )
+      : args;
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";
     const result = await execShim(
       program,
-      [...(multicall ? [route.name] : []), ...hostPathArgs(args)],
+      [...(multicall ? [route.name] : []), ...hostPathArgs(programArgs)],
       {
         cancelSignal: ctx.signal,
         cwd: hostCwd,
@@ -253,7 +393,10 @@ export function createNativeTextCommand(
     );
     return {
       exitCode: result.exitCode ?? 1,
-      stderr: streams.stderr,
+      stderr:
+        route.name === "find"
+          ? quietRefusedFolders(streams.stderr)
+          : streams.stderr,
       stdout:
         route.printsPaths && process.platform === "win32"
           ? streams.stdout.replaceAll("\\", "/")

@@ -19,6 +19,7 @@ import {
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
 import { gitBinaryPath, gitSubprocessEnv } from "../git";
+import { hostPathOf, shellPath } from "../workspace-fs-layout";
 import { collapseProgress } from "./exec-shim";
 import { createGitCommand } from "./git";
 import { chatLayout } from "../../test/helpers/chat-layout";
@@ -32,7 +33,7 @@ const ctxIn = (cwd: string) =>
   });
 
 describe("createGitCommand arg policy", () => {
-  const chatDir = `${MOCK_WORKSPACE_DIRS.chats}/git-policy`;
+  const chatDir = path.join(MOCK_WORKSPACE_DIRS.chats, "git-policy");
   const chatId = createMockChatConfigForDir(chatDir);
   const layout = chatLayout(chatId);
   const command = createGitCommand({ layout, chatId });
@@ -173,12 +174,12 @@ describe("createGitCommand arg policy", () => {
       });
       const named = args.at(-1) ?? "";
       const result = await homeCommand.execute(
-        [...args.slice(0, -1), path.join(home, named)],
+        [...args.slice(0, -1), shellPath(path.join(home, named))],
         mockCtx,
       );
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr.replaceAll(home, "~")).toContain(refusal);
+      expect(result.stderr.replaceAll(shellPath(home), "~")).toContain(refusal);
     },
   );
 });
@@ -372,7 +373,7 @@ describe("createGitCommand over folder mounts", () => {
 
   it("reads history in a folder through -C", async () => {
     const result = await command.execute(
-      ["-C", repoDir, "log", "--oneline"],
+      ["-C", shellPath(repoDir), "log", "--oneline"],
       inChat,
     );
 
@@ -383,7 +384,7 @@ describe("createGitCommand over folder mounts", () => {
   it("reads history from inside a folder as the working directory", async () => {
     const result = await command.execute(
       ["log", "--format=%s"],
-      ctxIn(repoDir),
+      ctxIn(shellPath(repoDir)),
     );
 
     expect(result.exitCode).toBe(0);
@@ -392,23 +393,25 @@ describe("createGitCommand over folder mounts", () => {
 
   it("prints the folder's real path", async () => {
     const result = await command.execute(
-      ["-C", repoDir, "rev-parse", "--show-toplevel"],
+      ["-C", shellPath(repoDir), "rev-parse", "--show-toplevel"],
       inChat,
     );
 
     expect(result.exitCode).toBe(0);
-    expect(realpathSync(result.stdout.trim())).toBe(realpathSync(repoDir));
+    expect(realpathSync(hostPathOf(result.stdout.trim()))).toBe(
+      realpathSync(repoDir),
+    );
   });
 
   it("commits in a folder", async () => {
     const commit = await command.execute(
       ["commit", "--allow-empty", "-m", "from the task"],
-      ctxIn(workDir),
+      ctxIn(shellPath(workDir)),
     );
     expect(commit.exitCode).toBe(0);
 
     const log = await command.execute(
-      ["-C", workDir, "log", "--format=%s", "-1"],
+      ["-C", shellPath(workDir), "log", "--format=%s", "-1"],
       inChat,
     );
     expect(log.stdout.trim()).toBe("from the task");
@@ -417,7 +420,7 @@ describe("createGitCommand over folder mounts", () => {
   it("still refuses a relative path that leaves the folder", async () => {
     const result = await command.execute(
       ["-C", "../..", "status"],
-      ctxIn(repoDir),
+      ctxIn(shellPath(repoDir)),
     );
 
     expect(result.exitCode).toBe(1);
@@ -428,7 +431,7 @@ describe("createGitCommand over folder mounts", () => {
 
   it("refuses a folder that is not attached", async () => {
     const result = await command.execute(
-      ["-C", path.join(root, "Other"), "log"],
+      ["-C", shellPath(path.join(root, "Other")), "log"],
       inChat,
     );
 

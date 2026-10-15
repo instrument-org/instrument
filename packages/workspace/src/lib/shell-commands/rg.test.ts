@@ -17,6 +17,7 @@ import { createBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { workspaceLayout } from "../workspace-layout";
 import { type ChatIdSchema } from "../../schemas/chat-id";
 
@@ -77,11 +78,11 @@ describe("rg command", () => {
         sessionId,
         chatId,
       });
-      const result = await bash.exec(`rg -l NEEDLE '${appDir}'`, {
+      const result = await bash.exec(`rg -l NEEDLE '${shellPath(appDir)}'`, {
         signal: AbortSignal.timeout(30_000),
       });
       expect(result.stderr).toBe("");
-      expect(result.stdout).toBe(`${appDir}/app.ts\n`);
+      expect(result.stdout).toBe(`${shellPath(appDir)}/app.ts\n`);
     } finally {
       await fs.rm(appDir, { force: true, recursive: true });
     }
@@ -210,9 +211,9 @@ describe("rg command", () => {
   });
 
   it("searches a folder it reaches and reports its real paths", async () => {
-    const result = await run(`rg NEEDLE '${attachedDir}'`, true);
+    const result = await run(`rg NEEDLE '${shellPath(attachedDir)}'`, true);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(`${attachedDir}/note.md`);
+    expect(result.stdout).toContain(`${shellPath(attachedDir)}/note.md`);
   });
 
   it("stops at its output cap and points at filtering inside rg", async () => {
@@ -221,7 +222,10 @@ describe("rg command", () => {
       "NEEDLE\n".repeat(1_500_000),
     );
 
-    const result = await run(`rg NEEDLE '${attachedDir}' | wc -l`, true);
+    const result = await run(
+      `rg NEEDLE '${shellPath(attachedDir)}' | wc -l`,
+      true,
+    );
 
     expect(result.stdout.trim()).toBe("0");
     expect(result.stderr).toMatch(/^rg: stopped after 8 MB of output.*--iglob/);
@@ -244,7 +248,10 @@ describe("rg command", () => {
 // person sent is searched where it is, and the rest of the record folder is
 // the workspace's.
 describe("rg command in a chat", () => {
-  async function runInChat(command: string) {
+  async function runInChat(
+    command: string,
+    spell: (hostPath: string) => string = shellPath,
+  ) {
     // The record folder in a workspace, which the rules keep hidden, and the
     // work folder in this computer's folder for it.
     const rootDir = path.join(tmpDir, "workspace");
@@ -272,7 +279,7 @@ describe("rg command in a chat", () => {
       sessionId: StoreId.newSessionId(),
       chatId: made,
     });
-    return bash.exec(command.replaceAll("RECORD", `'${recordFolder}'`), {
+    return bash.exec(command.replaceAll("RECORD", `'${spell(recordFolder)}'`), {
       signal: AbortSignal.timeout(30_000),
     });
   }
@@ -291,13 +298,29 @@ describe("rg command in a chat", () => {
     expect(result.stdout).toContain("attachments/note.md");
   });
 
-  it.each(["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"])(
-    "keeps the rest of the record folder out of `%s`",
-    async (command) => {
-      const result = await runInChat(command);
+  // The agent names the record folder by its shell path, and on Windows can
+  // also type its drive path, which ripgrep opens as the same folder.
+  it.each([
+    ...["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"].map(
+      (command) => [command, "its shell path", shellPath] as const,
+    ),
+    ...(process.platform === "win32"
+      ? ["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"].map(
+          (command) =>
+            [
+              command,
+              "its drive path",
+              (hostPath: string) => hostPath,
+            ] as const,
+        )
+      : []),
+  ])(
+    "keeps the rest of the record folder out of `%s`, named by %s",
+    async (command, _spelling, spell) => {
+      const result = await runInChat(command, spell);
 
-      expect(result.exitCode).not.toBe(0);
       expect(result.stdout).not.toContain("sentinel");
+      expect(result.exitCode).not.toBe(0);
     },
   );
 });

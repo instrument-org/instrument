@@ -1,4 +1,6 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
@@ -11,8 +13,11 @@ import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createTabCommand } from "./tab";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
+// As this computer spells it, with a drive on Windows, where the browser's
+// addresses carry one.
+const chatFolder = path.resolve("/work/chats/tab-command-chat");
 const layout = buildWorkspaceFsLayout({
-  chatHostRoot: WorkDirSchema.parse("/work/chats/tab-command-chat"),
+  chatHostRoot: WorkDirSchema.parse(chatFolder),
 });
 
 // A page tab, by the session id the window's page tabs carry, and the
@@ -233,7 +238,7 @@ describe("tab close, replace and show", () => {
   });
 
   it("reads a local page under the chat's own folder", async () => {
-    pageUrls = ["file:///work/chats/tab-command-chat/notes.html"];
+    pageUrls = [pathToFileURL(path.join(chatFolder, "notes.html")).href];
     const result = await run({}, "read", pageTab);
 
     expect(result.stdout).toBe("Jar\nA rigid container.\n");

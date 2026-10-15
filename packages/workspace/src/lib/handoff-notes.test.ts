@@ -12,6 +12,7 @@ import {
 } from "./handoff-notes";
 import { chatDir } from "./record-folders";
 import { sanitizeSurrogates } from "./sanitize-model-text";
+import { shellPath } from "./workspace-fs-layout";
 
 const NOTES_PATH = "/workspace/chats/c/handoff-notes.md";
 
@@ -71,14 +72,15 @@ describe("readHandoffNotes", () => {
   });
 
   // The write instruction and the read both derive from this, so a path that
-  // drifted would break the handoff silently rather than loudly.
+  // drifted would break the handoff silently rather than loudly. The agent
+  // names it by its shell's spelling, which differs on Windows.
   it("names the notes in the chat's record folder", async () => {
     const dir = path.join(tasksParentDir, "task-1");
     await fs.mkdir(dir, { recursive: true });
     const chatId = createMockChatConfigForDir(dir);
 
     expect(agentHandoffNotesPath(chatId)).toBe(
-      path.join(chatDir(chatId), "handoff-notes.md"),
+      shellPath(path.join(chatDir(chatId), "handoff-notes.md")),
     );
   });
 
@@ -103,6 +105,14 @@ describe("readHandoffNotes", () => {
   // The notes sit beside the chat's settings, and the agent writes them: a
   // link it made there must not hand the settings to the model, and nothing
   // it put there may hold the request up.
+  async function notesRead(put: (notes: string) => Promise<void>) {
+    const dir = path.join(tasksParentDir, "task-1");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "settings.json"), '{"grants":[]}');
+    await put(path.join(dir, "handoff-notes.md"));
+    return await readHandoffNotes(createMockChatConfigForDir(dir));
+  }
+
   it.each([
     [
       "a file",
@@ -110,28 +120,6 @@ describe("readHandoffNotes", () => {
         await fs.writeFile(notes, "Left off at step 3.");
       },
       "Left off at step 3.",
-    ],
-    [
-      "a link to the settings",
-      async (notes: string) => {
-        await fs.symlink(
-          path.join(path.dirname(notes), "settings.json"),
-          notes,
-        );
-      },
-      undefined,
-    ],
-    [
-      "a link to a link to the settings",
-      async (notes: string) => {
-        const between = path.join(path.dirname(notes), "between");
-        await fs.symlink(
-          path.join(path.dirname(notes), "settings.json"),
-          between,
-        );
-        await fs.symlink(between, notes);
-      },
-      undefined,
     ],
     [
       "a folder",
@@ -151,13 +139,34 @@ describe("readHandoffNotes", () => {
       undefined,
     ],
   ])("reads %s", async (_case, put, expected) => {
-    const dir = path.join(tasksParentDir, "task-1");
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, "settings.json"), '{"grants":[]}');
-    await put(path.join(dir, "handoff-notes.md"));
-    const chatId = createMockChatConfigForDir(dir);
+    expect(await notesRead(put)).toBe(expected);
+  });
 
-    expect(await readHandoffNotes(chatId)).toBe(expected);
+  // Windows has no O_NOFOLLOW, and no sandbox around the agent's programs
+  // to keep the settings from them either, so there the link is read through.
+  it.skipIf(process.platform === "win32").each([
+    [
+      "a link to the settings",
+      async (notes: string) => {
+        await fs.symlink(
+          path.join(path.dirname(notes), "settings.json"),
+          notes,
+        );
+      },
+    ],
+    [
+      "a link to a link to the settings",
+      async (notes: string) => {
+        const between = path.join(path.dirname(notes), "between");
+        await fs.symlink(
+          path.join(path.dirname(notes), "settings.json"),
+          between,
+        );
+        await fs.symlink(between, notes);
+      },
+    ],
+  ])("reads nothing through %s", async (_case, put) => {
+    expect(await notesRead(put)).toBeUndefined();
   });
 
   // A file that is swapped for a link once it was looked at is read as the

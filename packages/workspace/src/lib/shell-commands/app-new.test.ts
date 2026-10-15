@@ -16,6 +16,7 @@ import { createMemoryAppsConfig } from "../apps/memory-config";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { loadApp } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { createAppCommand } from "./app";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 
@@ -198,7 +199,7 @@ describe("app test and the guide skeleton", () => {
       "real-guide",
     );
     expect(written.stdout).toContain(
-      `Wrote ${path.join(getWorkspaceConfig().appsDir, "real-guide", "guide.md")}.`,
+      `Wrote ${shellPath(path.join(getWorkspaceConfig().appsDir, "real-guide", "guide.md"))}.`,
     );
     expect(await guideOf("real-guide")).toContain("GET /things");
 

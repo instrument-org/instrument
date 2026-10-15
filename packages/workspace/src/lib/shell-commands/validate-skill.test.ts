@@ -20,6 +20,7 @@ import {
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { createValidateSkillCommand } from "./validate-skill";
 
 createMockChatConfigForDir(`${MOCK_WORKSPACE_DIRS.chats}/validate-skill`);
@@ -44,6 +45,8 @@ const run = (...args: string[]) =>
   createValidateSkillCommand().execute(args, mockCtx);
 
 const { skillsDir } = workspaceLayout(rootDir);
+// The skills folder as the agent's shell names it, which differs on Windows.
+const skillsPath = shellPath(skillsDir);
 
 // The command runs discovery over every source, and `getSkillSources` derives a
 // dozen of them from the home directory. Left real, this suite walks whatever
@@ -77,7 +80,7 @@ describe("createValidateSkillCommand", () => {
     const result = await run(argument);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      `validate-skill: only skills under ${skillsDir}/ can be checked.\n`,
+      `validate-skill: only skills under ${skillsPath}/ can be checked.\n`,
     );
   });
 
@@ -87,7 +90,7 @@ describe("createValidateSkillCommand", () => {
       "---\nname: tidy\ndescription: Tidy things. Use when asked to tidy.\n---\n\nBody.\n",
     );
     const byName = await run("tidy");
-    const byPath = await run(`${skillsDir}/tidy/`);
+    const byPath = await run(`${skillsPath}/tidy/`);
     expect(byName).toEqual(byPath);
     expect(byName.exitCode).toBe(0);
     expect(byName.stdout).toContain("tidy: ok");
@@ -112,7 +115,7 @@ describe("createValidateSkillCommand", () => {
     const result = await run("ghost");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      `validate-skill: no skill named "ghost" in ${skillsDir}/.\n`,
+      `validate-skill: no skill named "ghost" in ${skillsPath}/.\n`,
     );
   });
 

@@ -1,4 +1,6 @@
 import { InMemoryFs } from "just-bash";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../../schemas/mounted-folder";
@@ -9,22 +11,35 @@ import {
 } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
-import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
+import { buildWorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
-const TASK = "/Users/me/Tasks/test-task";
+// The folders as this computer spells them (`C:\Users\me\...` on Windows),
+// and as the agent's shell does, which is the spelling it hands the command.
+const TASK_HOST = path.resolve("/Users/me/Tasks/test-task");
+const DOCS_HOST = path.resolve("/Users/me/My Docs");
+const TASK = shellPath(TASK_HOST);
+const DOCS = shellPath(DOCS_HOST);
 // The chat's record folder, in the workspace, which the rules keep hidden.
-const RECORD = `${workspaceLayout(getWorkspaceConfig().rootDir).chatsDir}/test-task`;
+const RECORD = path.join(
+  workspaceLayout(getWorkspaceConfig().rootDir).chatsDir,
+  "test-task",
+);
+
+/** The address the browser loads a file in one of the folders at. */
+function addressOf(hostRoot: string, ...segments: string[]) {
+  return pathToFileURL(path.join(hostRoot, ...segments)).href;
+}
 
 const layout = buildWorkspaceFsLayout({
   folders: {
     docs: {
       access: "read-only",
       id: MountedFolder.IdSchema.parse("docs"),
-      path: AbsolutePathSchema.parse("/Users/me/My Docs"),
+      path: AbsolutePathSchema.parse(DOCS_HOST),
     },
   },
-  chatHostRoot: WorkDirSchema.parse("/Users/me/Tasks/test-task"),
+  chatHostRoot: WorkDirSchema.parse(TASK_HOST),
   recordHostRoot: ChatDirSchema.parse(RECORD),
 });
 
@@ -33,8 +48,8 @@ async function makeCtx() {
   await fs.mkdir(`${TASK}/output`, { recursive: true });
   await fs.writeFile(`${TASK}/output/report.html`, "<html></html>");
   await fs.writeFile(`${TASK}/output/quarterly report.html`, "<html></html>");
-  await fs.mkdir("/Users/me/My Docs", { recursive: true });
-  await fs.writeFile("/Users/me/My Docs/notes.html", "<html></html>");
+  await fs.mkdir(DOCS, { recursive: true });
+  await fs.writeFile(`${DOCS}/notes.html`, "<html></html>");
   return { cwd: TASK, fs };
 }
 
@@ -54,68 +69,63 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it.each([
     {
       name: "file url under the task mount",
-      url: "file:///Users/me/Tasks/test-task/output/report.html",
+      url: `file://${TASK}/output/report.html`,
     },
     {
       name: "file url with a localhost host",
-      url: "file://localhost/Users/me/Tasks/test-task/output/report.html",
+      url: `file://localhost${TASK}/output/report.html`,
     },
     {
       name: "absolute path",
-      url: "/Users/me/Tasks/test-task/output/report.html",
+      url: `${TASK}/output/report.html`,
     },
     { name: "path relative to the chat's folder", url: "output/report.html" },
     { name: "dot-relative path", url: "./output/report.html" },
   ])("opens a $name at the file's own address", async ({ url }) => {
     const result = await rewritten(["open", url]);
 
-    expect(result[1]).toMatchInlineSnapshot(
-      `"file:///Users/me/Tasks/test-task/output/report.html"`,
-    );
+    expect(result[1]).toBe(addressOf(TASK_HOST, "output", "report.html"));
   });
 
   it("keeps query and hash from a file url", async () => {
     const result = await rewritten([
       "open",
-      "file:///Users/me/Tasks/test-task/output/report.html?tab=2#summary",
+      `file://${TASK}/output/report.html?tab=2#summary`,
     ]);
 
-    expect(result[1]).toMatchInlineSnapshot(
-      `"file:///Users/me/Tasks/test-task/output/report.html?tab=2#summary"`,
+    expect(result[1]).toBe(
+      `${addressOf(TASK_HOST, "output", "report.html")}?tab=2#summary`,
     );
   });
 
   it("percent-encodes the path", async () => {
     const result = await rewritten(["open", "output/quarterly report.html"]);
 
-    expect(result[1]).toMatchInlineSnapshot(
-      `"file:///Users/me/Tasks/test-task/output/quarterly%20report.html"`,
+    expect(result[1]).toBe(
+      addressOf(TASK_HOST, "output", "quarterly report.html"),
     );
+    expect(result[1]).toMatch(/\/quarterly%20report\.html$/);
   });
 
   it("opens a folder mount's file where it lives", async () => {
-    const result = await rewritten(["open", "/Users/me/My Docs/notes.html"]);
+    const result = await rewritten(["open", `${DOCS}/notes.html`]);
 
-    expect(result[1]).toMatchInlineSnapshot(
-      `"file:///Users/me/My%20Docs/notes.html"`,
-    );
+    expect(result[1]).toBe(addressOf(DOCS_HOST, "notes.html"));
   });
 
   it("opens a missing file in the chat's folder so the agent sees the browser's not-found page", async () => {
     const result = await rewritten([
       "open",
-      "file:///Users/me/Tasks/test-task/output/absent.html",
+      `file://${TASK}/output/absent.html`,
     ]);
 
-    expect(result[1]).toMatchInlineSnapshot(
-      `"file:///Users/me/Tasks/test-task/output/absent.html"`,
-    );
+    expect(result[1]).toBe(addressOf(TASK_HOST, "output", "absent.html"));
   });
 
   it.each([
     { arg: "file:///etc/hosts", name: "file outside every mount" },
     {
-      arg: `file://${RECORD}/chat.db`,
+      arg: `file://${shellPath(RECORD)}/chat.db`,
       name: "file in the chat's record folder",
     },
     { arg: "/etc/hosts", name: "path outside every mount" },
@@ -141,7 +151,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
   ])("rewrites for the $subcommand subcommand", async ({ subcommand }) => {
     const result = await rewritten([subcommand, "output/report.html"]);
 
-    expect(result[1]).toContain("file:///Users/me/Tasks/");
+    expect(result[1]).toContain(addressOf(TASK_HOST));
   });
 
   it.each([
@@ -162,7 +172,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it("skips leading flags to reach the target", async () => {
     const result = await rewritten(["open", "--raw", "output/report.html"]);
 
-    expect(result[2]).toContain("file:///Users/me/Tasks/");
+    expect(result[2]).toContain(addressOf(TASK_HOST));
     expect(result[1]).toBe("--raw");
   });
 
@@ -175,7 +185,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
     async ({ args }) => {
       const result = await rewritten(args);
 
-      expect(result.at(-1)).toContain("file:///Users/me/Tasks/");
+      expect(result.at(-1)).toContain(addressOf(TASK_HOST));
     },
   );
 
@@ -187,7 +197,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
       "output/report.html",
     ]);
 
-    expect(result[3]).toContain("file:///Users/me/Tasks/");
+    expect(result[3]).toContain(addressOf(TASK_HOST));
     expect(result.slice(0, 3)).toEqual(["--headers", "{}", "open"]);
   });
 

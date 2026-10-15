@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
@@ -17,7 +18,7 @@ import {
 } from "./local-page-address";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workspaceLayout } from "./workspace-layout";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import { buildWorkspaceFsLayout, shellPath } from "./workspace-fs-layout";
 
 function layoutFor(chatRoot: string, docsRoot: string, recordRoot?: string) {
   return buildWorkspaceFsLayout({
@@ -34,40 +35,51 @@ function layoutFor(chatRoot: string, docsRoot: string, recordRoot?: string) {
 }
 
 describe("agentSpellingOfFileUrls", () => {
-  const layout = layoutFor("/Users/me/Tasks/t1", "/Users/me/My Docs");
+  // The folders as this computer spells them (`C:\Users\me\...` on
+  // Windows), which the browser's addresses carry, and the agent's spelling
+  // of the same addresses, which differs there (`file:///c/Users/me/...`).
+  const task = path.resolve("/Users/me/Tasks/t1");
+  const docs = path.resolve("/Users/me/My Docs");
+  const layout = layoutFor(task, docs);
+  const hostUrl = (root: string, rest = "") =>
+    `${pathToFileURL(root).href}${rest}`;
+  const agentUrl = (root: string, rest = "") =>
+    `file://${shellPath(root)}${rest}`;
 
   it("spells each mount's addresses in the agent's paths", () => {
     expect(
       agentSpellingOfFileUrls(
         [
           "✓ Report",
-          "  file:///Users/me/Tasks/t1/work/report.html#top",
-          "  file:///Users/me/My%20Docs/page.html",
-          "  file:///Users/me/Tasks/t1",
+          `  ${hostUrl(task, "/work/report.html#top")}`,
+          `  ${hostUrl(docs, "/page.html")}`,
+          `  ${hostUrl(task)}`,
         ].join("\n"),
         layout,
       ),
-    ).toMatchInlineSnapshot(`
-      "✓ Report
-        file:///Users/me/Tasks/t1/work/report.html#top
-        file:///Users/me/My Docs/page.html
-        file:///Users/me/Tasks/t1"
-    `);
+    ).toBe(
+      [
+        "✓ Report",
+        `  ${agentUrl(task, "/work/report.html#top")}`,
+        `  ${agentUrl(docs, "/page.html")}`,
+        `  ${agentUrl(task)}`,
+      ].join("\n"),
+    );
   });
 
   it("leaves out the parameter a page in Edit is loaded with", () => {
     expect(
       agentSpellingOfFileUrls(
-        "file:///Users/me/Tasks/t1/work/page.html?instrument-edit=abc#top",
+        hostUrl(task, "/work/page.html?instrument-edit=abc#top"),
         layout,
       ),
-    ).toBe("file:///Users/me/Tasks/t1/work/page.html#top");
+    ).toBe(agentUrl(task, "/work/page.html#top"));
   });
 
   it("names a file outside every mount without its place on the computer", () => {
     expect(
       agentSpellingOfFileUrls(
-        "origin=file:///Users/me/Tasks/t10/work/report.html ---",
+        `origin=${hostUrl(path.resolve("/Users/me/Tasks/t10"), "/work/report.html")} ---`,
         layout,
       ),
     ).toBe("origin=file://<a file outside your folders> ---");
@@ -121,7 +133,7 @@ describe("agentPathOfFileUrl", () => {
   ])("$file → reachable: $reachable", ({ file, reachable }) => {
     expect(
       agentPathOfFileUrl(layout, fileUrlOfHostPath(path.join(root, file))),
-    ).toBe(reachable ? path.join(root, file) : null);
+    ).toBe(reachable ? shellPath(path.join(root, file)) : null);
   });
 
   it.each([
@@ -130,7 +142,7 @@ describe("agentPathOfFileUrl", () => {
   ])("record folder's $file → reachable: $reachable", ({ file, reachable }) => {
     expect(
       agentPathOfFileUrl(layout, fileUrlOfHostPath(path.join(record, file))),
-    ).toBe(reachable ? path.join(record, file) : null);
+    ).toBe(reachable ? shellPath(path.join(record, file)) : null);
   });
 
   it("finds a mount whose root is spelled through a symlink", async () => {
@@ -142,7 +154,7 @@ describe("agentPathOfFileUrl", () => {
         linked,
         fileUrlOfHostPath(path.join(root, "task/work/page.html")),
       ),
-    ).toBe(path.join(linkedRoot, "work/page.html"));
+    ).toBe(shellPath(path.join(linkedRoot, "work/page.html")));
   });
 
   it("refuses an address that is not a file", () => {

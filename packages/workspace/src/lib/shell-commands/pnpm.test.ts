@@ -1,9 +1,11 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import {
   createNpxCommand,
   createPnpmCommand,
@@ -34,10 +36,13 @@ describe("createPnpmCommand", () => {
       stdout: "+ lodash 4.17.21",
     });
 
+    // The folder as this computer spells it, where pnpm runs, and as the
+    // shell does, which differs on Windows.
+    const job = path.resolve("/job");
     const result = await command.execute(["add", "lodash"], {
       ...mockCtx,
-      cwd: "/job",
-      fs: new InMemoryFs({ "/job/notes.md": "" }),
+      cwd: shellPath(job),
+      fs: new InMemoryFs({ [`${shellPath(job)}/notes.md`]: "" }),
     });
 
     expect(result.exitCode).toBe(0);
@@ -47,7 +52,7 @@ describe("createPnpmCommand", () => {
       getWorkspaceConfig().pnpmBinPath,
       ["add", "lodash"],
       expect.any(Object),
-      "/job",
+      job,
       undefined,
     );
   });

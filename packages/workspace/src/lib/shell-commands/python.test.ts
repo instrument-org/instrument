@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { venvPython } from "../uv";
+import { shellPath } from "../workspace-fs-layout";
 import { createPythonCommand, pythonScript } from "./python";
 import { chatLayout } from "../../test/helpers/chat-layout";
 
@@ -77,40 +79,49 @@ describe("python", () => {
     );
   });
 
-  const skillEnv = AbsolutePathSchema.parse("/runtime/environments/0123");
-  const workVenv = AbsolutePathSchema.parse("/work/.venv");
+  // The folders as this computer spells them, with a drive on Windows, where
+  // the shell names them differently and an environment keeps its Python in
+  // Scripts rather than bin.
+  const skillEnv = AbsolutePathSchema.parse(
+    path.resolve("/runtime/environments/0123"),
+  );
+  const workVenv = AbsolutePathSchema.parse(path.resolve("/work/.venv"));
+  const skillDir = path.resolve("/runtime/skills/pdf");
+  const skillScript = path.join(skillDir, "scripts", "x.py");
+  const skillEnvBin = new RegExp(
+    `^${path.join(skillEnv, "bin").replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`)}`,
+  );
 
   it.each([
     {
       absent: ["INSTRUMENT_EXTRA_SITE_PACKAGES"],
       env: {
-        PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
+        PATH: expect.stringMatching(skillEnvBin),
         PYTHONPATH: "/mine",
         VIRTUAL_ENV: skillEnv,
       },
-      interpreter: "/runtime/environments/0123/bin/python",
+      interpreter: venvPython(skillEnv),
       name: "a skill's script in the skill's environment, which what it starts finds too",
       skill: { venv: skillEnv },
     },
     {
       absent: [],
       env: {
-        INSTRUMENT_EXTRA_SITE_PACKAGES: "/work/.venv/site-packages",
-        PATH: expect.stringMatching(/^\/runtime\/environments\/0123\/bin/),
+        INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(workVenv, "site-packages"),
+        PATH: expect.stringMatching(skillEnvBin),
         PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
           path.delimiter,
         ),
         VIRTUAL_ENV: skillEnv,
       },
-      interpreter: "/runtime/environments/0123/bin/python",
+      interpreter: venvPython(skillEnv),
       name: "a skill's script with the .venv layered behind its environment",
       skill: { layer: workVenv, venv: skillEnv },
     },
     {
       absent: ["PYTHONNOUSERSITE", "VIRTUAL_ENV"],
       env: {
-        INSTRUMENT_EXTRA_SITE_PACKAGES:
-          "/runtime/environments/0123/site-packages",
+        INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(skillEnv, "site-packages"),
         PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
           path.delimiter,
         ),
@@ -128,23 +139,23 @@ describe("python", () => {
       exitCode: 0,
     } as never);
 
-    await command.execute(["-u", "/runtime/skills/pdf/scripts/x.py"], {
+    await command.execute(["-u", `${shellPath(skillDir)}/scripts/x.py`], {
       ...mockCtx,
       env: new Map([
-        ["INSTRUMENT_SKILL_DIR", "/runtime/skills/pdf"],
+        ["INSTRUMENT_SKILL_DIR", shellPath(skillDir)],
         ["PYTHONPATH", "/mine"],
       ]),
     });
 
     expect(vi.mocked(skillPythonToRun)).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        loadedSkillDir: "/runtime/skills/pdf",
-        script: "/runtime/skills/pdf/scripts/x.py",
+        loadedSkillDir: skillDir,
+        script: skillScript,
       }),
     );
     expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
       interpreter,
-      ["-u", "/runtime/skills/pdf/scripts/x.py"],
+      ["-u", skillScript],
       expect.objectContaining({
         env: expect.objectContaining(env),
       }),

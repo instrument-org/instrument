@@ -189,7 +189,7 @@ function PermissionAskCard({
   explanation: string | undefined;
 }) {
   const { isBusy, send } = useAnswer(chatId, ask);
-  const shown = quotedTarget(ask.kind, ask.target);
+  const shown = askTargetName(ask.kind, ask.target);
   const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
   const choose = async () => {
     const picked = await rpcClient.utils.showFolderPicker.call({
@@ -251,7 +251,6 @@ function PermissionAskCard({
           <p className="mt-1 text-xs break-all text-muted-foreground">
             {readablePath(ask.target)}
           </p>
-
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <Button

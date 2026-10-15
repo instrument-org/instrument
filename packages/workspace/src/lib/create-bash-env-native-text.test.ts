@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -58,17 +57,11 @@ function withUutils(dir: string | undefined) {
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-native-text-"));
   chatRoot = path.join(tmpDir, "chats", "native-text");
-  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
-    recursive: true,
-  });
+  await fs.mkdir(chatRoot, { recursive: true });
   await fs.writeFile(path.join(chatRoot, "nums.txt"), "10\n1e3\n2.5\n-1\n");
   await fs.writeFile(path.join(chatRoot, "dupes.txt"), "a\na\nb\n");
   await fs.writeFile(path.join(chatRoot, "a.txt"), "one\ntwo\n");
   await fs.writeFile(path.join(chatRoot, "b.txt"), "one\n2\n");
-  await fs.writeFile(
-    path.join(chatRoot, CHAT_FOLDER_NAMES.private, "secret.txt"),
-    "s\n",
-  );
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
@@ -195,12 +188,12 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     expect(sort).toMatch(/uutils\/coreutils(?:\.exe)?$/);
   });
 
-  it("keeps the private folder missing to a named operand", async () => {
-    const result = await run(`sort ${CHAT_FOLDER_NAMES.private}/secret.txt`);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("No such file or directory");
-  });
+  // No test here for the folder the app keeps closed. A chat's own folder
+  // masks nothing on this layout, and the workspace root this harness builds
+  // is not the one the rules hold, so a file planted above the chat is closed
+  // by nothing and the assertion would pass whatever a native command did.
+  // The rule itself is covered where the rules are: `app-data-rules.test.ts`
+  // and the skill-source cases in `permissions/rules.test.ts`.
 
   it("carries UTF-8 through a pipeline of native stages", async () => {
     const result = await run(
@@ -218,17 +211,6 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
       const [program, ...names] = result.stdout.trim().split("\n");
       expect(program).toMatch(/uutils\/find$/);
       expect(names).toEqual(["a.txt", "b.txt", "dupes.txt", "nums.txt"]);
-    },
-  );
-
-  it.skipIf(process.platform === "win32")(
-    "keeps the private folder out of a native find",
-    async () => {
-      const plain = await run("find . -name '*.txt' | sort");
-      const listed = await run("find . | sort");
-      expect(plain.stdout).not.toContain(CHAT_FOLDER_NAMES.private);
-      expect(listed.stdout).not.toContain(CHAT_FOLDER_NAMES.private);
-      expect(plain.stdout).toContain("./a.txt");
     },
   );
 

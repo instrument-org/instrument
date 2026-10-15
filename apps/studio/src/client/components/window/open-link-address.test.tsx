@@ -4,6 +4,7 @@ import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
 import { TabIdSchema } from "@/shared/tabs";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, getDefaultStore, Provider } from "jotai";
 import { type ReactNode } from "react";
@@ -60,8 +61,16 @@ function renderTabs() {
   const { result } = renderHook(
     () => ({ app: useAppTabs(), window: useWindowTabs() }),
     {
+      // `useAppTabs` reads the output folder through a query, so the hook
+      // needs a client as well as the store.
       wrapper: ({ children }: { children: ReactNode }) => (
-        <Provider store={store}>{children}</Provider>
+        <QueryClientProvider
+          client={
+            new QueryClient({ defaultOptions: { queries: { retry: false } } })
+          }
+        >
+          <Provider store={store}>{children}</Provider>
+        </QueryClientProvider>
       ),
     },
   );

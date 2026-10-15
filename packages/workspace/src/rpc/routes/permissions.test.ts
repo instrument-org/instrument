@@ -10,8 +10,7 @@ import { appRefusal } from "../../lib/permissions/apps";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
 import { readPermissionSettings } from "../../lib/permissions/rules";
-import { updateChatRecord } from "../../lib/chat-record";
-import { chatDir, sessionOfChat } from "../../lib/record-folders";
+import { sessionOfChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -185,50 +184,11 @@ describe("permissions.answer", () => {
     );
   });
 
-  // Installs carry cards written when a card named the one session that
-  // raised it.
-  it("reads a card written with a single asker, and wakes that session when answered", async () => {
-    const { chatId, task } = await chatWithTask();
-    const partId = StoreId.newPartId();
-    await updateChatRecord(chatDir(chatId), "state", (record) => ({
-      ...record.raw,
-      state: {
-        browserTabs: [],
-        permissionAsks: [
-          {
-            askedAt: "2026-10-12T15:00:00.000Z",
-            id: "old-ask",
-            kind: "folder",
-            partId,
-            sessionId: task,
-            target: "/Users/me/Pantry",
-          },
-        ],
-      },
-    }));
-
-    expect(await openAsks(chatId)).toEqual([
-      {
-        askedAt: new Date("2026-10-12T15:00:00.000Z"),
-        askers: [{ partId, sessionId: task }],
-        id: "old-ask",
-        kind: "folder",
-        target: "/Users/me/Pantry",
-      },
-    ]);
-    const sentBefore = sent.length;
-
-    await call(
-      permissions.answer,
-      { askId: "old-ask", decision: "allowed", id: chatId },
-      { context: context() },
-    );
-
-    expect(wokenSince(sentBefore)).toEqual([
-      { answer: ["allowed"], sessionId: task },
-    ]);
-    expect(await openAsks(chatId)).toEqual([]);
-  });
+  // No test for a card written in the old shape. The stored key is `asks`
+  // now and its entries carry `askers`, where a card used to carry one
+  // `partId` and `sessionId`; nothing reads the old shape, deliberately, so a
+  // card left unanswered across the update is asked again rather than
+  // migrated. Two installs have one, and asking twice costs less than a shim.
 
   // The card names an app as its command asked for it, and an Always allow
   // keeps that name, which is how Settings › Permissions lists the app; it

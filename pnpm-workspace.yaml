@@ -31,14 +31,13 @@ catalog:
   "@types/node": 24.13.1
   "@types/react": ^19.3.0
   "@types/react-dom": ^19.3.0
-  "@typescript/native-preview": 7.0.0-dev.20260702.3
   "@vitejs/plugin-react": ^6.0.5
   ai: ^7.0.134
   better-auth: ^1.7.6
   hono: ^4.13.9
   react: ^19.3.0
   react-dom: ^19.3.0
-  typescript: 5.9.2
+  typescript: 7.0.2
   typescript-result: ^3.5.2
   vite: ^8.3.1
   vitest: ^4.1.11
@@ -119,7 +118,7 @@ overrides:
   "@electron/rebuild>node-abi": 4.35.0
   # Collapse jiti to a single version so vite (which has jiti as an optional
   # peer) resolves to one peer-variant. Two jiti versions otherwise spawn two
-  # vite variants, making Plugin types "unrelated" and breaking tsgo on
+  # vite variants, making Plugin types "unrelated" and breaking the type check on
   # electron.vite.config.ts.
   jiti: 2.7.0
   # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown

@@ -17,7 +17,7 @@
   },
   "scripts": {
     "check:lint": "oxlint --type-aware",
-    "check:types": "tsgo --noEmit",
+    "check:types": "tsc --noEmit",
     "fix:lint": "oxlint --type-aware --fix",
     "test": "vitest",
     "test:ci": "cross-env CI=true vitest --maxWorkers=40%",
@@ -59,7 +59,6 @@
     "@ai-sdk/provider": "^4.0.25",
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {

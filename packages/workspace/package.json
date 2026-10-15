@@ -20,7 +20,7 @@
   },
   "scripts": {
     "check:lint": "oxlint --type-aware",
-    "check:types": "tsgo --noEmit",
+    "check:types": "tsc --noEmit",
     "eval": "node --disable-warning=ExperimentalWarning --import tsx evals/cli.ts",
     "eval:activity-grouping": "node --disable-warning=ExperimentalWarning --import tsx evals/activity-grouping.ts",
     "eval:decision": "node --disable-warning=ExperimentalWarning --import tsx evals/decision/cli.ts",
@@ -94,7 +94,6 @@
     "@types/mock-fs": "^4.13.4",
     "@types/ms": "^2.1.0",
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
     "devtools-protocol": "^0.0.1617013",
     "dotenv": "^16.6.1",
     "mock-fs": "^5.5.0",

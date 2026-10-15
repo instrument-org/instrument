@@ -1,32 +1,20 @@
-# TypeScript 7 (tsgo): why we run a dual TypeScript setup
+# TypeScript 7 (tsgo): why we ran a dual TypeScript setup
 
-**Status:** still open, checked 2026-10-02, but the first trigger below may already be clear on our side. ESLint, `typescript-eslint` and the ESLint plugins listed under "Why the classic `typescript` stays" were dropped in 4fd1acd37, and the lockfile now shows no installed package peer-requiring classic `typescript` beyond optional type peers (`valibot`, `msw`, `@t3-oss/env-core`, `vue`). `typescript` (5.9.x) is still declared at the root, in `apps/studio` and in `packages/workspace`; whether anything still calls its compiler API was not established. The VS Code trigger still waits on upstream.
+**Status:** resolved, checked 2026-10-15. The repo runs one TypeScript, the `typescript` 7.x package, and `@typescript/native-preview` is gone.
 
-## What
+## What it was
 
-The repo type-checks with TypeScript 7 (the native Go port, "tsgo") but keeps the classic JavaScript-based `typescript` package installed alongside it:
+Before TypeScript 7 shipped as `typescript` 7.0, the native Go compiler ("tsgo") came only as `@typescript/native-preview`, so the repo carried both: the preview ran every `check:types` (`tsgo --noEmit`), and the classic JavaScript `typescript` 5.x stayed for tools that called its compiler API, chiefly `typescript-eslint` and the ESLint plugins built on it. One catalog entry cannot be both 5.x and 7.x, which is why the second package name existed.
 
-- `@typescript/native-preview` (tsgo) runs every `check:types` (`tsgo --noEmit`) and backs type-aware linting (`oxlint --type-aware` via `oxlint-tsgolint`).
-- `typescript` (catalog `5.9.x`) stays because JS tooling calls the classic TypeScript compiler API, which tsgo does not yet expose.
+## What changed
 
-The editor gets tsgo through the `TypeScriptTeam.native-preview` VS Code extension plus `js/ts.experimental.useTsgo` (see `.vscode/settings.json` and `.vscode/extensions.json`).
+- ESLint, `typescript-eslint` and those plugins were dropped for oxlint (4fd1acd37), which left no installed package calling the classic compiler API. The remaining peers on `typescript` (`valibot`, `msw`, `@t3-oss/env-core`, `vue`) are optional type peers.
+- The catalog's `typescript` is 7.x, `check:types` is `tsc --noEmit`, and `tsc` is the native compiler.
+- `typescript` 7.0 has no compiler JS API: `require("typescript")` returns only its version, and the API it does ship is under `typescript/unstable/*`. A tool that needs the 5.x API cannot run against the catalog entry; a dependency that bundles or pins its own 5.x (as `just-bash` does) is unaffected.
+- What uses it today: `tsc` for `check:types`; Vitest's typecheck mode, which spawns `tsc` and parses its output; and the editor. Type-aware lint runs on the compiler inside `oxlint-tsgolint`, independent of this package. knip, Vite and tsx do not load TypeScript.
 
-## Why the classic `typescript` stays
+## Editor
 
-TypeScript 7 does not yet ship a stable programmatic API, so any tool that imports `typescript` to parse or analyze code still needs the 5.x package. Every installed package that peer-resolves against classic `typescript` is lint/test tooling:
-
-- `typescript-eslint` and its internals (`@typescript-eslint/parser`, `typescript-estree`, `type-utils`, `project-service`, `tsconfig-utils`, `utils`) — the primary consumer
-- `ts-api-utils`, `ts-declaration-location`, `eslint-plugin-n`, `eslint-plugin-perfectionist`, `@vitest/eslint-plugin`
-
-`valibot`, `msw`, and `@t3-oss/env-core` list `typescript` only as an optional types peer and do not force the version.
-
-Because `typescript` is a single catalog entry, it cannot be both 5.x and 7.x at once. The separate `@typescript/native-preview` package name is what lets tsgo run beside classic `typescript` without a version collision — it is not redundant.
-
-## Migration triggers
-
-Collapse the dual setup only when these clear:
-
-1. **npm package** — when `typescript-eslint` (and the rest of the ESLint / Vitest plugin ecosystem above) supports the TypeScript 7 API: bump the single `typescript` catalog entry to `7.x`, drop `@typescript/native-preview` from every package.json, and switch `check:types` back to `tsc --noEmit`. Mainline nightlies resume under the `typescript@next` tag.
-2. **VS Code extension** — when VS Code ships built-in TypeScript 7 support (announced as "coming weeks" at 7.0): drop the `TypeScriptTeam.native-preview` recommendation from `.vscode/extensions.json` and the `js/ts.experimental.useTsgo` settings.
+VS Code reaches TypeScript 7 through the TypeScript 7 extension (`TypeScriptTeam.native-preview`) and `js/ts.experimental.useTsgo`. The extension looks for a workspace compiler only under `node_modules/@typescript/native-preview`, so `js/ts.tsdk.path` points it at `node_modules/typescript`; without it the extension runs the compiler it bundles. 7.0 ships no `tsserver`, so the old `typescript.tsdk` pointing at `typescript/lib` has nothing to load.
 
 Reference: https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/

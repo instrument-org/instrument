@@ -50,7 +50,7 @@ Plans, pricing, and usage limits belong to the API, which enforces them and reco
 - Avoid casts. Prefer `satisfies`; use `as` only for genuinely different types (e.g. unknown payloads), and say why.
 - Reuse existing types/interfaces rather than redefining per file. Prefer short inline non-exported types.
 - Use `radashi` for common lodash-style functions.
-- Do not run `tsc`; use built-in diagnostics or `tsgo`.
+- `tsc` is TypeScript 7, the native compiler; run it through `check:types` (below) or lean on built-in diagnostics. `typescript` 7 has no compiler JS API, so a tool that needs one cannot use it.
 
 ## Tailwind
 
@@ -86,7 +86,7 @@ What the hook does not cover: type errors, tests in another package that import 
 `package.json` files show `"catalog:"` instead of version numbers. Real versions are in `pnpm-workspace.yaml` under `catalog:`. The ones where a stale assumption changes the code you write:
 
 - **React** 19.2 / **react-dom** 19.2
-- **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
+- **TypeScript** 7.0 (the native compiler)
 - **Zod** 4.x
 - **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
 - **AI SDK** 7.x

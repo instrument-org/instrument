@@ -107,7 +107,7 @@ Forcing a version under a build tool is not free. `tar` under electron-builder a
 
 Unchanged from the sweep's framing: individually cheap, collectively a day of churn in lint output, and best done as one batch so the diff is attributable. eslint 10, typescript-eslint 8.67, eslint-plugin-unicorn 56 to 73, perfectionist 5, knip 6.32, oxlint 1.79, oxfmt 0.64.
 
-One thing the sweep did not have: the three repos have drifted apart on exactly these tools. `oxfmt` is 0.61.0 in instrument and internal but 0.57.0 in skills; `knip` is 6.x in the first two and 5.x in skills; `@typescript/native-preview` is a July build here and an April build in internal. Two formatter versions across repos means `check:format` disagrees between them, and an agent formatting a file gets a different answer depending on which repo it is standing in. Align the three in one pass rather than bumping each repo on its own schedule.
+One thing the sweep did not have: the three repos have drifted apart on exactly these tools. `oxfmt` is 0.61.0 in instrument and internal but 0.57.0 in skills; `knip` is 6.x in the first two and 5.x in skills; TypeScript is 7.0 here and an April `@typescript/native-preview` build in internal. Two formatter versions across repos means `check:format` disagrees between them, and an agent formatting a file gets a different answer depending on which repo it is standing in. Align the three in one pass rather than bumping each repo on its own schedule.
 
 ### 5. Decisions that are not bumps
 

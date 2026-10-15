@@ -1,3 +1,4 @@
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import {
   type SkillMentionSegment,
   splitSkillMention,
@@ -33,7 +34,8 @@ const SLASH_COMMAND_PATTERN = /(^|\s)\/([\w:-]+)/g;
  * a pass that has no idea it is inside one.
  */
 export function splitMessageText(line: string): MessageTextSegment[] {
-  return splitSkillMention(line).flatMap((segment) =>
+  // Dictated words read as the words they are.
+  return splitSkillMention(stripDictatedMarks(line)).flatMap((segment) =>
     segment.type === "text" ? splitLinksAndCommands(segment.text) : [segment],
   );
 }

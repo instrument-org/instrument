@@ -12,7 +12,12 @@ import {
   splitSkillMention,
 } from "@instrument-org/shared/skill-mention";
 import {
+  dictatedToken,
+  splitDictatedText,
+} from "@instrument-org/shared/dictated-text";
+import {
   Fragment,
+  type Mark,
   type Node as ProseMirrorNode,
   Schema,
 } from "prosemirror-model";
@@ -69,6 +74,17 @@ export const promptSchema = new Schema({
       },
     },
     text: { group: "inline" },
+  },
+  marks: {
+    /**
+     * Words the person dictated rather than typed, which the model is told
+     * were spoken. It looks like any other text; editing inside it keeps it.
+     */
+    dictated: {
+      inclusive: false,
+      parseDOM: [{ tag: "span[data-dictated]" }],
+      toDOM: () => ["span", { "data-dictated": "" }, 0],
+    },
   },
 });
 
@@ -134,7 +150,7 @@ export function promptDocFromPastedText(
     const nodes = splitSkillText(line).flatMap(
       (segment: SkillTextSegment): ProseMirrorNode[] => {
         if (segment.type === "text") {
-          return textNodes(segment.text);
+          return markedTextNodes(segment.text);
         }
         const name =
           segment.type === "skill"
@@ -158,7 +174,7 @@ export function promptDocFromText(value: string) {
       (segment: SkillMentionSegment): ProseMirrorNode[] =>
         segment.type === "skill"
           ? [promptSchema.nodes.skill.create({ name: segment.name })]
-          : textNodes(segment.text),
+          : markedTextNodes(segment.text),
     );
     return promptSchema.nodes.paragraph.create(null, Fragment.from(nodes));
   });
@@ -168,8 +184,9 @@ export function promptDocFromText(value: string) {
 /**
  * Puts dictated words at the end of the document, as a paragraph of their
  * own when the last one has something in it, and into it when it is empty
- * (an empty box, or one that already ends on a fresh line). The words are
- * plain text; nothing already written is touched, and the step undoes as one.
+ * (an empty box, or one that already ends on a fresh line). The words carry
+ * the dictated mark; nothing already written is touched, and the step undoes
+ * as one.
  */
 export function appendDictatedParagraph(
   state: EditorState,
@@ -181,7 +198,7 @@ export function appendDictatedParagraph(
     .map((line) =>
       promptSchema.nodes.paragraph.create(
         null,
-        Fragment.from(line ? textNodes(line) : []),
+        Fragment.from(line ? textNodes(line, [dictatedMark()]) : []),
       ),
     );
   const { doc } = state;
@@ -200,23 +217,42 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
     for (let childIndex = 0; childIndex < paragraph.childCount; childIndex++) {
       const node = paragraph.child(childIndex);
       const app = appOfNode(node);
+      const text = node.text ?? "";
+      const dictated =
+        promptSchema.marks.dictated.isInSet(node.marks) !== undefined;
       value +=
         node.type === promptSchema.nodes.skill
           ? skillMentionToken(String(node.attrs.name))
           : app
             ? appMentionToken(app)
-            : (node.text ?? "");
+            : dictated && text.trim()
+              ? dictatedToken(text)
+              : text;
     }
     paragraphs.push(value);
   }
   return paragraphs.join("\n");
 }
 
-/** The text of a line as nodes: its apps as tokens, the rest as text. */
-function textNodes(text: string): ProseMirrorNode[] {
+/** The text of a line as nodes: its apps as tokens, the rest as text with `marks`. */
+function textNodes(
+  text: string,
+  marks: readonly Mark[] = [],
+): ProseMirrorNode[] {
   return splitAppMentions(text).map((segment) =>
     segment.type === "app"
       ? promptSchema.nodes.app.create(segment.app)
-      : promptSchema.text(segment.text),
+      : promptSchema.text(segment.text, marks),
   );
 }
+
+/** The text of a line as nodes, its dictated runs carrying the dictated mark. */
+function markedTextNodes(text: string): ProseMirrorNode[] {
+  return splitDictatedText(text).flatMap((segment) =>
+    segment.text
+      ? textNodes(segment.text, segment.dictated ? [dictatedMark()] : [])
+      : [],
+  );
+}
+
+const dictatedMark = () => promptSchema.marks.dictated.create();

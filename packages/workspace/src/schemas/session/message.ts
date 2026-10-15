@@ -3,6 +3,7 @@ import {
   ProviderErrorKindSchema,
   type SyntheticModelId,
 } from "@instrument-org/shared";
+import { renderDictatedForModel } from "@instrument-org/shared/dictated-text";
 import {
   renderSkillMentionsAsText,
   skillMentionLabel,
@@ -39,6 +40,14 @@ import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
+
+/**
+ * Said beside a user message that holds dictated words, which it shows in
+ * `<dictated>` tags: they were heard rather than typed, so an odd word may be
+ * one that sounds like the word meant.
+ */
+const DICTATED_MODEL_NOTE =
+  "The words in <dictated> tags were spoken and transcribed, so a word that doesn't fit may be one that sounds like the word the user meant.";
 
 export namespace SessionMessage {
   // -----
@@ -380,9 +389,21 @@ export namespace SessionMessage {
         // the transcript can render them as chips; the model should read them as
         // the `/name` the user typed, or it quotes the wire form back verbatim.
         // The footnote below tells it what a `/name` reference means.
+        // Dictated words are stored as `[words](dictated:)`; the model reads
+        // them in `<dictated>` tags, with a note below saying what that means.
+        const hasDictation = parts.some(
+          (part) =>
+            part.type === "text" &&
+            renderDictatedForModel(part.text) !== part.text,
+        );
         parts = parts.map((part) =>
           part.type === "text"
-            ? { ...part, text: renderSkillMentionsAsText(part.text) }
+            ? {
+                ...part,
+                text: renderDictatedForModel(
+                  renderSkillMentionsAsText(part.text),
+                ),
+              }
             : part,
         );
 
@@ -403,6 +424,10 @@ export namespace SessionMessage {
         }
 
         const injectedParts: { text: string; type: "text" }[] = [];
+
+        if (hasDictation) {
+          injectedParts.push({ text: DICTATED_MODEL_NOTE, type: "text" });
+        }
 
         const attachmentsPart = message.parts.find(
           (part) => part.type === "data-attachments",

@@ -587,9 +587,9 @@ switch (subcommand) {
  * the total.
  */
 async function runTrialsApart(): Promise<number> {
-  const baseHome =
-    process.env.INSTRUMENT_EVAL_HOME ??
-    path.join(os.tmpdir(), "instrument-eval-home");
+  // Always set by `lib/sandbox-home`, imported first, to the home this run
+  // was given or the one it made itself.
+  const baseHome = process.env.INSTRUMENT_EVAL_HOME ?? os.tmpdir();
   const script = process.argv[1] ?? "";
   const args = withoutOptions(process.argv.slice(2), [
     "--concurrency",

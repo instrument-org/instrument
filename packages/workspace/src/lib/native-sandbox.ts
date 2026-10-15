@@ -629,7 +629,7 @@ export function wrapNativeCommand(
     return {
       args: [],
       file: mxcExec,
-      mxc: { argv: [file, ...args], filesystem: mxcFilesystemPolicy(reach) },
+      mxc: { argv: [file, ...args], filesystem: recentMxcPolicy(reach) },
       reach,
     };
   }
@@ -650,6 +650,29 @@ export function wrapNativeCommand(
 }
 
 const BWRAP = "/usr/bin/bwrap";
+
+/**
+ * A reach's MXC policy, kept for a moment: building it reads every rule's
+ * folder and searches the allowed ones for names that run code, about
+ * 50 ms on Windows, and a pipeline's stages start together. A name made
+ * since is held from the next policy built, a second later at most, as a
+ * name not there yet stays open to being made under bubblewrap until the
+ * next command.
+ */
+const mxcPolicies = new WeakMap<
+  NativeReach,
+  { at: number; filesystem: MxcFilesystemPolicy }
+>();
+const MXC_POLICY_KEPT_MS = 1000;
+function recentMxcPolicy(reach: NativeReach): MxcFilesystemPolicy {
+  const kept = mxcPolicies.get(reach);
+  if (kept && Date.now() - kept.at < MXC_POLICY_KEPT_MS) {
+    return kept.filesystem;
+  }
+  const filesystem = mxcFilesystemPolicy(reach);
+  mxcPolicies.set(reach, { at: Date.now(), filesystem });
+  return filesystem;
+}
 
 /**
  * What MXC's ProcessContainer is given for the disk: three lists of folders,

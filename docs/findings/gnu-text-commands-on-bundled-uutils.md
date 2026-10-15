@@ -155,3 +155,6 @@ It deserves a spike for macOS and Linux, where the OS sandbox already holds ever
 - findutils fixing `-newermt` and Windows separators: `find` joins the table and the `find` patches go.
 - Streaming pipelines in just-bash (#453), adjacent native stages run as one OS pipeline, or brush: the pipeline row above becomes the terminal's.
 - uutils sed's next release with `-z`: worth scoring against the builtin again.
+- A Windows OS sandbox. MXC measured about 45 ms a spawn on top of process creation, so a sandboxed native command there costs roughly 70 ms against 25 ms today, which favors keeping more of the Windows column on the builtins. Windows timings taken over plain SSH run in a non-interactive logon session and are not comparable; take them in the interactive session the test-host scripts use.
+- The builtin `find` gaining `readdirWithFileTypes` on `MountableFs` (just-bash#597) cuts a 21,000-file `find -type f` from 734 to 135 ms on macOS and from 8.4 s to 0.38 s on Windows, which widens the margin `find` stays a builtin on.
+- A builtin `realpath` patch that answers with `/` separators on every host stops applying once `realpath` is routed to uutils; when both land, the Windows respelling of the native `realpath` is the one that holds.

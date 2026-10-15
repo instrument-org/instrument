@@ -19,7 +19,6 @@ import { workDir } from "../work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { workspaceLayout } from "../workspace-layout";
-import { shellPath } from "../workspace-fs-layout";
 import { type ChatIdSchema } from "../../schemas/chat-id";
 
 const model = createMockAIGatewayModel();

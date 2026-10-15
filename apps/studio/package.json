@@ -100,6 +100,7 @@
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@codemirror/commands": "^6.11.1",
+    "@electron/asar": "catalog:",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
     "@codemirror/language-data": "^6.5.2",

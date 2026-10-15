@@ -22,6 +22,7 @@ allowBuilds:
 blockExoticSubdeps: true
 
 catalog:
+  "@electron/asar": ^3.4.1
   "@orpc/client": ^1.15.2
   "@orpc/contract": ^1.15.2
   "@orpc/server": ^1.15.2

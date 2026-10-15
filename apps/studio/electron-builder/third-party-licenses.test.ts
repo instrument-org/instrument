@@ -79,9 +79,10 @@ describe("writeThirdPartyLicenses", () => {
       "Third-party software in Instrument
 
       Instrument includes the programs below, each under its own license. The
-      folder named under each one holds its license texts. Electron and
-      Chromium's notices ship with the app as LICENSE.electron.txt and
-      LICENSES.chromium.html.
+      folder named under each one holds its license texts.
+      THIRD_PARTY_NOTICES.txt lists the open source JavaScript packages
+      Instrument includes, with their licenses. Electron and Chromium's notices
+      ship with the app as LICENSE.electron.txt and LICENSES.chromium.html.
 
       ------------------------------------------------------------------------
       Tool

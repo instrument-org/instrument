@@ -1,13 +1,21 @@
 // Guards against shipping a native program or WebAssembly module without its
 // license: every such file in `app.asar.unpacked` has to fall under a
 // component in third-party-licenses.ts. Run from the afterPack hook, so a newly
-// bundled binary fails packaging until it has an entry.
+// bundled binary fails packaging until it has an entry. The same hook checks
+// that the JavaScript packages' notices file was written and lists packages.
 //
 // Files are recognized by their first bytes rather than their names or modes,
 // so a Windows build made on macOS is checked the same way as one made on
 // Windows.
 
-import { closeSync, openSync, readdirSync, readSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+} from "node:fs";
 import path from "node:path";
 
 import type { ThirdPartyComponent } from "./third-party-licenses";
@@ -85,4 +93,21 @@ export function findUnlicensedBinaries({
     }
   }
   return unlicensed.toSorted();
+}
+
+/**
+ * Throws unless the notices file at `file` exists and lists at least one
+ * package, so a packaging change that leaves it out or writes it empty fails
+ * the build rather than shipping without it.
+ */
+export function verifyThirdPartyNotices(file: string) {
+  if (!existsSync(file)) {
+    throw new Error(`The third-party notices file is missing at ${file}.`);
+  }
+  const listed = /^Packages \((\d+)\)$/m.exec(readFileSync(file, "utf8"));
+  if (!listed || Number(listed[1]) === 0) {
+    throw new Error(
+      `The third-party notices file at ${file} lists no packages.`,
+    );
+  }
 }

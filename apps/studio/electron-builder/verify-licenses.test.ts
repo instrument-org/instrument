@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { findUnlicensedBinaries } from "./verify-licenses";
+import {
+  findUnlicensedBinaries,
+  verifyThirdPartyNotices,
+} from "./verify-licenses";
 
 const HEADERS = {
   elf: Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02]),
@@ -72,5 +75,27 @@ describe("findUnlicensedBinaries", () => {
         unpackedDir,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("verifyThirdPartyNotices", () => {
+  it.each([
+    ["is missing", undefined],
+    ["is empty", ""],
+    ["lists no packages", "Third-party notices\n\nPackages (0)\n"],
+  ])("throws when the file %s", (_case, body) => {
+    const root = writeTree(body === undefined ? {} : { "NOTICES.txt": body });
+    expect(() =>
+      verifyThirdPartyNotices(path.join(root, "NOTICES.txt")),
+    ).toThrow();
+  });
+
+  it("passes a file that lists packages", () => {
+    const root = writeTree({
+      "NOTICES.txt": "Third-party notices\n\nPackages (2)\n\n  a 1.0.0  MIT\n",
+    });
+    expect(() =>
+      verifyThirdPartyNotices(path.join(root, "NOTICES.txt")),
+    ).not.toThrow();
   });
 });

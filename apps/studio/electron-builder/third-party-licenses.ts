@@ -27,6 +27,8 @@ import path from "node:path";
 
 import type { ElectronPlatform } from "./paths";
 
+import { THIRD_PARTY_NOTICES_FILE_NAME } from "./third-party-notices";
+
 const STUDIO_DIR = path.resolve(import.meta.dirname, "..");
 const PACKAGE_ROOTS = {
   studio: STUDIO_DIR,
@@ -329,9 +331,10 @@ function renderLicenseIndex(entries: LicenseEntry[]) {
     `Third-party software in ${APP_NAME}`,
     "",
     `${APP_NAME} includes the programs below, each under its own license. The`,
-    "folder named under each one holds its license texts. Electron and",
-    "Chromium's notices ship with the app as LICENSE.electron.txt and",
-    "LICENSES.chromium.html.",
+    "folder named under each one holds its license texts.",
+    `${THIRD_PARTY_NOTICES_FILE_NAME} lists the open source JavaScript packages`,
+    `${APP_NAME} includes, with their licenses. Electron and Chromium's notices`,
+    "ship with the app as LICENSE.electron.txt and LICENSES.chromium.html.",
     "",
     ...sections.flatMap((section) => [section, ""]),
   ].join("\n");

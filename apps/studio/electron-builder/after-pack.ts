@@ -25,7 +25,11 @@ import {
   writeThirdPartyLicenses,
 } from "./third-party-licenses";
 import { verifyFfmpegBinary, verifyFfmpegChecksum } from "./verify-ffmpeg";
-import { findUnlicensedBinaries } from "./verify-licenses";
+import { writeThirdPartyNotices } from "./third-party-notices";
+import {
+  findUnlicensedBinaries,
+  verifyThirdPartyNotices,
+} from "./verify-licenses";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
 import { expectedUutils, verifyUutilsDir } from "./verify-uutils";
 import { verifyUvBinary } from "./verify-uv";
@@ -174,7 +178,8 @@ function verifyPackagedMacBridge(context: AfterPackContext) {
 
 /**
  * Every native program and WebAssembly module that shipped has a license
- * entry, and `licenses/` beside the app's other resources holds their texts.
+ * entry, `licenses/` beside the app's other resources holds their texts, and
+ * the notices file in it covers the JavaScript packages the app carries.
  * Runs before signing, so the folder is sealed into the macOS signature.
  */
 function writePackagedLicenses(context: AfterPackContext) {
@@ -201,6 +206,23 @@ function writePackagedLicenses(context: AfterPackContext) {
   console.log(
     `afterPack: wrote licenses for ${entries.length} components to ${outDir}`,
   );
+
+  const { file, notices, review } = writeThirdPartyNotices({
+    asarPath: path.join(
+      resolveResourcesDir(context.appOutDir, platformName),
+      "app.asar",
+    ),
+    outDir,
+  });
+  verifyThirdPartyNotices(file);
+  console.log(
+    `afterPack: wrote notices for ${notices.length} JavaScript packages to ${file} (${statSync(file).size} bytes)`,
+  );
+  if (review.length > 0) {
+    console.log(
+      `afterPack: packages whose license is copyleft, unusual or missing, or that ship no text: ${review.map((notice) => `${notice.name}@${notice.version} (${notice.license})`).join(", ")}`,
+    );
+  }
 }
 
 function verifyPackagedPnpm(context: AfterPackContext) {

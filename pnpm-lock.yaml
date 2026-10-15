@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@electron/asar':
+      specifier: ^3.4.1
+      version: 3.4.1
     '@orpc/client':
       specifier: ^1.15.2
       version: 1.15.2
@@ -285,6 +288,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.12
         version: 6.43.12
+      '@electron/asar':
+        specifier: 'catalog:'
+        version: 3.4.1
       '@embedpdf/core':
         specifier: ^2.14.4
         version: 2.15.0(preact@10.29.2)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(svelte@5.56.7(@typescript-eslint/types@8.40.0))(vue@3.5.40(typescript@5.9.2))

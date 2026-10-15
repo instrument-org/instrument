@@ -34,6 +34,7 @@ import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -193,6 +194,9 @@ export function ModelPicker({
               "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
               isProblem &&
                 "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
+              // An invitation to connect something rather than a fault.
+              isEmpty &&
+                "text-brand-700 not-disabled:hover:text-brand-700 dark:text-brand-300 dark:not-disabled:hover:text-brand-300",
               className,
             )}
             disabled={disabled || isLoading}
@@ -223,6 +227,11 @@ export function ModelPicker({
                   </TooltipContent>
                 </Tooltip>
                 <span className="min-w-0 flex-1 truncate">{selectedName}</span>
+              </span>
+            ) : isEmpty ? (
+              <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
+                <InfoIcon className="size-4 shrink-0" />
+                Add a model
               </span>
             ) : (
               <span className="text-xs leading-4 font-medium opacity-50">

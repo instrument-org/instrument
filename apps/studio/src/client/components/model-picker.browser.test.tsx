@@ -153,7 +153,7 @@ describe("ModelPicker in a browser", () => {
       />,
     );
     const trigger = page.getByRole("combobox", { name: "Model" });
-    await expect.element(trigger).toHaveTextContent("No models available");
+    await expect.element(trigger).toHaveTextContent("Add a model");
     await userEvent.click(trigger);
 
     await expect.element(page.getByText("No models yet")).toBeVisible();

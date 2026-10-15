@@ -623,34 +623,38 @@ export function ComposeWindow({
             }}
           >
             <FileDropRegion className="flex h-full min-h-0 flex-col">
-              <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
-                <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium">
+              {/* While someone dictates, the composer's row takes the whole
+                  head: Cancel, the words being heard, Stop and Send. */}
+              <div className="group/head flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
+                <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium group-has-[[data-dictating]]/head:hidden">
                   New chat
                 </span>
-                <TopicSlot
-                  onClear={() => {
-                    onChange((current) => {
-                      const { topicId: _dropped, ...rest } = current;
-                      return { ...rest, topicSource: "chosen" };
-                    });
-                  }}
-                  onNew={onNewTopic}
-                  onPick={(picked) => {
-                    onChange((current) => ({
-                      ...current,
-                      topicId: picked.id,
-                      topicSource: "chosen",
-                    }));
-                  }}
-                  suggested={draft.topicSource === "suggested"}
-                  topic={topic}
-                  topics={liveTopics}
-                />
+                <span className="contents group-has-[[data-dictating]]/head:hidden">
+                  <TopicSlot
+                    onClear={() => {
+                      onChange((current) => {
+                        const { topicId: _dropped, ...rest } = current;
+                        return { ...rest, topicSource: "chosen" };
+                      });
+                    }}
+                    onNew={onNewTopic}
+                    onPick={(picked) => {
+                      onChange((current) => ({
+                        ...current,
+                        topicId: picked.id,
+                        topicSource: "chosen",
+                      }));
+                    }}
+                    suggested={draft.topicSource === "suggested"}
+                    topic={topic}
+                    topics={liveTopics}
+                  />
+                </span>
                 {/* The composer's own row, drawn here by the box below. */}
                 {/* Kept whole at the head's end: on a crowded head the
                     sentence's names give way before the model's. */}
                 <div
-                  className="ml-auto flex shrink-0 items-center pl-2"
+                  className="ml-auto flex shrink-0 items-center pl-2 group-has-[[data-dictating]]/head:ml-0 group-has-[[data-dictating]]/head:min-w-0 group-has-[[data-dictating]]/head:flex-1 group-has-[[data-dictating]]/head:shrink group-has-[[data-dictating]]/head:pl-0"
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">

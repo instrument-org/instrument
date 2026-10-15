@@ -159,13 +159,17 @@ export function DictationReadout({
 }) {
   const { live, phase } = dictation;
   const line = useRef<HTMLSpanElement>(null);
+  const words = useRef<HTMLSpanElement>(null);
   const [overflowing, setOverflowing] = useState(false);
   const settled = live?.settled ?? "";
   const interim = live?.interim ?? "";
+  // The words against the line rather than the line's own scroll width,
+  // which stops counting them once they overflow at the start.
   useLayoutEffect(() => {
-    const element = line.current;
     setOverflowing(
-      element !== null && element.scrollWidth > element.clientWidth,
+      line.current !== null &&
+        words.current !== null &&
+        words.current.offsetWidth > line.current.clientWidth,
     );
   }, [settled, interim]);
   if (!isDictating(phase)) {
@@ -190,7 +194,7 @@ export function DictationReadout({
       role="status"
     >
       {(settled || interim) && quiet === "Listening…" ? (
-        <span className="shrink-0">
+        <span className="shrink-0" ref={words}>
           {settled}
           {settled && interim ? " " : ""}
           <span className="text-muted-foreground">{interim}</span>

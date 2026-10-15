@@ -879,6 +879,8 @@ export const PromptInput = ({
                 "flex min-w-0 items-center gap-3",
                 dictating ? "flex-1" : "shrink-0",
               )}
+              // The draft's head reads this to give the row its whole width.
+              data-dictating={dictating || undefined}
             >
               {dictating ? (
                 <>

@@ -15,6 +15,7 @@ import { ChatFold, type FoldedSession } from "../fold";
 import { partFromRecord, partToRecord, type SaveBlob } from "../part-blobs";
 import { type LogRecord, type MarkRecord, RECORD_FORMAT } from "../record";
 import { RecordWriter, type Unsequenced } from "../record-writer";
+import { readLog, readMarks } from "../read-records";
 import { syncDirectory } from "../sync-directory";
 import {
   addDifference,
@@ -328,7 +329,7 @@ async function recordsThere(
       return { kind: "elsewhere" };
     }
     const file = path.join(chatDir, name);
-    if (await restatesOnly(file)) {
+    if (await restatesOnly(file, parsed.kind)) {
       restating.push(file);
     } else {
       history = true;
@@ -338,23 +339,35 @@ async function recordsThere(
 }
 
 /**
- * Whether every line of a record file says no more than the session row it
- * came from: its header, a mark, where its context was reset, who stopped
- * its turn, what it was told. A line this build cannot read counts for a
+ * Whether every record in a file says no more than the session row it came
+ * from: its header, a mark, where its context was reset, who stopped its
+ * turn, what it was told. A whole line this build cannot read counts for a
  * history, so a file holding anything unaccounted for is left alone rather
  * than written over.
+ *
+ * Read the way every other reader reads these files, which leaves the bytes
+ * after the last newline for the next read. A run cut off mid-append leaves
+ * a fragment there, and reading it as a line of its own made the chat a
+ * history of unreadable records: it kept its database, was listed
+ * unavailable, and failed the same way at every launch after.
  */
-async function restatesOnly(file: string): Promise<boolean> {
-  const text = await fs.readFile(file, "utf8");
-  return text.split("\n").every((line) => {
-    if (line.trim() === "") {
-      return true;
-    }
-    const record = parseJson(line);
-    return (
-      isRecord(record) && typeof record.t === "string" && RESTATED.has(record.t)
-    );
-  });
+async function restatesOnly(
+  file: string,
+  kind: "log" | "marks",
+): Promise<boolean> {
+  const bytes = await fs.readFile(file);
+  const read =
+    kind === "marks" ? readMarks(bytes) : logRecordsOf(readLog(bytes));
+  return (
+    read !== undefined &&
+    read.skipped === 0 &&
+    read.records.every(({ record }) => RESTATED.has(record.t))
+  );
+}
+
+/** A log's records, or none for a file that is not a log to read at all. */
+function logRecordsOf(read: ReturnType<typeof readLog>) {
+  return read.kind === "read" ? read : undefined;
 }
 
 interface Written {

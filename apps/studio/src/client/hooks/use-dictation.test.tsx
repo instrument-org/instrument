@@ -141,7 +141,7 @@ function setup({ finishOnUnmount = false } = {}) {
     () => useDictation({ finishOnUnmount, onText, surface: "composer" }),
     { wrapper },
   );
-  return { ...hook, onText };
+  return { ...hook, client, onText };
 }
 
 async function startRecording(result: {
@@ -393,8 +393,11 @@ describe("useDictation", () => {
 
   it("asks a signed-out person to log in instead of recording", async () => {
     mocks.hasToken = false;
-    const { result } = setup();
-    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    const { client, result } = setup();
+    // The press reads whether someone is signed in, so that has to be known.
+    await waitFor(() => {
+      expect(client.getQueryData(["hasToken"])).toBe(false);
+    });
     act(() => {
       result.current.start();
     });

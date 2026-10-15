@@ -270,3 +270,12 @@ describe("without the bundled uutils", () => {
     expect(result.stderr).toContain("invalid option");
   });
 });
+
+describe.skipIf(!existsSync("/usr/bin/diff"))("with the system's diff", () => {
+  it("answers diff -y, which the builtin lacks", async () => {
+    const result = await run("diff -y -W 20 a.txt b.txt");
+    expect(result.exitCode).toBe(1);
+    // BSD and GNU diff pad the columns differently.
+    expect(result.stdout).toMatch(/^one\s+one\ntwo\s+\|\s+2\n$/);
+  });
+});

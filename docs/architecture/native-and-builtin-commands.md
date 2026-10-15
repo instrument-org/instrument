@@ -13,9 +13,19 @@ Which commands in the agent's shell run as real programs and which run as just-b
 
 A name found nowhere is `command not found`, status 127. `command -v`, `type` and our `which` answer from the same lookup, naming a native command by the program it runs.
 
-## GNU text commands on uutils
+## Preference order
 
-The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere, or the computer's PATH for a command just-bash lacks. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes.
+For a command more than one implementation could answer, the shell uses the one that answers most like GNU on the corpus in [the uutils finding](../findings/gnu-text-commands-on-bundled-uutils.md):
+
+1. **uutils**, for every command in the table below marked `uutils`.
+2. **The computer's own program**, where it scores measurably better than the builtin and every platform it is routed on carries one; the table marks these `system`, and the paragraphs under it give the scores.
+3. **The just-bash builtin** for everything else it has.
+
+The order is re-checked on each uutils release and whenever a builtin is patched: run the corpus against each implementation and move a command when its scores change.
+
+## GNU text commands on uutils or the system
+
+The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere, or the computer's PATH for a command just-bash lacks. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes. A row marked `system` runs the computer's own program from a fixed location (`/usr/bin`, or `/bin` on Linux) the same way, and the builtin answers on a computer without it.
 
 <!-- generated: native-text routes; `pnpm fix` writes this -->
 
@@ -32,6 +42,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `date` | uutils | uutils | uutils | uutils coreutils |  |
 | `dd` | uutils | uutils | uutils | uutils coreutils |  |
 | `df` | uutils | uutils | uutils | uutils coreutils |  |
+| `diff` | system | system | builtin | system |  |
 | `factor` | uutils | uutils | uutils | uutils coreutils |  |
 | `find` | uutils | uutils | uutils | uutils findutils |  |
 | `fmt` | uutils | uutils | uutils | uutils coreutils |  |
@@ -63,6 +74,8 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 <!-- end generated -->
 
 Most of the table replaces a builtin. The rest fills gaps: `arch`, `b2sum`, `base32`, `basenc`, `cksum`, `df`, `factor`, `fmt`, `id`, `nproc`, `pr`, `sha224sum`, `sha384sum`, `sha512sum`, `tsort` and `uname` are commands just-bash does not have, which would otherwise reach the PATH: the BSD versions on macOS, with their own flags, and on Windows usually nothing. Only the ones that print are routed. The coreutils that change the system or act on other processes (`shred`, `chown`, `chgrp`, `chroot`, `mknod`, `mkfifo`, `stty`, `install`, `link`, `unlink`, `sync`, `nice`, `nohup`, `timeout`, `kill`) and the ones that report on the computer's users (`who`, `users`, `pinky`, `uptime`, `hostid`, `logname`) stay with the PATH. `id` falls to the PATH on Windows, since uutils does not build it there.
+
+`diff` runs the system's: BSD diff on macOS answers 9 of the corpus's 11 diff cases against GNU, where the builtin answers 5 and uutils diffutils 3, and Linux carries GNU diff itself. The two BSD misses are `-u` and `-ru`, whose file headers print the time without GNU's nanoseconds and zone. Re-scored through the agent's shell after routing, it still answers 9 of 11.
 
 On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the uutils-build patch reads: the paths they walk come back joined with `/`, as the shell spells them, and `-path` and `-prune` patterns written with `/` match (uutils/findutils#907, uutils/grep#143). `stat` stays the builtin there, since uutils does not build it for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
 
@@ -107,9 +120,9 @@ On Windows the bytes take one step through the app instead of going straight fro
 
 - `cat`, `ls`, `cp`, `mv`, `rm`, `touch`, `mkdir`: they act on the shell's filesystem, which hides the app's own entries (`.instrument`, `tasks/`) and holds every path to the rules as it goes; `ls` natively would list what the app hides.
 - `tr`: it answers as GNU does on the corpus but for `tr '\0'`, and it runs in loops, where a native start per iteration costs more.
-- `diff`: uutils diffutils lacks `-r`, `-w`, `-i` and `-y` (its `cmp` is in the table).
-- `sed`: uutils sed ties the builtin and lacks `-z` in a release.
-- `awk`: no permissive awk matches gawk; goawk fails the same cases the builtin does.
+- `diff` on Windows, which has no diff of its own: uutils diffutils lacks `-r`, `-w`, `-i` and `-y` (its `cmp` is in the table).
+- `sed`: uutils sed ties the builtin and lacks `-z` in a release, and BSD sed on macOS scores below it (11 of 14 against 12).
+- `awk`: no permissive awk matches gawk; goawk fails the same cases the builtin does, and BSD awk on macOS scores below it (9 of 12 against 10).
 - `jq`, `yq`, `xan`, `sqlite3`, `curl` and the other bundled commands with no GNU counterpart.
 - `printf`, `echo`, `test` and the rest of the shell's own: they are the interpreter's and cannot be shadowed.
 

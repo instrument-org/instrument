@@ -49,7 +49,7 @@ import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import {
   createNativeTextCommand,
   nativeTextRoutes,
-  uutilsProgram,
+  routeProgram,
 } from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
@@ -543,12 +543,10 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
-  // A text command uutils answers is described by that program.
+  // A text command uutils or the system answers is described by that program.
   const route = nativeTextRoutes().find((each) => each.name === name);
   try {
-    program = route
-      ? uutilsProgram(route.binary)
-      : COMMAND_PROGRAMS[name]?.(chatId);
+    program = route ? routeProgram(route) : COMMAND_PROGRAMS[name]?.(chatId);
   } catch {
     // A program this platform cannot carry (dugite's git elsewhere) runs
     // nothing, so there is nothing to name.

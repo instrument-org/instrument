@@ -25,15 +25,21 @@ import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 type UutilsBinary = "coreutils" | "diffutils" | "find" | "grep" | "xargs";
 
 /**
- * A GNU text command the bundled uutils answer, every time it runs on the
- * platforms it lists. Which commands are here is a fixed table rather than a
- * decision made per call, so a command answers the same way in a loop as on
- * its own.
+ * A GNU text command the bundled uutils or the computer's own program
+ * answer, every time it runs on the platforms it lists. Which commands are
+ * here is a fixed table rather than a decision made per call, so a command
+ * answers the same way in a loop as on its own.
  */
 interface NativeTextRoute {
-  binary: UutilsBinary;
+  binary: UutilsBinary | "system";
+  /**
+   * For `system`, where the computer keeps the program on each platform,
+   * first match winning. A computer without it leaves the name to the
+   * builtin.
+   */
+  system?: Partial<Record<NodeJS.Platform, () => string[]>>;
   name: string;
-  /** Where the uutils program answers it; elsewhere the builtin keeps it. */
+  /** Where the program answers it; elsewhere the builtin keeps it. */
   platforms?: NodeJS.Platform[];
   /** Operands it writes rather than reads (`sort -o out`, `dd of=out`). */
   writes?: (args: string[]) => string[];
@@ -52,6 +58,9 @@ interface NativeTextRoute {
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
+
+/** Where a Linux distribution keeps a system program. */
+const linuxBin = (name: string) => [`/usr/bin/${name}`, `/bin/${name}`];
 
 /** The value of `-o FILE`, `-oFILE` or `--output=FILE`. */
 function sortOutput(args: string[]): string[] {
@@ -183,6 +192,15 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "coreutils", name: "tsort" },
   { binary: "coreutils", name: "uname" },
   { binary: "diffutils", name: "cmp" },
+  // The computer's own diff (BSD on macOS, GNU on Linux) answers 9 of the
+  // corpus's 11 diff cases on macOS, where the builtin answers 5 and uutils
+  // diffutils 3. Windows has none, so the builtin keeps it there.
+  {
+    binary: "system",
+    name: "diff",
+    platforms: UNIX,
+    system: { darwin: () => ["/usr/bin/diff"], linux: () => linuxBin("diff") },
+  },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
   { binary: "grep", name: "grep", walks: grepWalks },
@@ -410,13 +428,14 @@ export function quietRefusedFolders(stderr: string): string {
   return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed\n`;
 }
 
-/** Each archive a route's binary comes from. */
-const BINARY_PROJECTS: Record<UutilsBinary, string> = {
-  coreutils: "coreutils",
-  diffutils: "diffutils",
-  find: "findutils",
-  grep: "grep",
-  xargs: "findutils",
+/** Where each route's program comes from, as the generated table says it. */
+const BINARY_PROJECTS: Record<NativeTextRoute["binary"], string> = {
+  coreutils: "uutils coreutils",
+  diffutils: "uutils diffutils",
+  find: "uutils findutils",
+  grep: "uutils grep",
+  system: "system",
+  xargs: "uutils findutils",
 };
 
 /**
@@ -426,10 +445,12 @@ const BINARY_PROJECTS: Record<UutilsBinary, string> = {
  */
 export function nativeTextRoutesTable(): string {
   const builtins = new Set(getCommandNames());
-  // Where uutils does not answer, the builtin does, or else the PATH.
+  // Where the route does not answer, the builtin does, or else the PATH.
   const cell = (route: NativeTextRoute, platform: NodeJS.Platform) =>
     (route.platforms?.includes(platform) ?? true)
-      ? "uutils"
+      ? route.binary === "system"
+        ? "system"
+        : "uutils"
       : builtins.has(route.name)
         ? "builtin"
         : "PATH";
@@ -437,7 +458,7 @@ export function nativeTextRoutesTable(): string {
     a.name.localeCompare(b.name),
   ).map(
     (route) =>
-      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | uutils ${BINARY_PROJECTS[route.binary]} | ${route.builtinFor?.args ?? ""} |`,
+      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | ${BINARY_PROJECTS[route.binary]} | ${route.builtinFor?.args ?? ""} |`,
   );
   return [
     "| Command | macOS | Linux | Windows | From | Builtin with |",
@@ -447,7 +468,7 @@ export function nativeTextRoutesTable(): string {
 }
 
 /** The bundled program for a route, when this build carries it. */
-export function uutilsProgram(binary: UutilsBinary): string | undefined {
+function uutilsProgram(binary: UutilsBinary): string | undefined {
   const dir = getWorkspaceConfig().uutilsDir;
   if (dir === undefined) {
     return undefined;
@@ -459,12 +480,22 @@ export function uutilsProgram(binary: UutilsBinary): string | undefined {
   return existsSync(file) ? file : undefined;
 }
 
+/**
+ * The program a route runs here: the bundled uutils one, or the computer's
+ * own, when this build and this computer carry it.
+ */
+export function routeProgram(route: NativeTextRoute): string | undefined {
+  return route.binary === "system"
+    ? route.system?.[process.platform]?.().find((file) => existsSync(file))
+    : uutilsProgram(route.binary);
+}
+
 /** The routes this platform and build answer natively. */
 export function nativeTextRoutes(): NativeTextRoute[] {
   return NATIVE_TEXT_ROUTES.filter(
     (route) =>
       (route.platforms?.includes(process.platform) ?? true) &&
-      uutilsProgram(route.binary) !== undefined,
+      routeProgram(route) !== undefined,
   );
 }
 
@@ -541,7 +572,7 @@ export function createNativeTextCommand(
 ): Command {
   const command = defineCommand(route.name, async (args, ctx) => {
     const walks = route.walks?.(args) ?? false;
-    const program = uutilsProgram(route.binary);
+    const program = routeProgram(route);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
       return ctx.origCommand
         ? await ctx.origCommand(args)
@@ -573,7 +604,8 @@ export function createNativeTextCommand(
       ...(multicall ? [route.name] : []),
       ...hostPathArgs(programArgs),
     ];
-    const windows = process.platform === "win32";
+    // A system program takes Node's own quoting; uutils needs its own.
+    const windows = process.platform === "win32" && route.binary !== "system";
     return runNative(
       ctx,
       program,

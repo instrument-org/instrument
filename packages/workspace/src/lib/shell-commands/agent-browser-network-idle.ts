@@ -13,7 +13,7 @@ import { parseAgentBrowserArgs } from "./agent-browser-args";
 const NETWORK_IDLE_TIMEOUT_MS = 5000;
 
 /** What the agent reads when the capped wait gives up. */
-export const NETWORK_IDLE_GAVE_UP = `The network did not go quiet within ${NETWORK_IDLE_TIMEOUT_MS / 1000} seconds, which a page that keeps a connection open never does. The page has loaded, so act on it, or wait for what you need with \`wait --text\`, \`wait <selector>\` or \`wait --url\`.\n`;
+export const NETWORK_IDLE_GAVE_UP = `The network did not go quiet within ${NETWORK_IDLE_TIMEOUT_MS / 1000} seconds. A page that keeps a connection open never goes quiet, but this one has loaded, so act on it, or wait for what you need with \`wait --text\`, \`wait <selector>\` or \`wait --url\`.\n`;
 
 /**
  * True for `wait --load networkidle` (or `-l`) with no `--timeout` of the

@@ -54,6 +54,14 @@ export function uvPythonInstallDir(uvDataDir: string): string {
   return path.join(uvDataDir, "python");
 }
 
+/**
+ * Where the app installs the packages every chat's `python` starts with
+ * (`python-base.ts`), in `uvDataDir`.
+ */
+export function uvPythonBaseDir(uvDataDir: string): string {
+  return path.join(uvDataDir, "python-base");
+}
+
 /** How many days old a package must be before an install takes it. */
 const RELEASE_AGE_DAYS = 7;
 

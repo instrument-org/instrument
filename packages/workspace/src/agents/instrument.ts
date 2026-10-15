@@ -20,12 +20,14 @@ import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { ensureWorkFolder } from "../lib/initialize-chat";
 import { isToolPart } from "../lib/is-tool-part";
+import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { PIP_COMMAND } from "../lib/shell-commands/pip";
 import { PYTHON_COMMAND } from "../lib/shell-commands/python";
 import { TAB_COMMAND } from "../lib/shell-commands/tab-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
@@ -54,6 +56,18 @@ import {
   getUserText,
   shouldContinueWithToolCalls,
 } from "./shared";
+
+/**
+ * The packages every chat's `python` starts with, once the app has installed
+ * them on this computer; nothing before, when `python` has only what `pip`
+ * installed. A snapshot like the rest of the context, so a session opened
+ * before they land is never told.
+ */
+export function pythonBaseText(): string | undefined {
+  return pythonBaseReady()
+    ? `\`${PYTHON_COMMAND.name}\` already has ${new Intl.ListFormat("en", { type: "conjunction" }).format(PYTHON_BASE_PACKAGES)} installed, so import them without a \`${PIP_COMMAND.name} install\`; install only what else a script needs.`
+    : undefined;
+}
 
 /**
  * The agent the user talks to, and the only one: it does the work itself,
@@ -118,6 +132,7 @@ export const instrumentAgent = setupAgent({
           network: `\`curl\` and \`${TOOL_NAMES.webFetch}\` reach the internet and the local network. \`${NODE_COMMAND.name}\` and \`${PYTHON_COMMAND.name}\` are real programs on this computer, with its network.`,
         }),
         await getUserText(),
+        pythonBaseText(),
         foldersText,
         await buildAppsContextText(),
         await buildAvailableSkillsContext(),

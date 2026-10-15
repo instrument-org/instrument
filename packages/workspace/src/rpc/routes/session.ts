@@ -112,8 +112,8 @@ const run = base
  * Stops a record's agents: a chat's, which is its own conversation and every
  * task it started; or with `sessionId`, that one session alone, a task's
  * from its row or page, with everything it has running in the background,
- * or the chat's own turn from its composer, which leaves its tasks working
- * and its processes running.
+ * or the chat's own turn alone, which leaves its tasks working and its
+ * processes running.
  */
 const stop = base
   .input(

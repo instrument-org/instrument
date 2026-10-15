@@ -9,7 +9,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation } from "@tanstack/react-query";
@@ -25,76 +24,8 @@ type RunningTask = Chat["runningTasks"][number];
 type ChatTask = NonNullable<ReturnType<typeof useChatTasks>["data"]>[number];
 
 /**
- * What a chat has in flight, at its head's right: while any task filed from
- * it is at work, the breathing dot and the step the newest is on in the live
- * shimmer; on a head with no room for the step, the dot alone. While none
- * runs, a quiet checklist mark. Pressed, it lists the chat's tasks, the running
- * ones first with each one's step and the finished ones under them with when
- * they ended, and a task pressed opens beside the chat. Nothing at all for a
- * chat that has filed no task.
- */
-export function ChatActivity({
-  chatId,
-  isCompact = false,
-  onOpen,
-  tasks,
-}: {
-  chatId: ChatId;
-  /** Whether it stands as the spinner and the count whatever the room, for a head as narrow as the floating chat's. */
-  isCompact?: boolean;
-  /** Opens a task's page, as a tab of the chat's. */
-  onOpen: (sessionId: StoreId.Session) => void;
-  tasks: RunningTask[];
-}) {
-  const listed = useChatTasks(chatId).data;
-  // The one whose step the head shows: a task held for the user first,
-  // since that is the one the user can do something about.
-  const lead = tasks.find((task) => task.waiting) ?? tasks[0];
-  const filed = listed?.length ?? 0;
-  if (!lead && filed === 0) {
-    return null;
-  }
-  return (
-    <ChatTasksPopover
-      chatId={chatId}
-      onOpen={onOpen}
-      tasks={tasks}
-      trigger={
-        lead ? (
-          <button
-            aria-label={`${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} working`}
-            className="flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-xs hover:bg-accent data-[state=open]:bg-accent"
-            type="button"
-          >
-            <PlanningDotIcon />
-            {/* The step needs the head's room: under it, the dot alone. */}
-            <span
-              className={cn(
-                "hidden min-w-0 items-center",
-                !isCompact && "@lg/head:flex",
-              )}
-            >
-              <WorkLine task={lead} />
-            </span>
-          </button>
-        ) : (
-          <button
-            aria-label={`${filed} ${filed === 1 ? "task" : "tasks"}`}
-            className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-            type="button"
-          >
-            <ListChecksIcon className="size-4 shrink-0" />
-          </button>
-        )
-      }
-    />
-  );
-}
-
-/**
- * The chat's tasks, running ones first, hanging from whatever opens them: the
- * activity at the head's right, or the line under the chat's title. A task
- * pressed opens beside the chat.
+ * The chat's tasks, running ones first, hanging from the line under the
+ * chat's title. A task pressed opens beside the chat.
  */
 export function ChatTasksPopover({
   align = "end",
@@ -132,7 +63,7 @@ export function ChatTasksPopover({
 }
 
 /**
- * The chat's tasks under the head's activity: running, then finished, newest
+ * The chat's tasks under the line under its title: running, then finished, newest
  * first in each. A task at work or waiting on a card has a stop at its row's
  * end, once the list says whether it has anything to stop.
  */

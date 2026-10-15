@@ -14,14 +14,17 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { useMutation } from "@tanstack/react-query";
 import {
   type ComponentProps,
   type CSSProperties,
@@ -32,7 +35,6 @@ import {
 } from "react";
 
 import { chatMenuGroups, useChatActions } from "./chat-actions";
-import { ChatActivity } from "./chat-activity";
 import { ChatStatusLine } from "./chat-status-line";
 import { TopicPill } from "./chat-row";
 import { ChatTitleButton, ChatTitleField } from "./chat-title";
@@ -48,9 +50,8 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
  * the inbox and popped out into its small window alike. Its title in the
  * middle, which opens the chat's menu, with the topics it is filed under
  * after it, and under the title the one line saying where its work stands
- * (`ChatStatusLine`), which is the chat's loading state. At the right, the
- * mark that lists the chat's tasks, then whatever the place it is shown in
- * adds: beside the inbox the glyph that pops the conversation out (lit while
+ * (`ChatStatusLine`), which is the chat's loading state and lists its
+ * tasks. At the right, whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
  * it is out, when pressing it brings the conversation back) and the pane
  * toggle while the pane is closed; popped out, the window's own buttons. The
  * two sides keep one width, the wider one's, so the title stands in the
@@ -85,7 +86,7 @@ export function ChatHeader({
   onNewTopic: (name?: string) => void;
   /** Opens the chat among the chats, from its menu, where the head is not already there. */
   onOpenInChats?: () => void;
-  /** Opens one of the chat's tasks beside it, from the work in flight at the head's right. */
+  /** Opens one of the chat's tasks beside it, from the list under its title. */
   onOpenTask: (sessionId: StoreId.Session) => void;
   onSetTopics: (topics: string[]) => void;
   /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
@@ -162,16 +163,6 @@ export function ChatHeader({
             className="flex w-max items-center gap-x-1"
             ref={sideWidth.trailing}
           >
-            {/* The step itself is the line under the title, so this stands
-              as its mark alone. */}
-            {chat && (
-              <ChatActivity
-                chatId={chat.id}
-                isCompact
-                onOpen={onOpenTask}
-                tasks={chat.runningTasks}
-              />
-            )}
             {popOut && (
               <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
                 <Button
@@ -347,7 +338,8 @@ function ChatHeading({
 }
 
 /**
- * The chat's own menu, opened from its title: the inbox row's menu in the
+ * The chat's own menu, opened from its title: while the chat works, Stop,
+ * which ends its turn and every task's; then the inbox row's menu in the
  * same groups and order (see `chatMenuGroups`), with renaming it, which
  * opens the title's field, and its tasks among the ways to organize it, and
  * deleting it at the foot. Its topics are the pills beside the title.
@@ -381,6 +373,7 @@ function ChatMenu({
   trigger: ReactNode;
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
+  const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const item = (action: RowAction) => (
     <DropdownMenuItem
       key={action.id}
@@ -412,6 +405,19 @@ function ChatMenu({
             <DropdownMenuItem onSelect={onOpenInChats}>
               <ChatsCircleIcon className="size-3.5" />
               Open in Chats
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {chat.state === "working" && (
+          <>
+            <DropdownMenuItem
+              onSelect={() => {
+                stop.mutate({ id: chat.id });
+              }}
+            >
+              <StopIcon className="size-3.5" />
+              Stop
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

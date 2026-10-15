@@ -1,10 +1,18 @@
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { rpcClient } from "@/client/rpc/client";
+import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useMutation } from "@tanstack/react-query";
 
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
@@ -39,16 +47,16 @@ const DONE = "Done";
  * chat's own work is done, so the line stays once work is done. Nothing
  * once the user stopped the chat's turn, or the user or the chat stopped
  * that task. Only labels of work and task names are said here, never the
- * agent's own words.
- * Pressed, it lists the chat's tasks, the same list the activity at the
- * head's right opens; with no task filed it is only a line. Nothing at all in
- * a chat that has only talked.
+ * agent's own words. While anything runs, its dot turns into a Stop when
+ * pointed at, which ends the chat's turn and every task's. Pressed anywhere
+ * else, it lists the chat's tasks; with no task filed it is only a line.
+ * Nothing at all in a chat that has only talked.
  */
 export function ChatStatusLine({
   chat,
   onOpenTask,
 }: {
-  chat: Chat;
+  chat: Parameters<typeof statusLine>[0]["chat"] & Pick<Chat, "id">;
   /** Opens one of the chat's tasks beside it. */
   onOpenTask: (sessionId: StoreId.Session) => void;
 }) {
@@ -57,46 +65,88 @@ export function ChatStatusLine({
   if (!line) {
     return null;
   }
-  const content = (
-    <span className="flex max-w-full min-w-0 items-center gap-1.5 text-[12px] leading-5">
-      <StatusMark tone={line.tone} />
-      <span
-        className={cn(
-          "min-w-0 truncate",
-          line.tone === "run" && "brand-shiny-text",
-          line.tone === "wait" && "text-foreground/80",
-          line.tone === "failed" && "text-error-700 dark:text-error-300",
-          (line.tone === "done" || line.tone === "stopped") &&
-            "text-muted-foreground",
-        )}
-      >
-        {line.text}
-      </span>
+  const text = (
+    <span
+      className={cn(
+        "min-w-0 truncate",
+        line.tone === "run" && "brand-shiny-text",
+        line.tone === "wait" && "text-foreground/80",
+        line.tone === "failed" && "text-error-700 dark:text-error-300",
+        (line.tone === "done" || line.tone === "stopped") &&
+          "text-muted-foreground",
+      )}
+    >
+      {line.text}
     </span>
   );
-  if (!listed?.length) {
-    return (
-      <div aria-live="polite" className="flex max-w-full min-w-0">
-        {content}
-      </div>
+  // While anything runs, the mark is also the chat's Stop: pointing at the
+  // line puts a stop in the dot's place, and the rest of the line still
+  // lists the tasks.
+  const mark =
+    line.tone === "run" ? (
+      <StopChatButton chatId={chat.id} />
+    ) : (
+      <StatusMark tone={line.tone} />
     );
-  }
   return (
-    <ChatTasksPopover
-      align="center"
-      chatId={chat.id}
-      onOpen={onOpenTask}
-      tasks={chat.runningTasks}
-      trigger={
+    <div
+      aria-live="polite"
+      className={cn(
+        "group/line flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5",
+        (listed?.length || line.tone === "run") &&
+          "hover:bg-accent has-data-[state=open]:bg-accent",
+      )}
+    >
+      {mark}
+      {listed?.length ? (
+        <ChatTasksPopover
+          align="center"
+          chatId={chat.id}
+          onOpen={onOpenTask}
+          tasks={chat.runningTasks}
+          trigger={
+            <button className="flex min-w-0" type="button">
+              {text}
+            </button>
+          }
+        />
+      ) : (
+        text
+      )}
+    </div>
+  );
+}
+
+/**
+ * The planning dot, which turns into a stop while the line is pointed at
+ * or the button has focus. Pressed, it stops the chat's own turn and every
+ * task of the chat's.
+ */
+function StopChatButton({ chatId }: { chatId: ChatId }) {
+  const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
         <button
-          aria-live="polite"
-          className="flex max-w-full min-w-0 rounded-md px-1.5 hover:bg-accent data-[state=open]:bg-accent"
+          aria-label="Stop"
+          className="group/stop grid size-5 shrink-0 place-items-center rounded-full disabled:opacity-50"
+          disabled={stop.isPending}
+          onClick={() => {
+            stop.mutate({ id: chatId });
+          }}
           type="button"
         >
-          {content}
+          <span className="contents group-hover/line:hidden group-focus-visible/stop:hidden">
+            <PlanningDotIcon />
+          </span>
+          <StopIcon
+            className="hidden size-3.5 text-foreground/75 group-hover/line:block group-focus-visible/stop:block"
+            weight="fill"
+          />
         </button>
-      }
-    />
+      </TooltipTrigger>
+      <TooltipContent>Stop</TooltipContent>
+    </Tooltip>
   );
 }
 

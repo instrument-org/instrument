@@ -111,6 +111,22 @@ const WAITED_FOR_ANSWER: Assertion = {
   text: "wrote no tagline before the answer arrived",
 };
 
+/**
+ * The card is the question: the words between asking and the answer carry
+ * the conversation on rather than asking it a second time.
+ */
+const LEFT_THE_ASKING_TO_THE_CARD: Assertion = {
+  check: ({ sessions }) => {
+    const { before } = repliesAroundAnswer(sessions);
+    return {
+      evidence: before.slice(0, 400) || "(nothing)",
+      passed: !before.includes("?"),
+      text: "left the asking to the card",
+    };
+  },
+  text: "left the asking to the card",
+};
+
 const REPLIED: Assertion = {
   check: ({ sessions }) => {
     const reply = replyAfterAnswer(sessions);
@@ -146,28 +162,54 @@ export const QUESTIONS_EVALS = [
         selectedChoice: input.choices[0] ?? "",
       }),
     ],
-    assertions: [ASKED_ONCE, NO_ESCAPE_CHOICES, WAITED_FOR_ANSWER, REPLIED, mentions("sourdough")],
+    assertions: [
+      ASKED_ONCE,
+      NO_ESCAPE_CHOICES,
+      WAITED_FOR_ANSWER,
+      LEFT_THE_ASKING_TO_THE_CARD,
+      REPLIED,
+      mentions("sourdough"),
+    ],
     kind: "chat",
     name: "questions-choice-with-note",
     prompt: PROMPT,
   }),
   defineEval({
     answers: [{ selectedChoice: "Deadpan, like a bored museum guard" }],
-    assertions: [ASKED_ONCE, NO_ESCAPE_CHOICES, WAITED_FOR_ANSWER, REPLIED],
+    assertions: [
+      ASKED_ONCE,
+      NO_ESCAPE_CHOICES,
+      WAITED_FOR_ANSWER,
+      LEFT_THE_ASKING_TO_THE_CARD,
+      REPLIED,
+    ],
     kind: "chat",
     name: "questions-own-answer",
     prompt: PROMPT,
   }),
   defineEval({
     answers: [{ declined: true }],
-    assertions: [ASKED_ONCE, NO_ESCAPE_CHOICES, WAITED_FOR_ANSWER, REPLIED],
+    assertions: [
+      ASKED_ONCE,
+      NO_ESCAPE_CHOICES,
+      WAITED_FOR_ANSWER,
+      LEFT_THE_ASKING_TO_THE_CARD,
+      REPLIED,
+    ],
     kind: "chat",
     name: "questions-skipped",
     prompt: PROMPT,
   }),
   defineEval({
     answers: [{ declined: true, note: "You pick. We're in Portland." }],
-    assertions: [ASKED_ONCE, NO_ESCAPE_CHOICES, WAITED_FOR_ANSWER, REPLIED, mentions("Portland")],
+    assertions: [
+      ASKED_ONCE,
+      NO_ESCAPE_CHOICES,
+      WAITED_FOR_ANSWER,
+      LEFT_THE_ASKING_TO_THE_CARD,
+      REPLIED,
+      mentions("Portland"),
+    ],
     kind: "chat",
     name: "questions-skipped-with-note",
     prompt: PROMPT,

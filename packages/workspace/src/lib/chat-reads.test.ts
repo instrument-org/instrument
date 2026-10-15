@@ -285,16 +285,21 @@ describe("the reads that build a model request", () => {
     expect(
       (await ChatReads.messageIds({ chatId, sessionId }))._unsafeUnwrap(),
     ).toEqual(stored.map((message) => message.id));
+    // A task's ids are its own, never its chat's: the store cannot inherit
+    // them, and a task that reads its chat's would never look empty, which is
+    // what tells a started task from one nobody has written in.
     expect(
-      (
-        await ChatReads.messageIds({
-          chatId,
-          inherited: false,
-          sessionId: task.id,
-        })
-      )._unsafeUnwrap(),
+      (await ChatReads.messageIds({ chatId, sessionId: task.id }))
+        ._unsafeUnwrap(),
     ).toEqual(
       (await Store.getMessageIds(task.id, chatId))._unsafeUnwrap().toSorted(),
+    );
+    expect(
+      (
+        await ChatReads.messageIds({ chatId, sessionId: task.id })
+      )._unsafeUnwrap(),
+    ).not.toEqual(
+      (await ChatReads.messageIds({ chatId, sessionId }))._unsafeUnwrap(),
     );
   });
 

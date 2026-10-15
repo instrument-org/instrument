@@ -11,7 +11,6 @@ import {
 } from "../../background-processes";
 import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
-import { Store } from "../../store";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import {
   type SubcommandInput,
@@ -198,7 +197,7 @@ async function startFork({
   /** Called with the task's session before its first turn starts. */
   onSession?: (sessionId: StoreId.Session) => void;
 }): Promise<ChatTask> {
-  const chatSession = await Store.getSession(chatSessionId, chatId);
+  const chatSession = await ChatReads.session({ chatId, sessionId: chatSessionId });
   if (chatSession.isErr()) {
     throw chatSession.error;
   }

@@ -124,11 +124,11 @@ export const agentMachine = setup({
         chatId: ChatId;
       }
     >(async ({ input, signal }) => {
-      const messageIdsResult = await Store.getMessageIds(
-        input.sessionId,
-        input.chatId,
-        { signal },
-      );
+      const messageIdsResult = await ChatReads.messageIds({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+        signal,
+      });
 
       if (messageIdsResult.isErr()) {
         throw new Error(
@@ -145,20 +145,24 @@ export const agentMachine = setup({
         (messageId) => messageId > input.parentMessageId,
       );
 
-      const partsResults = await Promise.all(
-        runMessageIds.map((messageId) =>
-          Store.getParts(input.sessionId, messageId, input.chatId, { signal }),
-        ),
-      );
+      // A call still arriving is the turn's own memory rather than anything
+      // written, so the read has to carry what the turn holds: the part this
+      // sweep is here to finish is often one of those.
+      const runMessages = await ChatReads.transcript({
+        chatId: input.chatId,
+        only: new Set(runMessageIds),
+        sessionId: input.sessionId,
+        signal,
+      });
+      if (runMessages.isErr()) {
+        throw new Error(
+          `Error loading parts: ${JSON.stringify(runMessages.error)}`,
+        );
+      }
 
       const danglingParts: SessionMessagePart.ToolPart[] = [];
-      for (const partsResult of partsResults) {
-        if (partsResult.isErr()) {
-          throw new Error(
-            `Error loading parts: ${JSON.stringify(partsResult.error)}`,
-          );
-        }
-        for (const part of partsResult.value) {
+      for (const message of runMessages.value) {
+        for (const part of message.parts) {
           if (
             isToolPart(part) &&
             (part.state === "input-available" ||

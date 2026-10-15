@@ -5,6 +5,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { generateSessionTitle } from "./generate-session-title";
 import { sessionOfChat } from "./record-folders";
+import { ChatReads } from "./chat-reads";
 import { Store } from "./store";
 
 export async function createSession({
@@ -44,7 +45,7 @@ export async function ensureChatSession(chatId: ChatId) {
   if (!sessionId) {
     return err(new TypedError.NotFound(`${chatId} is not a chat.`));
   }
-  const existing = await Store.getSession(sessionId, chatId);
+  const existing = await ChatReads.session({ chatId, sessionId });
   if (existing.isOk() || existing.error.type !== "workspace-not-found-error") {
     return existing;
   }

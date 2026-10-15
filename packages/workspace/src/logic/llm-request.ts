@@ -38,6 +38,7 @@ import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { cacheSessionFor } from "../lib/fork-cache-session";
+import { ChatReads } from "../lib/chat-reads";
 import { Store } from "../lib/store";
 import { turnNoteFor } from "../lib/turn-note";
 import { chatDir } from "../lib/record-folders";
@@ -225,18 +226,21 @@ export const llmRequestLogic = fromPromise<
       }
     }
     pendingDeltaSaves.clear();
-    const partsResult = await Store.getParts(
-      input.sessionId,
-      assistantMessage.id,
-      input.chatId,
-      { signal },
-    );
-    if (partsResult.isErr()) {
-      getWorkspaceConfig().captureException(partsResult.error, {
+    const readBack = await ChatReads.transcript({
+      chatId: input.chatId,
+      only: new Set([assistantMessage.id]),
+      sessionId: input.sessionId,
+      signal,
+    });
+    if (readBack.isErr()) {
+      getWorkspaceConfig().captureException(readBack.error, {
         scopes: ["workspace", "llm-request"],
       });
     }
-    return partsResult.isOk() ? partsResult.value : [];
+    return readBack.isOk()
+      ? (readBack.value.find(({ id }) => id === assistantMessage.id)?.parts ??
+          [])
+      : [];
   }
 
   const agentTools = await input.agent.getTools();

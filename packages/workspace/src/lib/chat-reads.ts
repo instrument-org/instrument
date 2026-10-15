@@ -78,23 +78,23 @@ export namespace ChatReads {
   }
 
   /**
-   * The ids of the session's messages, oldest first: for a reader that only
-   * has to place a message among them.
+   * The ids of the session's own messages, oldest first: for a reader that
+   * only has to place a message among them, or count them. A task's carry
+   * none of its chat's, which is what tells an empty task from a started
+   * one.
    */
   export function messageIds({
     chatId,
-    inherited,
     sessionId,
     signal,
   }: {
     chatId: ChatId;
-    inherited?: boolean;
     sessionId: StoreId.Session;
     signal?: AbortSignal;
   }): ResultAsync<StoreId.Message[], Failure> {
     return recorded(chatId).andThen((records) =>
       records?.held
-        ? okAsync(messageIdsView(records.read, sessionId, { inherited }))
+        ? okAsync(messageIdsView(records.read, sessionId, { inherited: false }))
         : Store.getMessageIds(sessionId, chatId, { signal }).map((ids) =>
             ids.toSorted(byId),
           ),

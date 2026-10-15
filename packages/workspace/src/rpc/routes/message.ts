@@ -117,10 +117,10 @@ const create = base
           await setChatTopics(chatId, topics);
         }
 
-        const messageIdsBeforeResult = await Store.getMessageIds(
-          finalSessionId,
+        const messageIdsBeforeResult = await ChatReads.messageIds({
           chatId,
-        );
+          sessionId: finalSessionId,
+        });
         if (messageIdsBeforeResult.isErr()) {
           throw toORPCError(messageIdsBeforeResult.error, errors);
         }

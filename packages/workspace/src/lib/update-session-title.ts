@@ -1,6 +1,7 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { isUntitledChatSessionTitle } from "./generate-session-title";
+import { ChatReads } from "./chat-reads";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -18,7 +19,7 @@ export async function updateSessionTitle({
   chatId: ChatId;
   title: string;
 }): Promise<boolean> {
-  const storedSession = await Store.getSession(sessionId, chatId);
+  const storedSession = await ChatReads.session({ chatId, sessionId });
   if (storedSession.isErr()) {
     return false;
   }

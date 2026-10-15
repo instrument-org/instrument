@@ -217,7 +217,7 @@ export async function prepareModelMessages({
       // because the row is what is written: the store is still what keeps a
       // session, and a row written from anything but itself would carry the
       // other side's answer for every field the boundary is not.
-      const stored = await Store.getSession(sessionId, chatId, { signal });
+      const stored = await ChatReads.session({ chatId, sessionId, signal });
       const saveResult = await stored.asyncAndThen((row) =>
         Store.saveSession(
           {

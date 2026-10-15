@@ -147,7 +147,6 @@ export const sessionMachine = setup({
     >(async ({ input, signal }) => {
       const result = await ChatReads.messageIds({
         chatId: input.chatId,
-        inherited: false,
         sessionId: input.sessionId,
         signal,
       });
@@ -195,7 +194,9 @@ export const sessionMachine = setup({
         chatId: ChatId;
       }
     >(async ({ input: { sessionId, chatId }, signal }) => {
-      const existingSession = await Store.getSession(sessionId, chatId, {
+      const existingSession = await ChatReads.session({
+        chatId,
+        sessionId,
         signal,
       });
       // Every session is written before its first message: a chat's with

@@ -9,6 +9,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
@@ -236,7 +237,7 @@ export async function chatReadProblem(
   if (await chatDigest(chatId, sessionId)) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   return session.isErr() ? "unreadable-session" : "unreadable-messages";
 }
 
@@ -593,11 +594,11 @@ function chatDigest(
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
   return chatDigests(chatId, sessionId, async () => {
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return unkept(undefined);
     }
-    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
+    const messages = await ChatReads.transcript({ chatId, sessionId });
     return messages.isOk()
       ? kept(digestOf(session.value, messages.value))
       : unkept(undefined);
@@ -861,7 +862,7 @@ function saveMark(
     if (!sessionId) {
       return false;
     }
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return false;
     }

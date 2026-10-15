@@ -237,6 +237,10 @@ export interface WorkspaceConfig {
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
+  // The bundled uutils binaries (`coreutils`, `find`, `xargs`, `diffutils`,
+  // `grep`) that answer the shell's GNU text commands natively; absent, those
+  // commands stay the shell's own.
+  uutilsDir?: AbsolutePath;
   // The bundled Mac helper behind the `calendar` and `contacts` commands and
   // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;

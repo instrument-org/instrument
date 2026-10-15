@@ -181,6 +181,12 @@ setWorkspaceConfig({
       seatbeltHelperPath: AbsolutePathSchema.parse(SEATBELT_LAUNCHER),
     }))
     .catch(() => ({}))),
+  // The uutils binaries Studio vendors (`pnpm --filter
+  // @instrument-org/studio uutils:download`); without them the shell's GNU
+  // text commands stay its own.
+  uutilsDir: AbsolutePathSchema.parse(
+    path.resolve(import.meta.dirname, "../../../apps/studio/resources/uutils"),
+  ),
   webSearch: unavailableWebSearchClient,
 });
 

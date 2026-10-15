@@ -289,6 +289,7 @@ export const workspaceMachine = setup({
       toolBinDir?: string;
       uvBinPath: string;
       uvDataDir: string;
+      uutilsDir?: string;
       macHelperBinPath?: string;
       seatbeltHelperPath?: string;
       knownFolders?: WorkspaceConfig["knownFolders"];
@@ -350,6 +351,9 @@ export const workspaceMachine = setup({
         seatbeltHelperPath: AbsolutePathSchema.parse(input.seatbeltHelperPath),
       }),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
+      ...(input.uutilsDir && {
+        uutilsDir: AbsolutePathSchema.parse(input.uutilsDir),
+      }),
       webSearch: input.webSearch,
     };
     // Publish the single per-process config so code can read it via

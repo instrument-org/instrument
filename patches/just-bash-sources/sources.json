@@ -123,6 +123,10 @@
     {
       "name": "virtual path separators",
       "diff": "virtual-path-separators-3.6.0.diff"
+    },
+    {
+      "name": "mountable dirents",
+      "diff": "mountable-dirents-3.6.0.diff"
     }
   ]
 }

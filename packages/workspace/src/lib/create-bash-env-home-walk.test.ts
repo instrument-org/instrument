@@ -83,8 +83,9 @@ afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-// A walk of 20,000 entries takes several seconds on Windows.
-describe("walks over the home folder", { timeout: 60_000 }, () => {
+// A walk of 20,000 entries reads each folder once, so the time here is the
+// disk's rather than the shell's: generous for a slow or shared one.
+describe("walks over the home folder", { timeout: 20_000 }, () => {
   it("stop at the home folder's budget, pointing at rg", async () => {
     const result = await run(
       `find ${shellPath(path.join(tmpDir, "Home"))} -name nothing-here`,

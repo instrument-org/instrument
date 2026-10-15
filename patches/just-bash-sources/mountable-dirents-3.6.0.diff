@@ -1,0 +1,232 @@
+diff --git a/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts b/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts
+--- a/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts
++++ b/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts
+@@ -5,6 +5,7 @@
+   BufferEncoding,
+   CpOptions,
+   CreateExclusiveOptions,
++  DirentEntry,
+   FileContent,
+   FsStat,
+   IFileSystem,
+@@ -499,6 +500,77 @@
+     }
+ 
+     return Array.from(entries).sort();
++  }
++
++  /**
++   * Read directory contents with type information, so a walk does not stat
++   * every entry. The owning filesystem answers with its own types where it
++   * has them, and mount points are directories of their own.
++   */
++  async readdirWithFileTypes(path: string): Promise<DirentEntry[]> {
++    const normalized = normalizePath(path);
++    const entries = new Map<string, DirentEntry>();
++    let readdirError: Error | null = null;
++
++    // Get entries from the owning filesystem
++    const { fs, relativePath } = this.routePath(path);
++    try {
++      if (fs.readdirWithFileTypes) {
++        for (const entry of await fs.readdirWithFileTypes(relativePath)) {
++          entries.set(entry.name, entry);
++        }
++      } else {
++        // A filesystem that does not implement the listing is asked about
++        // each entry instead, which is what a caller reaching past this one
++        // would have had to do. lstat answers for the entry itself, as a
++        // directory listing reports it, so a link is a link whether or not
++        // what it points at is still there; an entry that cannot be answered
++        // for at all is still in the directory, and is listed with no type.
++        for (const name of await fs.readdir(relativePath)) {
++          let entry: FsStat | undefined;
++          try {
++            entry = await fs.lstat(joinPath(relativePath, name));
++          } catch {
++            entry = undefined;
++          }
++          entries.set(name, {
++            name,
++            isFile: entry?.isFile ?? false,
++            isDirectory: entry?.isDirectory ?? false,
++            isSymbolicLink: entry?.isSymbolicLink ?? false,
++          });
++        }
++      }
++    } catch (err) {
++      // Path might not exist in base FS if only mount points are there
++      const code = (err as { code?: string }).code;
++      const message = (err as { message?: string }).message || "";
++
++      if (code !== "ENOENT" && !message.includes("ENOENT")) {
++        throw err;
++      }
++      // Save error to throw later if no mount points provide entries
++      readdirError = err as Error;
++    }
++
++    // Add mount points that are immediate children
++    for (const child of this.getChildMountPoints(normalized)) {
++      entries.set(child, {
++        name: child,
++        isFile: false,
++        isDirectory: true,
++        isSymbolicLink: false,
++      });
++    }
++
++    // If no entries found and we had an error, throw the original error
++    if (entries.size === 0 && readdirError && !this.mounts.has(normalized)) {
++      throw readdirError;
++    }
++
++    return Array.from(entries.values()).sort((left, right) =>
++      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
++    );
+   }
+ 
+   async rm(path: string, options?: RmOptions): Promise<void> {
+diff --git a/packages/just-bash/src/fs/mountable-fs/mountable-fs.dirents.test.ts b/packages/just-bash/src/fs/mountable-fs/mountable-fs.dirents.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/just-bash/src/fs/mountable-fs/mountable-fs.dirents.test.ts
+@@ -0,0 +1,138 @@
++import { describe, expect, it } from "vitest";
++import { InMemoryFs } from "../in-memory-fs/in-memory-fs.js";
++import type { DirentEntry, FsStat, IFileSystem } from "../interface.js";
++import { MountableFs } from "./mountable-fs.js";
++
++/** A filesystem that answers no listing with file types, so each entry is stat'd. */
++function withoutDirents(delegate: IFileSystem): IFileSystem {
++  return new Proxy(delegate, {
++    get(target, key, receiver) {
++      if (key === "readdirWithFileTypes") {
++        return undefined;
++      }
++      const value: unknown = Reflect.get(target, key, receiver);
++      return typeof value === "function"
++        ? (...args: unknown[]): unknown => Reflect.apply(value, target, args)
++        : value;
++    },
++  });
++}
++
++const named = (entries: DirentEntry[]) => entries.map((entry) => entry.name);
++const typed = (entries: DirentEntry[], name: string) =>
++  entries.find((entry) => entry.name === name);
++
++describe("MountableFs readdirWithFileTypes", () => {
++  it("reads the owning filesystem's own types", async () => {
++    const fs = new MountableFs({
++      base: new InMemoryFs({ "/a.txt": "a", "/dir/b.txt": "b" }),
++    });
++
++    const entries = await fs.readdirWithFileTypes("/");
++
++    expect(named(entries)).toEqual(["a.txt", "dir"]);
++    expect(typed(entries, "a.txt")).toMatchObject({
++      isDirectory: false,
++      isFile: true,
++    });
++    expect(typed(entries, "dir")).toMatchObject({
++      isDirectory: true,
++      isFile: false,
++    });
++  });
++
++  it("lists a mount point as a directory of its own", async () => {
++    const fs = new MountableFs({ base: new InMemoryFs({ "/a.txt": "a" }) });
++    fs.mount("/mnt", new InMemoryFs({ "/inside.txt": "in" }));
++
++    const entries = await fs.readdirWithFileTypes("/");
++
++    expect(named(entries)).toEqual(["a.txt", "mnt"]);
++    expect(typed(entries, "mnt")).toMatchObject({
++      isDirectory: true,
++      isFile: false,
++      isSymbolicLink: false,
++    });
++  });
++
++  it("reads through a mount to the filesystem under it", async () => {
++    const fs = new MountableFs({ base: new InMemoryFs({}) });
++    fs.mount("/mnt", new InMemoryFs({ "/inside.txt": "in", "/sub/c.txt": "c" }));
++
++    const entries = await fs.readdirWithFileTypes("/mnt");
++
++    expect(named(entries)).toEqual(["inside.txt", "sub"]);
++    expect(typed(entries, "sub")?.isDirectory).toBe(true);
++  });
++
++  it("asks a filesystem with no listing of its own about each entry", async () => {
++    const fs = new MountableFs({
++      base: withoutDirents(
++        new InMemoryFs({ "/a.txt": "a", "/dir/b.txt": "b" }),
++      ),
++    });
++
++    const entries = await fs.readdirWithFileTypes("/");
++
++    expect(named(entries)).toEqual(["a.txt", "dir"]);
++    expect(typed(entries, "dir")?.isDirectory).toBe(true);
++    expect(typed(entries, "a.txt")?.isFile).toBe(true);
++  });
++
++  it("keeps an entry it cannot stat in the listing, with no type", async () => {
++    const backing = new InMemoryFs({ "/a.txt": "a", "/gone": "" });
++    const base: IFileSystem = new Proxy(withoutDirents(backing), {
++      get(target, key, receiver) {
++        if (key === "lstat") {
++          return async (path: string): Promise<FsStat> => {
++            if (path === "/gone") {
++              throw Object.assign(new Error("ENOENT: no such file"), {
++                code: "ENOENT",
++              });
++            }
++            return backing.lstat(path);
++          };
++        }
++        const value: unknown = Reflect.get(target, key, receiver);
++        return typeof value === "function"
++          ? (...args: unknown[]): unknown => Reflect.apply(value, target, args)
++          : value;
++      },
++    });
++    const fs = new MountableFs({ base });
++
++    const entries = await fs.readdirWithFileTypes("/");
++
++    expect(named(entries)).toEqual(["a.txt", "gone"]);
++    expect(typed(entries, "gone")).toMatchObject({
++      isDirectory: false,
++      isFile: false,
++      isSymbolicLink: false,
++    });
++  });
++
++  it("answers mount points for a directory the base does not hold", async () => {
++    const fs = new MountableFs({ base: new InMemoryFs({}) });
++    fs.mount("/mnt/data", new InMemoryFs({ "/d.txt": "d" }));
++
++    expect(named(await fs.readdirWithFileTypes("/mnt"))).toEqual(["data"]);
++  });
++
++  it("throws what readdir throws for a directory nothing holds", async () => {
++    const fs = new MountableFs({ base: new InMemoryFs({}) });
++
++    await expect(fs.readdirWithFileTypes("/nope")).rejects.toThrow();
++    await expect(fs.readdir("/nope")).rejects.toThrow();
++  });
++
++  it("names the same entries readdir does", async () => {
++    const fs = new MountableFs({
++      base: new InMemoryFs({ "/a.txt": "a", "/b/c.txt": "c" }),
++    });
++    fs.mount("/mnt", new InMemoryFs({}));
++
++    expect(named(await fs.readdirWithFileTypes("/"))).toEqual(
++      await fs.readdir("/"),
++    );
++  });
++});

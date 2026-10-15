@@ -289,7 +289,7 @@ describe("mxcFilesystemPolicy", () => {
 });
 
 describe("mxcFilesystemPolicy's folders to look at", () => {
-  it("are every folder above an open one, a closed one among them", () => {
+  it("are the closed folders above an open one, and no readable one", () => {
     const at = home("AppData/Local/Temp/chat");
     const appData = path.join(at, "AppData");
     const chat = path.join(appData, "Local", "Temp", "chat");
@@ -302,15 +302,11 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
       { appFolders: [], closed: [], root: ROOT },
     );
     expect(policy.deniedPaths).toEqual([appData]);
-    expect(policy.enumeratePaths).toEqual(
-      expect.arrayContaining([
-        at,
-        appData,
-        path.join(appData, "Local"),
-        path.join(appData, "Local", "Temp"),
-      ]),
-    );
-    expect(policy.enumeratePaths).not.toContain(chat);
+    expect(policy.enumeratePaths).toEqual([
+      appData,
+      path.join(appData, "Local"),
+      path.join(appData, "Local", "Temp"),
+    ]);
   });
 });
 

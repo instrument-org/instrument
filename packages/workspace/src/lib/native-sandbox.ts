@@ -781,9 +781,22 @@ export function mxcFilesystemPolicy(
       .map((entry) => entry.path)
       .toSorted();
   // A program opening a file in an open folder looks at each folder above
-  // it on the way (Node's realpath lstats every one), so those answer what
-  // they are, as the Seatbelt profile's metadata reads do. A closed one
-  // still refuses to be listed or read: its deny outranks this.
+  // it on the way (Node's realpath lstats every one), so a closed folder on
+  // that way answers what it is, as the Seatbelt profile's metadata reads
+  // do; its deny still refuses listing it and reading anything in it. Only
+  // a closed one: MXC gives a folder named for looking at that access and
+  // no more, so naming a readable one would take its reads away.
+  const closedAt = (folder: string) => {
+    for (let at = folder; ; at = path.dirname(at)) {
+      const held = entries.get(fold(at));
+      if (held) {
+        return held.access === "deny";
+      }
+      if (at === path.dirname(at)) {
+        return true;
+      }
+    }
+  };
   const above = new Map<string, string>();
   for (const entry of entries.values()) {
     if (entry.access === "deny") {
@@ -794,7 +807,9 @@ export function mxcFilesystemPolicy(
       folder !== path.dirname(folder);
       folder = path.dirname(folder)
     ) {
-      above.set(fold(folder), folder);
+      if (closedAt(folder)) {
+        above.set(fold(folder), folder);
+      }
     }
   }
   return {
@@ -870,7 +885,8 @@ export function mxcRequest({
   filesystem,
 }: {
   commandLine: string;
-  cwd: string;
+  /** Absent, the program starts in its own folder, as MXC does. */
+  cwd?: string;
   env: Record<string, string | undefined>;
   filesystem: MxcFilesystemPolicy;
 }) {
@@ -889,7 +905,7 @@ export function mxcRequest({
     },
     process: {
       commandLine,
-      cwd,
+      ...(cwd === undefined ? {} : { cwd }),
       env: Object.entries(env).flatMap(([name, value]) =>
         value === undefined ? [] : [`${name}=${value}`],
       ),
@@ -926,7 +942,7 @@ export function launchNative(
         mxc.argv,
         context.windowsVerbatimArguments,
       ),
-      cwd: context.cwd ?? process.cwd(),
+      cwd: context.cwd,
       env: context.env,
       filesystem: mxc.filesystem,
     }),

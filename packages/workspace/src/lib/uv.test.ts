@@ -23,8 +23,8 @@ const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("workVenvDir", () => {
   it("resolves to .venv at the root of the chat's work folder", () => {
-    expect(workVenvDir(chatId).replaceAll("\\", "/")).toBe(
-      "/tmp/workspace-machine/work/test/.venv",
+    expect(workVenvDir(chatId)).toBe(
+      path.resolve("/tmp/workspace-machine/work/test/.venv"),
     );
   });
 });
@@ -86,7 +86,7 @@ describe("nearestVenv", () => {
 
 describe("uvSubprocessEnv", () => {
   const env = uvSubprocessEnv({ chatId, cwd: workDir(chatId) });
-  const runtime = "/tmp/workspace/runtime";
+  const runtime = path.resolve("/tmp/workspace/runtime");
 
   it("keeps uv's cache and tools in the runtime caches, and its Pythons in their own folder", () => {
     expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "caches", "uv"));
@@ -138,7 +138,7 @@ describe("uvSubprocessEnv", () => {
     const dirs = (
       uvSubprocessEnv({ chatId: id, cwd: path.join(root, "job") }).PATH ?? ""
     ).split(path.delimiter);
-    expect(dirs[0]).toBe(path.dirname("/tmp/uv"));
+    expect(dirs[0]).toBe(path.dirname(path.resolve("/tmp/uv")));
     expect(dirs[1]).toBe(
       path.join(root, "job", ".venv", isWindows ? "Scripts" : "bin"),
     );
@@ -147,7 +147,7 @@ describe("uvSubprocessEnv", () => {
 
 describe("uvBuildSubprocessEnv", () => {
   const env = uvBuildSubprocessEnv();
-  const runtime = "/tmp/workspace/runtime";
+  const runtime = path.resolve("/tmp/workspace/runtime");
 
   it("keeps a shipped skill's build in the build folders, with nothing of a chat's", () => {
     expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "build", "caches", "uv"));

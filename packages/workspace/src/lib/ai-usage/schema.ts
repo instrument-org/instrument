@@ -39,7 +39,11 @@ const AI_USAGE_SURFACES = [
 export const AIUsageSurfaceSchema = z.enum(AI_USAGE_SURFACES);
 export type AIUsageSurface = z.output<typeof AIUsageSurfaceSchema>;
 
-const AI_USAGE_STATUSES = ["finished", "failed", "stopped"] as const;
+/**
+ * How a request ended. `limited` is one a usage limit refused (a plan, a usage
+ * window), which went as it should rather than wrong.
+ */
+const AI_USAGE_STATUSES = ["finished", "failed", "limited", "stopped"] as const;
 const AIUsageStatusSchema = z.enum(AI_USAGE_STATUSES);
 
 /** One request, as stored and as the log reads it back. Metadata only: nothing anyone wrote. */

@@ -215,6 +215,7 @@ const SURFACE_LABELS: Record<NonNullable<Row["surface"]>, string> = {
 const STATUS_LABELS: Record<Row["status"], string> = {
   failed: "Failed",
   finished: "Finished",
+  limited: "Stopped at a limit",
   stopped: "Stopped",
 };
 

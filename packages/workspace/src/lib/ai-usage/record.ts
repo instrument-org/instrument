@@ -13,6 +13,7 @@ import { APP_NAME, OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { sessionRole } from "../chat/children";
+import { classifyProviderError } from "../classify-provider-error";
 import {
   type AIUsageEntry,
   type AIUsageKind,
@@ -127,7 +128,10 @@ function usageRecorder(call: AIUsageCall): Telemetry {
       const { callId, error } = event as { callId: string; error: unknown }; // the dispatcher passes this shape, typed unknown upstream
       settle(callId, {
         error: error instanceof Error ? error.message : String(error),
-        status: "failed",
+        status:
+          classifyProviderError(error).kind === "usage-limit"
+            ? "limited"
+            : "failed",
       });
     },
     onLanguageModelCallStart: ({ callId, modelId }) => {

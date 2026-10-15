@@ -1,4 +1,9 @@
-import { generateText, simulateReadableStream, streamText } from "ai";
+import {
+  APICallError,
+  generateText,
+  simulateReadableStream,
+  streamText,
+} from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -112,6 +117,33 @@ describe("recording through AI SDK telemetry", () => {
     expect(await rows()).toMatchObject([
       { error: "upstream 529", status: "failed" },
     ]);
+  });
+
+  it("records a call a usage limit refused as limited", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: () =>
+        Promise.reject(
+          new APICallError({
+            message: "Usage limit reached",
+            requestBodyValues: {},
+            responseBody: JSON.stringify({
+              error: { code: "usage-limit-exceeded" },
+            }),
+            statusCode: 429,
+            url: "https://example.com",
+          }),
+        ),
+    });
+    await expect(
+      generateText({
+        maxRetries: 0,
+        model,
+        prompt: "hi",
+        telemetry: aiUsageTelemetry({ purpose: "chat" }),
+      }),
+    ).rejects.toThrow();
+
+    expect(await rows()).toMatchObject([{ status: "limited" }]);
   });
 
   it("records a stream stopped partway as stopped, with no tokens", async () => {

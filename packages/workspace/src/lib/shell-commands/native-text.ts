@@ -1,4 +1,4 @@
-import { type Command, defineCommand } from "just-bash";
+import { type Command, defineCommand, getCommandNames } from "just-bash";
 import { execFileSync } from "node:child_process";
 import { existsSync, linkSync, mkdirSync, rmSync, statSync } from "node:fs";
 import nodePath from "node:path";
@@ -161,6 +161,27 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   },
   // uutils builds `stat` for Unix only.
   { binary: "coreutils", name: "stat", platforms: UNIX },
+  // just-bash has no command by these names, so without uutils they fall to
+  // the computer's PATH: the BSD ones on macOS, and on Windows usually none.
+  // Only commands that print are here; the ones that change the system
+  // (`shred`, `chown`, `mknod`, `kill`, ...) are left to the PATH.
+  { binary: "coreutils", name: "arch" },
+  { binary: "coreutils", name: "b2sum" },
+  { binary: "coreutils", name: "base32" },
+  { binary: "coreutils", name: "basenc" },
+  { binary: "coreutils", name: "cksum" },
+  { binary: "coreutils", name: "df" },
+  { binary: "coreutils", name: "factor" },
+  { binary: "coreutils", name: "fmt" },
+  // uutils builds `id` for Unix only.
+  { binary: "coreutils", name: "id", platforms: UNIX },
+  { binary: "coreutils", name: "nproc" },
+  { binary: "coreutils", name: "pr" },
+  { binary: "coreutils", name: "sha224sum" },
+  { binary: "coreutils", name: "sha384sum" },
+  { binary: "coreutils", name: "sha512sum" },
+  { binary: "coreutils", name: "tsort" },
+  { binary: "coreutils", name: "uname" },
   { binary: "diffutils", name: "cmp" },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
@@ -404,8 +425,14 @@ const BINARY_PROJECTS: Record<UutilsBinary, string> = {
  * held equal to this file by native-text-doc.test.ts.
  */
 export function nativeTextRoutesTable(): string {
+  const builtins = new Set(getCommandNames());
+  // Where uutils does not answer, the builtin does, or else the PATH.
   const cell = (route: NativeTextRoute, platform: NodeJS.Platform) =>
-    (route.platforms?.includes(platform) ?? true) ? "uutils" : "builtin";
+    (route.platforms?.includes(platform) ?? true)
+      ? "uutils"
+      : builtins.has(route.name)
+        ? "builtin"
+        : "PATH";
   const rows = NATIVE_TEXT_ROUTES.toSorted((a, b) =>
     a.name.localeCompare(b.name),
   ).map(

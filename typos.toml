@@ -38,6 +38,8 @@ exclud = "exclud"
 wel = "wel"
 # The `b a` branch in a sed one-liner, written `$!ba`.
 ba = "ba"
+# xargs' `-P` with its count attached, written `-PN`.
+PN = "PN"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.

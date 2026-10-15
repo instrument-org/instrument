@@ -183,6 +183,19 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     });
   });
 
+  it.each([
+    ["factor 12", "12: 2 2 3\n"],
+    ["printf 'a b\\nb c\\n' | tsort", "a\nb\nc\n"],
+    ["printf 'one two three\\n' | fmt -w 8", "one two\nthree\n"],
+    ["echo hi | base32", "NBUQU===\n"],
+    ["sha512sum a.txt | cut -c1-16", "bcdb03f1145159cc\n"],
+  ])(
+    "answers %s with GNU's flags, which just-bash has no command for",
+    async (command, stdout) => {
+      expect(await run(command)).toMatchObject({ exitCode: 0, stdout });
+    },
+  );
+
   it("answers grep -H, which the builtin refuses", async () => {
     const result = await run("grep -H one a.txt");
     expect(result.stdout).toBe("a.txt:one\n");

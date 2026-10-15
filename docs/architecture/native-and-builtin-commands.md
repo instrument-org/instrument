@@ -15,42 +15,60 @@ A name found nowhere is `command not found`, status 127. `command -v`, `type` an
 
 ## GNU text commands on uutils
 
-The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes.
+The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere, or the computer's PATH for a command just-bash lacks. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes.
 
 <!-- generated: native-text routes; `pnpm fix` writes this -->
 
 | Command | macOS | Linux | Windows | From | Builtin with |
 | --- | --- | --- | --- | --- | --- |
+| `arch` | uutils | uutils | uutils | uutils coreutils |  |
+| `b2sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `base32` | uutils | uutils | uutils | uutils coreutils |  |
+| `basenc` | uutils | uutils | uutils | uutils coreutils |  |
+| `cksum` | uutils | uutils | uutils | uutils coreutils |  |
 | `cmp` | uutils | uutils | uutils | uutils diffutils |  |
 | `comm` | uutils | uutils | uutils | uutils coreutils |  |
 | `cut` | uutils | uutils | uutils | uutils coreutils |  |
 | `date` | uutils | uutils | uutils | uutils coreutils |  |
 | `dd` | uutils | uutils | uutils | uutils coreutils |  |
+| `df` | uutils | uutils | uutils | uutils coreutils |  |
+| `factor` | uutils | uutils | uutils | uutils coreutils |  |
 | `find` | uutils | uutils | uutils | uutils findutils |  |
+| `fmt` | uutils | uutils | uutils | uutils coreutils |  |
 | `grep` | uutils | uutils | uutils | uutils grep |  |
 | `head` | uutils | uutils | uutils | uutils coreutils |  |
+| `id` | uutils | uutils | PATH | uutils coreutils |  |
 | `join` | uutils | uutils | uutils | uutils coreutils |  |
 | `md5sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `nproc` | uutils | uutils | uutils | uutils coreutils |  |
 | `numfmt` | uutils | uutils | uutils | uutils coreutils |  |
 | `od` | uutils | uutils | uutils | uutils coreutils |  |
+| `pr` | uutils | uutils | uutils | uutils coreutils |  |
 | `realpath` | uutils | uutils | uutils | uutils coreutils |  |
 | `seq` | uutils | uutils | uutils | uutils coreutils |  |
+| `sha224sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `sha256sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `sha384sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `sha512sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `shuf` | uutils | uutils | uutils | uutils coreutils |  |
 | `sort` | uutils | uutils | uutils | uutils coreutils |  |
 | `stat` | uutils | uutils | builtin | uutils coreutils |  |
 | `tail` | uutils | uutils | uutils | uutils coreutils |  |
+| `tsort` | uutils | uutils | uutils | uutils coreutils |  |
+| `uname` | uutils | uutils | uutils | uutils coreutils |  |
 | `uniq` | uutils | uutils | uutils | uutils coreutils |  |
 | `wc` | uutils | uutils | uutils | uutils coreutils |  |
 | `xargs` | uutils | uutils | uutils | uutils findutils | `-P`, `--max-procs` |
 
 <!-- end generated -->
 
+Most of the table replaces a builtin. The rest fills gaps: `arch`, `b2sum`, `base32`, `basenc`, `cksum`, `df`, `factor`, `fmt`, `id`, `nproc`, `pr`, `sha224sum`, `sha384sum`, `sha512sum`, `tsort` and `uname` are commands just-bash does not have, which would otherwise reach the PATH: the BSD versions on macOS, with their own flags, and on Windows usually nothing. Only the ones that print are routed. The coreutils that change the system or act on other processes (`shred`, `chown`, `chgrp`, `chroot`, `mknod`, `mkfifo`, `stty`, `install`, `link`, `unlink`, `sync`, `nice`, `nohup`, `timeout`, `kill`) and the ones that report on the computer's users (`who`, `users`, `pinky`, `uptime`, `hostid`, `logname`) stay with the PATH. `id` falls to the PATH on Windows, since uutils does not build it there.
+
 On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the uutils-build patch reads: the paths they walk come back joined with `/`, as the shell spells them, and `-path` and `-prune` patterns written with `/` match (uutils/findutils#907, uutils/grep#143). `stat` stays the builtin there, since uutils does not build it for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
 
 The last column names the arguments that send one call to the builtin on every platform. uutils xargs 0.10.0 accepts `-P` but runs its commands one at a time, while the builtin runs that many at once, so an `xargs` with `-P N`, `-ON` or `--max-procs` in its options (`xargsRunsParallel`) is the builtin's. Drop the rule once a uutils release runs `-P` in parallel.
 
-`find` gets a prune of every `.instrument` folder by name and of the chat's `tasks/` by path ahead of the caller's expression, and only its start points are held to the rules as paths; each folder the sandbox refuses on the way is counted in one stderr line. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin.
+`find` gets a prune of every `.instrument` folder by name and of the chat's `tasks/` by path ahead of the caller's expression, and only its start points are held to the rules as paths; each folder the sandbox refuses on the way is counted in one stderr line. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin, or the PATH's where just-bash has none.
 
 ## Other native programs
 

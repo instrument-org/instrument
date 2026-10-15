@@ -51,8 +51,30 @@ type Session = {
   /** Stopped or canceled, so a start still opening the microphone lets it go. */
   ended: boolean;
   live?: LiveStream;
+  /** Ends the hold that tells quitting a recording is in progress. */
+  release?: () => void;
   ticker?: ReturnType<typeof setInterval>;
 };
+
+/**
+ * Tells the app a recording is in progress until the returned function is
+ * called, so quitting asks first.
+ */
+function holdRecording() {
+  const hold = new AbortController();
+  void (async () => {
+    const events = await rpcClient.dictation.recording.call(
+      {},
+      { signal: hold.signal },
+    );
+    for await (const _ of events) {
+      // Nothing comes; the call is held open.
+    }
+  })().catch(() => undefined);
+  return () => {
+    hold.abort();
+  };
+}
 
 /**
  * The words a take's live stream has heard so far, for the box to show while
@@ -312,6 +334,7 @@ export function useDictation({
     if (session.current?.ticker !== undefined) {
       clearInterval(session.current.ticker);
     }
+    session.current?.release?.();
   };
 
   const stop = ({ onLanded }: { onLanded?: () => void } = {}) => {
@@ -566,6 +589,7 @@ export function useDictation({
     }
 
     current.capture = capture;
+    current.release = holdRecording();
     capture.onChunk((chunk) => {
       if (current.live) {
         feedLive(current.live, chunk);

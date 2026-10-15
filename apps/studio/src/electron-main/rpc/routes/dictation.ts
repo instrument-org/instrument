@@ -7,6 +7,7 @@ import {
   finishDictation,
   listenForDictation,
 } from "@/electron-main/platform-api/dictation-stream";
+import { holdDictation } from "@/electron-main/lib/dictation-in-progress";
 import { base } from "@/electron-main/rpc/base";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import {
@@ -52,6 +53,16 @@ const listen = base
     });
   });
 
+/**
+ * Held open for as long as a take records, so quitting can ask first. It
+ * yields nothing; the caller ends it by aborting, and a window that goes away
+ * ends it too.
+ */
+const recording = base.handler(async function* ({ signal }) {
+  await holdDictation(signal);
+  yield* [];
+});
+
 /** The next stretch of a live take's audio, as the recorder wrote it. */
 const feed = base
   .input(z.object({ chunk: z.instanceof(Blob), id: z.string() }))
@@ -96,6 +107,7 @@ export const dictation = {
   feed,
   finish,
   listen,
+  recording,
   setLanguage,
   setMicrophone,
   transcribe,

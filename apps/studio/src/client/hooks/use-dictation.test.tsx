@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   feed: vi.fn(),
   finish: vi.fn(),
   listen: vi.fn(),
+  recording: vi.fn(),
   hasToken: true,
   open: vi.fn(),
   openLogin: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock(import("@/client/rpc/client"), () => ({
       feed: { call: mocks.feed },
       finish: { call: mocks.finish },
       listen: { call: mocks.listen },
+      recording: { call: mocks.recording },
       transcribe: { call: mocks.transcribe },
     },
     mac: {
@@ -164,6 +166,16 @@ beforeEach(() => {
     yield { failure: { kind: "server" }, type: "unavailable" };
   });
   mocks.feed.mockResolvedValue(undefined);
+  // Held open until the hook lets go, as the app's own call is.
+  mocks.recording.mockImplementation(async function* (
+    _input: unknown,
+    { signal }: { signal: AbortSignal },
+  ) {
+    await new Promise((resolve) => {
+      signal.addEventListener("abort", resolve, { once: true });
+    });
+    yield* [];
+  });
   mocks.finish.mockResolvedValue(undefined);
   mocks.allowance.mockResolvedValue({ exhausted: false });
   mocks.transcribe.mockResolvedValue({
@@ -182,6 +194,22 @@ afterEach(() => {
 });
 
 describe("useDictation", () => {
+  it("tells the app it is recording until Stop, so quitting can ask", async () => {
+    mocks.open.mockResolvedValue(fakeCapture());
+    const { result } = setup();
+    await startRecording(result);
+    const signal = (
+      mocks.recording.mock.calls[0]?.[1] as { signal: AbortSignal } | undefined
+    )?.signal;
+    expect(signal?.aborted).toBe(false);
+
+    act(() => {
+      result.current.stop();
+    });
+
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("transcribes on Stop and hands over the words", async () => {
     const capture = fakeCapture();
     mocks.open.mockResolvedValue(capture);

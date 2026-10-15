@@ -45,6 +45,7 @@ import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
 import { getBinDirectoryPath } from "./setup-bin-directory";
+import { isDictationInProgress } from "./dictation-in-progress";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
@@ -216,6 +217,28 @@ export function createWorkspaceActor() {
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.
+  // Quitting mid-dictation throws away what was said, which the person likely
+  // forgot was still recording, so it asks before anything else.
+  const confirmQuitWhileDictating = async (): Promise<boolean> => {
+    if (!isDictationInProgress()) {
+      return true;
+    }
+    const options: Electron.MessageBoxOptions = {
+      buttons: ["Keep dictating", "Quit"],
+      cancelId: 0,
+      defaultId: 0,
+      detail: "If you quit now, what you've said so far won't be added.",
+      message: "You're still dictating",
+      noLink: true,
+      type: "warning",
+    };
+    const parentWindow = getForegroundWindow();
+    const { response } = await (parentWindow
+      ? dialog.showMessageBox(parentWindow, options)
+      : dialog.showMessageBox(options));
+    return response === 1;
+  };
+
   const confirmQuitWithRunningAgents = async (): Promise<boolean> => {
     let count = 0;
     try {
@@ -293,7 +316,9 @@ export function createWorkspaceActor() {
           if (is.dev && !isQuitGuardForcedInDev()) {
             return Promise.resolve(true);
           }
-          return confirmQuitWithRunningAgents();
+          return confirmQuitWhileDictating().then(
+            (quit) => quit && confirmQuitWithRunningAgents(),
+          );
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         stopServices: fromPromise(async () => {

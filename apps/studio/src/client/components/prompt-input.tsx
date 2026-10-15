@@ -15,8 +15,8 @@ import { ComposerFrame } from "@/client/components/composer-frame";
 import {
   DictationButton,
   DictationCancel,
-  DictationMeter,
-  DictationPreview,
+  DictationReadout,
+  DictationSendTip,
 } from "@/client/components/dictation-controls";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
@@ -876,14 +876,14 @@ export const PromptInput = ({
           <>
             <div
               className={cn(
-                "flex min-w-0 items-center gap-1",
-                !dictating && "shrink-0",
+                "flex min-w-0 items-center gap-3",
+                dictating ? "flex-1" : "shrink-0",
               )}
             >
               {dictating ? (
                 <>
-                  <DictationCancel className="-ml-1" dictation={dictation} />
-                  <DictationMeter className="ml-1" dictation={dictation} />
+                  <DictationCancel dictation={dictation} />
+                  <DictationReadout dictation={dictation} />
                 </>
               ) : (
                 addMenu && (
@@ -908,7 +908,12 @@ export const PromptInput = ({
               )}
             </div>
 
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
+            <div
+              className={cn(
+                "flex min-w-0 items-center justify-end gap-4",
+                dictating ? "shrink-0" : "flex-1",
+              )}
+            >
               {!dictating &&
                 features.context_ring &&
                 id &&
@@ -956,19 +961,21 @@ export const PromptInput = ({
                   dictation={dictation}
                   disabled={disabled || isLoading}
                 />
-                <Button
-                  aria-label="Send"
-                  className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                  disabled={dictating ? !canSendWhileRecording : !canSubmit}
-                  onClick={send}
-                  variant="brand"
-                >
-                  {isLoading || sendPressed ? (
-                    <Spinner className="size-5" delay={0} />
-                  ) : (
-                    <ArrowUpIcon className="size-5" />
-                  )}
-                </Button>
+                <DictationSendTip dictation={dictation}>
+                  <Button
+                    aria-label="Send"
+                    className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
+                    disabled={dictating ? !canSendWhileRecording : !canSubmit}
+                    onClick={send}
+                    variant="brand"
+                  >
+                    {isLoading || sendPressed ? (
+                      <Spinner className="size-5" delay={0} />
+                    ) : (
+                      <ArrowUpIcon className="size-5" />
+                    )}
+                  </Button>
+                </DictationSendTip>
               </div>
             </div>
           </>
@@ -1035,10 +1042,18 @@ export const PromptInput = ({
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
         // a block or a draft always has room over its words.
-        notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
+        notice={
+          // In a pill the words being heard sit over what is written, with
+          // the controls staying in its row below.
+          variant === "pill" && dictating ? (
+            <DictationReadout className="px-2" dictation={dictation} />
+          ) : variant === "pill" && !pillOpen ? undefined : (
+            noticeRow
+          )
+        }
         leading={
           variant === "pill" && dictating ? (
-            <DictationCancel dictation={dictation} />
+            <DictationCancel dictation={dictation} size="sm" />
           ) : variant === "pill" ? (
             // The picker has no button of its own here: it hangs off an empty
             // box over the plus, so its panel opens from the plus when the menu
@@ -1119,9 +1134,7 @@ export const PromptInput = ({
         trailing={
           variant === "pill" ? (
             <>
-              {dictating ? (
-                <DictationMeter className="mr-1" dictation={dictation} />
-              ) : (
+              {!dictating &&
                 features.context_ring &&
                 id &&
                 selectedSessionId && (
@@ -1130,27 +1143,28 @@ export const PromptInput = ({
                     model={selectedModel}
                     selectedSessionId={selectedSessionId}
                   />
-                )
-              )}
+                )}
               <DictationButton
                 dictation={dictation}
                 disabled={disabled || isLoading}
                 size="sm"
               />
               {beforeSend}
-              <Button
-                aria-label="Send"
-                className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-                disabled={dictating ? !canSendWhileRecording : !canSubmit}
-                onClick={send}
-                variant="brand"
-              >
-                {isLoading || sendPressed ? (
-                  <Spinner className="size-4" delay={0} />
-                ) : (
-                  <ArrowUpIcon className="size-4" />
-                )}
-              </Button>
+              <DictationSendTip dictation={dictation}>
+                <Button
+                  aria-label="Send"
+                  className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
+                  disabled={dictating ? !canSendWhileRecording : !canSubmit}
+                  onClick={send}
+                  variant="brand"
+                >
+                  {isLoading || sendPressed ? (
+                    <Spinner className="size-4" delay={0} />
+                  ) : (
+                    <ArrowUpIcon className="size-4" />
+                  )}
+                </Button>
+              </DictationSendTip>
             </>
           ) : undefined
         }
@@ -1158,26 +1172,22 @@ export const PromptInput = ({
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
-        {/* While dictating, the box shows what will land instead of the
-            draft, which stays mounted and gets the words at the end. */}
-        <DictationPreview dictation={dictation} />
-        <div className={dictating ? "hidden" : "contents"}>
-          <PromptEditor
-            actions={slashActions}
-            apps={composerApps}
-            autoFocus={autoFocus}
-            bounds={composerBounds}
-            defaultValue={value}
-            disabled={disabled || isLoading}
-            key={draftKeyString(draftKey)}
-            onChange={setValue}
-            onPaste={handlePaste}
-            onSubmit={send}
-            placeholder={placeholder}
-            ref={promptEditorRef}
-            skills={userInvocableSkills}
-          />
-        </div>
+        <PromptEditor
+          actions={slashActions}
+          apps={composerApps}
+          autoFocus={autoFocus}
+          bounds={composerBounds}
+          defaultValue={value}
+          dictating={dictating}
+          disabled={disabled || isLoading}
+          key={draftKeyString(draftKey)}
+          onChange={setValue}
+          onPaste={handlePaste}
+          onSubmit={send}
+          placeholder={placeholder}
+          ref={promptEditorRef}
+          skills={userInvocableSkills}
+        />
       </ComposerFrame>
 
       <input

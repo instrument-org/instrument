@@ -44,32 +44,12 @@ class FakeRecorder extends EventTarget {
   }
 }
 
-class FakeContext {
-  static instances: FakeContext[] = [];
-  closed = false;
-  constructor() {
-    FakeContext.instances.push(this);
-  }
-  close() {
-    this.closed = true;
-    return Promise.resolve();
-  }
-  createAnalyser() {
-    return { fftSize: 0, getFloatTimeDomainData: () => undefined };
-  }
-  createMediaStreamSource() {
-    return { connect: () => undefined };
-  }
-}
-
 const track = { addEventListener: vi.fn(), stop: vi.fn() };
 
 beforeEach(() => {
   FakeRecorder.instances = [];
   FakeRecorder.failToStart = false;
-  FakeContext.instances = [];
   vi.stubGlobal("MediaRecorder", FakeRecorder);
-  vi.stubGlobal("AudioContext", FakeContext);
   vi.stubGlobal("navigator", {
     mediaDevices: {
       getUserMedia: () =>
@@ -91,10 +71,10 @@ describe("MicCapture", () => {
     expect(FakeRecorder.instances[0]?.options.audioBitsPerSecond).toBe(32_000);
   });
 
-  it("closes its audio context when recording fails to start", async () => {
+  it("lets the microphone go when recording fails to start", async () => {
     FakeRecorder.failToStart = true;
     await expect(MicCapture.open()).rejects.toBeInstanceOf(MicrophoneError);
-    expect(FakeContext.instances[0]?.closed).toBe(true);
+    expect(track.stop).toHaveBeenCalled();
   });
 
   it("keeps the last chunk of a recorder that stopped by itself", async () => {

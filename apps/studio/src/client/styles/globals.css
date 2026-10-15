@@ -20,6 +20,48 @@
   margin: 0;
 }
 
+/* Where dictated words will land: a short bar at the end of the words, there
+   only while someone dictates. The words can't be edited meanwhile, so it is
+   no caret, only a mark. */
+.prompt-editor .dictation-landing {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: var(--brand-500);
+  animation: dictation-landing 1.2s ease-in-out infinite;
+}
+
+@keyframes dictation-landing {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Dictated words that just landed, washed in brand and fading, so the eye
+   finds where they went. DICTATION_LANDED_MS matches the duration. */
+.prompt-editor .dictation-landed {
+  border-radius: 3px;
+  animation: dictation-landed 1.6s ease-out both;
+}
+
+@keyframes dictation-landed {
+  from {
+    background-color: var(--brand-100);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-editor .dictation-landing {
+    animation: none;
+  }
+}
+
 /* An empty ProseMirror paragraph is not `:empty`: the view appends a trailing
    `<br>` hack so the block stays focusable, so match that shape too. */
 .prompt-editor:has(p:only-child:empty)::before,

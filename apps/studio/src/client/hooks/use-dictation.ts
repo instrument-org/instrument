@@ -1,6 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
 import { MicCapture, MicrophoneError } from "@/client/lib/dictation-capture";
-import { createLevelScale } from "@/client/lib/dictation-levels";
 import { resolveMicrophone } from "@/client/lib/dictation-microphone";
 import {
   describeDictationProblem,
@@ -21,17 +20,13 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 const DICTATION_MAX_MS = 10 * 60 * 1000;
 /** Anything shorter is a slip of the finger rather than something said. */
 const MIN_RECORDING_MS = 1000;
-/** How many bars the meter draws, newest at the right. */
-const DICTATION_LEVEL_BARS = 18;
-const TICK_MS = 100;
+/** How often a recording checks whether it has run to its limit. */
+const TICK_MS = 1000;
 /**
  * How long Stop waits for the live stream's last words before uploading the
  * take instead. They usually come back in a tenth of a second.
  */
 const LIVE_END_TIMEOUT_MS = 5000;
-
-const silentLevels = () =>
-  Array.from({ length: DICTATION_LEVEL_BARS }, () => 0);
 
 type StreamEnd = Extract<DictationStreamEvent, { type: "end" }>;
 
@@ -86,10 +81,6 @@ export type DictationPhase =
 export type Dictation = {
   /** Throws the recording away. Only while starting or recording. */
   cancel: () => void;
-  /** How long the recording has run; held through transcription. */
-  elapsedMs: number;
-  /** Recent levels, 0..1, oldest first. */
-  levels: number[];
   /** What the live stream has heard, from the press until the words land. */
   live: LiveText | undefined;
   phase: DictationPhase;
@@ -152,8 +143,6 @@ export function useDictation({
   surface: DictationSurface;
 }): Dictation {
   const [phase, setPhase] = useState<DictationPhase>({ kind: "idle" });
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [levels, setLevels] = useState(silentLevels);
   const [live, setLive] = useState<LiveText>();
   // Each dictation's toasts are its own, so one box starting or landing never
   // takes away another's Try Again and strands its recording.
@@ -338,8 +327,6 @@ export function useDictation({
     const pressed = onLanded ? "send" : "stop";
     const stream = current.live;
     const streaming = stream?.status === "live";
-    setElapsedMs(length);
-    setLevels(silentLevels());
     setPhase({
       kind: "transcribing",
       pressed,
@@ -385,8 +372,6 @@ export function useDictation({
     current.capture?.cancel();
     session.current = undefined;
     clearLive();
-    setLevels(silentLevels());
-    setElapsedMs(0);
     setPhase({ kind: "idle" });
   };
 
@@ -502,7 +487,6 @@ export function useDictation({
       ended: false,
     };
     session.current = current;
-    setElapsedMs(0);
     setPhase({ kind: "starting" });
 
     const giveUp = (problem?: DictationProblem) => {
@@ -587,15 +571,8 @@ export function useDictation({
         feedLive(current.live, chunk);
       }
     });
-    const scale = createLevelScale();
     current.ticker = setInterval(() => {
-      const elapsed = capture.elapsedMs();
-      setElapsedMs(elapsed);
-      setLevels((previous) => [
-        ...previous.slice(1),
-        scale(capture.level(), performance.now()),
-      ]);
-      if (elapsed >= DICTATION_MAX_MS) {
+      if (capture.elapsedMs() >= DICTATION_MAX_MS) {
         stop();
       }
     }, TICK_MS);
@@ -630,8 +607,6 @@ export function useDictation({
 
   return {
     cancel,
-    elapsedMs,
-    levels,
     live,
     phase,
     start: () => {

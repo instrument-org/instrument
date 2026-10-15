@@ -1,9 +1,3 @@
-/** A recording's length as `m:ss`. */
-export function formatDictationClock(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
 /**
  * Puts dictated words at the end of what is already written, on a line of
  * their own when there is something there. Nothing already written is

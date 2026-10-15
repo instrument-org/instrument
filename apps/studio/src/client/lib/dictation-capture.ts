@@ -1,5 +1,3 @@
-import { rmsOf } from "@/client/lib/dictation-levels";
-
 /** What the recorder writes, and what the API is told it is getting. */
 const RECORDING_MIME_TYPE = "audio/webm;codecs=opus";
 /** The rate the API estimates a recording's length by, and caps its size from. */
@@ -41,8 +39,8 @@ function microphoneErrorOf(error: unknown): MicrophoneError {
 }
 
 /**
- * One recording from the microphone: a MediaRecorder writing the whole take,
- * and an analyzer beside it for the level bars. Each chunk goes to
+ * One recording from the microphone: a MediaRecorder writing the whole take.
+ * Each chunk goes to
  * {@link MicCapture.onChunk} as it is written, for a live stream, and the
  * whole take is kept for an upload once it stops. Only the first chunk
  * carries the container's header, so chunks only make sense in order and
@@ -51,7 +49,6 @@ function microphoneErrorOf(error: unknown): MicrophoneError {
 export class MicCapture {
   private readonly chunks: Blob[] = [];
   private chunkListener: ((chunk: Blob) => void) | undefined;
-  private readonly frame: Float32Array<ArrayBuffer>;
   private startedAt: number | undefined;
   /**
    * Settles on the recorder's own `stop`, which comes after its last chunk.
@@ -63,10 +60,7 @@ export class MicCapture {
   private constructor(
     private readonly stream: MediaStream,
     private readonly recorder: MediaRecorder,
-    private readonly context: AudioContext,
-    private readonly analyzer: AnalyserNode,
   ) {
-    this.frame = new Float32Array(analyzer.fftSize);
     this.stopped = new Promise((resolve) => {
       recorder.addEventListener(
         "stop",
@@ -101,7 +95,6 @@ export class MicCapture {
       throw microphoneErrorOf(error);
     }
 
-    let context: AudioContext | undefined;
     try {
       const recorder = new MediaRecorder(stream, {
         audioBitsPerSecond: RECORDING_BITS_PER_SECOND,
@@ -109,11 +102,7 @@ export class MicCapture {
           ? RECORDING_MIME_TYPE
           : undefined,
       });
-      context = new AudioContext();
-      const analyzer = context.createAnalyser();
-      analyzer.fftSize = 2048;
-      context.createMediaStreamSource(stream).connect(analyzer);
-      const capture = new MicCapture(stream, recorder, context, analyzer);
+      const capture = new MicCapture(stream, recorder);
       await new Promise<void>((resolve, reject) => {
         recorder.addEventListener(
           "start",
@@ -134,7 +123,6 @@ export class MicCapture {
       for (const track of stream.getTracks()) {
         track.stop();
       }
-      void context?.close().catch(() => undefined);
       throw microphoneErrorOf(error);
     }
   }
@@ -144,12 +132,6 @@ export class MicCapture {
     return this.startedAt === undefined
       ? 0
       : performance.now() - this.startedAt;
-  }
-
-  /** The RMS of the most recent frame the microphone delivered. */
-  level(): number {
-    this.analyzer.getFloatTimeDomainData(this.frame);
-    return rmsOf(this.frame);
   }
 
   /**
@@ -195,6 +177,5 @@ export class MicCapture {
     for (const track of this.stream.getTracks()) {
       track.stop();
     }
-    void this.context.close().catch(() => undefined);
   }
 }

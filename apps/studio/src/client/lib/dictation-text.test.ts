@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  appendDictatedText,
-  appendDictatedTextWithin,
-  formatDictationClock,
-} from "./dictation-text";
+import { appendDictatedText, appendDictatedTextWithin } from "./dictation-text";
 
 describe("appendDictatedText", () => {
   it.each([
@@ -37,18 +33,6 @@ describe("appendDictatedText", () => {
     ["nothing dictated leaves the box alone", "Draft  ", "   ", "Draft  "],
   ])("%s", (_case, existing, dictated, expected) => {
     expect(appendDictatedText(existing, dictated)).toBe(expected);
-  });
-});
-
-describe("formatDictationClock", () => {
-  it.each([
-    [0, "0:00"],
-    [999, "0:00"],
-    [9_500, "0:09"],
-    [61_000, "1:01"],
-    [600_000, "10:00"],
-  ])("shows %i ms as %s", (ms, clock) => {
-    expect(formatDictationClock(ms)).toBe(clock);
   });
 });
 

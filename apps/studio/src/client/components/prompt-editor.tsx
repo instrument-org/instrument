@@ -50,6 +50,11 @@ import {
 import { createPortal } from "react-dom";
 
 import {
+  DICTATION_LANDED_MS,
+  dictationKey,
+  dictationPlugin,
+} from "./prompt-editor-dictation";
+import {
   appOfNode,
   appendDictatedParagraph,
   deleteTokenBackward,
@@ -79,6 +84,7 @@ const editorAttributes = (placeholder?: string) => ({
 
 const editorPlugins = () => [
   slashMenuPlugin(),
+  dictationPlugin(),
   history(),
   keymap({
     Backspace: deleteTokenBackward,
@@ -210,6 +216,7 @@ export function PromptEditor({
   autoFocus,
   bounds,
   defaultValue,
+  dictating = false,
   disabled,
   onChange,
   onPaste,
@@ -227,6 +234,11 @@ export function PromptEditor({
   bounds: HTMLElement | null;
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
+  /**
+   * Someone is dictating into the box: the words stand still, read-only,
+   * with a mark at the end where theirs will land.
+   */
+  dictating?: boolean;
   disabled: boolean;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
@@ -491,16 +503,17 @@ export function PromptEditor({
     if (!view) {
       return;
     }
-    const editable = !disabled;
+    const editable = !disabled && !dictating;
     if (!editable) {
-      refocusOnEditableRef.current = view.hasFocus();
+      refocusOnEditableRef.current ||= view.hasFocus();
     }
     view.setProps({ editable: () => editable });
+    view.dispatch(view.state.tr.setMeta(dictationKey, { dictating }));
     if (editable && refocusOnEditableRef.current) {
       refocusOnEditableRef.current = false;
       view.focus();
     }
-  }, [disabled]);
+  }, [disabled, dictating]);
 
   // Navigating between skills reuses this view, so the placeholder has to track
   // the prop rather than the value captured when the view was constructed.
@@ -579,13 +592,31 @@ export function PromptEditor({
       if (!view) {
         return;
       }
+      // The words start in the box's last paragraph when it is empty, else
+      // in a new one after it, and run to the end; that span gets the wash.
+      const { doc } = view.state;
+      const last = doc.lastChild;
+      const from =
+        last && last.content.size === 0
+          ? doc.content.size - last.nodeSize + 1
+          : doc.content.size + 1;
       const tr = appendDictatedParagraph(view.state, text);
+      tr.setMeta(dictationKey, {
+        landed: { from, to: tr.doc.content.size - 1 },
+      });
       // Someone typing while the words were transcribed keeps their caret;
       // otherwise it goes after the words, ready to carry on from them.
       if (!view.hasFocus()) {
         tr.setSelection(TextSelection.atEnd(tr.doc)).scrollIntoView();
       }
       view.dispatch(tr);
+      setTimeout(() => {
+        if (!view.isDestroyed) {
+          view.dispatch(
+            view.state.tr.setMeta(dictationKey, { landed: undefined }),
+          );
+        }
+      }, DICTATION_LANDED_MS);
     },
     clear: () => {
       replaceDocument("");

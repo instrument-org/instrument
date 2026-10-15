@@ -91,7 +91,6 @@ function fakeCapture(lengthMs = 3000) {
     chunk: (data = "audio") => chunk?.(new Blob([data])),
     elapsedMs: () => lengthMs,
     end: () => ended?.(),
-    level: () => 0,
     onChunk: (listener: (chunk: Blob) => void) => {
       chunk = listener;
     },
@@ -526,9 +525,7 @@ describe("useDictation with a live stream", () => {
       stream.close();
     });
     await waitFor(() => {
-      expect(onText).toHaveBeenCalledWith(
-        "Book a table for four. At seven.",
-      );
+      expect(onText).toHaveBeenCalledWith("Book a table for four. At seven.");
     });
     expect(mocks.transcribe).not.toHaveBeenCalled();
     expect(result.current.phase.kind).toBe("idle");
@@ -621,7 +618,6 @@ describe("useDictation with a live stream", () => {
     expect(mocks.transcribe).not.toHaveBeenCalled();
   });
 });
-
 
 describe("sendDuringDictation", () => {
   it.each<[DictationPhase, ReturnType<typeof sendDuringDictation>]>([

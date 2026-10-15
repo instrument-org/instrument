@@ -297,6 +297,8 @@ function streamStep({
       options.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
       let session: ClaudeCodeSession | undefined;
+      /** Messages that go in as the next turn once the tool results end this one. */
+      let afterResults: LanguageModelV4Message[] | undefined;
       try {
         const start = (claudeSessionId: string, begin: TranscriptStart) => {
           const created = new ClaudeCodeSession(
@@ -402,8 +404,14 @@ function streamStep({
           }
           session.forkPoint = undefined;
           if (continuation.kind === "tool-results") {
+            // A message sent while Claude Code waits on our tools would be
+            // folded into the last result's own text, where a model can take
+            // it for something the tool returned. So the turn ends on the
+            // results, and the message goes in after them as a turn of its
+            // own, which reaches the model beside them, as the user's.
             if (continuation.followedBy.length > 0) {
-              session.send(turnContent(continuation.followedBy), "next");
+              session.endTurnAfterTools = true;
+              afterResults = continuation.followedBy;
             }
             for (const part of continuation.results) {
               session.resolveToolCall(
@@ -425,6 +433,10 @@ function streamStep({
         const stepSession = session;
         try {
           controller.enqueue({ type: "stream-start", warnings: [] });
+          if (afterResults) {
+            await endTurnOnResults(stepSession);
+            stepSession.send(turnContent(afterResults));
+          }
           await pumpStep(stepSession, controller);
         } finally {
           stepSession.busy = false;
@@ -508,6 +520,55 @@ export type StepSession = Pick<
   | "rateLimit"
   | "stderr"
 >;
+
+/**
+ * Read the CLI's output while it takes the tool results it waited on and ends
+ * its turn there without a reply, as `endTurnAfterTools` has it do. A reply
+ * would answer the results without the message meant to come with them, so
+ * the step fails instead, and the session it closes starts over next time.
+ */
+export async function endTurnOnResults(
+  session: Pick<
+    ClaudeCodeSession,
+    "endTurnAfterTools" | "messages" | "rateLimit" | "stderr"
+  >,
+) {
+  try {
+    while (true) {
+      const next = await session.messages.next();
+      if (next.done) {
+        throw planError("unknown", `Claude Code exited.\n${session.stderr}`);
+      }
+      const message = next.value;
+      switch (message.type) {
+        case "assistant":
+        case "stream_event": {
+          throw new Error(
+            "Claude Code went on to the model with the tool results before the message that came after them.",
+          );
+        }
+        case "rate_limit_event": {
+          session.rateLimit = message.rate_limit_info;
+          break;
+        }
+        case "result": {
+          if (message.subtype !== "success" || message.is_error) {
+            throw planError(
+              "unknown",
+              message.subtype === "success"
+                ? message.result
+                : message.errors.join("\n") || message.subtype,
+              session.rateLimit,
+            );
+          }
+          return;
+        }
+      }
+    }
+  } finally {
+    session.endTurnAfterTools = false;
+  }
+}
 
 /** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
 export async function pumpStep(

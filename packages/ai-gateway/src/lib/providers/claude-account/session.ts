@@ -27,6 +27,13 @@ export const TOOL_PREFIX = `mcp__${SERVER_NAME}__`;
 /** The meta key the CLI stamps each MCP call with, naming its tool_use block. */
 const TOOL_USE_ID_META = "claudecode/toolUseId";
 
+/**
+ * What the model reads where a turn ends on tool results, as Claude Code
+ * notes it inside each result: `hook stopped continuation: <this>`. The
+ * message it promises comes right after the results, in the same user turn.
+ */
+const END_TURN_REASON = "A new message follows these results.";
+
 /** A session nobody has asked for in this long is closed, ending its process. */
 const IDLE_MS = 30 * 60 * 1000;
 
@@ -60,6 +67,12 @@ export class ClaudeCodeSession {
   /** Tool calls from the last step, waiting on our loop to run them. */
   awaitingToolCallIds: string[] = [];
   busy = false;
+  /**
+   * Whether Claude Code ends its turn once the tool calls it waits on are
+   * answered, instead of asking the model about their results. Set while a
+   * message that came in after those results waits to go in as the next turn.
+   */
+  endTurnAfterTools = false;
   readonly messages: AsyncIterator<SDKMessage, void>;
   /** The built-in tools this process runs itself, which our loop never sees. */
   readonly builtInTools: ReadonlySet<string>;
@@ -108,6 +121,20 @@ export class ClaudeCodeSession {
         cwd: SESSION_CWD,
         effort: shape.effort,
         env,
+        hooks: {
+          PostToolUse: [
+            {
+              hooks: [
+                () =>
+                  Promise.resolve(
+                    this.endTurnAfterTools
+                      ? { continue: false, stopReason: END_TURN_REASON }
+                      : {},
+                  ),
+              ],
+            },
+          ],
+        },
         includePartialMessages: true,
         mcpServers: {
           [SERVER_NAME]: {
@@ -183,12 +210,7 @@ export class ClaudeCodeSession {
     this.deferred(toolCallId).resolve(result);
   }
 
-  /**
-   * @param priority `next` for a message sent while the process waits on our
-   * tools: Claude Code reads it once those calls are answered, in the same
-   * turn, rather than as a turn of its own after this one ends.
-   */
-  send(content: ContentBlockParam[], priority?: "next") {
+  send(content: ContentBlockParam[]) {
     const uuid = randomUUID();
     this.input.push({
       // Our words go to the model as written: no `@path` reading a file
@@ -197,7 +219,6 @@ export class ClaudeCodeSession {
       client_composed: true,
       message: { content, role: "user" },
       parent_tool_use_id: null,
-      ...(priority && { priority }),
       type: "user",
       uuid,
     });

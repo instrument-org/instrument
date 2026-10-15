@@ -1,7 +1,13 @@
 import { type LanguageModelV4Message } from "@ai-sdk/provider";
+import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it } from "vitest";
 
-import { branchOf, continuationOf, splitPrompt } from "./language-model";
+import {
+  branchOf,
+  continuationOf,
+  endTurnOnResults,
+  splitPrompt,
+} from "./language-model";
 
 const system: LanguageModelV4Message = {
   content: "You are Pebble.",
@@ -219,5 +225,45 @@ describe("branchOf", () => {
     expect(
       branch(after(chat), [...chat, reply("a"), user("the assignment")]),
     ).toBeUndefined();
+  });
+});
+
+describe("endTurnOnResults", () => {
+  /** A session whose CLI reports `messages`, ending its turn on the results. */
+  function session(messages: Partial<SDKMessage>[]) {
+    const queue = [...messages];
+    return {
+      endTurnAfterTools: true,
+      messages: {
+        next: () => {
+          const value = queue.shift();
+          return Promise.resolve(
+            value === undefined
+              ? { done: true as const, value: undefined }
+              : // Only the fields the reader looks at.
+                { done: false as const, value: value as SDKMessage },
+          );
+        },
+      },
+      rateLimit: undefined,
+      stderr: "",
+    };
+  }
+
+  it("returns once the turn ends on the results, and stops ending turns there", async () => {
+    const ending = session([
+      { type: "user" },
+      { is_error: false, subtype: "success", type: "result" },
+    ]);
+    await endTurnOnResults(ending);
+    expect(ending.endTurnAfterTools).toBe(false);
+  });
+
+  it("fails the step when the model is asked about the results first", async () => {
+    const replying = session([{ type: "user" }, { type: "stream_event" }]);
+    await expect(endTurnOnResults(replying)).rejects.toThrow(
+      /before the message that came after them/,
+    );
+    expect(replying.endTurnAfterTools).toBe(false);
   });
 });

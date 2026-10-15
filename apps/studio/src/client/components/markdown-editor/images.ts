@@ -1,82 +1,106 @@
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type Uploader } from "@milkdown/kit/plugin/upload";
-import { Fragment } from "@milkdown/kit/prose/model";
+import {
+  Fragment,
+  type Node as PMNode,
+  type Schema,
+  Slice,
+} from "@milkdown/kit/prose/model";
 import { type EditorView } from "@milkdown/kit/prose/view";
 
-// Pictures given to the Markdown editor: pasted, dropped, or picked from the
+// Files given to the Markdown editor: pasted, dropped, or picked from the
 // slash menu. Each is put in the file's folder (copied in unless it is already
 // there or below) and linked by its path relative to the file, which is how
-// the file reads in any other Markdown app and how the editor resolves it.
+// the file reads in any other Markdown app and how the editor resolves it. A
+// picture goes in as an image, anything else as a link named for the file.
 
-/** The pictures among files handed over, in order. */
-export function imageFilesOf(files: FileList | null | undefined): File[] {
-  return [...(files ?? [])].filter((file) => file.type.startsWith("image/"));
+/** A file put beside the Markdown file: its link, and whether it shows as a picture. */
+interface Placed {
+  image: boolean;
+  name: string;
+  src: string;
 }
 
 /**
  * Crepe's uploader, which its upload plugin calls with what was pasted or
- * dropped and places at the drop: the pictures among them, put beside the file.
+ * dropped and places at the drop: the files, put beside the file.
  */
-export function imageUploader(folder: string): Uploader {
-  return async (files, schema) => {
-    const image = schema.nodes.image;
-    const srcs = await placeImages(folder, imageFilesOf(files));
-    return Fragment.from(
-      image ? srcs.map((src) => image.create({ alt: "", src, title: "" })) : [],
-    );
-  };
+export function fileUploader(folder: string): Uploader {
+  return async (files, schema) =>
+    Fragment.from(nodesFor(schema, await placeFiles(folder, [...files])));
 }
 
 /** Puts `files` beside the file in `folder`, then links them at the selection. */
-export async function insertImages(
+export async function insertFiles(
   view: EditorView,
   folder: string,
   files: File[],
 ): Promise<void> {
-  const srcs = await placeImages(folder, files);
-  const image = view.state.schema.nodes.image;
-  if (!image || view.isDestroyed || srcs.length === 0) {
+  const placed = await placeFiles(folder, files);
+  if (view.isDestroyed || placed.length === 0) {
     return;
   }
-  let tr = view.state.tr;
-  for (const src of srcs) {
-    tr = tr.replaceSelectionWith(image.create({ alt: "", src, title: "" }));
-  }
-  view.dispatch(tr.scrollIntoView());
+  const slice = new Slice(
+    Fragment.from(nodesFor(view.state.schema, placed)),
+    0,
+    0,
+  );
+  view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
   view.focus();
 }
 
-/** Each picture's link, or none and a toast when one of them could not be put there. */
-async function placeImages(folder: string, files: File[]): Promise<string[]> {
+/** Each file as the editor shows it: a picture as an image, anything else a link named for it, with a space beside a link. */
+function nodesFor(schema: Schema, placed: Placed[]): PMNode[] {
+  const { image } = schema.nodes;
+  const { link } = schema.marks;
+  const shown = placed.map((file) => ({
+    asImage: file.image && image !== undefined,
+    file,
+  }));
+  return shown.flatMap(({ asImage, file }, index) => {
+    const node =
+      asImage && image
+        ? image.create({ alt: "", src: file.src, title: "" })
+        : schema.text(file.name, link ? [link.create({ href: file.src })] : []);
+    const besideLink = !asImage || shown[index - 1]?.asImage === false;
+    return index > 0 && besideLink ? [schema.text(" "), node] : [node];
+  });
+}
+
+/** Each file's link, or none and a toast when one of them could not be put there. */
+async function placeFiles(folder: string, files: File[]): Promise<Placed[]> {
   try {
-    return await Promise.all(files.map((file) => placeImage(folder, file)));
+    return await Promise.all(files.map((file) => placeFile(folder, file)));
   } catch (error) {
     toast.error(
-      files.length === 1
-        ? "Couldn't add the picture"
-        : "Couldn't add the pictures",
+      files.length === 1 ? "Couldn't add the file" : "Couldn't add the files",
       { cause: error },
     );
     return [];
   }
 }
 
-/** The file's path for `file` in `folder`, written as a Markdown link writes it. */
-async function placeImage(folder: string, file: File): Promise<string> {
+/** Where `file` went in `folder`, written as a Markdown link writes it. */
+async function placeFile(folder: string, file: File): Promise<Placed> {
+  const image = file.type.startsWith("image/");
   const from = window.api.getFilePath(file);
   const { path } = await (from
-    ? rpcClient.files.addImage.call({ folder, from })
-    : rpcClient.files.addImage.call({
+    ? rpcClient.files.addFile.call({ folder, from })
+    : rpcClient.files.addFile.call({
         content: await base64Of(file),
         folder,
         // A copied picture comes as `image.png` whatever it is; it is named for when it came in.
-        name: pastedName(file.type),
+        name: image || !file.name ? pastedName(file.type) : file.name,
       }));
   // Always below the folder, since it is put there; a path is escaped a
   // segment at a time so a space or `#` in a name still reads as the name.
   const relative = path.startsWith(folder) ? path.slice(folder.length) : path;
-  return relative.split(/[/\\]/).map(encodeURIComponent).join("/");
+  return {
+    image,
+    name: relative.split(/[/\\]/).at(-1) ?? relative,
+    src: relative.split(/[/\\]/).map(encodeURIComponent).join("/"),
+  };
 }
 
 /** A name for a picture pasted with no file behind it: when it came in, local time. */
@@ -106,7 +130,7 @@ function base64Of(file: File): Promise<string> {
       resolve(url.replace(/^data:[^,]*,/, ""));
     });
     reader.addEventListener("error", () => {
-      reject(reader.error ?? new Error("Couldn't read the picture"));
+      reject(reader.error ?? new Error("Couldn't read the file"));
     });
     reader.readAsDataURL(file);
   });

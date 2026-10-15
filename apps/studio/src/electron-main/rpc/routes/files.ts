@@ -172,14 +172,14 @@ const duplicate = base
   });
 
 /**
- * Puts a picture an editor was given into the folder of the file it is
- * editing, so the file can name it by a relative path: a file already in that
- * folder or below it is answered as it is, one from anywhere else is copied
- * in, and bytes with no file behind them (a pasted screenshot) are written.
- * A name already taken is numbered beside it, as a second paste of a
- * screenshot is.
+ * Puts a file an editor was given (a picture, a PDF) into the folder of the
+ * file it is editing, so the file can name it by a relative path: a file
+ * already in that folder or below it is answered as it is, one from anywhere
+ * else is copied in, and bytes with no file behind them (a pasted screenshot)
+ * are written. A name already taken is numbered beside it, as a second paste
+ * of a screenshot is.
  */
-const addImage = base
+const addFile = base
   .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
   .input(
     z.union([
@@ -536,7 +536,7 @@ const live = {
 };
 
 export const files = {
-  addImage,
+  addFile,
   duplicate,
   live,
   newFolder,

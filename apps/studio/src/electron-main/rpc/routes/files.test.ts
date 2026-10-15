@@ -236,10 +236,10 @@ it("links a picture below the folder in place and copies one from elsewhere besi
   await fs.writeFile(outside, "outside");
   await fs.writeFile(path.join(folder, "a.png"), "taken");
 
-  const linked = await call(files.addImage, { folder, from: inside }, options);
-  const copied = await call(files.addImage, { folder, from: outside }, options);
+  const linked = await call(files.addFile, { folder, from: inside }, options);
+  const copied = await call(files.addFile, { folder, from: outside }, options);
   const pasted = await call(
-    files.addImage,
+    files.addFile,
     { content: Buffer.from("bytes").toString("base64"), folder, name: "a.png" },
     options,
   );

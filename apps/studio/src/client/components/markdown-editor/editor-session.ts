@@ -60,7 +60,7 @@ import {
 } from "./doc-sync";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
-import { imageFilesOf, imageUploader, insertImages } from "./images";
+import { fileUploader, insertFiles } from "./images";
 import { fitSelectionToolbar, fitSlashMenu } from "./toolbar-fit";
 
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
@@ -451,19 +451,19 @@ export async function createEditorSession(options: EditorSessionOptions) {
   };
   const imageView = $view(imageSchema.node, () => renderImage);
 
-  /** The folder a picture given to the file is put in and linked from: the file's own. */
+  /** The folder a file given to the file is put in and linked from: the file's own. */
   const folder = options.hostPath.replace(/[^/\\]*$/, "");
 
-  /** The slash menu's Image: the system's picker, then the pictures go in as a drop would put them. */
-  const pickImages = () => {
+  /** The slash menu's Image and File: the system's picker, then the files go in as a drop would put them. */
+  const pickFiles = (accept: string) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = accept;
     input.multiple = true;
     input.addEventListener("change", () => {
-      const files = imageFilesOf(input.files);
+      const files = [...(input.files ?? [])];
       if (files.length > 0) {
-        void insertImages(view(), folder, files);
+        void insertFiles(view(), folder, files);
       }
     });
     input.click();
@@ -642,12 +642,21 @@ export async function createEditorSession(options: EditorSessionOptions) {
         // Close to the text, so the handle fits in the document's gutter.
         blockHandle: { getOffset: () => 4 },
         buildMenu: (builder) => {
-          builder.getGroup("advanced").addItem("image", {
+          const advanced = builder.getGroup("advanced");
+          advanced.addItem("image", {
             icon: icon("image", 16),
             label: "Image",
             onRun: (ctx) => {
               ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
-              pickImages();
+              pickFiles("image/*");
+            },
+          });
+          advanced.addItem("file", {
+            icon: icon("paperclip", 16),
+            label: "File",
+            onRun: (ctx) => {
+              ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+              pickFiles("");
             },
           });
         },
@@ -732,13 +741,13 @@ export async function createEditorSession(options: EditorSessionOptions) {
   editor.editor.config((ctx) => {
     ctx.set("remarkMath", { singleDollarTextMath: false });
   });
-  // A picture pasted or dropped in is put beside the file and linked by its
-  // relative path; Crepe's own uploader links it as a `blob:` address, which
-  // is gone once the page reloads.
+  // A file pasted or dropped in is put beside the file and linked by its
+  // relative path; Crepe's own uploader links a picture as a `blob:` address,
+  // which is gone once the page reloads, and drops anything else.
   editor.editor.config((ctx) => {
     ctx.update(uploadConfig.key, (prev) => ({
       ...prev,
-      uploader: imageUploader(folder),
+      uploader: fileUploader(folder),
       uploadWidgetFactory: (pos, spec) =>
         Decoration.widget(pos, document.createElement("span"), spec),
     }));

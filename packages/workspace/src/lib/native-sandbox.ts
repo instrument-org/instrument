@@ -701,6 +701,15 @@ export function mxcFilesystemPolicy(
       ? target.toLowerCase()
       : target;
   const add = (target: string, access: Access, rank: number) => {
+    // A Windows path with no drive names nothing MXC can hold, and one in the
+    // request fails every command (`ERROR_PATH_NOT_FOUND`); resolving it
+    // would read the working folder, which a running shell blocks.
+    if (
+      process.platform === "win32" &&
+      !/^(?:[A-Za-z]:[\\/]|[\\/]{2})/.test(target)
+    ) {
+      return;
+    }
     for (const spelled of spellings(target)) {
       const key = fold(spelled);
       const held = entries.get(key);

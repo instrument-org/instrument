@@ -25,7 +25,7 @@ Mail, Notes and Messages are in neither half: Apple offers no framework for thei
    - In the module: add a block to `FUNCTIONS` in `addon.m`. It receives `done` and calls it once with a dictionary (or `@{@"error": …}`). `answer` runs it off the JS thread and resolves a Promise with the JSON.
    - In the helper: add a `case` to `main.swift` that `emit`s JSON or `fail`s with a sentence.
 2. **A typed wrapper in `mac-native.ts`** that parses the JSON with a Zod schema before trusting it.
-3. **A route in [`rpc/routes/mac.ts`](../../apps/studio/src/electron-main/rpc/routes/mac.ts)** when a page needs it. For the agent, a command in `packages/workspace` that runs the helper (see `createMacHelperCommand`).
+3. **A route in [`rpc/routes/mac.ts`](../../apps/studio/src/electron-main/rpc/routes/mac.ts)** when a page needs it. For the agent, a command in `packages/workspace` that runs the helper (see `createMacHelperCommand`), behind the per-app permission the person answers (`appRefusal`), named for the app whose data it reads.
 
 Two Objective-C traps are worth knowing before the first change:
 

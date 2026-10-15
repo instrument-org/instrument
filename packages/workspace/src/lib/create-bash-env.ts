@@ -418,7 +418,8 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CALENDAR_COMMAND.description,
-    factory: ({ chatId }) => createMacHelperCommand(CALENDAR_COMMAND, chatId),
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CALENDAR_COMMAND, chatId, layout),
     listInDescription: true,
     name: CALENDAR_COMMAND.name,
     platforms: ["darwin"],
@@ -426,7 +427,8 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CONTACTS_COMMAND.description,
-    factory: ({ chatId }) => createMacHelperCommand(CONTACTS_COMMAND, chatId),
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CONTACTS_COMMAND, chatId, layout),
     listInDescription: true,
     name: CONTACTS_COMMAND.name,
     platforms: ["darwin"],

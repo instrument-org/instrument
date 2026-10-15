@@ -313,7 +313,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
               ? entry.family === "apple"
                 ? `none: ${APP_NAME} has no way into ${way.name} in this build, so tell the user that rather than looking for another way in.`
                 : `${start} --web ${entry.home ?? `https://${entry.domain}`}  (${APP_NAME} has no way into ${way.name} in this build, so ${entry.name} is worked on its site)`
-              : `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name}, which reads every account added there. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+              : `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name}, which reads every account added there. The first time a chat uses ${way.name} the person is asked to allow it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
             : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"

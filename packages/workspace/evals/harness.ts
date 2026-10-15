@@ -21,6 +21,7 @@ import type { Session } from "../src/schemas/session";
 
 import {
   attachChats,
+  ensurePythonBase,
   prepareBundledSkills,
   workspaceMachine,
 } from "../src/electron";
@@ -625,6 +626,14 @@ export async function runEvals(
   actor.start();
   // Awaited, unlike the app's: a case's first command may read them.
   await prepareBundledSkills(actor.getSnapshot().context.config);
+  // Awaited too, so every case starts as a launch that has finished it, and
+  // its context says what `python` already has.
+  const pythonBase = await ensurePythonBase();
+  if (pythonBase) {
+    write(
+      `${c.dim}Python    :${c.reset} base packages not installed: ${pythonBase.output.trim()}\n`,
+    );
+  }
 
   const runs = models
     .flatMap((uri) => {

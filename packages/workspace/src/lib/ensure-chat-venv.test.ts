@@ -9,6 +9,7 @@ vi.mock(import("node:fs"), () => ({
   mkdirSync: vi.fn(),
 }));
 vi.mock(import("./run-uv"));
+vi.mock(import("./python-base"));
 
 describe("ensureChatVenv", () => {
   it("has the app install the managed Python before the chat's uv makes the venv", async () => {

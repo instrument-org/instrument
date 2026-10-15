@@ -22,6 +22,7 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
+  ensurePythonBase,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -212,6 +213,14 @@ export function createWorkspaceActor() {
   // skills appear in the shell for the first command after this lands.
   prepareBundledSkills(workspaceConfig).catch((error: unknown) => {
     logger.warn("Could not prepare the bundled skills", error);
+  });
+  // In the background too, so the first chart or spreadsheet a chat makes
+  // finds its packages already there. Until it lands, `python` has what
+  // `pip` installed; offline, the next chat's first Python use tries again.
+  void ensurePythonBase().then((failure) => {
+    if (failure) {
+      logger.warn("Could not install the base Python packages", failure);
+    }
   });
 
   // Warn before stopping in-flight agents. Fails open so a count error never

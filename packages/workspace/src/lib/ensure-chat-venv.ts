@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
+import { ensurePythonBase, linkPythonBase } from "./python-base";
 import { ensureManagedPython, runUvCommand } from "./run-uv";
 import { MANAGED_PYTHON_VERSION, chatVenvDir, chatVenvPython } from "./uv";
 import { workDir } from "./work-dir";
@@ -25,6 +26,10 @@ const inFlightVenvCreation = new Map<
  */
 let createChatVenv = runUvVenv;
 
+/**
+ * The chat's venv, made first when it has no usable one, with the base
+ * packages behind it once they are installed.
+ */
 export async function ensureChatVenv({
   signal,
   chatId,
@@ -32,8 +37,22 @@ export async function ensureChatVenv({
   signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<ChatVenvError | undefined> {
+  const error = await ensureVenvExists({ signal, chatId });
+  if (error === undefined) {
+    await linkPythonBase(chatId);
+  }
+  return error;
+}
+
+function ensureVenvExists({
+  signal,
+  chatId,
+}: {
+  signal?: AbortSignal;
+  chatId: ChatId;
+}): Promise<ChatVenvError | undefined> {
   if (hasUsableVenv(chatId)) {
-    return undefined;
+    return Promise.resolve(undefined);
   }
 
   const existing = inFlightVenvCreation.get(chatId);
@@ -106,6 +125,9 @@ async function runUvVenv(chatId: ChatId): Promise<ChatVenvError | undefined> {
   if (python) {
     return python;
   }
+  // Tried again here when the launch could not install it (offline, say).
+  // Nothing waits on it.
+  void ensurePythonBase();
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went

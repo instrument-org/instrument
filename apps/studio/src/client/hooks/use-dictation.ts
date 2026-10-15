@@ -66,7 +66,7 @@ type Session = {
  * stream went away or never opened: the recording goes on, and its words
  * come from the whole take at Stop.
  */
-export type LiveText = {
+type LiveText = {
   interim: string;
   settled: string;
   status: "connecting" | "live" | "lost" | "unavailable";

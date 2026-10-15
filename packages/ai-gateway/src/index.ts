@@ -15,6 +15,8 @@ export {
 export {
   type ClaudeCodeRelease,
   claudeCodeRelease,
+  compareClaudeCodeVersions,
+  runsClaudeCode,
 } from "./lib/providers/claude-account/release";
 export { claudeCodeEnvironment } from "./lib/providers/claude-account/environment";
 export {

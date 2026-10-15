@@ -17,6 +17,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { claudeCodeEnvironment } from "./environment";
 import { type ReplayFrame } from "./prompt";
+import { OLDEST_CLAUDE_CODE, runsClaudeCode } from "./release";
 import { SESSION_CWD } from "./resume-record";
 
 /** The MCP server name our tools are served under, and so their prefix. */
@@ -243,6 +244,17 @@ export class ClaudeCodeSession {
       if (next.done) {
         throw new Error(
           `Claude Code exited during the replay.\n${this.stderr}`,
+        );
+      }
+      // An older build takes the frames out of order, which would hand the
+      // model a scrambled conversation; failing the step says why instead.
+      if (
+        next.value.type === "system" &&
+        next.value.subtype === "init" &&
+        !runsClaudeCode(next.value.claude_code_version)
+      ) {
+        throw new Error(
+          `Claude Code ${next.value.claude_code_version} is older than ${OLDEST_CLAUDE_CODE}, the oldest that takes a replayed conversation in order.`,
         );
       }
       if (next.value.type !== "result") {

@@ -37,10 +37,15 @@ const THUMBNAILED_EXTENSIONS = new Set([
 ]);
 
 const icons = new Map<string, NativeImage>();
-// Whatever the app icon is, resized. Only ever seen when a file is dragged
-// before its own icon finished rendering, since a missing icon is not a drag
-// macOS will start at all.
+// A blank page, for a file dragged before its own icon finished rendering,
+// since a missing icon is not a drag macOS will start at all. The app icon
+// only where the system draws no page, since on the cursor it reads as
+// dragging the app rather than a file.
 let fallbackIcon: NativeImage | undefined;
+// No app claims this, so the system draws its plain page for it. An empty
+// extension is no good: macOS answers that with whatever app claims files
+// with none, a password manager's on one Mac.
+const UNCLAIMED_FILE_NAME = "document.instrument-drag";
 
 const HostPathSchema = z.string().refine((value) => path.isAbsolute(value));
 
@@ -149,6 +154,13 @@ function hasLegibleThumbnail(fullPath: string) {
 }
 
 async function loadFallbackIcon() {
+  const page = await getFileIcon(
+    path.join(app.getPath("temp"), UNCLAIMED_FILE_NAME),
+  );
+  if (page && !page.isEmpty()) {
+    fallbackIcon = page;
+    return;
+  }
   try {
     const iconModule = await import("../../../resources/icon.png?asset");
     const image = nativeImage.createFromPath(iconModule.default);

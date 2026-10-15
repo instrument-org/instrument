@@ -761,6 +761,13 @@ export function mxcFilesystemPolicy(
     add(folder, "read", 3);
   }
   for (const folder of reach.readWrite) {
+    // The app's own folders are made before they are granted, as bubblewrap
+    // makes them, so a first run can write one the app makes later.
+    try {
+      mkdirSync(folder, { recursive: true });
+    } catch {
+      // Left as it is, and granted if its folder is there.
+    }
     add(folder, "write", 3);
   }
   // MXC has no patterns, so the names that run code already in an allowed
@@ -813,9 +820,10 @@ export function mxcFilesystemPolicy(
   // A path that is not there matters only where something could make it,
   // in a folder that can be changed; elsewhere its entry only slows every
   // start (a third of a millisecond each), and most rules name places that
-  // exist on another platform.
+  // exist on another platform. The app's own entries stay whatever is there.
   for (const [key, entry] of entries) {
     if (
+      entry.rank < 3 &&
       !existsSync(entry.path) &&
       accessAt(path.dirname(entry.path)) !== "write"
     ) {

@@ -226,3 +226,27 @@ it("keeps a move to the Trash whose name is taken until the way is clear", async
   });
   expect(await fs.readFile(notes, "utf8")).toBe("notes");
 });
+
+it("links a picture below the folder in place and copies one from elsewhere beside it", async () => {
+  const folder = path.join(dir, "notes");
+  await fs.mkdir(path.join(folder, "shots"), { recursive: true });
+  const inside = path.join(folder, "shots", "a.png");
+  const outside = path.join(dir, "a.png");
+  await fs.writeFile(inside, "inside");
+  await fs.writeFile(outside, "outside");
+  await fs.writeFile(path.join(folder, "a.png"), "taken");
+
+  const linked = await call(files.addImage, { folder, from: inside }, options);
+  const copied = await call(files.addImage, { folder, from: outside }, options);
+  const pasted = await call(
+    files.addImage,
+    { content: Buffer.from("bytes").toString("base64"), folder, name: "a.png" },
+    options,
+  );
+
+  expect(
+    [linked, copied, pasted].map((result) => path.relative(dir, result.path)),
+  ).toEqual(["notes/shots/a.png", "notes/a 2.png", "notes/a 3.png"]);
+  expect(await fs.readFile(copied.path, "utf8")).toBe("outside");
+  expect(await fs.readFile(pasted.path, "utf8")).toBe("bytes");
+});

@@ -368,42 +368,9 @@ textarea.md-input {
 .md-editor .milkdown .milkdown-slash-menu .menu-groups {
   padding: 0;
 }
-/* The slash menu's tabs as the app's segmented control (`TabsList`). */
+/* The slash menu's tabs only repeat the section headings below them. */
 .md-editor .milkdown .milkdown-slash-menu .tab-group {
-  padding: 4px 4px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul {
-  display: inline-flex;
-  gap: 0;
-  padding: 3px;
-  background: var(--muted);
-  border-radius: var(--radius);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul li {
-  height: 26px;
-  box-sizing: border-box;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius) - 2px);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 24px;
-  color: var(--muted-foreground);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul li:hover {
-  background: none;
-  color: var(--foreground);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul li.selected {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: var(--elevation-sm);
-}
-.dark .md-editor .milkdown .milkdown-slash-menu .tab-group ul li.selected {
-  border-color: var(--input);
-  background: color-mix(in srgb, var(--input) 30%, transparent);
-  box-shadow: none;
+  display: none;
 }
 .md-editor .milkdown .milkdown-slash-menu .menu-groups .menu-group li {
   gap: 8px;

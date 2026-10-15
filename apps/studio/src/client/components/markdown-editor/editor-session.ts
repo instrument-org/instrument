@@ -20,12 +20,18 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { Crepe } from "@milkdown/crepe";
 import {
+  commandsCtx,
   editorViewCtx,
   parserCtx,
   remarkStringifyOptionsCtx,
   serializerCtx,
 } from "@milkdown/kit/core";
-import { htmlSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
+import { uploadConfig } from "@milkdown/kit/plugin/upload";
+import {
+  clearTextInCurrentBlockCommand,
+  htmlSchema,
+  imageSchema,
+} from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import {
@@ -54,7 +60,8 @@ import {
 } from "./doc-sync";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
-import { fitSelectionToolbar } from "./toolbar-fit";
+import { imageFilesOf, imageUploader, insertImages } from "./images";
+import { fitSelectionToolbar, fitSlashMenu } from "./toolbar-fit";
 
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
 
@@ -444,6 +451,24 @@ export async function createEditorSession(options: EditorSessionOptions) {
   };
   const imageView = $view(imageSchema.node, () => renderImage);
 
+  /** The folder a picture given to the file is put in and linked from: the file's own. */
+  const folder = options.hostPath.replace(/[^/\\]*$/, "");
+
+  /** The slash menu's Image: the system's picker, then the pictures go in as a drop would put them. */
+  const pickImages = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.multiple = true;
+    input.addEventListener("change", () => {
+      const files = imageFilesOf(input.files);
+      if (files.length > 0) {
+        void insertImages(view(), folder, files);
+      }
+    });
+    input.click();
+  };
+
   /**
    * Raw HTML, rendered as Studio's viewer renders it: sanitized to GitHub's
    * allow-list, so no script, style, iframe or handler in the file ever runs
@@ -611,12 +636,21 @@ export async function createEditorSession(options: EditorSessionOptions) {
       [Crepe.Feature.BlockEdit]: {
         advancedGroup: {
           codeBlock: { icon: icon("code", 16) },
-          image: { icon: icon("image", 16) },
           math: { icon: icon("sigma", 16) },
           table: { icon: icon("table", 16) },
         },
         // Close to the text, so the handle fits in the document's gutter.
         blockHandle: { getOffset: () => 4 },
+        buildMenu: (builder) => {
+          builder.getGroup("advanced").addItem("image", {
+            icon: icon("image", 16),
+            label: "Image",
+            onRun: (ctx) => {
+              ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+              pickImages();
+            },
+          });
+        },
         handleAddIcon: icon("plus", 14),
         handleDragIcon: icon("dotsSixVertical", 14),
         listGroup: {
@@ -698,6 +732,17 @@ export async function createEditorSession(options: EditorSessionOptions) {
   editor.editor.config((ctx) => {
     ctx.set("remarkMath", { singleDollarTextMath: false });
   });
+  // A picture pasted or dropped in is put beside the file and linked by its
+  // relative path; Crepe's own uploader links it as a `blob:` address, which
+  // is gone once the page reloads.
+  editor.editor.config((ctx) => {
+    ctx.update(uploadConfig.key, (prev) => ({
+      ...prev,
+      uploader: imageUploader(folder),
+      uploadWidgetFactory: (pos, spec) =>
+        Decoration.widget(pos, document.createElement("span"), spec),
+    }));
+  });
   // Serialized lists and rules use `-`, the marker most Markdown in the wild (and the agent) writes.
   editor.editor.config((ctx) => {
     ctx.update(remarkStringifyOptionsCtx, (prev) => ({
@@ -743,6 +788,11 @@ export async function createEditorSession(options: EditorSessionOptions) {
       bottom: pmView.coordsAtPos(to).bottom,
       top: pmView.coordsAtPos(from).top,
     };
+  });
+  const stopFittingSlashMenu = fitSlashMenu(root, () => {
+    const { from } = pmView.state.selection;
+    const at = pmView.coordsAtPos(from);
+    return { bottom: at.bottom, top: at.top };
   });
   const removeBlockHandle = editor.editor.action((ctx) =>
     installBlockHandle(ctx, root),
@@ -790,6 +840,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
       code.destroy();
       removeBlockMenu();
       stopFittingToolbar();
+      stopFittingSlashMenu();
       removeBlockHandle();
       await crepe?.destroy();
       crepe = null;

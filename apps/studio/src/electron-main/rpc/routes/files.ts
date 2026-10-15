@@ -171,6 +171,58 @@ const duplicate = base
     }
   });
 
+/**
+ * Puts a picture an editor was given into the folder of the file it is
+ * editing, so the file can name it by a relative path: a file already in that
+ * folder or below it is answered as it is, one from anywhere else is copied
+ * in, and bytes with no file behind them (a pasted screenshot) are written.
+ * A name already taken is numbered beside it, as a second paste of a
+ * screenshot is.
+ */
+const addImage = base
+  .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
+  .input(
+    z.union([
+      z.object({ folder: HostPathSchema, from: HostPathSchema }),
+      z.object({
+        /** The bytes, base64. */
+        content: z.string(),
+        folder: HostPathSchema,
+        name: z.string().refine(isUsableName),
+      }),
+    ]),
+  )
+  .output(z.object({ path: z.string() }))
+  .handler(async ({ errors, input }) => {
+    const folder = path.resolve(input.folder);
+    if ("from" in input) {
+      const inside = path.relative(folder, input.from);
+      if (!inside.startsWith("..") && !path.isAbsolute(inside)) {
+        return { path: input.from };
+      }
+    }
+    const name = "from" in input ? path.basename(input.from) : input.name;
+    const extension = path.extname(name);
+    const stem = path.basename(name, extension);
+    try {
+      const made = await freePath(
+        folder,
+        (n) => (n === 1 ? stem : `${stem} ${n.toString()}`),
+        extension,
+      );
+      await ("from" in input
+        ? fs.copyFile(input.from, made, fs.constants.COPYFILE_EXCL)
+        : fs.writeFile(made, Buffer.from(input.content, "base64"), {
+            flag: "wx",
+          }));
+      return { path: made };
+    } catch (error) {
+      throw errors.CANNOT_WRITE({
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
+
 const trash = base
   .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
   .input(z.object({ path: HostPathSchema }))
@@ -484,6 +536,7 @@ const live = {
 };
 
 export const files = {
+  addImage,
   duplicate,
   live,
   newFolder,

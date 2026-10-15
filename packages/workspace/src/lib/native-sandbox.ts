@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   accessSync,
   constants,
@@ -19,6 +20,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "./command-line-tools-env";
 import { canonicalizeThroughMissing, hostPathWithin } from "./host-path";
+import { type MxcLaunch, mxcVerdict, sandboxStateDir } from "./mxc-canary";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
@@ -437,7 +439,56 @@ export function seatbeltAvailable(): boolean {
  * can be made.
  */
 export function nativeSandboxEnforced(): boolean {
-  return seatbeltState() !== "unavailable" || bwrapState() !== "unavailable";
+  return (
+    seatbeltState() !== "unavailable" ||
+    bwrapState() !== "unavailable" ||
+    mxcState() !== "unavailable"
+  );
+}
+
+/**
+ * Whether MXC holds the native commands this process starts: Windows, with
+ * `INSTRUMENT_MXC=1` in the app's environment while it is new, the launcher
+ * shipped, and the canary passed on this build of Windows. A canary that
+ * gave no answer is "failed" and runs again for the next command.
+ */
+function mxcState(): ProbeResult {
+  const exec = getWorkspaceConfig().mxcExecPath;
+  if (
+    process.platform !== "win32" ||
+    appEnv.INSTRUMENT_MXC !== "1" ||
+    !exec ||
+    !existsSync(exec)
+  ) {
+    return "unavailable";
+  }
+  const verdict = mxcVerdict(exec, mxcCanaryLaunch(exec));
+  return verdict.kind === "works"
+    ? "works"
+    : verdict.kind === "fails"
+      ? "unavailable"
+      : "failed";
+}
+
+/**
+ * How the canary runs its program: through the same generator and launcher
+ * every native command takes, so what it proves is what they get.
+ */
+export function mxcCanaryLaunch(exec: string): MxcLaunch {
+  return (canaryReach, file, args, context) => {
+    const filesystem = mxcFilesystemPolicy(canaryReach);
+    return launchNative(
+      {
+        args: [],
+        file: exec,
+        mxc: {
+          argv: [file, ...args],
+          filesystem: context.policy?.(filesystem) ?? filesystem,
+        },
+      },
+      context,
+    );
+  };
 }
 
 /**
@@ -540,7 +591,17 @@ export function wrapNativeCommand(
   args: readonly string[],
   /** Null runs the command unwrapped, for an app the person allowed. */
   reach: NativeReach | null | undefined = currentReach(),
-): { args: string[]; file: string; reach?: NativeReach } {
+): {
+  args: string[];
+  file: string;
+  /**
+   * Set when MXC holds the command on Windows: the program and its policy,
+   * which `launchNative` turns into the launcher's arguments once the
+   * working folder and environment are known.
+   */
+  mxc?: { argv: string[]; filesystem: MxcFilesystemPolicy };
+  reach?: NativeReach;
+} {
   // A binary that is not there is left to fail as itself, so the shim's
   // not-found diagnostic names it rather than sandbox-exec's execvp error.
   if (!reach || (path.isAbsolute(file) && !existsSync(file))) {
@@ -556,8 +617,24 @@ export function wrapNativeCommand(
       : { args: ["-p", profile, file, ...args], file: SANDBOX_EXEC, reach };
   }
   const bwrap = bwrapState();
-  if (seatbelt === "failed" || bwrap === "failed") {
+  const mxc = mxcState();
+  if (seatbelt === "failed" || bwrap === "failed" || mxc === "failed") {
     throw new NativeSandboxUnavailableError(file);
+  }
+  const mxcExec = getWorkspaceConfig().mxcExecPath;
+  if (mxc === "works" && mxcExec) {
+    const argv = [file, ...args];
+    const filesystem = mxcFilesystemPolicy(reach);
+    // Spawned as is, the launcher refuses the request for want of an
+    // environment; launchNative fills in the real one.
+    return {
+      ...launchNative(
+        { args: [], file: mxcExec, mxc: { argv, filesystem } },
+        { env: {} },
+      ),
+      mxc: { argv, filesystem },
+      reach,
+    };
   }
   if (bwrap === "works") {
     return {
@@ -576,6 +653,266 @@ export function wrapNativeCommand(
 }
 
 const BWRAP = "/usr/bin/bwrap";
+
+/**
+ * What MXC's ProcessContainer is given for the disk: three lists of folders,
+ * deny by default, where the deepest entry holding a path decides, the
+ * same shape `reachOf` and the Seatbelt profile have.
+ */
+export interface MxcFilesystemPolicy {
+  deniedPaths: string[];
+  readonlyPaths: string[];
+  readwritePaths: string[];
+}
+
+/**
+ * MXC's filesystem lists from the rules, ordered and ranked as the Seatbelt
+ * profile is: the system drive and the home folder readable and closed to
+ * changes, each rule's folder opened or closed, the reach's own folders,
+ * then the names that run code already in an allowed folder, read-only.
+ * One entry per path, the highest rank winning, since MXC gives a path
+ * named in two lists the narrower access.
+ */
+export function mxcFilesystemPolicy(
+  reach: NativeReach,
+  {
+    appFolders = mxcAppFolders(),
+    closed = [sandboxStateDir()],
+    root = `${appEnv.SystemDrive ?? "C:"}\\`,
+    walk = WALK_LIMITS,
+  }: {
+    /** The app's own install, which `node`, `git` and `rg` run from. */
+    appFolders?: readonly string[];
+    /** The app's folders no command may read or change. */
+    closed?: readonly string[];
+    /** The system drive's root, readable where no rule says otherwise. */
+    root?: string;
+    walk?: WalkLimits;
+  } = {},
+): MxcFilesystemPolicy {
+  const { home, rules, withoutAsking } = reach.rules;
+  type Access = "deny" | "read" | "write";
+  const entries = new Map<
+    string,
+    { access: Access; path: string; rank: number }
+  >();
+  const fold = (target: string) =>
+    process.platform === "win32" || process.platform === "darwin"
+      ? target.toLowerCase()
+      : target;
+  const add = (target: string, access: Access, rank: number) => {
+    for (const spelled of spellings(target)) {
+      const key = fold(spelled);
+      const held = entries.get(key);
+      if (!held || rank >= held.rank) {
+        entries.set(key, { access, path: spelled, rank });
+      }
+    }
+  };
+  add(root, "read", -2);
+  add(home, "read", -1);
+  for (const rule of rules) {
+    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const access: Access =
+      level === "allow" ? "write" : level === "readOnly" ? "read" : "deny";
+    for (const target of rule.dotEntries
+      ? dotEntriesIn(rule.path)
+      : [rule.path]) {
+      add(target, access, ruleRank(rule));
+    }
+  }
+  for (const folder of [...appFolders, ...reach.readOnly]) {
+    add(folder, "read", 3);
+  }
+  for (const folder of reach.readWrite) {
+    add(folder, "write", 3);
+  }
+  // MXC has no patterns, so the names that run code already in an allowed
+  // folder are found as bubblewrap finds them and closed to changes by name.
+  const own = reach.readWrite.map(resolveReal);
+  const stops = new Set([
+    ...own,
+    ...rules.flatMap((rule) =>
+      rule.dotEntries ? [] : [resolveReal(rule.path)],
+    ),
+  ]);
+  for (const rule of rules) {
+    if (
+      levelWithoutAsking(rule.level, rule, withoutAsking) !== "allow" ||
+      rule.source === "system"
+    ) {
+      continue;
+    }
+    const searched = resolveReal(rule.path);
+    if (own.some((folder) => hostPathWithin(folder, searched) !== null)) {
+      continue;
+    }
+    for (const { kind, path: named } of namesThatRunCode(searched, {
+      dotEntriesOnly: rule.dotEntries ?? false,
+      limits: walk,
+      stops,
+    })) {
+      if (kind === "name") {
+        add(named, "read", 4);
+      } else if (kind === "repo") {
+        add(path.join(named, "hooks"), "read", 4);
+      }
+    }
+  }
+  for (const folder of closed) {
+    add(folder, "deny", 5);
+  }
+  const listed = (access: Access) =>
+    [...entries.values()]
+      .filter((entry) => entry.access === access)
+      .map((entry) => entry.path)
+      .toSorted();
+  return {
+    deniedPaths: listed("deny"),
+    readonlyPaths: listed("read"),
+    readwritePaths: listed("write"),
+  };
+}
+
+/**
+ * The folders the app runs its own programs from: Electron's (which `node`
+ * is) and its resources (git, rg, uutils, uv, ffmpeg). On Windows both sit
+ * under `AppData`, a place that asks first.
+ */
+function mxcAppFolders(): string[] {
+  // `resourcesPath` is Electron's; Node has none.
+  const resources = (process as { resourcesPath?: string }).resourcesPath;
+  return [path.dirname(process.execPath), ...(resources ? [resources] : [])];
+}
+
+/**
+ * One argument as a Windows program's C runtime splits its command line
+ * back into arguments, the way libuv quotes it for `CreateProcess`.
+ */
+function quoteWindowsArg(arg: string): string {
+  if (arg === "") {
+    return '""';
+  }
+  if (!/[\s"]/.test(arg)) {
+    return arg;
+  }
+  let quoted = '"';
+  let backslashes = 0;
+  for (const char of arg) {
+    if (char === "\\") {
+      backslashes += 1;
+      continue;
+    }
+    quoted +=
+      char === '"'
+        ? `${"\\".repeat(backslashes * 2 + 1)}"`
+        : `${"\\".repeat(backslashes)}${char}`;
+    backslashes = 0;
+  }
+  return `${quoted}${"\\".repeat(backslashes * 2)}"`;
+}
+
+/**
+ * The command line a program gets on Windows, quoted as Node would quote it
+ * or, with `verbatim` (a `cmd.exe` line), joined as given.
+ */
+export function windowsCommandLine(
+  argv: readonly string[],
+  verbatim = false,
+): string {
+  return argv.map((arg) => (verbatim ? arg : quoteWindowsArg(arg))).join(" ");
+}
+
+/**
+ * The MXC request (policy 1.0.0) that runs `commandLine` held to `filesystem`.
+ * Tier 1 or nothing: no fallback that would add ACEs to the person's
+ * folders. The program gets exactly `env`, since the container does not
+ * inherit the launcher's, and UI stays on, since anything importing USER32
+ * (node, Electron as node) fails to start without it; the clipboard and
+ * input injection stay closed by MXC's defaults. The network is open, as it
+ * is to native commands everywhere.
+ */
+export function mxcRequest({
+  commandLine,
+  cwd,
+  env,
+  filesystem,
+}: {
+  commandLine: string;
+  cwd: string;
+  env: Record<string, string | undefined>;
+  filesystem: MxcFilesystemPolicy;
+}) {
+  return {
+    version: "1.0.0",
+    containment: "processcontainer",
+    fallback: { allowDaclMutation: false },
+    filesystem,
+    network: {
+      egress: { default: "allow" },
+      ingress: { default: "allow", hostLoopback: "allow" },
+    },
+    process: {
+      commandLine,
+      cwd,
+      env: Object.entries(env).flatMap(([name, value]) =>
+        value === undefined ? [] : [`${name}=${value}`],
+      ),
+      timeout: 0,
+    },
+    ui: { disable: false },
+  };
+}
+
+/** Past this, a request goes in a file rather than on the command line. */
+const MXC_INLINE_LIMIT = 30_000;
+
+/**
+ * The launcher and its arguments for a command `wrapNativeCommand` held
+ * under MXC, now that its working folder and environment are known; any
+ * other command comes back as it was wrapped. Every caller that spawns
+ * what `wrapNativeCommand` returned goes through this.
+ */
+export function launchNative(
+  spawned: ReturnType<typeof wrapNativeCommand>,
+  context: {
+    cwd?: string;
+    env: Record<string, string | undefined>;
+    windowsVerbatimArguments?: boolean;
+  },
+): { args: string[]; file: string } {
+  const { mxc } = spawned;
+  if (!mxc) {
+    return { args: spawned.args, file: spawned.file };
+  }
+  const request = JSON.stringify(
+    mxcRequest({
+      commandLine: windowsCommandLine(
+        mxc.argv,
+        context.windowsVerbatimArguments,
+      ),
+      cwd: context.cwd ?? process.cwd(),
+      env: context.env,
+      filesystem: mxc.filesystem,
+    }),
+  );
+  const inline = Buffer.from(request).toString("base64");
+  if (inline.length <= MXC_INLINE_LIMIT) {
+    return { args: ["--config-base64", inline], file: spawned.file };
+  }
+  // In the sandbox's own folder, which every request closes, named by its
+  // contents so a request is written once however often it runs.
+  const file = path.join(
+    sandboxStateDir(),
+    "mxc-requests",
+    `${createHash("sha256").update(request).digest("hex")}.json`,
+  );
+  if (!existsSync(file)) {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, request);
+  }
+  return { args: ["--config", file], file: spawned.file };
+}
 
 /**
  * A step inside the sandbox that closes every file descriptor the command
@@ -1071,9 +1408,14 @@ export function appNativeReach(
   };
 }
 
+/** What separates a path's parts in a program's output here. */
+const SEPARATOR = process.platform === "win32" ? /[\\/]/ : /\//;
+
 const REFUSALS = [
   "not permitted",
   "Permission denied",
+  // Windows' own wording, as a Rust or C program prints it.
+  "Access is denied",
   "No such file",
   "Read-only file system",
 ];
@@ -1093,20 +1435,24 @@ function pathsNamedIn(line: string, refusal: string): string[] {
     ...line.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`|‘([^’]*)’|“([^”]*)”/g),
   ]
     .map((match) => match.slice(1).find((group) => group !== undefined) ?? "")
-    .filter((span) => span.includes("/"));
+    .filter((span) => SEPARATOR.test(span));
   if (quoted.length > 0) {
     return quoted.toReversed();
   }
   const end = line.lastIndexOf(": ", line.indexOf(refusal));
   if (end !== -1) {
     const words = (line.slice(0, end).split(": ").at(-1) ?? "").split(" ");
-    const first = words.findIndex((word) => word.includes("/"));
+    const first = words.findIndex((word) => SEPARATOR.test(word));
     if (first !== -1) {
       return [words.slice(first).join(" ")];
     }
   }
   return [
     ...line.matchAll(/(?<=^|[\s:'"`(=[‘“])[^\s:'"`‘’“”]*\/[^\s:'"`‘’“”]*/g),
+    // A drive-letter path, whose colon the pattern above stops at.
+    ...(process.platform === "win32"
+      ? line.matchAll(/(?<=^|[\s'"`(=[‘“])[A-Za-z]:\\[^\s:'"`‘’“”]*/g)
+      : []),
   ]
     .map((match) => match[0])
     .toReversed();

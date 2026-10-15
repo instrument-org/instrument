@@ -13,6 +13,7 @@ import { readJsonRecordSync, updateJsonRecord } from "./json-record-file";
 import { inheritedEnv } from "./native-env";
 import {
   appNativeReach,
+  launchNative,
   withInstallerClosed,
   wrapNativeCommand,
 } from "./native-sandbox";
@@ -510,14 +511,16 @@ async function importEverything(
       ],
       appNativeReach([temp]),
     );
-    const result = await execa(spawned.file, spawned.args, {
+    const env = {
+      ...inheritedEnv(process.env, spawned.reach),
+      MPLBACKEND: "Agg",
+      TMPDIR: temp,
+    };
+    const launch = launchNative(spawned, { env });
+    const result = await execa(launch.file, launch.args, {
       all: true,
       cancelSignal: AbortSignal.timeout(SMOKE_TIMEOUT_MS),
-      env: {
-        ...inheritedEnv(process.env, spawned.reach),
-        MPLBACKEND: "Agg",
-        TMPDIR: temp,
-      },
+      env,
       extendEnv: false,
       reject: false,
       stdin: "ignore",

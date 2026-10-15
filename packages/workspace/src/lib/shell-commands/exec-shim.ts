@@ -8,6 +8,7 @@ import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
 
 import {
+  launchNative,
   type NativeReach,
   NativeSandboxUnavailableError,
   refusalNote,
@@ -138,15 +139,27 @@ export async function execShim(
       stdoutBytes: Buffer.alloc(0),
     };
   }
-  const subprocess = execa(spawned.file, spawned.args, {
+  // Only what a program needs of the app's own environment, so a key or
+  // token set for the app never reaches a script the agent runs.
+  const env = {
+    ...inheritedEnv(process.env, spawned.reach),
+    ...subprocessOptions.env,
+  };
+  const launch = launchNative(spawned, {
+    cwd:
+      typeof subprocessOptions.cwd === "string"
+        ? subprocessOptions.cwd
+        : undefined,
+    env,
+    windowsVerbatimArguments: subprocessOptions.windowsVerbatimArguments,
+  });
+  const subprocess = execa(launch.file, launch.args, {
     ...subprocessOptions,
     ...(onMessage ? { ipc: true } : {}),
-    // Only what a program needs of the app's own environment, so a key or
-    // token set for the app never reaches a script the agent runs.
-    env: {
-      ...inheritedEnv(process.env, spawned.reach),
-      ...subprocessOptions.env,
-    },
+    env,
+    // Under MXC the program's command line is in the launcher's request,
+    // and the launcher's own arguments take Node's quoting.
+    ...(spawned.mxc ? { windowsVerbatimArguments: false } : {}),
     extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,

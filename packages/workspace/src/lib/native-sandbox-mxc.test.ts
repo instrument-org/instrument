@@ -49,13 +49,19 @@ function reachOver(
 const ROOT = path.parse(base).root;
 
 /**
- * The policy with the test's folders spelled from `~` and the root as `/`,
- * with `/` between parts, so a snapshot reads the same on every platform.
+ * The policy with the test's home spelled `~`, the app's folders (made
+ * beside it) `<app>`, and the root `/`, with `/` between parts, so a
+ * snapshot reads the same on every platform.
  */
 function policyOf(reach: NativeReach, closed: string[] = []) {
+  const app = path.join(base, "app");
+  mkdirSync(path.join(app, "bin"), { recursive: true });
+  for (const folder of closed) {
+    mkdirSync(path.join(app, folder), { recursive: true });
+  }
   const policy = mxcFilesystemPolicy(reach, {
-    appFolders: [path.join(ROOT, "app")],
-    closed: closed.map((folder) => path.join(ROOT, folder)),
+    appFolders: [path.join(app, "bin")],
+    closed: closed.map((folder) => path.join(app, folder)),
     root: ROOT,
   });
   const spell = (listed: string[]) =>
@@ -63,7 +69,9 @@ function policyOf(reach: NativeReach, closed: string[] = []) {
       .map((each) =>
         (each.startsWith(reach.rules.home)
           ? `~${each.slice(reach.rules.home.length)}`
-          : `/${each.slice(ROOT.length)}`
+          : each.startsWith(app)
+            ? `<app>${each.slice(app.length)}`
+            : `/${each.slice(ROOT.length)}`
         ).replaceAll("\\", "/"),
       )
       .toSorted();
@@ -76,7 +84,7 @@ function policyOf(reach: NativeReach, closed: string[] = []) {
 
 describe("mxcFilesystemPolicy", () => {
   it("reads the disk and the home, then opens and closes each rule's folder", () => {
-    const at = home("Documents/work", "Desktop", ".ssh", "chat");
+    const at = home("Documents/work", "Desktop", ".ssh", "chat", "skills");
     const reach = reachOver(
       at,
       [
@@ -110,14 +118,14 @@ describe("mxcFilesystemPolicy", () => {
     expect(policyOf(reach, ["state"])).toMatchInlineSnapshot(`
       {
         "deniedPaths": [
-          "/state",
+          "<app>/state",
           "~/.ssh",
           "~/Desktop",
           "~/Documents",
         ],
         "readonlyPaths": [
           "/",
-          "/app",
+          "<app>/bin",
           "~",
           "~/skills",
         ],
@@ -285,6 +293,30 @@ describe("mxcFilesystemPolicy", () => {
         write ? "write" : read ? "read" : "deny",
       ]);
     }
+  });
+});
+
+describe("mxcFilesystemPolicy's missing paths", () => {
+  it("keeps one only where it could be made", () => {
+    const at = home("work");
+    const policy = policyOf(
+      reachOver(at, [
+        {
+          level: "never",
+          path: path.join(at, ".aws"),
+          place: "passwords",
+          source: "place",
+        },
+        { level: "allow", path: path.join(at, "work"), source: "grant" },
+        {
+          denied: true,
+          level: "never",
+          path: path.join(at, "work", "later"),
+          source: "grant",
+        },
+      ]),
+    );
+    expect(policy.deniedPaths).toEqual(["~/work/later"]);
   });
 });
 

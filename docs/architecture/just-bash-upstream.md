@@ -90,6 +90,57 @@ Text we put in front of the model, or commands we withhold from it, because of a
 
 `which` is in that table because it is withheld, not because it is pending. Ours (`shell-commands/which.ts`) answers from the registered command set, so it knows the custom shims (`python`, `agent-browser`, `ffmpeg`) that a filesystem-based `which` cannot see, and then from the computer's PATH, where the programs the shell runs by name are; it is registered as a custom command, which shadows the built-in whether or not the name is withheld. It belongs with the permanent adaptations rather than the workarounds: the `npm` stub pointing at `pnpm` is a product choice about which package manager tasks use, and the `<system_info>` line telling the agent its shell is GNU coreutils rather than BSD is a description of what just-bash is.
 
+## Offering one upstream
+
+A pull request there is reviewed by `auto-maintain`, a bot that runs several
+reviewers over the diff (a maintainer pass, a general pass, two adversarial
+security passes, and one on bash and host portability) and posts their
+findings as advisory comments before any person looks. Everything below is
+what it has asked for, so a change that answers these before it is offered
+saves a round trip.
+
+**Work the repository's own checks first.** From its root: `pnpm lint`
+(biome, per-package banned patterns, workflow security), `pnpm --filter
+just-bash typecheck`, and `pnpm --filter just-bash test:run <dirs>` for
+every directory the change touches, not only the one it edits. Biome
+formats as well as lints, so run `biome check --write` on the files changed
+and commit what it does; a formatting-only difference is an error there and
+it will be the first thing reported.
+
+**Add a changeset.** `.changeset/<two-or-three-words>.md`, front matter
+`"just-bash": patch` (every changeset in the repository is a patch so far),
+then a paragraph saying what changes for someone using it. The bot reports
+a missing one on every PR.
+
+**Match the commit and title style**: `type(scope): imperative summary`,
+lowercase, with the scope being the area rather than the file
+(`fix(redirections):`, `perf(fs):`, `feat(find):`). The body carries the
+reasoning; the PR body carries the measurements.
+
+**What its reviewers reliably raise**, in the order they have raised them:
+
+- **A fallback that loses the parallelism of the path it replaces.** The
+  commands batch `DEFAULT_BATCH_SIZE` (100) filesystem calls through
+  `Promise.all`. Code that moves such a loop somewhere else has to keep the
+  batching, or a backend answering over a network goes from waves to one
+  round trip per entry. Raised by three of the five reviewers at once.
+- **Hidden work that a caller's own budget can no longer see.** The
+  execution and traversal limits are counted per call at the call site, so
+  folding N operations behind one call is read as a way around them.
+- **A value that encodes "unknown" as a definite answer.** `DirentEntry`
+  has no unknown state, so all three predicates false reads as "none of
+  these", and a reader skips a real directory rather than asking again.
+- **Host behavior outside macOS and Linux on a local disk.** NFS and FUSE
+  answer `DT_UNKNOWN`, Windows spells paths differently, and a reviewer is
+  reading for exactly that.
+- **An embedder-supplied filesystem.** Every filesystem in the package may
+  implement an optional method, so it is easy to forget that the interface
+  allows one that does not, and that is the case the reviewers reason about.
+
+**Answer the review in one comment and one commit**, naming what each point
+changed. Saying which of them were right, and which case none of them
+raised, is worth more than a long reply.
+
 ## Open upstream pull requests
 
 Ours, all against `vercel-labs/just-bash`, plus the other people's PRs that overlap them, since a maintainer picking between two fixes for one bug is the likeliest way any of these lands. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. 3.6.0, which we install, published the ones that had merged since 3.4.2 (the 3.5.0 release PR, #387, merged but its publish job failed): #414 (`find` reports an unreadable directory and goes on), #390 (`ls` entry budget), #444 (not ours, the `python3` program-name pin), #377 (not ours, `mktemp`), #409 (not ours, `yes`), #363 (`ls`: operands resolved literally rather than re-globbed, GNU operand grouping, `-t` implemented, type indicators only with `-F`, `-R` sections ordered by the sort key), #391 (`ln`: a refused symlink reported as a symlink failure rather than as a hard link on a directory), #365 (`file`: gzip read from the header instead of inflated; on 3.4.1 `file` on a gzip leaked an `AbortError` unhandled rejection into Electron's main process after `exec()` had resolved), and #394 (not ours, `js-exec` on `run`). #313 (`allowNestedMounts` on `MountableFs`) was closed by us as speculative, and #423 in favor of #444. #428, #429, and #548 are for `js-exec`, and #424, #425, #501, and #544 for `python3`, neither of which the agent's shell registers.

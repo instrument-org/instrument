@@ -43,7 +43,7 @@ export const DECISION_MODELS: DecisionModel[] = [
     id: "cf:clef-flash",
     maxOptions: PRODUCT_MAX_OPTIONS,
     maxQuestions: 64,
-    pricePerMillion: 0.09,
+    pricePerMillion: 0.038,
     route: "workers-ai",
   },
   {

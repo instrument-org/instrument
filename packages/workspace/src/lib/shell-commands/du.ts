@@ -17,6 +17,7 @@ import {
   resolveHostPath,
   resolveReadOnlyHostPath,
   shellPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 
@@ -99,13 +100,18 @@ export function createDuCommand({
     }
 
     const operands: DuOperand[] = [];
+    const hostCwd = hostPathOf(ctx.fs.resolvePath(ctx.cwd, "."));
     for (const operand of parsed.operands.length > 0
       ? parsed.operands
       : ["."]) {
+      // An operand spelled the way this computer spells a path names the
+      // same file as its shell spelling and meets the same rules, rather
+      // than reading as a name in the working folder that nothing holds.
       const resolved = resolveOperand(
         layout,
         operand,
-        ctx.fs.resolvePath(ctx.cwd, operand),
+        shellPathOfHostSpelling(operand, { hostCwd }) ??
+          ctx.fs.resolvePath(ctx.cwd, operand),
       );
       if (resolved === null) {
         return await fallback();

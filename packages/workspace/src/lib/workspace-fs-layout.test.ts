@@ -32,6 +32,7 @@ import {
   hostPathOf,
   outsideFolderRefusal,
   shellPath,
+  shellPathOfHostSpelling,
 } from "./workspace-fs-layout";
 import {
   beginSkillChangeTracking,
@@ -782,6 +783,44 @@ describe("shellPath on Windows", () => {
   it("keeps a network share's server and share", () => {
     expect(shellPath("\\\\nas\\media\\a.mp4")).toBe("//nas/media/a.mp4");
     expect(hostPathOf("//nas/media/a.mp4")).toBe("\\\\nas\\media\\a.mp4");
+  });
+
+  it.each([
+    ["C:\\Users\\sam\\notes.md", "/c/Users/sam/notes.md"],
+    ["C:/Users/sam/notes.md", "/c/Users/sam/notes.md"],
+    ["C:\\Users\\sam\\..\\dev\\notes.md", "/c/Users/dev/notes.md"],
+    ["\\\\?\\C:\\Users\\sam\\notes.md", "/c/Users/sam/notes.md"],
+    ["\\\\.\\C:\\Users\\sam", "/c/Users/sam"],
+    ["\\\\nas\\media\\a.mp4", "//nas/media/a.mp4"],
+    ["\\\\?\\UNC\\nas\\media\\a.mp4", "//nas/media/a.mp4"],
+  ])("reads the host's own %s as %s", (arg, spelled) => {
+    expect(
+      shellPathOfHostSpelling(arg, { hostCwd: "C:\\chats\\c1\\work" }),
+    ).toBe(spelled);
+  });
+
+  it.each([
+    "NEEDLE",
+    String.raw`\d+\s`,
+    String.raw`\Users\sam`,
+    "C:relative",
+    "/c/Users/sam",
+    "./notes.md",
+    "-i",
+    "",
+  ])("leaves %s for the shell to resolve", (arg) => {
+    expect(
+      shellPathOfHostSpelling(arg, { hostCwd: "C:\\chats\\c1\\work" }),
+    ).toBeNull();
+  });
+
+  it("reads no spelling as the host's own off Windows", () => {
+    expect(
+      shellPathOfHostSpelling("C:\\Users\\sam\\notes.md", {
+        hostCwd: "/chats/c1/work",
+        platform: "darwin",
+      }),
+    ).toBeNull();
   });
 
   it("finds /tmp in the temp folder, as Git Bash does", () => {

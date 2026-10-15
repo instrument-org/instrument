@@ -990,3 +990,46 @@ describe("isExternalBrowserInvocation", () => {
     expect(isExternalBrowserInvocation(args)).toBe(external);
   });
 });
+
+/**
+ * A file named the way Windows names one, which the CLI and the browser open
+ * as the path it is rather than as a name in the working folder, so the rules
+ * are asked about the file it names. A file this computer does hold is
+ * reached in `shell-commands/host-spelled-path.test.ts`, which runs where
+ * such a path can be resolved.
+ */
+describe("agent-browser file operands spelled as the host spells them", () => {
+  const platform = process.platform;
+  let fs = new InMemoryFs();
+  let layout: WorkspaceFsLayout;
+
+  beforeEach(async () => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    createMockChatConfig(ChatIdSchema.parse("host-spelled"));
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(String.raw`C:\Users\sam\chat`),
+      rules: {
+        home: String.raw`C:\Users\sam`,
+        rules: [],
+        withoutAsking: false,
+      },
+    });
+    fs = new InMemoryFs();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+  });
+
+  it("refuses a file outside every folder named by its drive", async () => {
+    const result = await resolveAgentBrowserPathArgs(
+      ["screenshot", "--path", String.raw`C:\Users\other\shot.png`],
+      { cwd: "/c/Users/sam/chat/work", fs },
+      layout,
+    );
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining("/c/Users/other/shot.png"),
+    });
+  });
+});

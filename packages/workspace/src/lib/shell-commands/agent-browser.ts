@@ -40,6 +40,7 @@ import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   hostPathOf,
+  shellPathOfHostSpelling,
   unsandboxedOperandRefusal,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
@@ -576,11 +577,18 @@ export async function resolveAgentBrowserPathArgs(
   ];
   const pathOf = ({ index, prefix = "" }: FileOperand) =>
     (args[index] ?? "").slice(prefix.length);
+  const hostCwd = hostPathOf(ctx.fs.resolvePath(ctx.cwd, "."));
+  // A file named the way this computer names one is the file the CLI opens,
+  // so it meets the rules its shell spelling meets and reaches the CLI as
+  // the path it named rather than as a name in the working folder.
+  const shellPathOf = (named: string) =>
+    shellPathOfHostSpelling(named, { hostCwd }) ??
+    ctx.fs.resolvePath(ctx.cwd, named);
   for (const operand of fileOperands) {
     const named = pathOf(operand);
     const refusal = unsandboxedOperandRefusal(
       layout,
-      ctx.fs.resolvePath(ctx.cwd, named),
+      shellPathOf(named),
       operand.op,
     );
     if (refusal !== undefined) {
@@ -589,7 +597,7 @@ export async function resolveAgentBrowserPathArgs(
   }
   for (const operand of initScripts) {
     const named = pathOf(operand);
-    if (!(await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, named)))) {
+    if (!(await ctx.fs.exists(shellPathOf(named)))) {
       return { error: `Init script not found: "${named}".` };
     }
   }
@@ -602,7 +610,7 @@ export async function resolveAgentBrowserPathArgs(
   const resolved = args.map((arg, index) => {
     const operand = byIndex.get(index);
     if (operand) {
-      return `${operand.prefix ?? ""}${hostPathOf(ctx.fs.resolvePath(ctx.cwd, pathOf(operand)))}`;
+      return `${operand.prefix ?? ""}${hostPathOf(shellPathOf(pathOf(operand)))}`;
     }
     return textOperands.has(index) ? arg : (hostPathArgs([arg])[0] ?? arg);
   });
@@ -611,7 +619,7 @@ export async function resolveAgentBrowserPathArgs(
   }
 
   for (const { value } of subArgs.slice(2)) {
-    if (!(await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, value)))) {
+    if (!(await ctx.fs.exists(shellPathOf(value)))) {
       return { error: `Upload file not found: "${value}".` };
     }
   }

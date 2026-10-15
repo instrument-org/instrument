@@ -678,8 +678,11 @@ const SYSTEM_FOLDERS = [
  * and Linux; on Windows, the drive-letter spelling Git Bash uses
  * (`/c/Users/sam`), since the shell is POSIX.
  */
-export function shellPath(hostPath: string): string {
-  if (process.platform !== "win32") {
+export function shellPath(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "win32") {
     return hostPath;
   }
   const drive = /^([A-Za-z]):[\\/]?(.*)$/.exec(hostPath);
@@ -708,6 +711,59 @@ export function hostPathOf(shellSpelled: string): string {
   return drive
     ? `${(drive[1] ?? "").toUpperCase()}:\\${(drive[2] ?? "").replaceAll("/", "\\")}`
     : shellSpelled.replaceAll("/", "\\");
+}
+
+/** `\\?\` and `\\.\`, which lift Windows' own parsing of the path after them. */
+const EXTENDED_PREFIX = /^[\\/]{2}[?.][\\/]/;
+
+/** A path naming its drive (`C:\Users\sam`, `C:/Users/sam`). */
+const DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/;
+
+/** A path naming a share (`\\server\share`). */
+const SHARE = /^\\\\[^\\/]/;
+
+/**
+ * The shell's spelling of an argument that names a path the way this computer
+ * does rather than the way the shell does: one naming its drive
+ * (`C:\Users\sam`, `C:/Users/sam`), one naming a share (`\\server\share`), or
+ * either behind the `\\?\` prefix. Null for every other argument, and for all
+ * of them on macOS and Linux, where the shell spells a path as the system
+ * does.
+ *
+ * A program on the disk opens such a path whatever the shell makes of it,
+ * which is nothing: it starts with no `/`, so the shell reads it as a name in
+ * the working folder, and the rules are asked about a path that is not the
+ * one the program opens. A command handing a path to a program resolves the
+ * argument here first, so one spelling of a file meets the rules the other
+ * meets.
+ *
+ * A path from the root of the drive a program runs on (`\Users\sam`) is left
+ * out: what these commands run rejects it, and it cannot be told from the
+ * `\d` or `\b` of a pattern.
+ */
+export function shellPathOfHostSpelling(
+  arg: string,
+  {
+    hostCwd,
+    platform = process.platform,
+  }: {
+    /** The folder the program runs in, which the rest of a path hangs off. */
+    hostCwd: string;
+    platform?: NodeJS.Platform;
+  },
+): null | string {
+  if (platform !== "win32") {
+    return null;
+  }
+  const extended = EXTENDED_PREFIX.test(arg);
+  const after = arg.replace(EXTENDED_PREFIX, "");
+  // `\\?\UNC\server\share` is the share `\\server\share` by another name.
+  const named =
+    /^UNC[\\/]/i.test(after) && extended ? `\\\\${after.slice(4)}` : after;
+  if (!DRIVE_ABSOLUTE.test(named) && !SHARE.test(named)) {
+    return null;
+  }
+  return shellPath(nodePath.win32.resolve(hostCwd, named), platform);
 }
 
 /**

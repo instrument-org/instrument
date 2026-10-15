@@ -14,6 +14,7 @@ import {
   otherFolders,
   outsideFolderRefusal,
   resolveReadOnlyHostPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -101,14 +102,15 @@ export function createRgCommand({
       };
     }
 
-    const bridged = bridgePathArgs(args, layout, (arg) =>
-      ctx.fs.resolvePath(ctx.cwd, arg),
-    );
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    const bridged = bridgePathArgs(args, layout, {
+      hostCwd,
+      resolvePath: (arg) => ctx.fs.resolvePath(ctx.cwd, arg),
+    });
     if ("error" in bridged) {
       return { exitCode: 2, stderr: `${bridged.error}\n`, stdout: "" };
     }
 
-    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const searched = withAppDataLeftOut(bridged.args, layout, hostCwd, {
       sandboxed: nativeCommandsSandboxed(),
     });
@@ -182,11 +184,20 @@ export function createRgCommand({
  * agent sandbox. A path the rules keep from the agent, or one that leads out
  * of its folder through a symlink, is refused. Everything after `--` is an
  * operand, a leading dash included.
+ *
+ * An argument spelled the way this computer spells a path
+ * ({@link shellPathOfHostSpelling}) is resolved to the file it names and held
+ * to the rules that spelling's own file meets, since ripgrep opens it either
+ * way. A flag's attached value is read as a path too, for the flags that name
+ * a file of patterns to search for or to ignore.
  */
 function bridgePathArgs(
   args: string[],
   layout: WorkspaceFsLayout,
-  resolvePath: (arg: string) => string,
+  {
+    hostCwd,
+    resolvePath,
+  }: { hostCwd: string; resolvePath: (arg: string) => string },
 ): { args: string[] } | { error: string } {
   const roots = [layout.chat, ...otherFolders(layout)].map(
     (folder) => folder.shellRoot,
@@ -195,20 +206,29 @@ function bridgePathArgs(
   const bridged: string[] = [];
   let operandsOnly = false;
   for (const arg of args) {
-    const owner = roots.find((root) => isAtOrUnder(root, arg));
+    const isOperand = operandsOnly || !arg.startsWith("-");
+    operandsOnly ||= arg === "--";
+    // The part of the argument that names a path: an operand whole, or the
+    // value a flag carries after its `=`.
+    const equals = isOperand ? -1 : arg.indexOf("=");
+    const prefix = arg.slice(0, equals + 1);
+    const hostSpelled = shellPathOfHostSpelling(arg.slice(equals + 1), {
+      hostCwd,
+    });
+    const named = hostSpelled ?? (isOperand ? arg : undefined);
+    if (named === undefined) {
+      bridged.push(arg);
+      continue;
+    }
+    const owner = roots.find((root) => isAtOrUnder(root, named));
     if (!owner) {
-      const isOperand = operandsOnly || !arg.startsWith("-");
-      operandsOnly ||= arg === "--";
       // A path outside every folder the chat reaches is refused here the
       // way the shell's own commands refuse it, and asked for the same way,
       // rather than read by the real binary the rules hold to less.
-      const resolved = isOperand ? resolvePath(arg) : undefined;
-      const refusal =
-        resolved === undefined
-          ? undefined
-          : roots.some((root) => isAtOrUnder(root, resolved))
-            ? operandRefusal(layout, resolved)
-            : outsideFolderRefusal(layout, resolved, "read");
+      const resolved = resolvePath(named);
+      const refusal = roots.some((root) => isAtOrUnder(root, resolved))
+        ? operandRefusal(layout, resolved)
+        : outsideFolderRefusal(layout, resolved, "read");
       if (refusal) {
         return {
           error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
@@ -217,19 +237,19 @@ function bridgePathArgs(
       bridged.push(arg);
       continue;
     }
-    const refusal = operandRefusal(layout, arg);
+    const refusal = operandRefusal(layout, named);
     if (refusal) {
       return {
         error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
       };
     }
-    const hostPath = resolveReadOnlyHostPath(layout, arg);
+    const hostPath = resolveReadOnlyHostPath(layout, named);
     if (hostPath === null) {
       return {
         error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
       };
     }
-    bridged.push(hostPath);
+    bridged.push(`${prefix}${hostPath}`);
   }
   return { args: bridged };
 }

@@ -9,6 +9,7 @@ import {
   hostPathOf,
   otherFolders,
   shellPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import {
@@ -216,11 +217,14 @@ export function createGitCommand({
         subcommand !== undefined &&
         (subcommand.name === "init" || subcommand.name === "clone");
       for (const [index, target] of [".", ...args.map(pathValueOf)].entries()) {
-        if (!target.startsWith("/") && target !== ".") {
+        // A path spelled the way this computer spells one is the path git
+        // writes to, so it meets the rules its shell spelling meets.
+        const spelled = shellPathOfHostSpelling(target, { hostCwd }) ?? target;
+        if (!spelled.startsWith("/") && spelled !== ".") {
           continue;
         }
         refusal ??= ruleRefusal({
-          hostPath: hostPathOf(ctx.fs.resolvePath(ctx.cwd, target)),
+          hostPath: hostPathOf(ctx.fs.resolvePath(ctx.cwd, spelled)),
           // Index 0 is the working folder, so an argument sits one later.
           isDirectory: makesFolder && index - 1 > subcommand.index,
           op: "write",

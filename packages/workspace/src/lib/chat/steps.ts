@@ -5,8 +5,8 @@ import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { getToolNameByType } from "../get-tool-name-by-type";
 import { isInteractiveTool } from "../is-interactive-tool";
+import { ChatReads } from "../chat-reads";
 import { isToolPart } from "../is-tool-part";
-import { Store } from "../store";
 
 /**
  * One line of a task's transcript read as a sequence of steps: what its agent
@@ -64,10 +64,10 @@ export async function sessionSteps({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<Step[]> {
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
+    chatId,
     inherited: false,
     sessionId,
-    chatId,
   });
   if (messages.isErr()) {
     return [];

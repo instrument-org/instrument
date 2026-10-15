@@ -2,6 +2,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
+import { ChatReads } from "../../chat-reads";
 import { addChildTask, type ChatTask } from "../../chat/children";
 import { defaultTaskName } from "../../default-task-name";
 import {
@@ -148,9 +149,9 @@ async function forkPoint({
   chatId: ChatId;
   chatSessionId: StoreId.Session;
 }): Promise<StoreId.Message> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId: chatSessionId,
+  const messages = await ChatReads.transcript({
     chatId,
+    sessionId: chatSessionId,
   });
   if (messages.isErr()) {
     throw messages.error;

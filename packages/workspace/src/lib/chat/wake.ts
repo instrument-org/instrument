@@ -24,6 +24,7 @@ import { openAsksOf } from "../permissions/asks";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
+import { ChatReads } from "../chat-reads";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
@@ -588,7 +589,7 @@ async function hasConversation(chatId: ChatId): Promise<boolean> {
   if (sessionId === undefined) {
     return false;
   }
-  const ids = await Store.getMessageIds(sessionId, chatId);
+  const ids = await ChatReads.messageIds({ chatId, sessionId });
   return ids.isErr() || ids.value.length > 0;
 }
 

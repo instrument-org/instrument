@@ -1,15 +1,14 @@
-import { alphabetical } from "radashi";
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { listBackgroundProcesses } from "../background-processes";
+import { ChatReads } from "../chat-reads";
 import { getChatAgentStatus } from "../get-chat-agent-status";
 import { sessionOfChat } from "../record-folders";
 import { writingChatRecords } from "../records/chat-records";
 import { liveView } from "../records/views";
-import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";
 import { latestStepIn } from "./step-label";
@@ -99,16 +98,14 @@ export function isWorking(chatId: ChatId, sessionId?: StoreId.Session) {
 }
 
 /**
- * A session's own messages, without what a task carries on from its chat;
- * empty when the read fails.
+ * A session's own messages, without what a task carries on from its chat,
+ * the parts its running turn holds over them included; empty when the read
+ * fails.
  */
 export async function ownMessages(
   ref: SessionRef,
 ): Promise<SessionMessage.WithParts[]> {
-  const messages = await Store.getMessagesWithParts({
-    ...ref,
-    inherited: false,
-  });
+  const messages = await ChatReads.transcript({ ...ref, inherited: false });
   return messages.isOk() ? messages.value : [];
 }
 
@@ -132,48 +129,11 @@ export async function liveMessages(
 }
 
 /**
- * The label on the newest tool call of a session's own: the turn's own memory
- * first, where a call still being typed is, then the newest message back,
- * stopping at the first that has one, so a task at work is not read whole on
- * every change.
+ * The label on the newest tool call of a session's own, the turn's own
+ * memory included, where a call still being typed is.
  */
 export async function latestStep(ref: SessionRef): Promise<string | undefined> {
-  const arriving = latestStepIn(await liveMessages(ref));
-  if (arriving !== undefined) {
-    return arriving;
-  }
-  for await (const message of newestFirst(ref)) {
-    const step = latestStepIn([message]);
-    if (step !== undefined) {
-      return step;
-    }
-  }
-  return undefined;
-}
-
-/**
- * A session's own messages, newest first, each read only when the one after
- * it has been looked at. A message that cannot be read is skipped, as a
- * whole read does.
- */
-async function* newestFirst({
-  sessionId,
-  chatId,
-}: SessionRef): AsyncGenerator<SessionMessage.WithParts> {
-  const ids = await Store.getMessageIds(sessionId, chatId);
-  if (ids.isErr()) {
-    return;
-  }
-  for (const messageId of alphabetical(ids.value, (id) => id).toReversed()) {
-    const message = await Store.getMessageWithParts({
-      messageId,
-      sessionId,
-      chatId,
-    });
-    if (message.isOk()) {
-      yield message.value;
-    }
-  }
+  return latestStepIn(await ownMessages(ref));
 }
 
 /**
@@ -228,24 +188,9 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
 export async function runningLines(
   ref: SessionRef,
 ): Promise<{ step?: string; waiting?: string }> {
-  // The step from the turn's own memory where it has one, since a call whose
-  // input is still arriving is nowhere else. The ask is read from what was
-  // written: a call still being typed is not one the user can answer yet.
-  let step = latestStepIn(await liveMessages(ref));
-  // Newest first, as far back as the step: the ask is only ever in the
-  // newest assistant message, which comes first.
-  let waiting: string | undefined;
-  let askRead = false;
-  for await (const message of newestFirst(ref)) {
-    if (!askRead && message.role === "assistant") {
-      waiting = askIn([message]);
-      askRead = true;
-    }
-    step ??= latestStepIn([message]);
-    if (askRead && step !== undefined) {
-      break;
-    }
-  }
+  const messages = await ownMessages(ref);
+  const step = latestStepIn(messages);
+  const waiting = askIn(messages);
   return { ...(step ? { step } : {}), ...(waiting ? { waiting } : {}) };
 }
 

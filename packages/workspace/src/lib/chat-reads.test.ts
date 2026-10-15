@@ -97,8 +97,8 @@ function userMessage(
 }
 
 /**
- * A reply whose step read a file: the call, the file it returned as base64,
- * and the words after it.
+ * A reply whose step read a file: what it thought, the call, the file it
+ * returned as base64, and the words after it.
  */
 function reply(
   sessionId: StoreId.Session,
@@ -122,6 +122,12 @@ function reply(
       providerId: "test-provider",
     },
     parts: [
+      {
+        metadata: { ...metadata, id: StoreId.newPartId(), messageId: id },
+        state: "done",
+        text: "Looking in the folder",
+        type: "reasoning",
+      },
       SessionMessagePart.coerce({
         input: { command: "ls" },
         metadata: place(),
@@ -167,6 +173,39 @@ async function writeTurn(
     await Store.saveMessageWithParts(reply(sessionId, { base64Data }), chatId)
   )._unsafeUnwrap();
   return { asked };
+}
+
+/** A reply that has started, with nothing of its own written yet. */
+function underWay(sessionId: StoreId.Session): SessionMessage.Assistant {
+  return {
+    id: StoreId.newMessageId(),
+    metadata: {
+      createdAt: new Date(),
+      finishReason: "unknown",
+      modelId: "test-model",
+      providerId: "test-provider",
+      sessionId,
+    },
+    role: "assistant",
+  };
+}
+
+/** The words a reply is streaming, which only the turn's memory holds. */
+function streaming(
+  message: SessionMessage.Assistant,
+  text: string,
+): SessionMessagePart.Type {
+  return {
+    metadata: {
+      createdAt: new Date(),
+      id: StoreId.newPartId(),
+      messageId: message.id,
+      sessionId: message.metadata.sessionId,
+    },
+    state: "streaming",
+    text,
+    type: "text",
+  };
 }
 
 async function storedHistory(chatId: ChatId, sessionId: StoreId.Session) {
@@ -361,5 +400,88 @@ describe("the reads that build a model request", () => {
       (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
         .stoppedBy,
     ).toBeUndefined();
+  });
+});
+
+describe("the transcript a chat is drawn and told from", () => {
+  it("gives what the store gives, the steps behind the conversation and all", async () => {
+    const { chatId, sessionId } = await startChat();
+    await writeTurn(chatId, sessionId);
+    await landed(chatId);
+
+    const stored = await storedHistory(chatId, sessionId);
+    // Both halves of the split are in it: what the chat view draws, and the
+    // reasoning and calls behind it.
+    expect(stored.at(-1)?.parts.map((part) => part.type)).toEqual([
+      "reasoning",
+      "tool-bash",
+      "tool-read_file",
+      "text",
+    ]);
+    const transcript = (
+      await ChatReads.transcript({ bytes: true, chatId, sessionId })
+    )._unsafeUnwrap();
+    expect(transcript).toEqual(stored);
+    expect(fileOutput(transcript)).toMatchObject({ base64Data: PNG });
+
+    // One message alone, for a reader following a change to it.
+    const changed = stored.at(-1);
+    expect(
+      (
+        await ChatReads.transcript({
+          bytes: true,
+          chatId,
+          only: new Set(changed ? [changed.id] : []),
+          sessionId,
+        })
+      )._unsafeUnwrap(),
+    ).toEqual([changed]);
+  });
+
+  it("reads the store for a chat whose records hold its header and no message", async () => {
+    const { chatId, sessionId } = await startChat();
+    await landed(chatId);
+    installChatRecords(undefined);
+    await writeTurn(chatId, sessionId);
+    installChatRecords(records.service);
+
+    expect(
+      (
+        await ChatReads.transcript({ bytes: true, chatId, sessionId })
+      )._unsafeUnwrap(),
+    ).toEqual(await storedHistory(chatId, sessionId));
+  });
+
+  it("reads a running turn's parts over the written ones, whichever side holds them", async () => {
+    const held = await startChat();
+    await writeTurn(held.chatId, held.sessionId);
+    await landed(held.chatId);
+
+    // An earlier build's chat: its conversation is the store's alone.
+    const stored = await startChat();
+    await landed(stored.chatId);
+    installChatRecords(undefined);
+    await writeTurn(stored.chatId, stored.sessionId);
+    installChatRecords(records.service);
+
+    for (const chat of [held, stored]) {
+      const replying = underWay(chat.sessionId);
+      (await Store.saveMessage(replying, chat.chatId))._unsafeUnwrap();
+      const live = records.service.live(chat.chatId, chat.sessionId);
+      live.setMessage(replying);
+      live.setPart(streaming(replying, "Partial"));
+
+      const transcript = (
+        await ChatReads.transcript({
+          chatId: chat.chatId,
+          sessionId: chat.sessionId,
+        })
+      )._unsafeUnwrap();
+      expect(transcript.at(-1)).toMatchObject({
+        id: replying.id,
+        parts: [{ state: "streaming", text: "Partial" }],
+      });
+      live.clear();
+    }
   });
 });

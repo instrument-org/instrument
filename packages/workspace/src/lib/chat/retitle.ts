@@ -7,7 +7,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { chatModelURI } from "../chat-settings";
 import { sessionRole } from "./children";
 import { updateSessionTitle } from "../update-session-title";
@@ -36,7 +36,7 @@ export async function retitleChat({
   keep?: boolean;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({ sessionId, chatId: id });
+  const messages = await ChatReads.transcript({ chatId: id, sessionId });
   if (messages.isErr()) {
     return undefined;
   }
@@ -50,7 +50,7 @@ export async function retitleChat({
   if (!root || !reply) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, id);
+  const session = await ChatReads.session({ chatId: id, sessionId });
   if (session.isErr()) {
     return undefined;
   }
@@ -146,7 +146,7 @@ async function retitleOnSettle({
     return;
   }
   const chatId = id;
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr() || session.value.titleSettledAt) {
     return;
   }

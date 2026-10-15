@@ -32,6 +32,8 @@ import { sessionOf } from "./session-of";
 interface HistoryOptions {
   /** Whether a task's history starts with its parent's messages. */
   inherited?: boolean;
+  /** Only these messages, for a reader following a change to them. */
+  only?: ReadonlySet<StoreId.Message>;
 }
 
 /** One message's words in a search: who said them, and what. */
@@ -109,12 +111,13 @@ export function conversationView(
 /**
  * Every part the conversation leaves out, in order: tool calls, reasoning,
  * the session's context and the data parts only developer mode shows. A
- * call's returned bytes are read back from their blob.
+ * call's returned bytes are read back from their blob, unless the reader
+ * says it is not showing them (`bytes: false`), which spends no read on one.
  */
 export async function stepsView(
   read: ChatRead,
   sessionId: StoreId.Session,
-  options: HistoryOptions = {},
+  { bytes = true, ...options }: HistoryOptions & { bytes?: boolean } = {},
 ): Promise<SessionMessage.WithParts[]> {
   const load = cachedLoad(read.load);
   const steps: SessionMessage.WithParts[] = [];
@@ -127,7 +130,9 @@ export async function stepsView(
     }
     steps.push({
       ...message,
-      parts: await Promise.all(parts.map((part) => inflated(part, load))),
+      parts: bytes
+        ? await Promise.all(parts.map((part) => inflated(part, load)))
+        : parts,
     });
   }
   return steps;
@@ -141,6 +146,7 @@ export async function stepsView(
 export function liveView(
   read: ChatRead,
   sessionId: StoreId.Session,
+  { only }: Pick<HistoryOptions, "only"> = {},
 ): SessionMessage.WithParts[] {
   const turn = read.live.get(sessionId);
   if (!turn) {
@@ -152,10 +158,12 @@ export function liveView(
         ?.messages ?? []
     ).map((message) => [message.id, message]),
   );
-  const ids = new Set([
-    ...(turn.message ? [turn.message.id] : []),
-    ...[...turn.parts.values()].map((part) => part.metadata.messageId),
-  ]);
+  const ids = new Set(
+    [
+      ...(turn.message ? [turn.message.id] : []),
+      ...[...turn.parts.values()].map((part) => part.metadata.messageId),
+    ].filter((id) => !only || only.has(id)),
+  );
   return [...ids].toSorted(byId).flatMap((id) => {
     const message = turn.message?.id === id ? turn.message : written.get(id);
     if (!message) {
@@ -255,11 +263,12 @@ export function searchView(read: ChatRead, sessionId: StoreId.Session): Said[] {
 function messagesOf(
   read: ChatRead,
   sessionId: StoreId.Session,
-  { inherited = true }: HistoryOptions,
+  { inherited = true, only }: HistoryOptions,
 ): SessionMessage.WithParts[] {
-  return inherited
+  const messages = inherited
     ? historyOf(read.chat, sessionId)
     : (read.chat.sessions.find(({ id }) => id === sessionId)?.messages ?? []);
+  return only ? messages.filter((message) => only.has(message.id)) : messages;
 }
 
 function isConversational(message: SessionMessage.Type): boolean {

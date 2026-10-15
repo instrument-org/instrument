@@ -3,6 +3,7 @@ import { eventIterator, type } from "@orpc/server";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { ChatReads } from "../../lib/chat-reads";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
@@ -31,9 +32,10 @@ const listWithParts = base
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
     const chatId = id;
-    const messages = await Store.getMessagesWithParts({
-      sessionId,
+    const messages = await ChatReads.transcript({
+      bytes: true,
       chatId,
+      sessionId,
     });
 
     if (messages.isErr()) {
@@ -208,10 +210,12 @@ const live = {
       const batches = changedMessageBatches(input, signal);
 
       try {
-        const initial = await Store.getMessagesWithParts(
-          { sessionId: input.sessionId, chatId: input.id },
-          { signal },
-        );
+        const initial = await ChatReads.transcript({
+          bytes: true,
+          chatId: input.id,
+          sessionId: input.sessionId,
+          signal,
+        });
         if (initial.isErr()) {
           throw toORPCError(initial.error, errors);
         }
@@ -230,16 +234,17 @@ const live = {
 
           if (batch.updated.size > 0) {
             const messageIds = [...batch.updated];
-            const readUpdated = () =>
-              Store.getMessagesWithParts(
-                { messageIds, sessionId: input.sessionId, chatId: input.id },
-                { signal },
-              );
 
             // A message and its parts are written and removed together, so
             // a read that fails falls back to a full reload, which surfaces a
             // persistent error the same way the initial read does.
-            const messages = await readUpdated();
+            const messages = await ChatReads.transcript({
+              bytes: true,
+              chatId: input.id,
+              only: batch.updated,
+              sessionId: input.sessionId,
+              signal,
+            });
 
             if (messages.isOk()) {
               for (const message of messages.value) {
@@ -255,10 +260,12 @@ const live = {
                 }
               }
             } else {
-              const reload = await Store.getMessagesWithParts(
-                { sessionId: input.sessionId, chatId: input.id },
-                { signal },
-              );
+              const reload = await ChatReads.transcript({
+                bytes: true,
+                chatId: input.id,
+                sessionId: input.sessionId,
+                signal,
+              });
               if (reload.isErr()) {
                 throw toORPCError(reload.error, errors);
               }

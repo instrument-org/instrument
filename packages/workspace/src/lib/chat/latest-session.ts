@@ -1,7 +1,7 @@
 import { type SessionMessage } from "../../schemas/session/message";
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 
 /**
  * The words cut at a length for a note to the conversation, saying so where
@@ -27,10 +27,10 @@ export async function lastAssistantText({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
+    chatId,
     inherited: false,
     sessionId,
-    chatId,
   });
   if (messages.isErr()) {
     return undefined;

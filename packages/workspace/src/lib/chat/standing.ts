@@ -10,7 +10,7 @@ import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { cardLine, openAsksOf } from "../permissions/asks";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
 import {
   askIn,
@@ -214,12 +214,9 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   // One read answers all three: what it is asking, what it last said, and
   // how it ended when it said nothing. Its own messages alone, since what it
   // carries on from is the chat's.
-  const messages = await Store.getMessagesWithParts({
-    ...ref,
-    inherited: false,
-  });
+  const messages = await ChatReads.transcript({ ...ref, inherited: false });
   const transcript = messages.isOk() ? messages.value : [];
-  const session = await Store.getSession(ref.sessionId, ref.chatId);
+  const session = await ChatReads.session(ref);
   const settle = messages.isOk() && session.isOk() ? kept : unkept;
   // Ahead of the rest: a turn the app's quitting cut off may have said words
   // or asked something on an earlier step, and neither is where it ended.

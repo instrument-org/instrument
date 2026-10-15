@@ -7,7 +7,14 @@ import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
 import { sessionOf } from "./records/session-of";
-import { messageIdsView, modelHistoryView } from "./records/views";
+import {
+  conversationView,
+  liveView,
+  mergeViews,
+  messageIdsView,
+  modelHistoryView,
+  stepsView,
+} from "./records/views";
 import { Store } from "./store";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
@@ -24,7 +31,9 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  *
  * The gate is the chat rather than the session, since both sides are written
  * for every session of a chat at once, and a task reads its chat's messages
- * before its own.
+ * before its own. What a running turn holds in memory is outside the gate:
+ * it is this process's own, and stands over the written messages whichever
+ * side wrote them.
  */
 export namespace ChatReads {
   /**
@@ -48,10 +57,10 @@ export namespace ChatReads {
     /** The window the request is being built for, which retires a boundary drawn under a smaller one. */
     usable?: number;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
-    return recorded(chatId).andThen((read) =>
-      read
+    return recorded(chatId).andThen((records) =>
+      records?.held
         ? ResultAsync.fromPromise(
-            modelHistoryView(read, sessionId, { inherited, usable }),
+            modelHistoryView(records.read, sessionId, { inherited, usable }),
             storageError,
           )
         : Store.getMessagesWithParts(
@@ -76,13 +85,72 @@ export namespace ChatReads {
     sessionId: StoreId.Session;
     signal?: AbortSignal;
   }): ResultAsync<StoreId.Message[], Failure> {
-    return recorded(chatId).andThen((read) =>
-      read
-        ? okAsync(messageIdsView(read, sessionId, { inherited }))
+    return recorded(chatId).andThen((records) =>
+      records?.held
+        ? okAsync(messageIdsView(records.read, sessionId, { inherited }))
         : Store.getMessageIds(sessionId, chatId, { signal }).map((ids) =>
             ids.toSorted(byId),
           ),
     );
+  }
+
+  /**
+   * The session's transcript as it stands: what the chat view draws for
+   * everyone, the steps behind it, and the parts the running turn holds over
+   * both, which is how a call still arriving is read.
+   *
+   * `only` reads the named messages alone, for a reader following a change
+   * to them. `bytes` is for a reader that shows what a call returned, and
+   * reads those bytes back from the blobs that hold them; a reader that does
+   * not show them spends no read on one.
+   */
+  export function transcript({
+    bytes = false,
+    chatId,
+    inherited,
+    only,
+    sessionId,
+    signal,
+  }: {
+    bytes?: boolean;
+    chatId: ChatId;
+    inherited?: boolean;
+    only?: ReadonlySet<StoreId.Message>;
+    sessionId: StoreId.Session;
+    signal?: AbortSignal;
+  }): ResultAsync<SessionMessage.WithParts[], Failure> {
+    return recorded(chatId).andThen((records) => {
+      // The running turn is this process's own memory, so it stands over
+      // what was written whichever side wrote it.
+      const live = records
+        ? liveView(records.read, sessionId, { only })
+        : undefined;
+      if (!records?.held) {
+        return Store.getMessagesWithParts(
+          {
+            chatId,
+            inherited,
+            ...(only && { messageIds: [...only] }),
+            sessionId,
+          },
+          { signal },
+        ).map((written) =>
+          live?.length ? mergeViews(written, live) : written,
+        );
+      }
+      const options = { inherited, only };
+      return ResultAsync.fromPromise(
+        stepsView(records.read, sessionId, { ...options, bytes }).then(
+          (steps) =>
+            mergeViews(
+              conversationView(records.read, sessionId, options),
+              steps,
+              live ?? [],
+            ),
+        ),
+        storageError,
+      );
+    });
   }
 
   /**
@@ -98,8 +166,10 @@ export namespace ChatReads {
     sessionId: StoreId.Session;
     signal?: AbortSignal;
   }): ResultAsync<Session.Type, Failure> {
-    return recorded(chatId).andThen((read) => {
-      const found = read?.chat.sessions.find(({ id }) => id === sessionId);
+    return recorded(chatId).andThen((records) => {
+      const found = records?.held
+        ? records.read.chat.sessions.find(({ id }) => id === sessionId)
+        : undefined;
       return found
         ? okAsync(sessionOf(found))
         : Store.getSession(sessionId, chatId, { signal });
@@ -111,11 +181,15 @@ export namespace ChatReads {
 type Failure = TypedError.NotFound | TypedError.Parse | TypedError.Storage;
 
 /**
- * The chat as its records hold it, or nothing where the store is what holds
- * it. A records read that fails is reported and answered from the store,
- * which is still written for every chat.
+ * The chat as its records stand, and whether they are what holds it: `held`
+ * is false for a chat whose messages are still the store's, whose running
+ * turn this process holds all the same. Nothing at all where this process
+ * writes no records, or their read failed, which is reported and answered
+ * from the store, since the store is written for every chat.
  */
-function recorded(chatId: ChatId): ResultAsync<ChatRead | undefined, Failure> {
+function recorded(
+  chatId: ChatId,
+): ResultAsync<{ held: boolean; read: ChatRead } | undefined, Failure> {
   const records = writingChatRecords();
   if (!records) {
     return okAsync(undefined);
@@ -123,11 +197,10 @@ function recorded(chatId: ChatId): ResultAsync<ChatRead | undefined, Failure> {
   return ResultAsync.fromSafePromise(
     records
       .read(chatId)
-      .then((read) =>
-        read.chat.sessions.some((each) => each.messages.length > 0)
-          ? read
-          : undefined,
-      )
+      .then((read) => ({
+        held: read.chat.sessions.some((each) => each.messages.length > 0),
+        read,
+      }))
       .catch((error: unknown) => {
         report(error);
         return undefined;

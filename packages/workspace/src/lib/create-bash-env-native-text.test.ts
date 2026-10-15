@@ -15,6 +15,7 @@ import {
   grepWalks,
   quietRefusedFolders,
   quoteWindowsArgument,
+  xargsRunsParallel,
 } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -141,6 +142,26 @@ describe("grepWalks", () => {
   });
 });
 
+describe("xargsRunsParallel", () => {
+  it.each<[string[], boolean]>([
+    [["-P", "4", "sleep"], true],
+    [["-P4", "sleep"], true],
+    [["-P", "0", "sleep"], true],
+    [["-0P4", "sleep"], true],
+    [["-n", "1", "-P", "2", "sleep"], true],
+    [["--max-procs=4", "sleep"], true],
+    [["--max-procs", "4", "sleep"], true],
+    [["-I", "-P", "echo", "-P"], false],
+    [["-n1", "grep", "-P", "x"], false],
+    [["--delimiter", "-P", "echo"], false],
+    [["-iP", "echo"], false],
+    [["--", "-P"], false],
+    [["-n", "1", "sleep"], false],
+  ])("%j is %s", (args, expected) => {
+    expect(xargsRunsParallel(args)).toBe(expected);
+  });
+});
+
 describe.skipIf(!vendored)("with the bundled uutils", () => {
   beforeAll(() => withUutils(UUTILS_DIR));
 
@@ -210,6 +231,16 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
       expect(plain.stdout).toContain("./a.txt");
     },
   );
+
+  it("runs xargs -P at once, which uutils xargs runs one at a time", async () => {
+    const started = performance.now();
+    const result = await run(
+      "printf '0.5\\n%.0s' 1 2 3 4 | xargs -P 4 -n 1 sleep && echo done",
+    );
+    expect(result.stdout).toBe("done\n");
+    // Four half-second sleeps: about 0.5 s at once, 2 s one at a time.
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
 
   it("reads an empty pipe as empty rather than waiting", async () => {
     const result = await run("true | sort | wc -l");

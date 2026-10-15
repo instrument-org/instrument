@@ -19,34 +19,36 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 
 <!-- generated: native-text routes; `pnpm fix` writes this -->
 
-| Command | macOS | Linux | Windows | From |
-| --- | --- | --- | --- | --- |
-| `cmp` | uutils | uutils | uutils | uutils diffutils |
-| `comm` | uutils | uutils | uutils | uutils coreutils |
-| `cut` | uutils | uutils | uutils | uutils coreutils |
-| `date` | uutils | uutils | uutils | uutils coreutils |
-| `dd` | uutils | uutils | uutils | uutils coreutils |
-| `find` | uutils | uutils | uutils | uutils findutils |
-| `grep` | uutils | uutils | uutils | uutils grep |
-| `head` | uutils | uutils | uutils | uutils coreutils |
-| `join` | uutils | uutils | uutils | uutils coreutils |
-| `md5sum` | uutils | uutils | uutils | uutils coreutils |
-| `numfmt` | uutils | uutils | uutils | uutils coreutils |
-| `od` | uutils | uutils | uutils | uutils coreutils |
-| `realpath` | uutils | uutils | uutils | uutils coreutils |
-| `seq` | uutils | uutils | uutils | uutils coreutils |
-| `sha256sum` | uutils | uutils | uutils | uutils coreutils |
-| `shuf` | uutils | uutils | uutils | uutils coreutils |
-| `sort` | uutils | uutils | uutils | uutils coreutils |
-| `stat` | uutils | uutils | builtin | uutils coreutils |
-| `tail` | uutils | uutils | uutils | uutils coreutils |
-| `uniq` | uutils | uutils | uutils | uutils coreutils |
-| `wc` | uutils | uutils | uutils | uutils coreutils |
-| `xargs` | uutils | uutils | uutils | uutils findutils |
+| Command | macOS | Linux | Windows | From | Builtin with |
+| --- | --- | --- | --- | --- | --- |
+| `cmp` | uutils | uutils | uutils | uutils diffutils |  |
+| `comm` | uutils | uutils | uutils | uutils coreutils |  |
+| `cut` | uutils | uutils | uutils | uutils coreutils |  |
+| `date` | uutils | uutils | uutils | uutils coreutils |  |
+| `dd` | uutils | uutils | uutils | uutils coreutils |  |
+| `find` | uutils | uutils | uutils | uutils findutils |  |
+| `grep` | uutils | uutils | uutils | uutils grep |  |
+| `head` | uutils | uutils | uutils | uutils coreutils |  |
+| `join` | uutils | uutils | uutils | uutils coreutils |  |
+| `md5sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `numfmt` | uutils | uutils | uutils | uutils coreutils |  |
+| `od` | uutils | uutils | uutils | uutils coreutils |  |
+| `realpath` | uutils | uutils | uutils | uutils coreutils |  |
+| `seq` | uutils | uutils | uutils | uutils coreutils |  |
+| `sha256sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `shuf` | uutils | uutils | uutils | uutils coreutils |  |
+| `sort` | uutils | uutils | uutils | uutils coreutils |  |
+| `stat` | uutils | uutils | builtin | uutils coreutils |  |
+| `tail` | uutils | uutils | uutils | uutils coreutils |  |
+| `uniq` | uutils | uutils | uutils | uutils coreutils |  |
+| `wc` | uutils | uutils | uutils | uutils coreutils |  |
+| `xargs` | uutils | uutils | uutils | uutils findutils | `-P`, `--max-procs` |
 
 <!-- end generated -->
 
 On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the uutils-build patch reads: the paths they walk come back joined with `/`, as the shell spells them, and `-path` and `-prune` patterns written with `/` match (uutils/findutils#907, uutils/grep#143). `stat` stays the builtin there, since uutils does not build it for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
+
+The last column names the arguments that send one call to the builtin on every platform. uutils xargs 0.10.0 accepts `-P` but runs its commands one at a time, while the builtin runs that many at once, so an `xargs` with `-P N`, `-PN` or `--max-procs` in its options (`xargsRunsParallel`) is the builtin's. Drop the rule once a uutils release runs `-P` in parallel.
 
 `find` gets a prune of every `.instrument` folder by name and of the chat's `tasks/` by path ahead of the caller's expression, and only its start points are held to the rules as paths; each folder the sandbox refuses on the way is counted in one stderr line. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin.
 

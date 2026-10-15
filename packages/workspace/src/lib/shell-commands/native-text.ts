@@ -43,6 +43,11 @@ interface NativeTextRoute {
   printsPaths?: boolean;
   /** Walks the folders it is given, which the sandbox may refuse on the way. */
   walks?: (args: string[]) => boolean;
+  /**
+   * Arguments the uutils program accepts but does not honor, which send the
+   * call to the builtin; `args` is how the generated table names them.
+   */
+  builtinFor?: { args: string; matches: (args: string[]) => boolean };
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
@@ -73,6 +78,56 @@ export function grepWalks(args: string[]): boolean {
       arg === "--dereference-recursive" ||
       /^-[a-zA-Z]*[rR]/.test(arg),
   );
+}
+
+/** xargs' long options that take the next argument as their value. */
+const XARGS_LONG_VALUE = new Set([
+  "--arg-file",
+  "--delimiter",
+  "--max-args",
+  "--max-chars",
+  "--process-slot-var",
+]);
+
+/**
+ * Asks for parallel runs (`-P N`, `-PN`, `-0P4`, `--max-procs=N`), in the
+ * options before the command xargs starts. uutils xargs 0.10.0 accepts `-P`
+ * and runs one at a time; the builtin runs that many at once.
+ */
+export function xargsRunsParallel(args: string[]): boolean {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === undefined || arg === "--" || !/^-./.test(arg)) {
+      return false;
+    }
+    if (arg.startsWith("--")) {
+      if (arg === "--max-procs" || arg.startsWith("--max-procs=")) {
+        return true;
+      }
+      if (XARGS_LONG_VALUE.has(arg)) {
+        index++;
+      }
+      continue;
+    }
+    for (let at = 1; at < arg.length; at++) {
+      const flag = arg.charAt(at);
+      if (flag === "P") {
+        return true;
+      }
+      if ("adEILns".includes(flag)) {
+        // The rest of the cluster is its value, or else the next argument.
+        if (at === arg.length - 1) {
+          index++;
+        }
+        break;
+      }
+      if ("eil".includes(flag)) {
+        // An optional value, only ever the rest of the cluster.
+        break;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -113,7 +168,11 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // What xargs starts is a program on the PATH. Windows has no `echo` or
   // `printf` of its own, so there xargs' PATH starts with links to the
   // coreutils it carries (coreutilsLinks).
-  { binary: "xargs", name: "xargs" },
+  {
+    binary: "xargs",
+    name: "xargs",
+    builtinFor: { args: "`-P`, `--max-procs`", matches: xargsRunsParallel },
+  },
 ];
 
 /** find's own options before its start points. */
@@ -350,11 +409,11 @@ export function nativeTextRoutesTable(): string {
     a.name.localeCompare(b.name),
   ).map(
     (route) =>
-      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | uutils ${BINARY_PROJECTS[route.binary]} |`,
+      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | uutils ${BINARY_PROJECTS[route.binary]} | ${route.builtinFor?.args ?? ""} |`,
   );
   return [
-    "| Command | macOS | Linux | Windows | From |",
-    "| --- | --- | --- | --- | --- |",
+    "| Command | macOS | Linux | Windows | From | Builtin with |",
+    "| --- | --- | --- | --- | --- | --- |",
     ...rows,
   ].join("\n");
 }
@@ -455,7 +514,7 @@ export function createNativeTextCommand(
   return defineCommand(route.name, async (args, ctx) => {
     const walks = route.walks?.(args) ?? false;
     const program = uutilsProgram(route.binary);
-    if (program === undefined) {
+    if (program === undefined || route.builtinFor?.matches(args) === true) {
       return ctx.origCommand
         ? await ctx.origCommand(args)
         : {

@@ -3,7 +3,10 @@ import { readdirSync, realpathSync } from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { filterShellOutput } from "../filter-shell-output";
+import {
+  filterShellOutput,
+  shellSpelledSlashedPaths,
+} from "../filter-shell-output";
 import { hostPathWithin, realHostPath } from "../host-path";
 import { nativeCommandsSandboxed } from "../native-sandbox";
 import { isAtOrUnder } from "../path-containment";
@@ -159,10 +162,11 @@ export function createRgCommand({
 
     const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
       filterShellOutput(
-        text,
-        // `--path-separator=/` already makes ripgrep print POSIX paths, so the
-        // separator rewrite has nothing to fix here and would only corrupt
-        // backslashes inside matched lines and `--json` escapes.
+        // `--path-separator=/` makes ripgrep print its paths with `/`, so only
+        // the drive on them is left to respell. The separator rewrite would
+        // take the backslashes inside a matched line and a `--json` escape
+        // with it.
+        shellSpelledSlashedPaths(text),
         { rewriteSeparators: false },
       ),
     );

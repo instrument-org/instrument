@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   filterShellOutput,
+  shellSpelledSlashedPaths,
   shouldFilterDebuggerMessage,
 } from "./filter-shell-output";
 
@@ -185,5 +186,43 @@ describe("shouldFilterDebuggerMessage", () => {
   it("does not filter other messages", () => {
     process.env.NODE_ENV = "development";
     expect(shouldFilterDebuggerMessage("Some other message")).toBe(false);
+  });
+});
+
+describe("shellSpelledSlashedPaths", () => {
+  it("respells the drive on a path printed with slashes", () => {
+    const output = `C:/Users/sam/Docs/note.md:NEEDLE here
+D:/photos/a.png
+C:/`;
+
+    expect(shellSpelledSlashedPaths(output, "win32"))
+      .toBe(`/c/Users/sam/Docs/note.md:NEEDLE here
+/d/photos/a.png
+/c`);
+  });
+
+  it("leaves a backslash in a line quoted from a file", () => {
+    const output = String.raw`C:/work/escapes.ts:1:const re = /a\d+/, nl = "x\n", p = "C:\win\x";`;
+
+    expect(shellSpelledSlashedPaths(output, "win32")).toBe(
+      String.raw`/c/work/escapes.ts:1:const re = /a\d+/, nl = "x\n", p = "C:\win\x";`,
+    );
+  });
+
+  it("respells the path in a --json record and leaves its escapes", () => {
+    const output = String.raw`{"type":"match","data":{"path":{"text":"C:/work/a.ts"},"lines":{"text":"re: /a\\d+/\n"}}}`;
+
+    expect(shellSpelledSlashedPaths(output, "win32")).toBe(
+      String.raw`{"type":"match","data":{"path":{"text":"/c/work/a.ts"},"lines":{"text":"re: /a\\d+/\n"}}}`,
+    );
+  });
+
+  it("leaves output as it came where a tool prints no drive", () => {
+    const output = "/Users/sam/Docs/note.md:NEEDLE here\n";
+
+    expect(shellSpelledSlashedPaths(output, "darwin")).toBe(output);
+    expect(shellSpelledSlashedPaths("C:/Users/sam/a.md", "darwin")).toBe(
+      "C:/Users/sam/a.md",
+    );
   });
 });

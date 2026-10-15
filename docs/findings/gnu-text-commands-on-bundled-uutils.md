@@ -90,13 +90,13 @@ With the macOS helper, a 20-iteration loop of a native command costs about 0.12 
 
 C loses six cases B passes because trying the builtin first keeps its silent divergences wherever it does not refuse outright (`wc` and `uniq` padding, `cut` on tabs, `date` formats), and it answers a command in a loop differently from the same command run once. Its one advantage was loop cost, which the helper cuts to 6 ms a start. So the branch takes **B**:
 
-- **Native everywhere:** `sort`, `uniq`, `comm`, `join`, `cut`, `wc`, `head`, `tail`, `date`, `seq`, `od`, `sha256sum`, `md5sum`, `numfmt`, `realpath`, `shuf`, `dd`, `cmp`.
-- **Native on macOS and Linux:** `find` (below), `stat` (uutils builds it for Unix only), `grep` (a recursive grep on Windows prints relative paths with backslashes), `xargs` (it starts programs from the PATH, and Windows has no `echo` or `printf`; `xargs -I{} echo` printed `Error: Command not found` in the Windows preview).
+- **Native everywhere:** `sort`, `uniq`, `comm`, `join`, `cut`, `wc`, `head`, `tail`, `date`, `seq`, `od`, `sha256sum`, `md5sum`, `numfmt`, `realpath`, `shuf`, `dd`, `cmp`, and `xargs`. xargs starts its programs from the PATH, and Windows has no `echo` or `printf` (`xargs -I{} echo` printed `Error: Command not found` in the Windows preview), so there its PATH starts with a folder of hard links to the coreutils binary, one per utility, leaving out `expand`, `hostname`, `more`, `timeout` and `whoami`, which System32 also has.
+- **Native on macOS and Linux:** `find` (below), `stat` (uutils builds it for Unix only), `grep` (a recursive grep on Windows prints relative paths with backslashes).
 - **Builtins:** `tr` (ties the builtin and runs in 139 loops), `diff`, `sed`, `awk`, `cat`, `ls`, `cp`, `mv`.
 
 There is no condition left. An earlier version of the table sent a recursive `grep` from the home folder to the builtin on macOS, to stop macOS's privacy dialogs; [the next section](#macos-privacy-dialogs) found their cause and closed it in the rules, and a 6 ms start removed the reason for C.
 
-On Windows, paths are respelled only where a routed command prints nothing but paths: `realpath`'s backslashes become slashes. `filterShellOutput` still respells only drive-absolute paths, so `a\nb` in a script's output is left alone, and `find` and `grep`, which would need more, stay builtins there.
+On Windows every argument reaches uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one (`cut -d '*'` failed, `echo '*.md'` printed file names). Paths are respelled only where a routed command prints nothing but paths: `realpath`'s backslashes become slashes. `filterShellOutput` still respells only drive-absolute paths, so `a\nb` in a script's output is left alone, and `find` and `grep`, which would need more, stay builtins there.
 
 ## macOS privacy dialogs
 

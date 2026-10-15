@@ -15,7 +15,7 @@ import { forgetChatFolders } from "../record-folders";
 import { liveView } from "../records/views";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { latestStep, runningLines } from "./activity";
+import { latestStep } from "./activity";
 
 /**
  * The step a session at work is read by, while the call that names it is
@@ -96,7 +96,6 @@ it("reads the step off a call still arriving, and off the written one once it se
 
   // Nothing of the call is written, so this is the turn's memory talking.
   expect(await latestStep(ref)).toBe("Reading the list");
-  expect(await runningLines(ref)).toEqual({ step: "Reading the list" });
 
   const settled = bashCall(
     replying,

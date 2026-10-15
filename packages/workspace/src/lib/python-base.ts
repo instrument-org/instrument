@@ -6,18 +6,15 @@ import path from "node:path";
 import { execa } from "execa";
 import { z } from "zod";
 
-import { type ChatId } from "../schemas/chat-id";
+import { type AbsolutePath } from "../schemas/paths";
 import { filterShellOutput } from "./filter-shell-output";
 import { readJsonRecordSync, updateJsonRecord } from "./json-record-file";
 import { inheritedEnv } from "./native-env";
 import { withInstallerClosed, wrapNativeCommand } from "./native-sandbox";
+import { runtimeLayout } from "./runtime-dir";
 import { ensureManagedPython } from "./run-uv";
-import {
-  RELEASE_AGE_DAYS,
-  uvPythonBaseDir,
-  uvToolsEnvFor,
-} from "./tool-isolation-env";
-import { chatVenvDir, getUvBinPath, MANAGED_PYTHON_VERSION } from "./uv";
+import { RELEASE_AGE_DAYS, uvToolsEnvFor } from "./tool-isolation-env";
+import { getUvBinPath, MANAGED_PYTHON_VERSION, venvSitePackages } from "./uv";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -137,7 +134,7 @@ type PythonBaseState = z.output<typeof StateSchema>;
 type PythonBaseFailure = { exitCode: number; output: string };
 
 function baseRoot(): string {
-  return uvPythonBaseDir(getWorkspaceConfig().uvDataDir);
+  return runtimeLayout(getWorkspaceConfig().runtimeDir).pythonBase;
 }
 
 function hashOf(parts: readonly string[]): string {
@@ -259,6 +256,22 @@ export async function ensurePythonBase(): Promise<
  * `pip` or `uv` command, which never waits on it. A failure is logged and
  * leaves the set as it was.
  */
+/**
+ * Asks for a check of the base packages when one is due. The bash worker
+ * replaces it with a request to the main thread, so one thread owns the
+ * refresh and the processes it starts.
+ */
+let requestRefresh = refreshPythonBaseIfDue;
+
+export function setPythonBaseRefresher(next: () => void): void {
+  requestRefresh = next;
+}
+
+/** What a `python`, `pip` or `uv` command asks, wherever it runs. */
+export function askForPythonBaseRefresh(): void {
+  requestRefresh();
+}
+
 export function refreshPythonBaseIfDue(): void {
   if (refreshing || !refreshDue(readState(), Date.now())) {
     return;
@@ -378,7 +391,7 @@ function runAppUv(
       ...inheritedEnv(),
       // `UV_EXCLUDE_NEWER` among them: the week-old release gate a chat's
       // `pip` is held to, and pnpm's `minimumReleaseAge`.
-      ...uvToolsEnvFor(getWorkspaceConfig().uvDataDir, new Date(options.now)),
+      ...uvToolsEnvFor(getWorkspaceConfig().runtimeDir, new Date(options.now)),
       UV_CACHE_DIR: path.join(baseRoot(), CACHE_DIR_NAME),
       UV_PYTHON_DOWNLOADS: "never",
     },
@@ -548,31 +561,18 @@ function processAlive(pid: number) {
   }
 }
 
-/** The chat's virtualenv's site-packages, as uv lays it out. */
-function chatVenvSitePackages(chatId: ChatId): string {
-  return process.platform === "win32"
-    ? path.join(chatVenvDir(chatId), "Lib", "site-packages")
-    : path.join(
-        chatVenvDir(chatId),
-        "lib",
-        `python${MANAGED_PYTHON_VERSION}`,
-        "site-packages",
-      );
-}
-
 /**
- * Puts the current set behind the chat's virtualenv, once one is
- * installed, by a `.pth` naming its folder. Rewritten whenever it names
+ * Puts the current set behind a virtualenv, once one is installed, by a `.pth` naming its folder. Rewritten whenever it names
  * another, so a chat follows a new set from its next command, while a
  * script already running keeps the set it started with. Never fails the
  * command it runs for: a chat without it imports what `pip` installed.
  */
-export async function linkPythonBase(chatId: ChatId): Promise<void> {
+export async function linkPythonBase(venv: AbsolutePath): Promise<void> {
   const base = pythonBaseDir();
   if (base === undefined) {
     return;
   }
-  const pth = path.join(chatVenvSitePackages(chatId), PTH_FILE);
+  const pth = path.join(venvSitePackages(venv), PTH_FILE);
   const line = `${base}\n`;
   const current = await fs.readFile(pth, "utf8").catch(() => undefined);
   if (current !== line) {

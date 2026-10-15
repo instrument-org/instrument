@@ -36,7 +36,10 @@ describe("workspace skill watcher", () => {
       const skillDir = path.join(workspaceLayout(root).skillsDir, "review");
       await fs.mkdir(path.join(skillDir, "scripts"), { recursive: true });
       await expect(
-        writeUntilPublished(path.join(skillDir, "scripts", "run.ts"), nextEvent),
+        writeUntilPublished(
+          path.join(skillDir, "scripts", "run.ts"),
+          nextEvent,
+        ),
       ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();

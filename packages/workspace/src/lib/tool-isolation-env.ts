@@ -8,7 +8,6 @@ import { runtimeLayout } from "./runtime-dir";
 // depends on nothing either, so the sandbox bake-off probe runs the same
 // isolation the app does.
 
-
 /**
  * The environment that pins pnpm, npm and node-gyp to the chats' caches and
  * config in `runtimeDir`, whatever the person's setup holds: their
@@ -91,14 +90,6 @@ function nodeToolsEnvIn(
 /** Where uv keeps the Pythons it installs, in `uvDataDir`. */
 export function uvPythonInstallDir(uvDataDir: string): string {
   return path.join(uvDataDir, "python");
-}
-
-/**
- * Where the app installs the packages every chat's `python` starts with
- * (`python-base.ts`), in `uvDataDir`.
- */
-export function uvPythonBaseDir(uvDataDir: string): string {
-  return path.join(uvDataDir, "python-base");
 }
 
 /**

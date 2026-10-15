@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { askForPythonBaseRefresh, linkPythonBase } from "./python-base";
 import {
   ensureManagedPython,
   managedPythonInterpreter,
@@ -93,7 +94,12 @@ export async function ensureVenv({
   signal?: AbortSignal;
   venv: AbsolutePath;
 }): Promise<undefined | VenvError> {
+  // Every `python`, `pip` and `uv` command comes through here, so this is
+  // where a due check of the base packages starts, in the background. The
+  // command never waits on it.
+  askForPythonBaseRefresh();
   if (hasUsableVenv(venv)) {
+    await linkPythonBase(venv);
     return undefined;
   }
 
@@ -107,7 +113,13 @@ export async function ensureVenv({
   );
 
   inFlightVenvCreation.set(venv, creation);
-  return awaitVenvCreation({ creation, signal });
+  const failure = await awaitVenvCreation({ creation, signal });
+  if (failure === undefined) {
+    // Behind the new venv, so the packages every chat starts with are there
+    // from its first command rather than from the next refresh.
+    await linkPythonBase(venv);
+  }
+  return failure;
 }
 
 export function setVenvCreator(

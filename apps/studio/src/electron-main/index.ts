@@ -41,6 +41,7 @@ import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import {
+  BrowserWindow,
   app,
   dialog,
   nativeImage,

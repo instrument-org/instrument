@@ -8,7 +8,7 @@ import { type ExecuteError, executeError } from "./execute-error";
 import { formatBytes } from "./format-bytes";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
-import { asksWritten } from "./permissions/asks";
+import { asksWritten } from "./chat/asks";
 import { sessionLayout } from "./session-layout";
 import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
 import {

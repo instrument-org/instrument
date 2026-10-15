@@ -120,18 +120,19 @@ describe("listComputerFolder", () => {
       const shut = path.join(folder, "shut");
       await fs.mkdir(shut, { mode: 0o000 });
 
-    try {
-      const refusal = await listComputerFolder({ path: shut, chatId });
-      expect(refusal).toMatchObject({
-        kind: "refused",
-        path: shut,
-        reason: "account",
-      });
-      expect(refusal).not.toHaveProperty("refusedBy");
-    } finally {
-      await fs.chmod(shut, 0o700);
-    }
-  });
+      try {
+        const refusal = await listComputerFolder({ path: shut, chatId });
+        expect(refusal).toMatchObject({
+          kind: "refused",
+          path: shut,
+          reason: "account",
+        });
+        expect(refusal).not.toHaveProperty("refusedBy");
+      } finally {
+        await fs.chmod(shut, 0o700);
+      }
+    },
+  );
 
   // A folder the account cannot pass through refuses everything under it,
   // there or not, so the refusal names that folder rather than the name

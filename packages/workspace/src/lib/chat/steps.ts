@@ -3,8 +3,6 @@ import { z } from "zod";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
-import { getToolNameByType } from "../get-tool-name-by-type";
-import { isInteractiveTool } from "../is-interactive-tool";
 import { ChatReads } from "../chat-reads";
 import { isToolPart } from "../is-tool-part";
 

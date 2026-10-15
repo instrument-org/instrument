@@ -38,7 +38,7 @@ import { createDuCommand } from "./shell-commands/du";
 import { execShim } from "./shell-commands/exec-shim";
 import { withAppDataLeftOut } from "./shell-commands/rg";
 import { workspaceLayout } from "./workspace-layout";
-import { raiseAsk } from "./permissions/asks";
+import { raiseAsk } from "./chat/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { reachOf, type Rules, rulesFor } from "./permissions/rules";
@@ -50,8 +50,8 @@ import {
   shellPath,
 } from "./workspace-fs-layout";
 
-vi.mock("./permissions/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./permissions/asks")>()),
+vi.mock("./chat/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./chat/asks")>()),
   raiseAsk: vi.fn(),
 }));
 

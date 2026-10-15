@@ -60,6 +60,12 @@ export function runtimeLayout(runtimeDir: string) {
      * installs and native commands only read.
      */
     python: path.join(runtimeDir, "python"),
+    /**
+     * The packages every chat's virtualenv imports, which the app installs
+     * and refreshes (`python-base.ts`) and native commands only read: a file
+     * one chat put there would import in every other.
+     */
+    pythonBase: path.join(runtimeDir, "python-base"),
     /** What stands in for a closed file under bubblewrap. */
     sandbox: path.join(runtimeDir, "sandbox"),
     /**

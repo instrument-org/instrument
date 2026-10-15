@@ -506,6 +506,20 @@ export function resolveReadOnlyHostPath(
 }
 
 /**
+ * {@link classifyHostPath} for a shell path, through the mount that owns
+ * it. Null for a path no mount owns.
+ */
+export function classifyShellPath(
+  layout: WorkspaceFsLayout,
+  shellAbsPath: string,
+): ReturnType<typeof classifyHostPath> {
+  const resolved = resolveHostPath(layout, shellAbsPath);
+  return resolved === null
+    ? null
+    : classifyHostPath(layout, resolved.hostPath, resolved.mount);
+}
+
+/**
  * What a path on the disk is to the agent: the mount it is reached through
  * and its path there, and whether it leaves that mount through a symlink.
  * Null when no mount holds it.

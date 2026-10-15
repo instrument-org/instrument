@@ -5,12 +5,11 @@ import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { CHAT_FOLDER_NAMES } from "../../constants";
-import { isAtOrUnder, relativeWithin } from "../path-containment";
+import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
-  classifyShellPath,
   otherFolders,
   outsideFolderRefusal,
   resolveHostPath,
@@ -258,31 +257,6 @@ export function findWithHiddenEntriesPruned(
 }
 
 /**
- * The chat's hidden entries other than `.instrument` (which is pruned by
- * name) that a walk from each start point reaches, spelled as find prints
- * them from that start: `./tasks` from the chat's folder.
- */
-function maskedUnder(
-  starts: string[],
-  layout: WorkspaceFsLayout,
-  resolvePath: (arg: string) => string,
-): string[] {
-  return starts.flatMap((start) => {
-    const resolved = resolvePath(start);
-    const spelled = start.replace(/\/+$/, "");
-    return layout.chat.maskedEntries
-      .filter((entry) => entry !== CHAT_FOLDER_NAMES.private)
-      .flatMap((entry) => {
-        const rest = relativeWithin(
-          resolved,
-          `${layout.chat.shellRoot}/${entry}`,
-        );
-        return rest === null || rest === "/" ? [] : [`${spelled}${rest}`];
-      });
-  });
-}
-
-/**
  * One argument quoted the way Windows' CommandLineToArgvW reads it back,
  * whatever it holds: backslashes before a quote and at the end doubled, the
  * quote escaped.
@@ -319,12 +293,14 @@ function coreutilsLinks(): string | null {
     return linksDir;
   }
   linksDir = null;
-  const { toolBinDir } = getWorkspaceConfig();
   const coreutils = uutilsProgram("coreutils");
-  if (toolBinDir === undefined || coreutils === undefined) {
+  if (coreutils === undefined) {
     return linksDir;
   }
-  const dir = nodePath.join(nodePath.dirname(toolBinDir), "uutils-links");
+  const dir = nodePath.join(
+    runtimeLayout(getWorkspaceConfig().runtimeDir).bin,
+    "uutils-links",
+  );
   try {
     mkdirSync(dir, { recursive: true });
     const names = execFileSync(coreutils, ["--list"], { encoding: "utf8" })
@@ -469,9 +445,6 @@ function operandRefusal(
     }
     const op = written.has(arg) ? "write" : "read";
     const resolved = resolvePath(arg);
-    if (classifyShellPath(layout, resolved)?.masked !== undefined) {
-      return `${route.name}: ${arg}: No such file or directory`;
-    }
     const refusal = roots.some((root) => isAtOrUnder(root, resolved))
       ? mountedRefusal(layout, resolved, op)
       : outsideFolderRefusal(layout, resolved, op);
@@ -532,12 +505,10 @@ export function createNativeTextCommand(
     if (refusal) {
       return { exitCode: 2, stderr: `${refusal}\n`, stdout: "" };
     }
-    const programArgs = starts
-      ? findWithHiddenEntriesPruned(
-          args,
-          maskedUnder(starts.length > 0 ? starts : ["."], layout, resolvePath),
-        )
-      : args;
+    // Nothing inside a chat's folder is masked on this layout, so a find
+    // needs no pruning: what the app keeps closed is the workspace's own
+    // folder, which no mount reaches.
+    const programArgs = args;
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     const multicall =

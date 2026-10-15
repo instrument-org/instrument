@@ -149,19 +149,3 @@ export async function turnStartedAt(
   return (await ownMessages(ref)).findLast((message) => message.role === "user")
     ?.metadata.createdAt;
 }
-
-/**
- * The lines a task at work is read by, from one read of its transcript: the
- * label on its latest step, and what it has paused to ask the user for. Both
- * can be present at once, since the ask sits where a step would; a reader
- * takes the ask first, because a task paused on one is going nowhere until
- * it is answered.
- */
-export async function runningLines(
-  ref: SessionRef,
-): Promise<{ step?: string; waiting?: string }> {
-  const messages = await ownMessages(ref);
-  const step = latestStepIn(messages);
-  const waiting = askIn(messages);
-  return { ...(step ? { step } : {}), ...(waiting ? { waiting } : {}) };
-}

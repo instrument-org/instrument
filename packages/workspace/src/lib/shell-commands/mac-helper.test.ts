@@ -7,7 +7,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatLayout } from "../../test/helpers/chat-layout";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { grantApp } from "../permissions/apps";
-import { asksWritten, openAsks } from "../permissions/asks";
+import { asksWritten, openAsks } from "../chat/asks";
 import { setDenied } from "../permissions/denials";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {

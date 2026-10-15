@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { raiseAsk } from "./asks";
+import { raiseAsk } from "../chat/asks";
 import { closedNote, ruleRefusal, rulesFs } from "./rules-fs";
 import { type Rule, type Rules } from "./rules";
 
@@ -17,8 +17,8 @@ vi.mock("./account-can-write", async (importOriginal) => ({
 }));
 
 // A card is heard rather than written to a chat's record.
-vi.mock("./asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./asks")>()),
+vi.mock("../chat/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../chat/asks")>()),
   raiseAsk: vi.fn(),
 }));
 

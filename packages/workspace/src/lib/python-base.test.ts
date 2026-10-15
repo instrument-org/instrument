@@ -22,7 +22,8 @@ import {
   pythonBaseReady,
   refreshPythonBaseIfDue,
 } from "./python-base";
-import { chatVenvDir } from "./uv";
+import { workVenvDir } from "./uv";
+import { runtimeLayout } from "./runtime-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
 vi.mock("execa");
@@ -32,7 +33,7 @@ vi.mock(import("./run-uv"), () => ({
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const root = () => path.join(getWorkspaceConfig().uvDataDir, "python-base");
+const root = () => runtimeLayout(getWorkspaceConfig().runtimeDir).pythonBase;
 const stateFile = () => path.join(root(), "state.json");
 
 type State = {
@@ -222,13 +223,13 @@ describe("refreshPythonBaseIfDue", () => {
     );
     const pth = path.join(
       process.platform === "win32"
-        ? path.join(chatVenvDir(chatId), "Lib", "site-packages")
-        : path.join(chatVenvDir(chatId), "lib", "python3.12", "site-packages"),
+        ? path.join(workVenvDir(chatId), "Lib", "site-packages")
+        : path.join(workVenvDir(chatId), "lib", "python3.12", "site-packages"),
       "_instrument_python_base.pth",
     );
     mkdirSync(path.dirname(pth), { recursive: true });
     const first = await installFirstSet();
-    await linkPythonBase(chatId);
+    await linkPythonBase(workVenvDir(chatId));
     expect(readFileSync(pth, "utf8")).toBe(`${first}\n`);
 
     fake.pins = "pandas==3.0.7\nnumpy==2.5.3\n";
@@ -241,7 +242,7 @@ describe("refreshPythonBaseIfDue", () => {
       [path.basename(first), path.basename(second)].toSorted(),
     );
     // The chat's next command points it at the new one.
-    await linkPythonBase(chatId);
+    await linkPythonBase(workVenvDir(chatId));
     expect(readFileSync(pth, "utf8")).toBe(`${second}\n`);
 
     fake.pins = "pandas==3.0.8\nnumpy==2.5.3\n";
@@ -315,18 +316,18 @@ describe("linkPythonBase", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("python-base"));
     const sitePackages =
       process.platform === "win32"
-        ? path.join(chatVenvDir(chatId), "Lib", "site-packages")
-        : path.join(chatVenvDir(chatId), "lib", "python3.12", "site-packages");
+        ? path.join(workVenvDir(chatId), "Lib", "site-packages")
+        : path.join(workVenvDir(chatId), "lib", "python3.12", "site-packages");
     mkdirSync(sitePackages, { recursive: true });
     const pth = path.join(sitePackages, "_instrument_python_base.pth");
 
     rmSync(pth, { force: true });
-    await linkPythonBase(chatId);
+    await linkPythonBase(workVenvDir(chatId));
     expect(existsSync(pth)).toBe(false);
     expect(pythonBaseText()).toBeUndefined();
 
     await ensurePythonBase();
-    await linkPythonBase(chatId);
+    await linkPythonBase(workVenvDir(chatId));
     expect(readFileSync(pth, "utf8")).toBe(`${pythonBaseDir() ?? ""}\n`);
     expect(pythonBaseText()).toMatchInlineSnapshot(
       `"\`python\` already has pandas, numpy, matplotlib, openpyxl, pypdf, pdfplumber, pypdfium2, Pillow, python-docx, python-pptx, reportlab, and beautifulsoup4 installed, so import them without a \`pip install\`; install only what else a script needs."`,

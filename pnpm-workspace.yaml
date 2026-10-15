@@ -29,15 +29,15 @@ catalog:
   "@orpc/shared": ^1.15.2
   "@orpc/tanstack-query": ^1.15.2
   "@types/node": 24.13.1
-  "@types/react": ^19.2.7
-  "@types/react-dom": ^19.2.3
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
   "@typescript/native-preview": 7.0.0-dev.20260702.3
   "@vitejs/plugin-react": ^6.0.5
   ai: ^7.0.116
   better-auth: ^1.7.6
   hono: ^4.13.9
-  react: ^19.2.1
-  react-dom: ^19.2.1
+  react: ^19.3.0
+  react-dom: ^19.3.0
   typescript: 5.9.2
   typescript-result: ^3.5.2
   vite: ^8.3.1

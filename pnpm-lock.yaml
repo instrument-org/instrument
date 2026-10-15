@@ -75,6 +75,7 @@ overrides:
   jiti: 2.7.0
   dompurify: ^3.4.16
   defu: ^6.1.7
+  neverthrow>@rollup/rollup-linux-x64-gnu: '-'
 
 patchedDependencies:
   '@milkdown/plugin-block@7.22.2': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
@@ -16383,9 +16384,7 @@ snapshots:
     dependencies:
       content-type: 2.1.0
 
-  neverthrow@8.2.0:
-    optionalDependencies:
-      '@rollup/rollup-linux-x64-gnu': 4.53.3
+  neverthrow@8.2.0: {}
 
   node-abi@3.94.0:
     dependencies:

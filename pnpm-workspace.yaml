@@ -128,6 +128,10 @@ overrides:
   # better-auth merges options with defu; 6.1.4 lets a __proto__ key in the
   # defaults pollute the prototype.
   defu: ^6.1.7
+  # neverthrow 8.2.0 lists rollup's Linux x64 binary as an optional dependency
+  # by mistake (supermacro/neverthrow#602), so a Linux x64 install put a build
+  # tool's native module in the packaged app. Rollup keeps its own.
+  "neverthrow>@rollup/rollup-linux-x64-gnu": "-"
 
 patchedDependencies:
   "@milkdown/plugin-block@7.22.2": patches/@milkdown__plugin-block@7.22.2.patch

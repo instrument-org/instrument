@@ -670,9 +670,22 @@ export function bwrapArgs(
     own.some((folder) => hostPathWithin(folder, target) !== null);
   const stops = new Set([
     ...own,
-    ...rules.flatMap((rule) =>
-      rule.dotEntries ? [] : [resolveReal(rule.path)],
-    ),
+    // A rule over hidden entries stops the walk at each entry it closes
+    // rather than at the folder holding them, which is the whole home
+    // folder. Without them the walk descended into a hidden folder the
+    // rules hold at ask, and the write it binds every folder between a name
+    // and its root with outranks the rule that closed it: the file tools
+    // refused `~/.config` while a native command was handed it read-write,
+    // where the Mac's own profile closes it. An allow keeps its names bound,
+    // since there the walk is reaching what the person opened.
+    ...rules.flatMap((rule) => {
+      if (!rule.dotEntries) {
+        return [resolveReal(rule.path)];
+      }
+      return levelWithoutAsking(rule.level, rule, withoutAsking) === "allow"
+        ? []
+        : dotEntriesIn(rule.path).map(resolveReal);
+    }),
   ]);
   const guarded = new Set<string>();
   for (const rule of rules) {

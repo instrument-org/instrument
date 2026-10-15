@@ -31,7 +31,7 @@ import { StoreId } from "../schemas/store-id";
 import { inheritedEnv } from "./native-env";
 import { accountCanWrite } from "./permissions/account-can-write";
 import { raiseAsk } from "./permissions/asks";
-import { type Rule } from "./permissions/rules";
+import { reachOf, type Rule } from "./permissions/rules";
 import { runtimeLayout } from "./runtime-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -657,6 +657,28 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
 });
 
 describe.skipIf(onWindows)("bwrapArgs", () => {
+  // The appFiles place is a rule over the hidden entries of the home folder,
+  // so the folder it names is home itself. The walk for names that run code
+  // has to stop at the entries such a rule closes, not at home.
+  it("leaves a hidden home folder the rules hold at ask closed to a program", () => {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-dot-")));
+    mkdirSync(path.join(home, ".config/nvim/.git"), { recursive: true });
+    const rules: Rule[] = [
+      { level: "allow", path: home, source: "grant" },
+      { dotEntries: true, level: "ask", path: home, source: "place" },
+    ];
+
+    const args = bwrapArgs(reachOver(home, rules)).join(" ");
+
+    expect(reachOf({ home, rules, withoutAsking: false }, path.join(home, ".config"), "write").level).toBe("ask");
+    for (const closed of [".config", ".config/nvim", ".config/nvim/.git"]) {
+      expect(args).not.toContain(
+        `--bind ${path.join(home, closed)} ${path.join(home, closed)}`,
+      );
+    }
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("refuses a closed folder or file rather than showing it empty", () => {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
     for (const folder of ["Documents/Acme", "Secrets"]) {

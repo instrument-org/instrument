@@ -47,7 +47,7 @@
     "turbo:test": "turbo run test test:ci"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.4",
     "@instrument-org/ai-gateway": "workspace:*",
     "@instrument-org/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -55,12 +55,12 @@
     "@parcel/watcher": "2.6.0",
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.18.0",
-    "agent-browser": "^0.38.1",
+    "agent-browser": "^0.39.1",
     "ai": "catalog:",
     "date-fns": "^4.1.0",
     "db0": "^0.3.1",
     "diff": "^8.0.3",
-    "dugite": "3.0.0-rc11",
+    "dugite": "3.2.3",
     "execa": "^9.6.0",
     "ffmpeg-ffprobe-static": "7.1.0-rc.1",
     "glob": "^13.0.0",
@@ -80,7 +80,7 @@
     "tokenx": "^2.1.1",
     "ulid": "^3.0.1",
     "unstorage": "^1.16.1",
-    "ws": "^8.18.3",
+    "ws": "^8.22.0",
     "xstate": "^5.32.5",
     "yaml": "^2.9.0",
     "zod": "catalog:"

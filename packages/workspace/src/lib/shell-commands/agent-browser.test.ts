@@ -800,6 +800,14 @@ describe("isExternalBrowserInvocation", () => {
     { args: ["--state", "state.json", "open", "x"], external: true },
     { args: ["--restore", "shop", "open", "x"], external: true },
     { args: ["--executable-path", "/opt/chrome", "open", "x"], external: true },
+    // An engine picks only what a local launch starts, and the injected
+    // provider outranks a local launch upstream, so it stays in the app; with
+    // the binary to launch named, it is refused like any other.
+    { args: ["--engine", "obscura", "open", "x"], external: false },
+    {
+      args: ["--engine", "obscura", "--executable-path", "/o", "open", "x"],
+      external: true,
+    },
     // A non-targeting value flag's value is never read as a flag itself.
     { args: ["--args", "--cdp", "open", "x"], external: false },
     { args: ["--user-agent", "--auto-connect", "open", "x"], external: false },

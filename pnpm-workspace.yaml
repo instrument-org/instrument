@@ -33,8 +33,8 @@ catalog:
   "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.0.5
   ai: ^7.0.134
-  better-auth: ^1.7.6
-  hono: ^4.13.9
+  better-auth: ^1.7.7
+  hono: ^4.13.13
   react: ^19.3.0
   react-dom: ^19.3.0
   typescript: 7.0.2

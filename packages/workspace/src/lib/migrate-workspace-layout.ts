@@ -49,6 +49,11 @@ const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
 // beside its `sessions.db`.
 const EMPTY_STORES_SET_ASIDE_DIR_NAME = "empty-chat-stores";
 
+// Where a task's 1.x settings file is kept once what it holds has been filled
+// into the settings the task opens, with the rest the migrations set aside
+// rather than delete.
+const TASK_SETTINGS_SET_ASIDE_DIR_NAME = "task-settings";
+
 // `.state` is intentionally not migrated: the task db stores direct path
 // references to screenshots/bash-output under `.state/`, so moving the files
 // would orphan them. It stays in place, still ignored by the file index.
@@ -74,7 +79,10 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // that holds its conversation (renameChatDatabases).
 // 8: a 1.x task whose `task.db` holds no sessions given the `sessions.db`
 // beside it that holds its conversation (normalizeTaskPrivateFiles).
-export const WORKSPACE_LAYOUT_VERSION = 8;
+// 9: what a task's 1.x settings file holds filled into the settings it opens
+// (normalizeTaskSettingsFile), and an attachment whose name is taken landed
+// beside it in `attachments/` (normalizeTaskAttachments).
+export const WORKSPACE_LAYOUT_VERSION = 9;
 
 // The temp folder an external browser cloned the person's Chrome profile
 // into, in the workspace's `.instrument/`, which nothing writes since that
@@ -252,21 +260,56 @@ function isProjectFolder(folderPath: string): boolean {
   return ProjectIdSchema.safeParse(parsed.id).success;
 }
 
-// Moves every top-level entry of source into destination (per-entry, so a
-// pre-existing destination is preserved), then removes source if it ends empty.
-function mergeDirInto(source: string, destination: string) {
+/**
+ * Moves every top-level entry of source into destination (per-entry, so a
+ * pre-existing destination is preserved), then removes source if it ends
+ * empty. An entry whose name is taken there lands beside the one holding it
+ * under a numbered name, so two files an earlier build kept in two folders
+ * are both in the one the person looks in.
+ */
+function mergeDirInto({
+  destination,
+  name,
+  normalized,
+  source,
+}: {
+  destination: string;
+  /** The task the folders belong to, which a line names it by. */
+  name: string;
+  normalized: ChatRecordsSplit;
+  source: string;
+}) {
   if (!fs.existsSync(source)) {
     return;
   }
   for (const entry of fs.readdirSync(source)) {
-    moveIfMissingTarget(
-      path.join(source, entry),
-      path.join(destination, entry),
-    );
+    const from = path.join(source, entry);
+    const to = path.join(destination, freeEntryName(destination, entry));
+    if (path.basename(to) !== entry) {
+      normalized.done.push(
+        `${name}: moved ${from} to ${to}, its own name taken`,
+      );
+    }
+    moveIfMissingTarget(from, to);
   }
   if (fs.readdirSync(source).length === 0) {
     fs.rmdirSync(source);
   }
+}
+
+/**
+ * A name nothing in `dir` holds: the one asked for, or it numbered before its
+ * extension (`a.png`, then `a-2.png`), as every other name a person reads is
+ * made free.
+ */
+function freeEntryName(dir: string, name: string): string {
+  const extension = path.extname(name);
+  const stem = name.slice(0, name.length - extension.length);
+  let candidate = name;
+  for (let suffix = 2; entryExists(path.join(dir, candidate)); suffix += 1) {
+    candidate = `${stem}-${suffix.toString()}${extension}`;
+  }
+  return candidate;
 }
 
 function migrateLegacyProjectsDir(
@@ -396,32 +439,40 @@ function normalizeTask({
   taskFolder,
 }: {
   normalized: ChatRecordsSplit;
-  /** Where a store the task's own takes the name back from is kept. */
+  /** Where what a step takes the place of is kept. */
   setAsideDir: string;
   taskFolder: string;
 }): number {
   normalizeTaskPrivateFiles({ normalized, setAsideDir, taskFolder });
-  normalizeTaskSettingsFile(taskFolder);
+  normalizeTaskSettingsFile({ normalized, setAsideDir, taskFolder });
   // After both, so `state.json` is under its current name and the settings
   // file it folds into is in the private dir.
   foldTaskStateFile(taskFolder);
   // After the fold, so the stamp is written to the file that survives it.
   stampTaskTimestamps(taskFolder);
-  normalizeTaskAttachments(taskFolder);
+  normalizeTaskAttachments(taskFolder, normalized);
   // Before the work/ fold, so a clone is found at the path the build that
   // wrote it used rather than the one the fold is about to move it to.
   const removedBrowserProfileCloneCount =
     removeBrowserProfileClones(taskFolder);
-  foldTaskWorkDir(taskFolder);
+  foldTaskWorkDir(taskFolder, normalized);
   return removedBrowserProfileCloneCount;
 }
 
 // Folds legacy user-input dirs (user-provided/, agent-retrieved/) into a single
 // attachments/ dir.
-function normalizeTaskAttachments(taskFolder: string) {
+function normalizeTaskAttachments(
+  taskFolder: string,
+  normalized: ChatRecordsSplit,
+) {
   const attachmentsDir = path.join(taskFolder, CHAT_FOLDER_NAMES.attachments);
   for (const legacyName of LEGACY_ATTACHMENT_DIR_NAMES) {
-    mergeDirInto(path.join(taskFolder, legacyName), attachmentsDir);
+    mergeDirInto({
+      destination: attachmentsDir,
+      name: path.basename(taskFolder),
+      normalized,
+      source: path.join(taskFolder, legacyName),
+    });
   }
 }
 
@@ -688,14 +739,102 @@ function normalizeTasks(rootDir: string, normalized: ChatRecordsSplit) {
   return removedBrowserProfileCloneCount;
 }
 
-// Moves the settings file from the task root into the private dir, whether it
-// is named `instrument.json` or `settings.json`.
-function normalizeTaskSettingsFile(taskFolder: string) {
+/**
+ * Moves the settings file from the task root into the private dir, whether it
+ * is named `instrument.json` or `settings.json`.
+ *
+ * Where the private dir holds one already, what the root file has and it does
+ * not is filled into it and the root file is set aside, so the task's title,
+ * `createdAt` and `projectId` reach the chat it becomes rather than staying
+ * in a file nothing reads. The settings the task opens win field by field, as
+ * the state file's fold has them win, so a stamp or a draft written since is
+ * never replaced by what 1.x left. A file either side that cannot be read as
+ * a record leaves both where they are, named, since writing over settings
+ * this cannot read would take the title the task has now with them.
+ */
+function normalizeTaskSettingsFile({
+  normalized,
+  setAsideDir,
+  taskFolder,
+}: {
+  normalized: ChatRecordsSplit;
+  setAsideDir: string;
+  taskFolder: string;
+}) {
   const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
   const settingsDestination = path.join(privateDir, SETTINGS_FILE_NAME);
   for (const filename of [SETTINGS_FILE_NAME, LEGACY_SETTINGS_FILE_NAME]) {
-    moveIfMissingTarget(path.join(taskFolder, filename), settingsDestination);
+    const from = path.join(taskFolder, filename);
+    if (!fs.existsSync(from)) {
+      continue;
+    }
+    if (fs.existsSync(settingsDestination)) {
+      foldSettingsFile({
+        from,
+        normalized,
+        setAsideDir,
+        taskFolder,
+        to: settingsDestination,
+      });
+      continue;
+    }
+    moveIfMissingTarget(from, settingsDestination);
   }
+}
+
+/** One root settings file filled into the settings the task opens. */
+function foldSettingsFile({
+  from,
+  normalized,
+  setAsideDir,
+  taskFolder,
+  to,
+}: {
+  from: string;
+  normalized: ChatRecordsSplit;
+  setAsideDir: string;
+  taskFolder: string;
+  to: string;
+}) {
+  const name = path.basename(taskFolder);
+  const root = readJsonRecordSync(from);
+  const own = readJsonRecordSync(to);
+  if (root.kind !== "read" || own.kind === "unreadable") {
+    normalized.done.push(
+      `${name}: left ${from} beside ${to}, one of which could not be read`,
+    );
+    return;
+  }
+  const held = own.kind === "read" ? own.record : {};
+  const filling = Object.keys(root.record).filter((key) => !(key in held));
+  const asideDir = path.join(
+    setAsideDir,
+    TASK_SETTINGS_SET_ASIDE_DIR_NAME,
+    name,
+  );
+  const aside = path.join(
+    asideDir,
+    freeEntryName(asideDir, path.basename(from)),
+  );
+  try {
+    if (filling.length > 0) {
+      updateJsonRecordSync(to, () =>
+        Object.fromEntries(filling.map((key) => [key, root.record[key]])),
+      );
+    }
+    moveEntrySync(from, aside);
+  } catch (error) {
+    normalized.failed++;
+    normalized.done.push(
+      `could not fold ${from} into ${to} (${String(error)}); left it there`,
+    );
+    return;
+  }
+  normalized.done.push(
+    filling.length > 0
+      ? `${name}: took ${filling.join(", ")} from ${from} into ${to}, and set it aside in ${aside}`
+      : `${name}: set aside ${from}, which held nothing ${to} does not, in ${aside}`,
+  );
 }
 
 // What the list saw before the stamps existed: the session database's

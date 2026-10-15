@@ -281,6 +281,32 @@ describe("splitChatRecords", () => {
     `);
   });
 
+  // Notes already beside the records are the ones the chat keeps writing, so
+  // they stay; the older ones under `work/` are named and go to the work
+  // folder with the rest of it, rather than being passed over in silence.
+  it("leaves the notes under work/ where notes are already beside the records", () => {
+    write(path.join(recordDir(), "chat.db"), "db");
+    write(path.join(recordDir(), "handoff-notes.md"), "newer");
+    write(path.join(recordDir(), "work", "handoff-notes.md"), "older");
+
+    const result = split();
+
+    expect(result.failed).toBe(1);
+    expect(result.done).toContain(
+      `left ${path.join(recordDir(), "work", "handoff-notes.md")}: ${path.join(recordDir(), "handoff-notes.md")} is already there`,
+    );
+    expect(listing(recordDir())).toEqual(["chat.db", "handoff-notes.md"]);
+    expect(
+      fs.readFileSync(path.join(recordDir(), "handoff-notes.md"), "utf8"),
+    ).toBe("newer");
+    // Both are still a person's to read, and the next run has nothing left
+    // to leave.
+    expect(listing(workDir())).toEqual(["work/handoff-notes.md"]);
+    expect(split()).toEqual({ done: [], failed: 0 });
+    expect(listing(recordDir())).toEqual(["chat.db", "handoff-notes.md"]);
+    expect(listing(workDir())).toEqual(["work/handoff-notes.md"]);
+  });
+
   it("holds the settings back while the database could not move", () => {
     write(path.join(recordDir(), "chat.db"), "current");
     write(path.join(recordDir(), ".instrument", "chat.db"), "older");

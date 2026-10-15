@@ -841,6 +841,90 @@ describe("migrateLegacyTasks", () => {
     ]);
   });
 
+  // A database or settings file already under the name the chat's own take is
+  // nothing this wrote, and a rename over it would leave no copy of it. It
+  // goes to the backup, beside the task's own record and beside anything an
+  // earlier chat of this name left there.
+  it("writes over nothing in a staged chat, backup name taken or not", () => {
+    const chatDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    fs.writeFileSync(
+      path.join(chatDir, ".instrument", "chat.db"),
+      "somebody else's",
+    );
+    const chat = "2026-06-23-rotating-red-square";
+    const backup = path.join(
+      root,
+      ".instrument",
+      ".pre-chats",
+      "task-records",
+      chat,
+    );
+    // What an earlier chat of this name left in the backup.
+    writeJson(path.join(backup, "settings.json"), { name: "An earlier one" });
+    fs.writeFileSync(path.join(backup, "task.db"), "an earlier one's");
+
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 1,
+      leftOver: 0,
+    });
+
+    // The chat's own database and settings, and nothing of the task's left
+    // beside them under a name nothing reads.
+    const records = path.join(
+      root,
+      ".instrument",
+      "chats",
+      chat,
+      ".instrument",
+    );
+    expect(fs.readdirSync(records).toSorted()).toEqual([
+      "chat.db",
+      "settings.json",
+    ]);
+    expect(sessionOf(chat).title).toBe("Rotating red square video");
+    // Everything the staging held, kept beside what was already there.
+    expect(fs.readdirSync(backup).toSorted()).toEqual([
+      "chat.db",
+      "settings.json",
+      "settings.json-2",
+      "task.db",
+      "task.db-2",
+    ]);
+    expect(fs.readFileSync(path.join(backup, "chat.db"), "utf8")).toBe(
+      "somebody else's",
+    );
+    expect(fs.readFileSync(path.join(backup, "task.db"), "utf8")).toBe(
+      "an earlier one's",
+    );
+    expect(
+      readJson(
+        ".instrument",
+        ".pre-chats",
+        "task-records",
+        chat,
+        "settings.json",
+      ).name,
+    ).toBe("An earlier one");
+    expect(
+      readJson(
+        ".instrument",
+        ".pre-chats",
+        "task-records",
+        chat,
+        "settings.json-2",
+      ).name,
+    ).toBe("Rotating red square video");
+
+    const before = fs.readdirSync(root, { recursive: true }).toSorted();
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 0,
+      leftOver: 0,
+    });
+    expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(
+      before,
+    );
+  });
+
   it.each([
     ["before it was named", (from: string) => from.endsWith(".partial")],
     [

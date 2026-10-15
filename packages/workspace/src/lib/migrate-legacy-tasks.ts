@@ -409,6 +409,10 @@ function adoptTask({
  * workspace's `.instrument/`, and the
  * chat's written in that staging put where they were. Each step is skipped
  * once done, so a boot cut short part way picks up where it stopped.
+ *
+ * Nothing in the staging is written over: anything already under the name
+ * the chat's own database or settings take is set aside with the task's own
+ * first, since a rename over it would leave no copy of whatever it held.
  */
 function finishStagedChat(stagingDir: string, rootDir: string) {
   const chatName =
@@ -422,10 +426,12 @@ function finishStagedChat(stagingDir: string, rootDir: string) {
   const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
   if (present(chatDb)) {
     for (const suffix of DB_FILE_SUFFIXES) {
-      setAside(
-        path.join(privateDir, `${LEGACY_TASK_DB_FILE_NAME}${suffix}`),
-        path.join(backup, `${LEGACY_TASK_DB_FILE_NAME}${suffix}`),
-      );
+      for (const name of [LEGACY_TASK_DB_FILE_NAME, CHAT_DB_FILE_NAME]) {
+        setAside(
+          path.join(privateDir, `${name}${suffix}`),
+          path.join(backup, `${name}${suffix}`),
+        );
+      }
     }
     fs.renameSync(chatDb, path.join(privateDir, CHAT_DB_FILE_NAME));
   }
@@ -499,7 +505,10 @@ function isProjectFolder(folder: string): boolean {
   return ProjectIdSchema.safeParse(settings?.id).success;
 }
 
-/** Moves a folder into the backup, beside any earlier one of the same name. */
+/**
+ * Moves a file or folder into the backup, beside any earlier one of the same
+ * name.
+ */
 function moveAside(source: string, to: string) {
   let target = to;
   for (let suffix = 2; present(target); suffix += 1) {
@@ -516,13 +525,18 @@ function removeDb(dbPath: string) {
   }
 }
 
-/** Moves a file into the backup, unless it is already there or was never made. */
+/**
+ * Moves a file into the backup, unless it was never made. One already there
+ * under that name is from an earlier chat staged under this one's name, and
+ * keeps its place: this one goes beside it rather than staying in the folder
+ * the chat's own file is about to take, where nothing would read it and the
+ * chat would open beside a 1.x record of someone else's conversation.
+ */
 function setAside(source: string, to: string) {
-  if (!present(source) || present(to)) {
+  if (!present(source)) {
     return;
   }
-  fs.mkdirSync(path.dirname(to), { recursive: true });
-  fs.renameSync(source, to);
+  moveAside(source, to);
 }
 
 /** A name without its leading emoji, as a topic's name is compared. */

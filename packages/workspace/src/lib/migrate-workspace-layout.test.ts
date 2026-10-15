@@ -224,6 +224,77 @@ describe("migrateWorkspaceLayout", () => {
     expect(exists("tasks", "abc", "settings.json")).toBe(false);
   });
 
+  // The settings the task opens hold what an earlier sweep wrote into them
+  // (its state, its stamps), and 1.x's own file at the root holds the title,
+  // the stamps and the project it was in, which the chat it becomes is made
+  // from. Neither is the whole record on its own.
+  describe("a task's 1.x settings file beside the one it opens", () => {
+    function settingsAside(...segments: string[]): Record<string, unknown> {
+      return JSON.parse(
+        read(".instrument", ".pre-chats", "task-settings", ...segments),
+      ) as Record<string, unknown>;
+    }
+
+    it("fills in what the task's own does not hold and sets 1.x's aside", () => {
+      writeTaskSettings("abc", { name: "What it is called now", state: {} });
+      fs.writeFileSync(
+        path.join(rootDir, "tasks", "abc", "instrument.json"),
+        `{"name":"What 1.x called it","createdAt":"2026-01-02T03:04:05.000Z","projectId":"prj_01ARZ3NDEKTSV4RRFFQ69G5FAV"}`,
+      );
+
+      const result = migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(result.chatRecords.done).toContain(
+        `abc: took createdAt, projectId from ${path.join(rootDir, "tasks", "abc", "instrument.json")} into ${path.join(rootDir, "tasks", "abc", ".instrument", "settings.json")}, and set it aside in ${path.join(rootDir, ".instrument", ".pre-chats", "task-settings", "abc", "instrument.json")}`,
+      );
+      // The title the task has now is the one it keeps, and the rest of what
+      // 1.x recorded is beside it rather than in a file nothing reads.
+      expect(readSettings("abc")).toMatchObject({
+        createdAt: "2026-01-02T03:04:05.000Z",
+        name: "What it is called now",
+        projectId: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      });
+      expect(exists("tasks", "abc", "instrument.json")).toBe(false);
+      expect(settingsAside("abc", "instrument.json").name).toBe(
+        "What 1.x called it",
+      );
+
+      marks = { ...marks, layoutVersion: 0 };
+      expect(migrate().chatRecords).toEqual({ done: [], failed: 0 });
+      expect(readSettings("abc").name).toBe("What it is called now");
+      expect(
+        fs.readdirSync(
+          path.join(
+            rootDir,
+            ".instrument",
+            ".pre-chats",
+            "task-settings",
+            "abc",
+          ),
+        ),
+      ).toEqual(["instrument.json"]);
+    });
+
+    it("leaves both where either cannot be read", () => {
+      writeTaskSettings("abc", { name: "Abc" });
+      fs.writeFileSync(
+        path.join(rootDir, "tasks", "abc", "settings.json"),
+        "{ not json",
+      );
+
+      const result = migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(result.chatRecords.done).toContain(
+        `abc: left ${path.join(rootDir, "tasks", "abc", "settings.json")} beside ${path.join(rootDir, "tasks", "abc", ".instrument", "settings.json")}, one of which could not be read`,
+      );
+      expect(read("tasks", "abc", "settings.json")).toBe("{ not json");
+      expect(readSettings("abc").name).toBe("Abc");
+      expect(exists(".instrument", ".pre-chats", "task-settings")).toBe(false);
+    });
+  });
+
   describe("task timestamp stamps", () => {
     it("seeds both from the session db, so the list keeps the order it had", () => {
       writeTaskSettings("abc", { name: "Abc" });
@@ -1291,5 +1362,36 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", "attachments", "page.html")).toBe("pg");
     expect(exists("tasks", "abc", "user-provided")).toBe(false);
     expect(exists("tasks", "abc", "agent-retrieved")).toBe(false);
+  });
+
+  // Two files of one name in the folders being folded together are two
+  // files, and the one whose name is taken lands beside it rather than
+  // staying in a folder the work is about to carry off.
+  it("lands an attachment whose name is taken beside the one holding it", () => {
+    const taskRoot = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(path.join(taskRoot, "attachments"), { recursive: true });
+    fs.mkdirSync(path.join(taskRoot, "user-provided"), { recursive: true });
+    fs.mkdirSync(path.join(taskRoot, "agent-retrieved"), { recursive: true });
+    fs.writeFileSync(path.join(taskRoot, "attachments", "shot.png"), "first");
+    fs.writeFileSync(path.join(taskRoot, "user-provided", "shot.png"), "sent");
+    fs.writeFileSync(path.join(taskRoot, "agent-retrieved", "shot.png"), "got");
+
+    const result = migrate();
+
+    expect(result.chatRecords.failed).toBe(0);
+    expect(result.chatRecords.done).toContain(
+      `abc: moved ${path.join(taskRoot, "user-provided", "shot.png")} to ${path.join(taskRoot, "attachments", "shot-2.png")}, its own name taken`,
+    );
+    expect(read("tasks", "abc", "attachments", "shot.png")).toBe("first");
+    expect(read("tasks", "abc", "attachments", "shot-2.png")).toBe("sent");
+    expect(read("tasks", "abc", "attachments", "shot-3.png")).toBe("got");
+    expect(exists("tasks", "abc", "user-provided")).toBe(false);
+    expect(exists("tasks", "abc", "agent-retrieved")).toBe(false);
+
+    marks = { ...marks, layoutVersion: 0 };
+    expect(migrate().chatRecords).toEqual({ done: [], failed: 0 });
+    expect(
+      fs.readdirSync(path.join(taskRoot, "attachments")).toSorted(),
+    ).toEqual(["shot-2.png", "shot-3.png", "shot.png"]);
   });
 });

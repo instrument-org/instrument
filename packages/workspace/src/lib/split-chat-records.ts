@@ -240,17 +240,22 @@ function splitOne({
   }
 
   // The handoff notes are the conversation's, so they stay with its records.
+  // Notes already beside them keep their place and the older ones are left
+  // where they are, to go to the work folder with the rest of `work/`.
   const notes = path.join(recordDir, ...LEGACY_HANDOFF_NOTES_PATH);
   const notesTo = path.join(recordDir, HANDOFF_NOTES_FILE_NAME);
   if (
     isFolderBelow(recordDir, ...LEGACY_HANDOFF_NOTES_PATH.slice(0, -1)) &&
-    entryExists(notes) &&
-    !entryExists(notesTo)
+    entryExists(notes)
   ) {
-    step(split, `move ${notes}`, () => {
-      moveEntrySync(notes, notesTo);
-      moved.push(LEGACY_HANDOFF_NOTES_PATH.join("/"));
-    });
+    if (entryExists(notesTo)) {
+      leave(split, notes, notesTo);
+    } else {
+      step(split, `move ${notes}`, () => {
+        moveEntrySync(notes, notesTo);
+        moved.push(LEGACY_HANDOFF_NOTES_PATH.join("/"));
+      });
+    }
   }
 
   dropAppSkillCopies({ dir: recordDir, moved, split });

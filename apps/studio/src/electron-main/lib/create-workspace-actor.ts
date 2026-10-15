@@ -109,10 +109,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
   await convertChatDatabases(deviceId, rootDir);
-  // After the converter, so a chat that failed to convert still has its
-  // permissions carried: the two are independent, and a chat left on its
-  // database is one the person is most likely to open next.
-  await carryChatPermissions();
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -194,6 +190,13 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
+  // Here rather than beside the database converter: the chats are found
+  // through the workspace's own folders, so this is the first point at which
+  // there are any to read. Still after the converter, so a chat that failed
+  // to convert has its permissions carried anyway; the two are independent,
+  // and a chat left on its database is one the person is likely to open next.
+  // Nothing has opened a chat yet, so nothing reads a grant before this.
+  await carryChatPermissions();
   // In the background: a shell builds its mounts per command, so the bundled
   // skills appear in the shell for the first command after this lands. What
   // the runtime folder replaced goes once its skills are in place, the `bin`

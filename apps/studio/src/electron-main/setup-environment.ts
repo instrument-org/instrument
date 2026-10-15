@@ -71,6 +71,18 @@ function configureUserDataDirectory() {
 
 configureUserDataDirectory();
 
+// A page can hand an agent its own callable tools, described and typed,
+// through `document.modelContext`, instead of making it read the page and
+// click. The agent reads that registry over CDP, and the domain it reads
+// through needs no switch on this Chromium; this one turns on the page half,
+// which a site feature-detects before it registers anything, so without it
+// there is nothing on the other side to read. Read before appending, because
+// the value already there is the one the browser process took.
+const blink = app.commandLine.getSwitchValue("enable-blink-features");
+app.commandLine.appendSwitch(
+  "enable-blink-features",
+  blink ? `${blink},WebMCP` : "WebMCP",
+);
 // A dev build is a different binary in every checkout, so macOS asks again for
 // the keychain's Safe Storage item on each one's first launch. Dev keeps its
 // own stores in plaintext, and the mock keychain leaves Chromium's cookie

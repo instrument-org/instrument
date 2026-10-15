@@ -222,11 +222,16 @@ function asBuffer(output: unknown): Buffer {
  * command reads them unchanged. Only the shell's final output decodes them,
  * for display. Text gives nothing here and keeps the string the command
  * rendered from it (redacted, progress collapsed), which the shell encodes
- * as UTF-8; the rendering's line handling would corrupt bytes.
+ * as UTF-8; the rendering's line handling would corrupt bytes. A program
+ * that writes `data` (an archive) gets its bytes passed on even where they
+ * happen to decode as UTF-8, as an uncompressed tar of text files does.
  */
-export function binaryStdout(result: { stdoutBytes: Buffer }) {
+export function binaryStdout(
+  result: { stdoutBytes: Buffer },
+  { data = false }: { data?: boolean } = {},
+) {
   const bytes = result.stdoutBytes;
-  return bytes.length === 0 || isUtf8(bytes)
+  return bytes.length === 0 || (!data && isUtf8(bytes))
     ? {}
     : bytesOutput(unsafeBytesFromLatin1(bytes.toString("latin1")));
 }

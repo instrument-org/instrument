@@ -74,6 +74,10 @@ beforeAll(async () => {
     recursive: true,
   });
   await fs.writeFile(path.join(chatRoot, "binary.bin"), BINARY);
+  await fs.writeFile(
+    path.join(chatRoot, "secret.txt"),
+    "password=hunter2\nhttps://user:token@example.com\n",
+  );
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   const { uutilsDir: _, ...config } = getWorkspaceConfig();
   setWorkspaceConfig(
@@ -121,6 +125,24 @@ describe.each(paths)("a native program's binary stdout, %s", (name, exec) => {
     expect(result.exitCode).toBe(0);
     expect(await read(`${name}-head.bin`)).toEqual(BINARY.subarray(0, 260));
   });
+
+  it.runIf(vendored).each([
+    ["gzip", "czf", "binary.bin"],
+    // An uncompressed ustar archive of text is UTF-8 (macOS' default pax
+    // format adds binary attributes), which the shell would otherwise take as
+    // text and redact the URL inside the archive.
+    ["ustar", "--format=ustar -cf", "secret.txt"],
+  ])(
+    "comes from the system's tar into a file: %s",
+    async (kind, flags, file) => {
+      const dir = `${name}-${kind}`;
+      const result = await exec(
+        `tar ${flags} - ${file} > ${dir}.tar && mkdir ${dir} && tar xf ${dir}.tar -C ${dir}`,
+      );
+      expect(result).toMatchObject({ exitCode: 0, stderr: "" });
+      expect(await read(path.join(dir, file))).toEqual(await read(file));
+    },
+  );
 });
 
 describe("a native program's stdout shown as the shell's output", () => {

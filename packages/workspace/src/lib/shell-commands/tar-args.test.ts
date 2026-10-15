@@ -52,6 +52,8 @@ describe("tarWritesStdout", () => {
 describe("tarProgramArgs", () => {
   it.each<[string[], string]>([
     [["czf", "out.tgz", "."], "--exclude=.instrument -c -z -f out.tgz ."],
+    [["czf", "-", "."], "--exclude=.instrument -c -z -f - ."],
+    [["-cz", "."], "--exclude=.instrument -f - -cz ."],
     [["-xf", "a.tar"], "--exclude=.instrument -xf a.tar"],
     [["-tf", "a.tar"], "-tf a.tar"],
   ])("%j becomes %s", (args, expected) => {

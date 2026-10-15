@@ -126,9 +126,9 @@ export function tarWrites(args: string[]): string[] {
 }
 
 /**
- * Writes the archive it makes to stdout (`-f -`, or no `-f` at all). A
- * native command's output reaches the shell as text, which would garble the
- * archive's bytes, so the builtin makes that one.
+ * Writes the archive it makes to stdout (`-f -`, or no `-f` at all), which
+ * goes to the shell as bytes even where an uncompressed archive of text
+ * files decodes as UTF-8.
  */
 export function tarWritesStdout(args: string[]): boolean {
   const { archives, mode } = tarOptions(tarWithDashedOptions(args));
@@ -143,12 +143,18 @@ export function tarWritesStdout(args: string[]): boolean {
  * tar's arguments as the system tar gets them: old-style options dashed,
  * and every `.instrument` folder left out of what it archives or extracts,
  * as the shell's own commands never show it. Both GNU tar and bsdtar match
- * an `--exclude` pattern at any depth, and read it before the mode.
+ * an `--exclude` pattern at any depth, and read it before the mode. An
+ * archive created with no `-f` is written to stdout, as `-f -`: where `-f`
+ * is missing, bsdtar on Windows writes to a tape drive.
  */
 export function tarProgramArgs(args: string[]): string[] {
   const dashed = tarWithDashedOptions(args);
-  const { mode } = tarOptions(dashed);
+  const { archives, mode } = tarOptions(dashed);
+  const toStdout =
+    mode !== undefined && "Acru".includes(mode) && archives.length === 0
+      ? ["-f", "-"]
+      : [];
   return mode !== undefined && "Acrux".includes(mode)
-    ? [`--exclude=${CHAT_FOLDER_NAMES.private}`, ...dashed]
+    ? [`--exclude=${CHAT_FOLDER_NAMES.private}`, ...toStdout, ...dashed]
     : dashed;
 }

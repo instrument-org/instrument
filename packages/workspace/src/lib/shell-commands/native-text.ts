@@ -52,10 +52,12 @@ interface NativeTextRoute {
   /** Walks the folders it is given, which the sandbox may refuse on the way. */
   walks?: (args: string[]) => boolean;
   /**
-   * Arguments the program accepts but does not honor, or output it cannot
-   * hand the shell, which send the call to the builtin; `args` is how the generated table names them.
+   * Arguments the program accepts but does not honor, which send the call
+   * to the builtin; `args` is how the generated table names them.
    */
   builtinFor?: { args: string; matches: (args: string[]) => boolean };
+  /** Arguments that make it write data to stdout (an archive) rather than text. */
+  writesData?: (args: string[]) => boolean;
   /** The arguments as the program gets them, when they differ. */
   programArgs?: (args: string[]) => string[];
   /** Variables the program runs with besides the shell's own. */
@@ -222,10 +224,6 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // named by its full path, so another tar earlier on the PATH never runs.
   {
     binary: "system",
-    builtinFor: {
-      args: "`-f -` or no `-f` when creating",
-      matches: tarWritesStdout,
-    },
     // Keeps bsdtar on macOS from adding a `._` file of metadata beside each
     // file it archives.
     env: { COPYFILE_DISABLE: "1" },
@@ -243,6 +241,7 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
       ],
     },
     writes: tarWrites,
+    writesData: tarWritesStdout,
   },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
@@ -696,7 +695,7 @@ export function createNativeTextCommand(
             route.printsPaths && process.platform === "win32"
               ? streams.stdout.replaceAll("\\", "/")
               : streams.stdout,
-          ...binaryStdout(result),
+          ...binaryStdout(result, { data: route.writesData?.(args) }),
         };
       },
     );

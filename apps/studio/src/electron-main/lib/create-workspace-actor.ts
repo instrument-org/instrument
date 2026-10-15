@@ -30,10 +30,10 @@ import {
   setBashWorkerFactory,
   settleWorkspaceDb,
   stopWorkspaceSkillWatcher,
+  StoreRecords,
   warmBashWorker,
   workspaceMachine,
   workspaceRouter,
-  writingChatRecords,
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
@@ -291,14 +291,12 @@ export function createWorkspaceActor(deviceId: DeviceId) {
           ]);
           // Last, so the stops the tasks just wrote are on disk: every chat's
           // records are landed and synced before the process goes.
-          await writingChatRecords()
-            ?.dispose()
-            .catch((error: unknown) => {
-              captureServerException(
-                error instanceof Error ? error : new Error(String(error)),
-                { scopes: ["studio"] },
-              );
-            });
+          await StoreRecords.settle().catch((error: unknown) => {
+            captureServerException(
+              error instanceof Error ? error : new Error(String(error)),
+              { scopes: ["studio"] },
+            );
+          });
         }),
       },
       delays: {

@@ -133,6 +133,18 @@ export namespace StoreRecords {
     await writingChatRecords()?.close(chatId);
   }
 
+  /**
+   * Lands every chat's records and takes no more: the app on its way out.
+   * The appends queued first, since one still waiting its turn would be
+   * refused by records already closed and lost with them.
+   */
+  export async function settle(): Promise<void> {
+    while (tails.size > 0) {
+      await Promise.allSettled(tails.values());
+    }
+    await writingChatRecords()?.dispose();
+  }
+
   /** What one of a session's standing facts was last set to; `undefined` clears it. */
   export function told(
     chatId: ChatId,

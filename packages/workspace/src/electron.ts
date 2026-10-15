@@ -95,7 +95,7 @@ export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { settleWorkspaceDb } from "./lib/settle-workspace-db";
-export { writingChatRecords } from "./lib/records/chat-records";
+export { StoreRecords } from "./lib/store-records";
 export { chooseDeviceId, type DeviceId } from "./lib/records/device-id";
 export { readMachineId } from "./lib/records/machine-id";
 export { runtimeLayout } from "./lib/runtime-dir";

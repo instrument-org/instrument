@@ -254,6 +254,33 @@ describe("a chat the store writes", () => {
     expect(await storedSessions(chatId)).toEqual(comparable(listView(read)));
   });
 
+  it("lands what was queued as the app goes, however far behind it is", async () => {
+    const { chatId, sessionId } = await startChat();
+    const first = userMessage(sessionId, "One thing.");
+    const last = userMessage(sessionId, "And another.");
+    // Queued together, so the second append is behind the first and records
+    // closed without waiting for the queue would refuse it.
+    const written = await Promise.all([
+      Store.saveMessageWithParts(first, chatId),
+      Store.saveMessageWithParts(last, chatId),
+    ]);
+    for (const result of written) {
+      result._unsafeUnwrap();
+    }
+
+    await StoreRecords.settle();
+
+    const log = await fs.readFile(
+      path.join(
+        records.dirOf(chatId),
+        `${sessionId}.${records.service.device}.jsonl`,
+      ),
+      "utf8",
+    );
+    expect(log).toContain(first.id);
+    expect(log).toContain(last.id);
+  });
+
   it("takes a message the store removed out of the log too", async () => {
     const { chatId, sessionId } = await startChat();
     const kept = userMessage(sessionId, "Keep this one.");

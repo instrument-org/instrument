@@ -119,6 +119,10 @@
       "name": "redirect directories",
       "diff": "redirect-directories-3.6.0.diff",
       "ports": [589]
+    },
+    {
+      "name": "virtual path separators",
+      "diff": "virtual-path-separators-3.6.0.diff"
     }
   ]
 }

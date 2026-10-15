@@ -307,6 +307,23 @@ describe("buildBashFs", () => {
     });
   });
 
+  // A virtual path spells its separator "/" whatever this computer writes
+  // between the names of its own, which is what the just-bash patch's
+  // virtual-path separators part keeps true on Windows: a path answered with
+  // backslashes in it names nothing the shell's own filesystem can find,
+  // and a write to it lands outside every mount.
+  it("answers realpath with a path the shell can use again", async () => {
+    const layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(chatRoot),
+    });
+    const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
+    await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+    await fs.writeFile(path.join(chatRoot, "work", "notes.txt"), "hi\n");
+    const named = `${layout.chat.shellRoot}/work/notes.txt`;
+
+    await expect(bashFs.realpath(named)).resolves.toBe(named);
+  });
+
   it("rejects writes outside every mount with EROFS instead of losing them", async () => {
     const bash = await makeBash();
     const result = await bash.exec("mkdir -p /tmp && echo scratch > /tmp/x");

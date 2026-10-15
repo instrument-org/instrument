@@ -1,0 +1,48 @@
+diff --git a/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts b/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
+--- a/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
++++ b/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
+@@ -1192,7 +1192,11 @@
+         `EACCES: permission denied, cp '${virtualSource}' contains an unsafe symlink`,
+       );
+     }
+-    const relative = preservedTarget.slice(this.canonicalRoot.length);
++    // A virtual path separates its names with "/" on every host, as
++    // sanitizeSymlinkTarget also spells one.
++    const relative = preservedTarget
++      .slice(this.canonicalRoot.length)
++      .replace(/\\/g, "/");
+     return relative || "/";
+   }
+ 
+@@ -1746,14 +1750,18 @@
+       if (isPathWithinRoot(canonicalTarget, this.canonicalRoot)) {
+         // Within root - compute virtual target path and return as relative
+         const virtualTarget =
+-          canonicalTarget.slice(this.canonicalRoot.length) || "/";
++          canonicalTarget
++            .slice(this.canonicalRoot.length)
++            .replace(/\\/g, "/") || "/";
+         // Return as relative path from the link's virtual directory
+         if (linkDir === "/") {
+           return virtualTarget.startsWith("/")
+             ? virtualTarget.slice(1) || "."
+             : virtualTarget;
+         }
+-        return nodePath.relative(linkDir, virtualTarget);
++        // Both are virtual paths, which "/" separates whatever the host
++        // writes between the names of its own.
++        return nodePath.posix.relative(linkDir, virtualTarget);
+       }
+ 
+       // Outside root - the symlink target points outside the sandbox.
+@@ -1819,7 +1827,9 @@
+     // with resolveAndValidate. Use boundary-safe prefix check to prevent
+     // /data matching /datastore.
+     if (isPathWithinRoot(resolved, this.canonicalRoot)) {
+-      const relative = resolved.slice(this.canonicalRoot.length);
++      const relative = resolved
++        .slice(this.canonicalRoot.length)
++        .replace(/\\/g, "/");
+       return relative || "/";
+     }
+     // Resolved path is outside root - reject it to prevent sandbox escape

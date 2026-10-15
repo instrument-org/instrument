@@ -304,7 +304,7 @@ function printSummary({
         : []),
       ...(rollup.erroredTasks > 0
         ? [
-            `${c.dim}│${c.reset}  ${c.dim}Failed     :${c.reset} ${c.red}${rollup.erroredTasks}/${rollup.tasks} had failed model requests${c.reset}`,
+            `${c.dim}│${c.reset}  ${c.dim}Failed     :${c.reset} ${c.red}${rollup.erroredTasks}/${rollup.tasks} did not finish${c.reset}`,
           ]
         : []),
       ...(assertions.total > 0

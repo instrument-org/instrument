@@ -4,6 +4,8 @@ import path from "node:path";
 import { getChatInfos } from "../src/lib/chat-info";
 import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
+import { isToolPart } from "../src/lib/is-tool-part";
+import { SessionMessage } from "../src/schemas/session/message";
 import { Store } from "../src/lib/store";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
 import { workDir } from "../src/lib/work-dir";
@@ -96,6 +98,30 @@ interface RunReport {
  * them buries the pass/fail column that is the reason to look at all.
  */
 const MAX_CONSOLE_EVIDENCE = 300;
+
+/**
+ * The calls a run asked for and never made: a tool part still waiting for its
+ * input to finish arriving, or holding a finished input that was never run.
+ *
+ * The sweep settles a dangling part when a session is stopped, so one still
+ * open once a run is over means the run ended between the model asking for
+ * the call and the call being made. The assertions then measure a session
+ * that never happened, which is not the same as a model getting something
+ * wrong, and a report that cannot tell them apart says the wrong thing about
+ * both.
+ */
+export function unfinishedCalls(
+  messages: readonly SessionMessage.WithParts[],
+): { messageId: string; state: string; type: string }[] {
+  return messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      isToolPart(part) &&
+      (part.state === "input-available" || part.state === "input-streaming")
+        ? [{ messageId: message.id, state: part.state, type: part.type }]
+        : [],
+    ),
+  );
+}
 
 export async function generateReport({
   caseForRoots,
@@ -273,15 +299,29 @@ export async function generateReport({
       : [];
     const apiErrors = messageErrors.filter((error) => error.kind !== "aborted");
     const aborted = messageErrors.length - apiErrors.length;
-    if (apiErrors.length > 0) {
+    const stoppedBy = run?.stoppedBy ?? (aborted > 0 ? "unknown" : undefined);
+    // A call the run never finished. The sweep settles a dangling part when a
+    // session is stopped, so one still open at report time means the run ended
+    // between the model asking for the call and the call being made: the
+    // assertions then measure a session that never happened, and counting it
+    // as a pass with failures says the model was wrong about something it was
+    // never given the chance to do.
+    const unfinished = unfinishedCalls(
+      sessionWithParts.isOk() ? sessionWithParts.value.messages : [],
+    );
+    const neverRan = stoppedBy === undefined && unfinished.length > 0;
+    if (apiErrors.length > 0 || neverRan) {
       rollupErroredTasks += 1;
       await fs.writeFile(
         path.join(taskOutputDir, "errors.json"),
-        JSON.stringify(apiErrors, null, 2),
+        JSON.stringify(
+          { ...(neverRan && { unfinishedCalls: unfinished }), apiErrors },
+          null,
+          2,
+        ),
         "utf8",
       );
     }
-    const stoppedBy = run?.stoppedBy ?? (aborted > 0 ? "unknown" : undefined);
     if (stoppedBy) {
       rollupStoppedTasks += 1;
     }

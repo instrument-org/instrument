@@ -375,7 +375,10 @@ describe("bash background processes, end to end", () => {
 
       const killed = await kill(processId);
       expect(killed.output).toContain(`Stopped ${processId}`);
-      expect(pids.filter(processExists)).toEqual([]);
+      // Windows can report a process for a moment after taskkill ended it.
+      await expect
+        .poll(() => pids.filter(processExists), { timeout: 3000 })
+        .toEqual([]);
     },
     30_000,
   );

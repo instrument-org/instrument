@@ -7,6 +7,8 @@ import { StoreId } from "../../schemas/store-id";
 import { listBackgroundProcesses } from "../background-processes";
 import { getChatAgentStatus } from "../get-chat-agent-status";
 import { sessionOfChat } from "../record-folders";
+import { writingChatRecords } from "../records/chat-records";
+import { liveView } from "../records/views";
 import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";
@@ -111,11 +113,35 @@ export async function ownMessages(
 }
 
 /**
- * The label on the newest tool call of a session's own, read from the newest
- * message back and stopping at the first that has one, so a task at work is
- * not read whole on every change.
+ * What a session's running turn holds in memory, which nothing has written:
+ * the reply streaming in, and the calls whose input is still arriving.
+ * Empty where this process writes no records, or the chat has none.
+ */
+export async function liveMessages(
+  ref: SessionRef,
+): Promise<SessionMessage.WithParts[]> {
+  const records = writingChatRecords();
+  if (!records) {
+    return [];
+  }
+  try {
+    return liveView(await records.read(ref.chatId), ref.sessionId);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The label on the newest tool call of a session's own: the turn's own memory
+ * first, where a call still being typed is, then the newest message back,
+ * stopping at the first that has one, so a task at work is not read whole on
+ * every change.
  */
 export async function latestStep(ref: SessionRef): Promise<string | undefined> {
+  const arriving = latestStepIn(await liveMessages(ref));
+  if (arriving !== undefined) {
+    return arriving;
+  }
   for await (const message of newestFirst(ref)) {
     const step = latestStepIn([message]);
     if (step !== undefined) {
@@ -202,18 +228,21 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
 export async function runningLines(
   ref: SessionRef,
 ): Promise<{ step?: string; waiting?: string }> {
+  // The step from the turn's own memory where it has one, since a call whose
+  // input is still arriving is nowhere else. The ask is read from what was
+  // written: a call still being typed is not one the user can answer yet.
+  let step = latestStepIn(await liveMessages(ref));
   // Newest first, as far back as the step: the ask is only ever in the
   // newest assistant message, which comes first.
   let waiting: string | undefined;
   let askRead = false;
-  let step: string | undefined;
   for await (const message of newestFirst(ref)) {
     if (!askRead && message.role === "assistant") {
       waiting = askIn([message]);
       askRead = true;
     }
-    step = latestStepIn([message]);
-    if (step !== undefined) {
+    step ??= latestStepIn([message]);
+    if (askRead && step !== undefined) {
       break;
     }
   }

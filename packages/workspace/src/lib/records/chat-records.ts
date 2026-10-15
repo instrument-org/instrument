@@ -91,6 +91,8 @@ export interface LiveTurn {
 export interface Live {
   /** Drops what the turn held, once it has ended. */
   clear(): void;
+  /** Takes a part out of the turn's memory, for one appended another way. */
+  forget(partId: StoreId.Part): void;
   setMessage(message: SessionMessage.Type): void;
   setPart(part: SessionMessagePart.Type): void;
   /** Takes a part out of the turn's memory and appends it as settled. */
@@ -584,6 +586,18 @@ export class ChatRecords {
           this.#liveChanged(chatId, sessionId, id);
         }
         this.#trim();
+      },
+      forget: (partId) => {
+        const state = this.#live.get(chatId)?.get(sessionId);
+        const held = state?.parts.get(partId);
+        if (!state || !held) {
+          return;
+        }
+        state.parts.delete(partId);
+        if (!state.message && state.parts.size === 0) {
+          drop();
+        }
+        this.#liveChanged(chatId, sessionId, held.metadata.messageId);
       },
       setMessage: (message) => {
         if (this.#disposed) {

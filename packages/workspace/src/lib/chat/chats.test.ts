@@ -16,7 +16,9 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { withRecordsInPlace } from "../../test/helpers/with-test-records";
 import { recordAsk } from "../permissions/asks";
+import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { forgetChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -1492,5 +1494,54 @@ describe("liveChatList", () => {
       { id: child, step: "Checking the pantry", title: "Grocery list" },
     ]);
     stop();
+  });
+
+  it("names the step a call still arriving says, over the written one", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "", {
+      commands: ["task list"],
+      finished: false,
+      minute: 2,
+    });
+    alive.value = new Set([sessionId]);
+
+    await withRecordsInPlace(async (records) => {
+      const messageId = StoreId.newMessageId();
+      const live = records.live(chatFor(sessionId), sessionId);
+      live.setMessage({
+        id: messageId,
+        metadata: {
+          createdAt: at(3),
+          finishReason: "unknown",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        role: "assistant",
+      });
+      live.setPart(
+        SessionMessagePart.coerce({
+          input: { activity: "Reading the list", command: "cat li" },
+          metadata: {
+            createdAt: at(3),
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          state: "input-streaming",
+          toolCallId: "call-1",
+          type: "tool-bash",
+        }),
+      );
+
+      const [chat] = await listChats();
+
+      expect(chat?.latest).toMatchObject({
+        kind: "step",
+        text: "Reading the list",
+      });
+    });
   });
 });

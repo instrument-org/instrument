@@ -59,6 +59,11 @@ export namespace StoreRecords {
     if (isArriving(saved)) {
       return;
     }
+    // The turn keeps a part while it arrives; this snapshot settles it, so
+    // the record stands for it from here and memory lets it go.
+    writingChatRecords()
+      ?.live(chatId, saved.metadata.sessionId)
+      .forget(saved.metadata.id);
     append(chatId, (records) => records.appendPart(chatId, saved));
   }
 

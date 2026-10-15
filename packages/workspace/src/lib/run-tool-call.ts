@@ -5,6 +5,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 import { getCurrentDate } from "./get-current-date";
+import { writingChatRecords } from "./records/chat-records";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
 
@@ -22,6 +23,9 @@ export async function runToolCall({
   chatId: ChatId;
 }) {
   const tool = getToolByType(part.type);
+  // What the call holds while it runs: an output it offered before its own is
+  // the window's to show and never a record of its own.
+  const live = writingChatRecords()?.live(chatId, sessionId);
   let preliminarySaved = false;
 
   try {
@@ -67,7 +71,7 @@ export async function runToolCall({
 
       if (type === "preliminary") {
         if (output.isOk()) {
-          await Store.updatePart(
+          const offered = await Store.updatePart(
             ids,
             (current) =>
               ({
@@ -80,6 +84,9 @@ export async function runToolCall({
             chatId,
             { signal },
           );
+          if (offered.isOk()) {
+            live?.setPart(offered.value);
+          }
           preliminarySaved = true;
         }
       } else {

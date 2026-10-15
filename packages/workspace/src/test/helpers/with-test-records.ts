@@ -26,6 +26,32 @@ import { type ChatId } from "../../schemas/chat-id";
  * });
  * ```
  */
+/**
+ * Chat records in a temporary folder, in place for the length of `run` and
+ * gone after it: for one case of a file whose other cases write no record.
+ */
+export async function withRecordsInPlace<T>(
+  run: (records: ChatRecords, dir: string) => Promise<T>,
+): Promise<T> {
+  const dir = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), "chat-records-")),
+  );
+  const records = new ChatRecords({
+    app: "0.0.0-test",
+    device: newDeviceId(),
+    dirOf: () => dir,
+    fsync: false,
+  });
+  installChatRecords(records);
+  try {
+    return await run(records, dir);
+  } finally {
+    installChatRecords(undefined);
+    await records.dispose();
+    await fs.rm(dir, { force: true, recursive: true });
+  }
+}
+
 export function withTestRecords(
   options: Partial<Omit<ChatRecordsOptions, "dirOf">> = {},
 ) {

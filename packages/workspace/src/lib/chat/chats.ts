@@ -18,7 +18,13 @@ import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
-import { askIn, type ChatActivity, chatActivity, isWorking } from "./activity";
+import {
+  askIn,
+  type ChatActivity,
+  chatActivity,
+  isWorking,
+  liveMessages,
+} from "./activity";
 import { listChatIds } from "./chat-records";
 import { listChildTasks, sessionRole } from "./children";
 import { joinedMidTurn } from "./mid-turn";
@@ -508,13 +514,19 @@ async function chatFor(
   const ask = state === "working" ? undefined : anyAsk;
 
   const lead = runningTasks.find((task) => !task.waiting);
+  // A turn under way names its step from what it holds in memory, where a
+  // call whose input is still arriving is; the written step stands for it
+  // otherwise, and a turn that has ended names none.
+  const ownStep = ownWorking
+    ? (latestStepIn(await liveMessages({ chatId, sessionId: session.id })) ??
+      digest.stepInTurn)
+    : undefined;
   const latest = latestFor({
     ask,
     digest,
     // The chat's own turn names its step first, as the line under its title
     // does; a task at work, its step or else its name.
-    step:
-      (ownWorking ? digest.stepInTurn : undefined) ?? lead?.step ?? lead?.title,
+    step: ownStep ?? lead?.step ?? lead?.title,
     state,
   });
 

@@ -32,6 +32,7 @@ import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
+import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
@@ -171,6 +172,10 @@ export const llmRequestLogic = fromPromise<
     }
   };
 
+  // What the turn holds while it streams, for the window to read: a part
+  // still arriving is never written, and the snapshot that settles it is.
+  const live = writingChatRecords()?.live(input.chatId, input.sessionId);
+
   const providerId = input.model.params.provider;
   const modelId = input.model.canonicalId;
   const assistantMessage: SessionMessage.Assistant = {
@@ -282,6 +287,7 @@ export const llmRequestLogic = fromPromise<
   }
 
   await scopedStore.saveMessage(assistantMessage);
+  live?.setMessage(assistantMessage);
 
   const abortListener = () => {
     saveAbortMessage();
@@ -323,6 +329,7 @@ export const llmRequestLogic = fromPromise<
 
   if (isSignalAborted()) {
     saveAbortMessage();
+    live?.clear();
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
@@ -532,6 +539,7 @@ export const llmRequestLogic = fromPromise<
             // wherever it ends up ending.
             reasoningPart.state = "streaming";
             reasoningPart.metadata.endedAt = undefined;
+            live?.setPart(reasoningPart);
             if (reasoningPart.text) {
               await savePartCoalesced(
                 reasoningPart.metadata.id,
@@ -591,6 +599,7 @@ export const llmRequestLogic = fromPromise<
             type: "reasoning",
           };
           reasoningMap[part.id] = newReasoningPart;
+          live?.setPart(newReasoningPart);
           await scopedStore.savePart(newReasoningPart);
           break;
         }
@@ -651,6 +660,7 @@ export const llmRequestLogic = fromPromise<
             if (part.providerMetadata !== undefined) {
               textPart.providerMetadata = part.providerMetadata;
             }
+            live?.setPart(textPart);
             if (textPart.text) {
               await savePartCoalesced(
                 textPart.metadata.id,
@@ -862,6 +872,7 @@ export const llmRequestLogic = fromPromise<
                   input: partialArgs as never,
                 };
                 toolCalls[part.id] = updatedPart;
+                live?.setPart(updatedPart);
                 return scopedStore.savePart(updatedPart);
               },
             );
@@ -893,6 +904,7 @@ export const llmRequestLogic = fromPromise<
               : "tool-unavailable",
           };
           toolCalls[part.id] = newPart;
+          live?.setPart(newPart);
           await scopedStore.savePart(newPart);
           break;
         }
@@ -1047,6 +1059,10 @@ export const llmRequestLogic = fromPromise<
 
   // Remove abort listener since we've completed
   signal.removeEventListener("abort", abortListener);
+  // The turn is over, so what it was holding goes: every part of it that
+  // settled has been written, and one that never did is lost, as a reply cut
+  // off is.
+  live?.clear();
 
   return { message: assistantMessage, parts: await getCurrentParts() };
 });

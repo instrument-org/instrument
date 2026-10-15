@@ -11,6 +11,8 @@ import {
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { errAsync } from "neverthrow";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ActorRefFrom,
@@ -21,10 +23,15 @@ import {
 } from "xstate";
 
 import { TypedError } from "../lib/errors";
+import { isToolPart } from "../lib/is-tool-part";
+import { type ChatRead } from "../lib/records/chat-records";
+import { logFileName } from "../lib/records/file-names";
+import { liveView } from "../lib/records/views";
 import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
+import { StoreRecords } from "../lib/store-records";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -33,6 +40,7 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { withRecordsInPlace } from "../test/helpers/with-test-records";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 
@@ -3163,5 +3171,68 @@ describe("llmRequestLogic", () => {
         "role": "user",
       }
     `);
+  });
+
+  it("holds a reply still arriving in the turn's memory, and records none of it", async () => {
+    const input = JSON.stringify({
+      activity: "Reading the list",
+      command: "cat list.md",
+    });
+    await withRecordsInPlace(async (records, dir) => {
+      const chatId = ChatIdSchema.parse("mock");
+      const held: Promise<ChatRead>[] = [];
+      const testMachine = await createTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          { delta: "Looking.", id: "1", type: "text-delta" },
+          { id: "call-1", toolName: "bash", type: "tool-input-start" },
+          { delta: input, id: "call-1", type: "tool-input-delta" },
+          { id: "1", type: "text-end" },
+          {
+            input,
+            toolCallId: "call-1",
+            toolName: "bash",
+            type: "tool-call",
+          },
+          {
+            finishReason: { raw: "stop", unified: "stop" },
+            type: "finish",
+            usage: mockUsage,
+          },
+        ],
+        // Read as each chunk arrives, so what the turn held along the way is
+        // what is checked, not only where it ended.
+        onChunkReceived: () => {
+          held.push(records.read(chatId));
+        },
+      });
+
+      await runTestMachine(testMachine);
+      // The turn has ended, so it holds nothing.
+      expect((await records.read(chatId)).live.size).toBe(0);
+      // Every append the store queued, landed: a read of the file is a read
+      // of the whole turn.
+      await StoreRecords.close(chatId);
+
+      const arriving = (await Promise.all(held)).flatMap((read) =>
+        liveView(read, sessionId).flatMap((message) => message.parts),
+      );
+      expect(
+        arriving.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+      ).toContain("Looking.");
+      expect(
+        arriving.some(
+          (part) => isToolPart(part) && part.state === "input-streaming",
+        ),
+      ).toBe(true);
+      const log = await fs.readFile(
+        path.join(dir, logFileName(sessionId, records.device)),
+        "utf8",
+      );
+      expect(log).not.toContain("input-streaming");
+      expect(log).not.toContain('"state":"streaming"');
+      expect(log).toContain('"state":"input-available"');
+      expect(log).toContain("Looking.");
+    });
   });
 });

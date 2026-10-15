@@ -82,10 +82,13 @@ afterAll(async () => {
 describe.runIf(held)("a chat's shell under MXC", () => {
   it("runs a program in the chat's folder", async () => {
     const result = await run(
-      "node -e \"require('fs').writeFileSync('made.txt', 'ok'); console.log(require('fs').realpathSync.native('made.txt'))\"; cat made.txt",
+      "node -e \"require('fs').writeFileSync('made.txt', 'ok'); console.log(require('fs').realpathSync.native('made.txt'))\"",
     );
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(result.stdout).toMatch(/^[A-Z]:\\.*made\.txt\nok$/i);
+    expect(result.stdout).toMatch(/^[A-Z]:\\.*made\.txt\n$/i);
+    expect(
+      await fs.readFile(path.join(tmpDir, "chats", "mxc", "made.txt"), "utf8"),
+    ).toBe("ok");
   });
 
   it("refuses a program reading a folder that asks first, and says why", async () => {

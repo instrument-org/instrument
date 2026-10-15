@@ -302,7 +302,10 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
       { appFolders: [], closed: [], root: ROOT },
     );
     expect(policy.deniedPaths).toEqual([appData]);
-    expect(policy.enumeratePaths).toEqual([
+    // What is above the test's home depends on the host's temp folder.
+    expect(
+      policy.enumeratePaths.filter((folder) => folder.startsWith(at)),
+    ).toEqual([
       appData,
       path.join(appData, "Local"),
       path.join(appData, "Local", "Temp"),

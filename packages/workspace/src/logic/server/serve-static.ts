@@ -62,13 +62,14 @@ const parseRange = (
   }
 
   const start = Number.parseInt(match[1], 10);
-  const end = match[2]?.length ? Number.parseInt(match[2], 10) : size - 1;
+  const asked = match[2]?.length ? Number.parseInt(match[2], 10) : size - 1;
 
-  if (start < 0 || start >= size || end < start || end >= size) {
+  if (start < 0 || start >= size || asked < start) {
     return null;
   }
 
-  return { end, start };
+  // A range ending past the file is the rest of it (RFC 9110 14.1.2).
+  return { end: Math.min(asked, size - 1), start };
 };
 
 // Adapted from https://github.com/honojs/node-server/blob/26f5e89da0abd87752da1f35dc01010f1d428648/src/serve-static.ts#

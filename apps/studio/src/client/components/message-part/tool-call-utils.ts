@@ -1,25 +1,10 @@
 import {
-  getToolNameByType,
-  isInteractiveTool,
   isToolPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
 export function hasTerminalToolState(part: SessionMessagePart.ToolPart) {
   return part.state === "output-available" || part.state === "output-error";
-}
-
-/**
- * Whether a call is waiting on the user rather than on the runtime: an
- * interactive tool that has its input and no answer yet. Such a call is drawn
- * in every mode, since the buttons on it are the only way the turn goes on,
- * and it is not dead however long it waits.
- */
-export function isAwaitingUser(part: SessionMessagePart.ToolPart) {
-  return (
-    part.state === "input-available" &&
-    isInteractiveTool(getToolNameByType(part.type))
-  );
 }
 
 /**
@@ -41,12 +26,7 @@ export function isToolCallVisible({
   isRunning: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
-  return (
-    hasTerminalToolState(part) ||
-    isDeveloperMode ||
-    isAwaitingUser(part) ||
-    isRunning
-  );
+  return hasTerminalToolState(part) || isDeveloperMode || isRunning;
 }
 
 /**
@@ -69,12 +49,8 @@ export function isToolPartRunning(
 ): boolean {
   switch (part.state) {
     case "input-available": {
-      // An interactive call never reaches the queue: it is handed to the user
-      // and waits there, so having been asked for is the whole of its running.
       return (
-        part.metadata.startedAt !== undefined ||
-        isInteractiveTool(getToolNameByType(part.type)) ||
-        isNextInLine(part, message)
+        part.metadata.startedAt !== undefined || isNextInLine(part, message)
       );
     }
     case "input-streaming": {

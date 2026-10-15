@@ -14,12 +14,8 @@ import { nodeToolsEnv } from "../tool-isolation";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { hostPathOf, shellPath } from "../workspace-fs-layout";
-import {
-  collapseProgress,
-  execShim,
-  mapStreams,
-  shimOutput,
-} from "./exec-shim";
+import { collapseProgress, mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 type PathLookup = {
@@ -205,7 +201,7 @@ function createPathProgramCommand(
   name: string,
   hostPath: string,
 ): Command {
-  return defineCommand(name, async (args, ctx) => {
+  const command = defineCommand(name, async (args, ctx) => {
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     // cmd.exe runs a batch file; CreateProcess cannot.
@@ -215,25 +211,32 @@ function createPathProgramCommand(
           ["/d", "/s", "/c", hostPath, ...hostPathArgs(args)],
         ]
       : [hostPath, hostPathArgs(args)];
-    const result = await execShim(file, fileArgs, {
-      cancelSignal: ctx.signal,
-      cwd: hostCwd,
-      env: {
-        ...getWorkspaceConfig().nodeExecEnv,
-        ...env,
-        // A program that builds or installs packages uses the app's own npm
-        // config, store and node-gyp headers, never the person's.
-        ...nodeToolsEnv(),
-        // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
-        ...ffmpegSubprocessEnv(env.PATH),
-      },
-      ...(stdin ? { input: stdin } : { stdin: "ignore" }),
-    });
-    return {
-      exitCode: result.exitCode ?? 1,
-      ...mapStreams(shimOutput(result, name), (text) =>
-        filterShellOutput(collapseProgress(text)),
-      ),
+    const programEnv = {
+      ...getWorkspaceConfig().nodeExecEnv,
+      ...env,
+      // A program that builds or installs packages uses the app's own npm
+      // config, store and node-gyp headers, never the person's.
+      ...nodeToolsEnv(),
+      // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
+      ...ffmpegSubprocessEnv(env.PATH),
     };
+    return runNative(
+      ctx,
+      file,
+      fileArgs,
+      {
+        cancelSignal: ctx.signal,
+        cwd: hostCwd,
+        env: programEnv,
+        ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
+      },
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, name), (text) =>
+          filterShellOutput(collapseProgress(text)),
+        ),
+      }),
+    );
   });
+  return { ...command, acceptsPipeHandoff: true };
 }

@@ -47,6 +47,22 @@ export const macFileAssociations = [...viewedByType].map(
 );
 
 /**
+ * Which of the Mac document types wear the app's own icon, by index.
+ * electron-builder gives every association with no icon of its own the app's,
+ * and macOS then draws a file of that type, wherever Instrument is the app it
+ * goes to, as the Instrument app itself: in the Finder, and on the cursor when
+ * one is dragged. With no icon named, macOS draws a document of its own.
+ */
+export function documentTypesWearingAppIcon(
+  types: readonly { CFBundleTypeIconFile?: string }[],
+  appIcon: string,
+): number[] {
+  return types.flatMap((type, index) =>
+    type.CFBundleTypeIconFile === appIcon ? [index] : [],
+  );
+}
+
+/**
  * The extensions Windows offers Instrument for. Text and JSON are named here
  * because Windows has no content type that covers them the way macOS does.
  */

@@ -60,6 +60,14 @@ export function macHelperBinPath(): string | undefined {
   return bridgeFile("instrument-mac");
 }
 
+/**
+ * The launcher every native command starts through under Seatbelt
+ * (`native/mac-helper/seatbelt`), when this build carries it.
+ */
+export function seatbeltHelperPath(): string | undefined {
+  return bridgeFile("instrument-seatbelt");
+}
+
 interface MacModule {
   fileIcon: (path: string, pixels: string) => Promise<string>;
   finderEntries: (folder: string) => Promise<string>;

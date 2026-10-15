@@ -37,6 +37,8 @@ So the choice is yours to make per question, and yours to report: **say which mo
 
 **Workers AI is where to start.** It runs without `--paid` and every other provider is metered, so a run that spends belongs to a question that specifically needs a model only another provider has. A metered model is refused without `--paid`, because the cost of a suite is one case times one model list and lands long after the command that started it. `zai-org/glm-5.3-flash` is the model this project is usually tested against, named in the error a bare `run` produces; it is a hint rather than a default, and nothing runs it unless someone passes it.
 
+**A Claude model runs through the Claude account, never through OpenRouter.** Point `APP_CLAUDE_CODE_PATH` at a signed-in Claude Code and name the model on that provider: `APP_CLAUDE_CODE_PATH=$HOME/.local/bin/claude pnpm eval run <cases> --model 'anthropic/claude-sonnet-5.5?provider=claude-account&providerConfigId=claude-account' --paid`. That runs on the signed-in plan, through the same harness the app uses. Without the variable there is no `claude-account` config, and the run stops with `Provider config for claude-account not found`. Claude Code keeps what each run did outside the eval home: transcripts in a folder under `~/.claude/projects/` named for the eval home, and resume records in `~/.claude/instrument-sessions/`. Delete those once the run is read.
+
 The harness prints what each model resolved to and records it as `resolvedModelId` in the run's `eval-case.json`, which matters for a `--paid` run against an OpenRouter `~author/<name>-latest` alias, since "latest" is not a build anyone can identify a month later.
 
 ## Results

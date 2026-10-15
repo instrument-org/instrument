@@ -148,34 +148,6 @@ describe("taskStanding", () => {
     expect(standing.line).toBe(`${words.slice(0, 90)}…`);
   });
 
-  it("says what a task is waiting for when its turn ended on an ask", async () => {
-    const chatId = freshChat();
-    const sessionId = await withSession(chatId);
-    await Store.saveMessageWithParts(
-      assistant(sessionId, [
-        (ids) => ({
-          input: { reason: "So I can read your issues.", slug: "linear" },
-          metadata: partMetadata(ids),
-          state: "input-available",
-          toolCallId: "call_1",
-          type: "tool-connect_app",
-        }),
-      ]),
-      chatId,
-    );
-
-    const standing = await taskStanding({
-      isRunning: false,
-      sessionId,
-      chatId,
-    });
-
-    expect(standing).toEqual({
-      kind: "waiting",
-      line: "Waiting for you to sign in",
-    });
-  });
-
   it("says what a task stopped in the middle of when the stop cut its reply off", async () => {
     const chatId = freshChat();
     const sessionId = await withSession(chatId);
@@ -491,34 +463,5 @@ describe("taskStanding", () => {
 
     expect(standing.kind).toBe("running");
     expect(standing.line).toBe("Working");
-  });
-
-  it("says what a task at work has stopped to ask, rather than its step", async () => {
-    const chatId = freshChat();
-    const sessionId = await withSession(chatId);
-    await Store.saveMessageWithParts(
-      assistant(
-        sessionId,
-        [
-          activity("Picking a store"),
-          (ids) => ({
-            input: { choices: ["Costco", "Trader Joe's"], question: "Which?" },
-            metadata: partMetadata(ids),
-            state: "input-available",
-            toolCallId: "call_choose",
-            type: "tool-choose",
-          }),
-        ],
-        { finishReason: "tool-calls" },
-      ),
-      chatId,
-    );
-
-    const standing = await taskStanding({ isRunning: true, sessionId, chatId });
-
-    expect(standing).toEqual({
-      kind: "waiting",
-      line: "Which?",
-    });
   });
 });

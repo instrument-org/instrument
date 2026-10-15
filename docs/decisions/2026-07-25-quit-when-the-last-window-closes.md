@@ -1,5 +1,7 @@
 # Quit when the last window closes, on macOS too
 
+Superseded by [Stay in the Dock when the last window closes, on macOS](2026-10-15-stay-in-the-dock-when-the-last-window-closes.md).
+
 ## Context
 
 Electron's boilerplate keeps an app resident on macOS when its last window closes, because that is the platform convention: the menu bar stays, the dock icon stays, and the user quits explicitly with Cmd+Q. Studio shipped that default.

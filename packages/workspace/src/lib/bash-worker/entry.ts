@@ -11,11 +11,12 @@ import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setVenvCreator, type VenvError } from "../venv";
 import { setPythonEnvironmentBuilder } from "../skill-environments";
+import { setPythonBaseRefresher } from "../python-base";
 import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
-import { setAskForwarder } from "../permissions/asks";
+import { setAskForwarder } from "../chat/asks";
 import { setSkillMutationForwarder } from "../workspace-skill-index";
 import {
   type ExceptionProperties,
@@ -118,6 +119,9 @@ setPythonEnvironmentBuilder(
       post({ chatId, requestId, skillDir, type: "python-environment" });
     }),
 );
+setPythonBaseRefresher(() => {
+  post({ type: "python-base-refresh" });
+});
 
 port.on("message", (message: ToWorker) => {
   switch (message.type) {

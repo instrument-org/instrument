@@ -6,7 +6,7 @@ import nodePath from "node:path";
 import { FOLDER_VARIABLES } from "../../constants";
 import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
-import { raiseAsk, waitingNote } from "./asks";
+import { raiseAsk, waitingNote } from "../chat/asks";
 import { isClosedDiskRoot } from "../disk-root";
 import {
   folderToAskFor,

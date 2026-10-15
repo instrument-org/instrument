@@ -8,7 +8,6 @@ import {
   assign,
   enqueueActions,
   fromPromise,
-  log,
   setup,
   stopChild,
 } from "xstate";
@@ -33,7 +32,6 @@ import {
   agentMachine,
   type AgentMachineActorRef,
   type AgentParentEvent,
-  type ToolCallUpdate,
 } from "./agent";
 import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
@@ -66,11 +64,7 @@ type SessionMachineEvent =
   | { notice?: StopNotice; reason?: StopReason; type: "stop" }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
-  | { type: "runTurn" }
-  | {
-      type: "updateInteractiveToolCall";
-      value: ToolCallUpdate;
-    };
+  | { type: "runTurn" };
 
 export const sessionMachine = setup({
   actions: {
@@ -328,9 +322,8 @@ export const sessionMachine = setup({
         // A message the user typed into a chat's working turn joins it the
         // same way, with a note that it arrived mid-turn, and the turn decides
         // what it is (lib/chat/mid-turn.ts). It supersedes the turn instead
-        // when it calls the work off, or when the turn is waiting on the user
-        // to answer a question, which typing answers. A sender that asks to
-        // interrupt supersedes any agent's step the same way.
+        // when it calls the work off. A sender that asks to interrupt
+        // supersedes any agent's step the same way.
         enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
@@ -339,12 +332,7 @@ export const sessionMachine = setup({
           const typedIntoChat =
             sessionRole(context.chatId, context.sessionId) === "chat" &&
             isTypedByUser(event.value);
-          if (
-            event.interrupt ||
-            (typedIntoChat &&
-              (callsItOff(event.value) ||
-                agentRef.getSnapshot().matches("WaitingForPendingToolCalls")))
-          ) {
+          if (event.interrupt || (typedIntoChat && callsItOff(event.value))) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }
@@ -389,24 +377,6 @@ export const sessionMachine = setup({
     stop: {
       actions: ["rememberStopNotice", "holdQueued"],
     },
-    updateInteractiveToolCall: [
-      {
-        actions: ({ context, event }) => {
-          invariant(
-            context.agentRef,
-            "Agent ref does not exist when finishing tool call",
-          );
-          context.agentRef.send({
-            type: "updateInteractiveToolCall",
-            value: event.value,
-          });
-        },
-        guard: ({ context }) => !!context.agentRef,
-      },
-      {
-        actions: log("Agent ref does not exist when finishing tool call"),
-      },
-    ],
   },
   states: {
     Agent: {
@@ -467,19 +437,10 @@ export const sessionMachine = setup({
               actions: "clearAgentRef",
               target: "AgentDone",
             },
-            // A stop that lands while the agent waits on an interactive tool
-            // makes it leave that wait on the way out, which reports a resume.
-            // The session is already stopping, so neither changes anything.
-            "agent.paused": {},
-            "agent.resumed": {},
           },
         },
 
-        Paused: {
-          on: { "agent.resumed": "Running" },
-        },
         Running: {
-          on: { "agent.paused": "Paused" },
           tags: ["agent.running"],
         },
       },

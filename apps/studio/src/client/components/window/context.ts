@@ -56,6 +56,8 @@ export interface WindowContextValue {
   rowLead?: HTMLElement | null;
   /** The tail of the tab's row, where a screen draws what it can do with what it shows; null until the row is up. */
   rowTail?: HTMLElement | null;
+  /** Whether the tab's row is the window's own, which a folder draws its views, sort, filter and search into in place of a header of its own. */
+  rowHoldsTools?: boolean;
   /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
   chatId?: ChatId;
 }

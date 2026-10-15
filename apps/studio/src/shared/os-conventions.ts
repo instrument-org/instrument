@@ -29,6 +29,9 @@ export function osOf(platform: string): Os {
 /** A modifier key, by what it is for rather than what it is called. */
 type Modifier = "alt" | "command" | "control" | "shift";
 
+/** A letter held with `commandKey`, and with Alt or Shift where the file manager adds one. */
+type CommandChord = { alt: boolean; key: string; shift: boolean };
+
 export interface OsConventions {
   /**
    * The folders other apps keep their own files in, as the line under that
@@ -51,6 +54,10 @@ export interface OsConventions {
   deleteKey: string;
   /** Files' keys, where the system's file manager decides them. */
   files: {
+    /** The chord that copies the path of what is selected, or null where the file manager has none. */
+    copyPathKey: CommandChord | null;
+    /** The chord that duplicates what is selected, or null where the file manager has none. */
+    duplicateKey: CommandChord | null;
     /** The modifier held with ↑ to go to the folder above: ⌘ in the Finder, Alt elsewhere. */
     parentFolderKey: "altKey" | "metaKey";
     /**
@@ -79,8 +86,6 @@ export interface OsConventions {
    * app keeps closed, or null where there is none.
    */
   passwordStore: null | string;
-  /** A look at a file without opening it, as a menu row and as the look's name. */
-  quickLook: string;
   /** The Return or Enter key as a hint writes it: the symbol on a Mac's key, the word elsewhere. */
   returnKey: string;
   /** The menu row that selects a file or folder in the system's file manager. */
@@ -99,8 +104,10 @@ export const OS_CONVENTIONS = {
     computerKind: "computer",
     deleteKey: "Del",
     // GNOME Files and Dolphin rename on F2, open on Enter and go up on Alt+↑,
-    // as File Explorer does.
+    // as File Explorer does. They share no key for a copy or for a path.
     files: {
+      copyPathKey: null,
+      duplicateKey: null,
       parentFolderKey: "altKey",
       renameKey: "F2",
       trashKey: { key: "Delete", withCommandKey: false },
@@ -119,7 +126,6 @@ export const OS_CONVENTIONS = {
       shift: "Shift",
     },
     passwordStore: null,
-    quickLook: "Preview",
     returnKey: "Enter",
     showInFileManager: "Show in File Manager",
     thisComputer: "this computer",
@@ -131,9 +137,11 @@ export const OS_CONVENTIONS = {
     computer: "This Mac",
     computerKind: "Mac",
     deleteKey: "⌫",
-    // Return renames in the Finder, ⌘↑ goes to the enclosing folder, and ⌘⌫
-    // is its Move to Trash.
+    // Return renames in the Finder, ⌘↑ goes to the enclosing folder, ⌘⌫ is
+    // its Move to Trash, ⌘D its Duplicate and ⌥⌘C its Copy as Pathname.
     files: {
+      copyPathKey: { alt: true, key: "c", shift: false },
+      duplicateKey: { alt: false, key: "d", shift: false },
       parentFolderKey: "metaKey",
       renameKey: "Enter",
       trashKey: { key: "Backspace", withCommandKey: true },
@@ -144,7 +152,6 @@ export const OS_CONVENTIONS = {
     keyJoiner: "",
     modifierKeys: { alt: "⌥", command: "⌘", control: "⌃", shift: "⇧" },
     passwordStore: "Keychain",
-    quickLook: "Quick Look",
     returnKey: "↩",
     showInFileManager: "Show in Finder",
     thisComputer: "this Mac",
@@ -156,7 +163,11 @@ export const OS_CONVENTIONS = {
     computer: "This PC",
     computerKind: "PC",
     deleteKey: "Del",
+    // Ctrl+Shift+C is File Explorer's Copy as path. Its Ctrl+D deletes, so
+    // nothing there duplicates.
     files: {
+      copyPathKey: { alt: false, key: "c", shift: true },
+      duplicateKey: null,
       parentFolderKey: "altKey",
       renameKey: "F2",
       trashKey: { key: "Delete", withCommandKey: false },
@@ -172,7 +183,6 @@ export const OS_CONVENTIONS = {
       shift: "Shift",
     },
     passwordStore: null,
-    quickLook: "Preview",
     returnKey: "Enter",
     showInFileManager: "Show in File Explorer",
     thisComputer: "this PC",

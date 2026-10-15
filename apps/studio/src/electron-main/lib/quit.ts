@@ -5,6 +5,14 @@ import { quitMachine } from "./quit-machine";
 let quit: Actor<typeof quitMachine> | null = null;
 let forcedInDev = false;
 
+/**
+ * Whether closing the last window quits the app. On macOS the app stays in
+ * the Dock, its agents and their jobs keep working, and the Dock icon brings
+ * a window back; Cmd+Q is the quit. Elsewhere a process with no window has
+ * nothing to come back from, so the last close is the quit.
+ */
+export const quitsWithLastWindow = process.platform !== "darwin";
+
 /** True once this quit is approved; no further prompt is needed. */
 export function isQuitApproved() {
   return quit?.getSnapshot().hasTag("approved") ?? false;

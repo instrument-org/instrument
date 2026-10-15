@@ -1,24 +1,40 @@
 // Orchestrates electron-builder's `afterPack` step: prune foreign-platform
-// binaries, then verify the packaged ripgrep binary. Each hook is a pure
-// function; this module is the only place that touches `AfterPackContext`.
+// binaries, verify the packaged ones, then write their licenses. Each hook is a
+// pure function; this module is the only place that touches `AfterPackContext`.
 
 import { type AfterPackContext, Arch } from "electron-builder";
+import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
+import { THIRD_PARTY_LICENSES_DIR_NAME } from "../src/shared/third-party-licenses";
+import { documentTypesWearingAppIcon } from "./file-associations";
 import {
   type ElectronPlatform,
   isElectronPlatform,
   resolvePackagedFfmpeg,
   resolvePackagedPnpm,
   resolvePackagedRipgrep,
+  resolvePackagedUutilsDir,
   resolvePackagedUv,
+  resolveResourcesDir,
   resolveUnpackedDir,
 } from "./paths";
 import { pruneForeignBinaries } from "./prune-foreign-binaries";
 import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
+import {
+  THIRD_PARTY_COMPONENTS,
+  writeThirdPartyLicenses,
+} from "./third-party-licenses";
 import { verifyFfmpegBinary, verifyFfmpegChecksum } from "./verify-ffmpeg";
+import { writeThirdPartyNotices } from "./third-party-notices";
+import {
+  findUnlicensedBinaries,
+  verifyThirdPartyNotices,
+} from "./verify-licenses";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
+import { verifySeatbeltHelper } from "./verify-seatbelt-helper";
+import { expectedUutils, verifyUutilsDir } from "./verify-uutils";
 import { verifyUvBinary } from "./verify-uv";
 
 export function runAfterPack(context: AfterPackContext) {
@@ -26,9 +42,58 @@ export function runAfterPack(context: AfterPackContext) {
   pruneUnreachableGitTooling(context);
   verifyPackagedRipgrep(context);
   verifyPackagedUv(context);
+  verifyPackagedUutils(context);
   verifyPackagedPnpm(context);
   verifyPackagedFfmpeg(context);
   verifyPackagedMacBridge(context);
+  dropAppIconFromDocumentTypes(context);
+  writePackagedLicenses(context);
+}
+
+/**
+ * Takes the app's icon off the document types electron-builder gave it to
+ * (see documentTypesWearingAppIcon). Runs before signing, so the edited
+ * Info.plist is the one sealed.
+ */
+function dropAppIconFromDocumentTypes(context: AfterPackContext) {
+  if (context.electronPlatformName !== "darwin") {
+    return;
+  }
+  const plist = path.join(
+    context.appOutDir,
+    `${context.packager.appInfo.productFilename}.app`,
+    "Contents",
+    "Info.plist",
+  );
+  const plutil = (args: string[]) =>
+    execFileSync("plutil", args, { encoding: "utf8" });
+  // A lone string is no JSON document to plutil, so the icon's name is read raw.
+  const appIcon = plutil([
+    "-extract",
+    "CFBundleIconFile",
+    "raw",
+    "-o",
+    "-",
+    plist,
+  ]).trim();
+  const types: unknown = JSON.parse(
+    plutil(["-extract", "CFBundleDocumentTypes", "json", "-o", "-", plist]),
+  );
+  if (!appIcon || !Array.isArray(types)) {
+    throw new Error(`Could not read the document types in ${plist}.`);
+  }
+  // Deleted from the last, so each index still names the type it did.
+  const wearing = documentTypesWearingAppIcon(types, appIcon).toReversed();
+  for (const index of wearing) {
+    plutil([
+      "-remove",
+      `CFBundleDocumentTypes.${index}.CFBundleTypeIconFile`,
+      plist,
+    ]);
+  }
+  console.log(
+    `afterPack: took the app icon off ${wearing.length} document types`,
+  );
 }
 
 // Only a binary matching the host platform AND arch can be executed during
@@ -159,6 +224,63 @@ function verifyPackagedMacBridge(context: AfterPackContext) {
       `afterPack: verified ${name} at ${file} (${statSync(file).size} bytes)`,
     );
   }
+  const seatbelt = path.join(binDir, "instrument-seatbelt");
+  const { size } = verifySeatbeltHelper(seatbelt, {
+    execute: canExecuteForTarget({
+      arch: context.arch,
+      platformName: "darwin",
+    }),
+  });
+  console.log(`afterPack: verified ${seatbelt} (${size} bytes)`);
+}
+
+/**
+ * Every native program and WebAssembly module that shipped has a license
+ * entry, `licenses/` beside the app's other resources holds their texts, and
+ * the notices file in it covers the JavaScript packages the app carries.
+ * Runs before signing, so the folder is sealed into the macOS signature.
+ */
+function writePackagedLicenses(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+
+  const unlicensed = findUnlicensedBinaries({
+    components: THIRD_PARTY_COMPONENTS,
+    unpackedDir: resolveUnpackedDir(context.appOutDir, platformName),
+  });
+  if (unlicensed.length > 0) {
+    throw new Error(
+      `These packaged binaries have no license entry: ${unlicensed.join(", ")}. Add each to THIRD_PARTY_COMPONENTS in electron-builder/third-party-licenses.ts with its license texts.`,
+    );
+  }
+
+  const outDir = path.join(
+    resolveResourcesDir(context.appOutDir, platformName),
+    THIRD_PARTY_LICENSES_DIR_NAME,
+  );
+  const entries = writeThirdPartyLicenses({ outDir, platformName });
+  console.log(
+    `afterPack: wrote licenses for ${entries.length} components to ${outDir}`,
+  );
+
+  const { file, notices, review } = writeThirdPartyNotices({
+    asarPath: path.join(
+      resolveResourcesDir(context.appOutDir, platformName),
+      "app.asar",
+    ),
+    outDir,
+  });
+  verifyThirdPartyNotices(file);
+  console.log(
+    `afterPack: wrote notices for ${notices.length} JavaScript packages to ${file} (${statSync(file).size} bytes)`,
+  );
+  if (review.length > 0) {
+    console.log(
+      `afterPack: packages whose license is copyleft, unusual or missing, or that ship no text: ${review.map((notice) => `${notice.name}@${notice.version} (${notice.license})`).join(", ")}`,
+    );
+  }
 }
 
 function verifyPackagedPnpm(context: AfterPackContext) {
@@ -223,4 +345,16 @@ function verifyPackagedUv(context: AfterPackContext) {
   console.log(
     `afterPack: verified uv at ${binaryPath} (${size} bytes, ${detail})`,
   );
+}
+
+function verifyPackagedUutils(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+  const dir = resolvePackagedUutilsDir(context.appOutDir, platformName);
+  const verified = verifyUutilsDir(dir, expectedUutils(platformName), {
+    execute: canExecuteForTarget({ arch: context.arch, platformName }),
+  });
+  console.log(`afterPack: verified uutils at ${dir} (${verified.join(", ")})`);
 }

@@ -2,6 +2,8 @@ import { createScopedLogger } from "@/electron-main/lib/electron-logger";
 import {
   type ClaudeCodeRelease,
   claudeCodeRelease,
+  compareClaudeCodeVersions,
+  runsClaudeCode,
 } from "@instrument-org/ai-gateway";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -50,8 +52,10 @@ export async function currentCopy() {
 
 /**
  * The copy to run: the release this build drives, or, while an update to it
- * has not been installed yet, the newest one already here, so an app update
- * does not sign the person out until the download is done.
+ * has not been installed yet, the newest one already here that this build
+ * still runs, so an app update does not sign the person out until the
+ * download is done. A copy older than that is never run, however long the
+ * download takes.
  */
 export async function installedCopy() {
   const current = await currentCopy();
@@ -61,8 +65,8 @@ export async function installedCopy() {
   }
   const versions = await readdir(installRoot()).catch(() => []);
   const newest = versions
-    .filter((entry) => !entry.startsWith("."))
-    .sort(compareVersions)
+    .filter((entry) => !entry.startsWith(".") && runsClaudeCode(entry))
+    .sort(compareClaudeCodeVersions)
     .at(-1);
   if (!newest) {
     return undefined;
@@ -74,18 +78,6 @@ export async function installedCopy() {
   ))
     ? binary
     : undefined;
-}
-
-function compareVersions(a: string, b: string) {
-  const left = a.split(".").map(Number);
-  const right = b.split(".").map(Number);
-  for (let index = 0; index < Math.max(left.length, right.length); index++) {
-    const difference = (left[index] ?? 0) - (right[index] ?? 0);
-    if (difference !== 0) {
-      return difference;
-    }
-  }
-  return 0;
 }
 
 export interface DownloadProgress {

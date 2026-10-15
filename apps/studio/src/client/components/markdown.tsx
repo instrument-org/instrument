@@ -25,7 +25,6 @@ import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
   type ComponentProps,
-  isValidElement,
   memo,
   type ReactNode,
   useCallback,
@@ -518,27 +517,6 @@ const ChatFileLink = ({
   );
 };
 
-// The label as text, which is what the destination is compared against.
-//
-// Walked rather than read off the top, because the markup a label carries is
-// not the reader's problem: a model writing a host in backticks or bold has
-// still written the host, and comparing against an element instead would put a
-// redundant origin after every one of them. Anything with no text in it at all
-// comes back empty and is disclosed, which is the same answer a label that says
-// nothing gets.
-const plainText = (children: ReactNode): string => {
-  if (typeof children === "string") {
-    return children;
-  }
-  if (Array.isArray(children)) {
-    return children.map((child: ReactNode) => plainText(child)).join("");
-  }
-  if (isValidElement<{ children?: ReactNode }>(children)) {
-    return plainText(children.props.children);
-  }
-  return "";
-};
-
 // The elements a link written in markdown can never hold. An anchor holding one
 // came out of raw HTML, and nearly always out of the HTML5 recovery of an `<a>`
 // that was never closed -- a `<a href=` quoted inside a script, say -- which
@@ -700,12 +678,7 @@ const MarkdownLink = ({
   }
 
   return (
-    <InlineLink
-      {...props}
-      className={className}
-      href={href}
-      label={plainText(children)}
-    >
+    <InlineLink {...props} className={className} href={href}>
       {children}
     </InlineLink>
   );

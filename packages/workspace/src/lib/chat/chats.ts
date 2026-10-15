@@ -3,7 +3,7 @@ import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
-import { type PermissionAsk } from "../../schemas/chat-state";
+import { type Ask } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -14,13 +14,12 @@ import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { cardLine, openAsks } from "../permissions/asks";
+import { cardLine, openAsks } from "./asks";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
 import {
-  askIn,
   type ChatActivity,
   chatActivity,
   isWorking,
@@ -108,8 +107,6 @@ export const ChatSchema = z.object({
       id: StoreId.SessionSchema,
       step: z.string().optional(),
       title: z.string(),
-      /** What it has stopped to ask the user for; present while it is stalled on that rather than moving. */
-      waiting: z.string().optional(),
     }),
   ),
   /** The chat's session, which its transcript is read and its messages are sent through. */
@@ -377,8 +374,6 @@ interface ChatDigest {
   /** Commands' `app call` and `app request` slugs. */
   calledApps: string[];
   lastAsk: string;
-  /** When the last assistant message started, which an ask of its own is dated by. */
-  lastAssistantAt?: number;
   lastMessageAt?: number;
   lastReplyAt?: number;
   lastUserMessageAt?: number;
@@ -386,8 +381,6 @@ interface ChatDigest {
   /** Whether the chat's last turn ended in an error with nothing said after it. */
   failed: boolean;
   openedHosts: string[];
-  /** What the chat's own last turn asked the user, if it ended on an ask. */
-  ownAsk?: string;
   root?: SessionMessage.UserWithParts;
   sent: ReturnType<typeof sentHeld>;
   session: Session.Type;
@@ -434,27 +427,13 @@ function asFolder(path: string): string {
 
 /**
  * Everything the chat waits on the user for, each with when it was asked,
- * in the order its line names them: an open card first, since the chat and
- * whatever raised it are stopped on it, then a task filed from it that is
- * paused on an ask, then the chat's own last turn ending on one.
+ * oldest first: its open cards and questions.
  */
-function asksOf(
-  digest: ChatDigest,
-  filed: ChatActivity["running"],
-  cards: PermissionAsk[],
-): { at: number; text: string }[] {
-  return [
-    ...cards.map((card) => ({
-      at: card.askedAt.getTime(),
-      text: cardLine(card),
-    })),
-    ...filed.flatMap((task) =>
-      task.waiting ? [{ at: task.updatedAt, text: task.waiting }] : [],
-    ),
-    ...(digest.ownAsk && digest.lastAssistantAt !== undefined
-      ? [{ at: digest.lastAssistantAt, text: digest.ownAsk }]
-      : []),
-  ];
+function asksOf(cards: Ask[]): { at: number; text: string }[] {
+  return cards.map((card) => ({
+    at: card.askedAt.getTime(),
+    text: cardLine(card),
+  }));
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -503,7 +482,6 @@ async function chatFor(
     id: task.sessionId,
     ...(task.step ? { step: task.step } : {}),
     title: task.title,
-    ...(task.waiting ? { waiting: task.waiting } : {}),
   }));
 
   const {
@@ -514,7 +492,7 @@ async function chatFor(
   } = stateOf(chatId, digest, filed, await openAsks(chatId));
   const ask = state === "working" ? undefined : anyAsk;
 
-  const lead = runningTasks.find((task) => !task.waiting);
+  const [lead] = runningTasks;
   // A turn under way names its step from what it holds in memory, where a
   // call whose input is still arriving is; the written step stands for it
   // otherwise, and a turn that has ended names none.
@@ -645,7 +623,6 @@ function digestOf(
       hasWords(message),
   );
   const commands = bashCommandsIn(messages);
-  const ownAsk = askIn(messages);
   // Only this turn's calls, so a new turn never names the last one's step.
   const stepInTurn = latestStepIn(
     messages.slice(lastOpener ? messages.lastIndexOf(lastOpener) + 1 : 0),
@@ -678,9 +655,6 @@ function digestOf(
     (lastOpener === undefined || stoppedAt >= lastOpener.metadata.createdAt);
   return {
     calledApps: commands.flatMap(appSlugsIn),
-    ...(lastAssistant && {
-      lastAssistantAt: lastAssistant.metadata.createdAt.getTime(),
-    }),
     failed,
     lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
     ...(lastMessageAt !== undefined && { lastMessageAt }),
@@ -690,7 +664,6 @@ function digestOf(
     }),
     madeFiles: filesHeld(messages),
     openedHosts: commands.flatMap(openedHostsIn),
-    ...(ownAsk !== undefined && { ownAsk }),
     ...(root && { root }),
     sent: sentHeld(messages),
     session,
@@ -989,9 +962,9 @@ function stateOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
-  cards: PermissionAsk[],
+  cards: Ask[],
 ) {
-  const asks = asksOf(digest, running, cards);
+  const asks = asksOf(cards);
   const askedAt = asks.length
     ? Math.max(...asks.map((ask) => ask.at))
     : undefined;
@@ -1000,12 +973,10 @@ function stateOf(
     ...chatStateOf({
       askedAt,
       failed: digest.failed,
-      ownAskedAt:
-        digest.ownAsk === undefined ? undefined : digest.lastAssistantAt,
       ownTurn: hasOwnTurn(chatId),
       spokeAt: digest.lastUserMessageAt ?? 0,
       stopped: digest.stopped,
-      tasks: running,
+      tasksAtWork: running.length > 0,
       wakeOnItsWay: hasPendingWake(chatId) || hasPendingJobWake(chatId),
     }),
   };

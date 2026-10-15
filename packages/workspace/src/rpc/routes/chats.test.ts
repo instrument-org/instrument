@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { renameChat } from "../../lib/chat/chats";
 import { grantFolder } from "../../lib/chat/grants";
-import { recordAsk } from "../../lib/permissions/asks";
+import { recordAsk } from "../../lib/chat/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";

@@ -11,6 +11,7 @@ Newest first. A struck-through entry has been superseded.
 | Date | Decision |
 | --- | --- |
 | 2026-10-15 | [A chat's start is written once, and what changes is told after it](2026-10-15-a-chats-start-is-written-once.md) |
+| 2026-10-15 | [Stay in the Dock when the last window closes, on macOS](2026-10-15-stay-in-the-dock-when-the-last-window-closes.md) |
 | 2026-10-14 | [Carry just-bash's option to fail a redirect into a missing folder as a local patch](2026-10-14-carry-the-redirect-directories-patch.md) |
 | 2026-10-14 | [Carry just-bash's fix for a glob after a quoted folder as a local patch](2026-10-14-carry-the-glob-after-quotes-patch.md) |
 | 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |
@@ -53,7 +54,7 @@ Newest first. A struck-through entry has been superseded.
 | 2026-07-27 | [Turn context through AsyncLocalStorage](2026-07-27-turn-context-through-async-local-storage.md) |
 | 2026-07-27 | [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md) |
 | 2026-07-27 | ~~[Controls activate on press, not release](2026-07-27-controls-activate-on-press.md)~~ superseded by 2026-07-29 |
-| 2026-07-25 | [Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md) |
+| 2026-07-25 | ~~[Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md)~~ superseded by 2026-10-15 |
 | 2026-07-24 | ~~[web_fetch blocks private addresses to match the sandbox](2026-07-24-web-fetch-private-address-guard.md)~~ superseded by 2026-10-06 |
 | 2026-07-21 | [A bundled skill lives in the registry only if another agent could use it](2026-07-21-where-a-bundled-skill-lives.md) |
 | 2026-07-21 | [Git without the user's credentials](2026-07-21-git-without-user-credentials.md) |

@@ -284,9 +284,17 @@ export interface WorkspaceConfig {
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
+  // The bundled uutils binaries (`coreutils`, `find`, `xargs`, `diffutils`,
+  // `grep`) that answer the shell's GNU text commands natively; absent, those
+  // commands stay the shell's own.
+  uutilsDir?: AbsolutePath;
   // The bundled Mac helper behind the `calendar` and `contacts` commands and
   // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
+  // The Seatbelt launcher (`instrument-seatbelt`) native commands start
+  // through on macOS, applying a profile compiled once per set of rules;
+  // absent, they start through sandbox-exec.
+  seatbeltHelperPath?: AbsolutePath;
   // Where the system keeps the person's own folders, which is not always under
   // the home folder by its English name: Windows moves Desktop and Documents
   // into OneDrive, and Linux names them in the desktop's language.

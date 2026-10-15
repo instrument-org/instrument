@@ -605,7 +605,7 @@ function WindowShell({
         appTabs.open(fileHref(hostPath));
       },
       openScreen: (href) => {
-        appTabs.open(href);
+        openScreen(href, { newTab: true });
       },
       reopenTab: appTabs.reopen,
       search: focusField,
@@ -830,9 +830,6 @@ function WindowShell({
                 onOpenChat={landChat}
                 onSetChatTopics={setChatTopics}
                 onStart={startChat}
-                openOutside={(href) => {
-                  appTabs.open(href);
-                }}
                 sendContext={(options) => sendContextRef.current(options)}
                 sentWords={sentWords}
                 topics={topics}

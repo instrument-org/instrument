@@ -13,7 +13,7 @@ const cases: {
   {
     expected: true,
     input: {
-      appWindowAvailable: true,
+      canRevealChat: true,
       isAppWindowFocused: false,
       isSupported: true,
       mode: "unfocused",
@@ -22,7 +22,7 @@ const cases: {
   {
     expected: true,
     input: {
-      appWindowAvailable: true,
+      canRevealChat: true,
       isAppWindowFocused: true,
       isSupported: true,
       mode: "always",
@@ -31,7 +31,7 @@ const cases: {
   {
     expected: false,
     input: {
-      appWindowAvailable: true,
+      canRevealChat: true,
       isAppWindowFocused: true,
       isSupported: true,
       mode: "unfocused",
@@ -40,7 +40,7 @@ const cases: {
   {
     expected: false,
     input: {
-      appWindowAvailable: true,
+      canRevealChat: true,
       isAppWindowFocused: false,
       isSupported: true,
       mode: "never",
@@ -49,7 +49,7 @@ const cases: {
   {
     expected: false,
     input: {
-      appWindowAvailable: false,
+      canRevealChat: false,
       isAppWindowFocused: false,
       isSupported: true,
       mode: "unfocused",
@@ -58,7 +58,7 @@ const cases: {
   {
     expected: false,
     input: {
-      appWindowAvailable: true,
+      canRevealChat: true,
       isAppWindowFocused: false,
       isSupported: false,
       mode: "unfocused",

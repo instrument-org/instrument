@@ -1,6 +1,7 @@
 import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
+  type FileSystemGroupKey,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
@@ -390,18 +391,20 @@ export const computerHiddenFilesAtom = keptAtom<boolean>(
 );
 
 /**
- * The layout and order each folder was last set to by hand, by where it is
- * on the computer, the way the Finder keeps them with the folder. The order
- * holds however the folder is reached; the layout only when it is arrived at
- * directly, since walking keeps the tab's own. Both are kept whenever either
- * is set, and walking into a folder sets neither. The recents are kept under
- * their root.
+ * The layout, order and grouping each folder was last set to by hand, by
+ * where it is on the computer, the way the Finder keeps them with the
+ * folder. The order and grouping hold however the folder is reached; the
+ * layout only when it is arrived at directly, since walking keeps the tab's
+ * own. All are kept whenever any is set, and walking into a folder sets
+ * none. The recents are kept under their root.
  */
 export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>
 >("view", "computer-folder-views.v1", {});
 
 export interface ComputerFolderView {
+  /** Absent for a folder last set before grouping, which is ungrouped. */
+  group?: FileSystemGroupKey | null;
   sort: FileSystemSortState;
   view: "columns" | "gallery" | "icons" | "list";
 }
@@ -440,6 +443,13 @@ export const fileTreeWidthAtom = keptAtom<number>(
   "view",
   "file-tree-width.v1",
   240,
+);
+
+/** How wide a folder is beside a file open in it, in CSS px, dragged at its right edge. One width for every view. */
+export const finderBesideWidthAtom = keptAtom<number>(
+  "view",
+  "finder-beside-width.v1",
+  300,
 );
 
 /**

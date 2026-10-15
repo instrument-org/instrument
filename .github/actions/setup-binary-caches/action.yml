@@ -1,4 +1,4 @@
-description: "Cache large binary downloads (electron, dugite, ffmpeg) to skip re-downloading on repeated runs"
+description: "Cache large binary downloads (electron, dugite, ffmpeg, uutils) to skip re-downloading on repeated runs"
 name: "Setup binary caches"
 runs:
   steps:
@@ -19,10 +19,15 @@ runs:
       with:
         key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
         path: |
-          ~/.cache/ffmpeg-static-nodejs
-          ~/.cache/ffprobe-static-nodejs
-          ~/Library/Caches/ffmpeg-static-nodejs
-          ~/Library/Caches/ffprobe-static-nodejs
-          ~/AppData/Local/ffmpeg-static-nodejs/Cache
-          ~/AppData/Local/ffprobe-static-nodejs/Cache
+          ~/.cache/ffmpeg-ffprobe-static-nodejs
+          ~/Library/Caches/ffmpeg-ffprobe-static-nodejs
+          ~/AppData/Local/ffmpeg-ffprobe-static-nodejs/Cache
+
+    # download-uutils.ts pins every archive by sha256 and skips when the
+    # vendored folder's marker matches, so the folder itself is the cache.
+    - name: Cache uutils binaries
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: uutils-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/studio/scripts/download-uutils.ts') }}
+        path: apps/studio/resources/uutils
   using: "composite"

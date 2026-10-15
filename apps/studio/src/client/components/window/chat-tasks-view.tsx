@@ -49,6 +49,7 @@ export function ChatTasksScreen({ chat }: { chat: ChatId }) {
     line: child.standing.line,
     standing: child.standing.kind,
     stoppable: child.stoppable,
+    stoppedBy: child.stoppedBy,
     title: child.title,
     updatedAt: child.updatedAt,
   }));

@@ -23,6 +23,8 @@ describe("OS_CONVENTIONS", () => {
           "deleteKey": "Del",
           "fileManager": "File Manager",
           "files": {
+            "copyPathKey": null,
+            "duplicateKey": null,
             "parentFolderKey": "altKey",
             "renameKey": "F2",
             "trashKey": {
@@ -40,7 +42,6 @@ describe("OS_CONVENTIONS", () => {
             "shift": "Shift",
           },
           "passwordStore": null,
-          "quickLook": "Preview",
           "returnKey": "Enter",
           "showInFileManager": "Show in File Manager",
           "thisComputer": "this computer",
@@ -54,6 +55,16 @@ describe("OS_CONVENTIONS", () => {
           "deleteKey": "⌫",
           "fileManager": "Finder",
           "files": {
+            "copyPathKey": {
+              "alt": true,
+              "key": "c",
+              "shift": false,
+            },
+            "duplicateKey": {
+              "alt": false,
+              "key": "d",
+              "shift": false,
+            },
             "parentFolderKey": "metaKey",
             "renameKey": "Enter",
             "trashKey": {
@@ -71,7 +82,6 @@ describe("OS_CONVENTIONS", () => {
             "shift": "⇧",
           },
           "passwordStore": "Keychain",
-          "quickLook": "Quick Look",
           "returnKey": "↩",
           "showInFileManager": "Show in Finder",
           "thisComputer": "this Mac",
@@ -85,6 +95,12 @@ describe("OS_CONVENTIONS", () => {
           "deleteKey": "Del",
           "fileManager": "File Explorer",
           "files": {
+            "copyPathKey": {
+              "alt": false,
+              "key": "c",
+              "shift": true,
+            },
+            "duplicateKey": null,
             "parentFolderKey": "altKey",
             "renameKey": "F2",
             "trashKey": {
@@ -102,7 +118,6 @@ describe("OS_CONVENTIONS", () => {
             "shift": "Shift",
           },
           "passwordStore": null,
-          "quickLook": "Preview",
           "returnKey": "Enter",
           "showInFileManager": "Show in File Explorer",
           "thisComputer": "this PC",

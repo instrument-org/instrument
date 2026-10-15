@@ -19,6 +19,32 @@ const ManifestSchema = z.object({
   version: z.string(),
 });
 
+/**
+ * The oldest Claude Code this build runs. When a chat's process starts over,
+ * the provider hands the new one the conversation as turns of its own, and an
+ * older build took them in the wrong order (2.1.220 did); 2.1.285 is the
+ * oldest that replay was checked against, on macOS and Windows.
+ */
+export const OLDEST_CLAUDE_CODE = "2.1.285";
+
+/** Orders two Claude Code versions, `2.1.285` before `2.1.300`. */
+export function compareClaudeCodeVersions(a: string, b: string) {
+  const left = a.split(".").map(Number);
+  const right = b.split(".").map(Number);
+  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
+}
+
+/** Whether this build can run a Claude Code of `version`. */
+export function runsClaudeCode(version: string) {
+  return compareClaudeCodeVersions(version, OLDEST_CLAUDE_CODE) >= 0;
+}
+
 /** One platform's Claude Code, as npm publishes it beside the Agent SDK. */
 export interface ClaudeCodeRelease {
   /** The binary's file name inside the package: `claude`, or `claude.exe`. */

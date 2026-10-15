@@ -5,9 +5,9 @@ import { expect, it } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { asksWritten, closeAsk, openAsks } from "./asks";
-import { ruleRefusal } from "./rules-fs";
-import { rulesFor } from "./rules";
+import { asksWritten, cardLine, closeAsk, openAsks } from "./asks";
+import { ruleRefusal } from "../permissions/rules-fs";
+import { rulesFor } from "../permissions/rules";
 
 const settings = {
   apps: [],
@@ -63,4 +63,17 @@ it("never asks for the home folder whole", () => {
     spell: (hostPath) => hostPath,
   });
   expect(refusal).toMatch(/which no card can open whole\./);
+});
+
+it.each([
+  [
+    "folder",
+    path.join(os.homedir(), "Pantry"),
+    "Waiting for your OK to use “Pantry”",
+  ],
+  ["app", "Reminders", "Waiting for your OK to use Reminders"],
+] as const)("names the %s a card waits on", (kind, target, line) => {
+  expect(
+    cardLine({ askedAt: new Date(), askers: [], id: "ask", kind, target }),
+  ).toBe(line);
 });

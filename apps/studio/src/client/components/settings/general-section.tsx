@@ -125,6 +125,14 @@ function About() {
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
 
+  const openLicensesMutation = useMutation(
+    rpcClient.utils.openThirdPartyLicenses.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't open the licenses", { cause: error });
+      },
+    }),
+  );
+
   const handleCheckForUpdates = () => {
     checkForUpdatesMutation.mutate({
       notify: true,
@@ -341,7 +349,9 @@ function About() {
               <div className="text-sm font-medium">Open source</div>
               <p className="text-xs text-muted-foreground">
                 {APP_NAME} is open source and free to use. View the source on
-                GitHub, or tell us about something that isn&apos;t working.
+                GitHub, or tell us about something that isn&apos;t working. It
+                also comes with programs from other projects, and you can read
+                their licenses here.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -356,6 +366,16 @@ function About() {
                   Report a bug
                   <ArrowSquareOutIcon className="size-3.5" />
                 </ExternalLink>
+              </Button>
+              <Button
+                disabled={openLicensesMutation.isPending}
+                onClick={() => {
+                  openLicensesMutation.mutate(undefined);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Third-party licenses
               </Button>
             </div>
           </div>
@@ -389,8 +409,7 @@ function InterfaceAndTheme() {
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
-                You can make everything in the app larger or smaller. Web pages
-                keep their own zoom.
+                Scale the interface. Independent of web view zoom.
               </p>
             </div>
             <ZoomStepper />

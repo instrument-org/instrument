@@ -8,11 +8,7 @@ import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
-import {
-  hasTerminalToolState,
-  isAwaitingUser,
-  isToolCallVisible,
-} from "./tool-call-utils";
+import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
 import { ToolConnectApp } from "./tool-connect-app";
 import { ToolEditFile } from "./tool-edit-file";
@@ -56,10 +52,7 @@ export function ToolCall({
   }
 
   const isDeadDevMode =
-    !hasTerminalToolState(part) &&
-    !isStreaming &&
-    !isAwaitingUser(part) &&
-    isDeveloperMode;
+    !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
 
   return (
     <ToolCallSessionProvider

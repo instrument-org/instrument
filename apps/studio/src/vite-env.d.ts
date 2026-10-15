@@ -47,6 +47,8 @@ declare namespace NodeJS {
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
       /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
       INSTRUMENT_DEV_SUPERVISOR: string | undefined;
+      /** `0` keeps every pipeline stage on the buffered path, for comparing it with streaming between native commands. */
+      INSTRUMENT_NATIVE_PIPES: string | undefined;
       /**
        * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
        * `auto`; anything else is ignored. See
@@ -77,6 +79,8 @@ declare namespace NodeJS {
       STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
+      /** Dev only: `1` when studio-drive booted this instance with its windows on screen (`--visible`). */
+      STUDIO_DRIVE_VISIBLE: string | undefined;
       /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
       STUDIO_LOG_LEVEL: string | undefined;
       /** Dev only: `1` when studio-drive booted this instance with its own macOS privacy grants (`--own-privacy`). */

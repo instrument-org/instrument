@@ -36,6 +36,7 @@ export namespace SessionMessageDataPart {
     "asks",
     "folderChanges",
     "permissionAnswer",
+    "questionAnswer",
     "attachments",
     "backgroundProcesses",
     "browserStatus",
@@ -579,6 +580,30 @@ export namespace SessionMessageDataPart {
     typeof PermissionAnswerDataPartSchema
   >;
 
+  const QuestionNoteSchema = z.string().trim().min(1).optional();
+
+  /**
+   * What the person picked, or wrote, on a question the chat's agent asked
+   * with `choose`, or that they skipped it. Like a permission answer, it wakes
+   * the chat, or joins its turn if it is still going.
+   */
+  export const QuestionAnswerDataPartSchema = z.object({
+    answer: z.union([
+      z.object({ declined: z.literal(true), note: QuestionNoteSchema }),
+      z.object({
+        note: QuestionNoteSchema,
+        selectedChoice: z.string().trim().min(1),
+      }),
+    ]),
+    /** The `choose` call it answers, by its part's id. */
+    partId: StoreId.PartSchema,
+    question: z.string(),
+  });
+
+  export type QuestionAnswerDataPart = z.output<
+    typeof QuestionAnswerDataPartSchema
+  >;
+
   /**
    * What the user was looking at when they sent the message: the folder open
    * in the window's folder view and what was selected in it.
@@ -954,6 +979,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
     [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
+    [NameSchema.enum.questionAnswer]: QuestionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,

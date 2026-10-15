@@ -30,10 +30,11 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { inheritedEnv } from "./native-env";
 import { accountCanWrite } from "./permissions/account-can-write";
-import { raiseAsk } from "./permissions/asks";
+import { raiseAsk } from "./chat/asks";
 import { reachOf, type Rule } from "./permissions/rules";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { runtimeLayout } from "./runtime-dir";
-import { getWorkspaceConfig } from "./workspace-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
 // account change; whether it could is the system's answer, set per test.
@@ -42,8 +43,8 @@ vi.mock("./permissions/account-can-write", async (importOriginal) => ({
   accountCanWrite: vi.fn(() => true),
 }));
 
-vi.mock("./permissions/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./permissions/asks")>()),
+vi.mock("./chat/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./chat/asks")>()),
   raiseAsk: vi.fn(),
 }));
 
@@ -1028,5 +1029,95 @@ describe.skipIf(onWindows)("bwrapArgs over names that run code", () => {
         line.includes(".git "),
       ),
     ).toEqual(["--bind ~/Documents/a/.git ~/Documents/a/.git"]);
+  });
+});
+
+/** What `pnpm --filter @instrument-org/studio build:mac-helper` builds. */
+const SEATBELT_LAUNCHER = path.resolve(
+  import.meta.dirname,
+  "../../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
+);
+
+describe.runIf(seatbeltAvailable())("the Seatbelt launcher", () => {
+  const home = realpathSync(
+    mkdtempSync(path.join(os.tmpdir(), "native-sandbox-launcher-")),
+  );
+  const closed = path.join(home, "closed");
+  mkdirSync(closed);
+  writeFileSync(path.join(closed, "key"), "s");
+  writeFileSync(path.join(home, "notes.md"), "n");
+  const reach = reachOver(home, [
+    { level: "never", path: closed, source: "place" },
+  ]);
+
+  function withLauncher(launcher: string | undefined) {
+    const { seatbeltHelperPath: _, ...config } = getWorkspaceConfig();
+    setWorkspaceConfig(
+      launcher === undefined
+        ? config
+        : { ...config, seatbeltHelperPath: AbsolutePathSchema.parse(launcher) },
+    );
+  }
+
+  afterAll(() => {
+    withLauncher(undefined);
+    rmSync(home, { force: true, recursive: true });
+  });
+
+  it.runIf(existsSync(SEATBELT_LAUNCHER))(
+    "starts a command through the launcher and holds it to the same rules",
+    async () => {
+      withLauncher(SEATBELT_LAUNCHER);
+      const allowed = wrapNativeCommand(
+        "/bin/cat",
+        [path.join(home, "notes.md")],
+        reach,
+      );
+      expect(allowed.file).toBe(SEATBELT_LAUNCHER);
+      expect(allowed.args[0]).toBe("run");
+      const read = await execa(allowed.file, allowed.args, { reject: false });
+      expect(read).toMatchObject({ exitCode: 0, stdout: "n" });
+
+      const refused = wrapNativeCommand(
+        "/bin/cat",
+        [path.join(closed, "key")],
+        reach,
+      );
+      const result = await execa(refused.file, refused.args, {
+        reject: false,
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Operation not permitted");
+    },
+  );
+
+  it.runIf(existsSync(SEATBELT_LAUNCHER))(
+    "runs nothing when the bytecode cannot be applied",
+    async () => {
+      const result = await execa(
+        SEATBELT_LAUNCHER,
+        [
+          "run",
+          Buffer.from("not bytecode").toString("base64"),
+          "/bin/echo",
+          "ran",
+        ],
+        { reject: false },
+      );
+      expect(result.exitCode).toBe(126);
+      expect(result.stdout).toBe("");
+    },
+  );
+
+  it.each([
+    ["is missing", path.join(home, "no-launcher")],
+    ["cannot compile the profile", "/usr/bin/false"],
+  ])("falls back to sandbox-exec when the launcher %s", (_, launcher) => {
+    withLauncher(launcher);
+    // A reach of its own, whose profile no earlier case compiled.
+    const own = reachOver(path.join(home, launcher.length.toString()), []);
+    const spawned = wrapNativeCommand("/bin/cat", ["x"], own);
+    expect(spawned.file).toBe("/usr/bin/sandbox-exec");
+    expect(spawned.args[0]).toBe("-p");
   });
 });

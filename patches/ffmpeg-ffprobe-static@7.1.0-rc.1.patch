@@ -1,0 +1,39 @@
+diff --git a/install.js b/install.js
+index 90046aa81c67accc15a67f5665e1588aaf30144c..935d327bb4ac2d4cb469dc27b73dfa478adf31b7 100644
+--- a/install.js
++++ b/install.js
+@@ -52,6 +52,13 @@ if (proxyUrl) {
+ // https://advancedweb.hu/how-s3-signed-urls-work/
+ const normalizeS3Url = (url) => {
+   url = new URL(url)
++  // GitHub release downloads redirect to an asset URL whose signature changes
++  // every minute or two. The path names the asset, so the query stays out of
++  // the key and a later install revalidates the cached copy with a 304.
++  if (url.hostname.endsWith('.githubusercontent.com')) {
++    url.search = ''
++    return url.href
++  }
+   if (url.hostname.slice(-17) !== '.s3.amazonaws.com') return url.href
+   const query = Array.from(url.searchParams.entries())
+   .filter(([key]) => key.slice(0, 6).toLowerCase() !== 'x-amz-')
+@@ -67,6 +74,10 @@ strictEqual(
+   normalizeS3Url('https://github-production-release-asset-2e65be.s3.amazonaws.com/29458513/26341680-4231-11ea-8e36-ae454621d74a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20200405%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20200405T225358Z&X-Amz-Expires=300&X-Amz-Signature=d6415097af04cf62ea9b69d3c1a421278e96bcb069afa48cf021ec3b6941bae4&X-Amz-SignedHeaders=host&actor_id=0&response-content-disposition=attachment%3B%20filename%3Ddarwin-x64&response-content-type=application%2Foctet-stream'),
+   'https://github-production-release-asset-2e65be.s3.amazonaws.com/29458513/26341680-4231-11ea-8e36-ae454621d74a?actor_id=0&response-content-disposition=attachment%3B%20filename%3Ddarwin-x64&response-content-type=application%2Foctet-stream'
+ )
++strictEqual(
++  normalizeS3Url('https://release-assets.githubusercontent.com/github-production-release-asset/294486244/9fdfb8f5-e04f-4b17-8915-afbc3681b317?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-10-14T16%3A58%3A33Z&skt=2026-10-14T15%3A57%3A56Z&sig=0a8dx0J1pgYbvQA9ZuHf75PYoLg2E9Ts4p4xWUiKbTc%3D&response-content-disposition=attachment%3B%20filename%3Ddarwin-arm64.README'),
++  'https://release-assets.githubusercontent.com/github-production-release-asset/294486244/9fdfb8f5-e04f-4b17-8915-afbc3681b317'
++)
+ 
+ const cache = new FileCache(envPaths(pkg.name).cache)
+ cache.getCacheKey = (url) => {
+@@ -141,6 +152,9 @@ function getProgressIndicator(tool) {
+   let progressBar = null;
+   
+   return (deltaBytes,totalBytes) => {
++    // A cached body revalidated by a 304 keeps the 304's headers, which carry
++    // no content-length, and ProgressBar throws without a total.
++    if (!totalBytes) return;
+     if (progressBar == null) {
+       progressBar = new ProgressBar(`Downloading ${tool} ${releaseName} [:bar] :percent :etas `, {
+         complete: "|",

@@ -71,6 +71,7 @@ export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   killAllBackgroundProcesses,
+  listRunningBackgroundProcesses,
 } from "./lib/background-processes";
 export {
   type BashWorkerFactory,
@@ -112,6 +113,7 @@ export {
 } from "./lib/records/device-id";
 export { readMachineId } from "./lib/records/machine-id";
 export { runtimeLayout } from "./lib/runtime-dir";
+export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { WINDOW_ID } from "./schemas/window-id";
 export { appListChanges, sessionEnds } from "./lib/host-events";

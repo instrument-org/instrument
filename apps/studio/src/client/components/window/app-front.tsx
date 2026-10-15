@@ -495,8 +495,7 @@ export function AppFront({
               <DialogHeader>
                 <DialogTitle>Every action in {name}</DialogTitle>
                 <DialogDescription>
-                  Try any action that only reads data to see what {name} sends
-                  back.
+                  Open a view to see what Instrument can read from {name}.
                 </DialogDescription>
               </DialogHeader>
               <AppInspector

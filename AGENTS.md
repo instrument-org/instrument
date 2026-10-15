@@ -25,8 +25,11 @@ What to avoid:
 - **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
 - **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
 - **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
+- **Odd verbs** in place of everyday ones: a chat "can hold" so much, a folder "holds" your keys, a task "carries on", an app "sends back" an answer. Say has, fits, continues, or shows. Agents reach for "hold" far more often than people do, so when it turns up in your own draft, rewrite the line.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
+
+Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
 
 ## Local references
 
@@ -137,6 +140,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (the Permissions rules, path-scoped file I/O, the just-bash filesystem, agent-browser allowlist, real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux).
+- `docs/architecture/native-and-builtin-commands.md`: Which shell commands run as real programs (uutils, rg, git, the interpreters, the PATH) and which as just-bash builtins, per platform; the uutils table is generated from `shell-commands/native-text.ts`.
 - `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — How the folders a chat reaches are mounted at their real paths, the nested-mount collapse, and known just-bash quirks.
 - `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
 - `docs/architecture/in-app-browser.md` — The in-app browser the user, a chat, and its tasks share: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.

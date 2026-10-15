@@ -8,8 +8,6 @@ import { runtimeLayout } from "./runtime-dir";
 // depends on nothing either, so the sandbox bake-off probe runs the same
 // isolation the app does.
 
-/** How many days old a package must be before an install takes it. */
-const RELEASE_AGE_DAYS = 7;
 
 /**
  * The environment that pins pnpm, npm and node-gyp to the chats' caches and
@@ -89,6 +87,25 @@ function nodeToolsEnvIn(
     pnpm_config_verify_deps_before_run: "false",
   };
 }
+
+/** Where uv keeps the Pythons it installs, in `uvDataDir`. */
+export function uvPythonInstallDir(uvDataDir: string): string {
+  return path.join(uvDataDir, "python");
+}
+
+/**
+ * Where the app installs the packages every chat's `python` starts with
+ * (`python-base.ts`), in `uvDataDir`.
+ */
+export function uvPythonBaseDir(uvDataDir: string): string {
+  return path.join(uvDataDir, "python-base");
+}
+
+/**
+ * How many days old a package must be before an install takes it, as
+ * pnpm's `minimumReleaseAge` holds npm packages.
+ */
+export const RELEASE_AGE_DAYS = 7;
 
 /**
  * The environment that pins uv (and anything that runs the real pip) to

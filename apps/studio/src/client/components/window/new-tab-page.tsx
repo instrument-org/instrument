@@ -27,6 +27,7 @@ export function NewTabPage() {
 
   const {
     isBang,
+    pick,
     rows,
     words: shown,
   } = useCommandMenuRows({
@@ -60,7 +61,13 @@ export function NewTabPage() {
         <Greeting />
       </h1>
       <div className="flex h-100 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <Command className="bg-card" loop shouldFilter={false}>
+        <Command
+          className="bg-card"
+          loop
+          onValueChange={pick.onValueChange}
+          shouldFilter={false}
+          value={pick.value}
+        >
           <CommandInput
             className="text-sm"
             containerClassName="h-12 shrink-0 border-b px-4"

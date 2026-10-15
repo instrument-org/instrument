@@ -85,6 +85,39 @@ describe("ChatTaskList", () => {
     expect(screen.queryByRole("button", { name: "Stop this task" })).toBeNull();
   });
 
+  it.each([
+    ["user", "You stopped this task"],
+    ["chat", "The chat stopped this task"],
+  ] as const)(
+    "says the %s stopped a task in place of its last words",
+    (stoppedBy, said) => {
+      renderList([
+        item("porto-notes", {
+          line: "I'm waiting for access to the folder",
+          stoppedBy,
+        }),
+      ]);
+
+      expect(screen.getByText(said)).toBeTruthy();
+      expect(
+        screen.queryByText("I'm waiting for access to the folder"),
+      ).toBeNull();
+    },
+  );
+
+  it("shows the step of a task sent on after a stop", () => {
+    renderList([
+      item("porto-notes", {
+        line: "Reading the note",
+        standing: "running",
+        stoppedBy: "chat",
+      }),
+    ]);
+
+    expect(screen.getByText("Reading the note")).toBeTruthy();
+    expect(screen.queryByText("The chat stopped this task")).toBeNull();
+  });
+
   it("stops a row's task without opening it", async () => {
     const { onOpen } = renderList([WORKING, IDLE]);
 

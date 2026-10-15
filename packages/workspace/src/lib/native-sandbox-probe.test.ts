@@ -9,6 +9,14 @@ vi.mock("node:child_process", async (importOriginal) => ({
   execFileSync,
 }));
 
+// Each case reloads the module and so a fresh config holder; a config with
+// no Seatbelt launcher keeps every wrapped command on sandbox-exec.
+vi.mock("./workspace-config", () => ({
+  getWorkspaceConfig: () => ({}),
+  hasWorkspaceConfig: () => true,
+  setWorkspaceConfig: () => undefined,
+}));
+
 const reach: NativeReach = {
   readOnly: [],
   readWrite: [],

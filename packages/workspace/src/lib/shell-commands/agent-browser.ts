@@ -57,6 +57,7 @@ import {
   FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
+import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
@@ -807,7 +808,8 @@ export function createAgentBrowserCommand({
         stdout: "",
       };
     }
-    const resolvedArgs = bridgedArgs.args;
+    const cappedWait = uncappedWait(bridgedArgs.args);
+    const resolvedArgs = capWait(bridgedArgs.args, cappedWait);
 
     // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
@@ -987,11 +989,12 @@ export function createAgentBrowserCommand({
       });
     }
 
-    return {
+    const output = {
       exitCode,
       stderr: scrub(result.stderr),
       stdout: scrub(result.stdout),
     };
+    return cappedWait ? cappedWaitResult(cappedWait, output) : output;
   });
 }
 

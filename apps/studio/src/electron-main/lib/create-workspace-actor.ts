@@ -4,6 +4,7 @@ import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   finderEntries,
   macHelperBinPath,
+  seatbeltHelperPath,
   resolveAlias,
 } from "@/electron-main/lib/mac-native";
 import {
@@ -16,7 +17,6 @@ import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-fo
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { APP_NAME } from "@instrument-org/shared";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachChats,
@@ -24,6 +24,7 @@ import {
   type ChatRecordsSplit,
   closeAllAgentBrowserSessions,
   type DeviceId,
+  ensurePythonBase,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -62,11 +63,16 @@ import { workspaceDbFileOf, workspaceLayoutMarks } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
+import { quitPrompt, runningJobNames } from "./quit-prompt";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
 import { windowsDriveNames } from "./windows-drives";
-import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
+import {
+  getPNPMBinPath,
+  getUutilsDir,
+  getUvBinPath,
+} from "./setup-bin-directory";
 
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
@@ -134,6 +140,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       // Files refuses what the viewers' file channel refuses, by one rule.
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
       macHelperBinPath: macHelperBinPath(),
+      seatbeltHelperPath: seatbeltHelperPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // This computer's folder, and in it the workspace's: where the
@@ -173,6 +180,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
+      uutilsDir: getUutilsDir(),
       webSearch: searchWeb,
     },
   });
@@ -209,10 +217,18 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     .catch((error: unknown) => {
       logger.warn("Could not remove the former runtime folders", error);
     });
+  // In the background too, so the first chart or spreadsheet a chat makes
+  // finds its packages already there. Until it lands, `python` has what
+  // `pip` installed; offline, the next chat's first Python use tries again.
+  void ensurePythonBase().then((failure) => {
+    if (failure) {
+      logger.warn("Could not install the base Python packages", failure);
+    }
+  });
 
-  // Warn before stopping in-flight agents. Fails open so a count error never
-  // blocks quitting.
-  const confirmQuitWithRunningAgents = async (): Promise<boolean> => {
+  // Warn before stopping in-flight agents and the jobs chats left running.
+  // Fails open so a count error never blocks quitting.
+  const confirmQuitWithRunningWork = async (): Promise<boolean> => {
     let count = 0;
     try {
       ({ count } = await call(
@@ -228,17 +244,19 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       return true;
     }
 
-    if (count === 0) {
+    const prompt = quitPrompt({
+      agentCount: count,
+      jobNames: runningJobNames(),
+    });
+    if (!prompt) {
       return true;
     }
 
     const options: Electron.MessageBoxOptions = {
+      ...prompt,
       buttons: ["Cancel", "Quit"],
       cancelId: 0,
       defaultId: 0,
-      detail:
-        "Active tasks will be interrupted and you may lose in-progress work.",
-      message: `Quit ${APP_NAME}?`,
       noLink: true,
       type: "warning",
     };
@@ -289,7 +307,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           if (is.dev && !isQuitGuardForcedInDev()) {
             return Promise.resolve(true);
           }
-          return confirmQuitWithRunningAgents();
+          return confirmQuitWithRunningWork();
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         stopServices: fromPromise(async () => {

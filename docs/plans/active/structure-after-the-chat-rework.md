@@ -70,9 +70,9 @@ Size M, value high.
 
 One stop is spread over the machine's `stop` event (`StopReason`), a module map in `wake.ts` (`ExpectedStop { by, wakesChat }` by session) and `stoppedBy` on the row (d4d1d30be, 2e31ae013). Shape: `{ by, wakesChat }` rides on `stop` into the session's context and out on `session.done`; wake reads it from the payload and its map goes.
 
-Beside it, the session machine's `UsingReadOnlyTools`/`UsingNonReadOnlyTools` × `Running`/`Paused` tree, `markUsedNonReadOnlyTools`, `usedNonReadOnlyTools` on `session.done` and the `agent.paused`/`agent.using-non-read-only-tools` tags have no consumer (only `agent.alive` and `agent.running` are read; `instrument.ts:163` works out write use again). Collapse to `Running | Paused | Stopping | AgentDone` and drop `agent.usingTool` (its other reader is a log line in `scripts/run-workspace.ts:161`).
+Beside it, the session machine's `UsingReadOnlyTools`/`UsingNonReadOnlyTools` × `Running`/`Paused` tree, `markUsedNonReadOnlyTools`, `usedNonReadOnlyTools` on `session.done` and the `agent.paused`/`agent.using-non-read-only-tools` tags have no consumer (only `agent.alive` and `agent.running` are read; `instrument.ts:163` works out write use again). Collapse to `Running | Stopping | AgentDone` and drop `agent.usingTool` (its other reader is a log line in `scripts/run-workspace.ts:161`).
 
-And the workspace machine's registry: sessions are `Map<ChatId, SessionActorRef[]>` found by scanning snapshots (`machines/workspace/index.ts:141-152,184-203,285-345`). `updateInteractiveToolCall` broadcasts to every session in the chat (a TODO says so), so a task's agent keeps an answer it does not recognize in `earlyToolCallUpdates`, and an answer to a dead chat turn passes the guard whenever any task is alive and is lost. Shape: `Map<SessionId, { chatId, ref }>`, answers routed by session id; the `error` variant of `ToolCallUpdate` (no producer) and `prepareToTrashChat`'s one-element array and counter go.
+And the workspace machine's registry: sessions are `Map<ChatId, SessionActorRef[]>` found by scanning snapshots (`machines/workspace/index.ts:141-152,184-203,285-345`). Shape: `Map<SessionId, { chatId, ref }>`; `prepareToTrashChat`'s one-element array and counter go.
 
 Size M, value med-high.
 
@@ -195,7 +195,7 @@ Each worth doing when someone is in the file.
 - Two live routes hand-roll a `{ revision }` ping (`skill.ts:237`, `chat/background-processes.ts:117`), costing a refetch round trip each; make them `liveRead`.
 - `create-bash-env.ts:723-782`: command objects and their names are two hand-kept arrays, `customCommandDefs()` is called twice, the `which` set and `MAIN_THREAD_COMMANDS` are separate lists. Derive them from the definitions.
 - `PromptInput` draws `ComposerAddMenu`, `ModelPicker`, the context ring and Send twice, once per layout; `ModelPicker` is half controlled and closes twice. The composer's `isLoading` lock and the refocus workaround from d9a18c120 protect nothing since 5832bbb59 (confirm the server orders concurrent `createMessage` first).
-- `rpc/routes/utils.ts` (696 lines) holds window controls and `approveQuit` beside `routes/window.ts`; move them.
+- `rpc/routes/utils.ts` (696 lines) holds window controls and `approveWindowClose` beside `routes/window.ts`; move them.
 - Draft teardown lives in three places (`app-window.tsx:324-343`, `use-drafts.ts:205-229`); one `forgetDraft(id)`.
 - Bookmarks' `BookmarkNameField` can adopt `useInlineRename`; rename is otherwise down to the hook and the Finder's `renameStep`, which stays separate.
 - Beta `chats/<id>/tasks/` folders are special-cased in `workspace-fs-layout.ts:700-712`, `resolve-agent-path.ts:263` and `rg.ts:228`; a layout step moving them into `.pre-chats/` drops all three. `isProjectFolder` is defined twice in the migrations.

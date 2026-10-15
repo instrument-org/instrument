@@ -41,6 +41,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Electron reads an app's archive as a folder](electron-reads-asar-archives-as-folders.md) — `du` counted every Electron app's `app.asar` twice; `ls`, `find` and This Mac still see a folder | `du` fixed, rest open |
 | [The macOS folder ask holds a listing, not a write](macos-folder-ask-holds-listings-not-writes.md) | worked around in `task folder --add` |
 | [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md) | resolved |
+| [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): compatibility, speed, start cost and size of running `sort`, `find`, `grep` and the rest natively on every platform | resolved, shipped as a fixed table |
 
 ### The agent browser and the in-app browser
 
@@ -51,6 +52,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
+| [Network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md) | worked around |
 | [Agent clicks land where the element was](agent-clicks-land-where-the-element-was.md) | worked around, open upstream |
 | [`open` returned before the page had loaded](open-returns-before-the-page-loads.md) — the bridge answered `Page.navigate` on commit, so `open` returned onto a document still parsing | fixed, measured |
 | [App reload destroys every in-app browser page](app-reload-destroys-the-in-app-browser.md) | contained |

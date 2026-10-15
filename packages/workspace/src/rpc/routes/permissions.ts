@@ -17,17 +17,17 @@ import {
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
 import { appBundleId, grantApp } from "../../lib/permissions/apps";
-import { closeAsk, openAsks } from "../../lib/permissions/asks";
+import { closeAsk, openAsks } from "../../lib/chat/asks";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
-import { wakeSessionForPermission } from "../../lib/chat/wake";
-import { recordChanges } from "../../lib/record-changes";
-import { PermissionAskSchema } from "../../schemas/chat-state";
-import { distinct, liveRead } from "../live-read";
+import { wakeAskers } from "../../lib/chat/wake";
 import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
+import { recordChanges } from "../../lib/record-changes";
+import { AskSchema } from "../../schemas/chat-state";
+import { distinct, liveRead } from "../live-read";
 
 const PermissionsViewSchema = z.object({
   apps: z.array(
@@ -219,27 +219,6 @@ const removeApp = base
   );
 
 /**
- * The chat's open asks, as its cards draw them, oldest first, read again
- * whenever the chat's state moves.
- */
-const liveAsks = base
-  .input(z.object({ id: ChatIdSchema }))
-  .output(eventIterator(PermissionAskSchema.array()))
-  .handler(async function* ({ input, signal }) {
-    yield* distinct(
-      liveRead({
-        changes: [
-          recordChanges(
-            signal,
-            (change) => change.id === input.id && change.kind === "state",
-          ),
-        ],
-        read: () => openAsks(input.id),
-      }),
-    );
-  });
-
-/**
  * The person's answer to an ask: allowed in this chat, allowed always, or
  * not now, which the chat keeps whoever asked. A folder may be answered with
  * a different one picked in the system's panel. Every session that asked is
@@ -297,7 +276,7 @@ const answer = base
         }
       }
     }
-    await wakeSessionForPermission(
+    await wakeAskers(
       {
         data: { answer: input.decision, kind: ask.kind, target },
         type: "data-permissionAnswer",
@@ -305,6 +284,27 @@ const answer = base
       context.workspaceRef,
       input.id,
       ask.askers.map((asker) => asker.sessionId),
+    );
+  });
+
+/**
+ * The chat's open asks, as its cards draw them, oldest first, read again
+ * whenever the chat's state moves.
+ */
+const liveAsks = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(AskSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) => change.id === input.id && change.kind === "state",
+          ),
+        ],
+        read: () => openAsks(input.id),
+      }),
     );
   });
 

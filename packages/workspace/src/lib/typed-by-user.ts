@@ -13,6 +13,7 @@ export function isTypedByUser(message: SessionMessage.WithParts): boolean {
       part.type === "data-appEvent" ||
       part.type === "data-jobEvent" ||
       part.type === "data-permissionAnswer" ||
+      part.type === "data-questionAnswer" ||
       part.type === "data-fromChat",
   );
 }

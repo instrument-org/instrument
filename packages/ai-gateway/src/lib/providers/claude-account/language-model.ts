@@ -21,6 +21,7 @@ import { z } from "zod";
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
 import {
   coldStartContent,
+  replayFrames,
   splitSystemPrompt,
   toolResultToMCP,
   turnContent,
@@ -365,19 +366,23 @@ function streamStep({
         }
 
         if (continuation === undefined || continuation.kind === "restart") {
-          if (continuation?.kind === "restart") {
-            // What the session saw is not what this request continues, so it
-            // starts over from a lossy replay of ours.
-            console.warn(
-              `[claude-account] session ${slot ?? "one-off"} restarted from a transcript replay: ${continuation.reason}`,
-            );
-          }
           session?.close();
           if (key !== undefined && !ephemeral) {
             closeOtherIdleSlots(key, slot);
           }
           session = start(randomUUID(), { kind: "new" });
-          session.send(coldStartContent(rest));
+          const how = await coldStart(session, rest);
+          if (continuation?.kind === "restart") {
+            // What the session saw is not what this request continues, so it
+            // starts over from our transcript.
+            console.warn(
+              `[claude-account] session ${slot ?? "one-off"} restarted from a ${how} replay: ${continuation.reason}`,
+            );
+          } else if (slot !== undefined && rest.length > 1) {
+            console.info(
+              `[claude-account] session ${slot} started from a ${how} replay of ${rest.length} messages`,
+            );
+          }
         } else {
           if (session === undefined) {
             if (resumable === undefined) {
@@ -451,6 +456,37 @@ function streamStep({
 }
 
 /**
+ * Starts a process that has seen nothing on the request's messages: natively,
+ * as turns of its own, when the history can be told that way, else as the
+ * lossy text of `coldStartContent`. Says which.
+ */
+async function coldStart(
+  session: ClaudeCodeSession,
+  rest: LanguageModelV4Message[],
+): Promise<"native" | "text"> {
+  let frames: ReturnType<typeof replayFrames> | undefined;
+  try {
+    frames = replayFrames(rest, TOOL_PREFIX);
+  } catch (error) {
+    console.warn(
+      `[claude-account] native replay refused, replaying as text: ${String(error)}`,
+    );
+  }
+  if (frames === undefined) {
+    session.send(coldStartContent(rest));
+    return "text";
+  }
+  const started = performance.now();
+  await session.replay(frames);
+  if (frames.length > 1) {
+    console.info(
+      `[claude-account] replayed ${frames.length} frames in ${Math.round(performance.now() - started)}ms`,
+    );
+  }
+  return "native";
+}
+
+/**
  * Close a session's processes for request shapes it has moved on from (its
  * tools or prompt changed), so each does not wait out its idle time.
  */
@@ -484,12 +520,17 @@ export async function pumpStep(
       id: string;
       input: string;
       kind: "reasoning" | "text" | "tool";
+      /** A redacted thinking block's opaque data. */
+      redactedData?: string;
+      /** A thinking block's signature, which lets it go back to Claude. */
+      signature?: string;
       started: boolean;
       toolName: string;
     }
   >();
   const toolCallIds: string[] = [];
   let messageId: string = randomUUID();
+  let messageModel: string | undefined;
   let stopReason: string | null = null;
   // Counted per API message, from its start and its closing delta, and summed
   // across the messages one step can span (a built-in search runs several).
@@ -582,6 +623,7 @@ export async function pumpStep(
         switch (event.type) {
           case "message_start": {
             messageId = event.message.id;
+            messageModel = event.message.model;
             messageUsage = event.message.usage;
             controller.enqueue({
               id: messageId,
@@ -609,6 +651,15 @@ export async function pumpStep(
                 id,
                 input: "",
                 kind: "reasoning",
+                started: false,
+                toolName: "",
+              });
+            } else if (block.type === "redacted_thinking") {
+              blocks.set(event.index, {
+                id,
+                input: "",
+                kind: "reasoning",
+                redactedData: block.data,
                 started: false,
                 toolName: "",
               });
@@ -665,6 +716,8 @@ export async function pumpStep(
                 id: block.id,
                 type: "reasoning-delta",
               });
+            } else if (delta.type === "signature_delta") {
+              block.signature = (block.signature ?? "") + delta.signature;
             } else if (delta.type === "input_json_delta") {
               block.input += delta.partial_json;
               controller.enqueue({
@@ -684,8 +737,33 @@ export async function pumpStep(
             if (block.kind === "text") {
               controller.enqueue({ id: block.id, type: "text-end" });
             } else if (block.kind === "reasoning") {
-              if (block.started) {
-                controller.enqueue({ id: block.id, type: "reasoning-end" });
+              // Kept with the part, so a replay can hand Claude its own
+              // reasoning back: a signed block from this model, or a
+              // redacted one.
+              const signed =
+                block.signature !== undefined ||
+                block.redactedData !== undefined;
+              if (!block.started && signed) {
+                controller.enqueue({ id: block.id, type: "reasoning-start" });
+              }
+              if (block.started || signed) {
+                controller.enqueue({
+                  id: block.id,
+                  providerMetadata: signed
+                    ? {
+                        [CLAUDE_ACCOUNT_PROVIDER_ID]: {
+                          ...(messageModel && { model: messageModel }),
+                          ...(block.redactedData !== undefined && {
+                            redactedData: block.redactedData,
+                          }),
+                          ...(block.signature !== undefined && {
+                            signature: block.signature,
+                          }),
+                        },
+                      }
+                    : undefined,
+                  type: "reasoning-end",
+                });
               }
             } else {
               controller.enqueue({ id: block.id, type: "tool-input-end" });

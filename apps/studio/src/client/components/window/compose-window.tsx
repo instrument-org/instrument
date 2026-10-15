@@ -231,7 +231,6 @@ export function ComposeWindow({
   onNewTopic,
   onPlacementChange,
   onStart,
-  openOutside,
   placement,
   right,
   topics,
@@ -250,8 +249,6 @@ export function ComposeWindow({
   onNewTopic: (name: string) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
-  /** A screen the band cannot draw, handed to the window to open beside the chat. */
-  openOutside: (href: string) => void;
   placement: Exclude<ComposePlacement, "bar">;
   /** Where a docked window stands along the foot, in layout px from the right edge; the windows beside it are placed the same way. */
   right: number;
@@ -452,7 +449,7 @@ export function ComposeWindow({
       openScreenIn(href);
       return;
     }
-    openOutside(href);
+    appWindow.openScreen(href, { newTab: true });
   };
   const closeTab = (id: string) => {
     windowTabs.close(id);

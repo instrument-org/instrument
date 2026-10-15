@@ -12,13 +12,9 @@ import {
   shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import {
-  collapseProgress,
-  execShim,
-  mapStreams,
-  shimOutput,
-} from "./exec-shim";
-import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
+import { collapseProgress, mapStreams, shimOutput } from "./exec-shim";
+import { runNative, stdinFor } from "./pipe-stage";
+import { hostPathArgs, resolveCommandContext } from "./utils";
 
 // Git config keys, spelled as git spells them.
 
@@ -197,7 +193,7 @@ export function createGitCommand({
   layout: WorkspaceFsLayout;
   chatId: ChatId;
 }) {
-  return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
+  const command = defineCommand(GIT_COMMAND.name, async (args, ctx) => {
     const rejection = rejectUnsafeArgs(args);
     if (rejection) {
       return fail(rejection);
@@ -247,7 +243,8 @@ export function createGitCommand({
       );
     }
 
-    const result = await execShim(
+    return runNative(
+      ctx,
       gitBinaryPath(),
       [
         ...FORCED_CONFIG.flatMap((entry) => ["-c", entry]),
@@ -260,18 +257,17 @@ export function createGitCommand({
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
-        input: subprocessStdin(ctx.stdin),
+        ...stdinFor(ctx.stdin),
       },
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
+          filterShellOutput(collapseProgress(text)),
+        ),
+      }),
     );
-
-    const streams = mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
-      filterShellOutput(collapseProgress(text)),
-    );
-    return {
-      exitCode: result.exitCode ?? 1,
-      ...streams,
-    };
   });
+  return { ...command, acceptsPipeHandoff: true };
 }
 
 /** The path an argument names: the value of a `--flag=value` path flag, else the argument. */

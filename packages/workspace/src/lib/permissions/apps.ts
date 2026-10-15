@@ -7,7 +7,7 @@ import { type ChatAppGrant } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { getCurrentDate } from "../get-current-date";
 import { type Level } from "./places";
-import { type Asker, raiseAsk, waitingNote } from "./asks";
+import { type Asker, raiseAsk, waitingNote } from "../chat/asks";
 import { chatDenials } from "./denials";
 import { readChatPermissions, updateChatPermissions } from "./rules";
 import { readPermissionSettings } from "./rules";

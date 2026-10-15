@@ -33,6 +33,7 @@ import {
   tabToScreen,
   type WindowTabs,
 } from "./tab-model";
+import { openLinkAddress } from "./open-link-address";
 import { sameHref } from "./window-href";
 
 /**
@@ -182,8 +183,16 @@ export function useWindowTabs() {
     moveToGroup: (id: string, group: string) => {
       apply((current) => moveToGroup(current, id, group));
     },
-    /** The tab the group on screen has up goes to a screen, in place. */
-    navigateScreen: (href: string) => {
+    /**
+     * The tab the group on screen has up goes to a screen, in place. Here
+     * and in the opens below, a link address opens where it lives instead
+     * (`openLinkAddress`).
+     */
+    navigateScreen: (to: string) => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return;
+      }
       // A screen tab walks there by its router, as `visitHref` sends it.
       const up = selectedTabIn(state, groupOnScreen);
       if (up?.kind === "screen" && getGroupTabRouter(up.id)) {
@@ -206,14 +215,18 @@ export function useWindowTabs() {
      * group when the group is on screen or when asked.
      */
     openOrFocusScreen: (
-      href: string,
+      to: string,
       {
         group,
         isOpened = false,
         select = false,
       }: { group?: string; isOpened?: boolean; select?: boolean } = {},
-    ): string | undefined =>
-      answer<string | undefined>((current, onScreen) => {
+    ): string | undefined => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<string | undefined>((current, onScreen) => {
         const key = group ?? onScreen;
         if (key === undefined) {
           return { state: current, value: undefined };
@@ -227,21 +240,26 @@ export function useWindowTabs() {
           select: select || key === onScreen,
         });
         return { state: opened.state, value: opened.id };
-      }, undefined),
+      }, undefined);
+    },
     /**
      * Opens a screen at an address in a group (the group on screen, unless
      * one is named): up at once when that group is on screen or when asked,
      * and otherwise behind whatever it has up.
      */
     openScreen: (
-      href: string,
+      to: string,
       {
         group,
         isOpened = false,
         select = false,
       }: { group?: string; isOpened?: boolean; select?: boolean } = {},
-    ): string | undefined =>
-      answer<string | undefined>((current, onScreen) => {
+    ): string | undefined => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<string | undefined>((current, onScreen) => {
         const key = group ?? onScreen;
         if (key === undefined) {
           return { state: current, value: undefined };
@@ -257,7 +275,8 @@ export function useWindowTabs() {
           }),
           value: id,
         };
-      }, undefined),
+      }, undefined);
+    },
     /**
      * A new page tab, in a tab's place or at the end of a group (the group
      * on screen, unless one is named); one opened beside the rest comes up

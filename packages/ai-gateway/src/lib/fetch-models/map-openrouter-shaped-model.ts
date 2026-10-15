@@ -18,6 +18,11 @@ interface OpenRouterShapedModel {
   created: number;
   id: string;
   instrument?: {
+    family?: string;
+    maker?: string;
+    name?: string;
+    note?: string;
+    recommended?: boolean;
     restricted?: AIGatewayModel.Restriction;
     sourceModelId?: string;
   };
@@ -44,7 +49,7 @@ export function mapOpenRouterShapedModel({
   config: AIGatewayProviderConfig.Type;
   model: OpenRouterShapedModel;
   providerId: AIGatewayModel.ProviderId;
-}) {
+}): AIGatewayModel.Type {
   const metadata = getProviderMetadata(config.type);
   const features = modalityFeatures({
     inputModalities: model.architecture.input_modalities,
@@ -69,15 +74,19 @@ export function mapOpenRouterShapedModel({
   const named = (
     colonIndex === -1 ? model.name : model.name.slice(colonIndex + 1)
   ).trim();
-  const modelName = named || generateModelName(canonicalId);
+  const modelName =
+    model.instrument?.name || named || generateModelName(canonicalId);
 
-  return addHeuristicTags(
+  const tagged = addHeuristicTags(
     {
       author,
       canonicalId,
       contextLength: model.context_length ?? undefined,
+      family: model.instrument?.family,
       features,
+      maker: model.instrument?.maker,
       name: modelName,
+      note: model.instrument?.note,
       params,
       pricing: pricingPerMillionTokens(model.pricing),
       providerId,
@@ -98,4 +107,19 @@ export function mapOpenRouterShapedModel({
     },
     config,
   );
+
+  // Our gateway curates its own lineup, so where it says which models it
+  // recommends, that answer replaces the guess read off the id. An older
+  // gateway says nothing, and the heuristics stand. `default` stays with the
+  // heuristics, which give it to Auto alone, so a recommendation never moves a
+  // model ahead of the order the gateway lists them in.
+  const recommended = model.instrument?.recommended;
+  if (recommended === undefined) {
+    return tagged;
+  }
+  const unranked = tagged.tags.filter((tag) => tag !== "recommended");
+  return {
+    ...tagged,
+    tags: recommended ? [...unranked, "recommended"] : unranked,
+  };
 }

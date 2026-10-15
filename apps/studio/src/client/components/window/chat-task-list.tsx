@@ -1,12 +1,17 @@
 import { StopProcessButton } from "@/client/components/task/stop-process-button";
 import { Button } from "@/client/components/ui/button";
 import { ROW_TINT } from "@/client/components/window/row-shell";
+import { taskStoppedLine } from "@/client/components/window/task-stopped-line";
 import { taskTimeLabel } from "@/client/components/window/task-time";
 import { useNow } from "@/client/components/window/use-now";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  type ChildTask,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 
 /** One task as the list needs it. */
@@ -18,6 +23,8 @@ export interface TaskListItem {
   standing: "done" | "failed" | "running" | "waiting";
   /** Whether a stop has something to end: an agent at work, a hold on its start, or a card it waits on. */
   stoppable: boolean;
+  /** Who stopped its last turn, when a stop ended it. */
+  stoppedBy?: ChildTask["stoppedBy"];
   title: string;
   updatedAt: Date;
 }
@@ -26,7 +33,8 @@ export interface TaskListItem {
  * A chat's tasks, in the pane beside it: headed Tasks, newest first, one
  * row each with the title and when anything last happened at its right,
  * then the task's own line under it, the running step behind a brand dot in
- * the shimmer, what it waits on in amber, and how it ended otherwise. No day
+ * the shimmer, what it waits on in amber, who stopped it when the user or
+ * the chat did, and how it ended otherwise. No day
  * heads, no filters, no search: a chat has a handful, and the row says
  * where each stands. A row pressed opens the task in the pane's place.
  * While a task works, waits on a card, or is held from starting, a stop sits
@@ -140,7 +148,11 @@ export function ChatTaskList({
                             : "text-muted-foreground",
                     )}
                   >
-                    {item.line}
+                    {/* A stopped task's last words come from before its
+                        stop, so the row says who stopped it. */}
+                    {(item.standing === "done" &&
+                      taskStoppedLine(item.stoppedBy)) ||
+                      item.line}
                   </span>
                 </span>
               </button>

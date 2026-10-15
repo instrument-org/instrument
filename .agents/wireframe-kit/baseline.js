@@ -38,7 +38,7 @@ const states = [
   },
   {
     title: "Chat running",
-    note: "While the pricing chat runs, its newest step shimmers beside the planning dot at the right of the header and on its inbox row, and pressing the step lists the chat's tasks.",
+    note: "While the pricing chat runs, its newest step shimmers beside the planning dot on the line under its title and on its inbox row, and pressing the step lists the chat's tasks.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:

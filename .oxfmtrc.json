@@ -12,6 +12,7 @@
     "*.generated.ts",
     "apps/studio/electron.vite.config.*.mjs",
     "apps/studio/resources/tailwind-browser.js",
+    "apps/studio/licenses/",
     "dist/",
     "registry/",
     "**/out/",

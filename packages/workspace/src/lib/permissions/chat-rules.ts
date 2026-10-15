@@ -122,6 +122,9 @@ export function nativeReachFor(
       runtime.python,
       runtime.environments,
       runtime.preload,
+      // The packages every chat's virtualenv imports (python-base.ts), and
+      // the cache they were installed from, for the same reason.
+      runtime.pythonBase,
     ],
     readWrite: [
       layout.chat.hostRoot,

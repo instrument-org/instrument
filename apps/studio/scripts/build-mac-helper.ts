@@ -1,6 +1,10 @@
-// Builds both halves of the Mac bridge, universal binaries that
-// electron-builder copies into the app's resources (`mac.extraResources`):
+// Builds both halves of the Mac bridge and the Seatbelt launcher, universal
+// binaries that electron-builder copies into the app's resources
+// (`mac.extraResources`):
 //
+// - instrument-seatbelt, which starts every native command the agent runs
+//   under its Seatbelt profile, compiled once per set of rules
+//   (native/mac-helper/seatbelt);
 // - instrument-mac, the helper process behind the agent's `calendar` and
 //   `contacts` commands (Swift, native/mac-helper/Sources);
 // - instrument-mac.node, the module main loads for what macOS keys to the
@@ -84,6 +88,22 @@ if (target !== "darwin" || process.platform !== "darwin") {
       path.join(helperDir, "addon/addon.m"),
       "-o",
       path.join(outDir, "instrument-mac.node"),
+    ],
+    { stdio: "inherit" },
+  );
+  // The Seatbelt launcher every native command starts through
+  // (native-sandbox.ts in the workspace package).
+  execFileSync(
+    "clang",
+    [
+      "-O2",
+      "-Wall",
+      ...archs.flatMap((arch) => ["-arch", arch]),
+      "-mmacosx-version-min=13.0",
+      path.join(helperDir, "seatbelt/instrument-seatbelt.c"),
+      "-lsandbox",
+      "-o",
+      path.join(outDir, "instrument-seatbelt"),
     ],
     { stdio: "inherit" },
   );

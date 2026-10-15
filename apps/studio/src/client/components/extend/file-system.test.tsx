@@ -2,7 +2,15 @@ import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import {
   FileSystem,
@@ -88,6 +96,297 @@ describe("FileSystem", () => {
     renderWithProviders(<FileSystem defaultView="list" items={[]} />);
 
     expect(screen.getByText("This folder is empty")).toBeTruthy();
+  });
+
+  // A file's kind reads the same whether its extension or only its type
+  // says what it is, and never as the type itself.
+  it("names each file's kind in the list in words", () => {
+    // The list drops columns it has no room for, and nothing is laid out here.
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+    onTestFinished(() => {
+      width.mockRestore();
+    });
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          { contentType: "text/plain", kind: "file", path: "task.txt" },
+          { contentType: "text/plain", kind: "file", path: "2024" },
+          { contentType: "text/plain", kind: "file", path: "empty", size: 0 },
+          { contentType: "text/html", kind: "file", path: "page.html" },
+          { contentType: "text/html", kind: "file", path: "a\\b.html" },
+          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
+          { contentType: "video/mp4", kind: "file", path: "clip.mp4" },
+          {
+            contentType: "application/octet-stream",
+            kind: "file",
+            path: "blob",
+          },
+        ]}
+        listColumns={["kind"]}
+      />,
+    );
+
+    expect(
+      screen
+        .getAllByRole("option")
+        .map(
+          (row) =>
+            `${row.querySelector("[data-file-system-name]")?.textContent ?? ""}: ${row.lastElementChild?.textContent ?? ""}`,
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "2024: Plain Text",
+        "a\\b.html: HTML Document",
+        "blob: Document",
+        "clip.mp4: Video",
+        "empty: Plain Text",
+        "page.html: HTML Document",
+        "song.mp3: Audio",
+        "task.txt: Plain Text",
+      ]
+    `);
+  });
+
+  // Show hidden files sits at the foot of the sort menu, and the menu stays
+  // open on it so the dotfiles can be watched arriving.
+  it("lists dotfiles once the sort menu shows hidden files", () => {
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          { kind: "file", path: ".env" },
+          { kind: "file", path: "notes.md" },
+        ]}
+      />,
+    );
+    const names = () =>
+      [...document.querySelectorAll("[data-file-system-name]")].map(
+        (name) => name.textContent,
+      );
+    expect(names()).toMatchInlineSnapshot(`
+      [
+        "notes.md",
+      ]
+    `);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Sort by" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Show hidden files" }),
+    );
+
+    expect(
+      screen
+        .getByRole("menuitemcheckbox", { name: "Show hidden files" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // jsdom has no height, so the list draws only the rows it first drew.
+    expect(names()).toContain(".env");
+  });
+
+  it("offers the order files were opened in for a list of them, the recents", () => {
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          {
+            kind: "file",
+            openedAt: "2026-10-15T09:00:00Z",
+            path: "notes.md",
+          },
+        ]}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Sort by" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    expect(screen.getAllByRole("menuitemradio")[0]?.textContent).toBe(
+      "Date last opened",
+    );
+  });
+
+  describe("grouped, as the Finder groups a folder", () => {
+    it("offers no sort in the menu, since the groups are the order", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="kind"
+          items={[{ kind: "file", path: "notes.md" }]}
+        />,
+      );
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Group by" }), {
+        button: 0,
+        pointerType: "mouse",
+      });
+      expect(
+        screen.getAllByRole("menuitemradio").map((item) => item.textContent),
+      ).toMatchInlineSnapshot(`
+        [
+          "None",
+          "Kind",
+          "Date modified",
+          "Date created",
+          "Size",
+        ]
+      `);
+    });
+
+    // Headings and names in the order the grid draws them, which has no
+    // header to hold the first group's name.
+    const drawn = () =>
+      [
+        ...document.querySelectorAll(
+          "[data-file-system-listing] [aria-hidden], [data-file-system-name]",
+        ),
+      ]
+        .map((part) => part.textContent)
+        .filter(Boolean);
+
+    it("puts kinds in the Finder's order, sorted by name within each", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="kind"
+          items={[
+            { kind: "file", path: "zeta.png" },
+            { kind: "file", path: "notes.md" },
+            { kind: "folder", path: "photos/" },
+            { kind: "file", path: "app.ts" },
+            { kind: "file", path: "data.json" },
+            { kind: "file", path: "alpha.png" },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Folders",
+          "photos",
+          "Documents",
+          "notes.md",
+          "Images",
+          "alpha.png",
+          "zeta.png",
+          "Developer",
+          "app.ts",
+          "Other",
+          "data.json",
+        ]
+      `);
+    });
+
+    it("steps sizes by powers of ten, largest first and folders last", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="size"
+          items={[
+            { kind: "file", path: "tiny.txt", size: 99 },
+            { kind: "file", path: "hundred.txt", size: 100 },
+            { kind: "file", path: "thousand.txt", size: 1000 },
+            { kind: "file", path: "movie.mp4", size: 1_260_000_000 },
+            { kind: "folder", path: "photos/" },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "From 1 GB to 10 GB",
+          "movie.mp4",
+          "From 1 KB to 10 KB",
+          "thousand.txt",
+          "From 100 bytes to 1 KB",
+          "hundred.txt",
+          "Under 100 bytes",
+          "tiny.txt",
+          "--",
+          "photos",
+        ]
+      `);
+    });
+
+    it("ladders dates by calendar day, then months and years", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 15, 12));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const at = (month: number, day: number, year = 2026) =>
+        new Date(year, month, day, 9).toISOString();
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="updatedAt"
+          items={[
+            { kind: "file", path: "today.md", updatedAt: at(9, 15) },
+            { kind: "file", path: "yesterday.md", updatedAt: at(9, 14) },
+            { kind: "file", path: "week.md", updatedAt: at(9, 7) },
+            { kind: "file", path: "month.md", updatedAt: at(8, 7) },
+            { kind: "file", path: "september.md", updatedAt: at(8, 6) },
+            { kind: "file", path: "last-year.md", updatedAt: at(11, 31, 2025) },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Today",
+          "today.md",
+          "Yesterday",
+          "yesterday.md",
+          "Previous 7 Days",
+          "week.md",
+          "Previous 30 Days",
+          "month.md",
+          "September",
+          "september.md",
+          "2025",
+          "last-year.md",
+        ]
+      `);
+    });
+
+    // jsdom has no height, so the grid draws only its first few rows, and a
+    // folder of three groups is all of it.
+    it("puts no date, and a date still to come, last", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 15, 12));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="updatedAt"
+          items={[
+            { kind: "file", path: "undated.md" },
+            {
+              kind: "file",
+              path: "next-week.md",
+              updatedAt: new Date(2026, 9, 22).toISOString(),
+            },
+            {
+              kind: "file",
+              path: "today.md",
+              updatedAt: new Date(2026, 9, 15, 9).toISOString(),
+            },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Today",
+          "today.md",
+          "No Date",
+          "next-week.md",
+          "undated.md",
+        ]
+      `);
+    });
   });
 
   describe("a folder the caller cannot list", () => {

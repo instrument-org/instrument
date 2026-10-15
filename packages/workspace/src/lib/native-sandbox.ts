@@ -488,6 +488,60 @@ export function withInstallerClosed(
 }
 
 /**
+ * A reach's profile, built once: a shell makes its reach once per call, so a
+ * loop of native commands builds it once rather than per command.
+ */
+const profiles = new WeakMap<NativeReach, string>();
+function profileOf(reach: NativeReach): string {
+  let profile = profiles.get(reach);
+  if (profile === undefined) {
+    profile = seatbeltProfile(reach);
+    profiles.set(reach, profile);
+  }
+  return profile;
+}
+
+/**
+ * A profile compiled to Seatbelt's bytecode by the launcher that applies it
+ * (`instrument-seatbelt compile`), base64, held by the profile's text so each
+ * set of rules compiles once per launch (about 15 ms) where sandbox-exec
+ * compiled it for every process. It stays in memory and reaches the launcher
+ * in its arguments: a file in the temp folder is one a sandboxed program can
+ * rewrite. Undefined when the launcher cannot compile it, which leaves that
+ * profile on sandbox-exec.
+ */
+const compiled = new Map<string, string | undefined>();
+/** Sets of rules kept compiled; past this, the longest unused goes. */
+const COMPILED_KEPT = 32;
+function compiledProfile(helper: string, profile: string): string | undefined {
+  if (compiled.has(profile)) {
+    // Moved to the end, as the most recently used.
+    const bytecode = compiled.get(profile);
+    compiled.delete(profile);
+    compiled.set(profile, bytecode);
+  } else {
+    if (compiled.size >= COMPILED_KEPT) {
+      const oldest = compiled.keys().next().value;
+      if (oldest !== undefined) {
+        compiled.delete(oldest);
+      }
+    }
+    let bytecode: string | undefined;
+    try {
+      const bytes = execFileSync(helper, ["compile"], {
+        input: profile,
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+      bytecode = bytes.length > 0 ? bytes.toString("base64") : undefined;
+    } catch {
+      bytecode = undefined;
+    }
+    compiled.set(profile, bytecode);
+  }
+  return compiled.get(profile);
+}
+
+/**
  * The command to spawn for a native binary, held to `reach` under Seatbelt
  * or bubblewrap. Where neither can apply, the command comes back unchanged
  * and `reach` is absent.
@@ -505,11 +559,12 @@ export function wrapNativeCommand(
   }
   const seatbelt = seatbeltState();
   if (seatbelt === "works") {
-    return {
-      args: ["-p", seatbeltProfile(reach), file, ...args],
-      file: SANDBOX_EXEC,
-      reach,
-    };
+    const profile = profileOf(reach);
+    const helper = getWorkspaceConfig().seatbeltHelperPath;
+    const bytecode = helper ? compiledProfile(helper, profile) : undefined;
+    return helper && bytecode
+      ? { args: ["run", bytecode, file, ...args], file: helper, reach }
+      : { args: ["-p", profile, file, ...args], file: SANDBOX_EXEC, reach };
   }
   const bwrap = bwrapState();
   if (seatbelt === "failed" || bwrap === "failed") {

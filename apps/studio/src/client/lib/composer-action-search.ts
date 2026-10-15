@@ -1,4 +1,4 @@
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 export interface ComposerActionMatch<T> {
   action: T;
@@ -8,7 +8,7 @@ export interface ComposerActionMatch<T> {
 // The matcher the command menu, the skills and the shortcut guide all search
 // with, so a query typed at the composer behaves the way one typed anywhere
 // else does and can show which characters it matched.
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /**
  * Filters composer actions against `query` and returns the ranges to highlight

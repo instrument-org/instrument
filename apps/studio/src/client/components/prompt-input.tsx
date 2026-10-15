@@ -146,8 +146,6 @@ interface PromptInputProps {
   autoFocus?: boolean;
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
-  /** Drawn just ahead of a pill's Send: a control for the turn the conversation is running, such as its Stop. */
-  beforeSend?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
@@ -186,7 +184,6 @@ export const PromptInput = ({
   attachmentsLead,
   autoFocus = false,
   autoResizeMaxHeight,
-  beforeSend,
   className,
   disabled = false,
   draftKey,
@@ -433,17 +430,13 @@ export const PromptInput = ({
 
     if (duplicates.length > 0) {
       const names = duplicates.join(", ");
-      toast.info(
-        duplicates.length === 1
-          ? `“${names}” is already added`
-          : `Some folders are already added`,
-        {
-          description:
-            duplicates.length === 1
-              ? "That folder is already attached."
-              : `${names} are already attached.`,
-        },
-      );
+      if (duplicates.length === 1) {
+        toast.info(`“${names}” is already added`);
+      } else {
+        toast.info("Some folders are already added", {
+          description: `${names} are already attached.`,
+        });
+      }
     }
 
     if (newFolders.length === 0) {
@@ -506,9 +499,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`“${folderLabel(folderPath)}” is already added`, {
-        description: "That folder is already attached.",
-      });
+      toast.info(`“${folderLabel(folderPath)}” is already added`);
       return;
     }
 
@@ -1034,7 +1025,6 @@ export const PromptInput = ({
                   selectedSessionId={selectedSessionId}
                 />
               )}
-              {beforeSend}
               <Button
                 aria-label="Send"
                 className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"

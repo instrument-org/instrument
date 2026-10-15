@@ -1,7 +1,9 @@
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { cn } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { steppedZoom } from "@/shared/zoom";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
@@ -13,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -37,12 +40,15 @@ const zoomStepperSegmentClassName =
  * to whatever range that particular zoom allows: stepping a rung at a time is
  * the wrong interaction for going from 100% to 400%. `onFit` is only passed by
  * the document viewers, since nothing else has a width to fit to.
+ * `namesResetKey` is only passed for the window's own zoom, the one ⌘0 puts
+ * back to 100% wherever the keyboard is.
  */
 export function ZoomLevelMenu({
   compact = false,
   isFit = false,
   max,
   min,
+  namesResetKey = false,
   nested = false,
   onFit,
   onSelect,
@@ -52,6 +58,7 @@ export function ZoomLevelMenu({
   isFit?: boolean;
   max: number;
   min: number;
+  namesResetKey?: boolean;
   nested?: boolean;
   onFit?: () => void;
   onSelect: (zoom: number) => void;
@@ -74,6 +81,13 @@ export function ZoomLevelMenu({
             }}
           >
             {Math.round(level * 100)}%
+            {namesResetKey && level === 1 ? (
+              <DropdownMenuShortcut>
+                {formatAcceleratorText(
+                  WINDOW_MENU_SHORTCUTS.actualSize.accelerator,
+                )}
+              </DropdownMenuShortcut>
+            ) : null}
           </DropdownMenuCheckboxItem>
         ),
       )}
@@ -196,6 +210,7 @@ export function ZoomStepper() {
         <ZoomLevelMenu
           max={ZOOM_MAX}
           min={ZOOM_MIN}
+          namesResetKey
           onSelect={setZoom}
           zoom={zoom}
         />

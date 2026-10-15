@@ -22,6 +22,7 @@ export const WORKER_CONFIG_KEYS = [
   // Where the folder rules are read from, live, for each command.
   "workspaceMachineDir",
   "macHelperBinPath",
+  "seatbeltHelperPath",
   "nativeSandbox",
   "nodeExecEnv",
   // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
@@ -33,6 +34,7 @@ export const WORKER_CONFIG_KEYS = [
   "systemSkillsDir",
   "legacyTasksDir",
   "tempFolders",
+  "uutilsDir",
   "uvBinPath",
   // Where each chat's work folder is, which the shell starts in.
   "workFoldersDir",
@@ -79,7 +81,9 @@ export type FromWorker =
       requestId: number;
       skillDir: AbsolutePath;
       type: "python-environment";
-    };
+    }
+  /** A due check of the base Python packages, which main runs. */
+  | { type: "python-base-refresh" };
 
 export type ToWorker =
   | {

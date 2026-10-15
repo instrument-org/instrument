@@ -20,10 +20,8 @@ import { createAssignEventError } from "../lib/assign-event-error";
 import { ChatReads } from "../lib/chat-reads";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
-import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { sessionRole } from "../lib/chat/children";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
@@ -31,7 +29,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { getToolByType, type ToolOutputByName } from "../tools/all";
+import { getToolByType } from "../tools/all";
 import {
   executeToolCallMachine,
   saveStoppedToolCallPart,
@@ -51,15 +49,7 @@ export type AgentParentEvent =
   | {
       type: "agent.done";
       value: { error?: unknown };
-    }
-  | { type: "agent.paused" }
-  | { type: "agent.resumed" };
-
-export type ToolCallUpdate = {
-  toolCallId: string;
-  type: "success";
-  value: ToolOutputByName;
-};
+    };
 
 /** A running tool call's child id, one per call so a batch can run at once. */
 type ToolCallActorId = `toolCall:${string}`;
@@ -81,11 +71,7 @@ type AgentMachineEvent =
   | { saved?: boolean; type: "steer"; value: SessionMessage.UserWithParts }
   | { type: "executeToolCalls" }
   | { type: "llmRequest.chunkReceived" }
-  | { type: "retry" }
-  | {
-      type: "updateInteractiveToolCall";
-      value: ToolCallUpdate;
-    };
+  | { type: "retry" };
 
 type AgentResult = Result<void, "agent-error:unknown">;
 
@@ -344,8 +330,6 @@ export const agentMachine = setup({
     context: {} as {
       agent: AnyAgent;
       baseLLMRetryDelayMs: number;
-      /** Answers that arrived before their call was pending; see `updateInteractiveToolCall`. */
-      earlyToolCallUpdates: ToolCallUpdate[];
       error?: unknown;
       llmRequestChunkTimeoutMs: number;
       maxAttemptCount: number;
@@ -353,7 +337,6 @@ export const agentMachine = setup({
       model: AIGatewayModel.Type;
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
-      pendingToolCalls: SessionMessagePart.ToolPartInputAvailable[];
       /** The request in flight went past its chunk timeout, which lets it go; cleared as each starts. */
       requestTimedOut: boolean;
       retryCount: number;
@@ -395,14 +378,12 @@ export const agentMachine = setup({
   context: ({ input }) => ({
     agent: input.agent,
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
-    earlyToolCallUpdates: [],
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
     maxAttemptCount: 3,
     maxStepCount: input.maxStepCount || 1,
     model: input.model,
     parentMessageId: input.parentMessageId,
     parentRef: input.parentRef,
-    pendingToolCalls: [],
     requestTimedOut: false,
     retryCount: 0,
     runningToolCallActorIds: [],
@@ -450,32 +431,6 @@ export const agentMachine = setup({
         stopReason: ({ event }) => event.reason ?? "manual",
       }),
       target: ".Finishing",
-    },
-    updateInteractiveToolCall: {
-      actions: assign(({ context, event: { value } }) => {
-        const pendingToolCall = context.pendingToolCalls.find(
-          (call) => call.toolCallId === value.toolCallId,
-        );
-        // The card can be answered as soon as the call has streamed, which is
-        // before the step ends and hands its calls to `pendingToolCalls`. An
-        // answer that early is held for that moment rather than dropped.
-        if (!pendingToolCall) {
-          return {
-            earlyToolCallUpdates: [
-              ...context.earlyToolCallUpdates.filter(
-                (update) => update.toolCallId !== value.toolCallId,
-              ),
-              value,
-            ],
-          };
-        }
-        saveToolCallUpdate(pendingToolCall, value, context.chatId);
-        return {
-          pendingToolCalls: context.pendingToolCalls.filter(
-            (call) => call.toolCallId !== value.toolCallId,
-          ),
-        };
-      }),
     },
   },
   states: {
@@ -587,7 +542,6 @@ export const agentMachine = setup({
               guard: ({ context }) =>
                 context.unaccountedStreamCount === 0 &&
                 context.stopReason === undefined &&
-                context.pendingToolCalls.length === 0 &&
                 context.toolCallQueue.length === 0,
               target: "#agent.Done",
             },
@@ -658,53 +612,12 @@ export const agentMachine = setup({
                 return {};
               }
 
-              const pendingToolCalls: SessionMessagePart.ToolPartInputAvailable[] =
-                [];
-              const toolCallQueue: SessionMessagePart.ToolPartInputAvailable[] =
-                [];
-
-              for (const part of parts) {
-                if (!isToolPart(part)) {
-                  continue;
-                }
-
-                if (part.state !== "input-available") {
-                  continue;
-                }
-
-                const tool = getToolByType(part.type);
-
-                // A task runs the chat's agent, questions included, where
-                // nobody answers: its question runs, and says so.
-                if (
-                  isInteractiveTool(tool.name) &&
-                  sessionRole(context.chatId, context.sessionId) === "chat"
-                ) {
-                  pendingToolCalls.push(part);
-                  continue;
-                }
-
-                toolCallQueue.push(part);
-              }
-
-              const answered = new Set<string>();
-              for (const update of context.earlyToolCallUpdates) {
-                const pendingToolCall = pendingToolCalls.find(
-                  (call) => call.toolCallId === update.toolCallId,
-                );
-                if (pendingToolCall) {
-                  saveToolCallUpdate(pendingToolCall, update, context.chatId);
-                  answered.add(update.toolCallId);
-                }
-              }
+              const toolCallQueue = parts.filter(
+                (part): part is SessionMessagePart.ToolPartInputAvailable =>
+                  isToolPart(part) && part.state === "input-available",
+              );
 
               return {
-                earlyToolCallUpdates: context.earlyToolCallUpdates.filter(
-                  (update) => !answered.has(update.toolCallId),
-                ),
-                pendingToolCalls: pendingToolCalls.filter(
-                  (call) => !answered.has(call.toolCallId),
-                ),
                 toolCallQueue,
                 unaccountedStreamCount: context.unaccountedStreamCount - 1,
               };
@@ -793,7 +706,7 @@ export const agentMachine = setup({
           target: "ExecutingToolCalls",
         },
         {
-          target: "MaybeWaitingForPendingToolCalls",
+          target: "MaybeSteering",
         },
       ],
     },
@@ -830,20 +743,6 @@ export const agentMachine = setup({
           target: "SavingSteeringMessages",
         },
         { target: "MaybeContinuing" },
-      ],
-    },
-
-    MaybeWaitingForPendingToolCalls: {
-      always: [
-        {
-          guard: ({ context }) => {
-            return context.pendingToolCalls.length > 0;
-          },
-          target: "WaitingForPendingToolCalls",
-        },
-        {
-          target: "MaybeSteering",
-        },
       ],
     },
 
@@ -911,21 +810,6 @@ export const agentMachine = setup({
         src: "saveSteeringMessages",
       },
     },
-
-    WaitingForPendingToolCalls: {
-      always: {
-        guard: ({ context }) => {
-          return context.pendingToolCalls.length === 0;
-        },
-        target: "MaybeSteering",
-      },
-      entry: ({ context }) => {
-        context.parentRef.send({ type: "agent.paused" });
-      },
-      exit: ({ context }) => {
-        context.parentRef.send({ type: "agent.resumed" });
-      },
-    },
   },
 });
 
@@ -990,31 +874,4 @@ function withoutFinishedToolCall(
       (part) => toolCallActorId(part) !== actorId,
     ),
   };
-}
-
-/** Write the user's answer (or the error that stands for one) onto the call's part. */
-function saveToolCallUpdate(
-  pendingToolCall: SessionMessagePart.ToolPartInputAvailable,
-  value: ToolCallUpdate,
-  chatId: ChatId,
-) {
-  // TODO Save these promises and handle them async in the state machine
-  void Store.updatePart(
-    {
-      messageId: pendingToolCall.metadata.messageId,
-      partId: pendingToolCall.metadata.id,
-      sessionId: pendingToolCall.metadata.sessionId,
-    },
-    (current) =>
-      ({
-        ...current,
-        metadata: {
-          ...current.metadata,
-          endedAt: new Date(),
-        },
-        output: value.value.output as never,
-        state: "output-available",
-      }) as SessionMessagePart.Type,
-    chatId,
-  );
 }

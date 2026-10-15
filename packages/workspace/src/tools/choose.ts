@@ -1,7 +1,11 @@
 import ms from "ms";
+import { ok } from "neverthrow";
 import { z } from "zod";
 
+import { recordQuestion } from "../lib/chat/asks";
+import { sessionRole } from "../lib/chat/children";
 import { executeError } from "../lib/execute-error";
+import { SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -10,11 +14,15 @@ const NoteSchema = z.string().trim().min(1).optional();
 /**
  * Ask the user a closed question.
  *
- * Interactive: the call parks the turn until the card answers it. The user
- * picks one of the choices or writes their own answer, which arrives as a
- * `selectedChoice` that is none of them. Either can carry a note. Skipping
- * the question answers the call too, as `declined`, so the agent decides
- * what to do without an answer rather than waiting for one.
+ * The call puts the question on a card under it and returns at once, so no
+ * turn waits on the user: the question stays open on the chat (`asks`) until
+ * they pick one of the choices, write their own answer, or skip it, and the
+ * answer wakes the chat as a `data-questionAnswer`, the way a permission
+ * card's does, and is written onto the call for the card. Writing in the
+ * chat instead closes it unanswered.
+ *
+ * The answered outputs are what a call returned when the turn waited on the
+ * card, which transcripts from then still hold.
  */
 export const Choose = setupTool({
   inputSchema: BaseInputSchema.extend({
@@ -27,23 +35,46 @@ export const Choose = setupTool({
   }),
   name: "choose",
   outputSchema: z.union([
+    z.object({
+      /**
+       * Written onto the call when the person answers, for the card to draw;
+       * the agent hears it from the `data-questionAnswer` the answer wakes
+       * the chat with, so the call reads the same to the model either way.
+       */
+      answer:
+        SessionMessageDataPart.QuestionAnswerDataPartSchema.shape.answer.optional(),
+      asked: z.literal(true),
+    }),
     z.object({ declined: z.literal(true), note: NoteSchema }),
     z.object({ note: NoteSchema, selectedChoice: z.string().trim().min(1) }),
   ]),
 }).create({
   description:
-    "Present a question with multiple choice options to the user and get their selection. The user can also answer in their own words, add a note, or skip the question, so never add an 'Other' or 'Skip' choice yourself.",
-  // Reached only in a fork, where a question has nobody to park for.
-  execute: () => {
-    return Promise.resolve(
-      executeError(
+    "Put a question with multiple choice options to the user on a card in the chat. The card shows them your question and its choices, with a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. It returns at once, and their answer reaches you later as a message of its own. If what you do next depends on the answer, end your turn here.",
+  execute: async ({ chatId, input, messageId, partId, sessionId }) => {
+    // A task runs the chat's agent, questions included, where nobody sees a
+    // card.
+    if (sessionRole(chatId, sessionId) !== "chat") {
+      return executeError(
         "You are running in the background, where nobody sees a question: only the chat asks the user. Do what you can, and end your last message with a needs fence naming what you need.",
-      ),
+      );
+    }
+    await recordQuestion(
+      { chatId, messageId, partId, sessionId },
+      input.question,
     );
+    return ok({ asked: true as const });
   },
   readOnly: true,
-  timeoutMs: ms("1 second"),
+  timeoutMs: ms("10 seconds"),
   toModelOutput: ({ input, output }) => {
+    if ("asked" in output) {
+      return {
+        type: "text",
+        value:
+          "The user now sees your question and its choices on a card in the chat, and answers there. Their answer reaches you as a message of its own.",
+      };
+    }
     const answer =
       "declined" in output
         ? "The user skipped the question. Decide without the answer: take the likelier reading and say which, or say what you cannot do without it."

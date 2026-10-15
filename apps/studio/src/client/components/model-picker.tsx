@@ -16,6 +16,7 @@ import {
   type Connection,
   connectionsOf,
   isFoldedAway,
+  isOurOwnModel,
   type PickerRow,
   rowsForConnection,
   rowsForSearch,
@@ -730,16 +731,18 @@ function AutoRow({
         <span className={cn("shrink-0 text-sm", chosen && "font-medium")}>
           Auto
         </span>
-        <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-300">
-          Recommended
-        </span>
+        {model.tags.includes("recommended") && (
+          <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-300">
+            Recommended
+          </span>
+        )}
         <span
           className={cn(
             "truncate text-xs",
             chosen ? "opacity-80" : "text-muted-foreground",
           )}
         >
-          Included with your subscription
+          {model.note ?? "Included with your subscription"}
         </span>
       </span>
       {chosen && (
@@ -777,12 +780,14 @@ function AutoOnly({
       <div className="flex flex-col items-center gap-1">
         <span className="flex items-center gap-2 text-base font-medium">
           Auto
-          <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
-            Recommended
-          </span>
+          {model.tags.includes("recommended") && (
+            <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
+              Recommended
+            </span>
+          )}
         </span>
         <span className="text-sm text-muted-foreground">
-          Included with your subscription
+          {model.note ?? "Included with your subscription"}
         </span>
       </div>
       <CommandItem
@@ -828,6 +833,11 @@ function ModelRow({
   row: Extract<PickerRow, { type: "model" }>;
 }) {
   const { model } = row;
+  // Other models show their recommendations as a group of their own; our
+  // lineup is listed whole in the order the gateway gives, so a model it
+  // recommends says so on its row, as Auto does.
+  const recommended =
+    isOurOwnModel(model) && model.tags.includes("recommended");
   return (
     <CommandItem
       data-chosen={chosen || undefined}
@@ -842,13 +852,30 @@ function ModelRow({
       }}
       value={model.uri}
     >
-      <ModelMakerIcon author={model.author} />
+      <ModelMakerIcon author={model.maker ?? model.author} />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className={cn("truncate text-sm", chosen && "font-medium")}>
-          <FuzzyHighlight
-            ranges={row.nameRanges ?? null}
-            text={model.name.trim()}
-          />
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className={cn("truncate text-sm", chosen && "font-medium")}>
+            <FuzzyHighlight
+              ranges={row.nameRanges ?? null}
+              text={model.name.trim()}
+            />
+          </span>
+          {recommended && (
+            <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-300">
+              Recommended
+            </span>
+          )}
+          {model.note && (
+            <span
+              className={cn(
+                "truncate text-xs",
+                chosen ? "opacity-80" : "text-muted-foreground",
+              )}
+            >
+              {model.note}
+            </span>
+          )}
         </span>
         {row.sub && (
           <span className="flex min-w-0 items-center gap-2 text-xs">

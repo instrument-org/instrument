@@ -5,12 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateChatRecord } from "../../lib/chat-record";
 import { updateChatSettings } from "../../lib/chat-settings";
 import { appRefusal } from "../../lib/permissions/apps";
-import { openAsks, recordAsk } from "../../lib/permissions/asks";
+import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
 import { readPermissionSettings } from "../../lib/permissions/rules";
+import { updateChatRecord } from "../../lib/chat-record";
 import { chatDir, sessionOfChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,

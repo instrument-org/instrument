@@ -9,18 +9,29 @@ import { QuestionCard, ToolChoose } from "./tool-choose";
 // `tool-choose` stands in for every body here: the guard it trips is the one
 // they all have, so what is under test is the empty body rather than the
 // scaffolding. It answers over RPC, so it renders with the app's providers.
-const part = (input?: { choices: string[]; question: string }) =>
+const part = (
+  input?: { choices: string[]; question: string },
+  output?: { answer?: { selectedChoice: string }; asked: true },
+) =>
   ({
     input,
     metadata: {
-      id: StoreId.newPartId(),
+      id: partId,
       messageId: StoreId.newMessageId(),
-      sessionId: StoreId.newSessionId(),
+      sessionId,
     },
-    state: input ? "input-available" : "input-streaming",
+    output,
+    state: output
+      ? "output-available"
+      : input
+        ? "input-available"
+        : "input-streaming",
     toolCallId: "call-1",
     type: "tool-choose",
   }) as unknown as Parameters<typeof ToolChoose>[0]["part"];
+
+const partId = StoreId.newPartId();
+const sessionId = StoreId.newSessionId();
 
 const chatId = ChatIdSchema.parse("test-task");
 
@@ -49,41 +60,66 @@ describe("ToolChoose", () => {
     expect(container.textContent).not.toContain("has not arrived");
   });
 
-  it("offers the choices while the session is running", () => {
-    const { container } = renderWithProviders(
-      <ToolChoose
-        part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        chatId={chatId}
-      />,
-    );
+  const asked = { choices: ["React", "Vue"], question: "Which one?" };
 
-    expect(screen.getAllByRole("radio")).toHaveLength(2);
+  /** Renders the card with the chat's open asks as given. */
+  function withAsks(
+    asks: { askers: { partId: string; sessionId: string }[] }[],
+    output: Parameters<typeof part>[1] = { asked: true },
+  ) {
+    const rendered = renderWithProviders(
+      <ToolChoose part={part(asked, output)} chatId={chatId} />,
+    );
+    rendered.queryClient.setQueryData(
+      rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+        input: { id: chatId },
+      }).queryKey,
+      asks.map((ask) => ({
+        askedAt: new Date(0),
+        id: "ask-1",
+        kind: "question",
+        messageId: StoreId.newMessageId(),
+        question: "Which one?",
+        ...ask,
+      })) as never,
+    );
+    return rendered;
+  }
+
+  it("offers the choices while its question is open on the chat", async () => {
+    const { container } = withAsks([{ askers: [{ partId, sessionId }] }]);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("radio")).toHaveLength(2);
+    });
     expect(screen.getByLabelText("Your own answer")).toBeDefined();
     expect(container.textContent).not.toContain("ended without an answer");
   });
 
-  // An app stopped mid-turn -- an update installing itself, a crash -- leaves
-  // the call unanswered on disk with nothing left to answer it to. Clicking a
-  // row then reads as the conversation ignoring you.
-  it("stops offering the choices once no session is left to take one", async () => {
-    const { container, queryClient } = renderWithProviders(
-      <ToolChoose
-        part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        chatId={chatId}
-      />,
-    );
-
-    queryClient.setQueryData(
-      rpcClient.workspace.chats.live.activity.experimental_liveOptions()
-        .queryKey,
-      [],
-    );
+  // The person wrote in the chat instead, or stopped it: nothing will take
+  // an answer, and clicking a row would read as the conversation ignoring
+  // them.
+  it("says the question ended once it closed unanswered", async () => {
+    const { container } = withAsks([]);
 
     await waitFor(() => {
       expect(container.textContent).toContain("ended without an answer");
     });
     expect(container.querySelectorAll("button, input")).toHaveLength(0);
     expect(container.textContent).toContain("Which one?");
+  });
+
+  it("draws the answer written onto the call", async () => {
+    const { container } = withAsks([], {
+      answer: { selectedChoice: "Vue" },
+      asked: true,
+    });
+
+    await waitFor(() => {
+      expect(container.querySelectorAll("button, input")).toHaveLength(0);
+    });
+    expect(container.textContent).not.toContain("ended without an answer");
+    expect(container.textContent).toContain("Vue");
   });
 });
 

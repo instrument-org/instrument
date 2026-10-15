@@ -15,7 +15,7 @@ Your account, how Instrument looks, notifications, updates, and the diagnostic l
 - **Zoom** (`zoom`): Make everything in the app larger or smaller.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. On it: Send a test notification (`test-notification`).
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
-- **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`).
+- **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`), Third-party licenses (`third-party-licenses`).
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Memory (`memory`)

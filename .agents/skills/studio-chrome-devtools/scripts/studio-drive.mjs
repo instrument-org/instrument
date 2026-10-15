@@ -62,6 +62,15 @@
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
 //
+// An instance booted here never comes on screen by itself. Its windows render,
+// take input, and answer screenshots off screen, and keep drawing once
+// covered, minimized, or on another Space, so a run never has to raise one,
+// and the person at the machine keeps their focus and their Space: anything put
+// on screen, even without focus, can scroll a display to another Space. A
+// person takes one over by clicking its Dock icon. `--visible` puts the window
+// up as a hand-started run would, for a run that needs the window's real
+// pixels on screen (`screencapture -l`).
+//
 // `--inspect <port>` also opens the main process's V8 inspector on that port,
 // which is what `main-stalls.mjs` measures the main thread through.
 //
@@ -89,7 +98,7 @@
 // toolchain and caches are already set up, so it starts as fast as the
 // developer's instance, and `--with-sign-ins` copies the developer's account and
 // keys into it so it can run a real agent turn. The developer's own instance keeps
-// its workspace. Clean rooms not booted for 14 days are reaped like fixtures;
+// its workspace. Clean rooms not booted for 3 days are reaped like fixtures;
 // `--fresh` empties one first.
 //
 //   node studio-drive.mjs boot --purpose "first chat" --clean-room first-chat --with-sign-ins
@@ -181,7 +190,10 @@ const WORKSPACE_CACHE_ROOT = path.join(
 
 // Workspaces nobody has driven in this long are dropped at the next boot,
 // because nobody runs a clean command. Losing one costs a reseed.
-const WORKSPACE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const WORKSPACE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+// Names the checkout a cache root belongs to, since the root's own name is only
+// a hash of its path.
+const CHECKOUT_MARKER = "checkout";
 // Installed dependencies in a chat's work folder are the only part that grows --
 // to hundreds of megabytes once an agent has run an install in one -- and the
 // only part deleting does not invalidate. So they go sooner than the workspace does.
@@ -425,6 +437,7 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
 }
 
 function reapStaleCleanRooms() {
+  reapGoneCheckouts();
   reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS, {
     // Its machine folder in the shared application data, whose sign-ins would
     // otherwise outlive it there.
@@ -438,11 +451,38 @@ function reapStaleCleanRooms() {
 }
 
 function reapStaleWorkspaces() {
+  reapGoneCheckouts();
   reapOlderThan(WORKSPACE_CACHE_ROOT, WORKSPACE_MAX_AGE_MS, {
     // Its own mtime only moves when a clean room is added or removed; the clean
     // rooms inside are reaped one by one instead.
     keep: new Set([path.basename(CLEAN_ROOMS_ROOT)]),
   });
+}
+
+/**
+ * Drops the caches of checkouts that no longer exist. A worktree removed once
+ * it lands never boots again, so its own reaping never runs and its fixtures
+ * and clean rooms would stay for good. A root without the marker is left alone.
+ */
+function reapGoneCheckouts() {
+  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
+  writeFileSync(path.join(WORKSPACE_CACHE_ROOT, CHECKOUT_MARKER), REPO_ROOT);
+  const parent = path.dirname(WORKSPACE_CACHE_ROOT);
+  for (const entry of readdirSync(parent, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === CHECKOUT_KEY) {
+      continue;
+    }
+    const root = path.join(parent, entry.name);
+    try {
+      const checkout = readFileSync(path.join(root, CHECKOUT_MARKER), "utf8");
+      if (!existsSync(checkout)) {
+        rmSync(root, { force: true, recursive: true });
+      }
+    } catch {
+      // No marker, or another boot reaped it between the listing and the
+      // read. Housekeeping must never be what ends a run.
+    }
+  }
 }
 
 function reapOlderThan(
@@ -526,6 +566,7 @@ async function cmdBoot(
     keepTabs,
     ownPrivacy,
     purpose: rawPurpose,
+    visible,
     withSignIns,
   },
 ) {
@@ -559,6 +600,12 @@ async function cmdBoot(
       fail(
         `The running instance on port ${existing.port} was booted ${existing.ownPrivacy ? "with" : "without"} --own-privacy.\n` +
           `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it the other way.`,
+      );
+    }
+    if (visible && existing.offScreen) {
+      fail(
+        `The running instance on port ${existing.port} was booted without --visible, so it stays off screen until someone clicks its Dock icon.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it with --visible.`,
       );
     }
     if (existing.hot !== undefined && existing.hot !== hot) {
@@ -646,6 +693,7 @@ async function cmdBoot(
         STUDIO_DRIVE_COLOR: color,
         STUDIO_OWN_PRIVACY: ownPrivacy ? "1" : undefined,
         STUDIO_DRIVE_PURPOSE: purpose,
+        STUDIO_DRIVE_VISIBLE: visible ? "1" : undefined,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
         // and never reveals the main one, which reads as a hang.
@@ -671,6 +719,7 @@ async function cmdBoot(
     hot: Boolean(hot),
     ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
+    ...(!visible && { offScreen: true }),
     ...(ownPrivacy && { ownPrivacy: true }),
     pid: child.pid,
     port,
@@ -965,6 +1014,7 @@ try {
           keepTabs: argv.includes("--keep-tabs"),
           ownPrivacy: argv.includes("--own-privacy"),
           purpose: flag(argv, "--purpose"),
+          visible: argv.includes("--visible"),
           withSignIns: argv.includes("--with-sign-ins"),
         }),
       );

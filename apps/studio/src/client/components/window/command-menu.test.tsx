@@ -1,9 +1,16 @@
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useCommandMenuRows } from "./command-menu";
+
+// Nothing is at any path the menu looks for.
+vi.mock("@/client/lib/locate-typed-path", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/client/lib/locate-typed-path")>()),
+  locateTypedPath: (path: { shown: string }) =>
+    Promise.resolve({ kind: "missing", path: path.shown }),
+}));
 
 vi.mock("@/client/hooks/use-developer-mode", async (importOriginal) => ({
   ...(await importOriginal<
@@ -114,5 +121,50 @@ describe("Settings tabs in the command menu in developer mode", () => {
         ...(debug ? ["Settings: Debug"] : []),
       ].sort(),
     );
+  });
+});
+
+/** The menu's rows for words, each section's label and each row a button that runs it. */
+function MenuRows({ words }: { words: string }) {
+  const { rows } = useCommandMenuRows({
+    active: true,
+    done: (run) => run,
+    openPage: () => undefined,
+    openScreen: () => undefined,
+    surface: "dialog",
+    words,
+  });
+  return (
+    <ul>
+      {rows.map((row, index) =>
+        row.type === "header" ? (
+          <li key={`header-${index}`}>{row.label}</li>
+        ) : row.type === "item" ? (
+          <li key={row.id}>
+            <button onClick={row.run} type="button">
+              {row.label}
+            </button>
+          </li>
+        ) : null,
+      )}
+    </ul>
+  );
+}
+
+// What a Return on a path found is the answer to that Return alone: the
+// same words typed again later are a new ask, not the old answer.
+describe("a path the command menu found nothing at", () => {
+  it("says so until the words change, and not when they come back", async () => {
+    const { rerender } = renderWithProviders(<MenuRows words="/nowhere/x" />);
+    fireEvent.click(screen.getByRole("button", { name: "/nowhere/x" }));
+    expect(
+      await screen.findByText("There’s nothing at “/nowhere/x”."),
+    ).toBeTruthy();
+
+    rerender(<MenuRows words="/nowhere/" />);
+    rerender(<MenuRows words="/nowhere/x" />);
+
+    expect(screen.queryByText("There’s nothing at “/nowhere/x”.")).toBeNull();
+    expect(screen.getByRole("button", { name: "/nowhere/x" })).toBeTruthy();
   });
 });

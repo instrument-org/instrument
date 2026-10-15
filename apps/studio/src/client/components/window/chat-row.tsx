@@ -24,7 +24,6 @@ import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
-import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -552,10 +551,9 @@ function Peek({
   search?: string;
 }) {
   const isFailed = chat.state === "failed";
-  const isStopped = chat.state === "stopped";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (!chat.latest && !isFailed && !isStopped && !isWaiting && !isWorking) {
+  if (!chat.latest && !isFailed && !isWaiting && !isWorking) {
     return null;
   }
   return (
@@ -577,13 +575,6 @@ function Peek({
           />
           <span className="min-w-0 truncate text-error-700 dark:text-error-300">
             Stopped on an error
-          </span>
-        </>
-      ) : isStopped ? (
-        <>
-          <StopCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate text-muted-foreground">
-            You stopped Instrument
           </span>
         </>
       ) : isWaiting ? (

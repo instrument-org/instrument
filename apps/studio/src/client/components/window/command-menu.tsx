@@ -52,7 +52,10 @@ import {
   shownTypedPath,
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
-import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import {
+  webSearchLabel,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { osConventions } from "@/client/lib/utils";
 import {
@@ -72,7 +75,7 @@ import {
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -96,7 +99,7 @@ import { type ReactNode, useDeferredValue, useRef, useState } from "react";
 import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
 
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
@@ -165,7 +168,8 @@ export type CommandMenuSurface = "dialog" | "page";
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
  * The rows follow the words a beat behind while typing, so the field keeps
- * up with the keys; `words` in the result is what the rows are for.
+ * up with the keys; `words` in the result is what the rows are for, and
+ * `pick` is the row Return runs, for the menu's `Command` to hold.
  */
 export function useCommandMenuRows({
   active,
@@ -183,7 +187,12 @@ export function useCommandMenuRows({
   openScreen: (href: string) => void;
   surface: CommandMenuSurface;
   words: string;
-}): { isBang: boolean; rows: Row[]; words: string } {
+}): {
+  isBang: boolean;
+  pick: { onValueChange: (id: string) => void; value: string };
+  rows: Row[];
+  words: string;
+} {
   const words = useDeferredValue(typed);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
@@ -390,11 +399,15 @@ export function useCommandMenuRows({
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
   const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
-  // A path pressed Return on that led nowhere, kept for as long as the words
-  // are still the ones that led there.
+  // A path pressed Return on that led nowhere, kept until the words change:
+  // it answers that Return alone, so the same words typed again later are
+  // looked for again.
   const [missedAt, setMissedAt] = useState<
     undefined | { outcome: MissedPath; typed: string }
   >();
+  if (missedAt !== undefined && missedAt.typed !== typed.trim()) {
+    setMissedAt(undefined);
+  }
   // A path still being looked for, once the look has gone on long enough
   // to say so.
   const [looking, setLooking] = useState<string>();
@@ -433,7 +446,7 @@ export function useCommandMenuRows({
   const webSearchItem: Item = {
     icon: <MagnifyingGlassIcon />,
     id: "web-search",
-    label: `Search the web for “${words}”`,
+    label: webSearchLabel(words),
     ranges: null,
     run: () => {
       openPage(webSearchUrl(words));
@@ -756,7 +769,24 @@ export function useCommandMenuRows({
           ...(section.looking ? [{ type: "looking" as const }] : []),
         ],
   );
-  return { isBang, rows, words };
+
+  // The row Return runs: the first for each new search, and one picked by a
+  // key or the pointer for as long as it is listed. cmdk's own pick moves to
+  // the first row only when the rows it already shows change, and these
+  // arrive a beat after the words, so words pasted whole would otherwise
+  // leave it on a row the empty menu had and the new rows do not.
+  const [picked, setPicked] = useState<{ id: string; words: string }>();
+  const ids = rows.flatMap((row) => (row.type === "item" ? [row.id] : []));
+  const pick = {
+    onValueChange: (id: string) => {
+      setPicked({ id, words });
+    },
+    value:
+      picked?.words === words && ids.includes(picked.id)
+        ? picked.id
+        : (ids[0] ?? ""),
+  };
+  return { isBang, pick, rows, words };
 }
 
 /**
@@ -810,7 +840,7 @@ export function CommandMenu({
   };
   useModalBack(close, open);
 
-  const { isBang, rows, words } = useCommandMenuRows({
+  const { isBang, pick, rows, words } = useCommandMenuRows({
     active: open,
     // A row's action, run once the menu is out of the way.
     done: (run) => () => {
@@ -833,10 +863,12 @@ export function CommandMenu({
           close();
         }
       }}
+      onValueChange={pick.onValueChange}
       open={open}
       shouldFilter={false}
       showCloseButton={false}
       title="Command menu"
+      value={pick.value}
     >
       <CommandInput
         onValueChange={setSearch}

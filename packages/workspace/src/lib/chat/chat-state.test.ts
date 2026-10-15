@@ -5,11 +5,10 @@ import { chatStateOf } from "./chat-state";
 const resting = {
   askedAt: undefined,
   failed: false,
-  ownAskedAt: undefined,
   ownTurn: false,
   spokeAt: 1,
   stopped: false,
-  tasks: [],
+  tasksAtWork: false,
   wakeOnItsWay: false,
 };
 
@@ -32,28 +31,13 @@ describe("chatStateOf", () => {
       { ownWorking: true, state: "working", working: true },
     ],
     [
-      "its own turn standing on its own question",
-      { askedAt: 5, ownAskedAt: 5, ownTurn: true },
-      { ownWorking: false, state: "waiting", working: false },
-    ],
-    [
-      "its own question the user wrote past, while the turn they started runs",
-      { askedAt: 3, ownAskedAt: 3, ownTurn: true, spokeAt: 4 },
-      { ownWorking: true, state: "working", working: true },
-    ],
-    [
       "a task at work",
-      { tasks: [{}] },
+      { tasksAtWork: true },
       { ownWorking: false, state: "working", working: true },
     ],
     [
-      "only a task stopped on an ask",
-      { askedAt: 5, tasks: [{ waiting: "Which file?" }] },
-      { ownWorking: false, state: "waiting", working: false },
-    ],
-    [
-      "a task waiting while another works",
-      { askedAt: 5, tasks: [{ waiting: "Which file?" }, {}] },
+      "a card a task raised while another works",
+      { askedAt: 5, tasksAtWork: true },
       { ownWorking: false, state: "waiting", working: true },
     ],
     [
@@ -103,7 +87,7 @@ describe("chatStateOf", () => {
     ],
     [
       "a task still at work after the user stopped the chat's turn",
-      { stopped: true, tasks: [{}] },
+      { stopped: true, tasksAtWork: true },
       { ownWorking: false, state: "working", working: true },
     ],
     [

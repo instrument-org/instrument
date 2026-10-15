@@ -109,69 +109,68 @@ const ranPythonOnTheMount: Assertion = {
   text: "ran python on the mounted file",
 };
 
-/** Where the package went in, or -1. */
-function pandasInstalledAt(commands: string[]): number {
+/** Where `name` went in, or -1. */
+function installedAt(commands: string[], name: string): number {
   return commands.findIndex((command) =>
-    /\b(?:pip3?|uv pip)\s+install\s[^|;&]*pandas/.test(command),
+    new RegExp(`\\b(?:pip3?|uv pip)\\s+install\\s[^|;&]*\\b${name}\\b`).test(
+      command,
+    ),
   );
 }
 
 /**
- * How many bash commands ran before the spreadsheet skill was loaded, or -1.
- * Its environment carries pandas, and `python` runs in it once it is loaded.
+ * polars, which `python` does not start with, so the case needs an install
+ * (pandas is one of the packages it starts with).
  */
-function pandasSkillLoadedAt(sessions: Session.WithMessagesAndParts[]): number {
-  let commands = 0;
-  for (const session of sessions) {
-    for (const message of session.messages) {
-      for (const part of message.parts) {
-        if (part.type === "tool-bash" && part.input?.command !== undefined) {
-          commands += 1;
-        } else if (
-          part.type === "tool-load_skill" &&
-          String(part.input?.name ?? "")
-            .split(/[:/]/)
-            .at(-1) === "spreadsheet"
-        ) {
-          return commands;
-        }
-      }
-    }
-  }
-  return -1;
-}
+const INSTALLED_PACKAGE = "polars";
 
-/**
- * The package went in and a Python ran it, under either name. A loaded
- * skill that carries it counts as the package going in.
- */
+/** The package went in and a Python ran it, under either name. */
 const installedThePackageAndRanIt: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
-    const installed = pandasInstalledAt(commands);
-    const loaded = pandasSkillLoadedAt(sessions);
+    const installed = installedAt(commands, INSTALLED_PACKAGE);
     const ran = commands.findIndex(
       (command, index) =>
         // The same command counts when python comes after the install in it:
-        // `pip install pandas && python -c ...`.
-        ((installed !== -1 &&
-          (index > installed ||
-            (index === installed &&
-              /install[^\n]*python3?\s/.test(command)))) ||
-          (loaded !== -1 && index >= loaded)) &&
+        // `pip install polars && python -c ...`.
+        (index > installed ||
+          (index === installed && /install[^\n]*python3?\s/.test(command))) &&
         /(?:^|[\s;&|(])python3?\s/.test(command),
     );
-    const passed = ran !== -1;
-    const sources = `pip install ${installed === -1 ? "never happened" : `at command ${installed + 1}`}, spreadsheet skill ${loaded === -1 ? "never loaded" : `loaded before command ${loaded + 1}`}`;
+    const passed = installed !== -1 && ran !== -1;
     return {
       evidence: passed
-        ? `${sources}, python at ${ran + 1} of ${commands.length}: ${(commands[ran] ?? "").slice(0, 120)}`
-        : `${sources}, python never ran after either. Commands: ${commands.join(" | ").slice(0, 500)}`,
+        ? `pip install at command ${installed + 1}, python at ${ran + 1} of ${commands.length}: ${(commands[ran] ?? "").slice(0, 120)}`
+        : `install ${installed === -1 ? "never happened" : `at ${installed + 1}`}, python ${ran === -1 ? "never ran after it" : `at ${ran + 1}`}. Commands: ${commands.join(" | ").slice(0, 500)}`,
       passed,
       text: "installed the package and ran it",
     };
   },
   text: "installed the package and ran it",
+};
+
+/**
+ * pandas, which `python` starts with, ran with no `pip install` of it first:
+ * the round trip the agent is told it can skip.
+ */
+const ranPandasWithoutInstallingIt: Assertion = {
+  check: ({ sessions }) => {
+    const commands = bashCommands(sessions);
+    const installed = installedAt(commands, "pandas");
+    const ran = commands.some(
+      (command) =>
+        /(?:^|[\s;&|(])python3?\s/.test(command) && /pandas/.test(command),
+    );
+    const passed = installed === -1 && ran;
+    return {
+      evidence: passed
+        ? `python ran pandas with no install, in ${commands.length} command(s)`
+        : `install ${installed === -1 ? "never happened" : `at command ${installed + 1}`}, pandas ${ran ? "ran" : "never ran"}. Commands: ${commands.join(" | ").slice(0, 500)}`,
+      passed,
+      text: "ran pandas without installing it",
+    };
+  },
+  text: "ran pandas without installing it",
 };
 
 /** The script the prompt asked for ran as a file. */
@@ -225,6 +224,16 @@ export const SANDBOXED_PYTHON_EVALS = [
     ],
     folders: [{ path: DATA_FIXTURE }],
     name: "python-runs-a-package-once-installed",
+    prompt:
+      "Use polars for this, not the csv module or pandas: load regional-sales.csv from my Data folder into a DataFrame, add a revenue column (units times unit_price), and tell me the total revenue for the year and the per-region totals, to the cent. Just the numbers in your reply; no files.",
+  }),
+  defineEval({
+    assertions: [
+      replyContains("the total revenue", TOTAL_REVENUE),
+      ranPandasWithoutInstallingIt,
+    ],
+    folders: [{ path: DATA_FIXTURE }],
+    name: "python-starts-with-pandas",
     prompt:
       "Use pandas for this, not the csv module: load regional-sales.csv from my Data folder into a DataFrame, add a revenue column (units times unit_price), and tell me the total revenue for the year and the per-region totals, to the cent. Just the numbers in your reply; no files.",
   }),

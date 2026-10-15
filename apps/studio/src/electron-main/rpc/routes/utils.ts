@@ -21,7 +21,10 @@ import {
   effectiveDisplayProtocol,
   resolveOzonePlatform,
 } from "@/electron-main/lib/ozone-platform";
-import { requestQuitApproval } from "@/electron-main/lib/quit";
+import {
+  quitsWithLastWindow,
+  requestQuitApproval,
+} from "@/electron-main/lib/quit";
 import { getPlatformApiReachability } from "@/electron-main/platform-api/reachability";
 import {
   clearServerExceptions,
@@ -33,6 +36,7 @@ import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { osConventionsFor } from "@/shared/os-conventions";
+import { THIRD_PARTY_LICENSES_DIR_NAME } from "@/shared/third-party-licenses";
 import { eventIterator } from "@orpc/server";
 import {
   app,
@@ -364,6 +368,30 @@ const openFolder = base
   });
 
 /**
+ * Opens the folder of third-party license texts that packaging writes beside
+ * the app's other resources, in the computer's file manager. A development
+ * build has none.
+ */
+const openThirdPartyLicenses = base
+  .errors({
+    NOT_FOUND: {
+      message: "This build doesn't include the licenses",
+    },
+  })
+  .handler(async ({ errors }) => {
+    const dir = path.join(process.resourcesPath, THIRD_PARTY_LICENSES_DIR_NAME);
+    try {
+      await fs.access(dir);
+    } catch {
+      throw errors.NOT_FOUND();
+    }
+    const errorMessage = await openPathOnComputer(dir);
+    if (errorMessage) {
+      shell.showItemInFolder(dir);
+    }
+  });
+
+/**
  * Which display protocol the app is talking, or null where the question does
  * not arise. Linux is the only platform whose window decoration depends on it:
  * a frameless window is decorated by the compositor under Wayland and by
@@ -471,12 +499,14 @@ const closeWindow = base.input(z.void()).handler(({ context }) => {
 });
 
 /**
- * Asks about running agents ahead of a quit the window is about to start, so
- * it can settle what it keeps for next launch only once the quit is certain.
- * The approval latches, so the close that follows does not ask again.
+ * Asks about running work ahead of the window closing itself, where that
+ * close is a quit, so the window can settle what it keeps for next launch
+ * only once the close is certain. The approval latches, so the close that
+ * follows does not ask again. Where the app stays running without a window,
+ * closing one stops nothing and needs no approval.
  */
-const approveQuit = base.input(z.void()).handler(async () => ({
-  approved: await requestQuitApproval(),
+const approveWindowClose = base.input(z.void()).handler(async () => ({
+  approved: quitsWithLastWindow ? await requestQuitApproval() : true,
 }));
 
 const events = {
@@ -669,7 +699,7 @@ const showFolderPicker = base
   });
 
 export const utils = {
-  approveQuit,
+  approveWindowClose,
   browserOpenTarget,
   clearExceptions,
   closeWindow,
@@ -686,6 +716,7 @@ export const utils = {
   openFileWith,
   openFolder,
   openPath,
+  openThirdPartyLicenses,
   prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,

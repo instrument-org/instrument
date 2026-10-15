@@ -24,3 +24,17 @@ export function useWatchedFileUrl(hostPath: string | undefined) {
         ...(data ? { version: data.modifiedAt } : {}),
       });
 }
+
+/**
+ * Whether the watch on a file a viewer has open says it is not there: gone
+ * since it was opened (trashed, or a folder above it moved), or never there.
+ * The same watch as `useWatchedFileUrl`, so asking both costs one.
+ */
+export function useWatchedFileGone(hostPath: string | undefined) {
+  const { data } = useQuery(
+    rpcClient.files.live.info.experimental_liveOptions({
+      input: hostPath === undefined ? skipToken : { path: hostPath },
+    }),
+  );
+  return hostPath !== undefined && data === null;
+}

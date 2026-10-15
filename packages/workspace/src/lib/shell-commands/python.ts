@@ -13,7 +13,8 @@ import {
 import { venvPython } from "../uv";
 import { pythonToRun } from "../venv";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext } from "./utils";
 
 /**
@@ -50,9 +51,12 @@ export function createPythonCommand(
 }
 
 function createPythonCommandNamed(chatId: ChatId, name: string) {
-  return defineCommand(name, (args, ctx) =>
-    runNativePython(chatId, name, args, ctx),
-  );
+  return {
+    ...defineCommand(name, (args, ctx) =>
+      runNativePython(chatId, name, args, ctx),
+    ),
+    acceptsPipeHandoff: true,
+  };
 }
 
 /** Run the interpreter for the shell's folder as a real subprocess. */
@@ -95,36 +99,44 @@ async function runNativePython(
     return { exitCode: 1, stderr: interpreter.error.output, stdout: "" };
   }
 
-  const result = await execShim(interpreter.python, finalArgs, {
-    cancelSignal: ctx.signal,
-    cwd: hostCwd,
-    // A skill's environment, and the one layered behind the interpreter's,
-    // are what a Python the script starts finds too. The managed Python run
-    // bare reads no packages of the person's own (their user
-    // site-packages), as a virtualenv reads none.
-    env: {
-      ...env,
-      ...(skill.venv
-        ? {
-            PATH: [environmentBinDir(skill.venv), env.PATH]
-              .filter(Boolean)
-              .join(path.delimiter),
-            VIRTUAL_ENV: skill.venv,
-          }
-        : interpreter.venv
-          ? {}
-          : { PYTHONNOUSERSITE: "1" }),
-      ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
+  return runNative(
+    ctx,
+    interpreter.python,
+    finalArgs,
+    {
+      cancelSignal: ctx.signal,
+      cwd: hostCwd,
+      // A skill's environment, and the one layered behind the interpreter's,
+      // are what a Python the script starts finds too. The managed Python run
+      // bare reads no packages of the person's own (their user
+      // site-packages), as a virtualenv reads none.
+      env: {
+        ...env,
+        ...(skill.venv
+          ? {
+              PATH: [environmentBinDir(skill.venv), env.PATH]
+                .filter(Boolean)
+                .join(path.delimiter),
+              VIRTUAL_ENV: skill.venv,
+            }
+          : interpreter.venv
+            ? {}
+            : { PYTHONNOUSERSITE: "1" }),
+        ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
+      },
+      // Buffer, not the latin1-packed string: execa UTF-8 encodes string
+      // input, which would double-encode every non-ASCII byte.
+      ...(stdin
+        ? { input: Buffer.from(stdin, "latin1") }
+        : { stdin: "ignore" as const }),
     },
-    // Buffer, not the latin1-packed string: execa UTF-8 encodes string
-    // input, which would double-encode every non-ASCII byte.
-    ...(stdin ? { input: Buffer.from(stdin, "latin1") } : { stdin: "ignore" }),
-  });
-
-  return {
-    exitCode: result.exitCode ?? 1,
-    ...mapStreams(shimOutput(result, name), (text) => filterShellOutput(text)),
-  };
+    (result) => ({
+      exitCode: result.exitCode ?? 1,
+      ...mapStreams(shimOutput(result, name), (text) =>
+        filterShellOutput(text),
+      ),
+    }),
+  );
 }
 
 /** Options of Python's own that take the argument after them. */

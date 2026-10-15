@@ -16,7 +16,7 @@ import {
   withoutTrailingDots,
 } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
-import { type Asker } from "./asks";
+import { type Asker } from "../chat/asks";
 import { workspaceMachineDir } from "../workspace-machine-dir";
 import {
   type Level,

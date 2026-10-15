@@ -6,7 +6,7 @@ import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask } from "../../chat/children";
 import { describeLeftRunning } from "../../chat/left-running";
 import { noteTaskStoppedOnCard } from "../../chat/wake";
-import { closeAsksOf, openAsksOf } from "../../permissions/asks";
+import { closeAsksOf, openAsksOf } from "../../chat/asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";

@@ -806,7 +806,7 @@ export async function connect({
      */
     rpc: (route, input, label) =>
       step(label ?? `rpc ${route}`, () => callRpc(cdp, route, input)),
-    /** The current value of a live (event iterator) route, such as permissions.liveAsks. */
+    /** The current value of a live (event iterator) route, such as chats.live.asks. */
     rpcFirst: (route, input, label) =>
       step(label ?? `rpc ${route} (first)`, () =>
         callRpc(cdp, route, input, { first: true }),

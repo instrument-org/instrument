@@ -1,7 +1,7 @@
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { APP_NAME } from "@instrument-org/shared";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 /**
  * One thing Settings search can find: a page, a row of one, or something a
@@ -181,6 +181,12 @@ export const SETTINGS_INDEX = [
     title: "Report a bug",
   },
   {
+    id: "third-party-licenses",
+    mark: "open-source",
+    tab: "General",
+    title: "Third-party licenses",
+  },
+  {
     id: "test-notification",
     mark: "notifications",
     tab: "General",
@@ -313,7 +319,7 @@ export type SettingsMatch = {
  * Each word of a search has to appear as written, starting a word of what the
  * result shows: "pro" finds "Add provider" but not "Import".
  */
-const fuzzy = new uFuzzy({ interLft: 1, intraIns: 0 });
+const fuzzy = boundedFuzzy({ interLft: 1, intraIns: 0 });
 
 /**
  * Ranks entries against `query` by the text each result shows, its title and,

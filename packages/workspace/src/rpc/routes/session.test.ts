@@ -19,7 +19,7 @@ import { childTask } from "../../lib/chat/children";
 import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
 import { taskStanding } from "../../lib/chat/standing";
 import { startChatWake } from "../../lib/chat/wake";
-import { openAsks, recordAsk } from "../../lib/permissions/asks";
+import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import {
@@ -381,7 +381,7 @@ describe("session.stop", () => {
         asker: ask.askers.map((asker) =>
           asker.sessionId === own ? "chat" : "task",
         ),
-        target: ask.target,
+        target: ask.kind === "question" ? ask.question : ask.target,
       })),
     ).toMatchInlineSnapshot(`
       [

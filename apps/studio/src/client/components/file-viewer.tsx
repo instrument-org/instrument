@@ -312,8 +312,8 @@ function useFileType(file: ViewerFile): FileType | undefined {
     // Kept through a save, which changes the URL, so the file does not blink
     // back to loading.
     placeholderData: keepPreviousData,
-    // The first chunk the channel sends and no more: the channel answers a
-    // range only within the file, and the file may be any size.
+    // The first chunk the channel sends and no more, since the file may be
+    // any size. Not a range: no range fits an empty file, which is text.
     queryFn: async ({ signal }) => {
       const response = await fetch(file.url, { signal });
       if (!response.ok || !response.body) {
@@ -781,6 +781,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 export function FileViewer({
   actionsInto,
   actionsLead,
+  actionsTrail,
   className,
   editable = false,
   file,
@@ -797,6 +798,8 @@ export function FileViewer({
   actionsInto?: HTMLElement | null;
   /** Buttons of the caller's own, ahead of the viewer's in its head. */
   actionsLead?: ReactNode;
+  /** Buttons of the caller's own, after the viewer's in the row it draws them into. */
+  actionsTrail?: ReactNode;
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
@@ -1090,7 +1093,10 @@ export function FileViewer({
       ) : (
         actionsInto &&
         createPortal(
-          <div className="flex shrink-0 items-center gap-1">{actions}</div>,
+          <div className="flex shrink-0 items-center gap-1">
+            {actions}
+            {actionsTrail}
+          </div>,
           actionsInto,
         )
       )}

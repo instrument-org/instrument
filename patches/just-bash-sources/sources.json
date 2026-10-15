@@ -121,12 +121,18 @@
       "ports": [589]
     },
     {
-      "name": "virtual path separators",
-      "diff": "virtual-path-separators-3.6.0.diff"
-    },
-    {
       "name": "mountable dirents",
       "diff": "mountable-dirents-3.6.0.diff"
+    },
+    {
+      "name": "process.env writes",
+      "pulls": [
+        { "number": 598, "commit": "135060a243f535e8475698883fb8cd4d39d3e5b7" }
+      ]
+    },
+    {
+      "name": "pipe handoffs",
+      "diff": "native-pipes-3.6.0.diff"
     }
   ]
 }

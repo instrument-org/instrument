@@ -13,7 +13,8 @@ import {
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
 import { APP_COMMAND } from "./app-command";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { mapStreams, shimOutput } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import {
   firstString,
   hostPathArgs,
@@ -34,38 +35,54 @@ const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 async function execNode(
   chatId: ChatId,
   args: string[],
-  signal?: AbortSignal,
+  ctx: NodeContext,
   cwd?: AbsolutePath,
   env?: Record<string, string>,
   stdin?: Buffer,
   invokeTool?: AppToolInvoker,
 ) {
+  const signal = ctx.signal;
   const preload = invokeTool ? ["--import", await nodeToolsPreloadUrl()] : [];
-  return execShim(process.execPath, [...preload, ...args], {
-    cancelSignal: signal,
-    ...(invokeTool && {
-      onMessage: (message, reply) => {
-        if (!isToolCallMessage(message)) {
-          return;
-        }
-        void answerToolCall(message, () =>
-          invokeTool(message.path, message.argsJson, signal),
-        ).then(reply);
+  return runNative(
+    ctx,
+    process.execPath,
+    [...preload, ...args],
+    {
+      cancelSignal: signal,
+      ...(invokeTool && {
+        // `stageSignal` outlives the command when its stdout is handed to the
+        // next program, where the command's own signal ends with it.
+        onMessage: (message, reply, stageSignal) => {
+          if (!isToolCallMessage(message)) {
+            return;
+          }
+          void answerToolCall(message, () =>
+            invokeTool(message.path, message.argsJson, stageSignal ?? signal),
+          ).then(reply);
+        },
+      }),
+      cwd: cwd ?? workDir(chatId),
+      env: {
+        ...getWorkspaceConfig().nodeExecEnv,
+        ...env,
+        // A script that installs or builds a native addon uses the app's own
+        // npm config, store and node-gyp headers, never the person's.
+        ...nodeToolsEnv(),
+        // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
+        ...ffmpegSubprocessEnv(env?.PATH),
       },
-    }),
-    cwd: cwd ?? workDir(chatId),
-    env: {
-      ...getWorkspaceConfig().nodeExecEnv,
-      ...env,
-      // A script that installs or builds a native addon uses the app's own
-      // npm config, store and node-gyp headers, never the person's.
-      ...nodeToolsEnv(),
-      // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
-      ...ffmpegSubprocessEnv(env?.PATH),
+      ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
     },
-    ...(stdin ? { input: stdin } : { stdin: "ignore" }),
-  });
+    (result) => ({
+      exitCode: result.exitCode ?? 1,
+      ...mapStreams(shimOutput(result, NODE_COMMAND.name), (text) =>
+        filterShellOutput(text),
+      ),
+    }),
+  );
 }
+
+type NodeContext = Parameters<typeof runNative>[0];
 
 function isBlockedFlag(flag: string): boolean {
   const name = flag.includes("=") ? flag.slice(0, flag.indexOf("=")) : flag;
@@ -101,11 +118,11 @@ export const NODE_COMMAND = {
  * makes over the subprocess's IPC channel.
  */
 export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
-  return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
+  const command = defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
-    if (args.length === 0 && !stdinProgram) {
+    if (args.length === 0 && !stdinProgram && ctx.stdinHandoff === undefined) {
       return {
         exitCode: 1,
         stderr: `${NODE_COMMAND.name} command requires a file argument or -e <code>.`,
@@ -132,21 +149,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
     const isVersion = values.v === true || values.version === true;
 
     if (isVersion) {
-      const execResult = await execNode(
-        chatId,
-        ["--version"],
-        ctx.signal,
-        hostCwd,
-        env,
-      );
-      const streams = mapStreams(
-        shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text),
-      );
-      return {
-        exitCode: execResult.exitCode ?? 1,
-        ...streams,
-      };
+      return execNode(chatId, ["--version"], ctx, hostCwd, env);
     }
 
     // `-p`/`--print` is `-e` plus printing the result, and may also appear as a
@@ -181,7 +184,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
     }
 
     if (evalCode !== undefined) {
-      const execResult = await execNode(
+      return execNode(
         chatId,
         [
           ...nodeFlags,
@@ -190,41 +193,27 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
           // The script's own arguments, in process.argv after the executable.
           ...hostPathArgs(positionals),
         ],
-        ctx.signal,
+        ctx,
         hostCwd,
         env,
         subprocessStdin(ctx.stdin),
         invokeTool,
       );
-      const streams = mapStreams(
-        shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text),
-      );
-      return {
-        exitCode: execResult.exitCode ?? 1,
-        ...streams,
-      };
     }
 
     if (positionals.length === 0) {
       // With no file, node reads the program itself from stdin
       // (`node --check < script.js`, heredocs).
-      if (stdinProgram) {
-        const execResult = await execNode(
+      if (stdinProgram || ctx.stdinHandoff !== undefined) {
+        return execNode(
           chatId,
           nodeFlags,
-          ctx.signal,
+          ctx,
           hostCwd,
           env,
-          Buffer.from(stdinProgram, "latin1"),
+          stdinProgram ? Buffer.from(stdinProgram, "latin1") : undefined,
           invokeTool,
         );
-        return {
-          exitCode: execResult.exitCode ?? 1,
-          ...mapStreams(shimOutput(execResult, NODE_COMMAND.name), (text) =>
-            filterShellOutput(text),
-          ),
-        };
       }
 
       return {
@@ -245,23 +234,15 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
       };
     }
 
-    const execResult = await execNode(
+    return execNode(
       chatId,
       [...nodeFlags, filePath, ...scriptArgs],
-      ctx.signal,
+      ctx,
       hostCwd,
       env,
       subprocessStdin(ctx.stdin),
       invokeTool,
     );
-    const streams = mapStreams(
-      shimOutput(execResult, NODE_COMMAND.name),
-      (text) => filterShellOutput(text),
-    );
-
-    return {
-      exitCode: execResult.exitCode ?? 1,
-      ...streams,
-    };
   });
+  return { ...command, acceptsPipeHandoff: true };
 }

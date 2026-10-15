@@ -5,9 +5,9 @@ import {
   nameOf,
   segmentsOf,
 } from "@/client/components/window/host-path";
-import { folderLabel } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
 import {
+  askTargetName,
   type ChatId,
   isToolPart,
   type SessionMessage,
@@ -27,12 +27,13 @@ type Ask = {
   target: string;
 };
 
+/** The chat's open permission cards; its questions draw under their calls. */
 function useAsks(chatId: ChatId) {
   return useQuery(
-    rpcClient.workspace.permissions.liveAsks.experimental_liveOptions({
+    rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }),
-  ).data;
+  ).data?.filter((ask) => ask.kind !== "question");
 }
 
 function useAnswer(chatId: ChatId, ask: Ask) {
@@ -56,29 +57,24 @@ function useAnswer(chatId: ChatId, ask: Ask) {
   };
 }
 
-/** The folder as a reader names it, or the app by its own name. */
-function permissionTargetName(kind: Ask["kind"], target: string) {
-  return kind === "folder" ? folderLabel(target) : target;
-}
-
 /**
  * What each folder of sign-ins the agent asks first about holds, by its path
  * in the home folder, as the workspace's passwords place lists them.
  */
 const SIGN_IN_LINES: Record<string, string> = {
-  ".aws": "This folder holds the keys to your Amazon Web Services account.",
-  ".azure": "This folder holds your sign-in to Microsoft Azure.",
-  ".config/gcloud": "This folder holds your sign-in to Google Cloud.",
-  ".config/gh": "This folder holds your sign-in to GitHub.",
-  ".config/op": "This folder holds your sign-in to 1Password.",
+  ".aws": "This folder has the keys to your Amazon Web Services account.",
+  ".azure": "This folder has your sign-in to Microsoft Azure.",
+  ".config/gcloud": "This folder has your sign-in to Google Cloud.",
+  ".config/gh": "This folder has your sign-in to GitHub.",
+  ".config/op": "This folder has your sign-in to 1Password.",
   ".docker/config.json":
-    "This file holds your sign-ins to the places Docker gets images from.",
-  ".git-credentials": "This file holds the passwords git signs in with.",
-  ".gnupg": "This folder holds the keys you sign and encrypt things with.",
-  ".kube": "This folder holds the keys to your Kubernetes clusters.",
-  ".netrc": "This file holds passwords for websites and servers.",
-  ".password-store": "This folder holds your saved passwords.",
-  ".ssh": "This folder holds the keys you sign in to other computers with.",
+    "This file has your sign-ins to the places Docker gets images from.",
+  ".git-credentials": "This file has the passwords git signs in with.",
+  ".gnupg": "This folder has the keys you sign and encrypt things with.",
+  ".kube": "This folder has the keys to your Kubernetes clusters.",
+  ".netrc": "This file has passwords for websites and servers.",
+  ".password-store": "This folder has your saved passwords.",
+  ".ssh": "This folder has the keys you sign in to other computers with.",
 };
 
 /** What a folder of sign-ins holds, said plainly; undefined for any other folder. */
@@ -255,6 +251,7 @@ function PermissionAskCard({
           <p className="mt-1 text-xs break-all text-muted-foreground">
             {readablePath(ask.target)}
           </p>
+
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
@@ -304,22 +301,13 @@ function PermissionAskCard({
   );
 }
 
-/**
- * A folder's name in curly quotes, as a name the person chose; an app's
- * name as the app calls itself.
- */
-function quotedTarget(kind: "app" | "folder", target: string): string {
-  const name = permissionTargetName(kind, target);
-  return kind === "folder" ? `“${name}”` : name;
-}
-
 /** The line that marks why the chat woke: what the user answered to an ask. */
 export function PermissionAnswerNote({
   data,
 }: {
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
-  const shown = quotedTarget(data.kind, data.target);
+  const shown = askTargetName(data.kind, data.target);
   return (
     <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
       <InstrumentGlyph className="size-3.5 shrink-0" />

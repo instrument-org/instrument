@@ -438,7 +438,7 @@ export function renderStylePanel(root: HTMLElement, ctx: StylePanelContext) {
 
   if (root.children.length === 0) {
     root.innerHTML =
-      '<p class="ins-empty">Nothing here takes a style of its own. Press Esc to select what holds it.</p>';
+      '<p class="ins-empty">There’s nothing to style here. Press Esc to select the element around it.</p>';
   }
 
   for (const b of root.querySelectorAll<HTMLElement>("[data-palette]")) {

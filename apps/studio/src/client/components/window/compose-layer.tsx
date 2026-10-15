@@ -47,7 +47,6 @@ export function ComposeLayer({
   onOpenChat,
   onSetChatTopics,
   onStart,
-  openOutside,
   sendContext,
   sentWords,
   topics,
@@ -75,7 +74,6 @@ export function ComposeLayer({
   onOpenChat: (chatId: ChatId) => void;
   onSetChatTopics: (chatId: ChatId, topics: string[]) => void;
   onStart: (id: string, send: DraftSend) => void;
-  openOutside: (href: string) => void;
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
   sendContext: (options: {
     isViewOpen: boolean;
@@ -275,7 +273,6 @@ export function ComposeLayer({
               onStart={(send) => {
                 onStart(draft.id, send);
               }}
-              openOutside={openOutside}
               placement={entry.placement}
               right={entry.right}
               topics={topics}

@@ -26,6 +26,11 @@ const UV_VERSION = "0.12.4";
 
 const RESOURCES_UV_DIR = path.resolve(import.meta.dirname, "../resources/uv");
 
+// uv's license texts, taken from its repository at the pinned tag because the
+// Windows archive carries none. Packaging copies them into the app's
+// third-party licenses (electron-builder/third-party-licenses.ts).
+const UV_LICENSE_FILES = ["LICENSE-APACHE", "LICENSE-MIT"];
+
 type NodeArch = "arm64" | "x64";
 type NodePlatform = "darwin" | "linux" | "win32";
 
@@ -118,7 +123,14 @@ async function main() {
   const cachedVersion = existsSync(versionMarker)
     ? readFileSync(versionMarker, "utf8").trim()
     : undefined;
-  if (existsSync(destPath) && cachedVersion === `${UV_VERSION}-${target}`) {
+  const hasLicenses = UV_LICENSE_FILES.every((name) =>
+    existsSync(path.join(RESOURCES_UV_DIR, name)),
+  );
+  if (
+    existsSync(destPath) &&
+    hasLicenses &&
+    cachedVersion === `${UV_VERSION}-${target}`
+  ) {
     console.log(`uv ${UV_VERSION} (${target}) already vendored, skipping.`);
     return;
   }
@@ -128,9 +140,16 @@ async function main() {
   const baseUrl = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
 
   console.log(`Downloading ${asset} (uv ${UV_VERSION})...`);
-  const [archive, checksumText] = await Promise.all([
+  const [archive, checksumText, licenses] = await Promise.all([
     fetchBuffer(`${baseUrl}/${asset}`),
     fetchBuffer(`${baseUrl}/${asset}.sha256`).then((b) => b.toString("utf8")),
+    Promise.all(
+      UV_LICENSE_FILES.map((name) =>
+        fetchBuffer(
+          `https://raw.githubusercontent.com/astral-sh/uv/${UV_VERSION}/${name}`,
+        ).then((body) => ({ body, name })),
+      ),
+    ),
   ]);
 
   const expected = parseChecksum(checksumText);
@@ -152,6 +171,9 @@ async function main() {
     copyFileSync(uvBinary, destPath);
     if (platform !== "win32") {
       chmodSync(destPath, 0o755);
+    }
+    for (const { body, name } of licenses) {
+      writeFileSync(path.join(RESOURCES_UV_DIR, name), body);
     }
     writeFileSync(versionMarker, `${UV_VERSION}-${target}\n`);
     console.log(`Vendored uv ${UV_VERSION} (${target}) to ${destPath}`);

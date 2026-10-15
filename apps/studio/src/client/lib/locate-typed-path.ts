@@ -1,4 +1,8 @@
-import { type TypedPath, typedPathOf } from "@/client/lib/typed-path";
+import {
+  type TypedPath,
+  typedPathOf,
+  withoutTrailingSeparators,
+} from "@/client/lib/typed-path";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
@@ -44,14 +48,20 @@ export async function locateTypedPath(
 
 /** What a field says about a path it could not open, in a sentence. */
 export function missedPathNotice(missed: MissedPath) {
-  const shown = `“${displayHostPath(missed.path, window.api.homeDir)}”`;
+  const shown = `“${displayHostPath(withoutTrailingSeparators(missed.path), window.api.homeDir)}”`;
   if (missed.kind === "missing") {
     return `There’s nothing at ${shown}.`;
   }
   if (missed.code === undefined) {
     return `${shown} isn’t a place on this computer.`;
   }
-  const why = FAILURES[missed.code];
+  // Windows has no code of its own for a share that can't be reached, so
+  // the read fails as UNKNOWN; on a share, that is what it nearly always is.
+  const why =
+    FAILURES[missed.code] ??
+    (missed.code === "UNKNOWN" && missed.path.startsWith("\\\\")
+      ? "The network share it’s on isn’t answering."
+      : undefined);
   return `Instrument couldn’t open ${shown}.${why ? ` ${why}` : ""}`;
 }
 
@@ -59,6 +69,7 @@ export function missedPathNotice(missed: MissedPath) {
 const FAILURES: Partial<Record<string, string>> = {
   EBUSY: "Something else is using it right now.",
   EHOSTDOWN: "The drive it’s on isn’t answering.",
+  EHOSTUNREACH: "The drive it’s on isn’t answering.",
   EIO: "The drive it’s on isn’t answering.",
   ELOOP: "The path loops back on itself.",
   ENAMETOOLONG: "The path is too long.",

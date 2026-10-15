@@ -24,9 +24,12 @@ caf = "caf"
 edn = "edn"
 ODF = "ODF"
 odf = "odf"
+# LibreOffice's configuration key for recalculating ODF files on load.
+ODFRecalcMode = "ODFRecalcMode"
 styl = "styl"
 # The British name of a LICENSE file, matched as a file name.
 licence = "licence"
+LICENCE = "LICENCE"
 # A chat title cut at its length cap in a migration test's snapshot.
 sprin = "sprin"
 # A stem an eval regex matches so "excluded" and "excluding" both count.
@@ -76,6 +79,7 @@ extend-exclude = [
   "packages/workspace/evals/decision/corpus/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
+  "apps/studio/licenses/",
   "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
   "patches/",
   "apps/studio/resources/tailwind-browser.js",

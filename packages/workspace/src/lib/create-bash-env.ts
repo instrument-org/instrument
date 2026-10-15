@@ -53,9 +53,14 @@ import {
 } from "./shell-commands/messages";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { createNotesCommand, NOTES_COMMAND } from "./shell-commands/notes";
+import {
+  createNativeTextCommand,
+  nativeTextRoutes,
+  uutilsProgram,
+} from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
-import { asksWritten } from "./permissions/asks";
+import { asksWritten } from "./chat/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
@@ -141,7 +146,7 @@ const SANDBOX_MAX_COMMANDS = 10_000_000;
 /**
  * Operations and entries one traversal may spend, both 1,000,000 by default.
  * A home folder reaches that after about twenty seconds and returns nothing to
- * show for it, since a pipeline stage buffers rather than streams. This is the
+ * show for it, since a builtin pipeline stage buffers rather than streams. This is the
  * backstop rather than the fix, so it is set to give up while the user is still
  * watching without failing work a task legitimately does: a whole monorepo
  * checkout with its `node_modules`, the heaviest tree a task holds, is about
@@ -570,8 +575,12 @@ function pythonProgram(chatId: ChatId): string | undefined {
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
+  // A text command uutils answers is described by that program.
+  const route = nativeTextRoutes().find((each) => each.name === name);
   try {
-    program = COMMAND_PROGRAMS[name]?.(chatId);
+    program = route
+      ? uutilsProgram(route.binary)
+      : COMMAND_PROGRAMS[name]?.(chatId);
   } catch {
     // A program this platform cannot carry (dugite's git elsewhere) runs
     // nothing, so there is nothing to name.
@@ -631,9 +640,13 @@ const CHAT_COMMAND_LINES = [
 ];
 
 export function createBashDescription() {
-  const allowedCommandNames = getCommandNames().filter(
-    (name) => !BROKEN_COMMANDS.has(name),
-  );
+  const allowedCommandNames = [
+    ...new Set([
+      ...getCommandNames(),
+      // The GNU text commands the bundled uutils add beside the builtins.
+      ...nativeTextRoutes().map((route) => route.name),
+    ]),
+  ].filter((name) => !BROKEN_COMMANDS.has(name));
 
   const namedOnly = allowedCommandNames
     .filter((name) => !(name in DESCRIBED_COMMANDS))
@@ -675,7 +688,7 @@ export function createBashDescription() {
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
       - Use the \`${TOOL_NAMES.editFile}\`/\`${TOOL_NAMES.writeFile}\` tools instead of \`sed\`/\`awk\`/redirects for editing.
       - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`, or \`--iglob '*report*'\` to ignore case. It composes, so \`rg -l TODO | head\` works.
-      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\`, never by piping \`rg --files\` into another command: a pipe stage only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
+      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\` rather than by piping \`rg --files\` into another command. A shell builtin such as \`awk\`, \`sed\` or a \`while read\` loop only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
       - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\`: \`rg\` is the real ripgrep binary and far faster.
       - For audio, video, or image inspection, prefer \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\` over \`file\`.
 
@@ -829,6 +842,11 @@ export async function createLocalBashEnv({
       // not carry its `(?i)` and root-level-glob bugs.
       createRgCommand({ layout, chatId }),
       createDuCommand({ layout }),
+      // After the bundled commands, so the uutils programs shadow the
+      // builtins they answer for.
+      ...nativeTextRoutes().map((route) =>
+        createNativeTextCommand(route, { chatId, layout }),
+      ),
       ...specializedCommands,
       // After the bundled commands so these shadow just-bash's own `kill` and
       // `wait`, which act on host pids this sandbox deliberately cannot name.

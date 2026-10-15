@@ -17,7 +17,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { withRecordsInPlace } from "../../test/helpers/with-test-records";
-import { recordAsk } from "../permissions/asks";
+import { recordAsk, recordQuestion } from "./asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { forgetChat, sessionOfChat } from "../record-folders";
@@ -125,31 +125,50 @@ beforeEach(() => {
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 
+/** A reply that asked the user with `choose`, and the question it left open. */
 async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   const messageId = StoreId.newMessageId();
+  const part = {
+    input: { choices: ["Yes", "No"], question: "Which one?" },
+    metadata: {
+      ...partMetadata({ messageId, sessionId }),
+      endedAt: at(5),
+    },
+    output: { asked: true as const },
+    state: "output-available" as const,
+    toolCallId: "call_choose",
+    type: "tool-choose" as const,
+  };
   const message: SessionMessage.AssistantWithParts = {
     id: messageId,
     metadata: {
       createdAt: at(5),
       finishedAt: at(5),
-      finishReason: "tool-calls",
+      finishReason: "stop",
       modelId: "glm-5.3-flash",
       providerId: "openai-compatible",
       sessionId,
     },
-    parts: [
-      {
-        input: { choices: ["Yes", "No"], question: "Which one?" },
-        metadata: partMetadata({ messageId, sessionId }),
-        state: "input-available",
-        toolCallId: "call_choose",
-        type: "tool-choose",
-      },
-    ],
+    parts: [part],
     role: "assistant",
   };
   const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
   expect(saved.isOk()).toBe(true);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(at(5));
+  try {
+    await recordQuestion(
+      {
+        chatId: chatFor(sessionId),
+        messageId,
+        partId: part.metadata.id,
+        sessionId,
+      },
+      "Which one?",
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 }
 
 /** A finished reply, with words and whatever tool calls it made. */
@@ -745,59 +764,6 @@ describe("listChats", () => {
     ]);
   });
 
-  it("waits, rather than works, while a task filed from it is stopped on an ask", async () => {
-    const chatId = await freshChat();
-    const sessionId = await session(chatId, "Groceries");
-    await userSays(chatId, sessionId, "make me a grocery list", 1);
-    await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
-    const child = await fileTask(sessionId);
-    running.value = [
-      {
-        chat: sessionId,
-        step: "Picking a store",
-        sessionId: child,
-        title: "Grocery list",
-        updatedAt: at(3).getTime(),
-        waiting: "Which one?",
-      },
-    ];
-
-    const [chat] = await listChats();
-
-    expect(chat?.state).toBe("waiting");
-    expect(chat?.latest).toEqual({
-      at: at(3).getTime(),
-      kind: "question",
-      text: "Which one?",
-    });
-    expect(chat?.runningTasks).toEqual([
-      {
-        id: child,
-        step: "Picking a store",
-        title: "Grocery list",
-        waiting: "Which one?",
-      },
-    ]);
-
-    // Another task still moving leaves the chat waiting on the question,
-    // which is what the user can do something about.
-    running.value = [
-      ...running.value,
-      {
-        chat: sessionId,
-        step: "Checking the pantry",
-        sessionId: await fileTask(sessionId, "Pantry"),
-        title: "Pantry",
-        updatedAt: at(4).getTime(),
-      },
-    ];
-    const [busy] = await listChats();
-    expect(busy?.state).toBe("waiting");
-    expect(busy?.latest?.text).toBe("Which one?");
-    // What it says is the question; what still moves is said apart from it.
-    expect([chat?.working, busy?.working]).toEqual([false, true]);
-  });
-
   it("is working while its own agent is alive, saying what it is doing", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
@@ -892,7 +858,7 @@ describe("listChats", () => {
     expect(chat?.state).toBe("working");
   });
 
-  it("is waiting while its last turn ended on a question", async () => {
+  it("is waiting on the question its last turn asked", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
@@ -906,22 +872,6 @@ describe("listChats", () => {
       kind: "question",
       text: "Which one?",
     });
-  });
-
-  it("is waiting, not working, while its own agent stands on the question it asked", async () => {
-    const chatId = await freshChat();
-    const sessionId = await session(chatId, "Groceries");
-    await userSays(chatId, sessionId, "make me a grocery list", 1);
-    await agentAsks(chatId, sessionId);
-    // The agent is alive to the machine: its turn is open on the tool call.
-    alive.value = new Set([sessionId]);
-    try {
-      const [chat] = await listChats();
-      expect(chat?.state).toBe("waiting");
-      expect(chat?.latest?.kind).toBe("question");
-    } finally {
-      alive.value = new Set();
-    }
   });
 
   it("waits on an open card, even while the turn that raised it winds down", async () => {

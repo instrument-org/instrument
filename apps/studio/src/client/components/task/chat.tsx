@@ -62,7 +62,6 @@ import {
   unsettledPrompts,
 } from "./pending-prompts";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
-import { StopTurnButton } from "./stop-turn-button";
 
 // How long a submitted prompt follows the transcript on its own before the
 // session has to justify it. Long enough to cover starting a turn, short enough
@@ -81,8 +80,8 @@ const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
  * Every prompt is sent the moment it is submitted, whether or not a turn is
  * running: the conversation never takes turns with the user, since its
  * session queues what arrives mid-turn and runs it the moment the turn ends.
- * For the same reason Send never turns into a stop; while the chat's own
- * turn runs, a Stop of its own stands beside it.
+ * For the same reason the composer has no stop: the chat's is on the line
+ * under its title.
  */
 export function ChatConversation({
   asks,
@@ -361,7 +360,6 @@ export function ChatConversation({
       alwaysOpen
       attachmentsLead={asks?.pills}
       autoFocus
-      beforeSend={<StopTurnButton chatId={id} sessionId={selectedSessionId} />}
       className="relative z-10"
       draftKey={draftKey}
       hasAttachmentsLead={asks?.pills != null}

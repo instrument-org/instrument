@@ -40,8 +40,14 @@ import {
   shownTypedPath,
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
-import { type TypedPath } from "@/client/lib/typed-path";
-import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import {
+  type TypedPath,
+  withoutTrailingSeparators,
+} from "@/client/lib/typed-path";
+import {
+  webSearchLabel,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -274,11 +280,15 @@ export function Omnibar({
     );
     leave();
   };
-  // A path pressed Return on that led nowhere, kept for as long as the
-  // words in the field are still the ones that led there.
+  // A path pressed Return on that led nowhere, kept until the words in the
+  // field change: it answers that Return alone, so the same words typed
+  // again later are looked for again.
   const [missed, setMissed] = useState<
     undefined | { outcome: MissedPath; typed: string }
   >();
+  if (missed !== undefined && missed.typed !== typed.trim()) {
+    setMissed(undefined);
+  }
   // A path still being looked for, once the look has gone on long enough
   // to say so.
   const [looking, setLooking] = useState<string>();
@@ -673,11 +683,10 @@ function useRows({
       ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
       : undefined;
     const searchRow: OmniRow = {
-      detail: "Search DuckDuckGo",
       fill: whole,
       icon: <MagnifyingGlassIcon className="size-4" />,
       id: "search",
-      name: whole,
+      name: webSearchLabel(whole),
       run: () => {
         open.openSite(webSearchUrl(whole));
       },
@@ -770,7 +779,15 @@ function useRows({
         : undefined;
     const completion = finished ? finished.name.slice(path.prefix.length) : "";
     const whole = `${typed}${completion}`;
+    // A whole path's names are in a folder other than the one on screen,
+    // which each row says, or a name the folder on screen has too (its
+    // Documents) reads as that one.
+    const elsewhere =
+      isWhole &&
+      withoutTrailingSeparators(path.folder) !==
+        withoutTrailingSeparators(here);
     const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
+      ...(elsewhere ? { detail: displayHostPath(path.folder, home) } : {}),
       fill:
         entry === finished
           ? `${whole}${entry.kind === "folder" ? "/" : ""}`
@@ -818,7 +835,7 @@ function useRows({
               empty:
                 listed.reason === "app"
                   ? `Instrument keeps “${folderName}” private`
-                  : `Instrument can’t read “${folderName}”`,
+                  : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
             }
           : listed
             ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
@@ -942,10 +959,9 @@ function missedRows(
             } satisfies OmniRow,
           ]),
       {
-        detail: "Search DuckDuckGo",
         icon: <MagnifyingGlassIcon className="size-4" />,
         id: "search",
-        name: typed,
+        name: webSearchLabel(typed),
         run: () => {
           open.openSite(webSearchUrl(typed));
         },

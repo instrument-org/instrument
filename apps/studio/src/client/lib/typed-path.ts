@@ -47,7 +47,7 @@ export function typedPathOf(
   }
   const found = (written: string, alsoSearch = false): TypedPath => ({
     alsoSearch,
-    shown: trimmed(written),
+    shown: withoutTrailingSeparators(written),
     typed,
     written,
   });
@@ -78,7 +78,7 @@ export function typedPathOf(
     return;
   }
   const written = unquoted.replace(SHELL_ESCAPED, "$1");
-  const shown = trimmed(written);
+  const shown = withoutTrailingSeparators(written);
   return found(
     written,
     /^(?:\/[\w.-]+)+$/.test(shown) &&
@@ -128,8 +128,11 @@ const SYSTEM_ROOTS = new Set([
 /** What a Terminal escapes with a backslash when a name is dragged or completed into it. */
 const SHELL_ESCAPED = /\\([ !"#$&'()*,;<=>?@[\\\]^`{|}~])/g;
 
-/** A path without the separators trailing it, which say nothing about where it is. */
-function trimmed(path: string) {
+/**
+ * A path without the separators trailing it, which say nothing about where
+ * it is; the root and a drive's top keep theirs, as they are written.
+ */
+export function withoutTrailingSeparators(path: string) {
   return path.length > 1 && !/^[a-z]:[\\/]$/i.test(path)
     ? path.replace(/[\\/]+$/, "") || path[0] || path
     : path;

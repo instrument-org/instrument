@@ -9,6 +9,8 @@ export interface RunningBackgroundProcess {
   /** The agent's own label for the call that started it, when it wrote one. */
   explanation?: string;
   id: string;
+  /** The session that started it: the chat's own, or one of its tasks'. */
+  sessionId: StoreId.Session;
   startedAt: Date;
 }
 

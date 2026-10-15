@@ -6,6 +6,7 @@ import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
 
 import {
+  type NativeReach,
   NativeSandboxUnavailableError,
   refusalNote,
   refusedPathIn,
@@ -54,6 +55,11 @@ type ShimOptions = Omit<
  * actually reported.
  */
 export function collapseProgress(output: string) {
+  // The pattern tries a match at every character, a second per 35 MB, so
+  // output with no carriage return at all skips it.
+  if (!output.includes("\r")) {
+    return output;
+  }
   // The lookahead spares \r\n, so Windows line endings are left intact.
   return output.replaceAll(/[^\n]*\r(?!\n)/g, "");
 }
@@ -163,41 +169,20 @@ export async function execShim(
   await finishTreeTermination?.();
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const cwd =
-    typeof subprocessOptions.cwd === "string"
-      ? subprocessOptions.cwd
-      : undefined;
-  // A command that failed is told of any path the rules kept it from, the
-  // likeliest reason it failed. One that exited 0 handled the refusal itself,
-  // as a script printing the error it caught does, so it is told only of a
-  // path in the app's own data that its stderr names: nothing opens that, and
-  // a bare "Operation not permitted" reads as something to work around. Its
-  // stdout is its own output, and a path a card could open raises no card
-  // from a command that did not fail.
-  const refused =
-    !spawned.reach || walks
-      ? undefined
-      : result.exitCode === 0
-        ? refusedPathIn(stderr, spawned.reach, cwd, { appDataOnly: true })
-        : refusedPathIn(`${stderr}\n${stdout}`, spawned.reach, cwd);
-  const refusal = refused && refusalNote(refused);
-  // A program that reached a developer tool stub on a Mac without the tools
-  // fails with the stub's own error, which does not say what to do.
-  // `xcode-select --install` reports a request the sandbox refused and still
-  // exits 0, so its own output is read whatever the exit code, and it fails.
-  const installRefused =
-    path.basename(file) === "xcode-select" &&
-    `${stderr}\n${stdout}`.includes("no install could be requested");
-  const missingTools =
-    result.exitCode !== 0 || installRefused
-      ? commandLineToolsNote(`${stderr}\n${stdout}`)
-      : undefined;
-  const notes = [
-    ...(refusal ? [`${refusal}\n`] : []),
-    ...(missingTools ? [missingTools] : []),
-  ].join("");
+  const noted = withShimNotes({
+    cwd:
+      typeof subprocessOptions.cwd === "string"
+        ? subprocessOptions.cwd
+        : undefined,
+    exitCode: result.exitCode,
+    file,
+    reach: spawned.reach,
+    stderr,
+    stdout,
+    walks,
+  });
   return {
-    exitCode: installRefused && result.exitCode === 0 ? 1 : result.exitCode,
+    exitCode: noted.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
     file,
@@ -211,10 +196,67 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
+    stderr: noted.stderr,
+    stdout,
+  };
+}
+
+/**
+ * A finished program's exit code and stderr with what the app adds to them:
+ * the note for a path the sandbox refused, and the note for a developer tool
+ * stub on a Mac without the tools.
+ */
+export function withShimNotes({
+  cwd,
+  exitCode,
+  file,
+  reach,
+  stderr,
+  stdout,
+  walks,
+}: {
+  cwd: string | undefined;
+  exitCode: number | undefined;
+  file: string;
+  reach: NativeReach | undefined;
+  stderr: string;
+  stdout: string;
+  walks: boolean | undefined;
+}): { exitCode: number | undefined; stderr: string } {
+  // A command that failed is told of any path the rules kept it from, the
+  // likeliest reason it failed. One that exited 0 handled the refusal itself,
+  // as a script printing the error it caught does, so it is told only of a
+  // path in the app's own data that its stderr names: nothing opens that, and
+  // a bare "Operation not permitted" reads as something to work around. Its
+  // stdout is its own output, and a path a card could open raises no card
+  // from a command that did not fail.
+  const refused =
+    !reach || walks
+      ? undefined
+      : exitCode === 0
+        ? refusedPathIn(stderr, reach, cwd, { appDataOnly: true })
+        : refusedPathIn(`${stderr}\n${stdout}`, reach, cwd);
+  const refusal = refused && refusalNote(refused);
+  // A program that reached a developer tool stub on a Mac without the tools
+  // fails with the stub's own error, which does not say what to do.
+  // `xcode-select --install` reports a request the sandbox refused and still
+  // exits 0, so its own output is read whatever the exit code, and it fails.
+  const installRefused =
+    path.basename(file) === "xcode-select" &&
+    `${stderr}\n${stdout}`.includes("no install could be requested");
+  const missingTools =
+    exitCode !== 0 || installRefused
+      ? commandLineToolsNote(`${stderr}\n${stdout}`)
+      : undefined;
+  const notes = [
+    ...(refusal ? [`${refusal}\n`] : []),
+    ...(missingTools ? [missingTools] : []),
+  ].join("");
+  return {
+    exitCode: installRefused && exitCode === 0 ? 1 : exitCode,
     stderr: notes
       ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${notes}`
       : stderr,
-    stdout,
   };
 }
 

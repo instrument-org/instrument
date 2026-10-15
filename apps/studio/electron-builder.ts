@@ -161,6 +161,9 @@ const config: Configuration = {
   ],
   files: [
     "out/**/*",
+    // Build-time records of what each bundle holds, read by afterPack to
+    // write the third-party notices (electron-builder/bundled-packages.ts).
+    "!out/**/*.bundled-packages.json",
     "resources/**/*",
     "node_modules/**",
     "!**/node_modules/**/*.md",
@@ -244,6 +247,11 @@ const config: Configuration = {
       {
         from: "native/mac-helper/.build/bridge/instrument-mac.node",
         to: "bin/instrument-mac.node",
+      },
+      // The Seatbelt launcher native commands start through.
+      {
+        from: "native/mac-helper/.build/bridge/instrument-seatbelt",
+        to: "bin/instrument-seatbelt",
       },
     ],
     extendInfo: {

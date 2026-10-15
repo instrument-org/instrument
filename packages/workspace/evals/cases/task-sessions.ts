@@ -36,7 +36,7 @@ import path from "node:path";
 import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
-import { openAsks } from "../../src/lib/permissions/asks";
+import { openAsks } from "../../src/lib/chat/asks";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
@@ -505,7 +505,7 @@ const t1WaitsOnTheCard: Assertion = {
       (child) => child.handle === "t1",
     );
     const card = (await openAsks(ctx.chatId)).find(
-      (ask) =>
+      (ask): ask is Exclude<typeof ask, { kind: "question" }> =>
         ask.kind === "folder" &&
         // By its end: a report read later runs under another home.
         /[/\\]Documents(?:[/\\]Pantry)?$/.test(ask.target) &&

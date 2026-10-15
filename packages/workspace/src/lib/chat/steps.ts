@@ -186,13 +186,9 @@ const PartMetadataSchema = z.object({ createdAt: z.date() });
 function outcome(part: SessionMessagePart.ToolPart): string {
   switch (part.state) {
     // A call can wait in `input-available` behind a write ahead of it in the
-    // queue; only `startedAt` says it began. An interactive call never starts,
-    // so being asked for is its running.
+    // queue; only `startedAt` says it began.
     case "input-available": {
-      return part.metadata.startedAt !== undefined ||
-        isInteractiveTool(getToolNameByType(part.type))
-        ? " (running)"
-        : " (queued)";
+      return part.metadata.startedAt !== undefined ? " (running)" : " (queued)";
     }
     case "input-streaming": {
       return " (running)";

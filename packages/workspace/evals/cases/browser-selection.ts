@@ -84,6 +84,26 @@ const usedInAppBrowserOnly: Assertion = {
   text: "Drove the in-app browser with no external targeting flags",
 };
 
+const NETWORK_IDLE_WAIT = /\bwait\b[^|;&\n]*(?:--load|-l)\s+networkidle\b/;
+
+const waitedOnConditions: Assertion = {
+  check: ({ sessions }) => {
+    const commands = agentBrowserCommands(sessions);
+    const idle = commands.filter((command) => NETWORK_IDLE_WAIT.test(command));
+    return {
+      evidence:
+        commands.length === 0
+          ? "No agent-browser invocations found"
+          : idle.length > 0
+            ? `Network-idle waits: ${idle.join(" | ")}`
+            : `Invocations: ${commands.join(" | ")}`,
+      passed: commands.length > 0 && idle.length === 0,
+      text: "Browsed without waiting on the network going idle",
+    };
+  },
+  text: "Browsed without waiting on the network going idle",
+};
+
 const usedProfileForLogins: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
@@ -288,6 +308,14 @@ export const BROWSER_SELECTION_EVALS = [
     shouldStop: stopOnAgentBrowser((command) => /\bopen\b/.test(command)),
   }),
   // A blocked subcommand must teach the supported spelling, not invite retries.
+  // Shop pages keep a connection open, so a network-idle wait there only
+  // costs time; the page is ready once `open` returns.
+  defineEval({
+    assertions: [waitedOnConditions],
+    name: "browser-shopping-waits-on-conditions",
+    prompt:
+      "Find a 5 ml oral syringe with 0.2 ml markings on Amazon and tell me the cheapest one rated at least 4 stars, with its link.",
+  }),
   defineEval({
     assertions: [recoveredFromBlockedSubcommand],
     name: "browser-blocked-connect",

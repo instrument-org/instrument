@@ -37,6 +37,29 @@ describe("locationCrumbs", () => {
       `);
   });
 
+  it("names several picked as a count under their folder, which is somewhere to go", () => {
+    expect(
+      readable({
+        kind: "folder",
+        path: "/Users/casey/Documents/Lisbon trip",
+        picked: 3,
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "casey -> /files?path=&root=%2FUsers%2Fcasey",
+        "Documents -> /files?path=&root=%2FUsers%2Fcasey%2FDocuments",
+        "Lisbon trip -> /files?path=&root=%2FUsers%2Fcasey%2FDocuments%2FLisbon+trip",
+        "3 items",
+      ]
+    `);
+  });
+
+  it("names several picked from the recents as a count alone", () => {
+    expect(readable({ kind: "folder", path: "", picked: 4 })).toEqual([
+      "4 items",
+    ]);
+  });
+
   it("walks a Windows folder up from the home folder", () => {
     expect(
       readable(
@@ -83,6 +106,42 @@ describe("locationCrumbs", () => {
         ],
       }
     `);
+  });
+
+  // Below the disk's name the path splits the way the whole path does: at
+  // every backslash on Windows, and at a slash alone on a Mac or Linux, where
+  // a backslash is a letter in a name.
+  it.each([
+    [
+      "C:\\Windows\\Web\\Wallpaper",
+      { name: "Local Disk (C:)", path: "C:\\" },
+      [
+        "Local Disk (C:) -> /files?path=&root=C%3A%5C",
+        "Windows -> /files?path=&root=C%3A%5CWindows",
+        "Web -> /files?path=&root=C%3A%5CWindows%5CWeb",
+        "Wallpaper",
+      ],
+    ],
+    [
+      "/Volumes/Backup/a\\b/c",
+      { name: "Backup", path: "/Volumes/Backup" },
+      [
+        "Backup -> /files?path=&root=%2FVolumes%2FBackup",
+        "a\\b -> /files?path=&root=%2FVolumes%2FBackup%2Fa%5Cb",
+        "c",
+      ],
+    ],
+  ])("splits %s below its disk's name", (path, volume, crumbs) => {
+    expect(
+      locationCrumbs(
+        { kind: "folder", path },
+        { home: HOME, volumes: [volume] },
+      ).map((crumb) =>
+        crumb.to?.kind === "screen"
+          ? `${crumb.label} -> ${crumb.to.href}`
+          : crumb.label,
+      ),
+    ).toEqual(crumbs);
   });
 
   it("starts a path in iCloud Drive at iCloud Drive rather than home", () => {

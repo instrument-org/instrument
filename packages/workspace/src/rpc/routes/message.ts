@@ -15,6 +15,7 @@ import { Store } from "../../lib/store";
 import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
+import { closeQuestions } from "../../lib/chat/asks";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -172,6 +173,12 @@ const create = base
         const written = await Store.saveMessageWithParts(message, chatId);
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
+        }
+        // Writing in the chat is the person's answer to whatever it asked,
+        // so a question still open there is closed rather than left to be
+        // answered against a turn that has moved on.
+        if (finalSessionId === chatSession.value.id) {
+          await closeQuestions(chatId);
         }
         context.workspaceRef.send({
           type: "addMessage",

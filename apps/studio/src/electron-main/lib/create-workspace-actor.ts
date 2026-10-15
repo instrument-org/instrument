@@ -49,6 +49,7 @@ import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
 import { captureServerException } from "./capture-server-exception";
+import { convertChatRecords } from "./convert-chat-records";
 import { logger } from "./electron-logger";
 import {
   getWorkspaceFolder,
@@ -78,7 +79,7 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-export function createWorkspaceActor(deviceId: DeviceId) {
+export async function createWorkspaceActor(deviceId: DeviceId) {
   const rootDir = getWorkspaceFolder();
 
   // Which database a chat opens is settled for every workspace, before
@@ -103,6 +104,10 @@ export function createWorkspaceActor(deviceId: DeviceId) {
     );
   }
   settleDatabase(rootDir);
+  // Before the workspace starts, which puts in place the writer every write
+  // to a chat's store appends through: a chat whose conversation is still in
+  // its `chat.db` has to be on its records before one can reach them.
+  await convertChatDatabases(deviceId, rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -386,6 +391,38 @@ function reportChatRecords(records: ChatRecordsSplit) {
   if (records.failed > 0) {
     logger.warn(
       `Left ${records.failed} chat entr${records.failed === 1 ? "y" : "ies"} to move on the next boot`,
+    );
+  }
+}
+
+/**
+ * Put every chat on its records before anything opens one, and set the
+ * database each was converted from aside on this computer. Runs after the
+ * databases are named, so a chat whose conversation is in the file beside
+ * its own store converts from the one that holds it. Idempotent, and a chat
+ * it could not convert keeps its database and is said back; a failure must
+ * not block boot.
+ */
+async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
+  try {
+    const converted = await convertChatRecords({
+      appVersion: app.getVersion(),
+      deviceId,
+      machineDir: workspaceMachineDir(),
+      rootDir,
+    });
+    for (const step of converted.done) {
+      logger.info(`Chat records: ${step}`);
+    }
+    for (const { reason, where } of converted.left) {
+      logger.warn(
+        `Chat records: left ${where} on its database and will try again next launch: ${reason}`,
+      );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
     );
   }
 }

@@ -38,7 +38,7 @@ import {
   updateRegistry,
   workspaceMachineDirOf,
   type WorkspaceRegistry,
-  WORKSPACE_FORMAT_VERSION,
+  MACHINE_DATA_FORMAT_VERSION,
 } from "./workspaces";
 
 /**
@@ -764,7 +764,7 @@ function isSettled(workspacePath: string) {
   const identity = readWorkspaceIdentity(workspacePath);
   return (
     !hasWorkspaceIdentity(workspacePath) ||
-    (identity.formatVersion >= WORKSPACE_FORMAT_VERSION &&
+    (identity.formatVersion >= MACHINE_DATA_FORMAT_VERSION &&
       identity.settingsVersion >= CURRENT_SETTINGS_VERSION &&
       identity.layoutVersion === WORKSPACE_LAYOUT_VERSION &&
       identity.legacyProjectsMigrated === true)

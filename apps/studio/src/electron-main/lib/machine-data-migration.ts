@@ -13,7 +13,7 @@ import {
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   settleWorkspace,
-  WORKSPACE_FORMAT_VERSION,
+  MACHINE_DATA_FORMAT_VERSION,
   workspaceMachineDirOf,
   writeJsonAtomic,
   writeWorkspaceIdentity,
@@ -106,7 +106,7 @@ export function moveMachineData({
   try {
     if (
       readWorkspaceIdentity(workspace.path).formatVersion >=
-      WORKSPACE_FORMAT_VERSION
+      MACHINE_DATA_FORMAT_VERSION
     ) {
       removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
       removeLegacyIndexes({ done, userDataDir });
@@ -151,11 +151,11 @@ export function moveMachineData({
     if (failed === 0) {
       writeWorkspaceIdentity(workspace.path, {
         ...readWorkspaceIdentity(workspace.path),
-        formatVersion: WORKSPACE_FORMAT_VERSION,
+        formatVersion: MACHINE_DATA_FORMAT_VERSION,
       });
       fs.rmSync(marker, { force: true });
       done.push(
-        `workspace at format version ${WORKSPACE_FORMAT_VERSION.toString()}, machine data in ${machineDir}`,
+        `workspace at format version ${MACHINE_DATA_FORMAT_VERSION.toString()}, machine data in ${machineDir}`,
       );
       removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
       removeLegacyIndexes({ done, userDataDir });

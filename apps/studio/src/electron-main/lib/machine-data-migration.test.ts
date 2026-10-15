@@ -13,6 +13,7 @@ import {
   type ResolvedWorkspace,
   settleWorkspace,
   updateRegistry,
+  WORKSPACE_FORMAT_VERSION,
   workspaceMachineDirOf,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -211,7 +212,11 @@ describe("moveMachineData", () => {
       "permissions.json",
     ]);
     expect(tree(machineDir)).not.toContain("permissions.json");
-    expect(readWorkspaceIdentity(picked).formatVersion).toBe(1);
+    // A folder no build made a workspace of holds nothing in an older
+    // format, so the settings take-in starts it at this one.
+    expect(readWorkspaceIdentity(picked).formatVersion).toBe(
+      WORKSPACE_FORMAT_VERSION,
+    );
   });
 
   it("does nothing on the boots after", () => {

@@ -26,6 +26,7 @@ import {
   type ResolvedWorkspace,
   updateRegistry,
   writeWorkspaceIdentity,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 let userDataDir: string;
@@ -85,7 +86,7 @@ describe("createWorkspace", () => {
     // it, with an id of its own and a machine folder, named by its local
     // id, holding nothing but whose it is.
     const identity = readWorkspaceIdentity(dir);
-    expect(identity.formatVersion).toBe(1);
+    expect(identity.formatVersion).toBe(WORKSPACE_FORMAT_VERSION);
     expect(identity).toMatchObject({
       layoutVersion: WORKSPACE_LAYOUT_VERSION,
       legacyProjectsMigrated: true,

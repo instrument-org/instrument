@@ -84,11 +84,20 @@ const WorkspaceCreatorSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
+ * The format a workspace folder is in once what is this computer's own has
+ * moved out of it, which `machine-data-migration.ts` brings it to and which
+ * is all a move of the folder waits for.
+ */
+export const MACHINE_DATA_FORMAT_VERSION = 1;
+
+/**
  * The format this build keeps a workspace folder in
  * (`WorkspaceIdentity.formatVersion`). 1: what is this computer's own lives in
- * the workspace's machine folder.
+ * the workspace's machine folder. 2: every chat's conversation is in its
+ * records, which a build that reads one only from its `chat.db` would show
+ * as an empty chat.
  */
-export const WORKSPACE_FORMAT_VERSION = 1;
+export const WORKSPACE_FORMAT_VERSION = 2;
 
 /**
  * What a workspace says about itself, kept inside it so a copied or moved
@@ -97,10 +106,12 @@ export const WORKSPACE_FORMAT_VERSION = 1;
 export const WorkspaceIdentitySchema = z.object({
   color: WorkspaceColorSchema.catch("gray"),
   createdBy: WorkspaceCreatorSchema.catch({ kind: "person" }),
+  /** Set once every chat in the workspace is on its records rather than a `chat.db`. */
+  chatRecordsConverted: z.boolean().optional().catch(undefined),
   /**
    * The format the workspace folder is in. 1: what is this computer's own
    * (keys, browser profiles, window state, folder rules) lives in its
-   * machine folder, not here.
+   * machine folder, not here. 2: each chat's conversation is in its records.
    */
   formatVersion: z.number().int().nonnegative().catch(0),
   /**

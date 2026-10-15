@@ -97,8 +97,18 @@ export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { settleWorkspaceDb } from "./lib/settle-workspace-db";
+export { CHAT_DB_FILE_NAME } from "./constants";
+export {
+  type ChatConversion,
+  convertWorkspaceChats,
+  type WorkspaceConversion,
+} from "./lib/records/convert/convert-chat";
 export { StoreRecords } from "./lib/store-records";
-export { chooseDeviceId, type DeviceId } from "./lib/records/device-id";
+export {
+  chooseDeviceId,
+  type DeviceId,
+  newDeviceId,
+} from "./lib/records/device-id";
 export { readMachineId } from "./lib/records/machine-id";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";

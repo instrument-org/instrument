@@ -4,9 +4,11 @@ import type { SelectionMode } from "./file-system-selection";
  * A row pressed the way the Finder's are, as a state machine over the
  * pointer's presses and clicks.
  *
- * - A mouse selects on the way down, so a column opens a beat before the
- *   button comes up; a touch or an assistive tool selects on the click it
- *   makes.
+ * - A row not yet selected is selected by the click, not the press, so a
+ *   press that turns into a drag carries the row away without selecting it,
+ *   and whatever the selection has open stays open, the way the Finder drags
+ *   a file it has not selected. A mouse press with ⌘ or Shift, or on a row
+ *   already selected, selects on the way down.
  * - Pressed alone, a row already among several selected leaves them standing,
  *   so they can be dragged and a double-click can open them all. The click
  *   narrows them to its row only once a second click has had time not to
@@ -144,7 +146,8 @@ export function step(
         event.mode === null &&
         event.selection.size > 1 &&
         event.selection.has;
-      if (!narrow) {
+      const selectsOnClick = event.mode === null && !event.selection.has;
+      if (!narrow && !selectsOnClick) {
         effects.push({ mode: event.mode, path: event.path, type: "select" });
       }
       return {
@@ -152,7 +155,7 @@ export function step(
         state: {
           path: event.path,
           phase: "pressed",
-          selectsOnClick: false,
+          selectsOnClick,
           after: narrow ? "narrow" : rename,
         },
       };

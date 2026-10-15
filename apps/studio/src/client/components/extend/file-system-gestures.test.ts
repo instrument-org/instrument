@@ -57,10 +57,21 @@ function run(events: GestureEvent[]) {
 }
 
 describe("pressing a row", () => {
-  it("selects an unselected row on the way down, and waits for nothing", () => {
+  it("selects an unselected row on the click, and waits for nothing", () => {
+    expect(run([mousePress("a", UNSELECTED)]).effects).toEqual([]);
     const { effects, state } = run([mousePress("a", UNSELECTED), click("a")]);
     expect(effects).toEqual([{ mode: null, path: "a", type: "select" }]);
     expect(state).toBe(GESTURE_IDLE);
+  });
+
+  it("selects nothing for a press that turns into a drag, which has no click", () => {
+    const { effects } = run([
+      mousePress("a", UNSELECTED),
+      { type: "interrupt" },
+      mousePress("b", UNSELECTED),
+      click("b"),
+    ]);
+    expect(effects).toEqual([{ mode: null, path: "b", type: "select" }]);
   });
 
   it("selects on the click for a touch, not the press", () => {

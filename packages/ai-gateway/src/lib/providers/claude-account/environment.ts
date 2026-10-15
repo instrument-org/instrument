@@ -36,5 +36,9 @@ export function claudeCodeEnvironment(
   // tool than every other provider does. Our tools cap their own output.
   env.CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH = "1000000";
   env.MAX_MCP_OUTPUT_TOKENS = "1000000";
+  // Our loop keeps the context: Claude Code must neither summarize our
+  // history on its own nor tell the model a token budget of its own.
+  env.DISABLE_AUTO_COMPACT = "1";
+  env.CLAUDE_CODE_TOTAL_TOKENS_REMINDER = "off";
   return env;
 }

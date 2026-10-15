@@ -180,6 +180,10 @@ export class ClaudeCodeSession {
   send(content: ContentBlockParam[], priority?: "next") {
     const uuid = randomUUID();
     this.input.push({
+      // Our words go to the model as written: no `@path` reading a file
+      // past our permissions, no `/name` running a command or skill of
+      // Claude Code's own, and none of its turn-start attachments.
+      client_composed: true,
       message: { content, role: "user" },
       parent_tool_use_id: null,
       ...(priority && { priority }),

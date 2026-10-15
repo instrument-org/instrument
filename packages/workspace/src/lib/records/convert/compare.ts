@@ -14,6 +14,12 @@ import { inspect } from "node:util";
  * Anything else that is not a plain object (a `Map`, a `Set`) is the same
  * only as one of its own kind with the same contents, so one that a record
  * cannot hold shows up as a difference rather than an empty object.
+ *
+ * Reading a date and its ISO string as the same value is what a format
+ * without superjson costs, and it is the one change this comparison is
+ * specified not to see, so it cannot stand alone as the gate: a reader that
+ * forgets to turn its string back into a date is exactly this difference.
+ * `datesKept` answers that question separately.
  */
 
 export interface Difference {
@@ -66,6 +72,43 @@ export function addDifferences(
   }
   if (left !== right) {
     addDifference(found, path, old, now);
+  }
+}
+
+/**
+ * Where `chat.db` held a date and the records read back something that is
+ * not one, which `addDifferences` reads as the same value.
+ *
+ * For a value a schema has already read back, which is what makes the answer
+ * mean anything: a part, once `partFromRecord` has run. A told value has no
+ * schema here, so a date in one is the ISO string JSON holds and its own
+ * reader's to coerce; `browser-state.ts` is the one that had to learn to.
+ */
+export function datesKept(
+  found: Difference[],
+  path: string,
+  old: unknown,
+  now: unknown,
+): void {
+  if (found.length >= MAX_DIFFERENCES) {
+    return;
+  }
+  if (old instanceof Date) {
+    if (!(now instanceof Date)) {
+      addDifference(found, `${path} <date became`, old, now);
+    }
+    return;
+  }
+  if (Array.isArray(old) && Array.isArray(now)) {
+    for (let index = 0; index < old.length; index++) {
+      datesKept(found, `${path}[${index}]`, old[index], now[index]);
+    }
+    return;
+  }
+  if (isPlainObject(old) && isPlainObject(now)) {
+    for (const key of Object.keys(old).toSorted()) {
+      datesKept(found, `${path}.${key}`, old[key], now[key]);
+    }
   }
 }
 

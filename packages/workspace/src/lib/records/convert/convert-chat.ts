@@ -20,6 +20,7 @@ import { syncDirectory } from "../sync-directory";
 import {
   addDifference,
   addDifferences,
+  datesKept,
   type Difference,
   MAX_DIFFERENCES,
 } from "./compare";
@@ -759,6 +760,7 @@ async function verify(
           readBack = `its blob did not read back: ${String(error)}`;
         }
         addDifferences(found, `${where}/${part.metadata.id}`, part, readBack);
+        datesKept(found, `${where}/${part.metadata.id}`, part, readBack);
         addDifferences(
           found,
           `${where}/${part.metadata.id} line`,

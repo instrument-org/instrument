@@ -21,7 +21,9 @@ import { getWorkspaceConfig } from "./workspace-config";
 export const BLANK_PAGE_URL = "about:blank";
 
 const BrowserStateSchema = z.object({
-  lastUsedAt: z.date(),
+  // Read from the chat's records this is the ISO string JSON holds, and from
+  // a store written by an older build a Date; both are this instant.
+  lastUsedAt: z.coerce.date(),
   /**
    * The hosts this session's browser has been on, oldest first, each once,
    * the newest visit moving its host to the end. What a chat shows as the
@@ -32,6 +34,12 @@ const BrowserStateSchema = z.object({
 });
 
 type BrowserState = z.output<typeof BrowserStateSchema>;
+
+/** What a session's browser state reads back as, or none where it does not read. */
+export function browserStateOf(value: unknown): BrowserState | undefined {
+  const parsed = BrowserStateSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
 
 /** How many hosts a session remembers; a long crawl keeps its newest. */
 const VISITED_HOSTS_MAX = 40;
@@ -60,14 +68,11 @@ export function getBrowserState(
     const storage = yield* getSessionsStoreStorage(chatId);
     const result = await getParsedStorageItem(
       StorageKey.browserState(sessionId),
-      BrowserStateSchema,
+      z.unknown(),
       storage,
       { signal },
     );
-    if (result.isErr()) {
-      return ok(undefined);
-    }
-    return ok(result.value);
+    return ok(result.isErr() ? undefined : browserStateOf(result.value));
   });
 }
 

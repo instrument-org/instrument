@@ -10,6 +10,7 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { type BrowserTarget, browserTargetOf } from "../types";
 import {
   BLANK_PAGE_URL,
+  browserStateOf,
   getBrowserState,
   recordVisitedHosts,
   restoreLastPage,
@@ -37,6 +38,17 @@ afterEach(async () => {
 });
 
 describe("browser state", () => {
+  // The records hold JSON, so what was a Date in the store is an ISO string
+  // in a told value, and this reader is the one that has to read both.
+  it("reads the instant whether it comes back a date or its ISO string", () => {
+    const at = new Date(70_000);
+    for (const lastUsedAt of [at, at.toISOString()]) {
+      expect(
+        browserStateOf({ lastUsedAt, visitedHosts: ["example.com"] }),
+      ).toEqual({ lastUsedAt: at, visitedHosts: ["example.com"] });
+    }
+  });
+
   it("adds the hosts of a chat task's tabs, once each, newest last", async () => {
     expect((await getBrowserState(chatId, sessionId))._unsafeUnwrap()).toBe(
       undefined,

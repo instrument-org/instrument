@@ -30,6 +30,7 @@ import {
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import {
   clearTextInCurrentBlockCommand,
+  wrapInBlockquoteCommand,
   htmlSchema,
 } from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
@@ -43,6 +44,11 @@ import {
 import { $prose, $remark, $view } from "@milkdown/kit/utils";
 
 import { installBlockHandle } from "./block-handle";
+import {
+  calloutsPlugin,
+  keepCalloutMarkers,
+  NEW_CALLOUT_MARKER,
+} from "./callouts";
 import { installBlockMenu } from "./block-menu";
 import {
   codeBlockInfo,
@@ -636,6 +642,23 @@ export async function createEditorSession(options: EditorSessionOptions) {
               pickFiles("image/*");
             },
           });
+          builder.getGroup("text").addItem("callout", {
+            icon: icon("info", 16),
+            label: "Callout",
+            onRun: (ctx) => {
+              const commands = ctx.get(commandsCtx);
+              commands.call(clearTextInCurrentBlockCommand.key);
+              commands.call(wrapInBlockquoteCommand.key);
+              const v = view();
+              const { hardbreak } = v.state.schema.nodes;
+              v.dispatch(
+                v.state.tr.insert(v.state.selection.from, [
+                  v.state.schema.text(NEW_CALLOUT_MARKER),
+                  ...(hardbreak ? [hardbreak.create({ isInline: true })] : []),
+                ]),
+              );
+            },
+          });
           advanced.addItem("file", {
             icon: icon("paperclip", 16),
             label: "File",
@@ -737,6 +760,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
         Decoration.widget(pos, document.createElement("span"), spec),
     }));
   });
+  editor.editor.config(keepCalloutMarkers);
   // Serialized lists and rules use `-`, the marker most Markdown in the wild (and the agent) writes.
   editor.editor.config((ctx) => {
     ctx.update(remarkStringifyOptionsCtx, (prev) => ({
@@ -756,6 +780,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     .use(htmlContainerPlugin)
     .use(nearCaretPlugin)
     .use(links)
+    .use(calloutsPlugin)
     .use(askMarksPlugin);
   await editor.create();
   editor.editor.action((ctx) => {

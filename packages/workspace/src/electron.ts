@@ -88,9 +88,11 @@ export { findAvailableName } from "./lib/find-available-name";
 export {
   type LayoutMarkStore,
   migrateWorkspaceLayout,
+  renameChatDatabases,
   WORKSPACE_LAYOUT_VERSION,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
+export { type ChatRecordsSplit } from "./lib/split-chat-records";
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";

@@ -442,17 +442,28 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
  * left under a chat's `tasks/` stays as it is, and so does a chat the 1.x
  * migration staged and has not finished, whose database that migration names
  * itself.
+ *
+ * Runs for every workspace, a folder the person picked included, rather than
+ * only with the rest of the sweep: which database a chat opens is what a chat
+ * needs before it is read, and nothing else settles one left opening an empty
+ * store. What it reads and renames is in the workspace's own `.instrument/`
+ * alone, every path below a chat's record folder, the window's, or
+ * `.pre-chats/`, so the person's own folders are never reached. A record
+ * folder, a folder's own `.instrument/`, or `chats/` itself that is a link is
+ * left as it is rather than followed out of there.
  */
-function renameChatDatabases(rootDir: string): ChatRecordsSplit {
+export function renameChatDatabases(rootDir: string): ChatRecordsSplit {
   const named: ChatRecordsSplit = { done: [], failed: 0 };
   const layout = workspaceLayout(rootDir);
-  const chats = fs.existsSync(layout.chatsDir)
+  const chats = isDirectorySync(layout.chatsDir)
     ? fs
         .readdirSync(layout.chatsDir, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
         .map((entry) => path.join(layout.chatsDir, entry.name))
     : [];
-  for (const folder of [...chats, layout.windowDir]) {
+  for (const folder of [...chats, layout.windowDir].filter((candidate) =>
+    isDirectorySync(candidate),
+  )) {
     const name = path.basename(folder);
     renameChatDatabase({
       asideDir: path.join(
@@ -471,13 +482,14 @@ function renameChatDatabases(rootDir: string): ChatRecordsSplit {
 /**
  * One folder's `task.db` as `chat.db`: its sidecars first and the database
  * last, so a sweep cut short between them leaves the rest for the next boot's
- * sweep rather than a database apart from its write-ahead log. It lands in
- * the folder's own `.instrument/`, which the split that follows lifts to the
- * top of the record folder.
+ * sweep rather than a database apart from its write-ahead log. It takes the
+ * place of the store the chat opens, at the top of the record folder or in
+ * the folder's own `.instrument/` for a chat no split has reached, and where
+ * there is no store at all it lands in the `.instrument/`, which the split
+ * that follows lifts to the top.
  *
  * A `chat.db` holding the chat's own sessions is never overwritten, wherever
- * the chat opens it: at the top of its record folder, or still in the
- * folder's `.instrument/` for a chat no split has reached.
+ * the chat opens it.
  */
 function renameChatDatabase({
   asideDir,
@@ -492,6 +504,9 @@ function renameChatDatabase({
   recordDir: string;
 }) {
   const privateDir = path.join(recordDir, PRIVATE_FOLDER_NAME);
+  if (!isDirectorySync(privateDir)) {
+    return;
+  }
   const legacy = path.join(privateDir, LEGACY_TASK_DB_FILE_NAME);
   if (!fs.existsSync(legacy)) {
     return;
@@ -509,7 +524,7 @@ function renameChatDatabase({
   for (const suffix of [...DB_FILE_SUFFIXES.filter(Boolean), ""]) {
     moveIfMissingTarget(
       path.join(privateDir, LEGACY_TASK_DB_FILE_NAME + suffix),
-      path.join(privateDir, CHAT_DB_FILE_NAME + suffix),
+      `${store}${suffix}`,
     );
   }
 }

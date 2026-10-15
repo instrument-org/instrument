@@ -8,6 +8,7 @@ import { migrateLegacyTasks } from "./migrate-legacy-tasks";
 import {
   type LayoutMarks,
   migrateWorkspaceLayout,
+  renameChatDatabases,
 } from "./migrate-workspace-layout";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 
@@ -795,6 +796,104 @@ describe("migrateWorkspaceLayout", () => {
         fs.readdirSync(path.join(rootDir, ".instrument", "window")),
       ).toEqual(["chat.db"]);
       expect(read(".instrument", "window", "chat.db")).toBe("tabs");
+    });
+
+    // The step runs on its own for every workspace, a folder the person
+    // picked included, where the rest of the sweep runs only on one in the
+    // app's own data: nothing there has ever swept, so nothing has ever
+    // named a chat's database.
+    describe("named outside the sweep", () => {
+      // A chat in a workspace the sweep never reached: its records at the top
+      // of its folder, where the chat opens them, and the database the betas
+      // wrote still under its own name below.
+      function writePickedFolderChat(id: string) {
+        const recordDir = path.join(rootDir, ".instrument", "chats", id);
+        fs.mkdirSync(path.join(recordDir, ".instrument"), { recursive: true });
+        writeStoreRowsSync(path.join(recordDir, "chat.db"), [
+          ["__migration_version__", 9],
+        ]);
+        writeStoreRowsSync(path.join(recordDir, ".instrument", "task.db"), [
+          [SESSION_KEY, {}],
+        ]);
+      }
+
+      it("gives the chat the database holding its conversation, with no marks and no sweep", () => {
+        writePickedFolderChat("2026-10-12-chat");
+
+        const named = renameChatDatabases(rootDir);
+
+        expect(named.failed).toBe(0);
+        // Where the chat opens it, rather than in the `.instrument/` the
+        // split would have lifted it out of: no split runs here.
+        expect(
+          sessionKeys(".instrument", "chats", "2026-10-12-chat", "chat.db"),
+        ).toEqual([SESSION_KEY]);
+        // The folder the database came out of stays: only the split, which
+        // the rest of the sweep runs, clears it away.
+        expect(chatFiles("2026-10-12-chat")).toEqual([
+          ".instrument",
+          "chat.db",
+        ]);
+        expect(asideFiles("2026-10-12-chat")).toEqual(["chat.db"]);
+        // The rest of the sweep stays for a workspace in the app's own data,
+        // and nothing marks this one as swept.
+        expect(marks).toEqual({});
+
+        expect(renameChatDatabases(rootDir)).toEqual({ done: [], failed: 0 });
+        expect(
+          sessionKeys(".instrument", "chats", "2026-10-12-chat", "chat.db"),
+        ).toEqual([SESSION_KEY]);
+        expect(asideFiles("2026-10-12-chat")).toEqual(["chat.db"]);
+      });
+
+      // What it may touch is in the workspace's own `.instrument/` alone, so
+      // a link in place of a folder it reads is left as it is rather than
+      // followed to whatever the person keeps there.
+      it("follows no link out of the workspace's own folder", () => {
+        const outside = fs.mkdtempSync(path.join(os.tmpdir(), "outside-"));
+        try {
+          for (const name of ["chats", "window"]) {
+            const chat = path.join(outside, name, "2026-10-12-chat");
+            fs.mkdirSync(path.join(chat, ".instrument"), { recursive: true });
+            fs.writeFileSync(path.join(chat, "chat.db"), "theirs");
+            fs.writeFileSync(
+              path.join(chat, ".instrument", "task.db"),
+              "theirs",
+            );
+          }
+          fs.mkdirSync(path.join(rootDir, ".instrument"), { recursive: true });
+          fs.symlinkSync(
+            path.join(outside, "chats"),
+            path.join(rootDir, ".instrument", "chats"),
+          );
+          fs.symlinkSync(
+            path.join(outside, "window", "2026-10-12-chat"),
+            path.join(rootDir, ".instrument", "window"),
+          );
+
+          expect(renameChatDatabases(rootDir)).toEqual({
+            done: [],
+            failed: 0,
+          });
+
+          for (const name of ["chats", "window"]) {
+            expect(
+              fs
+                .readdirSync(path.join(outside, name, "2026-10-12-chat"), {
+                  recursive: true,
+                })
+                .map(String)
+                .toSorted(),
+            ).toEqual([
+              ".instrument",
+              path.join(".instrument", "task.db"),
+              "chat.db",
+            ]);
+          }
+        } finally {
+          fs.rmSync(outside, { force: true, recursive: true });
+        }
+      });
     });
 
     // What an earlier build left under a chat's tasks/ is nobody's record, so

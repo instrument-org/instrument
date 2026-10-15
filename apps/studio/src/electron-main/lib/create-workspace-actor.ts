@@ -21,12 +21,14 @@ import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
+  type ChatRecordsSplit,
   closeAllAgentBrowserSessions,
   type DeviceId,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
+  renameChatDatabases,
   setBashWorkerFactory,
   settleWorkspaceDb,
   stopWorkspaceSkillWatcher,
@@ -78,6 +80,14 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
 );
 export function createWorkspaceActor(deviceId: DeviceId) {
   const rootDir = getWorkspaceFolder();
+
+  // Which database a chat opens is settled for every workspace, before
+  // anything reads one: a chat whose own store holds none of its conversation
+  // opens empty while the whole of it sits in the file beside it, and nothing
+  // else names them. The sweep names them again once it has moved the app's
+  // folders in, where a chat an earlier build left at the workspace's top
+  // level is not in its place yet when this runs.
+  nameChatDatabases(rootDir);
 
   // The layout sweeps bring what 1.x and the 2.0 betas left into the shape
   // this build reads. They run only on a workspace in the app's own data,
@@ -352,6 +362,35 @@ function settleDatabase(rootDir: string) {
 }
 
 /**
+ * Give each chat the database that holds its conversation, before the
+ * workspace opens one. Runs for every workspace, a folder the person picked
+ * included, where the rest of the sweep runs only on one in the app's own
+ * data. Idempotent; a failure must not block boot.
+ */
+function nameChatDatabases(rootDir: string) {
+  try {
+    reportChatRecords(renameChatDatabases(rootDir));
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
+/** What naming a chat's database, or splitting its records, did. */
+function reportChatRecords(records: ChatRecordsSplit) {
+  for (const step of records.done) {
+    logger.info(`Chat records: ${step}`);
+  }
+  if (records.failed > 0) {
+    logger.warn(
+      `Left ${records.failed} chat entr${records.failed === 1 ? "y" : "ies"} to move on the next boot`,
+    );
+  }
+}
+
+/**
  * Move the app's folders into the workspace's `.instrument/`, normalize the
  * on-disk layout of any legacy tasks, and take each chat's work out of its
  * records, before the workspace reads them. Idempotent; a failure must not
@@ -389,14 +428,7 @@ function sweepWorkspaceLayout(rootDir: string) {
         `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
       );
     }
-    for (const step of migration.chatRecords.done) {
-      logger.info(`Chat records: ${step}`);
-    }
-    if (migration.chatRecords.failed > 0) {
-      logger.warn(
-        `Left ${migration.chatRecords.failed} chat entr${migration.chatRecords.failed === 1 ? "y" : "ies"} to move on the next boot`,
-      );
-    }
+    reportChatRecords(migration.chatRecords);
     if (migration.removedBrowserProfileCloneCount > 0) {
       logger.info(
         `Deleted ${migration.removedBrowserProfileCloneCount} leftover browser profile clone(s)`,

@@ -17,6 +17,8 @@ import {
   FileSystemFolderGlyph,
   type FileSystemHandle,
   type FileSystemItem,
+  type FileSystemListColumn,
+  type FileSystemProps,
   type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
@@ -110,7 +112,7 @@ import {
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
@@ -158,6 +160,10 @@ const PLACES_BOUNDS: RailBounds = {
   max: 360,
   min: 140,
 };
+
+/** The list beside an open file: the names, and when each changed, in what room is left. */
+const BESIDE_LIST_COLUMNS: FileSystemListColumn[] = ["updatedAt"];
+const BESIDE_LIST_COLUMN_WIDTHS = { updatedAt: 120 };
 
 /** A page's width over its height, the shape a document's picture is drawn in. */
 const PAGE_ASPECT = 0.78;
@@ -244,6 +250,7 @@ export interface FolderOnScreen {
  * itself, so walking the folders leaves the tab where it is.
  */
 export function ComputerPage({
+  beside = false,
   onFolderChange,
   onOpenFile,
   onQuickLook,
@@ -253,8 +260,14 @@ export function ComputerPage({
   refreshInterval = REFRESH_MS,
   root,
   select,
+  toolbarInto,
   view: viewInHistory,
 }: {
+  /**
+   * Narrowed beside an open file: no places, the toolbar folded into
+   * `toolbarInto.lead`, and the list down to the names and when each changed.
+   */
+  beside?: boolean;
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
   /** A file the user opened, when a granted folder covers it. */
@@ -271,10 +284,13 @@ export function ComputerPage({
   root: string;
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
+  /** Where the toolbar's controls go instead of the folder's own header: see `FileSystem`. */
+  toolbarInto?: FileSystemProps["toolbarInto"];
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view?: FileSystemView;
 }) {
   const { askAbout, openScreen, rowLead } = useWindow();
+  const placesWidth = useAtomValue(finderPlacesWidthAtom);
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1514,8 +1530,23 @@ export function ComputerPage({
       ref={setFrame}
     >
       {/* At the row's far left where the tab has one, the way a file's tree
-          toggle is; at the head of the toolbar where it does not. */}
-      {rowLead && createPortal(placesToggle, rowLead)}
+          toggle is, and as wide as the places beside the folder so the
+          folder's own controls start where the folder does; at the head of
+          the toolbar where it does not. */}
+      {rowLead &&
+        !beside &&
+        createPortal(
+          <div
+            className={cn(
+              "flex h-10 shrink-0 items-center",
+              placesVisible && !isNarrow && "-ml-2 border-r border-border pl-2",
+            )}
+            style={placesVisible && !isNarrow ? { width: placesWidth } : {}}
+          >
+            {placesToggle}
+          </div>,
+          rowLead,
+        )}
       {isNarrow && isPlacesOpen && (
         <button
           aria-label="Hide the sidebar"
@@ -1527,7 +1558,7 @@ export function ComputerPage({
           type="button"
         />
       )}
-      {isNarrow ? (
+      {beside ? null : isNarrow ? (
         <nav
           className={cn(
             "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
@@ -1608,8 +1639,10 @@ export function ComputerPage({
                 getHostPath={(item) => hostPathOfItem(item) || undefined}
                 items={items}
                 key={`${root}#${openings}`}
-                listColumns={listColumns}
-                listColumnWidths={listColumnWidths}
+                listColumns={beside ? BESIDE_LIST_COLUMNS : listColumns}
+                listColumnWidths={
+                  beside ? BESIDE_LIST_COLUMN_WIDTHS : listColumnWidths
+                }
                 loadChildren={async ({ path: prefix }) => {
                   // The recents are one flat list of files; nothing on it opens.
                   if (isRecents) {
@@ -1650,8 +1683,12 @@ export function ComputerPage({
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
                 }}
-                onListColumnsChange={setListColumns}
-                onListColumnWidthsChange={setListColumnWidths}
+                {...(beside
+                  ? {}
+                  : {
+                      onListColumnsChange: setListColumns,
+                      onListColumnWidthsChange: setListColumnWidths,
+                    })}
                 onPathChange={setCurrent}
                 onRenameCommit={rename}
                 onSelectionChange={(item, all) => {
@@ -1832,6 +1869,7 @@ export function ComputerPage({
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
                 title={rootName}
+                toolbarInto={toolbarInto}
                 view={view}
               />
             </div>

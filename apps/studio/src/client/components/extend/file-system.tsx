@@ -343,6 +343,14 @@ export type FileSystemProps = {
   /** Controls drawn among the toolbar's own, between the filters and the search. */
   renderHeaderActions?: () => React.ReactNode;
   /**
+   * Where the toolbar's controls go instead of a header of their own: `lead`
+   * takes the views, sort and filter, and `tail` the host's primary action,
+   * its actions and the search. With no `tail` the views fold into a menu,
+   * the search ends `lead`, and the host's own controls are left out, for a
+   * folder narrowed beside an open file.
+   */
+  toolbarInto?: { lead: HTMLElement | null; tail?: HTMLElement | null };
+  /**
    * What the columns view shows past the last column while no file is
    * selected, given the folder that column lists.
    */
@@ -1675,6 +1683,7 @@ export function FileSystem({
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
   title = "Files",
+  toolbarInto,
   view: viewProp,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
@@ -2936,6 +2945,99 @@ export function FileSystem({
       </Button>
     </DialogClose>
   );
+  // The toolbar's controls, drawn in its own header or, for a host that
+  // holds them in a row of its own, portalled there.
+  const viewSelect = (
+    <Select
+      onValueChange={(value) => setView(value as FileSystemView)}
+      value={view}
+    >
+      <SelectTrigger
+        aria-label="View"
+        className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
+        size="sm"
+      >
+        <SelectValue>
+          {activeViewOption ? (
+            <activeViewOption.icon
+              className={cn("size-4", VIEW_GLYPH_DIM_CLASSNAME)}
+            />
+          ) : null}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          focusListing();
+        }}
+        position="popper"
+      >
+        {VIEW_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            <span className="flex items-center gap-2">
+              <option.icon className="size-4" />
+              {option.label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+  const viewTabs = (tabsClassName: string) => (
+    <Tabs
+      // Arrows on a focused view only move between the views, and Return
+      // or Space picks one: switching on every arrow fought the listing
+      // for the same keys.
+      activationMode="manual"
+      className={tabsClassName}
+      onValueChange={(value) => setView(value as FileSystemView)}
+      value={view}
+    >
+      {/* A track a shade darker than the muted one, so it reads as a
+          well the choices sit in against the toolbar's own tint. */}
+      <TabsList className="h-8 bg-foreground/8 p-0.5">
+        {VIEW_OPTIONS.map((option) => (
+          <TabsTrigger
+            aria-label={`${option.label} view`}
+            className={VIEW_TAB_CLASSNAME}
+            key={option.value}
+            // Picked, a view hands the keyboard back to the listing,
+            // the way the Finder's toolbar never keeps it: the next arrow
+            // walks the folder rather than the views.
+            onClick={focusListing}
+            title={option.label}
+            value={option.value}
+          >
+            <option.icon className="size-4" />
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  );
+  const sortAndFilter = (
+    <>
+      <FileSystemSortSelect onKeyChange={applySortKey} sort={sort} />
+      <FileSystemFilterMenu
+        fileTypeOptions={fileTypeOptions}
+        filters={filters}
+        onOpenCustomRange={openDateRangeDialog}
+        onSelectDatePreset={setDatePresetFilter}
+        onShowHiddenFilesChange={setShowHiddenFiles}
+        onToggleFileType={toggleFileTypeFilterValue}
+        showHiddenFiles={showHiddenFiles}
+      />
+    </>
+  );
+  const searchField = (layout: "compact" | "full" | "minimal") => (
+    <FileSystemSearchField
+      inputRef={searchInputRef}
+      isExpanded={isSearchExpanded}
+      layout={layout}
+      onExpandedChange={setIsSearchExpanded}
+      onValueChange={setSearchInput}
+      value={searchInput}
+    />
+  );
   return (
     <div
       className={cn(
@@ -2999,112 +3101,76 @@ export function FileSystem({
       tabIndex={-1}
     >
       <FileSystemIconSpriteSheet />
-      <div
-        className="@container/finder-header relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
-        // The toolbar is not the folder, and nothing is made or acted on here.
-        onContextMenu={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
-          {renderHeaderLead ? renderHeaderLead() : null}
-          {headerLayout === "minimal" ? null : (
-            <span className="ml-1.5 truncate text-sm font-semibold">
-              {currentFolderName}
-            </span>
-          )}
-        </div>
-        {renderHeaderPrimary ? renderHeaderPrimary() : null}
-        {/* The switcher folds into a select only once the toolbar's own width
-          cannot hold the segmented control beside the rest; the folder name
-          truncates first. Both are mounted and the container decides. */}
-        <div className="flex @md/finder-header:hidden">
-          <Select
-            onValueChange={(value) => setView(value as FileSystemView)}
-            value={view}
-          >
-            <SelectTrigger
-              aria-label="View"
-              className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
-              size="sm"
-            >
-              <SelectValue>
-                {activeViewOption ? (
-                  <activeViewOption.icon
-                    className={cn("size-4", VIEW_GLYPH_DIM_CLASSNAME)}
-                  />
-                ) : null}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent
-              onCloseAutoFocus={(event) => {
-                event.preventDefault();
-                focusListing();
-              }}
-              position="popper"
-            >
-              {VIEW_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  <span className="flex items-center gap-2">
-                    <option.icon className="size-4" />
-                    {option.label}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Tabs
-          // Arrows on a focused view only move between the views, and Return
-          // or Space picks one: switching on every arrow fought the listing
-          // for the same keys.
-          activationMode="manual"
-          className="hidden gap-0 @md/finder-header:flex"
-          onValueChange={(value) => setView(value as FileSystemView)}
-          value={view}
-        >
-          {/* A track a shade darker than the muted one, so it reads as a
-              well the choices sit in against the toolbar's own tint. */}
-          <TabsList className="h-8 bg-foreground/8 p-0.5">
-            {VIEW_OPTIONS.map((option) => (
-              <TabsTrigger
-                aria-label={`${option.label} view`}
-                className={VIEW_TAB_CLASSNAME}
-                key={option.value}
-                // Picked, a view hands the keyboard back to the listing,
-                // the way the Finder's toolbar never keeps it: the next arrow
-                // walks the folder rather than the views.
-                onClick={focusListing}
-                title={option.label}
-                value={option.value}
+      {toolbarInto ? (
+        <>
+          {toolbarInto.lead &&
+            createPortal(
+              <div
+                className={cn(
+                  "flex min-w-0 items-center gap-1",
+                  toolbarInto.tail === undefined && "flex-1",
+                )}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                }}
               >
-                <option.icon className="size-4" />
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="flex min-w-0 items-center justify-end gap-1.5">
-          <FileSystemSortSelect onKeyChange={applySortKey} sort={sort} />
-          <FileSystemFilterMenu
-            fileTypeOptions={fileTypeOptions}
-            filters={filters}
-            onOpenCustomRange={openDateRangeDialog}
-            onSelectDatePreset={setDatePresetFilter}
-            onShowHiddenFilesChange={setShowHiddenFiles}
-            onToggleFileType={toggleFileTypeFilterValue}
-            showHiddenFiles={showHiddenFiles}
-          />
-          {renderHeaderActions ? renderHeaderActions() : null}
-          <FileSystemSearchField
-            inputRef={searchInputRef}
-            isExpanded={isSearchExpanded}
-            layout={headerLayout}
-            onExpandedChange={setIsSearchExpanded}
-            onValueChange={setSearchInput}
-            value={searchInput}
-          />
+                {toolbarInto.tail === undefined
+                  ? viewSelect
+                  : viewTabs("flex gap-0")}
+                {sortAndFilter}
+                {toolbarInto.tail === undefined && (
+                  <>
+                    <span className="flex-1" />
+                    {searchField("compact")}
+                  </>
+                )}
+              </div>,
+              toolbarInto.lead,
+            )}
+          {toolbarInto.tail &&
+            createPortal(
+              <div
+                className="flex items-center gap-1"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                {renderHeaderPrimary ? renderHeaderPrimary() : null}
+                {renderHeaderActions ? renderHeaderActions() : null}
+                {searchField("compact")}
+              </div>,
+              toolbarInto.tail,
+            )}
+        </>
+      ) : (
+        <div
+          className="@container/finder-header relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
+          // The toolbar is not the folder, and nothing is made or acted on here.
+          onContextMenu={(event) => {
+            event.preventDefault();
+          }}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">
+            {renderHeaderLead ? renderHeaderLead() : null}
+            {headerLayout === "minimal" ? null : (
+              <span className="ml-1.5 truncate text-sm font-semibold">
+                {currentFolderName}
+              </span>
+            )}
+          </div>
+          {renderHeaderPrimary ? renderHeaderPrimary() : null}
+          {/* The switcher folds into a select only once the toolbar's own width
+            cannot hold the segmented control beside the rest; the folder name
+            truncates first. Both are mounted and the container decides. */}
+          <div className="flex @md/finder-header:hidden">{viewSelect}</div>
+          {viewTabs("hidden gap-0 @md/finder-header:flex")}
+          <div className="flex min-w-0 items-center justify-end gap-1.5">
+            {sortAndFilter}
+            {renderHeaderActions ? renderHeaderActions() : null}
+            {searchField(headerLayout)}
+          </div>
         </div>
-      </div>
+      )}
       {hasActiveFilters ? (
         <div
           className="flex shrink-0 flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground"

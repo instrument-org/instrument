@@ -17,7 +17,7 @@ export function expectedUutils(platform: string, arch: string): string[] {
       ? ["coreutils", "diffutils", "find", "grep", "xargs"]
       : arch === "arm64"
         ? ["coreutils"]
-        : ["coreutils", "diffutils"];
+        : ["coreutils", "diffutils", "xargs"];
   return names.map((name) => (platform === "win32" ? `${name}.exe` : name));
 }
 

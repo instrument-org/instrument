@@ -13,7 +13,7 @@ describe("expectedUutils", () => {
   it.each([
     ["darwin", "arm64", ["coreutils", "diffutils", "find", "grep", "xargs"]],
     ["linux", "x64", ["coreutils", "diffutils", "find", "grep", "xargs"]],
-    ["win32", "x64", ["coreutils.exe", "diffutils.exe"]],
+    ["win32", "x64", ["coreutils.exe", "diffutils.exe", "xargs.exe"]],
     ["win32", "arm64", ["coreutils.exe"]],
   ])("%s %s", (platform, arch, expected) => {
     expect(expectedUutils(platform, arch)).toEqual(expected);

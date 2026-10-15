@@ -1,5 +1,6 @@
 import { type Command, defineCommand } from "just-bash";
-import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, linkSync, mkdirSync, rmSync, statSync } from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -112,9 +113,10 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // `-prune` patterns written with slashes never match, and a sandboxed
   // spawn there will cost far more than the builtin's walk.
   { binary: "find", name: "find", platforms: UNIX, walks: () => true },
-  // What xargs starts is a program on the PATH, and Windows has none for
-  // `echo`, `printf` or most of what models hand it.
-  { binary: "xargs", name: "xargs", platforms: UNIX },
+  // What xargs starts is a program on the PATH. Windows has no `echo` or
+  // `printf` of its own, so there xargs' PATH starts with links to the
+  // coreutils it carries (coreutilsLinks).
+  { binary: "xargs", name: "xargs" },
 ];
 
 /** find's own options before its start points. */
@@ -221,6 +223,81 @@ function maskedUnder(
         return rest === null || rest === "/" ? [] : [`${spelled}${rest}`];
       });
   });
+}
+
+/**
+ * One argument quoted the way Windows' CommandLineToArgvW reads it back,
+ * whatever it holds: backslashes before a quote and at the end doubled, the
+ * quote escaped.
+ */
+export function quoteWindowsArgument(arg: string): string {
+  return `"${arg.replaceAll(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, "$1$1")}"`;
+}
+
+/**
+ * Utilities left out of the links xargs' programs find first, because
+ * System32 has a program by the same name that Windows itself relies on.
+ * `sort` is shadowed on purpose: what a model hands xargs is GNU's.
+ */
+const SYSTEM32_NAMES = new Set([
+  "expand",
+  "hostname",
+  "more",
+  "timeout",
+  "whoami",
+]);
+
+let linksDir: string | null | undefined;
+
+/**
+ * A folder of hard links to the coreutils multicall binary, one per utility
+ * (`echo.exe`, `printf.exe`, `basename.exe`), so a program xargs starts by
+ * name finds one: Windows has no `echo.exe` of its own. Made once per
+ * launch beside the app's bin folder, and only xargs' PATH has it. Null
+ * where the links cannot be made (another volume), which leaves xargs to
+ * the PATH it had.
+ */
+function coreutilsLinks(): string | null {
+  if (linksDir !== undefined) {
+    return linksDir;
+  }
+  linksDir = null;
+  const { toolBinDir } = getWorkspaceConfig();
+  const coreutils = uutilsProgram("coreutils");
+  if (toolBinDir === undefined || coreutils === undefined) {
+    return linksDir;
+  }
+  const dir = nodePath.join(nodePath.dirname(toolBinDir), "uutils-links");
+  try {
+    mkdirSync(dir, { recursive: true });
+    const names = execFileSync(coreutils, ["--list"], { encoding: "utf8" })
+      .split(/\s+/)
+      .filter((name) => /^[\w-]+$/.test(name) && !SYSTEM32_NAMES.has(name));
+    const size = statSync(coreutils).size;
+    for (const name of names) {
+      const link = nodePath.join(dir, `${name}.exe`);
+      if (existsSync(link) && statSync(link).size === size) {
+        continue;
+      }
+      rmSync(link, { force: true });
+      linkSync(coreutils, link);
+    }
+    linksDir = dir;
+  } catch {
+    linksDir = null;
+  }
+  return linksDir;
+}
+
+/** xargs' environment, with the coreutils links first on its PATH. */
+function xargsEnv(env: Record<string, string>): Record<string, string> {
+  const dir = coreutilsLinks();
+  if (dir === null) {
+    return env;
+  }
+  const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
+  const rest = key === undefined ? "" : (env[key] ?? "");
+  return { ...env, [key ?? "Path"]: `${dir};${rest}` };
 }
 
 /** How uutils' find reports a folder the native sandbox refused. */
@@ -367,13 +444,22 @@ export function createNativeTextCommand(
     const stdin = subprocessStdin(ctx.stdin);
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";
+    const argv = [
+      ...(multicall ? [route.name] : []),
+      ...hostPathArgs(programArgs),
+    ];
+    const windows = process.platform === "win32";
     const result = await execShim(
       program,
-      [...(multicall ? [route.name] : []), ...hostPathArgs(programArgs)],
+      // uutils on Windows expands `*`, `?` and `[...]` in any argument that
+      // reached it unquoted, and Node quotes only those holding a space:
+      // `cut -d '*'` would get file names. Every argument goes quoted.
+      windows ? argv.map((arg) => quoteWindowsArgument(arg)) : argv,
       {
         cancelSignal: ctx.signal,
         cwd: hostCwd,
-        env,
+        env: windows && route.name === "xargs" ? xargsEnv(env) : env,
+        ...(windows ? { windowsVerbatimArguments: true } : {}),
         // A walk was checked where it starts; a folder it passes that the
         // sandbox refuses is skipped without a card, as the shell's own
         // walks skip one.

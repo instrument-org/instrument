@@ -54,8 +54,8 @@ const GREP = { repo: "uutils/grep", tag: "0.2.0" };
  * Every archive per target, by its sha256 as published. Linux takes the musl
  * builds where they exist (coreutils, findutils), which run on any
  * distribution; diffutils and grep publish only glibc builds, which need
- * glibc 2.34 or later. Windows takes coreutils and diffutils only, since
- * grep and xargs stay the shell's own there, and Windows on ARM coreutils
+ * glibc 2.34 or later. Windows takes coreutils, diffutils and xargs, since
+ * find and grep stay the shell's own there, and Windows on ARM coreutils
  * alone, the only one with a build for it.
  */
 const ARCHIVES: Record<Target, Archive[]> = {
@@ -198,7 +198,14 @@ const ARCHIVES: Record<Target, Archive[]> = {
       sha256:
         "45d6760c136ef42cdba1e2dbb492b0858be98099d6c7fb3e300a3adcfbc54cfe",
     },
-    // grep and xargs stay the shell's own on Windows (see native-text.ts).
+    // find and grep stay the shell's own on Windows (see native-text.ts).
+    {
+      ...FINDUTILS,
+      asset: "findutils-x86_64-pc-windows-msvc.zip",
+      binaries: ["xargs"],
+      sha256:
+        "d056b1151f70fdb0c5e6ab216a153ac7161d84afc6764766a6ab92ab441d16fc",
+    },
     {
       ...DIFFUTILS,
       asset: "diffutils-x86_64-pc-windows-msvc.zip",

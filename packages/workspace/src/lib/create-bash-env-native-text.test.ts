@@ -14,6 +14,7 @@ import {
   findWithHiddenEntriesPruned,
   grepWalks,
   quietRefusedFolders,
+  quoteWindowsArgument,
 } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -110,6 +111,21 @@ describe("findWithHiddenEntriesPruned", () => {
     ],
   ])("%j pruning %j", (args, paths, expected) => {
     expect(findWithHiddenEntriesPruned(args, paths).join(" ")).toBe(expected);
+  });
+});
+
+describe("quoteWindowsArgument", () => {
+  it.each([
+    ["*", '"*"'],
+    ["*.md", '"*.md"'],
+    ["[%s]\\n", '"[%s]\\n"'],
+    ["a b", '"a b"'],
+    ["", '""'],
+    ['say "hi"', '"say \\"hi\\""'],
+    ["C:\\dir\\", '"C:\\dir\\\\"'],
+    ['a\\"b', '"a\\\\\\"b"'],
+  ])("%j becomes %s", (arg, quoted) => {
+    expect(quoteWindowsArgument(arg)).toBe(quoted);
   });
 });
 

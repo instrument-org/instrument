@@ -4,8 +4,17 @@ import {
 } from "@ai-sdk/provider";
 import { stepCountIs, streamText, tool } from "ai";
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
-import { expect, it, vi } from "vitest";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { homedir, userInfo } from "node:os";
+import { join } from "node:path";
+import { afterAll, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
@@ -17,6 +26,78 @@ import {
 
 // Runs against the real `claude` CLI in ~/.local/bin and spends the signed-in
 // account's plan, so it only runs when asked: CLAUDE_ACCOUNT_LIVE=1.
+
+/** Begins every system prompt here, so the transcripts it leaves can be told apart. */
+const PROBE_MARKER = "You are Pebble.";
+
+const probeStartedAt = Date.now();
+
+// The CLI keeps a transcript of each session in the home folder's Claude
+// Code project, beside the person's own, and the provider a resume record
+// for each in the config folder. Once every process has finished writing,
+// the ones made by this run go: a transcript made since it started that
+// holds the marker, and a record naming one of those.
+afterAll(async () => {
+  if (process.env.CLAUDE_ACCOUNT_LIVE !== "1") {
+    return;
+  }
+  closeClaudeAccountSessions();
+  const home = userInfo().homedir;
+  const project = join(
+    home,
+    ".claude",
+    "projects",
+    realpathSync(home).replaceAll(/[^a-zA-Z0-9]/g, "-"),
+  );
+  const entries = () => (existsSync(project) ? readdirSync(project) : []);
+  // Claude Code appends its last entries as it exits, after `close` returns,
+  // and would recreate a transcript removed before then.
+  const signature = () =>
+    entries()
+      .map((name) => {
+        const { mtimeMs, size } = statSync(join(project, name));
+        return `${name}:${size}:${mtimeMs}`;
+      })
+      .join();
+  let last = signature();
+  let stableSince = Date.now();
+  const deadline = Date.now() + 15_000;
+  while (Date.now() - stableSince < 1500 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const now = signature();
+    if (now !== last) {
+      last = now;
+      stableSince = Date.now();
+    }
+  }
+  const ours = new Set(
+    entries()
+      .filter((name) => name.endsWith(".jsonl"))
+      .filter((name) => {
+        const path = join(project, name);
+        return (
+          statSync(path).birthtimeMs >= probeStartedAt &&
+          readFileSync(path, "utf8").includes(PROBE_MARKER)
+        );
+      })
+      .map((name) => name.replace(/\.jsonl$/, "")),
+  );
+  for (const id of ours) {
+    // With the folder of tool results Claude Code may have made beside it.
+    rmSync(join(project, `${id}.jsonl`), { force: true });
+    rmSync(join(project, id), { force: true, recursive: true });
+  }
+  const records = join(home, ".claude", "instrument-sessions");
+  for (const name of existsSync(records) ? readdirSync(records) : []) {
+    const path = join(records, name);
+    const record = z
+      .object({ claudeSessionId: z.string() })
+      .safeParse(JSON.parse(readFileSync(path, "utf8")));
+    if (record.success && ours.has(record.data.claudeSessionId)) {
+      rmSync(path, { force: true });
+    }
+  }
+}, 30_000);
 it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
   "runs a multi-step tool turn and a follow-up through the CLI",
   { timeout: 180_000 },
@@ -40,8 +121,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const headers = { [CLIENT_SESSION_ID_HEADER]: "live-probe" };
     const messages: Parameters<typeof streamText>[0]["messages"] = [
       {
-        content:
-          "You are Pebble. Use the add tool for all arithmetic, one call at a time.",
+        content: `${PROBE_MARKER} Use the add tool for all arithmetic, one call at a time.`,
         role: "system",
       },
       { content: "What is (2+3)+10? Use the tool twice.", role: "user" },
@@ -168,8 +248,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
 
     const prompt: LanguageModelV4Message[] = [
       {
-        content:
-          "You are Pebble. Use the add tool for all arithmetic, one call at a time.",
+        content: `${PROBE_MARKER} Use the add tool for all arithmetic, one call at a time.`,
         role: "system",
       },
       {
@@ -322,8 +401,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
 
     const chat: LanguageModelV4Message[] = [
       {
-        content:
-          "You are Pebble. Hand any research to a background task with start_task.",
+        content: `${PROBE_MARKER} Hand any research to a background task with start_task.`,
         role: "system",
       },
       {

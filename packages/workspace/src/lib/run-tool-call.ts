@@ -4,9 +4,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
+import { ChatWrites } from "./chat-writes";
 import { getCurrentDate } from "./get-current-date";
-import { writingChatRecords } from "./records/chat-records";
-import { Store } from "./store";
 import { streamTool } from "./stream-tool";
 
 export async function runToolCall({
@@ -23,17 +22,17 @@ export async function runToolCall({
   chatId: ChatId;
 }) {
   const tool = getToolByType(part.type);
-  // What the call holds while it runs: an output it offered before its own is
-  // the window's to show and never a record of its own.
-  const live = writingChatRecords()?.live(chatId, sessionId);
+  // An output the call offered before its own is the window's to show and
+  // never a record, which is `ChatWrites`' to tell apart.
   let preliminarySaved = false;
 
   try {
     // Marks the call as executing rather than waiting its turn. Written before
     // anything else so the transcript can show which of a batch of calls is the
     // one actually running.
-    await Store.updatePart(
+    await ChatWrites.updatePart(
       {
+        chatId,
         messageId: part.metadata.messageId,
         partId: part.metadata.id,
         sessionId,
@@ -43,8 +42,6 @@ export async function runToolCall({
           ...current,
           metadata: { ...current.metadata, startedAt: getCurrentDate() },
         }) as SessionMessagePart.Type,
-      chatId,
-      { signal },
     );
 
     for await (const { output, type } of streamTool({
@@ -64,6 +61,7 @@ export async function runToolCall({
       }
 
       const ids = {
+        chatId,
         messageId: part.metadata.messageId,
         partId: part.metadata.id,
         sessionId,
@@ -71,7 +69,7 @@ export async function runToolCall({
 
       if (type === "preliminary") {
         if (output.isOk()) {
-          const offered = await Store.updatePart(
+          await ChatWrites.updatePart(
             ids,
             (current) =>
               ({
@@ -81,17 +79,12 @@ export async function runToolCall({
                 preliminary: true,
                 state: "output-available",
               }) as SessionMessagePart.Type,
-            chatId,
-            { signal },
           );
-          if (offered.isOk()) {
-            live?.setPart(offered.value);
-          }
           preliminarySaved = true;
         }
       } else {
         await (output.isOk()
-          ? Store.updatePart(
+          ? ChatWrites.updatePart(
               ids,
               (current) =>
                 ({
@@ -104,10 +97,8 @@ export async function runToolCall({
                   preliminary: false,
                   state: "output-available",
                 }) as SessionMessagePart.Type,
-              chatId,
-              { signal },
             )
-          : Store.updatePart(
+          : ChatWrites.updatePart(
               ids,
               (current) =>
                 ({
@@ -119,8 +110,6 @@ export async function runToolCall({
                   },
                   state: "output-error",
                 }) as SessionMessagePart.Type,
-              chatId,
-              { signal },
             ));
       }
     }
@@ -128,8 +117,9 @@ export async function runToolCall({
     if (signal.aborted) {
       return { preliminarySaved };
     }
-    await Store.updatePart(
+    await ChatWrites.updatePart(
       {
+        chatId,
         messageId: part.metadata.messageId,
         partId: part.metadata.id,
         sessionId,
@@ -144,8 +134,6 @@ export async function runToolCall({
           },
           state: "output-error",
         }) as SessionMessagePart.Type,
-      chatId,
-      { signal },
     );
   }
 

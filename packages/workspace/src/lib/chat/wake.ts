@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { ChatWrites } from "../chat-writes";
 import { recordChanged } from "../record-changes";
 import { type Ask } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -25,7 +26,6 @@ import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
 import { ChatReads } from "../chat-reads";
-import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
@@ -373,8 +373,9 @@ async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
     if (!isOpenCall(part)) {
       continue;
     }
-    const written = await Store.updatePart(
+    const written = await ChatWrites.updatePart(
       {
+        chatId: task.chatId,
         messageId: part.metadata.messageId,
         partId: part.metadata.id,
         sessionId: part.metadata.sessionId,
@@ -391,7 +392,6 @@ async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
               state: "output-error",
             } as SessionMessagePart.Type)
           : current,
-      task.chatId,
     );
     if (written.isErr()) {
       getWorkspaceConfig().captureException(written.error);
@@ -813,7 +813,7 @@ async function saveNote(
 
   // Written now, so the note shows in the conversation the moment it fires,
   // whatever the chat is in the middle of.
-  const written = await Store.saveMessageWithParts(message, chatId);
+  const written = await ChatWrites.saveMessageWithParts(message, chatId);
   if (written.isErr()) {
     throw new Error(written.error.message);
   }

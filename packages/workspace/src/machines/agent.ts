@@ -18,11 +18,11 @@ import {
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
 import { type SessionMessage } from "../schemas/session/message";
@@ -163,14 +163,11 @@ export const agentMachine = setup({
       // write, which is what keeps the sweep inside a stop's deadline.
       await Promise.all(
         danglingParts.map((part) =>
-          saveStoppedToolCallPart(
-            {
-              part,
-              reason: input.stopReason ?? "unknown",
-              chatId: input.chatId,
-            },
-            { signal },
-          ),
+          saveStoppedToolCallPart({
+            part,
+            reason: input.stopReason ?? "unknown",
+            chatId: input.chatId,
+          }),
         ),
       );
     }),
@@ -218,11 +215,11 @@ export const agentMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const now = getCurrentDate();
       const messageId = StoreId.newMessageId();
 
-      const result = await Store.saveMessageWithParts(
+      const result = await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: {
@@ -253,7 +250,6 @@ export const agentMachine = setup({
           role: "assistant",
         },
         input.chatId,
-        { signal },
       );
 
       if (result.isErr()) {
@@ -275,16 +271,17 @@ export const agentMachine = setup({
         savedIds: StoreId.Message[];
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const ids: StoreId.Message[] = [];
       for (const message of input.messages) {
         if (input.savedIds.includes(message.id)) {
           ids.push(message.id);
           continue;
         }
-        const saved = await Store.saveMessageWithParts(message, input.chatId, {
-          signal,
-        });
+        const saved = await ChatWrites.saveMessageWithParts(
+          message,
+          input.chatId,
+        );
         if (saved.isErr()) {
           throw new Error(saved.error.message);
         }

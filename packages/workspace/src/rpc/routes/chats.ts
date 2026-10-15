@@ -1,6 +1,7 @@
 import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { ChatWrites } from "../../lib/chat-writes";
 import { isWorking, latestStep } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
@@ -30,7 +31,6 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { trashChat } from "../../lib/trash-chat";
-import { Store } from "../../lib/store";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { chatRoutes } from "./chat";
@@ -324,15 +324,19 @@ const answerQuestionRoute = base
           return;
         }
         // On the call too, so the card draws the answer from its own part.
-        const written = await Store.updatePart(
-          { messageId: question.messageId, partId, sessionId },
+        const written = await ChatWrites.updatePart(
+          {
+            chatId: input.id,
+            messageId: question.messageId,
+            partId,
+            sessionId,
+          },
           (part) =>
             part.type === "tool-choose" &&
             part.state === "output-available" &&
             "asked" in part.output
               ? { ...part, output: { ...part.output, answer: input.answer } }
               : part,
-          input.id,
         );
         if (written.isErr()) {
           context.workspaceConfig.captureException(written.error);

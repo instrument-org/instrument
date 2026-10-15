@@ -1,8 +1,8 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { ChatWrites } from "./chat-writes";
 import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { ChatReads } from "./chat-reads";
-import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function updateSessionTitle({
@@ -30,7 +30,7 @@ export async function updateSessionTitle({
   if (!canReplace) {
     return false;
   }
-  const renameResult = await Store.saveSession(
+  const renameResult = await ChatWrites.saveSession(
     {
       ...storedSession.value,
       title,

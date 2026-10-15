@@ -6,8 +6,15 @@ import { noopModelCache } from "@instrument-org/ai-gateway/model-cache";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { afterAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
+import {
+  ChatRecords,
+  installChatRecords,
+  writingChatRecords,
+} from "../lib/records/chat-records";
+import { chatDir } from "../lib/record-folders";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -82,6 +89,26 @@ setWorkspaceConfig({
   workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
   machineDir: AbsolutePathSchema.parse(machineDir),
   workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
+});
+
+// A chat is written through its records, so every test has them, in its own
+// temporary chats folder, the way the workspace puts them in place as it
+// opens. `chatDir` is read per write, so a test that points the config at
+// another folder is followed there. Nothing is synced: nothing here has to
+// survive a power cut.
+installChatRecords(
+  new ChatRecords({
+    app: "0.0.0-test",
+    device: newDeviceId(),
+    dirOf: chatDir,
+    fsync: false,
+  }),
+);
+
+afterAll(async () => {
+  const records = writingChatRecords();
+  installChatRecords(undefined);
+  await records?.dispose();
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

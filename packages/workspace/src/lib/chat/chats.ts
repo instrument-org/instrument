@@ -12,11 +12,11 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
+import { ChatWrites } from "../chat-writes";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { cardLine, openAsks } from "./asks";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
 import {
@@ -839,7 +839,7 @@ function saveMark(
     if (session.isErr()) {
       return false;
     }
-    const saved = await Store.saveSession(mark(session.value), chatId);
+    const saved = await ChatWrites.saveSession(mark(session.value), chatId);
     return saved.isOk();
   });
 }

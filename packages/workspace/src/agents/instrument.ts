@@ -14,6 +14,7 @@ import { buildAppsContextText } from "../lib/apps/context";
 import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildFoldersText } from "../lib/build-folders-text";
 import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { currentEnvironment } from "../lib/environment";
 import { TypedError } from "../lib/errors";
@@ -31,7 +32,6 @@ import { PYTHON_COMMAND } from "../lib/shell-commands/python";
 import { TAB_COMMAND } from "../lib/shell-commands/tab-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
-import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
   effectiveFolderAccess,
@@ -187,7 +187,7 @@ export const instrumentAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      yield* Store.savePart(
+      yield* ChatWrites.savePart(
         {
           data: skillChangesPart,
           metadata: {
@@ -199,7 +199,6 @@ export const instrumentAgent = setupAgent({
           type: "data-skillChanges",
         },
         chatId,
-        { signal },
       );
 
       return ok(undefined);

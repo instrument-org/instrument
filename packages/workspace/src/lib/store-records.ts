@@ -1,5 +1,4 @@
 import { ResultAsync } from "neverthrow";
-import { isEqual } from "radashi";
 
 import { type ChatId } from "../schemas/chat-id";
 import { type Session } from "../schemas/session";
@@ -8,16 +7,9 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { createWriteQueue } from "./create-write-queue";
 import { isStorageFullError } from "./is-storage-full-error";
-import { isToolPart } from "./is-tool-part";
-import {
-  type ChatRecords,
-  type MarkChange,
-  type SessionStart,
-  writingChatRecords,
-} from "./records/chat-records";
-import { type FoldedSession } from "./records/fold";
+import { isArriving } from "./records/arriving";
+import { type ChatRecords, writingChatRecords } from "./records/chat-records";
 import { type ToldWhat } from "./records/record";
-import { sessionOf } from "./records/session-of";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -85,39 +77,7 @@ export namespace StoreRecords {
    * updated at is nothing of its own, since the newest record's date says it.
    */
   export function session(chatId: ChatId, saved: Session.Type): void {
-    append(chatId, async (records) => {
-      const known = await foldedSession(records, chatId, saved.id);
-      if (!known) {
-        await records.startSession(chatId, startOf(saved));
-      }
-      if (
-        saved.rolledOverAfterMessageId !== undefined &&
-        (known?.rollover?.after !== saved.rolledOverAfterMessageId ||
-          known.rollover.usableTokens !== saved.rolledOverUnderUsableTokens)
-      ) {
-        await records.rollover(
-          chatId,
-          saved.id,
-          saved.rolledOverAfterMessageId,
-          saved.rolledOverUnderUsableTokens,
-        );
-      }
-      // Against the stop itself rather than the session as it reads, which
-      // leaves a stop behind once a turn starts after it: a row written then
-      // still carries the stop it was last saved with, and saying so again
-      // would stop the session a second time.
-      if (
-        saved.stoppedBy !== undefined &&
-        known?.stopped?.by !== saved.stoppedBy
-      ) {
-        await records.stopped(chatId, saved.id, saved.stoppedBy);
-      }
-      // A session just started has the title its header carries and no marks.
-      const was = known ? sessionOf(known) : { title: saved.title };
-      for (const change of marksBetween(was, saved)) {
-        await records.mark(chatId, saved.id, change);
-      }
-    });
+    append(chatId, (records) => records.saveSession(chatId, saved));
   }
 
   /**
@@ -171,19 +131,6 @@ export namespace StoreRecords {
   }
 }
 
-/** The marks a session row carries, each in the shape its mark holds. */
-type Marked = Pick<
-  Session.Type,
-  | "archivedAt"
-  | "starredAt"
-  | "stoppedAt"
-  | "title"
-  | "titleSettledAt"
-  | "topics"
-  | "unreadAt"
-  | "unreadByUser"
->;
-
 /** One queue per chat, so its records are appended in the order they were written. */
 const queued = createWriteQueue();
 
@@ -236,89 +183,4 @@ function report(error: unknown): void {
   if (hasWorkspaceConfig()) {
     getWorkspaceConfig().captureException(error, { scopes: ["workspace"] });
   }
-}
-
-/**
- * Whether a part is still arriving, which is never written: text or
- * reasoning being streamed, a call whose input is still being typed, and the
- * preliminary output a tool gave before its own.
- */
-function isArriving(part: SessionMessagePart.Type): boolean {
-  if (isToolPart(part)) {
-    return part.state === "input-streaming" || part.preliminary === true;
-  }
-  return (
-    (part.type === "text" || part.type === "reasoning") &&
-    part.state === "streaming"
-  );
-}
-
-async function foldedSession(
-  records: ChatRecords,
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<FoldedSession | undefined> {
-  const read = await records.read(chatId);
-  return read.chat.sessions.find(({ id }) => id === sessionId);
-}
-
-/** What a session's log header says, from the row it was first written as. */
-function startOf(session: Session.Type): SessionStart {
-  return {
-    createdAt: session.createdAt,
-    ...(session.forkedAtMessageId !== undefined && {
-      forkedAt: session.forkedAtMessageId,
-    }),
-    ...(session.handle !== undefined && { handle: session.handle }),
-    id: session.id,
-    ...(session.parentId !== undefined && { parent: session.parentId }),
-    title: session.title,
-  };
-}
-
-/**
- * The marks the row moved: each one as its record holds it, left out where
- * the records already say the same thing. A mark whose value has not changed
- * is never rewritten, so it keeps the moment it was made, which is the date
- * the row keeps beside it.
- */
-function marksBetween(was: Marked, now: Session.Type): MarkChange[] {
-  const changes: MarkChange[] = [];
-  if (
-    was.title !== now.title ||
-    (was.titleSettledAt === undefined) !== (now.titleSettledAt === undefined)
-  ) {
-    changes.push({
-      field: "title",
-      value: { settled: now.titleSettledAt !== undefined, text: now.title },
-    });
-  }
-  if ((was.archivedAt === undefined) !== (now.archivedAt === undefined)) {
-    changes.push({ field: "archived", value: now.archivedAt !== undefined });
-  }
-  if ((was.starredAt === undefined) !== (now.starredAt === undefined)) {
-    changes.push({ field: "starred", value: now.starredAt !== undefined });
-  }
-  if (
-    (was.unreadAt === undefined) !== (now.unreadAt === undefined) ||
-    (was.unreadByUser === true) !== (now.unreadByUser === true)
-  ) {
-    changes.push({
-      field: "unread",
-      value:
-        now.unreadAt === undefined
-          ? null
-          : { byUser: now.unreadByUser === true },
-    });
-  }
-  if (now.topics !== undefined && !isEqual(was.topics ?? [], now.topics)) {
-    changes.push({ field: "topics", value: now.topics });
-  }
-  if (
-    now.stoppedAt !== undefined &&
-    was.stoppedAt?.getTime() !== now.stoppedAt.getTime()
-  ) {
-    changes.push({ field: "stoppedAt", value: now.stoppedAt });
-  }
-  return changes;
 }

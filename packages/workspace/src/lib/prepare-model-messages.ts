@@ -20,6 +20,7 @@ import {
   contextOccupancyFromMessages,
   usableContextTokens,
 } from "./context-budget";
+import { ChatWrites } from "./chat-writes";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 import { resetMemoryReported } from "./create-memory-part";
@@ -39,7 +40,6 @@ import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning
 import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
-import { Store } from "./store";
 import { shellPath } from "./workspace-fs-layout";
 
 /**
@@ -118,7 +118,7 @@ export async function prepareModelMessages({
     newestMessage &&
     !newestMessage.parts.some((part) => part.type === "data-modelChange")
   ) {
-    await Store.savePart(
+    await ChatWrites.savePart(
       {
         data: modelChange,
         metadata: {
@@ -130,7 +130,6 @@ export async function prepareModelMessages({
         type: "data-modelChange",
       },
       chatId,
-      { signal },
     );
   }
 
@@ -207,14 +206,13 @@ export async function prepareModelMessages({
       // other side's answer for every field the boundary is not.
       const stored = await ChatReads.session({ chatId, sessionId, signal });
       const saveResult = await stored.asyncAndThen((row) =>
-        Store.saveSession(
+        ChatWrites.saveSession(
           {
             ...row,
             rolledOverAfterMessageId: newest.id,
             rolledOverUnderUsableTokens: usable,
           },
           chatId,
-          { signal },
         ),
       );
 
@@ -235,7 +233,7 @@ export async function prepareModelMessages({
         // transcript and the boundary assembly reads are recorded together or
         // not at all. A failed part leaves the rollover itself intact: the
         // session is still correct, it is only undrawn.
-        await Store.savePart(
+        await ChatWrites.savePart(
           {
             data: {
               droppedMessages:
@@ -251,7 +249,6 @@ export async function prepareModelMessages({
             type: "data-contextRollover",
           },
           chatId,
-          { signal },
         );
 
         // The whole of memory was told on a message the cut just dropped, so
@@ -269,7 +266,6 @@ export async function prepareModelMessages({
     contextMessages: existingSessionContextMessages,
     rolledOverAfterMessageId,
     sessionId,
-    signal,
   });
   if (baselineResult.isErr()) {
     return err(baselineResult.error);

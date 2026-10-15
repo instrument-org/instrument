@@ -15,11 +15,11 @@ import {
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
-import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -158,7 +158,7 @@ export const sessionMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const hasMismatchedSessionId = input.message.parts.some(
         (part) => part.metadata.sessionId !== input.sessionId,
       );
@@ -170,10 +170,9 @@ export const sessionMachine = setup({
       if (input.saved) {
         return input.message;
       }
-      const result = await Store.saveMessageWithParts(
+      const result = await ChatWrites.saveMessageWithParts(
         input.message,
         input.chatId,
-        { signal },
       );
       if (result.isErr()) {
         throw new Error(result.error.message);
@@ -200,13 +199,12 @@ export const sessionMachine = setup({
           `Failed to get session: ${existingSession.error.message}`,
         );
       } else {
-        const result = await Store.saveSession(
+        const result = await ChatWrites.saveSession(
           {
             ...existingSession.value,
             updatedAt: new Date(),
           },
           chatId,
-          { signal },
         );
         if (result.isErr()) {
           throw new Error(`Failed to update session: ${result.error.message}`);

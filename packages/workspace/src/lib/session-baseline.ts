@@ -5,7 +5,7 @@ import { type AnyAgent } from "../agents/types";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { Store } from "./store";
+import { ChatWrites } from "./chat-writes";
 
 /**
  * A session's baseline is its system prompt and context message: the front of
@@ -108,29 +108,24 @@ export async function sessionBaseline({
   contextMessages,
   rolledOverAfterMessageId,
   sessionId,
-  signal,
 }: {
   agent: AnyAgent;
   chatId: ChatId;
   contextMessages: SessionMessage.ContextWithParts[];
   rolledOverAfterMessageId: StoreId.Message | undefined;
   sessionId: StoreId.Session;
-  signal: AbortSignal;
 }) {
   const baseline = baselineInForce(contextMessages, sessionId);
   if (baselineDue({ baseline, rolledOverAfterMessageId }) === undefined) {
     return ok(baseline);
   }
 
-  for (const message of baseline.filter(
-    (stored) => stored.metadata.sessionId === sessionId,
-  )) {
-    const removed = await Store.removeMessage(
-      message.id,
-      message.metadata.sessionId,
-      chatId,
-      { signal },
-    );
+  // Together, so no reader finds a session between two baselines.
+  const replaced = baseline
+    .filter((stored) => stored.metadata.sessionId === sessionId)
+    .map((stored) => stored.id);
+  if (replaced.length > 0) {
+    const removed = await ChatWrites.retract(chatId, sessionId, replaced);
     if (removed.isErr()) {
       return err(removed.error);
     }
@@ -148,7 +143,7 @@ export async function sessionBaseline({
   const saved = Result.combine(
     await Promise.all(
       written.map((message) =>
-        Store.saveMessageWithParts(message, chatId, { signal }),
+        ChatWrites.saveMessageWithParts(message, chatId),
       ),
     ),
   );

@@ -1,6 +1,7 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
+import { ChatWrites } from "../lib/chat-writes";
 import { getCurrentDate } from "../lib/get-current-date";
 import {
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
@@ -8,7 +9,6 @@ import {
 } from "../constants";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
-import { Store } from "../lib/store";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -48,16 +48,14 @@ const STOPPED_BECAUSE: Record<CancellationReason, string> = {
  * stops, or as the sweep scans, would otherwise have its result replaced by an
  * account of the stop. Returning `current` unchanged skips the write entirely.
  */
-export async function saveStoppedToolCallPart(
-  input: {
-    part: SessionMessagePart.ToolPart;
-    reason: CancellationReason;
-    chatId: ChatId;
-  },
-  { signal }: { signal?: AbortSignal } = {},
-) {
-  await Store.updatePart(
+export async function saveStoppedToolCallPart(input: {
+  part: SessionMessagePart.ToolPart;
+  reason: CancellationReason;
+  chatId: ChatId;
+}) {
+  await ChatWrites.updatePart(
     {
+      chatId: input.chatId,
       messageId: input.part.metadata.messageId,
       partId: input.part.metadata.id,
       sessionId: input.part.metadata.sessionId,
@@ -84,8 +82,6 @@ export async function saveStoppedToolCallPart(
         state: "output-error",
       } as SessionMessagePart.Type;
     },
-    input.chatId,
-    { signal },
   );
 }
 
@@ -116,8 +112,8 @@ export const executeToolCallMachine = setup({
         reason: CancellationReason;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
-      await saveStoppedToolCallPart(input, { signal });
+    >(async ({ input }) => {
+      await saveStoppedToolCallPart(input);
     }),
 
     executeToolLogic,

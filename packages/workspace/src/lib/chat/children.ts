@@ -4,9 +4,9 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";
 import { resolveChat, sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 
 /**
  * A task: a session in its chat's store, started from the chat's own
@@ -55,7 +55,7 @@ export function addChildTask(
       handle: `t${Math.max(0, ...given) + 1}`,
       parentId,
     };
-    const saved = await Store.saveSession(session, chatId);
+    const saved = await ChatWrites.saveSession(session, chatId);
     if (saved.isErr()) {
       throw saved.error;
     }
@@ -131,7 +131,7 @@ export function touchTask(
     if (session.isErr()) {
       return;
     }
-    const saved = await Store.saveSession(
+    const saved = await ChatWrites.saveSession(
       { ...session.value, ...changes, updatedAt: new Date() },
       chatId,
     );

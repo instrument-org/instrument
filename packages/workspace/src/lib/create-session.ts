@@ -2,11 +2,11 @@ import { err } from "neverthrow";
 
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { ChatWrites } from "./chat-writes";
 import { TypedError } from "./errors";
 import { generateSessionTitle } from "./generate-session-title";
 import { sessionOfChat } from "./record-folders";
 import { ChatReads } from "./chat-reads";
-import { Store } from "./store";
 
 export async function createSession({
   sessionId,
@@ -22,7 +22,7 @@ export async function createSession({
     chatId,
   });
   const now = new Date();
-  const result = await Store.saveSession(
+  const result = await ChatWrites.saveSession(
     {
       createdAt: now,
       id: sessionId,
@@ -30,7 +30,6 @@ export async function createSession({
       updatedAt: now,
     },
     chatId,
-    { signal },
   );
 
   return result;

@@ -27,6 +27,8 @@ export const PlaceIdSchema = z.enum([
   "icloud",
   "drives",
   "appFiles",
+  "photos",
+  "mediaLibraries",
   "passwords",
 ]);
 export type PlaceId = z.output<typeof PlaceIdSchema>;
@@ -38,8 +40,10 @@ export const PLACE_DEFAULTS = {
   downloads: "ask",
   drives: "ask",
   icloud: "ask",
+  mediaLibraries: "ask",
   output: "allow",
   passwords: "ask",
+  photos: "ask",
 } as const satisfies Record<PlaceId, Level>;
 
 /**
@@ -211,6 +215,16 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
       { id: "icloud", paths: [inOwnHome(iCloudDrivePath())] },
       { id: "drives", paths: ["/Volumes"] },
       { homeDotEntries: true, id: "appFiles", paths: inHome("Library") },
+      // The Photos, Music and TV libraries are folders macOS asks the
+      // person about before any program reads them, in a dialog the program
+      // waits on. Closed here, the sandbox refuses a native walk over the
+      // home folder before it reaches macOS's question. Two places, so a
+      // person who keeps their own photos in the library can open just that.
+      { id: "photos", paths: inHome("Pictures/Photos Library.photoslibrary") },
+      {
+        id: "mediaLibraries",
+        paths: inHome("Music/Music", "Music/iTunes", "Movies/TV"),
+      },
     );
   } else if (process.platform === "linux") {
     places.push(

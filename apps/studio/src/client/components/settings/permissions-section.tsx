@@ -34,8 +34,10 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
+import { ImagesIcon } from "@phosphor-icons/react/Images";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { KeyIcon } from "@phosphor-icons/react/Key";
+import { MusicNotesIcon } from "@phosphor-icons/react/MusicNotes";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode } from "react";
@@ -138,6 +140,8 @@ export function PermissionsSection() {
       "icloud",
       "drives",
       "appFiles",
+      "photos",
+      "mediaLibraries",
       "passwords",
     ] as const
   ).flatMap((id) => {
@@ -414,6 +418,20 @@ function PlaceRow({
           line: osConventions().appFiles,
           mark: <PlaceIcon className={className} place="apps" />,
           name: "Other apps' files",
+        };
+      }
+      case "photos": {
+        return {
+          line: undefined,
+          mark: <ImagesIcon className={className} />,
+          name: "Photos library",
+        };
+      }
+      case "mediaLibraries": {
+        return {
+          line: undefined,
+          mark: <MusicNotesIcon className={className} />,
+          name: "Music and TV libraries",
         };
       }
       case "passwords": {

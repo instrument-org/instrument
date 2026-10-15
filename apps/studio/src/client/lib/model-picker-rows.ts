@@ -27,7 +27,7 @@ export type PickerRow =
       /** Under a search, where the name came from, for the highlight. */
       nameRanges?: null | number[];
       model: AIGatewayModel.Type;
-      /** One plain line under the name: what replaced it, or why it cannot be used. */
+      /** One plain line under the name: why it cannot be used, what replaced it, or its model family. */
       sub?: string;
       type: "model";
     }
@@ -41,6 +41,13 @@ const isOurs = (model: AIGatewayModel.Type) =>
 
 const isAuto = (model: AIGatewayModel.Type) =>
   model.providerId === OUR_MODELS.text.id;
+
+/**
+ * One of the brand models our gateway curates (`instrument/claude`), as
+ * opposed to another maker's model it passes through under our connection.
+ */
+export const isOurOwnModel = (model: AIGatewayModel.Type) =>
+  model.author === OUR_MODELS.author;
 
 /** The connections in the order the list names them, Instrument first. */
 export function connectionsOf(models: AIGatewayModel.Type[]): Connection[] {
@@ -86,8 +93,13 @@ function groupsOf(models: AIGatewayModel.Type[], connectionId: string) {
     own,
     recommended,
     restricted,
-    // Folding only helps where it hides something and leaves something.
-    folds: recommended.length > 0 && recommended.length < rest.length,
+    // Folding only helps where it hides something and leaves something, and
+    // never on a lineup of our own models, which is short and shown whole in
+    // the gateway's order with a recommendation marked on its row.
+    folds:
+      !rest.every(isOurOwnModel) &&
+      recommended.length > 0 &&
+      recommended.length < rest.length,
   };
 }
 
@@ -243,7 +255,10 @@ function searchConnections({
   return rows;
 }
 
-/** A model's row, with what replaced it or why it cannot be used. */
+/**
+ * A model's row, with why it cannot be used, what replaced it, or the model
+ * family our gateway names behind it, in that order.
+ */
 function modelRow(
   model: AIGatewayModel.Type,
   sameConnection: AIGatewayModel.Type[],
@@ -255,7 +270,7 @@ function modelRow(
       ?.name.trim();
   const sub =
     model.restricted?.message ??
-    (replacedBy ? `Replaced by ${replacedBy}` : undefined);
+    (replacedBy ? `Replaced by ${replacedBy}` : model.family);
   return { model, type: "model", ...(sub && { sub }) };
 }
 

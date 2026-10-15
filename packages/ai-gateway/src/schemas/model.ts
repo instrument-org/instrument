@@ -102,8 +102,22 @@ export namespace AIGatewayModel {
      * have.
      */
     contextLength: z.number().int().positive().optional(),
+    /**
+     * The model line behind one of our own models ("Claude Haiku" behind
+     * "Claude"), as our gateway names it, so the picker can say which line a
+     * brand name serves. Absent for every other provider and an older gateway.
+     */
+    family: z.string().optional(),
     features: ModelFeaturesSchema.array(),
+    /**
+     * Who makes the model behind one of our own models, as an author slug
+     * ("anthropic", "xai"), when our gateway names one. An open string so a
+     * maker this client has no mark for still parses.
+     */
+    maker: z.string().optional(),
     name: z.string(),
+    /** A short line our gateway wants shown beside one of our models. */
+    note: z.string().optional(),
     params: AIGatewayModelURI.ParamsSchema,
     /**
      * Dollars per million tokens in and out, when the provider's list prices

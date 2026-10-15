@@ -15,6 +15,7 @@ import {
 type Spec = {
   author?: string;
   canonicalId: string;
+  family?: string;
   name: string;
   replacedBy?: string;
   restricted?: string;
@@ -31,6 +32,7 @@ const connection =
   ({
     author = defaultAuthor,
     canonicalId,
+    family,
     name,
     replacedBy,
     restricted,
@@ -43,6 +45,7 @@ const connection =
     return AIGatewayModel.Schema.parse({
       author,
       canonicalId,
+      family,
       features: [],
       name,
       params,
@@ -231,6 +234,24 @@ describe("rowsForConnection", () => {
         "instrument",
       ],
       [
+        "Instrument's own lineup: brand names in the gateway's order, each over its family",
+        [
+          ...autoOnly,
+          instrument({
+            canonicalId: "chatgpt",
+            family: "GPT Luna",
+            name: "ChatGPT",
+          }),
+          instrument({
+            canonicalId: "claude",
+            family: "Claude Haiku",
+            name: "Claude",
+          }),
+          instrument({ canonicalId: "muse", name: "Muse" }),
+        ],
+        "instrument",
+      ],
+      [
         "one maker: latest, older, then what needs a plan",
         anthropicList,
         "anthropic-key",
@@ -259,6 +280,12 @@ describe("rowsForConnection", () => {
           "[Auto]",
           "(anthropic) Claude Sonnet 5.5",
           "(google) Gemini 3.7 Flash",
+        ],
+        "Instrument's own lineup: brand names in the gateway's order, each over its family": [
+          "[Auto]",
+          "(instrument) ChatGPT — GPT Luna",
+          "(instrument) Claude — Claude Haiku",
+          "(instrument) Muse",
         ],
         "a long catalog opens on its recommendations, by maker": [
           "# Recommended",

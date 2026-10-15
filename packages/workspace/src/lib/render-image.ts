@@ -290,17 +290,47 @@ async function runFfmpeg({
     stdin: "ignore",
   });
 
-  // No exit code means the process never reached one: it failed to spawn, or a
-  // signal took it down. The binary is bundled, so the first is rare -- but it
-  // is a machine where nothing here will ever work, and it must not be read as
-  // a verdict on the image.
-  if (result.exitCode === undefined) {
+  // Only a run that reached ffmpeg says anything about the image. No exit code
+  // means the process never got one: it failed to spawn, or a signal took it
+  // down. A Node-level error code means the OS refused to start it. And the
+  // exit code cannot stand in for either, because Windows reports a failed
+  // spawn as an ordinary exit 1 -- the same code ffmpeg returns for input it
+  // cannot decode -- so a failing run is weighed against whether the bundled
+  // binary is there to run at all. The binary is bundled, so all of this is
+  // rare, but it is a machine where nothing here will ever work, and it must
+  // not be read as a verdict on the image.
+  if (
+    result.exitCode === undefined ||
+    result.code !== undefined ||
+    (result.exitCode !== 0 && (await ffmpegIsMissing()))
+  ) {
     return "unavailable";
   }
   if (result.exitCode !== 0 || result.stdout.length === 0) {
     return;
   }
   return Buffer.from(result.stdout);
+}
+
+/**
+ * Whether the bundled binary this build points at is absent from disk.
+ *
+ * Absence is a fact about the machine: a build that did not ship it, a
+ * quarantine that removed it. Nothing decoded, so nothing is known about the
+ * bytes. A platform the package publishes no binary for leaves a bare name
+ * behind, which the OS resolves against PATH -- there is no path to look for
+ * then, and whatever ran keeps its own verdict.
+ */
+async function ffmpegIsMissing() {
+  if (!path.isAbsolute(FFMPEG_PATH)) {
+    return false;
+  }
+  try {
+    await fs.access(FFMPEG_PATH);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /**

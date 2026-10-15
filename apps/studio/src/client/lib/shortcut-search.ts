@@ -1,6 +1,6 @@
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { type ShortcutGuideEntry } from "@/shared/shortcut-guide";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 export interface ShortcutMatch {
   entry: ShortcutGuideEntry;
@@ -9,7 +9,7 @@ export interface ShortcutMatch {
 
 // Same matcher the omnibar and skill search use, so a query behaves the way
 // search does everywhere else in the app and can show what it matched.
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /**
  * Ranks shortcuts against `query` and returns the ranges to highlight in each

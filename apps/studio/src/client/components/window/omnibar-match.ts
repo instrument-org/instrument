@@ -1,5 +1,5 @@
 import { isPathLike } from "@/client/lib/typed-path";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 /** A page the field can offer again: one the browser showed, or a bookmark. */
 export interface KnownPage {
@@ -25,7 +25,7 @@ export interface PathQuery {
   prefix: string;
 }
 
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /**
  * An address as a person types it: no scheme, no `www.`, no trailing slash.

@@ -1,6 +1,6 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 import { joinFuzzyFields } from "./join-fuzzy-fields";
 
@@ -173,7 +173,7 @@ export function rowsForConnection({
   return rows;
 }
 
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /**
  * Every connection searched at once, matches grouped under the connection

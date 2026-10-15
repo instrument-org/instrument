@@ -288,6 +288,32 @@ describe("mxcFilesystemPolicy", () => {
   });
 });
 
+describe("mxcFilesystemPolicy's folders to look at", () => {
+  it("are every folder above an open one, a closed one among them", () => {
+    const at = home("AppData/Local/Temp/chat");
+    const appData = path.join(at, "AppData");
+    const chat = path.join(appData, "Local", "Temp", "chat");
+    const policy = mxcFilesystemPolicy(
+      reachOver(
+        at,
+        [{ level: "ask", path: appData, place: "appFiles", source: "place" }],
+        { readWrite: [chat] },
+      ),
+      { appFolders: [], closed: [], root: ROOT },
+    );
+    expect(policy.deniedPaths).toEqual([appData]);
+    expect(policy.enumeratePaths).toEqual(
+      expect.arrayContaining([
+        at,
+        appData,
+        path.join(appData, "Local"),
+        path.join(appData, "Local", "Temp"),
+      ]),
+    );
+    expect(policy.enumeratePaths).not.toContain(chat);
+  });
+});
+
 describe("windowsCommandLine", () => {
   it.each([
     [["node", "-e", "1"], "node -e 1"],
@@ -316,7 +342,8 @@ describe("mxcRequest", () => {
         cwd: "C:\\work",
         env: { PATH: "C:\\bin", SYSTEMROOT: "C:\\Windows", UNSET: undefined },
         filesystem: {
-          deniedPaths: [],
+          deniedPaths: ["C:\\Users\\sam\\AppData"],
+          enumeratePaths: ["C:\\Users\\sam\\AppData"],
           readonlyPaths: ["C:\\"],
           readwritePaths: ["C:\\work"],
         },
@@ -328,7 +355,9 @@ describe("mxcRequest", () => {
           "allowDaclMutation": false,
         },
         "filesystem": {
-          "deniedPaths": [],
+          "deniedPaths": [
+            "C:\\Users\\sam\\AppData",
+          ],
           "readonlyPaths": [
             "C:\\",
           ],
@@ -354,6 +383,13 @@ describe("mxcRequest", () => {
           ],
           "timeout": 0,
         },
+        "processContainer": {
+          "filesystem": {
+            "enumeratePaths": [
+              "C:\\Users\\sam\\AppData",
+            ],
+          },
+        },
         "ui": {
           "disable": false,
         },
@@ -366,6 +402,7 @@ describe("mxcRequest", () => {
 describe("launchNative", () => {
   const filesystem = {
     deniedPaths: [],
+    enumeratePaths: [],
     readonlyPaths: ["/"],
     readwritePaths: [],
   };

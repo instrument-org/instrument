@@ -85,7 +85,7 @@ What the hook does not cover: type errors, tests in another package that import 
 
 `package.json` files show `"catalog:"` instead of version numbers. Real versions are in `pnpm-workspace.yaml` under `catalog:`. The ones where a stale assumption changes the code you write:
 
-- **React** 19.2 / **react-dom** 19.2
+- **React** 19.3 / **react-dom** 19.3
 - **TypeScript** 7.0 (the native compiler)
 - **Zod** 4.x
 - **Vite** 8.x (Rolldown/Oxc) / **Vitest** 5.x (browser locators and `toHaveTextContent` match exactly; `toMatchTextContent` takes a substring or RegExp)

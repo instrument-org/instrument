@@ -281,11 +281,14 @@ function main() {
  * Pair every rebuilt bundle file with the published file it replaces.
  *
  * Seeded with the files present under the same name in both builds, which a
- * content hash guarantees are the same module. Then, for each pair, the
- * imports already paired are set aside on both sides -- a change can add an
- * import of an existing module or drop one -- and what remains on each side is
- * paired in order. When the remainders differ in length, the change added or
- * removed a module outright, and the run stops rather than guess.
+ * content hash guarantees are the same module, and with the files whose
+ * content matches exactly one published file apart from the hashed names it
+ * imports: the same module, renamed only because a chunk it imports changed.
+ * Then, for each pair, the imports already paired are set aside on both sides
+ * -- a change can add an import of an existing module or drop one -- and what
+ * remains on each side is paired in order. When the remainders differ in
+ * length, the change added or removed a module outright, and the run stops
+ * rather than guess.
  */
 function mapBundleNames(builtBundle: string, publishedBundle: string) {
   const built = new Set(
@@ -301,6 +304,23 @@ function mapBundleNames(builtBundle: string, publishedBundle: string) {
     if (published.has(file)) {
       mapping.set(file, file);
       claimed.add(file);
+      queue.push(file);
+    }
+  }
+  const builtShapes = shapes(builtBundle, built, mapping);
+  const publishedShapes = shapes(publishedBundle, published, claimed);
+  for (const [shape, files] of builtShapes) {
+    const counterparts = publishedShapes.get(shape) ?? [];
+    const [file] = files;
+    const [counterpart] = counterparts;
+    if (
+      files.length === 1 &&
+      counterparts.length === 1 &&
+      file &&
+      counterpart
+    ) {
+      mapping.set(file, counterpart);
+      claimed.add(counterpart);
       queue.push(file);
     }
   }
@@ -332,6 +352,26 @@ function mapBundleNames(builtBundle: string, publishedBundle: string) {
     fail(`No published counterpart for: ${unmapped.join(", ")}`);
   }
   return mapping;
+}
+
+/**
+ * The bundle files not yet paired, grouped by their content with every hashed
+ * module name (`chunk-SDCUHRJG.js`, `cat-3G2OEI63.js`) blanked.
+ */
+function shapes(
+  bundle: string,
+  files: Set<string>,
+  paired: { has: (file: string) => boolean },
+) {
+  const byShape = new Map<string, string[]>();
+  for (const file of files) {
+    if (paired.has(file)) continue;
+    const shape = fs
+      .readFileSync(path.join(bundle, file), "utf8")
+      .replaceAll(/-[A-Z0-9]{8}\.js\b/g, "-*.js");
+    byShape.set(shape, [...(byShape.get(shape) ?? []), file]);
+  }
+  return byShape;
 }
 
 function packageDir(manifest: Manifest) {

@@ -572,10 +572,7 @@ export async function runEvals(
     return { runs: [], workspaceRootDir };
   }
 
-  // Shells run in the bash worker, as they do in Studio. On this thread,
-  // just-bash's defenses wrap the whole process's environment while a script
-  // runs, which breaks anything else here that writes it, the Claude Agent
-  // SDK among them.
+  // Shells run in the bash worker, as they do in Studio.
   setBashWorkerFactory(createTsxBashWorker);
 
   const appsConfig = createMemoryAppsConfig();

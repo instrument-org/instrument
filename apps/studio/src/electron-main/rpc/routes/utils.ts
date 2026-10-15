@@ -33,6 +33,7 @@ import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { osConventionsFor } from "@/shared/os-conventions";
+import { THIRD_PARTY_LICENSES_DIR_NAME } from "@/shared/third-party-licenses";
 import { eventIterator } from "@orpc/server";
 import {
   app,
@@ -364,6 +365,30 @@ const openFolder = base
   });
 
 /**
+ * Opens the folder of third-party license texts that packaging writes beside
+ * the app's other resources, in the computer's file manager. A development
+ * build has none.
+ */
+const openThirdPartyLicenses = base
+  .errors({
+    NOT_FOUND: {
+      message: "This build doesn't include the licenses",
+    },
+  })
+  .handler(async ({ errors }) => {
+    const dir = path.join(process.resourcesPath, THIRD_PARTY_LICENSES_DIR_NAME);
+    try {
+      await fs.access(dir);
+    } catch {
+      throw errors.NOT_FOUND();
+    }
+    const errorMessage = await openPathOnComputer(dir);
+    if (errorMessage) {
+      shell.showItemInFolder(dir);
+    }
+  });
+
+/**
  * Which display protocol the app is talking, or null where the question does
  * not arise. Linux is the only platform whose window decoration depends on it:
  * a frameless window is decorated by the compositor under Wayland and by
@@ -677,6 +702,7 @@ export const utils = {
   openFileWith,
   openFolder,
   openPath,
+  openThirdPartyLicenses,
   prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,

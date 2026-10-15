@@ -181,6 +181,12 @@ export const SETTINGS_INDEX = [
     title: "Report a bug",
   },
   {
+    id: "third-party-licenses",
+    mark: "open-source",
+    tab: "General",
+    title: "Third-party licenses",
+  },
+  {
     id: "test-notification",
     mark: "notifications",
     tab: "General",

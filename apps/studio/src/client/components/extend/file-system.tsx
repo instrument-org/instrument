@@ -10,14 +10,6 @@ import {
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { Button } from "@/client/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/client/components/ui/command";
-import {
   ContextMenu,
   ContextMenuCheckboxItem,
   ContextMenuContent,
@@ -27,23 +19,19 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
-import { Input } from "@/client/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -73,15 +61,11 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import {
   ArrowRight,
   ArrowUpDown,
-  Calendar,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Columns3,
-  FileArchiveIcon,
-  Filter,
   Grid2x2,
   LoaderCircle,
   Rows3,
@@ -477,12 +461,6 @@ function ArrowDown01Glyph(props: InlineRegistryIconProps) {
 function ArrowUp01Glyph(props: InlineRegistryIconProps) {
   return <ChevronUp {...props} />;
 }
-function Calendar03Glyph(props: InlineRegistryIconProps) {
-  return <Calendar {...props} />;
-}
-function File01Glyph(props: InlineRegistryIconProps) {
-  return <FileArchiveIcon {...props} />;
-}
 function fileExtension(name: string) {
   const dotIndex = name.lastIndexOf(".");
   return dotIndex === -1 ? "" : name.slice(dotIndex + 1).toLowerCase();
@@ -633,52 +611,6 @@ const KIND_LABELS_BY_MIME_TYPE = new Map(
 );
 const FALLBACK_MIME_TYPE = "application/octet-stream";
 export type FileSystemViewerKind = "docx" | "image" | "pdf" | "pptx" | "xlsx";
-function fileTypeFilterGroup(mime: string): FileTypeFilterGroup {
-  if (
-    mime === "application/pdf" ||
-    mime === "application/msword" ||
-    mime === "application/vnd.ms-powerpoint" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    return "Documents";
-  }
-  if (
-    mime === "application/vnd.ms-excel" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    mime === "text/csv" ||
-    mime === "text/tab-separated-values"
-  ) {
-    return "Spreadsheets";
-  }
-  if (mime.startsWith("image/")) return "Images";
-  if (
-    mime === "application/json" ||
-    mime === "application/sql" ||
-    mime === "application/x-sh" ||
-    mime === "text/css" ||
-    mime === "text/javascript" ||
-    mime === "text/jsx" ||
-    mime === "text/x-go" ||
-    mime === "text/x-python" ||
-    mime === "text/x-rust" ||
-    mime === "text/x-typescript" ||
-    mime === "text/yaml"
-  ) {
-    return "Code";
-  }
-  if (
-    mime === "text/markdown" ||
-    mime === "text/mdx" ||
-    mime === "text/plain"
-  ) {
-    return "Text";
-  }
-  return "Archives & binary";
-}
 function mimeTypeForFile(file: { contentType?: string; name: string }) {
   return (
     file.contentType ??
@@ -782,35 +714,6 @@ const SORT_OPTIONS: Array<{
   { defaultDirection: "desc", key: "size", label: "Size" },
 ];
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
-type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
-type FileSystemFilter = {
-  id: string;
-  operator: FileSystemFilterOperator;
-  type: FileSystemFilterType;
-  value: string[];
-};
-type FileSystemFilterOperator =
-  | "after"
-  | "before"
-  | "in-range"
-  | "is"
-  | "is-any-of"
-  | "is-not"
-  | "not-in-range";
-type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
-type FileTypeFilterGroup =
-  | "Archives & binary"
-  | "Code"
-  | "Documents"
-  | "Images"
-  | "Spreadsheets"
-  | "Text";
-type FileTypeFilterOption = {
-  group: FileTypeFilterGroup;
-  /** Sample file name so the option icon reuses the file-type sprite. */
-  iconFileName: string;
-  label: string;
-};
 // Primary key per the active sort; ties (and missing metadata) fall back to
 // the name order so results stay stable. The name tiebreak ignores the
 // direction, like Finder.
@@ -873,38 +776,6 @@ function entrySortTimestamp(
   const time = value ? Date.parse(value) : Number.NaN;
   return Number.isNaN(time) ? 0 : time;
 }
-const FILE_TYPE_FILTER_GROUPS: FileTypeFilterGroup[] = [
-  "Documents",
-  "Spreadsheets",
-  "Images",
-  "Code",
-  "Text",
-  "Archives & binary",
-];
-const FILTER_TYPE_LABELS: Record<FileSystemFilterType, string> = {
-  dateCreated: "Date created",
-  dateModified: "Date modified",
-  fileType: "File type",
-};
-const FILTER_OPERATOR_LABELS: Record<FileSystemFilterOperator, string> = {
-  after: "after",
-  before: "before",
-  "in-range": "in range",
-  is: "is",
-  "is-any-of": "is any of",
-  "is-not": "is not",
-  "not-in-range": "not in range",
-};
-// Relative cutoffs for the date filters, mirroring Extend's table filters.
-const DATE_FILTER_PRESETS = [
-  "1 day ago",
-  "3 days ago",
-  "1 week ago",
-  "1 month ago",
-  "3 months ago",
-  "6 months ago",
-  "1 year ago",
-];
 function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
   const folders = new Map<string, FolderEntry>();
   const files = new Map<string, FileEntry>();
@@ -981,87 +852,10 @@ function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
   }
   return { children, files, folders };
 }
-function dateFilterPresetCutoff(preset: string) {
-  const date = new Date();
-  switch (preset) {
-    case "1 day ago": {
-      date.setDate(date.getDate() - 1);
-      break;
-    }
-    case "1 month ago": {
-      date.setMonth(date.getMonth() - 1);
-      break;
-    }
-    case "1 week ago": {
-      date.setDate(date.getDate() - 7);
-      break;
-    }
-    case "1 year ago": {
-      date.setFullYear(date.getFullYear() - 1);
-      break;
-    }
-    case "3 days ago": {
-      date.setDate(date.getDate() - 3);
-      break;
-    }
-    case "3 months ago": {
-      date.setMonth(date.getMonth() - 3);
-      break;
-    }
-    case "6 months ago": {
-      date.setMonth(date.getMonth() - 6);
-      break;
-    }
-    default: {
-      const parsed = Date.parse(preset);
-      if (!Number.isNaN(parsed)) return new Date(parsed);
-    }
-  }
-  return date;
-}
-function fileMatchesFilter(file: FileEntry, filter: FileSystemFilter) {
-  if (filter.value.length === 0) return true;
-  if (filter.type === "fileType") {
-    const matches = filter.value.includes(fileKindLabel(file));
-    return filter.operator === "is-not" ? !matches : matches;
-  }
-  const timestamp =
-    filter.type === "dateCreated" ? file.createdAt : file.updatedAt;
-  const time = timestamp ? Date.parse(timestamp) : Number.NaN;
-  if (Number.isNaN(time)) return false;
-  if (filter.operator === "in-range" || filter.operator === "not-in-range") {
-    const from = Date.parse(filter.value[0] ?? "");
-    const to = Date.parse(filter.value[1] ?? filter.value[0] ?? "");
-    const isInRange = time >= from && time <= to;
-    return filter.operator === "not-in-range" ? !isInRange : isInRange;
-  }
-  const cutoff = dateFilterPresetCutoff(filter.value[0] ?? "").getTime();
-  return filter.operator === "before" ? time <= cutoff : time >= cutoff;
-}
-function filterOperatorChoices(
-  filter: FileSystemFilter,
-): FileSystemFilterOperator[] {
-  if (filter.type === "fileType") {
-    return filter.value.length > 1 ? ["is-any-of", "is-not"] : ["is", "is-not"];
-  }
-  if (isCustomDateRangeValue(filter.value)) return ["in-range", "not-in-range"];
-  return ["before", "after"];
-}
 function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
   return (
     (index.children.get(folder.path)?.length ?? 0) > 0 ||
     folder.hasChildren === true
-  );
-}
-// Custom ranges store two ISO timestamps instead of a relative preset.
-function isCustomDateRangeValue(value: string[]) {
-  return (
-    value.length === 2 &&
-    value.every(
-      (entry) =>
-        !DATE_FILTER_PRESETS.includes(entry) &&
-        !Number.isNaN(Date.parse(entry)),
-    )
   );
 }
 // The folder glyph as one SVG source, drawn from a data URL wherever a folder
@@ -1792,23 +1586,11 @@ export function FileSystem({
     setInternalListColumnWidths(next);
     onListColumnWidthsChange?.(next);
   };
-  const [filters, setFilters] = React.useState<FileSystemFilter[]>([]);
-  const hasActiveFilters = filters.length > 0;
-  // Files must pass every active filter; folders stay visible through
-  // matching descendants, so the predicate only ever sees files.
-  const fileFilter = React.useMemo(() => {
-    if (filters.length === 0) return null;
-    return (file: FileEntry) =>
-      filters.every((filter) => fileMatchesFilter(file, filter));
-  }, [filters]);
-  // Paths that stay visible while searching or filtering: every file whose
-  // currentPath-relative path contains the query — the list view tree's
-  // hide-non-matches semantics — and that passes the filters, plus the
-  // ancestor folders leading to it. Folder names participate in search
-  // matches only when no filters are active; with filters, a folder is only
-  // as visible as the files inside it.
+  // Paths that stay visible while searching: every entry whose
+  // currentPath-relative path contains the query (the list view tree's
+  // hide-non-matches semantics), plus the ancestor folders leading to it.
   const visiblePaths = React.useMemo(() => {
-    if (!isSearching && !fileFilter) return null;
+    if (!isSearching) return null;
     const visible = new Set<string>();
     const markVisible = (path: string) => {
       while (path && path !== currentPath && !visible.has(path)) {
@@ -1817,24 +1599,14 @@ export function FileSystem({
       }
     };
     const matchesQuery = (path: string) =>
-      !isSearching ||
       path.slice(currentPath.length).toLowerCase().includes(searchQuery);
-    for (const [path, file] of index.files) {
+    for (const path of [...index.files.keys(), ...index.folders.keys()]) {
       if (path === currentPath) continue;
       if (currentPath && !path.startsWith(currentPath)) continue;
-      if (!matchesQuery(path)) continue;
-      if (fileFilter && !fileFilter(file)) continue;
-      markVisible(path);
-    }
-    if (!fileFilter) {
-      for (const path of index.folders.keys()) {
-        if (path === currentPath) continue;
-        if (currentPath && !path.startsWith(currentPath)) continue;
-        if (matchesQuery(path)) markVisible(path);
-      }
+      if (matchesQuery(path)) markVisible(path);
     }
     return visible;
-  }, [currentPath, fileFilter, index, isSearching, searchQuery]);
+  }, [currentPath, index, isSearching, searchQuery]);
   const visibleIndex = React.useMemo(() => {
     if (!visiblePaths) return index;
     const children = new Map<string, FileSystemEntry[]>();
@@ -2024,126 +1796,6 @@ export function FileSystem({
         : { direction: defaultSortDirection(key), key },
     );
   };
-  // Distinct kinds across the loaded manifest, named as the Kind column names
-  // them, so two types of one kind are one option; the first file seen per
-  // kind lends its name to the option icon and its type to the group.
-  const fileTypeOptions = React.useMemo(() => {
-    const byKind = new Map<string, FileTypeFilterOption>();
-    for (const file of index.files.values()) {
-      const kind = fileKindLabel(file);
-      if (!byKind.has(kind)) {
-        // The leading-dot check keeps dotfiles (.gitignore) whole.
-        const dotIndex = file.name.lastIndexOf(".");
-        const extension =
-          dotIndex > 0 ? file.name.slice(dotIndex + 1).toLowerCase() : "";
-        byKind.set(kind, {
-          group: fileTypeFilterGroup(mimeTypeForFile(file)),
-          // A synthesized generic name, so files with branded icons
-          // (biome.json, next.config.ts, CLAUDE.md, …) don't lend them to
-          // the whole type; extensionless names keep their own icon
-          // (Dockerfile, Makefile).
-          iconFileName: extension ? `file.${extension}` : file.name,
-          label: kind,
-        });
-      }
-    }
-    return [...byKind.values()].sort((left, right) =>
-      left.label.localeCompare(right.label),
-    );
-  }, [index]);
-  const filterIdRef = React.useRef(0);
-  const [dateRangeDialog, setDateRangeDialog] = React.useState<null | {
-    initialRange?: {
-      from: Date;
-      to: Date;
-    };
-    type: FileSystemDateFilterType;
-  }>(null);
-  const toggleFileTypeFilterValue = React.useCallback(
-    (kind: string, checked: boolean) => {
-      const id = `filter-${++filterIdRef.current}`;
-      setFilters((previous) => {
-        const existing = previous.find((filter) => filter.type === "fileType");
-        if (!existing) {
-          if (!checked) return previous;
-          return [
-            ...previous,
-            {
-              id,
-              operator: "is" as const,
-              type: "fileType" as const,
-              value: [kind],
-            },
-          ];
-        }
-        const value = checked
-          ? [...new Set([kind, ...existing.value])]
-          : existing.value.filter((entry) => entry !== kind);
-        if (value.length === 0) {
-          return previous.filter((filter) => filter !== existing);
-        }
-        // "is" and "is any of" track the value count; "is not" is unaffected.
-        const operator =
-          existing.operator === "is" || existing.operator === "is-any-of"
-            ? value.length > 1
-              ? ("is-any-of" as const)
-              : ("is" as const)
-            : existing.operator;
-        return previous.map((filter) =>
-          filter === existing ? { ...filter, operator, value } : filter,
-        );
-      });
-    },
-    [],
-  );
-  const setDatePresetFilter = React.useCallback(
-    (type: FileSystemDateFilterType, preset: string) => {
-      const id = `filter-${++filterIdRef.current}`;
-      setFilters((previous) => [
-        ...previous.filter((filter) => filter.type !== type),
-        { id, operator: "after", type, value: [preset] },
-      ]);
-    },
-    [],
-  );
-  // Editing an existing custom range seeds the dialog with its bounds.
-  const openDateRangeDialog = React.useCallback(
-    (type: FileSystemDateFilterType) => {
-      const existing = filters.find((filter) => filter.type === type);
-      setDateRangeDialog({
-        initialRange:
-          existing && isCustomDateRangeValue(existing.value)
-            ? {
-                from: new Date(existing.value[0] ?? ""),
-                to: new Date(existing.value[1] ?? ""),
-              }
-            : undefined,
-        type,
-      });
-    },
-    [filters],
-  );
-  const applyCustomDateRange = React.useCallback(
-    (type: FileSystemDateFilterType, from: Date, to: Date) => {
-      const id = `filter-${++filterIdRef.current}`;
-      setFilters((previous) => {
-        const existing = previous.find((filter) => filter.type === type);
-        return [
-          ...previous.filter((filter) => filter.type !== type),
-          {
-            id,
-            operator:
-              existing?.operator === "not-in-range"
-                ? ("not-in-range" as const)
-                : ("in-range" as const),
-            type,
-            value: [from.toISOString(), to.toISOString()],
-          },
-        ];
-      });
-    },
-    [],
-  );
   // Below 560px the search input collapses into a popover, and below 360px the
   // folder name is dropped too. The view switcher answers to the toolbar's
   // container instead.
@@ -2894,7 +2546,6 @@ export function FileSystem({
     draggable: dragArea.draggable,
     enabledListColumns: listColumns,
     entries: currentEntries,
-    fileFilter,
     getFileUrl,
     index: sortedIndex,
     listColumnWidths,
@@ -3028,19 +2679,13 @@ export function FileSystem({
       </TabsList>
     </Tabs>
   );
-  const sortAndFilter = (
-    <>
-      <FileSystemSortSelect onKeyChange={applySortKey} sort={sort} />
-      <FileSystemFilterMenu
-        fileTypeOptions={fileTypeOptions}
-        filters={filters}
-        onOpenCustomRange={openDateRangeDialog}
-        onSelectDatePreset={setDatePresetFilter}
-        onShowHiddenFilesChange={setShowHiddenFiles}
-        onToggleFileType={toggleFileTypeFilterValue}
-        showHiddenFiles={showHiddenFiles}
-      />
-    </>
+  const sortMenu = (
+    <FileSystemSortMenu
+      onKeyChange={applySortKey}
+      onShowHiddenFilesChange={setShowHiddenFiles}
+      showHiddenFiles={showHiddenFiles}
+      sort={sort}
+    />
   );
   const searchField = (layout: "compact" | "full" | "minimal") => (
     <FileSystemSearchField
@@ -3131,7 +2776,7 @@ export function FileSystem({
                 {toolbarInto.tail === undefined
                   ? viewSelect
                   : viewTabs("flex gap-0")}
-                {sortAndFilter}
+                {sortMenu}
                 {toolbarInto.tail === undefined && (
                   <>
                     <span className="flex-1" />
@@ -3179,74 +2824,12 @@ export function FileSystem({
           <div className="flex @md/finder-header:hidden">{viewSelect}</div>
           {viewTabs("hidden gap-0 @md/finder-header:flex")}
           <div className="flex min-w-0 items-center justify-end gap-1.5">
-            {sortAndFilter}
+            {sortMenu}
             {renderHeaderActions ? renderHeaderActions() : null}
             {searchField(headerLayout)}
           </div>
         </div>
       )}
-      {hasActiveFilters ? (
-        <div
-          className="flex shrink-0 flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground"
-          onContextMenu={(event) => {
-            event.preventDefault();
-          }}
-        >
-          {filters.map((filter) => {
-            const dateFilterType =
-              filter.type === "fileType" ? null : filter.type;
-            return (
-              <FileSystemFilterPill
-                fileTypeOptions={fileTypeOptions}
-                filter={filter}
-                key={filter.id}
-                onOpenCustomRange={
-                  dateFilterType
-                    ? () => openDateRangeDialog(dateFilterType)
-                    : undefined
-                }
-                onOperatorChange={(operator) =>
-                  setFilters((previous) =>
-                    previous.map((entry) =>
-                      entry.id === filter.id ? { ...entry, operator } : entry,
-                    ),
-                  )
-                }
-                onRemove={() =>
-                  setFilters((previous) =>
-                    previous.filter((entry) => entry.id !== filter.id),
-                  )
-                }
-                onSelectDatePreset={(preset) =>
-                  setFilters((previous) =>
-                    previous.map((entry) =>
-                      entry.id === filter.id
-                        ? {
-                            ...entry,
-                            operator:
-                              entry.operator === "before" ||
-                              entry.operator === "after"
-                                ? entry.operator
-                                : "after",
-                            value: [preset],
-                          }
-                        : entry,
-                    ),
-                  )
-                }
-                onToggleFileType={toggleFileTypeFilterValue}
-              />
-            );
-          })}
-          <button
-            className="rounded-md px-1.5 py-0.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => setFilters([])}
-            type="button"
-          >
-            Clear
-          </button>
-        </div>
-      ) : null}
       <div className="relative min-h-0 flex-1">
         {currentUnreadable !== null ? (
           currentUnreadable
@@ -3258,10 +2841,7 @@ export function FileSystem({
           >
             <Spinner className="size-5 text-muted-foreground" delay={1000} />
           </div>
-        ) : currentEntries.length === 0 &&
-          emptyState &&
-          !isSearching &&
-          !hasActiveFilters ? (
+        ) : currentEntries.length === 0 && emptyState && !isSearching ? (
           <div className="flex size-full flex-col items-center justify-center gap-1 px-6 text-center">
             <p className="text-sm font-medium text-foreground">
               {emptyState.title}
@@ -3271,14 +2851,12 @@ export function FileSystem({
             </p>
           </div>
         ) : currentEntries.length === 0 &&
-          (view !== "columns" || isSearching || hasActiveFilters) ? (
+          (view !== "columns" || isSearching) ? (
           <FileSystemEmptyState
             label={
               isSearching
                 ? `No results for “${searchInput.trim()}”`
-                : hasActiveFilters
-                  ? "No items match the active filters"
-                  : "This folder is empty"
+                : "This folder is empty"
             }
           />
         ) : view === "icons" ? (
@@ -3355,16 +2933,6 @@ export function FileSystem({
           );
         })}
       </Dialog>
-      {dateRangeDialog ? (
-        <FileSystemDateRangeDialog
-          initialRange={dateRangeDialog.initialRange}
-          onApply={(from, to) => {
-            applyCustomDateRange(dateRangeDialog.type, from, to);
-            setDateRangeDialog(null);
-          }}
-          onClose={() => setDateRangeDialog(null)}
-        />
-      ) : null}
     </div>
   );
 }
@@ -3393,183 +2961,13 @@ export const TOOLBAR_CONTROL_CLASSNAME =
 // the icon reads as the control and the caret as the note that it opens.
 const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
   TOOLBAR_CONTROL_CLASSNAME,
-  "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-2 dark:border-0 [&>svg:last-child]:size-2.5",
+  "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-1.5 has-[>svg]:px-1.5 dark:border-0 [&>svg:last-child]:size-2.5",
 );
 // The square, icon-only member of that family.
 export const TOOLBAR_ICON_BUTTON_CLASSNAME = cn(
   TOOLBAR_CONTROL_CLASSNAME,
   "flex size-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
 );
-// Searchable file-type list (cmdk) rendered inside a menu popup, so the
-// long list of kinds can be filtered by typing. Selection toggles stay open for
-// multi-select; ArrowUp/Down and Enter come from cmdk's combobox semantics.
-function FileSystemFileTypeCommand({
-  checkedKinds,
-  onToggle,
-  options,
-}: {
-  checkedKinds: string[];
-  onToggle: (kind: string, checked: boolean) => void;
-  options: FileTypeFilterOption[];
-}) {
-  const inputRef = React.useRef<HTMLInputElement | null>(null);
-  // The menu focuses its popup when it opens; pull focus into the search
-  // field so typing filters immediately.
-  React.useEffect(() => {
-    const frame = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  return (
-    <Command
-      // -m-1 spans the menu viewport's built-in padding so the search
-      // field's bottom border runs edge to edge.
-      className="-m-1 w-[calc(100%+--spacing(2))] bg-transparent"
-      // cmdk owns the keyboard while focus is in the list; only Escape
-      // (close the menu) and Tab continue outward.
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" && event.key !== "Tab") {
-          event.stopPropagation();
-        }
-      }}
-    >
-      <CommandInput
-        className="h-9"
-        placeholder="Search file types…"
-        ref={inputRef}
-      />
-      <CommandList className="max-h-none">
-        <CommandEmpty>No file types found.</CommandEmpty>
-        <InlineScrollArea2 className="h-auto max-h-64" orientation="vertical">
-          {FILE_TYPE_FILTER_GROUPS.map((group) => {
-            const groupOptions = options.filter(
-              (option) => option.group === group,
-            );
-            if (groupOptions.length === 0) return null;
-            return (
-              <CommandGroup heading={group} key={group}>
-                {groupOptions.map((option) => {
-                  const isChecked = checkedKinds.includes(option.label);
-                  return (
-                    <CommandItem
-                      key={option.label}
-                      onSelect={() => onToggle(option.label, !isChecked)}
-                      value={option.label}
-                    >
-                      <Check
-                        className={cn(
-                          "size-4 text-foreground",
-                          !isChecked && "opacity-0",
-                        )}
-                      />
-                      <FileTypeIcon
-                        className="size-4"
-                        fileName={option.iconFileName}
-                      />
-                      {option.label}
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            );
-          })}
-        </InlineScrollArea2>
-      </CommandList>
-    </Command>
-  );
-}
-// Toolbar filter menu: file types as a searchable checklist, dates as
-// single-select presets plus a custom range, mirroring Extend's table
-// filters.
-function FileSystemFilterMenu({
-  fileTypeOptions,
-  filters,
-  onOpenCustomRange,
-  onSelectDatePreset,
-  onShowHiddenFilesChange,
-  onToggleFileType,
-  showHiddenFiles,
-}: {
-  fileTypeOptions: FileTypeFilterOption[];
-  filters: FileSystemFilter[];
-  onOpenCustomRange: (type: FileSystemDateFilterType) => void;
-  onSelectDatePreset: (type: FileSystemDateFilterType, preset: string) => void;
-  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
-  onToggleFileType: (kind: string, checked: boolean) => void;
-  showHiddenFiles: boolean;
-}) {
-  const fileTypeFilter = filters.find((filter) => filter.type === "fileType");
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          aria-label="Filter"
-          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative sm:size-8")}
-          size="icon-sm"
-          title="Filter"
-          type="button"
-          variant="outline"
-        >
-          <Filter className="size-4" />
-          {filters.length > 0 ? (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <FileArchiveIcon className="size-4 text-muted-foreground" />
-            File type
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-60">
-            <FileSystemFileTypeCommand
-              checkedKinds={fileTypeFilter?.value ?? []}
-              onToggle={onToggleFileType}
-              options={fileTypeOptions}
-            />
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        {(["dateModified", "dateCreated"] as const).map((type) => (
-          <DropdownMenuSub key={type}>
-            <DropdownMenuSubTrigger>
-              <Calendar className="size-4 text-muted-foreground" />
-              {FILTER_TYPE_LABELS[type]}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <InlineScrollArea2
-                className="h-auto max-h-72"
-                orientation="vertical"
-              >
-                {DATE_FILTER_PRESETS.map((preset) => (
-                  <DropdownMenuItem
-                    key={preset}
-                    onClick={() => onSelectDatePreset(type, preset)}
-                  >
-                    {preset}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuItem onClick={() => onOpenCustomRange(type)}>
-                  Custom date range…
-                </DropdownMenuItem>
-              </InlineScrollArea2>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        ))}
-        <DropdownMenuSeparator />
-        {/* The menu stays open on a toggle: watching the dotfiles arrive or
-            leave is the whole point of the item, and a menu that closes to
-            show it makes the second thought a second trip. */}
-        <DropdownMenuCheckboxItem
-          checked={showHiddenFiles}
-          onCheckedChange={onShowHiddenFilesChange}
-          onSelect={(event) => event.preventDefault()}
-        >
-          Show hidden files
-        </DropdownMenuCheckboxItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 // macOS Finder-style toolbar search. At the full layout it sits inline in
 // the header's right column; at compact widths it collapses into a ghost
 // icon button that opens the input in a popover (a dot marks the button
@@ -3698,237 +3096,67 @@ function FileSystemSearchField({
     </Popover>
   );
 }
-// Toolbar "sort by" select, as the sort glyph alone: the order in force is
-// one press away in the menu, and the folder itself shows it.
-function FileSystemSortSelect({
+// The toolbar's sort menu, as the sort glyph alone: the order in force is one
+// press away, and the folder itself shows it. It also holds what changes
+// which rows the folder lists, as the Finder's view options do.
+function FileSystemSortMenu({
   onKeyChange,
+  onShowHiddenFilesChange,
+  showHiddenFiles,
   sort,
 }: {
   onKeyChange: (key: FileSystemSortKey) => void;
+  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
+  showHiddenFiles: boolean;
   sort: FileSystemSortState;
 }) {
   return (
-    <Select
-      onValueChange={(value) => onKeyChange(value as FileSystemSortKey)}
-      value={sort.key}
-    >
-      <SelectTrigger
-        aria-label="Sort by"
-        className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
-        size="sm"
-        title="Sort by"
-      >
-        <SelectValue>
-          <ArrowUpDown className="size-4" />
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent align="end" position="popper">
-        {SORT_OPTIONS.map((option) => (
-          <SelectItem key={option.key} value={option.key}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-const FILTER_PILL_SEGMENT_CLASSNAME =
-  "flex h-5 items-center gap-1 border border-l-0 bg-background px-1.5 whitespace-nowrap text-foreground";
-const FILTER_PILL_BUTTON_CLASSNAME = cn(
-  FILTER_PILL_SEGMENT_CLASSNAME,
-  "outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
-);
-// One applied filter, rendered as a segmented pill in the status bar:
-// type · operator · value · remove, each segment interactive like Extend's
-// table filter pills.
-function FileSystemFilterPill({
-  fileTypeOptions,
-  filter,
-  onOpenCustomRange,
-  onOperatorChange,
-  onRemove,
-  onSelectDatePreset,
-  onToggleFileType,
-}: {
-  fileTypeOptions: FileTypeFilterOption[];
-  filter: FileSystemFilter;
-  onOpenCustomRange?: () => void;
-  onOperatorChange: (operator: FileSystemFilterOperator) => void;
-  onRemove: () => void;
-  onSelectDatePreset: (preset: string) => void;
-  onToggleFileType: (kind: string, checked: boolean) => void;
-}) {
-  const isCustomRange =
-    filter.type !== "fileType" && isCustomDateRangeValue(filter.value);
-  return (
-    <div className="flex items-center text-xs">
-      <span
-        className={cn(
-          FILTER_PILL_SEGMENT_CLASSNAME,
-          "rounded-l-md border-l text-primary",
-        )}
-      >
-        {filter.type === "fileType" ? (
-          <File01Glyph className="size-3" />
-        ) : (
-          <Calendar03Glyph className="size-3" />
-        )}
-        {FILTER_TYPE_LABELS[filter.type]}
-      </span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className={cn(FILTER_PILL_BUTTON_CLASSNAME, "text-primary")}
-            type="button"
-          >
-            {FILTER_OPERATOR_LABELS[filter.operator]}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-28">
-          {filterOperatorChoices(filter).map((operator) => (
-            <DropdownMenuItem
-              key={operator}
-              onClick={() => onOperatorChange(operator)}
-            >
-              {FILTER_OPERATOR_LABELS[operator]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {filter.type === "fileType" ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={FILTER_PILL_BUTTON_CLASSNAME}
-              title={filter.value.join(", ")}
-              type="button"
-            >
-              {filter.value.length === 1
-                ? filter.value[0]
-                : `${filter.value.length} selected`}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-60">
-            <FileSystemFileTypeCommand
-              checkedKinds={filter.value}
-              onToggle={onToggleFileType}
-              options={fileTypeOptions}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : isCustomRange ? (
-        <button
-          className={FILTER_PILL_BUTTON_CLASSNAME}
-          onClick={onOpenCustomRange}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label="Sort by"
+          className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
+          size="sm"
+          title="Sort by"
           type="button"
+          variant="outline"
         >
-          {filter.value
-            .map((value) => new Date(value).toLocaleDateString("en-US"))
-            .join(" – ")}
-        </button>
-      ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className={FILTER_PILL_BUTTON_CLASSNAME} type="button">
-              {filter.value[0]}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <InlineScrollArea2
-              className="h-auto max-h-72"
-              orientation="vertical"
-            >
-              {DATE_FILTER_PRESETS.map((preset) => (
-                <DropdownMenuItem
-                  key={preset}
-                  onClick={() => onSelectDatePreset(preset)}
-                >
-                  {preset}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem onClick={onOpenCustomRange}>
-                Custom date range…
-              </DropdownMenuItem>
-            </InlineScrollArea2>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      <button
-        aria-label={`Remove ${FILTER_TYPE_LABELS[filter.type]} filter`}
-        className={cn(
-          FILTER_PILL_BUTTON_CLASSNAME,
-          "rounded-r-md px-1 text-muted-foreground hover:text-foreground",
-        )}
-        onClick={onRemove}
-        type="button"
-      >
-        <X className="size-3" />
-      </button>
-    </div>
+          <ArrowUpDown className="size-4" />
+          <ChevronDown className="opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Sort by
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          onValueChange={(value) => {
+            const option = SORT_OPTIONS.find((each) => each.key === value);
+            if (option) onKeyChange(option.key);
+          }}
+          value={sort.key}
+        >
+          {SORT_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.key} value={option.key}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        {/* The menu stays open on a toggle: watching the dotfiles arrive or
+            leave is the whole point of the item, and a menu that closes to
+            show it makes the second thought a second trip. */}
+        <DropdownMenuCheckboxItem
+          checked={showHiddenFiles}
+          onCheckedChange={onShowHiddenFilesChange}
+          onSelect={(event) => event.preventDefault()}
+        >
+          Show hidden files
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
-function formatDateInputValue(date: Date | undefined) {
-  if (!date) return "";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-function parseDateInputValue(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return;
-  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
-  if (isoMatch) {
-    const date = new Date(
-      Number(isoMatch[1]),
-      Number(isoMatch[2]) - 1,
-      Number(isoMatch[3]),
-    );
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  }
-  const parsed = Date.parse(trimmed);
-  return Number.isNaN(parsed) ? undefined : new Date(parsed);
-}
-const DATE_RANGE_DIALOG_PRESETS = [
-  "Last 7 days",
-  "This month",
-  "Last 1 month",
-  "Last 3 months",
-  "This year",
-  "Last 12 months",
-];
-function dateRangePresetRange(preset: string) {
-  const from = new Date();
-  const to = new Date();
-  from.setHours(0, 0, 0, 0);
-  to.setHours(23, 59, 59, 999);
-  switch (preset) {
-    case "Last 1 month": {
-      from.setMonth(from.getMonth() - 1);
-      break;
-    }
-    case "Last 3 months": {
-      from.setMonth(from.getMonth() - 3);
-      break;
-    }
-    case "Last 7 days": {
-      from.setDate(from.getDate() - 6);
-      break;
-    }
-    case "Last 12 months": {
-      from.setFullYear(from.getFullYear() - 1);
-      break;
-    }
-    case "This month": {
-      from.setDate(1);
-      break;
-    }
-    case "This year": {
-      from.setMonth(0, 1);
-      break;
-    }
-  }
-  return { from, to };
-}
-const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 type FileSystemViewProps = {
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
@@ -3943,7 +3171,6 @@ type FileSystemViewProps = {
   draggable: boolean;
   enabledListColumns: FileSystemListColumn[];
   entries: FileSystemEntry[];
-  fileFilter: ((file: FileEntry) => boolean) | null;
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   index: FileSystemIndex;
   listColumnWidths: Partial<Record<FileSystemListColumn, number>>;
@@ -4104,119 +3331,6 @@ function useFocusWhenDrawn<T extends HTMLElement>(
 function calendarDayKey(date: Date) {
   return date.getFullYear() * 10_000 + date.getMonth() * 100 + date.getDate();
 }
-// Custom date range dialog mirroring Extend's table filters: From/To inputs,
-// a two-month range calendar, and quick presets. Applied ranges span from
-// the start of the first day to the end of the last.
-function FileSystemDateRangeDialog({
-  initialRange,
-  onApply,
-  onClose,
-}: {
-  initialRange?: {
-    from: Date;
-    to: Date;
-  };
-  onApply: (from: Date, to: Date) => void;
-  onClose: () => void;
-}) {
-  const [range, setRange] = React.useState<{
-    from?: Date;
-    to?: Date;
-  }>(() => initialRange ?? {});
-  const [fromInput, setFromInput] = React.useState(() =>
-    formatDateInputValue(initialRange?.from),
-  );
-  const [toInput, setToInput] = React.useState(() =>
-    formatDateInputValue(initialRange?.to),
-  );
-  const selectRange = (next: { from?: Date; to?: Date }) => {
-    setRange(next);
-    if (next.from) setFromInput(formatDateInputValue(next.from));
-    if (next.to) setToInput(formatDateInputValue(next.to));
-  };
-  const dateField = (
-    label: string,
-    value: string,
-    onChange: (value: string) => void,
-  ) => (
-    <div className="flex flex-1 flex-col gap-1.5">
-      <span className="text-xs font-medium">{label}</span>
-      <div className="relative flex items-center">
-        <Calendar className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
-        <Input
-          aria-label={`${label} date`}
-          className="h-8 pl-8 sm:h-8"
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="YYYY-MM-DD"
-          type="text"
-          value={value}
-        />
-      </div>
-    </div>
-  );
-  return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      open
-    >
-      <DialogContent className="w-[30rem] max-w-[calc(100vw-2rem)]">
-        <DialogHeader>
-          <DialogTitle>Custom date range</DialogTitle>
-        </DialogHeader>
-        <InlineDialogPanel className="flex flex-col gap-4">
-          <div className="flex gap-3">
-            {dateField("From", fromInput, (value) => {
-              setFromInput(value);
-              const parsed = parseDateInputValue(value);
-              if (parsed)
-                setRange((previous) => ({ ...previous, from: parsed }));
-            })}
-            {dateField("To", toInput, (value) => {
-              setToInput(value);
-              const parsed = parseDateInputValue(value);
-              if (parsed) setRange((previous) => ({ ...previous, to: parsed }));
-            })}
-          </div>
-          <FileSystemRangeCalendar onSelect={selectRange} range={range} />
-          <div className="grid grid-cols-3 gap-2">
-            {DATE_RANGE_DIALOG_PRESETS.map((preset) => (
-              <Button
-                key={preset}
-                onClick={() => selectRange(dateRangePresetRange(preset))}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {preset}
-              </Button>
-            ))}
-          </div>
-        </InlineDialogPanel>
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button
-            disabled={!range.from || !range.to}
-            onClick={() => {
-              if (!range.from || !range.to) return;
-              const from = new Date(range.from);
-              const to = new Date(range.to);
-              from.setHours(0, 0, 0, 0);
-              to.setHours(23, 59, 59, 999);
-              onApply(from, to);
-            }}
-            type="button"
-          >
-            Apply
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 /**
  * The folders among `loading` that have been loading for a moment: a read
  * that ends sooner never shows as one.
@@ -4241,145 +3355,6 @@ function FileSystemEmptyState({ label }: { label: string }) {
   return (
     <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
       {label}
-    </div>
-  );
-}
-// Two-month range calendar for the custom date range dialog (one month at
-// phone widths). Clicking sets the start, then the end; clicking before the
-// start swaps the ends, and a third click restarts the range.
-function FileSystemRangeCalendar({
-  onSelect,
-  range,
-}: {
-  onSelect: (range: { from?: Date; to?: Date }) => void;
-  range: {
-    from?: Date;
-    to?: Date;
-  };
-}) {
-  const [viewMonth, setViewMonth] = React.useState(() => {
-    const base = range.from ?? new Date();
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  });
-  const months = [
-    viewMonth,
-    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1),
-  ];
-  const fromKey = range.from ? calendarDayKey(range.from) : null;
-  const toKey = range.to ? calendarDayKey(range.to) : null;
-  const todayKey = calendarDayKey(new Date());
-  const handleDayClick = (day: Date) => {
-    if (!range.from || range.to) {
-      onSelect({ from: day });
-    } else if (calendarDayKey(day) < calendarDayKey(range.from)) {
-      onSelect({ from: day, to: range.from });
-    } else {
-      onSelect({ from: range.from, to: day });
-    }
-  };
-  return (
-    <div className="relative">
-      <button
-        aria-label="Previous month"
-        className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() =>
-          setViewMonth(
-            (previous) =>
-              new Date(previous.getFullYear(), previous.getMonth() - 1, 1),
-          )
-        }
-        type="button"
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-      <button
-        aria-label="Next month"
-        className="absolute top-0 right-0 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() =>
-          setViewMonth(
-            (previous) =>
-              new Date(previous.getFullYear(), previous.getMonth() + 1, 1),
-          )
-        }
-        type="button"
-      >
-        <ArrowRight className="size-4" />
-      </button>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {months.map((month, monthIndex) => {
-          const firstWeekday = month.getDay();
-          const dayCount = new Date(
-            month.getFullYear(),
-            month.getMonth() + 1,
-            0,
-          ).getDate();
-          const cells = [
-            ...Array.from({ length: firstWeekday }, () => null),
-            ...Array.from(
-              { length: dayCount },
-              (_, index) =>
-                new Date(month.getFullYear(), month.getMonth(), index + 1),
-            ),
-          ];
-          return (
-            <div
-              className={cn(monthIndex === 1 && "max-sm:hidden")}
-              key={`${month.getFullYear()}-${month.getMonth()}`}
-            >
-              <div className="text-center text-sm leading-6 font-medium">
-                {month.toLocaleDateString("en-US", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </div>
-              <div className="mt-1 grid grid-cols-7 text-center text-xs text-muted-foreground">
-                {WEEKDAY_LABELS.map((weekday) => (
-                  <span className="h-6 leading-6" key={weekday}>
-                    {weekday}
-                  </span>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-y-px">
-                {cells.map((day, cellIndex) => {
-                  if (!day) return <span key={cellIndex} />;
-                  const dayKey = calendarDayKey(day);
-                  const isFrom = dayKey === fromKey;
-                  const isTo = dayKey === toKey;
-                  const isWithinRange =
-                    fromKey !== null &&
-                    toKey !== null &&
-                    dayKey > fromKey &&
-                    dayKey < toKey;
-                  return (
-                    <button
-                      className={cn(
-                        "flex h-7 items-center justify-center rounded-md text-xs tabular-nums outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
-                        isWithinRange && "rounded-none bg-accent",
-                        (isFrom || isTo) &&
-                          "bg-primary text-primary-foreground hover:bg-primary",
-                        isFrom &&
-                          toKey !== null &&
-                          fromKey !== toKey &&
-                          "rounded-r-none",
-                        isTo && fromKey !== toKey && "rounded-l-none",
-                        dayKey === todayKey &&
-                          !isFrom &&
-                          !isTo &&
-                          "font-semibold text-primary",
-                      )}
-                      key={cellIndex}
-                      onClick={() => handleDayClick(day)}
-                      type="button"
-                    >
-                      {day.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -5156,7 +4131,6 @@ function FileSystemListView({
   currentPath,
   draggable,
   enabledListColumns,
-  fileFilter,
   index,
   listColumnWidths,
   loadingFolders,
@@ -5198,9 +4172,9 @@ function FileSystemListView({
     setExpanded(next);
     treeExpansionRef.current.set(currentPath, [...next]);
   };
-  // A search or a filter shows every match wherever it is, so every folder
-  // with one in it stands open while they are on.
-  const isRevealing = searchQuery !== "" || fileFilter !== null;
+  // A search shows every match wherever it is, so every folder with one in
+  // it stands open while it is on.
+  const isRevealing = searchQuery !== "";
   // The rows on screen, in order. A folder opened whose contents are still
   // being read shows nothing under it at first, as the Finder's does, so a
   // quick read (or an empty folder) moves no row; only a read slow enough to
@@ -5437,13 +4411,7 @@ function FileSystemListView({
           sort={sort}
         />
         {rows.length === 0 ? (
-          <FileSystemEmptyState
-            label={
-              fileFilter
-                ? "No items match the active filters"
-                : "This folder is empty"
-            }
-          />
+          <FileSystemEmptyState label="This folder is empty" />
         ) : (
           <InlineScrollArea2
             className="min-h-0 flex-1"
@@ -6838,23 +5806,6 @@ function InlineComposeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
       else ref.current = node;
     }
   };
-}
-function InlineDialogPanel({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <InlineScrollArea className="min-h-0">
-      <div
-        className={cn("min-h-0", className)}
-        data-slot="dialog-panel"
-        {...props}
-      >
-        {children}
-      </div>
-    </InlineScrollArea>
-  );
 }
 function InlineScrollArea2({
   children,

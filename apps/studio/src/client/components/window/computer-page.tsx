@@ -128,6 +128,7 @@ import { spokenMessage, toast } from "@/client/lib/toast";
 import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
 import { FolderMark } from "./folder-mark";
+import { FolderNameMenu } from "./folder-name-menu";
 import { GlyphButton } from "./glyph-button";
 import {
   folderOf,
@@ -1500,6 +1501,63 @@ export function ComputerPage({
     event.preventDefault();
     enterListing();
   };
+  // Beside a file the folder's section of the row names it, as a menu of
+  // the folders above it and the places. Going to one keeps the file open,
+  // as walking there does, and the tab's layout with it: a file open beside
+  // a folder with no layout of its own is one just arrived from elsewhere.
+  const besideTo = (folder: string) => {
+    void navigate({
+      search: (previous) => ({
+        ...previous,
+        path: "",
+        root: folder === "" ? RECENTS_ROOT : folder === homePath ? "~" : folder,
+        select: undefined,
+      }),
+      to: "/files",
+    });
+  };
+  const volumeNames = new Map(
+    places.data.volumes.map((volume) => [volume.path, volume.name]),
+  );
+  const folderNameOf = (folder: string) =>
+    volumeNames.get(folder) ?? segmentsOf(folder).at(-1) ?? folder;
+  const besideFolder =
+    folderOnScreenPath === undefined
+      ? { name: "Recents", path: "" }
+      : { name: folderNameOf(folderOnScreenPath), path: folderOnScreenPath };
+  const besideAncestors: { name: string; path: string }[] = [];
+  let above =
+    folderOnScreenPath === undefined || volumeNames.has(folderOnScreenPath)
+      ? null
+      : parentFolderOf(folderOnScreenPath);
+  while (above !== null) {
+    besideAncestors.push({ name: folderNameOf(above), path: above });
+    above = volumeNames.has(above) ? null : parentFolderOf(above);
+  }
+  const besidePlaces = [
+    {
+      places: [
+        { name: "Recents", path: "" },
+        ...(instrumentPlace
+          ? [{ name: instrumentPlace.name, path: instrumentPlace.path }]
+          : []),
+      ],
+    },
+    {
+      label: "Pinned",
+      places: pinned.map(({ name, path: pinnedPath }) => ({
+        name,
+        path: pinnedPath,
+      })),
+    },
+    {
+      label: "Locations",
+      places: places.data.volumes.map(({ name, path: volumePath }) => ({
+        name,
+        path: volumePath,
+      })),
+    },
+  ];
   const placeLists = (
     <>
       {/* The app's own places, which nobody unpins: what the person opened,
@@ -1632,10 +1690,18 @@ export function ComputerPage({
                 >
                   {isBesideOpen ? beside.toggle : placesToggle}
                 </div>
+                {isBesideOpen && beside.isFolderShown ? (
+                  <FolderNameMenu
+                    ancestors={besideAncestors}
+                    folder={besideFolder}
+                    onGo={besideTo}
+                    places={besidePlaces}
+                  />
+                ) : null}
                 <div
                   className={cn(
                     "flex min-w-0 items-center",
-                    isBesideOpen && "flex-1",
+                    isBesideOpen && "shrink-0",
                     isBesideOpen && !beside.isFolderShown && "hidden",
                   )}
                   ref={setRowTools}

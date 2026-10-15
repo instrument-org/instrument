@@ -156,65 +156,43 @@ describe("FileSystem", () => {
     `);
   });
 
-  // The file type filter offers the kinds the Kind column shows, one each,
-  // and a kind picked there takes every file of that kind.
-  it("filters by the kinds the list names", () => {
-    // The type list keeps its highlighted row in view, and jsdom has no
-    // scrolling.
-    Element.prototype.scrollIntoView = () => {};
-    onTestFinished(() => {
-      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-    });
+  // Show hidden files sits at the foot of the sort menu, and the menu stays
+  // open on it so the dotfiles can be watched arriving.
+  it("lists dotfiles once the sort menu shows hidden files", () => {
     renderWithProviders(
       <FileSystem
         defaultView="list"
         items={[
-          { contentType: "text/plain", kind: "file", path: "task.txt" },
-          { contentType: "text/plain", kind: "file", path: "2024" },
-          { contentType: "text/html", kind: "file", path: "page.html" },
-          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
-          { contentType: "audio/wav", kind: "file", path: "voice.wav" },
-          {
-            contentType: "application/octet-stream",
-            kind: "file",
-            path: "blob",
-          },
+          { kind: "file", path: ".env" },
+          { kind: "file", path: "notes.md" },
         ]}
       />,
     );
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Filter" }), {
+    const names = () =>
+      [...document.querySelectorAll("[data-file-system-name]")].map(
+        (name) => name.textContent,
+      );
+    expect(names()).toMatchInlineSnapshot(`
+      [
+        "notes.md",
+      ]
+    `);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Sort by" }), {
       button: 0,
       pointerType: "mouse",
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: "File type" }));
-    const kinds = screen.getByRole("listbox", { name: "Suggestions" });
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Show hidden files" }),
+    );
 
     expect(
-      within(kinds)
-        .getAllByRole("option")
-        .map((option) => option.textContent),
-    ).toMatchInlineSnapshot(`
-      [
-        "Plain Text",
-        "Audio",
-        "Document",
-        "HTML Document",
-      ]
-    `);
-
-    fireEvent.click(within(kinds).getByRole("option", { name: "Audio" }));
-
-    // Read off the page, since the open menu hides the list from roles.
-    expect(
-      [...document.querySelectorAll("[data-file-system-name]")].map(
-        (name) => name.textContent,
-      ),
-    ).toMatchInlineSnapshot(`
-      [
-        "song.mp3",
-        "voice.wav",
-      ]
-    `);
+      screen
+        .getByRole("menuitemcheckbox", { name: "Show hidden files" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // jsdom has no height, so the list draws only the rows it first drew.
+    expect(names()).toContain(".env");
   });
 
   describe("a folder the caller cannot list", () => {

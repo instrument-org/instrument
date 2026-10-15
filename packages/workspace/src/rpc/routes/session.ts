@@ -1,5 +1,5 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { call, ORPCError } from "@orpc/server";
+import { call } from "@orpc/server";
 import { z } from "zod";
 
 import { stopRunningProcesses } from "../../lib/background-processes";
@@ -7,7 +7,7 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
-import { closeAsksOf, openAsksOf } from "../../lib/permissions/asks";
+import { closeAsksOf, openAsksOf } from "../../lib/chat/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -15,9 +15,6 @@ import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
-import { ToolNameSchema } from "../../tools/name";
-import { chatSessionRef } from "../../machines/workspace";
 import { base, toORPCError } from "../base";
 
 const byIdWithMessagesAndParts = base
@@ -261,55 +258,7 @@ const live = {
     }),
 };
 
-/**
- * Answer a tool call that is waiting on the user: a `choose`. The output is
- * checked against the tool's own schema, then
- * handed to the session holding the call, which records it and lets the agent
- * go on.
- */
-const answerToolCall = base
-  .input(
-    z.object({
-      id: ChatIdSchema,
-      output: z.unknown(),
-      toolCallId: z.string(),
-      toolName: ToolNameSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(({ context, input }) => {
-    const tool = TOOLS_BY_NAME[input.toolName];
-    const parsed = tool.outputSchema.safeParse(input.output);
-    if (!parsed.success) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: `Not an answer ${input.toolName} accepts: ${z.prettifyError(parsed.error)}`,
-      });
-    }
-    // Nothing is waiting for the answer once the session that asked has gone,
-    // which is what an app stopped mid-turn leaves behind: the call stays
-    // unanswered on disk and the card that draws it still has its buttons. The
-    // machine drops such an answer with a line in the log, so say it here
-    // instead, where the click can be told it went nowhere.
-    if (!chatSessionRef(context.workspaceRef.getSnapshot().context, input.id)) {
-      throw new ORPCError("CONFLICT", {
-        message: "That request ended before the answer reached it.",
-      });
-    }
-    // The name and the output were validated together above, which is the
-    // correlation the union type carries and a lookup by name cannot express.
-    const output: unknown = parsed.data;
-    const value = { output, toolName: input.toolName } as ToolOutputByName;
-    context.workspaceRef.send({
-      type: "updateInteractiveToolCall",
-      value: {
-        id: input.id,
-        update: { toolCallId: input.toolCallId, type: "success", value },
-      },
-    });
-  });
-
 export const session = {
-  answerToolCall,
   byIdWithMessagesAndParts,
   list,
   live,

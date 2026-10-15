@@ -16,7 +16,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { recordAsk } from "../permissions/asks";
+import { recordAsk } from "./asks";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { forgetChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";

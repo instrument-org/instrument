@@ -30,7 +30,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { inheritedEnv } from "./native-env";
 import { accountCanWrite } from "./permissions/account-can-write";
-import { raiseAsk } from "./permissions/asks";
+import { raiseAsk } from "./chat/asks";
 import { type Rule } from "./permissions/rules";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -42,8 +42,8 @@ vi.mock("./permissions/account-can-write", async (importOriginal) => ({
   accountCanWrite: vi.fn(() => true),
 }));
 
-vi.mock("./permissions/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./permissions/asks")>()),
+vi.mock("./chat/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./chat/asks")>()),
   raiseAsk: vi.fn(),
 }));
 

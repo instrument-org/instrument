@@ -3,8 +3,6 @@ import { z } from "zod";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
-import { getToolNameByType } from "../get-tool-name-by-type";
-import { isInteractiveTool } from "../is-interactive-tool";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
 
@@ -186,13 +184,9 @@ const PartMetadataSchema = z.object({ createdAt: z.date() });
 function outcome(part: SessionMessagePart.ToolPart): string {
   switch (part.state) {
     // A call can wait in `input-available` behind a write ahead of it in the
-    // queue; only `startedAt` says it began. An interactive call never starts,
-    // so being asked for is its running.
+    // queue; only `startedAt` says it began.
     case "input-available": {
-      return part.metadata.startedAt !== undefined ||
-        isInteractiveTool(getToolNameByType(part.type))
-        ? " (running)"
-        : " (queued)";
+      return part.metadata.startedAt !== undefined ? " (running)" : " (queued)";
     }
     case "input-streaming": {
       return " (running)";

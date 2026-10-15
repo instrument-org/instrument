@@ -10,7 +10,7 @@ import {
   withoutDataVolume,
 } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
-import { type Asker } from "./asks";
+import { type Asker } from "../chat/asks";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   type Level,

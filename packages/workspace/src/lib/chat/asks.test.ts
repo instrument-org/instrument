@@ -6,8 +6,8 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { asksWritten, cardLine, closeAsk, openAsks } from "./asks";
-import { ruleRefusal } from "./rules-fs";
-import { rulesFor } from "./rules";
+import { ruleRefusal } from "../permissions/rules-fs";
+import { rulesFor } from "../permissions/rules";
 
 const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
 

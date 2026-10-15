@@ -28,12 +28,13 @@ type Ask = {
   target: string;
 };
 
+/** The chat's open permission cards; its questions draw under their calls. */
 function useAsks(chatId: ChatId) {
   return useQuery(
-    rpcClient.workspace.permissions.liveAsks.experimental_liveOptions({
+    rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }),
-  ).data;
+  ).data?.filter((ask) => ask.kind !== "question");
 }
 
 function useAnswer(chatId: ChatId, ask: Ask) {

@@ -22,7 +22,6 @@ import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
-import { sessionOfChat } from "../../lib/record-folders";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -42,7 +41,6 @@ import {
   type WorkspaceAppsConfig,
   type WorkspaceConfig,
 } from "../../types";
-import { type ToolCallUpdate } from "../agent";
 import { type StopReason } from "../execute-tool-call";
 import {
   type SessionActorRef,
@@ -125,13 +123,6 @@ export type WorkspaceEvent =
         reason?: StopReason;
         sessionId?: StoreId.Session;
       };
-    }
-  | {
-      type: "updateInteractiveToolCall";
-      value: {
-        id: ChatId;
-        update: ToolCallUpdate;
-      };
     };
 
 // The session actor for a task, while it still has a turn to run. A session
@@ -148,17 +139,6 @@ function findLiveSessionRef(
         ref.getSnapshot().context.sessionId === sessionId &&
         ref.getSnapshot().status === "active",
     );
-}
-
-/**
- * The running session of a chat's own conversation, the one its settings
- * name, or none while it has no turn to run.
- */
-export function chatSessionRef(context: WorkspaceContext, id: ChatId) {
-  const sessionId = sessionOfChat(id);
-  return sessionId === undefined
-    ? undefined
-    : findLiveSessionRef(context, { id, sessionId });
 }
 
 export const workspaceMachine = setup({
@@ -576,26 +556,6 @@ export const workspaceMachine = setup({
         }
       },
     },
-
-    // Only the chat's own conversation asks the user anything, so the
-    // answer goes to its session and no task's.
-    updateInteractiveToolCall: [
-      {
-        actions: ({ context, event }) => {
-          chatSessionRef(context, event.value.id)?.send({
-            type: "updateInteractiveToolCall",
-            value: event.value.update,
-          });
-        },
-        guard: ({ context, event }) =>
-          chatSessionRef(context, event.value.id) !== undefined,
-      },
-      {
-        actions: log(({ event }) => {
-          return `No running session of ${event.value.id} to answer`;
-        }),
-      },
-    ],
 
     "workspaceServer.error": {
       actions: log(({ event }) => {

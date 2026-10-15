@@ -14,7 +14,6 @@ export { dateChangeModelNote } from "./lib/date-change-model-text";
 export { describeMessageError } from "./lib/describe-message-error";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
-export { isInteractiveTool } from "./lib/is-interactive-tool";
 export * from "./lib/is-chat-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { askTargetName } from "./lib/permissions/ask-target";

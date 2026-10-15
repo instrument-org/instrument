@@ -50,7 +50,7 @@ const AskerSchema = z.object({
  * the foot of the chat until the person answers, which wakes every session
  * that asked.
  */
-export const PermissionAskSchema = z.object({
+const PermissionAskSchema = z.object({
   askedAt: z.coerce.date(),
   /**
    * Every session waiting on the answer, the first to ask first. A session
@@ -67,18 +67,30 @@ export const PermissionAskSchema = z.object({
 export type PermissionAsk = z.output<typeof PermissionAskSchema>;
 
 /**
- * An ask as stored, which may still name its one asker at the top level the
- * way cards were written before a card held every session that asked.
+ * A question the chat's agent put to the person with `choose`, drawn as the
+ * card under that call until they answer it, which wakes the chat with the
+ * answer. Its one asker is the chat's own session, by the call's part.
  */
-const StoredPermissionAskSchema = z.union([
+const QuestionAskSchema = z.object({
+  askedAt: z.coerce.date(),
+  askers: z.array(AskerSchema),
+  id: z.string(),
+  kind: z.literal("question"),
+  /** The message holding the call, where its answer is written too. */
+  messageId: StoreId.MessageSchema,
+  /** The question as the agent asked it. */
+  question: z.string(),
+});
+
+export type QuestionAsk = z.output<typeof QuestionAskSchema>;
+
+/** Anything a chat is waiting on the person to answer on a card. */
+export const AskSchema = z.discriminatedUnion("kind", [
   PermissionAskSchema,
-  PermissionAskSchema.omit({ askers: true })
-    .extend(AskerSchema.shape)
-    .transform(({ partId, sessionId, ...ask }) => ({
-      ...ask,
-      askers: [{ ...(partId && { partId }), sessionId }],
-    })),
+  QuestionAskSchema,
 ]);
+
+export type Ask = z.output<typeof AskSchema>;
 
 // Where the user left off in a chat. Read on open, and across chats only by
 // the chat list for its open asks, through `openAsks` -- which is what
@@ -89,13 +101,10 @@ export const StoredChatStateSchema = z
     // The apps whose guide this chat has read, so `app request` hands the
     // guide over once and then gets out of the way.
     appGuidesRead: z.array(z.string()).optional(),
-    browserTabs: z.array(HeldTabSchema).default([]),
-    // What the agent is waiting on the person to allow, oldest first. One
+    // What the agent is waiting on the person to answer, oldest first. One
     // that will not parse costs the chat its open asks alone.
-    permissionAsks: z
-      .array(StoredPermissionAskSchema)
-      .optional()
-      .catch(undefined),
+    asks: z.array(AskSchema).optional().catch(undefined),
+    browserTabs: z.array(HeldTabSchema).default([]),
   })
   .default(() => ({ browserTabs: [] }));
 

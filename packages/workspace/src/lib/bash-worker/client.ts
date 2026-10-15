@@ -15,7 +15,7 @@ import { terminateSubprocessTree } from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { recordAsk } from "../permissions/asks";
+import { recordAsk } from "../chat/asks";
 import { recordWorkspaceSkillMutation } from "../workspace-skill-index";
 import {
   fromWireError,

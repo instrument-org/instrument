@@ -418,7 +418,8 @@ export async function shouldContinueAfterHandingOff({
         part.type === "data-taskEvent" ||
         part.type === "data-appEvent" ||
         part.type === "data-jobEvent" ||
-        part.type === "data-permissionAnswer",
+        part.type === "data-permissionAnswer" ||
+        part.type === "data-questionAnswer",
     ) &&
     !last.parts.some((part) => isToolPart(part)) &&
     last.parts.some(

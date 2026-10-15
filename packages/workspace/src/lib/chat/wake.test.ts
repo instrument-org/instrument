@@ -12,7 +12,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { updateChatSettings } from "../chat-settings";
-import { recordAsk } from "../permissions/asks";
+import { recordAsk } from "./asks";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskEventModelNote } from "../task-event-model-text";
@@ -24,7 +24,7 @@ import {
   hasPendingWake,
   noteTasksInterruptedByQuit,
   startChatWake,
-  wakeSessionForPermission,
+  wakeAskers,
 } from "./wake";
 
 vi.mock(import("../session-store-storage"));
@@ -342,7 +342,7 @@ describe("a wake on its way", () => {
       }
     });
 
-    const woken = wakeSessionForPermission(
+    const woken = wakeAskers(
       {
         data: { answer: "allowed", kind: "folder", target: "/Users/me/Pantry" },
         type: "data-permissionAnswer",

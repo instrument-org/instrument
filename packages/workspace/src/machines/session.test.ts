@@ -39,11 +39,11 @@ import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
 } from "../lib/background-processes";
+import { openAsks } from "../lib/chat/asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
 import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
-import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -93,8 +93,8 @@ describe("sessionMachine", () => {
   const chatFolder = "pj-test";
 
   /**
-   * Runs the session as a chat's, where a question waits on the user; a
-   * task's question has nobody to wait on, and answers at once.
+   * Runs the session as a chat's, where a question goes on a card; a task's
+   * question has nobody to see it, and fails.
    */
   function answersAsChat() {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
@@ -1201,7 +1201,7 @@ describe("sessionMachine", () => {
     finishOnFinish?.();
   });
 
-  it("should handle interactive tool calls with choose tool", async () => {
+  it("ends the turn on a chat's choose and leaves the question open", async () => {
     answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
@@ -1216,27 +1216,6 @@ describe("sessionMachine", () => {
       })),
       chunkSets: [chooseChunks, finishChunks],
     });
-
-    result.actor.start();
-
-    // Wait for the agent to reach the WaitingForPendingToolCalls state
-    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
-
-    // Send the tool call update to simulate user selection
-    result.actor.send({
-      type: "updateInteractiveToolCall",
-      value: {
-        toolCallId: chooseToolCallId,
-        type: "success",
-        value: {
-          output: { selectedChoice: "Continue" },
-          toolName: "choose",
-        },
-      },
-    });
-
-    // Wait for the actor to complete
-    await waitFor(result.actor, (state) => state.status === "done");
 
     const session = await runTestMachine(result);
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
@@ -1259,7 +1238,7 @@ describe("sessionMachine", () => {
             </input>
             <output>
               {
-                "selectedChoice": "Continue"
+                "asked": true
               }
             </output>
           </tool>
@@ -1272,93 +1251,11 @@ describe("sessionMachine", () => {
         </assistant>
       </session>"
     `);
-  });
-
-  // The card is answerable once the call has streamed, and the step that
-  // made it can still be running: an answer that quick has to wait for the
-  // step to end rather than find nothing pending and vanish.
-  it("keeps an answer that arrives before the step ends", async () => {
-    answersAsChat();
-    const result = await createActorAndTask({
-      agent: setupAgent({
-        agentTools: pick(TOOLS, ["Choose"]),
-        name: "instrument",
-      }).create(() => ({
-        getMessages: instrumentAgent.getMessages,
-        onFinish: instrumentAgent.onFinish,
-        onStart: instrumentAgent.onStart,
-        shouldContinue: instrumentAgent.shouldContinue,
-        systemPrompt: instrumentAgent.systemPrompt,
-      })),
-      chunkDelayMs: 100,
-      chunkSets: [chooseChunks, finishChunks],
-    });
-
-    const abort = new AbortController();
-    void (async () => {
-      for await (const { part } of publisher.subscribe("part.updated", {
-        signal: abort.signal,
-      })) {
-        if (part.type === "tool-choose" && part.state === "input-available") {
-          expect(result.actor.getSnapshot().matches({ Agent: "Paused" })).toBe(
-            false,
-          );
-          result.actor.send({
-            type: "updateInteractiveToolCall",
-            value: {
-              toolCallId: chooseToolCallId,
-              type: "success",
-              value: {
-                output: { declined: true },
-                toolName: "choose",
-              },
-            },
-          });
-          return;
-        }
-      }
-    })().catch(noop);
-
-    const stored = await runTestMachine(result);
-    const session = stored._unsafeUnwrap();
-    abort.abort();
-
-    const choose = session.messages
-      .flatMap((message) => message.parts)
-      .find((part) => part.type === "tool-choose");
-    expect(choose).toMatchObject({
-      output: { declined: true },
-      state: "output-available",
-    });
-  });
-
-  it("stops while a choose is pending without an unhandled event", async () => {
-    answersAsChat();
-    const result = await createActorAndTask({
-      agent: setupAgent({
-        agentTools: pick(TOOLS, ["Choose"]),
-        name: "instrument",
-      }).create(() => ({
-        getMessages: instrumentAgent.getMessages,
-        onFinish: instrumentAgent.onFinish,
-        onStart: instrumentAgent.onStart,
-        shouldContinue: instrumentAgent.shouldContinue,
-        systemPrompt: instrumentAgent.systemPrompt,
-      })),
-      chunkSets: [chooseChunks],
-    });
-    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
-
-    result.actor.start();
-    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
-    result.actor.send({ type: "stop" });
-    await waitFor(result.actor, (state) => state.status === "done");
-
-    const unhandled = captureException.mock.calls.filter(
-      ([error]) =>
-        error instanceof Error && error.message.startsWith("Unhandled event"),
-    );
-    expect(unhandled).toEqual([]);
+    expect(
+      (await openAsks(ChatIdSchema.parse(chatFolder))).map((ask) =>
+        ask.kind === "question" ? ask.question : ask.target,
+      ),
+    ).toEqual(["What would you like to do next?"]);
   });
 
   /** Why each reply a session's turn cut off was cut off, oldest first. */

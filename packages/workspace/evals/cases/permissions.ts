@@ -35,7 +35,7 @@ import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { FFMPEG_PATH, FFPROBE_PATH } from "../../src/lib/ffmpeg";
 import { gitBinaryPath, gitSubprocessEnv } from "../../src/lib/git";
 import { isToolPart } from "../../src/lib/is-tool-part";
-import { openAsks } from "../../src/lib/permissions/asks";
+import { openAsks } from "../../src/lib/chat/asks";
 import { updatePermissionSettings } from "../../src/lib/permissions/rules";
 import { chatDir } from "../../src/lib/record-folders";
 import { type ChatId } from "../../src/schemas/chat-id";
@@ -825,10 +825,9 @@ async function asksOf(
   ctx: Ctx,
   sessions: Session.WithMessagesAndParts[],
 ): Promise<AskRecord[]> {
-  const open = (await openAsks(ctx.chatId)).map(({ kind, target }) => ({
-    kind,
-    target,
-  }));
+  const open = (await openAsks(ctx.chatId)).flatMap((ask) =>
+    ask.kind === "question" ? [] : [{ kind: ask.kind, target: ask.target }],
+  );
   const answered = sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
       message.parts.flatMap((part) =>

@@ -39,6 +39,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-asks": "always",
   "data-folderChanges": "always",
   "data-permissionAnswer": "always",
+  // The card the question was asked on shows the answer.
+  "data-questionAnswer": "hidden",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
   // running when the turn began, and a card in the transcript saying "2 still
@@ -170,6 +172,7 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
+    case "data-questionAnswer":
     case "data-reply": {
       return null;
     }

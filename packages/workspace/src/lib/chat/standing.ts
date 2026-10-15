@@ -9,7 +9,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
-import { cardLine, openAsksOf } from "../permissions/asks";
+import { cardLine, openAsksOf } from "./asks";
 import { Store } from "../store";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
 import {

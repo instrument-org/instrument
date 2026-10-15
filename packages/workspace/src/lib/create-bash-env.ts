@@ -53,7 +53,7 @@ import {
 } from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
-import { asksWritten } from "./permissions/asks";
+import { asksWritten } from "./chat/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { type Listings } from "./permissions/rules-fs";
 import { getWorkspaceConfig } from "./workspace-config";

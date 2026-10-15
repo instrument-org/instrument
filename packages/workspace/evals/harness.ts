@@ -15,7 +15,6 @@ import path from "node:path";
 import * as _ from "radashi";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
-import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
@@ -35,13 +34,14 @@ import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
-import { openAsks } from "../src/lib/permissions/asks";
+import { openAsks } from "../src/lib/chat/asks";
 import { Store } from "../src/lib/store";
 import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
+import { chats as chatsRoute } from "../src/rpc/routes/chats";
 import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
@@ -50,7 +50,6 @@ import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
-import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { startRun } from "./lib/start-run";
@@ -322,9 +321,8 @@ export interface EvalCase {
    * What the user answers to each `choose` the agent puts to them, in the
    * order it asks, sent through the same route the card answers with. A
    * function gets the question as asked, for an answer that picks one of the
-   * choices the model wrote. A question asked past the end of the list stops
-   * the run, since nothing else would answer it and the turn would wait out
-   * the clock.
+   * choices the model wrote. A question asked past the end of the list is
+   * left open, as one the person has not answered.
    */
   answers?: (
     | ((
@@ -477,7 +475,7 @@ interface ChildTaskSessions {
   title: string;
 }
 
-type ChooseAnswer = z.output<typeof Choose.outputSchema>;
+type ChooseAnswer = SessionMessageDataPart.QuestionAnswerDataPart["answer"];
 
 type FollowUp = FollowUpTiming &
   (
@@ -763,8 +761,16 @@ export async function runEvals(
       let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
-      // Each question once: a part is published again on every update.
-      const askedIds = new Set<string>();
+      // What each question was asked with, by its call's part, for an answer
+      // that picks one of the choices the model wrote.
+      const chooseInputs = new Map<
+        StoreId.Part,
+        Extract<
+          SessionMessagePart.ToolPartInputAvailable,
+          { type: "tool-choose" }
+        >["input"]
+      >();
+      let questionsAnswered = 0;
       const handledAskIds = new Set<string>();
       let folderPicksUsed = 0;
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
@@ -935,43 +941,61 @@ export async function runEvals(
               }
             }
 
-            // A boundary the agent ran into shows the person a card, which
-            // the case answers the way they would: a scripted pick, a no, or
-            // nothing, leaving the agent to carry on without it.
+            if (
+              part.type === "tool-choose" &&
+              part.state === "input-available"
+            ) {
+              chooseInputs.set(part.metadata.id, part.input);
+            }
+
+            // A boundary the agent ran into, or a question it asked, shows the
+            // person a card, which the case answers the way they would: a
+            // scripted pick, a no, or nothing, leaving the agent to carry on
+            // without it.
             for (const ask of await openAsks(id)) {
               if (handledAskIds.has(ask.id)) {
                 continue;
               }
               handledAskIds.add(ask.id);
-              const declines =
-                ask.kind === "folder"
-                  ? evalCase.declinesFolders
-                  : evalCase.declinesApps;
-              const picked =
-                ask.kind === "folder" && !declines
-                  ? evalCase.folderPicks?.[folderPicksUsed++]
-                  : undefined;
-              const allows = ask.kind === "app" && evalCase.allowsApps;
-              write(
-                `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
-              );
-              if (declines || picked || allows) {
-                // Answered once the asking sessions' turns are over, as a
-                // person reading the card would, so the answer arrives as a
-                // wake rather than mid-turn.
-                void (async () => {
-                  const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
-                  while (
-                    ask.askers.some((asker) =>
-                      isWorking(id, asker.sessionId),
-                    ) &&
-                    Date.now() < until
-                  ) {
-                    await new Promise((resolve) =>
-                      setTimeout(resolve, TREE_POLL_MS),
-                    );
-                  }
-                  await call(
+              let answer: () => Promise<unknown>;
+              if (ask.kind === "question") {
+                const partId = ask.askers[0]?.partId;
+                const input = partId ? chooseInputs.get(partId) : undefined;
+                const scripted = evalCase.answers?.[questionsAnswered++];
+                const picked =
+                  typeof scripted === "function"
+                    ? input && scripted(input)
+                    : scripted;
+                write(
+                  `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${ask.question}${picked ? `; answering ${JSON.stringify(picked)}` : "; leaving it open"}${c.reset}\n`,
+                );
+                if (!picked) {
+                  continue;
+                }
+                answer = () =>
+                  call(
+                    chatsRoute.answerQuestion,
+                    { answer: picked, askId: ask.id, id },
+                    { context },
+                  );
+              } else {
+                const declines =
+                  ask.kind === "folder"
+                    ? evalCase.declinesFolders
+                    : evalCase.declinesApps;
+                const picked =
+                  ask.kind === "folder" && !declines
+                    ? evalCase.folderPicks?.[folderPicksUsed++]
+                    : undefined;
+                const allows = ask.kind === "app" && evalCase.allowsApps;
+                write(
+                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
+                );
+                if (!(declines || picked || allows)) {
+                  continue;
+                }
+                answer = () =>
+                  call(
                     permissionsRoute.answer,
                     {
                       askId: ask.id,
@@ -981,49 +1005,26 @@ export async function runEvals(
                     },
                     { context },
                   );
-                })().catch((error: unknown) => {
-                  process.stderr.write(
-                    `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+              }
+              // Answered once the asking sessions' turns are over, as a
+              // person reading the card would, so the answer arrives as a
+              // wake rather than mid-turn.
+              void (async () => {
+                const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                while (
+                  ask.askers.some((asker) => isWorking(id, asker.sessionId)) &&
+                  Date.now() < until
+                ) {
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, TREE_POLL_MS),
                   );
-                });
-              }
-            }
-
-            if (
-              part.type === "tool-choose" &&
-              part.state === "input-available" &&
-              !askedIds.has(part.toolCallId)
-            ) {
-              askedIds.add(part.toolCallId);
-              const scripted = evalCase.answers?.[askedIds.size - 1];
-              const answer =
-                typeof scripted === "function"
-                  ? scripted(part.input)
-                  : scripted;
-              write(
-                `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${part.input.question}${c.reset}\n`,
-              );
-              if (answer) {
-                write(
-                  `${evalPrefix(label)}${c.dim}Answering: ${JSON.stringify(answer)}${c.reset}\n`,
+                }
+                await answer();
+              })().catch((error: unknown) => {
+                process.stderr.write(
+                  `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
                 );
-                void call(
-                  sessionRoute.answerToolCall,
-                  {
-                    id,
-                    output: answer,
-                    toolCallId: part.toolCallId,
-                    toolName: "choose",
-                  },
-                  { context },
-                );
-              } else {
-                stoppedBy ??= "case";
-                write(
-                  `${evalPrefix(label)}${c.yellow}No scripted answer for question ${askedIds.size}, stopping session...${c.reset}\n`,
-                );
-                void call(sessionRoute.stop, { id }, { context });
-              }
+              });
             }
 
             if (

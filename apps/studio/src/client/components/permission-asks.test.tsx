@@ -19,7 +19,7 @@ function showAsk(target: string) {
     />,
   );
   queryClient.setQueryData(
-    rpcClient.workspace.permissions.liveAsks.experimental_liveOptions({
+    rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }).queryKey,
     [

@@ -3,7 +3,7 @@ import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
-import { type PermissionAsk } from "../../schemas/chat-state";
+import { type Ask } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -13,7 +13,7 @@ import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { cardLine, openAsks } from "../permissions/asks";
+import { cardLine, openAsks } from "./asks";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -434,7 +434,7 @@ function asFolder(path: string): string {
 function asksOf(
   digest: ChatDigest,
   filed: ChatActivity["running"],
-  cards: PermissionAsk[],
+  cards: Ask[],
 ): { at: number; text: string }[] {
   return [
     ...cards.map((card) => ({
@@ -976,7 +976,7 @@ function stateOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
-  cards: PermissionAsk[],
+  cards: Ask[],
 ) {
   const asks = asksOf(digest, running, cards);
   const askedAt = asks.length

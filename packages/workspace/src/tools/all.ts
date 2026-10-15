@@ -1,5 +1,4 @@
 import { type InferUITools } from "ai";
-import { type z } from "zod";
 
 import type { AnyAgentTool, ToolName } from "./types";
 
@@ -58,13 +57,6 @@ export type AISDKTools = InferUITools<{
     (typeof TOOLS_BY_NAME)[K]["staticAISDKTool"]
   >;
 }>;
-
-export type ToolOutputByName = {
-  [K in ToolName]: {
-    output: z.output<(typeof TOOLS_BY_NAME)[K]["outputSchema"]>;
-    toolName: K;
-  };
-}[ToolName];
 
 export function getToolByType<T extends ToolName>(
   type: `tool-${T}`,

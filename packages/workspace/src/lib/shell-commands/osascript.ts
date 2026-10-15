@@ -9,7 +9,7 @@ import {
   runsCodeOutside,
   scriptTargets,
 } from "../permissions/apps";
-import { raiseAsk, waitingNote } from "../permissions/asks";
+import { raiseAsk, waitingNote } from "../chat/asks";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";

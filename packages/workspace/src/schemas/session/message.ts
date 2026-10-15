@@ -18,6 +18,7 @@ import { z } from "zod";
 
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { permissionAnswerModelNote } from "../../lib/permission-answer-model-text";
+import { questionAnswerModelNote } from "../../lib/question-answer-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
@@ -582,6 +583,20 @@ export namespace SessionMessage {
         if (permissionAnswerPart) {
           injectedParts.push({
             text: permissionAnswerModelNote(permissionAnswerPart.data),
+            type: "text",
+          });
+        }
+
+        const questionAnswerPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-questionAnswer";
+          } => part.type === "data-questionAnswer",
+        );
+        if (questionAnswerPart) {
+          injectedParts.push({
+            text: questionAnswerModelNote(questionAnswerPart.data),
             type: "text",
           });
         }

@@ -1,4 +1,4 @@
-import { eventIterator } from "@orpc/server";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { isWorking, latestStep } from "../../lib/chat/activity";
@@ -19,7 +19,10 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import { openAsksOf } from "../../lib/permissions/asks";
+import { closeQuestion, openAsks, openAsksOf } from "../../lib/chat/asks";
+import { wakeAskers } from "../../lib/chat/wake";
+import { AskSchema } from "../../schemas/chat-state";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
@@ -27,6 +30,7 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { trashChat } from "../../lib/trash-chat";
+import { Store } from "../../lib/store";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { chatRoutes } from "./chat";
@@ -271,13 +275,90 @@ const trashChatRoute = base
     }
   });
 
+/**
+ * The chat's open asks, as its cards draw them, oldest first, read again
+ * whenever the chat's state moves: what its agent's work ran into, and the
+ * questions it asked.
+ */
+const liveAsksRoute = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(AskSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) => change.id === input.id && change.kind === "state",
+          ),
+        ],
+        read: () => openAsks(input.id),
+      }),
+    );
+  });
+
+/**
+ * The person's answer to a question the chat asked with `choose`: a choice,
+ * their own words, or skipping it. Closes the question and wakes the chat
+ * with the answer, or joins its turn at the next step if it is still going.
+ */
+const answerQuestionRoute = base
+  .input(
+    z.object({
+      answer: SessionMessageDataPart.QuestionAnswerDataPartSchema.shape.answer,
+      askId: z.string(),
+      id: ChatIdSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ context, input }) => {
+    const question = await closeQuestion(input.id, input.askId);
+    if (!question) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "That question was already answered.",
+      });
+    }
+    await Promise.all(
+      question.askers.map(async ({ partId, sessionId }) => {
+        if (!partId) {
+          return;
+        }
+        // On the call too, so the card draws the answer from its own part.
+        const written = await Store.updatePart(
+          { messageId: question.messageId, partId, sessionId },
+          (part) =>
+            part.type === "tool-choose" &&
+            part.state === "output-available" &&
+            "asked" in part.output
+              ? { ...part, output: { ...part.output, answer: input.answer } }
+              : part,
+          input.id,
+        );
+        if (written.isErr()) {
+          context.workspaceConfig.captureException(written.error);
+        }
+        await wakeAskers(
+          {
+            data: { answer: input.answer, partId, question: question.question },
+            type: "data-questionAnswer",
+          },
+          context.workspaceRef,
+          input.id,
+          [sessionId],
+        );
+      }),
+    );
+  });
+
 export const chats = {
   ...chatRoutes,
+  answerQuestion: answerQuestionRoute,
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
   live: {
     ...chatRoutes.live,
+    asks: liveAsksRoute,
     list: liveListChatsRoute,
     tasks: liveChildTasksRoute,
   },

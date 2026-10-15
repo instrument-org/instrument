@@ -70,9 +70,9 @@ Size M, value high.
 
 One stop is spread over the machine's `stop` event (`StopReason`), a module map in `wake.ts` (`ExpectedStop { by, wakesChat }` by session) and `stoppedBy` on the row (d4d1d30be, 2e31ae013). Shape: `{ by, wakesChat }` rides on `stop` into the session's context and out on `session.done`; wake reads it from the payload and its map goes.
 
-Beside it, the session machine's `UsingReadOnlyTools`/`UsingNonReadOnlyTools` × `Running`/`Paused` tree, `markUsedNonReadOnlyTools`, `usedNonReadOnlyTools` on `session.done` and the `agent.paused`/`agent.using-non-read-only-tools` tags have no consumer (only `agent.alive` and `agent.running` are read; `instrument.ts:163` works out write use again). Collapse to `Running | Paused | Stopping | AgentDone` and drop `agent.usingTool` (its other reader is a log line in `scripts/run-workspace.ts:161`).
+Beside it, the session machine's `UsingReadOnlyTools`/`UsingNonReadOnlyTools` × `Running`/`Paused` tree, `markUsedNonReadOnlyTools`, `usedNonReadOnlyTools` on `session.done` and the `agent.paused`/`agent.using-non-read-only-tools` tags have no consumer (only `agent.alive` and `agent.running` are read; `instrument.ts:163` works out write use again). Collapse to `Running | Stopping | AgentDone` and drop `agent.usingTool` (its other reader is a log line in `scripts/run-workspace.ts:161`).
 
-And the workspace machine's registry: sessions are `Map<ChatId, SessionActorRef[]>` found by scanning snapshots (`machines/workspace/index.ts:141-152,184-203,285-345`). `updateInteractiveToolCall` broadcasts to every session in the chat (a TODO says so), so a task's agent keeps an answer it does not recognize in `earlyToolCallUpdates`, and an answer to a dead chat turn passes the guard whenever any task is alive and is lost. Shape: `Map<SessionId, { chatId, ref }>`, answers routed by session id; the `error` variant of `ToolCallUpdate` (no producer) and `prepareToTrashChat`'s one-element array and counter go.
+And the workspace machine's registry: sessions are `Map<ChatId, SessionActorRef[]>` found by scanning snapshots (`machines/workspace/index.ts:141-152,184-203,285-345`). Shape: `Map<SessionId, { chatId, ref }>`; `prepareToTrashChat`'s one-element array and counter go.
 
 Size M, value med-high.
 

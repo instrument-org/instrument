@@ -19,7 +19,7 @@ import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
-import { setAskForwarder } from "../permissions/asks";
+import { setAskForwarder } from "../chat/asks";
 import { setSkillMutationForwarder } from "../workspace-skill-index";
 import {
   type ExceptionProperties,

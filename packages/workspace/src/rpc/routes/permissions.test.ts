@@ -5,12 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateChatRecord } from "../../lib/chat-record";
 import { updateChatSettings } from "../../lib/chat-settings";
-import { openAsks, recordAsk } from "../../lib/permissions/asks";
+import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
 import { readPermissionSettings } from "../../lib/permissions/rules";
-import { chatDir, sessionOfChat } from "../../lib/record-folders";
+import { sessionOfChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -180,50 +179,5 @@ describe("permissions.answer", () => {
         { answer: ["declined"], sessionId: task },
       ]),
     );
-  });
-
-  // Installs carry cards written when a card named the one session that
-  // raised it.
-  it("reads a card written with a single asker, and wakes that session when answered", async () => {
-    const { chatId, task } = await chatWithTask();
-    const partId = StoreId.newPartId();
-    await updateChatRecord(chatDir(chatId), "state", (record) => ({
-      ...record.raw,
-      state: {
-        browserTabs: [],
-        permissionAsks: [
-          {
-            askedAt: "2026-10-12T15:00:00.000Z",
-            id: "old-ask",
-            kind: "folder",
-            partId,
-            sessionId: task,
-            target: "/Users/me/Pantry",
-          },
-        ],
-      },
-    }));
-
-    expect(await openAsks(chatId)).toEqual([
-      {
-        askedAt: new Date("2026-10-12T15:00:00.000Z"),
-        askers: [{ partId, sessionId: task }],
-        id: "old-ask",
-        kind: "folder",
-        target: "/Users/me/Pantry",
-      },
-    ]);
-    const sentBefore = sent.length;
-
-    await call(
-      permissions.answer,
-      { askId: "old-ask", decision: "allowed", id: chatId },
-      { context: context() },
-    );
-
-    expect(wokenSince(sentBefore)).toEqual([
-      { answer: ["allowed"], sessionId: task },
-    ]);
-    expect(await openAsks(chatId)).toEqual([]);
   });
 });

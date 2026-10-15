@@ -15,7 +15,7 @@ import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config"
 import { Store } from "../store";
 import { updateChatSettings } from "../chat-settings";
 import { listChildTasks } from "../chat/children";
-import { openAsks, recordAsk } from "../permissions/asks";
+import { openAsks, recordAsk } from "../chat/asks";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { sendSubcommand } from "./task/send";

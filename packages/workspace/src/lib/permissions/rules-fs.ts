@@ -8,7 +8,7 @@ import {
   withoutDataVolume,
 } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
-import { raiseAsk, waitingNote } from "./asks";
+import { raiseAsk, waitingNote } from "../chat/asks";
 import { isClosedDiskRoot } from "../disk-root";
 import { folderToAskFor, type Reach, reachOf, type Rules } from "./rules";
 

@@ -16,7 +16,7 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
-import { raiseAsk } from "./permissions/asks";
+import { raiseAsk } from "./chat/asks";
 import { type Rule } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { createWalkBudget } from "./walk-budget";
@@ -36,8 +36,8 @@ import {
   consumeSkillChanges,
 } from "./workspace-skill-index";
 
-vi.mock("./permissions/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./permissions/asks")>()),
+vi.mock("./chat/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./chat/asks")>()),
   raiseAsk: vi.fn(),
 }));
 

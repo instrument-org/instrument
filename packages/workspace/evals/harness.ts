@@ -124,8 +124,16 @@ function evalPrefix(name: string): string {
  * in the error a bare `run` produces so the cheapest reasonable choice is one
  * copy away. Nothing reads it otherwise, so it going stale costs a sentence in
  * an error message rather than a run against a model nobody chose.
+ *
+ * It is metered, which the free Workers AI models it replaced were not, and
+ * that is the price of a floor that passes the behavior the prompts are
+ * written to produce. Measured 2026-10-15 across ten models on five cases:
+ * every Workers AI and lite model, our own floor among them, left finished
+ * work in the chat's folder instead of the person's output folder, and this
+ * one did not. A floor that fails the product's own central rule reports a
+ * prompt change as working when it is not. Five cases cost about two cents.
  */
-export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
+export const HOUSE_FLOOR = "anthropic/claude-haiku-5.5";
 
 export interface CompletedRun {
   /** Every task this run's chat started, by its session. Empty unless it forked. */

@@ -522,32 +522,28 @@ it.runIf(process.platform === "win32")(
 );
 
 describe("a skill source the shell mounts", () => {
-  const home = "/home/someone";
-  const skills = `${home}/.instrument-runtime/skills`;
-  const settings = {
-    apps: [],
-    chats: {},
-    dangerouslyAllowEveryFolder: false,
-    folders: [],
-    places: {},
-  };
+  // The app's prepared skills, where they are: a hidden folder in the home
+  // folder, which the app-files place holds and asks about.
+  const skills = inHome(".instrument-runtime/skills");
 
   it("asks about a hidden folder in the home folder without being named", () => {
     const rules = rulesFor({ home, settings });
-    expect(reachOf(rules, `${skills}/pdf/SKILL.md`, "read").level).toBe("ask");
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "read").level,
+    ).toBe("ask");
   });
 
   it("is read without asking once it is", () => {
     const rules = rulesFor({ extraReadOnly: [skills], home, settings });
-    expect(reachOf(rules, `${skills}/pdf/SKILL.md`, "read").level).toBe(
-      "allow",
-    );
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "read").level,
+    ).toBe("allow");
   });
 
   it("is still never changed", () => {
     const rules = rulesFor({ extraReadOnly: [skills], home, settings });
-    expect(reachOf(rules, `${skills}/pdf/SKILL.md`, "write").level).not.toBe(
-      "allow",
-    );
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "write").level,
+    ).not.toBe("allow");
   });
 });

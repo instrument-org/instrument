@@ -151,7 +151,7 @@ if (subcommand === "run" && models.length === 0) {
     `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
   );
   write(
-    `Workers AI runs without --paid, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
+    `\`--model ${HOUSE_FLOOR} --paid\` is where to start: the model this project is\nusually tested against, about two cents for five cases. Workers AI (\`--model\ncf:<id>\`) runs without --paid and is free, but every model on it leaves finished\nwork in the chat's folder rather than the person's, so a run on one says\nnothing about where work goes.\n`,
   );
   process.exit(1);
 }

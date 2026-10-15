@@ -1,6 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
-import { AccountInfo } from "@/client/components/account-info";
 import {
   BlockToolbarButton,
   blockToolbarButtonClassName,
@@ -75,7 +74,6 @@ const handleInstallUpdate = () => {
 export function GeneralSection() {
   return (
     <div className="space-y-4">
-      <AccountInfo />
       <InterfaceAndTheme />
       <Notifications />
       <About />

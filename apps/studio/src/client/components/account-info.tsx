@@ -1,4 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -6,7 +7,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { logOut } from "@/client/lib/log-out";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { ContactErrorAlert } from "./contact-error-alert";
@@ -86,32 +87,25 @@ export function AccountInfo() {
                 )}
               </>
             ) : (
-              <div className="flex items-center gap-5">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="text-sm font-medium">Log in to {APP_NAME}</p>
-                  <p className="text-xs text-muted-foreground">
-                    You&apos;re using {APP_NAME} without an account. Create one
-                    to start a free trial of {APP_NAME}&apos;s AI.
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button
-                    onClick={() => {
-                      openLogin({ instrumentOnly: true });
-                    }}
-                    variant="outline"
-                  >
-                    Log in
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      openLogin({ instrumentOnly: true });
-                    }}
-                    variant="brand"
-                  >
-                    Sign up
-                  </Button>
-                </div>
+              <div className="flex flex-col items-center gap-3 px-2 py-6 text-center">
+                <AIProviderIcon
+                  className="size-9"
+                  colored
+                  type={OUR_MODELS.providerType}
+                />
+                <p className="text-base font-medium">Log in to {APP_NAME}</p>
+                <p className="max-w-96 text-sm text-muted-foreground">
+                  Create an account to start a free trial of {APP_NAME}&apos;s
+                  AI. Your plan, its limits, and billing will show up here.
+                </p>
+                <Button
+                  onClick={() => {
+                    openLogin({ instrumentOnly: true });
+                  }}
+                  variant="brand"
+                >
+                  Log in
+                </Button>
               </div>
             )}
           </div>

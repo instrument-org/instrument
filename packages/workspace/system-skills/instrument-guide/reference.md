@@ -8,9 +8,8 @@ Link a page or a row as `[Label](instrument://settings/<name>)`, with the name i
 
 ### General (`general`)
 
-Your account, how Instrument looks, notifications, updates, and the diagnostic log.
+How Instrument looks, notifications, updates, and the diagnostic log.
 
-- **Account** (`account`): Your Instrument account and plan. On it: Log out (`log-out`).
 - **Theme** (`theme`): Choose your preferred color scheme.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. On it: Send a test notification (`test-notification`).
@@ -18,14 +17,23 @@ Your account, how Instrument looks, notifications, updates, and the diagnostic l
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`).
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
-### Usage and billing (`usage and billing`)
+### Account (`account`)
 
-Your Instrument plan, how much of it you have used, and billing.
+Who you're logged in to Instrument as, your plan and its usage limits, and billing.
 
+- **Account** (`account`): Who you're logged in to Instrument as. On it: Log out (`log-out`).
 - **Plan** (`plan`): Your free trial or subscription, and changing your plan. On it: Change plan (`change-plan`).
 - **Change plan** (`change-plan`): Switch to another plan.
 - **Payment method and invoices** (`billing-portal`): Your card and invoices, and canceling your subscription, in Stripe. On it: Manage billing (`manage-billing`).
 - **Manage billing** (`manage-billing`): Your card, invoices, and subscription, in Stripe.
+
+### Providers (`providers`)
+
+The AI models Instrument can use: your ChatGPT or Claude plan, or a provider you add with your own key.
+
+- **Add provider** (`add-provider`): Use a model with your own key.
+- **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
+- **Claude account** (`claude-account`): Use your Claude plan.
 
 ### Memory (`memory`)
 
@@ -39,20 +47,6 @@ Which folders and places on this computer Instrument may use.
 
 - **Permissions** (`permissions`): Which folders and places on this computer the agent may use.
 - **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
-
-### Providers (`providers`)
-
-The AI models Instrument can use: your ChatGPT or Claude plan, or a provider you add with your own key.
-
-- **Add provider** (`add-provider`): Use a model with your own key.
-- **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
-- **Claude account** (`claude-account`): Use your Claude plan.
-
-### Usage (`usage`)
-
-Every request Instrument made to an AI model, which you can filter, sort, and export.
-
-- **Usage** (`usage`): Every request Instrument sends to an AI, with its model, tokens, and time.
 
 ### Skills (`skills`)
 
@@ -68,6 +62,12 @@ The sidebar lists this page only when some chats or tasks have problems in their
 
 - **Workspace location** (`workspace-location`): Where your chats and tasks live on this computer.
 - **Broken chats and tasks** (`broken-folders`): Chats and tasks with problems in their folders.
+
+### Activity (`activity`)
+
+Everything Instrument asked an AI model to do, which you can filter, sort, and export.
+
+- **Activity** (`activity`): Everything Instrument asked an AI model to do, with the model, tokens, and time.
 
 ## Screens
 

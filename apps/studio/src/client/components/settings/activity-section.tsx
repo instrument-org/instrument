@@ -115,10 +115,10 @@ const COLUMNS: Record<ColumnId, ColumnSpec> = {
     size: 150,
     sort: "model",
   },
-  origin: { field: "chatId", label: "Origin", min: 96, size: 220 },
+  origin: { field: "chatId", label: "From", min: 96, size: 220 },
   purpose: {
     field: "purpose",
-    label: "Purpose",
+    label: "For",
     min: 72,
     size: 116,
     sort: "purpose",
@@ -223,8 +223,8 @@ const FIELD_LABELS: Record<FacetField, string> = {
   connection: "Provider",
   kind: "Type",
   model: "Model",
-  origin: "Origin",
-  purpose: "Purpose",
+  origin: "From",
+  purpose: "For",
   status: "Result",
 };
 
@@ -471,10 +471,11 @@ const columnDefs: ColumnDef<Row>[] = COLUMN_IDS.map((id) => {
 });
 
 /**
- * Every model request the app made, newest first: a log you can filter,
- * sort, and open a request from to see everything recorded about it.
+ * Settings > Activity: every model request the app made, newest first, as a
+ * log you can filter, sort, and open an entry from to see everything recorded
+ * about it.
  */
-export function AIUsageSection() {
+export function ActivitySection() {
   const [openId, setOpenId] = useState<null | string>(null);
   useModalBack(() => {
     setOpenId(null);
@@ -501,7 +502,7 @@ export function AIUsageSection() {
   }
 
   return (
-    <UsageLog
+    <ActivityLog
       filter={filter}
       onOpen={setOpenId}
       period={period}
@@ -513,7 +514,7 @@ export function AIUsageSection() {
   );
 }
 
-function UsageLog({
+function ActivityLog({
   filter,
   onOpen,
   period,
@@ -603,12 +604,12 @@ function UsageLog({
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <div
         className="flex shrink-0 items-start gap-4"
-        {...settingAnchor("usage")}
+        {...settingAnchor("activity")}
       >
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold">Usage</h3>
+          <h3 className="text-base font-semibold">Activity</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {`Every request ${APP_NAME} sends to an AI shows up here, with the model that answered and the tokens it used. We keep these details on your computer, but we don't keep what was said.`}
+            {`Everything ${APP_NAME} asked an AI model to do, with the model that answered and the tokens it used. It's kept on this computer, and what was said isn't.`}
           </p>
         </div>
         <Button
@@ -717,7 +718,7 @@ function UsageLog({
         <span className="flex-1" />
         {summary ? (
           <span className="text-sm text-muted-foreground tabular-nums">
-            {`${wholeNumber.format(summary.requests)} ${summary.requests === 1 ? "request" : "requests"} · ${compactNumber.format(summary.tokens)} tokens`}
+            {`${wholeNumber.format(summary.requests)} ${summary.requests === 1 ? "entry" : "entries"} · ${compactNumber.format(summary.tokens)} tokens`}
           </span>
         ) : null}
       </div>
@@ -775,12 +776,12 @@ function EmptyLog({ filtered }: { filtered: boolean }) {
         <PulseIcon className="size-5.5" />
       </span>
       {filtered ? (
-        <p className="text-sm font-medium">No requests match these filters</p>
+        <p className="text-sm font-medium">No entries match these filters</p>
       ) : (
         <>
-          <p className="text-sm font-medium">No AI requests yet</p>
+          <p className="text-sm font-medium">No activity yet</p>
           <p className="mt-1 max-w-96 text-sm text-muted-foreground">
-            {`${APP_NAME} hasn't sent anything to an AI since you set it up. When you start a chat, its requests will show up here.`}
+            {`${APP_NAME} hasn't asked an AI model for anything yet. When you start a chat, you'll see its activity here.`}
           </p>
         </>
       )}
@@ -1211,7 +1212,7 @@ function HeaderCell({
   );
 }
 
-/** Everything recorded about one request, with a way back to the log. */
+/** Everything recorded about one entry, with a way back to the log. */
 function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const { data: row } = useQuery(
     rpcClient.workspace.aiUsage.byId.queryOptions({ input: { id } }),
@@ -1226,7 +1227,7 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
           type="button"
         >
           <ArrowLeftIcon className="size-4" />
-          Usage
+          Activity
         </button>
         <span className="flex-1" />
         {row ? (
@@ -1266,7 +1267,7 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 {row.finishReason ? `, ${row.finishReason}` : ""}
               </Detail>
               {row.error ? <ErrorDetail error={row.error} /> : null}
-              <Detail label="Origin">
+              <Detail label="From">
                 {originOf(row) ? (
                   <span className="flex">
                     <OriginLink row={row} />

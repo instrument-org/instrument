@@ -40,9 +40,9 @@ export type SettingsEntry = {
  */
 export const SETTINGS_INDEX = [
   {
-    detail: `Your ${APP_NAME} account and plan`,
+    detail: `Who you're logged in to ${APP_NAME} as`,
     id: "account",
-    tab: "General",
+    tab: "Account",
     title: "Account",
   },
   {
@@ -91,28 +91,28 @@ export const SETTINGS_INDEX = [
   {
     detail: "Your free trial or subscription, and changing your plan",
     id: "plan",
-    tab: "Usage and billing",
+    tab: "Account",
     title: "Plan",
   },
   {
     detail: "Switch to another plan.",
     id: "change-plan",
     mark: "plan",
-    tab: "Usage and billing",
+    tab: "Account",
     title: "Change plan",
   },
   {
     detail:
       "Your card and invoices, and canceling your subscription, in Stripe",
     id: "billing-portal",
-    tab: "Usage and billing",
+    tab: "Account",
     title: "Payment method and invoices",
   },
   {
     detail: "Your card, invoices, and subscription, in Stripe",
     id: "manage-billing",
     mark: "billing-portal",
-    tab: "Usage and billing",
+    tab: "Account",
     title: "Manage billing",
   },
   {
@@ -140,11 +140,11 @@ export const SETTINGS_INDEX = [
     title: "Claude account",
   },
   {
-    detail: `Every request ${APP_NAME} sends to an AI, with its model, tokens, and time`,
-    id: "usage",
+    detail: `Everything ${APP_NAME} asked an AI model to do, with the model, tokens, and time`,
+    id: "activity",
     page: true,
-    tab: "Usage",
-    title: "Usage",
+    tab: "Activity",
+    title: "Activity",
   },
   {
     detail: "Which folders and places on this computer the agent may use.",
@@ -214,7 +214,7 @@ export const SETTINGS_INDEX = [
     title: "Send a test notification",
   },
   { id: "view-log", mark: "diagnostic-log", tab: "General", title: "View log" },
-  { id: "log-out", mark: "account", tab: "General", title: "Log out" },
+  { id: "log-out", mark: "account", tab: "Account", title: "Log out" },
 ] as const satisfies readonly SettingsEntry[];
 
 /** A row's mark: the id of an entry that isn't a label on another row. */
@@ -246,22 +246,19 @@ export const SETTINGS_PAGES: Record<
   { detail: string; developerOnly?: true; shownWhen?: string }
 > = {
   General: {
-    detail: `Your account, how ${APP_NAME} looks, notifications, updates, and the diagnostic log.`,
+    detail: `How ${APP_NAME} looks, notifications, updates, and the diagnostic log.`,
   },
-  "Usage and billing": {
-    detail: `Your ${APP_NAME} plan, how much of it you have used, and billing.`,
+  Account: {
+    detail: `Who you're logged in to ${APP_NAME} as, your plan and its usage limits, and billing.`,
+  },
+  Providers: {
+    detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
   },
   Memory: {
     detail: `What ${APP_NAME} remembers about you, which you can search, forget, or add to from another AI.`,
   },
   Permissions: {
     detail: `Which folders and places on this computer ${APP_NAME} may use.`,
-  },
-  Providers: {
-    detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
-  },
-  Usage: {
-    detail: `Every request ${APP_NAME} made to an AI model, which you can filter, sort, and export.`,
   },
   Skills: {
     detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,
@@ -270,6 +267,9 @@ export const SETTINGS_PAGES: Record<
     detail:
       "Where your chats and tasks live, and fixing ones whose folders have problems.",
     shownWhen: "some chats or tasks have problems in their folders",
+  },
+  Activity: {
+    detail: `Everything ${APP_NAME} asked an AI model to do, which you can filter, sort, and export.`,
   },
   Features: {
     detail: "Feature flags.",

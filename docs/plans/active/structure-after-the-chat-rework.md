@@ -200,7 +200,7 @@ Each worth doing when someone is in the file.
 - Bookmarks' `BookmarkNameField` can adopt `useInlineRename`; rename is otherwise down to the hook and the Finder's `renameStep`, which stays separate.
 - Beta `chats/<id>/tasks/` folders are special-cased in `workspace-fs-layout.ts:700-712`, `resolve-agent-path.ts:263` and `rg.ts:228`; a layout step moving them into `.pre-chats/` drops all three. `isProjectFolder` is defined twice in the migrations.
 - Shared helpers: `errorMessage(unknown)` for about 80 inline `instanceof Error` ternaries, one `isRecord` (eight copies), `pathExists` over four private `exists()`, `formatBytes` over five local formatters, one `delay(ms, signal)`.
-- Split `settings/ai-usage-section.tsx` (1407 lines) and the prompt text out of `memory-section.tsx` (1097).
+- Split `settings/activity-section.tsx` (1407 lines) and the prompt text out of `memory-section.tsx` (1097).
 - `schemas/session/message.ts` holds about 370 lines of `toUIMessages`/`toModelMessages` and imports 15 `lib/*-model-text` modules; move that to `lib/`. `lib/chat/chats.ts` (927 lines) splits into marks, a pure digest and the row.
 - Stale comments: `create-app-updater.ts:454-456` (the `installing` probe went in aaf034642) and `lib/update.ts`'s "set on the machine preferences store manually" (the picker landed in 31a4b9a2b).
 

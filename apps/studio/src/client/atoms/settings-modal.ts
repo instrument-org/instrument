@@ -2,7 +2,8 @@ import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { getDefaultStore } from "jotai";
 
 export type SettingsTab =
-  | "Usage"
+  | "Account"
+  | "Activity"
   | "Debug"
   | "Features"
   | "General"
@@ -10,8 +11,7 @@ export type SettingsTab =
   | "Permissions"
   | "Providers"
   | "Skills"
-  | "Storage"
-  | "Usage and billing";
+  | "Storage";
 
 interface SettingsModalState {
   /** Expand the account's usage panel on the Providers tab. */

@@ -2,7 +2,8 @@ import {
   settingsModalAtom,
   type SettingsTab,
 } from "@/client/atoms/settings-modal";
-import { AIUsageSection } from "@/client/components/settings/ai-usage-section";
+import { AccountSection } from "@/client/components/settings/account-section";
+import { ActivitySection } from "@/client/components/settings/activity-section";
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
@@ -11,7 +12,6 @@ import { PermissionsSection } from "@/client/components/settings/permissions-sec
 import { ProvidersSection } from "@/client/components/settings/providers-section";
 import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
-import { UsageAndBillingSection } from "@/client/components/settings/usage-and-billing-section";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import {
   SETTINGS_PAGES,
@@ -49,10 +49,10 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
-import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
+import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
@@ -482,8 +482,11 @@ function SettingsSectionBody({
   tab: SettingsTab;
 }) {
   switch (tab) {
-    case "Usage": {
-      return <AIUsageSection />;
+    case "Account": {
+      return <AccountSection />;
+    }
+    case "Activity": {
+      return <ActivitySection />;
     }
     case "Debug": {
       return <DebugSection />;
@@ -509,9 +512,6 @@ function SettingsSectionBody({
     case "Storage": {
       return <StorageSection />;
     }
-    case "Usage and billing": {
-      return <UsageAndBillingSection />;
-    }
     default: {
       tab satisfies never;
       return null;
@@ -529,8 +529,8 @@ const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
   Providers: CpuIcon,
   Skills: CubeIcon,
   Storage: HardDrivesIcon,
-  Usage: PulseIcon,
-  "Usage and billing": GaugeIcon,
+  Account: UserCircleIcon,
+  Activity: PulseIcon,
 };
 
 function useNavItems(): NavItem[] {

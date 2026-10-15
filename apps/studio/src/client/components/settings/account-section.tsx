@@ -1,5 +1,5 @@
-import { openLogin } from "@/client/atoms/login-modal";
 import { openPlanSheet } from "@/client/atoms/plan-sheet";
+import { AccountInfo } from "@/client/components/account-info";
 import { SettingsSection } from "@/client/components/settings/general-section";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { StateArrival } from "@/client/components/state-arrival";
@@ -31,43 +31,26 @@ import { toast } from "@/client/lib/toast";
 type Status = RPCOutput["billing"]["status"];
 
 /**
- * Settings > Usage and billing: the plan and how it is paid first, then how
- * much of it is used, as percentages and reset times. Changing the plan opens
- * the plan sheet; the card, invoices, and canceling are Stripe's portal.
- * A ChatGPT or Claude account is a provider, so it lives in Providers, not here.
+ * Settings > Account: who is logged in, then the plan and how it is paid,
+ * then how much of its limits is used, as percentages and reset times.
+ * Changing the plan opens the plan sheet; the card, invoices, and canceling
+ * are Stripe's portal. A ChatGPT or Claude account is a provider, so it lives
+ * in Providers, not here.
  */
-export function UsageAndBillingSection() {
-  const {
-    data: status,
-    error,
-    isLoading,
-    isSignedIn,
-    refetch,
-  } = useBillingStatus();
-
-  if (!isSignedIn) {
-    return (
-      <SettingsSection title="Plan">
-        <Card className="gap-0 p-0">
-          <Row
-            {...settingAnchor("plan")}
-            detail={`Sign in to use ${APP_NAME}'s AI. Your ChatGPT or Claude account, or your own key, works without signing in.`}
-            title="Not signed in"
-          >
-            <Button
-              onClick={() => {
-                openLogin({ instrumentOnly: true });
-              }}
-              size="sm"
-              variant="brand"
-            >
-              Log in
-            </Button>
-          </Row>
-        </Card>
+export function AccountSection() {
+  const { isSignedIn } = useBillingStatus();
+  return (
+    <div className="space-y-4">
+      <SettingsSection title="Account">
+        <AccountInfo />
       </SettingsSection>
-    );
-  }
+      {isSignedIn && <PlanAndLimits />}
+    </div>
+  );
+}
+
+function PlanAndLimits() {
+  const { data: status, error, isLoading, refetch } = useBillingStatus();
 
   if (isLoading) {
     return (
@@ -310,7 +293,7 @@ function UsageGroup({ status }: { status: Status }) {
       ? new Date(status.trial.endsAt)
       : undefined;
     return (
-      <SettingsSection title="Usage">
+      <SettingsSection title="Usage limits">
         <Card className="gap-0 px-4 py-2">
           <Meter
             detail={
@@ -329,7 +312,7 @@ function UsageGroup({ status }: { status: Status }) {
     return null;
   }
   return (
-    <SettingsSection title="Usage">
+    <SettingsSection title="Usage limits">
       <Card className="gap-0 px-4 py-2">
         {status.windows.map((window) => (
           <Meter

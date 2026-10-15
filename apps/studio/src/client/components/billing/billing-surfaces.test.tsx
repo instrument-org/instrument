@@ -4,7 +4,7 @@ import { type SessionMessage } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UsageAndBillingSection } from "../settings/usage-and-billing-section";
+import { AccountSection } from "../settings/account-section";
 import { ChatBillingNotice } from "./chat-billing-notice";
 
 type Offer = RPCOutput["billing"]["offer"];
@@ -46,6 +46,17 @@ vi.mock("@/client/rpc/client", () => ({
       openCheckout: { mutationOptions: mutation() },
       openPortal: { mutationOptions: mutation() },
       status: { queryOptions: query("status", () => platform.status) },
+    },
+    user: {
+      live: {
+        me: {
+          experimental_liveOptions: query("me", () =>
+            platform.signedIn
+              ? { email: "dana@example.com", id: "u1", name: "Dana Ortiz" }
+              : null,
+          ),
+        },
+      },
     },
     utils: {
       events: {
@@ -107,10 +118,12 @@ beforeEach(() => {
   platform.status = null;
 });
 
-describe("Settings > Usage and billing", () => {
+describe("Settings > Account", () => {
   it.each([
     {
       expected: [
+        "Dana Ortiz",
+        "Log out",
         "Basic · $10 a month",
         "Change plan",
         "Manage billing",
@@ -151,7 +164,7 @@ describe("Settings > Usage and billing", () => {
     },
   ])("shows $name", async ({ expected, status }) => {
     platform.status = status;
-    renderWithProviders(<UsageAndBillingSection />);
+    renderWithProviders(<AccountSection />);
 
     for (const text of expected) {
       expect(
@@ -162,13 +175,22 @@ describe("Settings > Usage and billing", () => {
     }
   });
 
+  it("offers only a way to log in while logged out", async () => {
+    platform.signedIn = false;
+    renderWithProviders(<AccountSection />);
+
+    expect(await screen.findByText("Log in to Instrument")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Log in" })).toBeDefined();
+    expect(screen.queryByText("Plan")).toBeNull();
+  });
+
   it("names the plan a failed payment is for", async () => {
     platform.status = {
       ...onBasic({ plan: "basic", status: "past_due" }),
       plan: "none",
       windows: [],
     };
-    renderWithProviders(<UsageAndBillingSection />);
+    renderWithProviders(<AccountSection />);
 
     expect(await screen.findByText(/Basic · \$10 a month/)).toBeDefined();
   });
@@ -179,7 +201,7 @@ describe("Settings > Usage and billing", () => {
       plan: "none",
       windows: [],
     };
-    renderWithProviders(<UsageAndBillingSection />);
+    renderWithProviders(<AccountSection />);
 
     await screen.findByText("Update card");
     expect(screen.queryByText("Change plan")).toBeNull();
@@ -187,7 +209,7 @@ describe("Settings > Usage and billing", () => {
 
   it("offers nothing to buy on a paid subscription whose access was revoked", async () => {
     platform.status = { ...onBasic(), plan: "none", windows: [] };
-    renderWithProviders(<UsageAndBillingSection />);
+    renderWithProviders(<AccountSection />);
 
     await screen.findByText("Instrument's AI isn't available on this account");
     expect(screen.queryByText("Change plan")).toBeNull();

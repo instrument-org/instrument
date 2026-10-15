@@ -80,6 +80,29 @@ const DENIED_SHORT_FLAG = "z";
  */
 const VALUE_SHORT_FLAGS = new Set("ABCEMTdefgjmrt");
 
+/**
+ * Where a flag's value starts inside the argument that carries it, as the
+ * index of the character before it, or -1 for a flag that carries none: after
+ * the `=` of a long flag, and after the letter of a short one whose value can
+ * be attached to its cluster. `-rn` is `-r n` by the same reading, which is
+ * why only the letters `rg --help` lists as value-taking are read this way.
+ */
+function attachedValueAt(arg: string): number {
+  if (arg.startsWith("--")) {
+    return arg.indexOf("=");
+  }
+  for (let at = 1; at < arg.length; at++) {
+    const letter = arg[at] ?? "";
+    if (!VALUE_SHORT_FLAGS.has(letter)) {
+      continue;
+    }
+    // The value is what follows, and nothing follows a letter at the end:
+    // there the value is the next argument, which arrives as an operand.
+    return at + 1 < arg.length ? at : -1;
+  }
+  return -1;
+}
+
 /** Glob metacharacters, each matched literally inside a one-member class. */
 const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 
@@ -212,9 +235,10 @@ function bridgePathArgs(
   for (const arg of args) {
     const isOperand = operandsOnly || !arg.startsWith("-");
     operandsOnly ||= arg === "--";
-    // The part of the argument that names a path: an operand whole, or the
-    // value a flag carries after its `=`.
-    const equals = isOperand ? -1 : arg.indexOf("=");
+    // The part of the argument that names a path: an operand whole, the value
+    // a long flag carries after its `=`, or the value attached to the short
+    // flag that introduces it, since `-fC:\\pats.txt` is `-f C:\\pats.txt`.
+    const equals = isOperand ? -1 : attachedValueAt(arg);
     const prefix = arg.slice(0, equals + 1);
     const hostSpelled = shellPathOfHostSpelling(arg.slice(equals + 1), {
       hostCwd,

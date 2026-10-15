@@ -719,16 +719,29 @@ const EXTENDED_PREFIX = /^[\\/]{2}[?.][\\/]/;
 /** A path naming its drive (`C:\Users\sam`, `C:/Users/sam`). */
 const DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/;
 
+/**
+ * A path naming its drive and hanging off the folder a program runs in on
+ * that drive (`C:..\Docs`, `C:work\notes.txt`), which Windows resolves
+ * against that folder and not against the drive's root.
+ *
+ * Only the spellings that can name something outside that folder: one with a
+ * step up, or one with a separator. `C:name` on its own resolves to the same
+ * file the shell reads `name` as, so leaving it alone costs nothing and keeps
+ * a search for `c:something` a search rather than a path.
+ */
+const DRIVE_RELATIVE = /^[A-Za-z]:(?:\.\.(?:[\\/]|$)|[^\\/]*[\\/])/;
+
 /** A path naming a share (`\\server\share`). */
 const SHARE = /^\\\\[^\\/]/;
 
 /**
  * The shell's spelling of an argument that names a path the way this computer
  * does rather than the way the shell does: one naming its drive
- * (`C:\Users\sam`, `C:/Users/sam`), one naming a share (`\\server\share`), or
- * either behind the `\\?\` prefix. Null for every other argument, and for all
- * of them on macOS and Linux, where the shell spells a path as the system
- * does.
+ * (`C:\Users\sam`, `C:/Users/sam`), one hanging off the folder the program
+ * runs in on that drive (`C:..\Docs`), one naming a share
+ * (`\\server\share`), or any of them behind the `\\?\` prefix. Null for
+ * every other argument, and for all of them on macOS and Linux, where the
+ * shell spells a path as the system does.
  *
  * A program on the disk opens such a path whatever the shell makes of it,
  * which is nothing: it starts with no `/`, so the shell reads it as a name in
@@ -760,7 +773,11 @@ export function shellPathOfHostSpelling(
   // `\\?\UNC\server\share` is the share `\\server\share` by another name.
   const named =
     /^UNC[\\/]/i.test(after) && extended ? `\\\\${after.slice(4)}` : after;
-  if (!DRIVE_ABSOLUTE.test(named) && !SHARE.test(named)) {
+  if (
+    !DRIVE_ABSOLUTE.test(named) &&
+    !SHARE.test(named) &&
+    !DRIVE_RELATIVE.test(named)
+  ) {
     return null;
   }
   return shellPath(nodePath.win32.resolve(hostCwd, named), platform);

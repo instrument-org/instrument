@@ -140,4 +140,48 @@ describe("a path spelled the way this computer spells it", () => {
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
   });
+
+  // Windows resolves a path that names its drive without a separator after
+  // the colon against the folder the program runs in on that drive, so
+  // `C:..\..\Docs\locked` reaches out of the work folder while the shell
+  // reads it as a name inside it.
+  describe.runIf(process.platform === "win32")(
+    "naming the drive and hanging off the folder the program runs in",
+    () => {
+      /** The closed file as `C:` plus the hops a program in the shell's folder takes to it. */
+      const driveRelative = (under: string) =>
+        `C:${path.relative(
+          path.join(tmpDir, "chats", "test"),
+          path.join(closed, under),
+        )}`;
+
+      // Each asks for the refusal itself, not just a non-zero exit: a
+      // spelling the bridge misses reaches the real program, which then fails
+      // for its own reasons and reads as a refusal that never happened.
+      it.each(BRIDGING_COMMANDS)("$name refuses one", async (bridging) => {
+        const result = await run(
+          bridging.command(driveRelative(bridging.under)),
+        );
+
+        expect(result.stderr).toContain("closed in Settings");
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stdout).not.toContain("NEEDLE");
+      });
+
+      it("refuses one a short flag carries attached to it", async () => {
+        const result = await run(`rg '-f${driveRelative("secret.txt")}' .`);
+
+        expect(result.stderr).toContain("closed in Settings");
+        expect(result.exitCode).not.toBe(0);
+      });
+
+      it("leaves a search for a word that starts like a drive alone", async () => {
+        const result = await run(`rg 'c:needle' '${docs}'`);
+
+        // Nothing matches it, and nothing refuses it either: it is a pattern.
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toBe("");
+      });
+    },
+  );
 });

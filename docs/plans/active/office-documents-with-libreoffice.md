@@ -52,7 +52,7 @@ What the agent is told: the bash tool's description names `office` and says its 
 
 ## Download on first need
 
-- **Trigger.** The first `office` or `soffice` call with nothing installed. The app installs it, outside any chat's reach, the way `ensureManagedPython` installs Python: one install in flight per machine, a failure tried again by the next call. Nothing downloads at launch.
+- **Trigger.** The first `office` or `soffice` call with nothing installed. The app installs it, outside any chat's reach, the way `ensureManagedPython` installs Python: one install in flight per machine, a failure tried again by the next call. Nothing downloads at launch, and nothing asks first: like a large package the agent installs, it simply starts, and the install stays in the runtime folder for every later call and chat.
 - **Prefer what is there.** A LibreOffice the person installed, at or above the pinned major version, is used instead of downloading (`/Applications/LibreOffice.app`, the registry's install path on Windows, `soffice` on the PATH on Linux). It runs with our profile, so their settings never apply.
 - **Progress.** The command prints the download's progress as it goes, so a long first call promotes to a background job under the usual `yieldMs` rule and the agent can keep working. Install is about 300 MB down, then extraction (about 10 seconds for the Mac image).
 - **Offline.** The command fails with one line saying LibreOffice could not be downloaded and that the browser preview still works for Word and PowerPoint, and the spreadsheet skill tells the agent to say plainly that the workbook was not recalculated.
@@ -151,7 +151,6 @@ Per the `validate-changes` skill:
 
 ## Open questions
 
-- Whether the first download asks the person first, with a card naming the size, or just starts. The default above just starts.
 - Whether an installed LibreOffice of the person's should be used, or only ours, for a result that does not depend on what is on the machine.
 - Whether `office recalc` writes values back into the original (as above) or delivers LibreOffice's own re-export, which is simpler and loses whatever its `.xlsx` filter drops. Decide after measuring what a round trip loses on the eval workbooks.
 - Whether `office render` of a Word or PowerPoint file should be the skills' first road, ahead of the browser preview, or second to it.

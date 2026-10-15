@@ -24,6 +24,8 @@ caf = "caf"
 edn = "edn"
 ODF = "ODF"
 odf = "odf"
+# LibreOffice's configuration key for recalculating ODF files on load.
+ODFRecalcMode = "ODFRecalcMode"
 styl = "styl"
 # The British name of a LICENSE file, matched as a file name.
 licence = "licence"

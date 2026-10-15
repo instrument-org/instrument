@@ -189,7 +189,54 @@ describe("FileSystem", () => {
     expect(names()).toContain(".env");
   });
 
+  it("offers the order files were opened in for a list of them, the recents", () => {
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          {
+            kind: "file",
+            openedAt: "2026-10-15T09:00:00Z",
+            path: "notes.md",
+          },
+        ]}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Sort by" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    expect(screen.getAllByRole("menuitemradio")[0]?.textContent).toBe(
+      "Date last opened",
+    );
+  });
+
   describe("grouped, as the Finder groups a folder", () => {
+    it("offers no sort in the menu, since the groups are the order", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="kind"
+          items={[{ kind: "file", path: "notes.md" }]}
+        />,
+      );
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Group by" }), {
+        button: 0,
+        pointerType: "mouse",
+      });
+      expect(
+        screen.getAllByRole("menuitemradio").map((item) => item.textContent),
+      ).toMatchInlineSnapshot(`
+        [
+          "None",
+          "Kind",
+          "Date modified",
+          "Date created",
+          "Size",
+        ]
+      `);
+    });
+
     // Headings and names in the order the grid draws them, which has no
     // header to hold the first group's name.
     const drawn = () =>

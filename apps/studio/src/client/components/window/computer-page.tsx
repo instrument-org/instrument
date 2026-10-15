@@ -2109,7 +2109,8 @@ export function ComputerPage({
                     },
               );
             }}
-            sort={shown.sort}
+            // Grouped, the groups are the order, as in the toolbar's menu.
+            {...(shown.group === null ? { sort: shown.sort } : {})}
           />
         </ContextMenu>
         {currentListing?.appFoldersLocked && <ICloudAccessBanner />}

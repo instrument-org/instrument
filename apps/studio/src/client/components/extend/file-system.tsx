@@ -656,8 +656,8 @@ export type FileSystemSortKey =
   | "createdAt"
   | "kind"
   | "name"
-  // Not in SORT_OPTIONS, so it never appears in the toolbar: only a list whose
-  // items carry `openedAt` can be in this order, and it opens in it.
+  // Offered only by a list whose items carry `openedAt` (OPENED_SORT_OPTION),
+  // which opens in it.
   | "openedAt"
   | "size"
   | "updatedAt";
@@ -906,6 +906,13 @@ const SORT_OPTIONS: Array<{
   { defaultDirection: "desc", key: "updatedAt", label: "Date modified" },
   { defaultDirection: "desc", key: "size", label: "Size" },
 ];
+// The order a list of files someone opened (the recents) opens in, and so
+// one its menu has to offer to get back to.
+const OPENED_SORT_OPTION = {
+  defaultDirection: "desc",
+  key: "openedAt",
+  label: "Date last opened",
+} as const;
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
 // Primary key per the active sort; ties (and missing metadata) fall back to
 // the name order so results stay stable. The name tiebreak ignores the
@@ -952,7 +959,8 @@ function compareEntriesBySort(
 }
 function defaultSortDirection(key: FileSystemSortKey) {
   return (
-    SORT_OPTIONS.find((option) => option.key === key)?.defaultDirection ?? "asc"
+    [OPENED_SORT_OPTION, ...SORT_OPTIONS].find((option) => option.key === key)
+      ?.defaultDirection ?? "asc"
   );
 }
 function entrySortTimestamp(
@@ -2899,6 +2907,15 @@ export function FileSystem({
   );
   const sortMenu = (
     <FileSystemSortMenu
+      // `some`, not every, so a recent that has gone since is no reason to
+      // take the order away.
+      options={
+        items.some(
+          (item) => item.kind === "file" && item.openedAt !== undefined,
+        )
+          ? [OPENED_SORT_OPTION, ...SORT_OPTIONS]
+          : SORT_OPTIONS
+      }
       group={group}
       onGroupChange={setGroup}
       onKeyChange={applySortKey}
@@ -3359,6 +3376,7 @@ function FileSystemSortMenu({
   onGroupChange,
   onKeyChange,
   onShowHiddenFilesChange,
+  options,
   showHiddenFiles,
   sort,
 }: {
@@ -3366,6 +3384,8 @@ function FileSystemSortMenu({
   onGroupChange: (group: FileSystemGroupKey | null) => void;
   onKeyChange: (key: FileSystemSortKey) => void;
   onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
+  /** The orders it offers. */
+  options: readonly { key: FileSystemSortKey; label: string }[];
   showHiddenFiles: boolean;
   sort: FileSystemSortState;
 }) {
@@ -3373,10 +3393,10 @@ function FileSystemSortMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label="Sort by"
+          aria-label={group === null ? "Sort by" : "Group by"}
           className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
           size="sm"
-          title="Sort by"
+          title={group === null ? "Sort by" : "Group by"}
           type="button"
           variant="outline"
         >
@@ -3385,23 +3405,30 @@ function FileSystemSortMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Sort by
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          onValueChange={(value) => {
-            const option = SORT_OPTIONS.find((each) => each.key === value);
-            if (option) onKeyChange(option.key);
-          }}
-          value={sort.key}
-        >
-          {SORT_OPTIONS.map((option) => (
-            <DropdownMenuRadioItem key={option.key} value={option.key}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
+        {/* Grouped, the groups are the order, so Sort by goes the way the
+            Finder's does; List's column headers still order the rows within
+            each group. */}
+        {group === null ? (
+          <>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Sort by
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              onValueChange={(value) => {
+                const option = options.find((each) => each.key === value);
+                if (option) onKeyChange(option.key);
+              }}
+              value={sort.key}
+            >
+              {options.map((option) => (
+                <DropdownMenuRadioItem key={option.key} value={option.key}>
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
           Group by
         </DropdownMenuLabel>

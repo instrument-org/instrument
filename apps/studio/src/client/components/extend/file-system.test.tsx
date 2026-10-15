@@ -189,6 +189,159 @@ describe("FileSystem", () => {
     expect(names()).toContain(".env");
   });
 
+  describe("grouped, as the Finder groups a folder", () => {
+    // Headings and names in the order the grid draws them, which has no
+    // header to hold the first group's name.
+    const drawn = () =>
+      [
+        ...document.querySelectorAll(
+          "[data-file-system-listing] [aria-hidden], [data-file-system-name]",
+        ),
+      ]
+        .map((part) => part.textContent)
+        .filter(Boolean);
+
+    it("puts kinds in the Finder's order, sorted by name within each", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="kind"
+          items={[
+            { kind: "file", path: "zeta.png" },
+            { kind: "file", path: "notes.md" },
+            { kind: "folder", path: "photos/" },
+            { kind: "file", path: "app.ts" },
+            { kind: "file", path: "data.json" },
+            { kind: "file", path: "alpha.png" },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Folders",
+          "photos",
+          "Documents",
+          "notes.md",
+          "Images",
+          "alpha.png",
+          "zeta.png",
+          "Developer",
+          "app.ts",
+          "Other",
+          "data.json",
+        ]
+      `);
+    });
+
+    it("steps sizes by powers of ten, largest first and folders last", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="size"
+          items={[
+            { kind: "file", path: "tiny.txt", size: 99 },
+            { kind: "file", path: "hundred.txt", size: 100 },
+            { kind: "file", path: "thousand.txt", size: 1000 },
+            { kind: "file", path: "movie.mp4", size: 1_260_000_000 },
+            { kind: "folder", path: "photos/" },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "From 1 GB to 10 GB",
+          "movie.mp4",
+          "From 1 KB to 10 KB",
+          "thousand.txt",
+          "From 100 bytes to 1 KB",
+          "hundred.txt",
+          "Under 100 bytes",
+          "tiny.txt",
+          "--",
+          "photos",
+        ]
+      `);
+    });
+
+    it("ladders dates by calendar day, then months and years", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 15, 12));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const at = (month: number, day: number, year = 2026) =>
+        new Date(year, month, day, 9).toISOString();
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="updatedAt"
+          items={[
+            { kind: "file", path: "today.md", updatedAt: at(9, 15) },
+            { kind: "file", path: "yesterday.md", updatedAt: at(9, 14) },
+            { kind: "file", path: "week.md", updatedAt: at(9, 7) },
+            { kind: "file", path: "month.md", updatedAt: at(8, 7) },
+            { kind: "file", path: "september.md", updatedAt: at(8, 6) },
+            { kind: "file", path: "last-year.md", updatedAt: at(11, 31, 2025) },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Today",
+          "today.md",
+          "Yesterday",
+          "yesterday.md",
+          "Previous 7 Days",
+          "week.md",
+          "Previous 30 Days",
+          "month.md",
+          "September",
+          "september.md",
+          "2025",
+          "last-year.md",
+        ]
+      `);
+    });
+
+    // jsdom has no height, so the grid draws only its first few rows, and a
+    // folder of three groups is all of it.
+    it("puts no date, and a date still to come, last", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 15, 12));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="updatedAt"
+          items={[
+            { kind: "file", path: "undated.md" },
+            {
+              kind: "file",
+              path: "next-week.md",
+              updatedAt: new Date(2026, 9, 22).toISOString(),
+            },
+            {
+              kind: "file",
+              path: "today.md",
+              updatedAt: new Date(2026, 9, 15, 9).toISOString(),
+            },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Today",
+          "today.md",
+          "No Date",
+          "next-week.md",
+          "undated.md",
+        ]
+      `);
+    });
+  });
+
   describe("a folder the caller cannot list", () => {
     const ITEMS: FileSystemItem[] = [
       { hasChildren: true, kind: "folder", path: "locked/" },

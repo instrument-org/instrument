@@ -17,6 +17,7 @@ import {
   FileSystemFolderGlyph,
   type FileSystemHandle,
   type FileSystemItem,
+  type FileSystemGroupKey,
   type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
@@ -841,15 +842,21 @@ export function ComputerPage({
   }, [navigate, view, viewInHistory]);
   const sortOf = (key: string) =>
     folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
+  const groupOf = (key: string) => folderViews[key]?.group ?? null;
   const [shown, setShown] = useState(() => ({
     at: currentKey,
+    group: groupOf(currentKey),
     sort: sortOf(currentKey),
   }));
   // Set during render rather than in an effect, so the folder is drawn in its
   // own order from its first frame. A new root arrives a render ahead of the
   // folder under it, so nothing is taken until the two agree.
   if (settled && shown.at !== currentKey) {
-    setShown({ at: currentKey, sort: sortOf(currentKey) });
+    setShown({
+      at: currentKey,
+      group: groupOf(currentKey),
+      sort: sortOf(currentKey),
+    });
   }
 
   // The folder on screen. In the columns a selected folder shows its contents
@@ -895,7 +902,11 @@ export function ComputerPage({
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
-    setShown((previous) => ({ ...previous, sort: look.sort }));
+    setShown((previous) => ({
+      ...previous,
+      group: look.group ?? null,
+      sort: look.sort,
+    }));
     const key = folderKeyOf(view === "columns" ? onScreen : current);
     // Newest last, so the oldest are the ones let go of past the cap.
     setFolderViews((previous) => {
@@ -907,7 +918,10 @@ export function ComputerPage({
     });
   };
   const sortBy = (sort: FileSystemSortState) => {
-    keepLook({ sort, view });
+    keepLook({ group: shown.group, sort, view });
+  };
+  const groupBy = (group: FileSystemGroupKey | null) => {
+    keepLook({ group, sort: shown.sort, view });
   };
   // The folder on screen as the address last had it. An address arriving
   // from outside (back, forward, the sidebar) changes `path` a render before
@@ -1855,6 +1869,7 @@ export function ComputerPage({
                   setSelectedPath(item?.path ?? null);
                   setSelectedPaths(all.map((each) => each.path));
                 }}
+                onGroupChange={groupBy}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
                 onLeaveRoot={isRecents ? undefined : leaveRoot}
@@ -1873,7 +1888,11 @@ export function ComputerPage({
                 onTrash={(picked) => void trash(picked)}
                 onViewChange={(next) => {
                   setDefaultView(next);
-                  keepLook({ sort: shown.sort, view: next });
+                  keepLook({
+                    group: shown.group,
+                    sort: shown.sort,
+                    view: next,
+                  });
                   // The step on screen takes the new layout rather than a
                   // new step being made for it, the way the Finder's does.
                   void navigate({
@@ -2027,6 +2046,7 @@ export function ComputerPage({
                 }}
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
+                group={shown.group}
                 sort={shown.sort}
                 title={rootName}
                 {...(beside === undefined

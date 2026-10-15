@@ -200,6 +200,11 @@ export type FileSystemProps = {
    * drags; an item it names nothing for does not either.
    */
   getHostPath?: (item: FileSystemItem) => string | undefined;
+  /**
+   * What the rows are grouped by, when the caller holds it; null for none.
+   * Left out, the browser keeps its own, ungrouped at first.
+   */
+  group?: FileSystemGroupKey | null;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
   items: FileSystemItem[];
   /**
@@ -309,6 +314,7 @@ export type FileSystemProps = {
     items: FileSystemItem[],
   ) => void;
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
+  onGroupChange?: (group: FileSystemGroupKey | null) => void;
   onSortChange?: (sort: FileSystemSortState) => void;
   /**
    * What is selected, to the Trash, by the platform's key for it: ⌘⌫ on the
@@ -701,6 +707,193 @@ function formatTimestamp(value: string | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return `${DAY_FORMAT.format(date)} at ${TIME_FORMAT.format(date)}`;
+}
+/**
+ * What a folder's rows can be grouped by, as the Finder groups them. The
+ * Finder's other choices need what the browser is not told: each file's
+ * application, its tags, when it was added. Its Name groups nothing.
+ */
+export type FileSystemGroupKey = "createdAt" | "kind" | "size" | "updatedAt";
+const GROUP_OPTIONS: Array<{ key: FileSystemGroupKey; label: string }> = [
+  { key: "kind", label: "Kind" },
+  { key: "updatedAt", label: "Date modified" },
+  { key: "createdAt", label: "Date created" },
+  { key: "size", label: "Size" },
+];
+/** One group: its heading, and where it stands among the folder's groups. */
+type EntryGroup = { label: string; rank: number };
+type Grouping = (entry: FileSystemEntry) => EntryGroup;
+// The Finder's kinds, in the order it lists them, which is no alphabet's.
+const KIND_GROUPS = [
+  "Folders",
+  "Applications",
+  "Documents",
+  "Images",
+  "PDF Documents",
+  "Music",
+  "Movies",
+  "Fonts",
+  "Presentations",
+  "Spreadsheets",
+  "Developer",
+  "Other",
+] as const;
+type KindGroup = (typeof KIND_GROUPS)[number];
+// Where the type alone does not say which kind the Finder puts a file in:
+// source is Developer, styles and plain words are Documents, JSON is Other.
+const KIND_GROUP_EXTENSIONS = new Map<string, KindGroup>([
+  ...[
+    "c",
+    "cc",
+    "cjs",
+    "cpp",
+    "cs",
+    "cts",
+    "cxx",
+    "go",
+    "h",
+    "hh",
+    "hpp",
+    "htm",
+    "html",
+    "java",
+    "js",
+    "jsx",
+    "kt",
+    "kts",
+    "lua",
+    "m",
+    "mjs",
+    "mm",
+    "mts",
+    "php",
+    "pl",
+    "pm",
+    "py",
+    "pyw",
+    "r",
+    "rb",
+    "rs",
+    "scala",
+    "sh",
+    "bash",
+    "fish",
+    "svelte",
+    "swift",
+    "ts",
+    "tsx",
+    "vue",
+    "xhtml",
+    "zsh",
+  ].map((extension): [string, KindGroup] => [extension, "Developer"]),
+  ...[
+    "css",
+    "csv",
+    "doc",
+    "docx",
+    "epub",
+    "ics",
+    "log",
+    "markdown",
+    "md",
+    "odt",
+    "pages",
+    "rtf",
+    "rtfd",
+    "tex",
+    "tsv",
+    "txt",
+  ].map((extension): [string, KindGroup] => [extension, "Documents"]),
+  ...["key", "odp", "ppt", "pptx"].map((extension): [string, KindGroup] => [
+    extension,
+    "Presentations",
+  ]),
+  ...["numbers", "ods", "xls", "xlsx"].map((extension): [string, KindGroup] => [
+    extension,
+    "Spreadsheets",
+  ]),
+  ...["otf", "ttc", "ttf", "woff", "woff2"].map(
+    (extension): [string, KindGroup] => [extension, "Fonts"],
+  ),
+]);
+function kindGroupOf(entry: FileSystemEntry): KindGroup {
+  if (
+    entry.name.endsWith(".app") ||
+    (entry.kind === "file" && entry.typeName === "Application")
+  ) {
+    return "Applications";
+  }
+  if (entry.kind === "folder") return "Folders";
+  const mime = mimeTypeForFile(entry);
+  if (mime === "application/pdf") return "PDF Documents";
+  const byExtension = KIND_GROUP_EXTENSIONS.get(fileExtension(entry.name));
+  if (byExtension) return byExtension;
+  if (mime.startsWith("image/")) return "Images";
+  if (mime.startsWith("audio/")) return "Music";
+  if (mime.startsWith("video/")) return "Movies";
+  if (mime.startsWith("font/")) return "Fonts";
+  if (mime.startsWith("text/")) return "Documents";
+  return "Other";
+}
+const MONTH_FORMAT = new Intl.DateTimeFormat("en-US", { month: "long" });
+const DAY_MS = 24 * 60 * 60 * 1000;
+// The Finder's ladder for a date, by calendar day: today, yesterday, the
+// seven days and the thirty before those, each month left of this year, and
+// then whole years, with no date (or one still to come) last.
+function dateGroupOf(value: string | undefined, now: Date): EntryGroup {
+  const time = value ? Date.parse(value) : Number.NaN;
+  const noDate = { label: "No Date", rank: Number.POSITIVE_INFINITY };
+  if (Number.isNaN(time)) return noDate;
+  const date = new Date(time);
+  const dayOf = (day: Date) =>
+    new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  const daysAgo = Math.round((dayOf(now) - dayOf(date)) / DAY_MS);
+  if (daysAgo < 0) return noDate;
+  if (daysAgo === 0) return { label: "Today", rank: 0 };
+  if (daysAgo === 1) return { label: "Yesterday", rank: 1 };
+  if (daysAgo <= 8) return { label: "Previous 7 Days", rank: 2 };
+  if (daysAgo <= 38) return { label: "Previous 30 Days", rank: 3 };
+  if (date.getFullYear() === now.getFullYear()) {
+    return { label: MONTH_FORMAT.format(date), rank: 15 - date.getMonth() };
+  }
+  return {
+    label: `${date.getFullYear()}`,
+    rank: 100 + now.getFullYear() - date.getFullYear(),
+  };
+}
+const SIZE_UNITS = ["bytes", "KB", "MB", "GB", "TB", "PB"];
+// The Finder's sizes, a power of ten apart and largest first, folders last.
+function sizeGroupOf(entry: FileSystemEntry): EntryGroup {
+  if (entry.kind === "folder") {
+    return { label: "--", rank: Number.POSITIVE_INFINITY };
+  }
+  const bytes = entry.size ?? 0;
+  if (bytes < 100) return { label: "Under 100 bytes", rank: 100 };
+  let power = 2;
+  while (bytes >= 10 ** (power + 1)) power += 1;
+  const step = (at: number) =>
+    `${10 ** (at % 3)} ${SIZE_UNITS[Math.floor(at / 3)] ?? "PB"}`;
+  return { label: `From ${step(power)} to ${step(power + 1)}`, rank: -power };
+}
+function groupingFor(group: FileSystemGroupKey): Grouping {
+  const now = new Date();
+  switch (group) {
+    case "createdAt": {
+      return (entry) => dateGroupOf(entry.createdAt, now);
+    }
+    case "kind": {
+      return (entry) => {
+        const label = kindGroupOf(entry);
+        return { label, rank: KIND_GROUPS.indexOf(label) };
+      };
+    }
+    case "size": {
+      return sizeGroupOf;
+    }
+    case "updatedAt": {
+      return (entry) => dateGroupOf(entry.updatedAt, now);
+    }
+  }
 }
 const SORT_OPTIONS: Array<{
   defaultDirection: "asc" | "desc";
@@ -1449,6 +1642,7 @@ export function FileSystem({
   emptyState,
   getFileUrl,
   getHostPath,
+  group: groupProp,
   items,
   pendingFolders,
   listColumns: listColumnsProp,
@@ -1469,6 +1663,7 @@ export function FileSystem({
   onOpenSeveral,
   onPathChange,
   onRenameCommit,
+  onGroupChange,
   onSelectionChange,
   onShowHiddenFilesChange,
   onSortChange,
@@ -1570,6 +1765,18 @@ export function FileSystem({
     setInternalSort(next);
     onSortChange?.(next);
   };
+  const [internalGroup, setInternalGroup] =
+    React.useState<FileSystemGroupKey | null>(null);
+  const group = groupProp === undefined ? internalGroup : groupProp;
+  const setGroup = (next: FileSystemGroupKey | null) => {
+    setInternalGroup(next);
+    onGroupChange?.(next);
+  };
+  // Dates are grouped against the day the grouping is chosen on.
+  const grouping = React.useMemo(
+    () => (group === null ? null : groupingFor(group)),
+    [group],
+  );
   const [internalListColumns, setInternalListColumns] =
     React.useState(DEFAULT_LIST_COLUMNS);
   const listColumns = listColumnsProp ?? internalListColumns;
@@ -1618,10 +1825,13 @@ export function FileSystem({
     }
     return { ...index, children };
   }, [index, visiblePaths]);
-  // Children re-sorted per the active sort; the default (name ascending)
-  // reuses the index's pre-sorted arrays untouched.
+  // Children re-sorted per the active sort, within their groups where the
+  // rows are grouped, the groups in their own fixed order whatever the
+  // sort's direction; the default (name ascending, ungrouped) reuses the
+  // index's pre-sorted arrays untouched.
   const sortedIndex = React.useMemo(() => {
     if (
+      grouping === null &&
       sort.key === DEFAULT_SORT.key &&
       sort.direction === DEFAULT_SORT.direction
     ) {
@@ -1629,15 +1839,22 @@ export function FileSystem({
     }
     const children = new Map<string, FileSystemEntry[]>();
     for (const [parentPath, parentChildren] of visibleIndex.children) {
+      const ranks = new Map(
+        grouping
+          ? parentChildren.map((entry) => [entry.path, grouping(entry).rank])
+          : [],
+      );
       children.set(
         parentPath,
-        [...parentChildren].sort((left, right) =>
-          compareEntriesBySort(left, right, sort),
+        [...parentChildren].sort(
+          (left, right) =>
+            (ranks.get(left.path) ?? 0) - (ranks.get(right.path) ?? 0) ||
+            compareEntriesBySort(left, right, sort),
         ),
       );
     }
     return { ...visibleIndex, children };
-  }, [sort, visibleIndex]);
+  }, [grouping, sort, visibleIndex]);
   // Which right-click a row has already answered for. The component's own
   // handler runs after it, and reports the empty space only for a press no
   // row claimed.
@@ -2547,6 +2764,7 @@ export function FileSystem({
     enabledListColumns: listColumns,
     entries: currentEntries,
     getFileUrl,
+    grouping,
     index: sortedIndex,
     listColumnWidths,
     loadingFolders,
@@ -2681,6 +2899,8 @@ export function FileSystem({
   );
   const sortMenu = (
     <FileSystemSortMenu
+      group={group}
+      onGroupChange={setGroup}
       onKeyChange={applySortKey}
       onShowHiddenFilesChange={setShowHiddenFiles}
       showHiddenFiles={showHiddenFiles}
@@ -3100,11 +3320,15 @@ function FileSystemSearchField({
 // press away, and the folder itself shows it. It also holds what changes
 // which rows the folder lists, as the Finder's view options do.
 function FileSystemSortMenu({
+  group,
+  onGroupChange,
   onKeyChange,
   onShowHiddenFilesChange,
   showHiddenFiles,
   sort,
 }: {
+  group: FileSystemGroupKey | null;
+  onGroupChange: (group: FileSystemGroupKey | null) => void;
   onKeyChange: (key: FileSystemSortKey) => void;
   onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
   showHiddenFiles: boolean;
@@ -3143,6 +3367,25 @@ function FileSystemSortMenu({
           ))}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Group by
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          onValueChange={(value) => {
+            onGroupChange(
+              GROUP_OPTIONS.find((each) => each.key === value)?.key ?? null,
+            );
+          }}
+          value={group ?? "none"}
+        >
+          <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+          {GROUP_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.key} value={option.key}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
         {/* The menu stays open on a toggle: watching the dotfiles arrive or
             leave is the whole point of the item, and a menu that closes to
             show it makes the second thought a second trip. */}
@@ -3172,6 +3415,8 @@ type FileSystemViewProps = {
   enabledListColumns: FileSystemListColumn[];
   entries: FileSystemEntry[];
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  /** Each row's group, where the rows are grouped: headings go between groups. */
+  grouping: Grouping | null;
   index: FileSystemIndex;
   listColumnWidths: Partial<Record<FileSystemListColumn, number>>;
   loadingFolders: Set<string>;
@@ -3555,9 +3800,14 @@ const ICON_TILE_GAP_X = 4; // gap-x-1
 const ICON_TILE_HEIGHT = 102; // h-16 glyph box + gap-1.5 + two text-xs lines
 const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
+// Grouped, the grid steps in thirds of a row: a heading takes one, a row of
+// tiles three.
+const ICON_ROW_UNITS = 3;
+const ICON_UNIT = ICON_ROW_STRIDE / ICON_ROW_UNITS;
 function FileSystemIconsView({
   draggable,
   entries,
+  grouping,
   listingNavRef,
   menuTargetPath,
   moveFocusWithSelection,
@@ -3625,17 +3875,57 @@ function FileSystemIconsView({
   }, []);
   const resolvedColumnCount = columnCount ?? 1;
   const rowCount = Math.ceil(entries.length / resolvedColumnCount);
+  // Grouped, each group stands under a heading with a rule over it, its
+  // tiles wrapping onto as many rows as they take, where the Finder's sit in
+  // one row that scrolls sideways until Show All. The grid is laid out in
+  // thirds of a row of tiles, a heading taking one and a row three, so the
+  // windowing still steps evenly. A folder of one group has no heading.
+  const groupedLines = (() => {
+    if (!grouping) return null;
+    const sections: Array<{ entries: FileSystemEntry[]; label: string }> = [];
+    for (const entry of entries) {
+      const label = grouping(entry).label;
+      const section = sections.at(-1);
+      if (section?.label === label) {
+        section.entries.push(entry);
+      } else {
+        sections.push({ entries: [entry], label });
+      }
+    }
+    if (sections.length < 2) return null;
+    const lines: Array<
+      | { heading: string; isFirst: boolean; unit: number }
+      | { row: FileSystemEntry[]; unit: number }
+    > = [];
+    let unit = 0;
+    for (const [sectionIndex, section] of sections.entries()) {
+      lines.push({ heading: section.label, isFirst: sectionIndex === 0, unit });
+      unit += 1;
+      for (let at = 0; at < section.entries.length; at += resolvedColumnCount) {
+        lines.push({
+          row: section.entries.slice(at, at + resolvedColumnCount),
+          unit,
+        });
+        unit += ICON_ROW_UNITS;
+      }
+    }
+    return { lines, unitCount: unit };
+  })();
   const { end, start } = useVirtualWindow({
-    count: rowCount,
-    itemStride: ICON_ROW_STRIDE,
+    count: groupedLines ? groupedLines.unitCount : rowCount,
+    itemStride: groupedLines ? ICON_UNIT : ICON_ROW_STRIDE,
     leadingPx: ICON_GRID_PADDING,
-    overscan: 4,
+    overscan: groupedLines ? ICON_ROW_UNITS * 4 : 4,
     viewportRef,
   });
-  const visibleEntries = entries.slice(
-    start * resolvedColumnCount,
-    end * resolvedColumnCount,
+  const visibleLines = groupedLines?.lines.filter(
+    (line) =>
+      line.unit + ("row" in line ? ICON_ROW_UNITS : 1) > start &&
+      line.unit < end,
   );
+  const visibleEntries = visibleLines
+    ? visibleLines.flatMap((line) => ("row" in line ? line.row : []))
+    : entries.slice(start * resolvedColumnCount, end * resolvedColumnCount);
   // Selection can land outside the window (view switches, shrinking results);
   // bring its row back into the viewport so the tile mounts and is focusable.
   React.useLayoutEffect(() => {
@@ -3644,14 +3934,20 @@ function FileSystemIconsView({
       (entry) => entry.path === selectedPath,
     );
     if (entryIndex === -1) return;
+    const groupedRow = groupedLines?.lines.find(
+      (line) =>
+        "row" in line && line.row.some((entry) => entry.path === selectedPath),
+    );
     scrollIndexIntoView({
-      index: Math.floor(entryIndex / resolvedColumnCount),
+      index: groupedRow
+        ? groupedRow.unit
+        : Math.floor(entryIndex / resolvedColumnCount),
       itemSize: ICON_TILE_HEIGHT,
-      itemStride: ICON_ROW_STRIDE,
+      itemStride: groupedRow ? ICON_UNIT : ICON_ROW_STRIDE,
       leadingPx: ICON_GRID_PADDING,
       viewport: viewportRef.current,
     });
-  }, [entries, resolvedColumnCount, selectedPath]);
+  }, [entries, groupedLines, resolvedColumnCount, selectedPath]);
   // Roving tabindex: the grid is a single tab stop (the selected tile when
   // rendered, else the first rendered one), so Shift+Tab returns to the
   // toolbar like in the list view.
@@ -3660,6 +3956,101 @@ function FileSystemIconsView({
   )
     ? selectedPath
     : (visibleEntries[0]?.path ?? null);
+  const renderTile = (entry: FileSystemEntry) => {
+    const isSelected = selection.has(entry.path);
+    const tileClassName =
+      "group flex h-[6.375rem] flex-col items-center gap-1.5 outline-none";
+    const glyph = (
+      <span
+        className={cn(
+          "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
+          isSelected && "bg-accent",
+          entry.path === menuTargetPath && "ring-2 ring-brand-500",
+        )}
+      >
+        {entry.kind === "folder" ? (
+          <FileSystemFolderGlyph
+            className="h-13 w-auto drop-shadow-sm"
+            src={entry.glyphSrc}
+          />
+        ) : (
+          <FittedFileVisual
+            // The glyph box: as tall as it is, and as wide as a
+            // landscape thumbnail is let fill it.
+            box={{ height: 4, width: 4.75 }}
+            className="rounded-sm shadow-xs"
+            file={entry}
+            pageClassName="w-12"
+            renderFilePreview={renderFilePreview}
+          />
+        )}
+      </span>
+    );
+    if (entry.path === renamingPath) {
+      // The tile keeps its place in the grid while its name is typed
+      // over, so nothing around it moves.
+      return (
+        <div className={tileClassName} key={entry.path}>
+          {glyph}
+          {/* In the selected name's own pill, so the field sits where
+                      the name did. */}
+          <span
+            className={cn(
+              "flex max-w-full justify-center rounded-sm px-1.5 py-px text-xs leading-tight",
+              SELECTED_ROW_CLASSNAME,
+            )}
+          >
+            {renderNameField(entry, "-mx-0.5 text-center")}
+          </span>
+        </div>
+      );
+    }
+    return (
+      <button
+        aria-selected={isSelected}
+        className={tileClassName}
+        data-file-system-item={entry.path}
+        draggable={draggable}
+        key={entry.path}
+        onClick={(event) => {
+          rowGestures.click(entry, event, () => entries);
+        }}
+        // Right-clicking marks what the menu acts on without moving
+        // the selection, the way the Finder does.
+        onContextMenu={(event) => {
+          onItemContextMenu?.(entry, event);
+        }}
+        onDoubleClick={() => {
+          rowGestures.doubleClick();
+          onOpen(entry);
+        }}
+        onPointerDown={(event) => {
+          rowGestures.press(entry, event, () => entries);
+        }}
+        ref={(element) => {
+          if (element) {
+            itemRefs.current.set(entry.path, element);
+          } else {
+            itemRefs.current.delete(entry.path);
+          }
+        }}
+        role="option"
+        tabIndex={entry.path === tabStopPath ? 0 : -1}
+        type="button"
+      >
+        {glyph}
+        <span
+          className={cn(
+            "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
+            isSelected ? SELECTED_ROW_CLASSNAME : "text-foreground",
+          )}
+          data-file-system-name=""
+        >
+          <span className="line-clamp-2">{shownName(entry)}</span>
+        </span>
+      </button>
+    );
+  };
   return (
     <InlineScrollArea2
       orientation="vertical"
@@ -3680,131 +4071,81 @@ function FileSystemIconsView({
       }}
       viewportRef={viewportRef}
     >
-      <div
-        className="relative"
-        // The scroll-height spacer needs the measured column count; until
-        // then the absolutely positioned grid alone defines the scrollable
-        // overflow, so the server-rendered frame doesn't flash an
-        // oversized scroll range.
-        style={{
-          height:
-            columnCount !== null && rowCount
-              ? rowCount * ICON_ROW_STRIDE - ICON_ROW_GAP
-              : undefined,
-        }}
-      >
+      {groupedLines && visibleLines ? (
         <div
-          aria-label="Files"
-          className="absolute inset-x-0 grid gap-x-1 gap-y-3"
-          data-file-system-listing=""
-          role="listbox"
-          // The auto-fill expression produces the same column count the
-          // ResizeObserver measures (the measurement exists only for the
-          // windowing math), so the server-rendered first paint is already
-          // a grid instead of flashing a single stacked column until the
-          // first client measure.
+          className="relative"
           style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
-            top: start * ICON_ROW_STRIDE,
+            height: groupedLines.unitCount * ICON_UNIT - ICON_ROW_GAP,
           }}
         >
-          {visibleEntries.map((entry) => {
-            const isSelected = selection.has(entry.path);
-            const tileClassName =
-              "group flex h-[6.375rem] flex-col items-center gap-1.5 outline-none";
-            const glyph = (
-              <span
-                className={cn(
-                  "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
-                  isSelected && "bg-accent",
-                  entry.path === menuTargetPath && "ring-2 ring-brand-500",
-                )}
-              >
-                {entry.kind === "folder" ? (
-                  <FileSystemFolderGlyph
-                    className="h-13 w-auto drop-shadow-sm"
-                    src={entry.glyphSrc}
-                  />
-                ) : (
-                  <FittedFileVisual
-                    // The glyph box: as tall as it is, and as wide as a
-                    // landscape thumbnail is let fill it.
-                    box={{ height: 4, width: 4.75 }}
-                    className="rounded-sm shadow-xs"
-                    file={entry}
-                    pageClassName="w-12"
-                    renderFilePreview={renderFilePreview}
-                  />
-                )}
-              </span>
-            );
-            if (entry.path === renamingPath) {
-              // The tile keeps its place in the grid while its name is typed
-              // over, so nothing around it moves.
-              return (
-                <div className={tileClassName} key={entry.path}>
-                  {glyph}
-                  {/* In the selected name's own pill, so the field sits where
-                      the name did. */}
-                  <span
-                    className={cn(
-                      "flex max-w-full justify-center rounded-sm px-1.5 py-px text-xs leading-tight",
-                      SELECTED_ROW_CLASSNAME,
-                    )}
-                  >
-                    {renderNameField(entry, "-mx-0.5 text-center")}
-                  </span>
-                </div>
-              );
-            }
-            return (
-              <button
-                aria-selected={isSelected}
-                className={tileClassName}
-                data-file-system-item={entry.path}
-                draggable={draggable}
-                key={entry.path}
-                onClick={(event) => {
-                  rowGestures.click(entry, event, () => entries);
-                }}
-                // Right-clicking marks what the menu acts on without moving
-                // the selection, the way the Finder does.
-                onContextMenu={(event) => {
-                  onItemContextMenu?.(entry, event);
-                }}
-                onDoubleClick={() => {
-                  rowGestures.doubleClick();
-                  onOpen(entry);
-                }}
-                onPointerDown={(event) => {
-                  rowGestures.press(entry, event, () => entries);
-                }}
-                ref={(element) => {
-                  if (element) {
-                    itemRefs.current.set(entry.path, element);
-                  } else {
-                    itemRefs.current.delete(entry.path);
-                  }
-                }}
-                role="option"
-                tabIndex={entry.path === tabStopPath ? 0 : -1}
-                type="button"
-              >
-                {glyph}
-                <span
+          <div
+            aria-label="Files"
+            className="absolute inset-0"
+            data-file-system-listing=""
+            role="listbox"
+          >
+            {visibleLines.map((line) =>
+              "heading" in line ? (
+                <div
+                  aria-hidden
                   className={cn(
-                    "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
-                    isSelected ? SELECTED_ROW_CLASSNAME : "text-foreground",
+                    "absolute inset-x-0 flex items-end px-1 pb-2 text-sm font-semibold text-muted-foreground",
+                    !line.isFirst && "border-t border-border/60",
                   )}
-                  data-file-system-name=""
+                  key={`heading:${line.heading}`}
+                  style={{ height: ICON_UNIT, top: line.unit * ICON_UNIT }}
                 >
-                  <span className="line-clamp-2">{shownName(entry)}</span>
-                </span>
-              </button>
-            );
-          })}
+                  <span className="truncate">{line.heading}</span>
+                </div>
+              ) : (
+                <div
+                  className="absolute inset-x-0 grid gap-x-1"
+                  key={`row:${line.row[0]?.path ?? line.unit}`}
+                  style={{
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(6.5rem, 1fr))",
+                    top: line.unit * ICON_UNIT,
+                  }}
+                >
+                  {line.row.map(renderTile)}
+                </div>
+              ),
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className="relative"
+          // The scroll-height spacer needs the measured column count; until
+          // then the absolutely positioned grid alone defines the scrollable
+          // overflow, so the server-rendered frame doesn't flash an
+          // oversized scroll range.
+          style={{
+            height:
+              columnCount !== null && rowCount
+                ? rowCount * ICON_ROW_STRIDE - ICON_ROW_GAP
+                : undefined,
+          }}
+        >
+          <div
+            aria-label="Files"
+            className="absolute inset-x-0 grid gap-x-1 gap-y-3"
+            data-file-system-listing=""
+            role="listbox"
+            // The auto-fill expression produces the same column count the
+            // ResizeObserver measures (the measurement exists only for the
+            // windowing math), so the server-rendered first paint is already
+            // a grid instead of flashing a single stacked column until the
+            // first client measure.
+            style={{
+              gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
+              top: start * ICON_ROW_STRIDE,
+            }}
+          >
+            {visibleEntries.map(renderTile)}
+          </div>
+        </div>
+      )}
     </InlineScrollArea2>
   );
 }
@@ -4005,6 +4346,7 @@ function FileSystemListColumnHeader({
 function FileSystemListHeader({
   columns,
   enabledColumns,
+  nameLabel = "Name",
   onColumnsChange,
   onColumnWidthsChange,
   onSortColumnClick,
@@ -4012,6 +4354,8 @@ function FileSystemListHeader({
 }: {
   columns: typeof LIST_COLUMNS;
   enabledColumns: readonly FileSystemListColumn[];
+  /** What the Name column's header says: the group scrolled to, as the Finder's does, where the rows are grouped. */
+  nameLabel?: string;
   onColumnsChange: (columns: FileSystemListColumn[]) => void;
   onColumnWidthsChange: (
     widths: Partial<Record<FileSystemListColumn, number>>,
@@ -4029,7 +4373,7 @@ function FileSystemListHeader({
         <div className="flex h-7 shrink-0 items-stretch border-b px-3 text-xs font-medium text-muted-foreground select-none">
           <FileSystemListColumnHeader
             className="flex-1 pl-5.5"
-            label="Name"
+            label={nameLabel}
             onClick={onSortColumnClick}
             sort={sort}
             sortKey="name"
@@ -4131,6 +4475,7 @@ function FileSystemListView({
   currentPath,
   draggable,
   enabledListColumns,
+  grouping,
   index,
   listColumnWidths,
   loadingFolders,
@@ -4180,15 +4525,39 @@ function FileSystemListView({
   // quick read (or an empty folder) moves no row; only a read slow enough to
   // be seen waiting holds a placeholder row for them.
   const slowFolders = useSlowLoads(loadingFolders);
+  // Grouped, the folder's own rows stand under a heading for each group
+  // after the first, two rows tall with the name in the lower one, the way
+  // the Finder spaces them; the first group's name is in the header. A
+  // folder of one group has no headings at all. What a folder opened in
+  // place holds goes with the folder, in its group.
+  const topGroups = grouping
+    ? new Set(
+        (index.children.get(currentPath) ?? []).map(
+          (entry) => grouping(entry).label,
+        ),
+      )
+    : null;
+  const isGrouped = topGroups !== null && topGroups.size > 1;
   const rows = React.useMemo(() => {
     const visibleRows: Array<
-      | { depth: number; entry: FileSystemEntry }
+      | { depth: number; entry: FileSystemEntry; group?: string }
+      | { depth: number; entry: null; group: string; heading: "gap" | "name" }
       | { depth: number; entry: null; loadingPath: string }
       | { depth: number; entry: null; note: React.ReactNode; notePath: string }
     > = [];
+    let lastGroup: null | string = null;
     const walk = (folderPath: string, depth: number) => {
       for (const entry of index.children.get(folderPath) ?? []) {
-        visibleRows.push({ depth, entry });
+        const group =
+          depth === 0 && grouping ? grouping(entry).label : undefined;
+        if (group !== undefined) {
+          if (isGrouped && lastGroup !== null && group !== lastGroup) {
+            visibleRows.push({ depth, entry: null, group, heading: "gap" });
+            visibleRows.push({ depth, entry: null, group, heading: "name" });
+          }
+          lastGroup = group;
+        }
+        visibleRows.push({ depth, entry, ...(group ? { group } : {}) });
         if (
           entry.kind === "folder" &&
           (isRevealing || expanded.has(entry.path))
@@ -4225,11 +4594,24 @@ function FileSystemListView({
   }, [
     currentPath,
     expanded,
+    grouping,
     index,
+    isGrouped,
     isRevealing,
     renderUnreadable,
     slowFolders,
   ]);
+  // The row at the top of the list, whose group the Name column's header
+  // names while the rows are grouped.
+  const [topRow, setTopRow] = React.useState(0);
+  const groupAtTop = (() => {
+    if (!grouping) return undefined;
+    for (let at = Math.min(topRow, rows.length - 1); at >= 0; at -= 1) {
+      const row = rows[at];
+      if (row && "group" in row && row.group !== undefined) return row.group;
+    }
+    return undefined;
+  })();
   // The rows that are items, which is what the keyboard walks.
   const entryRows = rows.filter(
     (row): row is { depth: number; entry: FileSystemEntry } =>
@@ -4407,6 +4789,7 @@ function FileSystemListView({
           onColumnWidthsChange={(widths) => {
             onListColumnWidthsChange({ ...listColumnWidths, ...widths });
           }}
+          {...(groupAtTop === undefined ? {} : { nameLabel: groupAtTop })}
           onSortColumnClick={onSortColumnClick}
           sort={sort}
         />
@@ -4431,6 +4814,11 @@ function FileSystemListView({
                   onEmptyPress?.();
                 }
               },
+              onScroll: (event) => {
+                setTopRow(
+                  Math.floor(event.currentTarget.scrollTop / LIST_ROW_HEIGHT),
+                );
+              },
               role: "listbox",
             }}
             viewportRef={viewportRef}
@@ -4446,6 +4834,21 @@ function FileSystemListView({
               >
                 {rows.slice(start, end).map((row) => {
                   const { depth, entry } = row;
+                  if (entry === null && "heading" in row) {
+                    // Over the stripes, and the name in line with the rows'
+                    // names rather than their icons.
+                    return (
+                      <div
+                        aria-hidden
+                        className="flex h-6 shrink-0 items-end bg-background pr-3 pb-0.5 pl-14 text-xs font-semibold text-muted-foreground"
+                        key={`heading:${row.heading}:${row.group}`}
+                      >
+                        {row.heading === "name" ? (
+                          <span className="truncate">{row.group}</span>
+                        ) : null}
+                      </div>
+                    );
+                  }
                   if (entry === null && "note" in row) {
                     return (
                       <div
@@ -4668,6 +5071,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     columnWidth: columnWidthProp,
     currentPath,
     draggable,
+    grouping,
     index,
     loadingFolders,
     loadPreviewImageUrl,
@@ -4865,6 +5269,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             <FileSystemColumn
               draggable={draggable}
               fills={isBeside}
+              grouping={grouping}
               entries={index.children.get(columnPath) ?? []}
               index={index}
               isLoading={loadingFolders.has(columnPath)}
@@ -5031,6 +5436,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   draggable,
   entries,
   fills,
+  grouping,
   index,
   isLoading,
   menuTargetChildPath,
@@ -5055,6 +5461,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   entries: FileSystemEntry[];
   /** The only column, beside a file: as wide as the folder, with no edge to drag. */
   fills: boolean;
+  grouping: Grouping | null;
   index: FileSystemIndex;
   isLoading: boolean;
   menuTargetChildPath: null | string;
@@ -5079,8 +5486,21 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   width: number;
 }) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  // Grouped, each group stands under its heading, the first at the top of
+  // the column, as the Finder's columns do; a column of one group has none.
+  const lines = React.useMemo(() => {
+    if (!grouping) return entries;
+    const labels = entries.map((entry) => grouping(entry).label);
+    if (new Set(labels).size < 2) return entries;
+    return entries.flatMap(
+      (entry, at): Array<FileSystemEntry | { heading: string }> =>
+        at === 0 || labels[at] !== labels[at - 1]
+          ? [{ heading: labels[at] ?? "" }, entry]
+          : [entry],
+    );
+  }, [entries, grouping]);
   const { end, start } = useVirtualWindow({
-    count: entries.length,
+    count: lines.length,
     itemStride: COLUMN_ROW_STRIDE,
     leadingPx: COLUMN_PADDING,
     overscan: 10,
@@ -5091,13 +5511,15 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   React.useLayoutEffect(() => {
     if (!selectedChildPath) return;
     scrollIndexIntoView({
-      index: entries.findIndex((entry) => entry.path === selectedChildPath),
+      index: lines.findIndex(
+        (line) => !("heading" in line) && line.path === selectedChildPath,
+      ),
       itemSize: COLUMN_ROW_HEIGHT,
       itemStride: COLUMN_ROW_STRIDE,
       leadingPx: COLUMN_PADDING,
       viewport: viewportRef.current,
     });
-  }, [entries, selectedChildPath]);
+  }, [lines, selectedChildPath]);
   return (
     <div
       className={cn(
@@ -5141,8 +5563,8 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
             className="relative"
             style={{
               height:
-                entries.length > 0
-                  ? entries.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
+                lines.length > 0
+                  ? lines.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
                   : undefined,
             }}
           >
@@ -5150,7 +5572,20 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
               className="absolute inset-x-0 flex flex-col gap-px"
               style={{ top: start * COLUMN_ROW_STRIDE }}
             >
-              {entries.slice(start, end).map((entry) => {
+              {lines.slice(start, end).map((line) => {
+                if ("heading" in line) {
+                  // In line with the rows' names rather than their icons.
+                  return (
+                    <div
+                      aria-hidden
+                      className="flex h-7 shrink-0 items-end pr-2 pb-1 pl-8 text-xs font-semibold text-muted-foreground"
+                      key={`heading:${line.heading}`}
+                    >
+                      <span className="truncate">{line.heading}</span>
+                    </div>
+                  );
+                }
+                const entry = line;
                 const isSelected = selection?.has(entry.path) ?? false;
                 const isOnTrail =
                   entry.kind === "folder" && entry.path === trailChildPath;

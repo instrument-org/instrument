@@ -42,12 +42,15 @@ function microphoneErrorOf(error: unknown): MicrophoneError {
 
 /**
  * One recording from the microphone: a MediaRecorder writing the whole take,
- * and an analyzer beside it for the level bars. The take is uploaded whole
- * once it stops, because only the first chunk of a recording carries the
- * container's header.
+ * and an analyzer beside it for the level bars. Each chunk goes to
+ * {@link MicCapture.onChunk} as it is written, for a live stream, and the
+ * whole take is kept for an upload once it stops. Only the first chunk
+ * carries the container's header, so chunks only make sense in order and
+ * from the start.
  */
 export class MicCapture {
   private readonly chunks: Blob[] = [];
+  private chunkListener: ((chunk: Blob) => void) | undefined;
   private readonly frame: Float32Array<ArrayBuffer>;
   private startedAt: number | undefined;
   /**
@@ -76,6 +79,7 @@ export class MicCapture {
     recorder.addEventListener("dataavailable", (event) => {
       if (event.data.size > 0) {
         this.chunks.push(event.data);
+        this.chunkListener?.(event.data);
       }
     });
   }
@@ -120,9 +124,10 @@ export class MicCapture {
           { once: true },
         );
         recorder.addEventListener("error", reject, { once: true });
-        // A timeslice, so a long take is held as chunks rather than one
-        // buffer that grows until the end.
-        recorder.start(1000);
+        // A timeslice, so a live stream hears the take a quarter second at
+        // a time, and a long take is held as chunks rather than one buffer
+        // that grows until the end.
+        recorder.start(250);
       });
       return capture;
     } catch (error) {
@@ -145,6 +150,17 @@ export class MicCapture {
   level(): number {
     this.analyzer.getFloatTimeDomainData(this.frame);
     return rmsOf(this.frame);
+  }
+
+  /**
+   * Hands each chunk to `listener` as it is written, starting with the ones
+   * already written, so it hears the take whole and in order.
+   */
+  onChunk(listener: (chunk: Blob) => void): void {
+    for (const chunk of this.chunks) {
+      listener(chunk);
+    }
+    this.chunkListener = listener;
   }
 
   /** Calls back once if the microphone goes away mid-take (unplugged, taken by the system). */

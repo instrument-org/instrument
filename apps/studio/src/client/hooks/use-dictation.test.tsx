@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { type DictationStreamEvent } from "@/shared/dictation";
+
 import {
   type DictationPhase,
   sendDuringDictation,
@@ -11,6 +13,9 @@ import {
 
 const mocks = vi.hoisted(() => ({
   allowance: vi.fn(),
+  feed: vi.fn(),
+  finish: vi.fn(),
+  listen: vi.fn(),
   hasToken: true,
   open: vi.fn(),
   openLogin: vi.fn(),
@@ -33,6 +38,9 @@ vi.mock(import("@/client/rpc/client"), () => ({
     },
     dictation: {
       allowance: { call: mocks.allowance },
+      feed: { call: mocks.feed },
+      finish: { call: mocks.finish },
+      listen: { call: mocks.listen },
       transcribe: { call: mocks.transcribe },
     },
     mac: {
@@ -76,15 +84,51 @@ function toastOptions(call: unknown[] | undefined) {
 /** A recording whose length and stop are the test's to decide. */
 function fakeCapture(lengthMs = 3000) {
   let ended: (() => void) | undefined;
+  let chunk: ((chunk: Blob) => void) | undefined;
   return {
     cancel: vi.fn(),
+    /** Writes a chunk of the take, as the recorder does every quarter second. */
+    chunk: (data = "audio") => chunk?.(new Blob([data])),
     elapsedMs: () => lengthMs,
     end: () => ended?.(),
     level: () => 0,
+    onChunk: (listener: (chunk: Blob) => void) => {
+      chunk = listener;
+    },
     onEnded: (callback: () => void) => {
       ended = callback;
     },
     stop: vi.fn(() => Promise.resolve(new Blob(["take"]))),
+  };
+}
+
+/** A live stream whose events the test sends, one at a time. */
+function fakeStream() {
+  const queue: DictationStreamEvent[] = [];
+  let wake: (() => void) | undefined;
+  let closed = false;
+  async function* events() {
+    while (!closed || queue.length > 0) {
+      const event = queue.shift();
+      if (event) {
+        yield event;
+        continue;
+      }
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+      });
+    }
+  }
+  mocks.listen.mockResolvedValue(events());
+  return {
+    close: () => {
+      closed = true;
+      wake?.();
+    },
+    send: (event: DictationStreamEvent) => {
+      queue.push(event);
+      wake?.();
+    },
   };
 }
 
@@ -116,6 +160,12 @@ async function startRecording(result: {
 
 beforeEach(() => {
   mocks.hasToken = true;
+  // No live stream unless a test opens one, so the take is uploaded at Stop.
+  mocks.listen.mockImplementation(async function* () {
+    yield { failure: { kind: "server" }, type: "unavailable" };
+  });
+  mocks.feed.mockResolvedValue(undefined);
+  mocks.finish.mockResolvedValue(undefined);
   mocks.allowance.mockResolvedValue({ exhausted: false });
   mocks.transcribe.mockResolvedValue({
     durationSeconds: 3,
@@ -411,6 +461,167 @@ describe("useDictation", () => {
     expect(new Set(ids).size).toBe(2);
   });
 });
+
+describe("useDictation with a live stream", () => {
+  /** Starts a take whose stream opens and has heard `words` settle. */
+  async function startLive(words = ["Book a table", "for four."]) {
+    const capture = fakeCapture();
+    mocks.open.mockResolvedValue(capture);
+    const stream = fakeStream();
+    const hook = setup();
+    await startRecording(hook.result);
+    act(() => {
+      capture.chunk("header");
+      stream.send({ id: "s1", type: "open" });
+    });
+    await waitFor(() => {
+      expect(hook.result.current.live?.status).toBe("live");
+    });
+    for (const text of words) {
+      act(() => {
+        stream.send({ final: false, text: text.slice(0, 4), type: "text" });
+        stream.send({ final: true, text, type: "text" });
+      });
+    }
+    await waitFor(() => {
+      expect(hook.result.current.live?.settled).toBe(words.join(" "));
+    });
+    return { ...hook, capture, stream };
+  }
+
+  it("shows the words as they settle, and lands them at Stop without an upload", async () => {
+    const { capture, onText, result, stream } = await startLive();
+    act(() => {
+      stream.send({ final: false, text: "at seven", type: "text" });
+    });
+    await waitFor(() => {
+      expect(result.current.live).toEqual({
+        interim: "at seven",
+        settled: "Book a table for four.",
+        status: "live",
+      });
+    });
+    // What was recorded before the stream opened reaches it first.
+    act(() => {
+      capture.chunk("more");
+    });
+    await waitFor(() => {
+      expect(mocks.feed).toHaveBeenCalledTimes(2);
+    });
+
+    act(() => {
+      result.current.stop();
+    });
+    expect(result.current.phase).toEqual({
+      kind: "transcribing",
+      live: true,
+      pressed: "stop",
+    });
+    await waitFor(() => {
+      expect(mocks.finish).toHaveBeenCalledWith({ id: "s1" });
+    });
+    act(() => {
+      stream.send({ final: true, text: "At seven.", type: "text" });
+      stream.send({ complete: true, reason: "stopped", type: "end" });
+      stream.close();
+    });
+    await waitFor(() => {
+      expect(onText).toHaveBeenCalledWith(
+        "Book a table for four. At seven.",
+      );
+    });
+    expect(mocks.transcribe).not.toHaveBeenCalled();
+    expect(result.current.phase.kind).toBe("idle");
+    expect(result.current.live).toBeUndefined();
+  });
+
+  it("uploads the whole take when the stream missed some of it", async () => {
+    const { onText, result, stream } = await startLive();
+
+    act(() => {
+      result.current.stop();
+    });
+    await waitFor(() => {
+      expect(mocks.finish).toHaveBeenCalled();
+    });
+    act(() => {
+      stream.send({ complete: false, reason: "stopped", type: "end" });
+      stream.close();
+    });
+
+    await waitFor(() => {
+      expect(onText).toHaveBeenCalledWith("Hello there.");
+    });
+    expect(mocks.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps recording when the stream goes away, and uploads at Stop", async () => {
+    const { onText, result, stream } = await startLive();
+
+    act(() => {
+      stream.send({ type: "lost" });
+      stream.close();
+    });
+    await waitFor(() => {
+      expect(result.current.live?.status).toBe("lost");
+    });
+    expect(result.current.phase.kind).toBe("recording");
+
+    act(() => {
+      result.current.stop();
+    });
+    await waitFor(() => {
+      expect(onText).toHaveBeenCalledWith("Hello there.");
+    });
+    expect(mocks.finish).not.toHaveBeenCalled();
+  });
+
+  it("lands what was heard when the allowance runs out mid-take, and says so", async () => {
+    const { onText, result, stream } = await startLive(["Book a table."]);
+
+    act(() => {
+      stream.send({
+        complete: true,
+        reason: "allowance",
+        resetsAt: "2026-10-16T00:00:00.000Z",
+        type: "end",
+      });
+      stream.close();
+    });
+
+    await waitFor(() => {
+      expect(onText).toHaveBeenCalledWith("Book a table.");
+    });
+    expect(result.current.phase.kind).toBe("idle");
+    expect(mocks.transcribe).not.toHaveBeenCalled();
+    expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
+      "You've used today's dictation",
+    );
+  });
+
+  it("throws the take away when the stream is refused for the allowance", async () => {
+    const capture = fakeCapture();
+    mocks.open.mockResolvedValue(capture);
+    const stream = fakeStream();
+    const { result } = setup();
+    await startRecording(result);
+
+    act(() => {
+      stream.send({
+        failure: { kind: "allowance-reached", resetsAt: undefined },
+        type: "unavailable",
+      });
+      stream.close();
+    });
+
+    await waitFor(() => {
+      expect(result.current.phase.kind).toBe("idle");
+    });
+    expect(capture.cancel).toHaveBeenCalled();
+    expect(mocks.transcribe).not.toHaveBeenCalled();
+  });
+});
+
 
 describe("sendDuringDictation", () => {
   it.each<[DictationPhase, ReturnType<typeof sendDuringDictation>]>([

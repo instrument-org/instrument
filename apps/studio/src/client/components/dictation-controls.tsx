@@ -123,7 +123,8 @@ export function DictationCancel({
 
 /**
  * The red dot, the clock, and the level bars while recording; the clock and
- * "Transcribing…" once it has been sent. The clock holds the recording's
+ * "Finishing…" while the live stream settles its last words, or
+ * "Transcribing…" while the whole take is. The clock holds the recording's
  * length while it is transcribed.
  */
 export function DictationMeter({
@@ -161,10 +162,67 @@ export function DictationMeter({
           {phase.kind === "recording" ? (
             <LevelBars levels={levels} />
           ) : (
-            <span className="truncate">Transcribing…</span>
+            <span className="truncate">
+              {phase.kind === "transcribing" && phase.live
+                ? "Finishing…"
+                : "Transcribing…"}
+            </span>
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What a box shows in place of its words while dictating: the words the live
+ * stream has heard, as they will land, with the stretch still being heard
+ * fainter after them. It is read-only, so what lands is what was shown. When
+ * the stream goes away or never opens, the recording goes on and a line says
+ * the words will come at Stop.
+ */
+export function DictationPreview({
+  className,
+  dictation,
+}: {
+  className?: string;
+  dictation: Dictation;
+}) {
+  const { live, phase } = dictation;
+  if (!isDictating(phase)) {
+    return null;
+  }
+  const settled = live?.settled ?? "";
+  const interim = live?.interim ?? "";
+  const note =
+    live?.status === "lost"
+      ? "Live text paused, but you're still recording. Your words will appear when you stop."
+      : live?.status === "unavailable"
+        ? "Live text isn't available right now, so your words will appear when you stop."
+        : undefined;
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "flex min-h-12 flex-col gap-1 text-sm break-words whitespace-pre-wrap",
+        className,
+      )}
+      data-testid="dictation-preview"
+    >
+      <p className="min-h-6">
+        {settled || interim ? (
+          <>
+            {settled}
+            {settled && interim ? " " : ""}
+            <span className="text-muted-foreground">{interim}</span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">
+            {note ? "Recording…" : "Listening…"}
+          </span>
+        )}
+      </p>
+      {note && <p className="text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }
@@ -236,16 +294,33 @@ export function useDictatedText({
 
 /**
  * A textarea with dictation along its foot, inside the box: the microphone at
- * the right, and while recording, Cancel and the meter at the left.
+ * the right, and while recording, Cancel and the meter at the left. While
+ * dictating, the box shows the words being heard in place of its own, which
+ * it keeps and gets the new words after.
  */
 export function DictatedTextarea({
   className,
   dictation,
   ...props
 }: React.ComponentProps<typeof Textarea> & { dictation: Dictation }) {
+  const dictating = isDictating(dictation.phase);
   return (
     <div className="relative">
-      <Textarea className={cn("pb-10", className)} {...props} />
+      <Textarea
+        className={cn(
+          "pb-10",
+          dictating && "text-transparent placeholder:text-transparent",
+          className,
+        )}
+        {...props}
+        readOnly={dictating || props.readOnly}
+      />
+      {dictating && (
+        <DictationPreview
+          className="pointer-events-none absolute inset-x-0 top-0 bottom-10 min-h-0 overflow-y-auto px-3 py-2"
+          dictation={dictation}
+        />
+      )}
       <div className="pointer-events-none absolute inset-x-2 bottom-1.5 flex items-center gap-2 [&>*]:pointer-events-auto">
         <DictationCancel className="-ml-1" dictation={dictation} />
         <DictationMeter dictation={dictation} />

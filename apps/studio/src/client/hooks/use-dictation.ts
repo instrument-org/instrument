@@ -9,7 +9,10 @@ import {
 import { toast } from "@/client/lib/toast";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type DictationSurface } from "@/shared/dictation";
+import {
+  type DictationStreamEvent,
+  type DictationSurface,
+} from "@/shared/dictation";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -21,9 +24,30 @@ const MIN_RECORDING_MS = 1000;
 /** How many bars the meter draws, newest at the right. */
 const DICTATION_LEVEL_BARS = 18;
 const TICK_MS = 100;
+/**
+ * How long Stop waits for the live stream's last words before uploading the
+ * take instead. They usually come back in a tenth of a second.
+ */
+const LIVE_END_TIMEOUT_MS = 5000;
 
 const silentLevels = () =>
   Array.from({ length: DICTATION_LEVEL_BARS }, () => 0);
+
+type StreamEnd = Extract<DictationStreamEvent, { type: "end" }>;
+
+/** A take's live stream: where its audio goes and what it has heard. */
+type LiveStream = {
+  abort: AbortController;
+  /** Settles with the stream's `end`, or nothing once it is gone without one. */
+  ended: Promise<StreamEnd | undefined>;
+  finals: string[];
+  id?: string;
+  interim: string;
+  /** Chunks recorded before the stream opened, sent once it does. */
+  pending: Blob[];
+  sending: Promise<unknown>;
+  status: LiveText["status"];
+};
 
 /** The recording in progress, and what it reports to. */
 type Session = {
@@ -31,15 +55,33 @@ type Session = {
   deliver: (text: string) => void;
   /** Stopped or canceled, so a start still opening the microphone lets it go. */
   ended: boolean;
+  live?: LiveStream;
   ticker?: ReturnType<typeof setInterval>;
+};
+
+/**
+ * The words a take's live stream has heard so far, for the box to show while
+ * the person talks. `settled` is what will land; `interim` is the stretch
+ * still being heard, which may change. `lost` and `unavailable` mean the
+ * stream went away or never opened: the recording goes on, and its words
+ * come from the whole take at Stop.
+ */
+export type LiveText = {
+  interim: string;
+  settled: string;
+  status: "connecting" | "live" | "lost" | "unavailable";
 };
 
 export type DictationPhase =
   | { kind: "idle" }
   | { kind: "recording" }
   | { kind: "starting" }
-  /** `pressed` is the control that ended the recording, which carries the spinner. */
-  | { kind: "transcribing"; pressed: "send" | "stop" };
+  /**
+   * `pressed` is the control that ended the recording, which carries the
+   * spinner. `live` while the stream settles its last words, rather than
+   * the whole take being transcribed.
+   */
+  | { kind: "transcribing"; live?: true; pressed: "send" | "stop" };
 
 export type Dictation = {
   /** Throws the recording away. Only while starting or recording. */
@@ -48,6 +90,8 @@ export type Dictation = {
   elapsedMs: number;
   /** Recent levels, 0..1, oldest first. */
   levels: number[];
+  /** What the live stream has heard, from the press until the words land. */
+  live: LiveText | undefined;
   phase: DictationPhase;
   start: () => void;
   /**
@@ -110,6 +154,7 @@ export function useDictation({
   const [phase, setPhase] = useState<DictationPhase>({ kind: "idle" });
   const [elapsedMs, setElapsedMs] = useState(0);
   const [levels, setLevels] = useState(silentLevels);
+  const [live, setLive] = useState<LiveText>();
   // Each dictation's toasts are its own, so one box starting or landing never
   // takes away another's Try Again and strands its recording.
   const toastId = `dictation:${surface}:${useId()}`;
@@ -134,6 +179,54 @@ export function useDictation({
     undefined,
   );
 
+  // The live stream whose words the box shows, until they land.
+  const shownLive = useRef<LiveStream>(undefined);
+  const publishLive = (stream: LiveStream) => {
+    if (shownLive.current === stream) {
+      setLive({
+        interim: stream.interim,
+        settled: stream.finals.join(" "),
+        status: stream.status,
+      });
+    }
+  };
+  const clearLive = () => {
+    shownLive.current?.abort.abort();
+    shownLive.current = undefined;
+    setLive(undefined);
+  };
+
+  const feedLive = (stream: LiveStream, chunk: Blob) => {
+    if (stream.status === "connecting") {
+      stream.pending.push(chunk);
+      return;
+    }
+    const { id } = stream;
+    if (stream.status !== "live" || id === undefined) {
+      return;
+    }
+    stream.sending = stream.sending.then(() =>
+      safe(rpcClient.dictation.feed.call({ chunk, id })),
+    );
+  };
+
+  /**
+   * Sends Stop down the stream once the take's last audio has gone, and
+   * waits for its `end`, or gives up on it after a moment.
+   */
+  const finishLive = async (stream: LiveStream) => {
+    await stream.sending;
+    if (stream.id !== undefined) {
+      await safe(rpcClient.dictation.finish.call({ id: stream.id }));
+    }
+    return Promise.race([
+      stream.ended,
+      new Promise<undefined>((resolve) => {
+        setTimeout(resolve, LIVE_END_TIMEOUT_MS);
+      }),
+    ]);
+  };
+
   const report = (problem: DictationProblem, retry?: () => void) => {
     const notice = describeDictationProblem(problem, {
       canOpenSettings: isMacOS(),
@@ -150,6 +243,7 @@ export function useDictation({
             }
           : notice.action === "open-settings"
             ? {
+                // oxlint-disable-next-line studio/no-os-words -- offered only on macOS (`canOpenSettings`)
                 label: "Open System Settings",
                 onClick: () => {
                   void rpcClient.mac.microphone.openSettings.call();
@@ -188,6 +282,7 @@ export function useDictation({
     const [error, result] = await safe(
       rpcClient.dictation.transcribe.call({ audio, surface }),
     );
+    clearLive();
     setPhase({ kind: "idle" });
     if (error) {
       kept.current = { audio, deliver };
@@ -240,15 +335,42 @@ export function useDictation({
     stopTicker();
     session.current = undefined;
     const length = capture.elapsedMs();
+    const pressed = onLanded ? "send" : "stop";
+    const stream = current.live;
+    const streaming = stream?.status === "live";
     setElapsedMs(length);
     setLevels(silentLevels());
-    setPhase({ kind: "transcribing", pressed: onLanded ? "send" : "stop" });
-    void capture.stop().then((audio) => {
+    setPhase({
+      kind: "transcribing",
+      pressed,
+      ...(streaming && { live: true }),
+    });
+    void capture.stop().then(async (audio) => {
       if (length < MIN_RECORDING_MS) {
+        clearLive();
         setPhase({ kind: "idle" });
         report({ kind: "too-short" });
         return;
       }
+      const end = stream && streaming ? await finishLive(stream) : undefined;
+      if (stream && end?.complete) {
+        const text = stream.finals.join(" ");
+        clearLive();
+        setPhase({ kind: "idle" });
+        kept.current = undefined;
+        toast.dismiss(toastId);
+        if (finish(text, current.deliver)) {
+          onLanded?.();
+        }
+        if (end.reason === "allowance") {
+          report({ kind: "allowance-used-up", resetsAt: end.resetsAt });
+        }
+        return;
+      }
+      // The stream missed some of the take, or never had it: the whole
+      // recording is transcribed instead, as it would be without one.
+      stream?.abort.abort();
+      setPhase({ kind: "transcribing", pressed });
       return transcribe(audio, current.deliver, onLanded);
     });
   };
@@ -262,9 +384,104 @@ export function useDictation({
     stopTicker();
     current.capture?.cancel();
     session.current = undefined;
+    clearLive();
     setLevels(silentLevels());
     setElapsedMs(0);
     setPhase({ kind: "idle" });
+  };
+
+  /**
+   * Opens the take's live stream and keeps what it hears. A stream that
+   * can't open leaves the recording going, for an upload at Stop, unless
+   * what refused it would refuse the upload too.
+   */
+  const openLive = (current: Session) => {
+    let settle: (end: StreamEnd | undefined) => void = () => undefined;
+    const stream: LiveStream = {
+      abort: new AbortController(),
+      ended: new Promise((resolve) => {
+        settle = resolve;
+      }),
+      finals: [],
+      interim: "",
+      pending: [],
+      sending: Promise.resolve(),
+      status: "connecting",
+    };
+    current.live = stream;
+    shownLive.current = stream;
+    publishLive(stream);
+    void (async () => {
+      let end: StreamEnd | undefined;
+      try {
+        const events = await rpcClient.dictation.listen.call(
+          { surface },
+          { signal: stream.abort.signal },
+        );
+        for await (const event of events) {
+          switch (event.type) {
+            case "open": {
+              stream.id = event.id;
+              stream.status = "live";
+              for (const chunk of stream.pending.splice(0)) {
+                feedLive(stream, chunk);
+              }
+              break;
+            }
+            case "unavailable": {
+              stream.status = "unavailable";
+              const { failure } = event;
+              if (
+                session.current === current &&
+                (failure.kind === "allowance-reached" ||
+                  failure.kind === "signed-out")
+              ) {
+                cancel();
+                report(
+                  failure.kind === "signed-out"
+                    ? failure
+                    : { kind: "allowance-used-up", resetsAt: failure.resetsAt },
+                );
+              }
+              break;
+            }
+            case "text": {
+              if (event.final) {
+                if (event.text) {
+                  stream.finals.push(event.text);
+                }
+                stream.interim = "";
+              } else {
+                stream.interim = event.text;
+              }
+              break;
+            }
+            case "end": {
+              end = event;
+              // The allowance ran out mid-take: what was heard lands.
+              if (event.reason === "allowance" && session.current === current) {
+                stop();
+              }
+              break;
+            }
+            case "lost": {
+              stream.status = "lost";
+              break;
+            }
+          }
+          publishLive(stream);
+        }
+      } catch {
+        // Closed by us, or the app's own link went away mid-take.
+        if (stream.status === "connecting") {
+          stream.status = "unavailable";
+        } else if (stream.status === "live" && !end) {
+          stream.status = "lost";
+        }
+        publishLive(stream);
+      }
+      settle(end);
+    })();
   };
 
   const start = async () => {
@@ -291,6 +508,7 @@ export function useDictation({
     const giveUp = (problem?: DictationProblem) => {
       if (session.current === current) {
         session.current = undefined;
+        clearLive();
         setPhase({ kind: "idle" });
       }
       if (problem && !current.ended) {
@@ -318,6 +536,9 @@ export function useDictation({
     }
     kept.current = undefined;
     toast.dismiss(toastId);
+    // The stream opens while the microphone does, and hears the take from
+    // its first chunk once it is ready.
+    openLive(current);
 
     // macOS asks once; until then getUserMedia would fail without asking.
     const [, access] = await safe(rpcClient.mac.microphone.status.call());
@@ -361,6 +582,11 @@ export function useDictation({
     }
 
     current.capture = capture;
+    capture.onChunk((chunk) => {
+      if (current.live) {
+        feedLive(current.live, chunk);
+      }
+    });
     const scale = createLevelScale();
     current.ticker = setInterval(() => {
       const elapsed = capture.elapsedMs();
@@ -406,6 +632,7 @@ export function useDictation({
     cancel,
     elapsedMs,
     levels,
+    live,
     phase,
     start: () => {
       void start();

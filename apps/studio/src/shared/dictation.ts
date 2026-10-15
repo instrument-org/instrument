@@ -77,3 +77,23 @@ export type DictationResult =
       text: string;
     }
   | { failure: DictationFailure; ok: false };
+
+/**
+ * What a live dictation stream reports while the take is recorded. `open`
+ * comes first, with the id the take's audio is fed to; `unavailable` instead
+ * when the stream could not open, so the take is uploaded at Stop. `text` is
+ * the words so far: an interim one replaces the last interim, a final one
+ * settles. `end` comes once, after Stop, saying whether the stream heard the
+ * whole take; `lost` when it went away without one.
+ */
+export type DictationStreamEvent =
+  | { failure: DictationFailure; type: "unavailable" }
+  | { final: boolean; text: string; type: "text" }
+  | { id: string; type: "open" }
+  | {
+      complete: boolean;
+      reason: "allowance" | "failed" | "stopped";
+      resetsAt?: string;
+      type: "end";
+    }
+  | { type: "lost" };

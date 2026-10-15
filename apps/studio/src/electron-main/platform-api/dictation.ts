@@ -38,6 +38,11 @@ const ErrorSchema = z.object({
  */
 let lastAllowance: { remainingSeconds?: number; resetsAt?: string } = {};
 
+/** Keeps that today's dictation is used up until `resetsAt`. */
+export function noteDictationUsedUp(resetsAt: string | undefined) {
+  lastAllowance = { remainingSeconds: 0, resetsAt };
+}
+
 function remainingSecondsOf(response: Response): number | undefined {
   const header = response.headers.get("x-dictation-remaining-seconds");
   const seconds = header === null ? Number.NaN : Number(header);
@@ -68,7 +73,10 @@ function failed(failure: DictationFailure): DictationResult {
 }
 
 /** What a refused request means for the person, from its status and the typed error body. */
-function failureOf(status: number, body: string): DictationFailure {
+export function dictationFailureOf(
+  status: number,
+  body: string,
+): DictationFailure {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
@@ -145,7 +153,7 @@ export async function transcribeDictation({
   const body = await response.text().catch(() => "");
   const remainingSeconds = remainingSecondsOf(response);
   if (!response.ok) {
-    const failure = failureOf(response.status, body);
+    const failure = dictationFailureOf(response.status, body);
     if (failure.kind === "allowance-reached") {
       lastAllowance = {
         remainingSeconds: remainingSeconds ?? 0,

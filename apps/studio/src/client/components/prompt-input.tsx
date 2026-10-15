@@ -16,6 +16,7 @@ import {
   DictationButton,
   DictationCancel,
   DictationMeter,
+  DictationPreview,
 } from "@/client/components/dictation-controls";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
@@ -1157,21 +1158,26 @@ export const PromptInput = ({
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
-        <PromptEditor
-          actions={slashActions}
-          apps={composerApps}
-          autoFocus={autoFocus}
-          bounds={composerBounds}
-          defaultValue={value}
-          disabled={disabled || isLoading}
-          key={draftKeyString(draftKey)}
-          onChange={setValue}
-          onPaste={handlePaste}
-          onSubmit={send}
-          placeholder={placeholder}
-          ref={promptEditorRef}
-          skills={userInvocableSkills}
-        />
+        {/* While dictating, the box shows what will land instead of the
+            draft, which stays mounted and gets the words at the end. */}
+        <DictationPreview dictation={dictation} />
+        <div className={dictating ? "hidden" : "contents"}>
+          <PromptEditor
+            actions={slashActions}
+            apps={composerApps}
+            autoFocus={autoFocus}
+            bounds={composerBounds}
+            defaultValue={value}
+            disabled={disabled || isLoading}
+            key={draftKeyString(draftKey)}
+            onChange={setValue}
+            onPaste={handlePaste}
+            onSubmit={send}
+            placeholder={placeholder}
+            ref={promptEditorRef}
+            skills={userInvocableSkills}
+          />
+        </div>
       </ComposerFrame>
 
       <input

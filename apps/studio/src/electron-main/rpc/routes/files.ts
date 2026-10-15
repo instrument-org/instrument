@@ -223,6 +223,15 @@ const addFile = base
     }
   });
 
+/** Which of `paths` name nothing on this computer, for an editor to mark the links to them. */
+const missing = base
+  .input(z.object({ paths: z.array(HostPathSchema).max(1000) }))
+  .output(z.object({ missing: z.array(z.string()) }))
+  .handler(async ({ input }) => {
+    const there = await Promise.all(input.paths.map((at) => exists(at)));
+    return { missing: input.paths.filter((_, index) => !there[index]) };
+  });
+
 const trash = base
   .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
   .input(z.object({ path: HostPathSchema }))
@@ -539,6 +548,7 @@ export const files = {
   addFile,
   duplicate,
   live,
+  missing,
   newFolder,
   read,
   rename,

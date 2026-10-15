@@ -562,6 +562,15 @@ textarea.md-input {
   text-underline-offset: 2px;
   font-weight: 500;
 }
+/* A link to a file that is not there (links.ts): a wavy red underline, as a misspelling gets. */
+.md-editor .milkdown .ProseMirror a:has(> .md-link-broken) {
+  text-decoration: none;
+}
+.md-editor .milkdown .ProseMirror .md-link-broken {
+  text-decoration: underline wavy;
+  text-decoration-color: color-mix(in srgb, var(--destructive) 70%, transparent);
+  text-underline-offset: 3px;
+}
 /* Inline code as Typography draws it in Studio: weight and backticks. */
 .md-editor .milkdown .ProseMirror :not(pre) > code {
   font-family: var(--font-mono);

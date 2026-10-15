@@ -14,6 +14,7 @@ import {
   flushOnLeave,
   type SaveStatus,
 } from "@/client/lib/live-file";
+import { type OpenTarget } from "@/client/lib/open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { splitFrontMatter } from "@/shared/front-matter";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -61,6 +62,7 @@ import {
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
 import { fileUploader, insertFiles } from "./images";
+import { linksPlugin } from "./links";
 import { fitSelectionToolbar, fitSlashMenu } from "./toolbar-fit";
 
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
@@ -72,6 +74,8 @@ export interface EditorSessionOptions {
   onAsk: (selection: AskSelection) => void;
   onExternalChange: (change: ExternalChange) => void;
   onFrontMatter: (fm: string) => void;
+  /** Opens what a followed link names; `newTab` asks for a tab of its own. */
+  onOpenLink: (target: OpenTarget, newTab: boolean) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
   /** Draws a fence Studio shows as something other than code; the element is filled in by the caller. */
   renderFence: (language: string, content: string) => null | string;
@@ -485,6 +489,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     });
   const htmlView = $view(htmlSchema.node, () => renderHtml);
   const htmlContainerPlugin = $prose(() => htmlStructurePlugin());
+  const links = linksPlugin({ folder, open: options.onOpenLink, root });
 
   /**
    * The places staged asks point at, tinted, each with its number at its
@@ -768,6 +773,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     .use(htmlView)
     .use(htmlContainerPlugin)
     .use(nearCaretPlugin)
+    .use(links)
     .use(askMarksPlugin);
   await editor.create();
   editor.editor.action((ctx) => {

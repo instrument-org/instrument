@@ -26,10 +26,7 @@ const brokenKey = new PluginKey<number>("broken-links");
  * address or a place in the file itself: a relative link is read against
  * the file's folder, as any Markdown app reads it.
  */
-export function hostPathOfHref(
-  href: string,
-  folder: string,
-): string | undefined {
+function hostPathOfHref(href: string, folder: string): string | undefined {
   if (!href || href.startsWith("#") || href.startsWith("//")) {
     return undefined;
   }

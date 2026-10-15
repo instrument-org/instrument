@@ -187,7 +187,7 @@ export function imageOfTag(
 }
 
 /** A picture at a width, as the `<img>` tag the file has it as. */
-export function tagOfImage(attrs: {
+function tagOfImage(attrs: {
   alt: string;
   src: string;
   title: string;

@@ -51,25 +51,30 @@ function calloutOf(quote: PMNode, pos: number) {
  * `[!NOTE]` into `\[!NOTE]` and the callout back into a plain quote.
  */
 export function keepCalloutMarkers(ctx: Ctx) {
-  ctx.update(remarkStringifyOptionsCtx, (prev) => ({
-    ...prev,
-    handlers: {
-      ...prev.handlers,
-      text: (node, parent, state, info) => {
-        const written =
-          prev.handlers?.text?.(node, parent, state, info) ??
-          state.safe(node.value, info);
-        return parent?.type === "paragraph" &&
-          parent.children[0] === node &&
-          state.stack.includes("blockquote")
-          ? written.replace(
-              /^\\(\[!(?:caution|important|note|tip|warning)\])/i,
-              "$1",
-            )
-          : written;
+  ctx.update(remarkStringifyOptionsCtx, (prev) => {
+    // Milkdown's own text handler, which writes the text this one amends.
+    const text = prev.handlers?.text;
+    if (!text) {
+      return prev;
+    }
+    return {
+      ...prev,
+      handlers: {
+        ...prev.handlers,
+        text: (node, parent, state, info) => {
+          const written = text(node, parent, state, info);
+          return parent?.type === "paragraph" &&
+            parent.children[0] === node &&
+            state.stack.includes("blockquote")
+            ? written.replace(
+                /^\\(\[!(?:caution|important|note|tip|warning)\])/i,
+                "$1",
+              )
+            : written;
+        },
       },
-    },
-  }));
+    };
+  });
 }
 
 export const calloutsPlugin = $prose(

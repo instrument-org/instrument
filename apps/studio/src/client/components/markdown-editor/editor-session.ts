@@ -31,7 +31,6 @@ import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import {
   clearTextInCurrentBlockCommand,
   htmlSchema,
-  imageSchema,
 } from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
@@ -61,7 +60,13 @@ import {
 } from "./doc-sync";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
-import { fileUploader, insertFiles } from "./images";
+import {
+  fileUploader,
+  imageTags,
+  imageView,
+  imageWidth,
+  insertFiles,
+} from "./images";
 import { linksPlugin } from "./links";
 import { fitSelectionToolbar, fitSlashMenu } from "./toolbar-fit";
 
@@ -428,32 +433,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
       }),
   );
 
-  /** An image in the file: its own picture, resolved against the file's folder. */
-  const renderImage: NodeViewConstructor = (node) => {
-    const img = document.createElement("img");
-    img.className = "md-image";
-    const render = (n: PMNode) => {
-      const src = options.resolveSrc(String(n.attrs.src ?? ""));
-      if (img.getAttribute("src") !== src) {
-        img.src = src;
-      }
-      img.alt = String(n.attrs.alt ?? "");
-      img.title = String(n.attrs.title ?? "");
-    };
-    render(node);
-    return {
-      dom: img,
-      ignoreMutation: () => true,
-      update(n) {
-        if (n.type !== node.type) {
-          return false;
-        }
-        render(n);
-        return true;
-      },
-    };
-  };
-  const imageView = $view(imageSchema.node, () => renderImage);
+  const images = imageView(options.resolveSrc);
 
   /** The folder a file given to the file is put in and linked from: the file's own. */
   const folder = options.hostPath.replace(/[^/\\]*$/, "");
@@ -769,7 +749,9 @@ export async function createEditorSession(options: EditorSessionOptions) {
     .use(imageTitleFix)
     .use(codeBlockInfo)
     .use(sessionPlugin)
-    .use(imageView)
+    .use(imageTags)
+    .use(imageWidth)
+    .use(images)
     .use(htmlView)
     .use(htmlContainerPlugin)
     .use(nearCaretPlugin)

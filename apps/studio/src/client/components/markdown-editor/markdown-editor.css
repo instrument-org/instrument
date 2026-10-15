@@ -82,10 +82,56 @@
 
 /* Images: the file's own pictures, the column's width at most. */
 .md-editor .md-image {
+  position: relative;
   display: inline-block;
   max-width: 100%;
-  border-radius: 6px;
   vertical-align: bottom;
+}
+.md-editor .md-image > img {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+}
+/* The corner a picture is resized from (images.ts), shown while the
+   pointer is over the picture or it is selected. */
+.md-editor .md-image-handle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--background);
+  border-radius: 999px;
+  background: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 25%, transparent);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-editor
+  .md-image:is(:hover, .ProseMirror-selectednode, .md-image-resizing)
+  > .md-image-handle {
+  opacity: 1;
+}
+.md-editor .md-image.ProseMirror-selectednode > img,
+.md-editor .md-image.md-image-resizing > img {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* A picture that did not load: which file it was looking for, in place of the picture. */
+.md-editor .md-image-missing {
+  display: none;
+}
+.md-editor .md-image.md-image-broken > :is(img, .md-image-handle) {
+  display: none;
+}
+.md-editor .md-image.md-image-broken > .md-image-missing {
+  display: inline-block;
+  padding: 0.5em 0.85em;
+  border: 1px dashed color-mix(in srgb, var(--destructive) 60%, transparent);
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-size: 0.875em;
 }
 .md-editor .ProseMirror p:has(> .md-image:only-child) {
   margin-block: 1.25em;

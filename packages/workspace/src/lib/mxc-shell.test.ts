@@ -21,8 +21,8 @@ const UUTILS_DIR = path.resolve(
 /**
  * A chat's shell with MXC holding its native commands, on Windows only:
  * INSTRUMENT_TEST_MXC_EXEC names the launcher and INSTRUMENT_MXC=1 turns it
- * on. A file beside the chat's folder in the temp folder sits under
- * `AppData`, a place that asks first, so a program reading it is refused by
+ * on. A file under `AppData` (outside its temp folder, which the rules open)
+ * sits in a place that asks first, so a program reading it is refused by
  * the container, and each pipeline stage is told so on its own. Run it in
  * the interactive session, as the canary's test.
  */
@@ -59,7 +59,12 @@ beforeAll(async () => {
     recursive: true,
   });
   await fs.writeFile(path.join(chatRoot, "words.txt"), "b\na\nc\n");
-  closedFile = path.join(tmpDir, "closed", "secret.txt");
+  // Under `AppData` but outside its temp folder, which the rules open.
+  closedFile = path.join(
+    process.env.LOCALAPPDATA ?? tmpDir,
+    `mxc-shell-${randomUUID()}`,
+    "secret.txt",
+  );
   await fs.mkdir(path.dirname(closedFile), { recursive: true });
   await fs.writeFile(closedFile, secret);
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
@@ -71,6 +76,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
+  await fs.rm(path.dirname(closedFile), { force: true, recursive: true });
 });
 
 describe.runIf(held)("a chat's shell under MXC", () => {
@@ -78,7 +84,7 @@ describe.runIf(held)("a chat's shell under MXC", () => {
     const result = await run(
       "node -e \"require('fs').writeFileSync('made.txt', 'ok'); console.log(require('fs').realpathSync.native('made.txt'))\"; cat made.txt",
     );
-    expect(result.exitCode).toBe(0);
+    expect(result).toMatchObject({ exitCode: 0, stderr: "" });
     expect(result.stdout).toMatch(/^[A-Z]:\\.*made\.txt\nok$/i);
   });
 

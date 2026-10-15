@@ -623,16 +623,13 @@ export function wrapNativeCommand(
   }
   const mxcExec = getWorkspaceConfig().mxcExecPath;
   if (mxc === "works" && mxcExec) {
-    const argv = [file, ...args];
-    const filesystem = mxcFilesystemPolicy(reach);
-    // Spawned as is, the launcher refuses the request for want of an
-    // environment; launchNative fills in the real one.
+    // With no arguments the launcher runs nothing and says it was given no
+    // request; launchNative builds the request once the working folder and
+    // environment are known.
     return {
-      ...launchNative(
-        { args: [], file: mxcExec, mxc: { argv, filesystem } },
-        { env: {} },
-      ),
-      mxc: { argv, filesystem },
+      args: [],
+      file: mxcExec,
+      mxc: { argv: [file, ...args], filesystem: mxcFilesystemPolicy(reach) },
       reach,
     };
   }
@@ -701,12 +698,14 @@ export function mxcFilesystemPolicy(
       ? target.toLowerCase()
       : target;
   const add = (target: string, access: Access, rank: number) => {
-    // A Windows path with no drive names nothing MXC can hold, and one in the
-    // request fails every command (`ERROR_PATH_NOT_FOUND`); resolving it
-    // would read the working folder, which a running shell blocks.
+    // MXC refuses the whole request (`ERROR_PATH_NOT_FOUND`) for a Windows
+    // path with no drive, which names nothing it can hold and would read the
+    // working folder to resolve, and for a path whose folder is not there.
+    // A path that is missing itself is held, so it cannot be made.
     if (
-      process.platform === "win32" &&
-      !/^(?:[A-Za-z]:[\\/]|[\\/]{2})/.test(target)
+      (process.platform === "win32" &&
+        !/^(?:[A-Za-z]:[\\/]|[\\/]{2})/.test(target)) ||
+      (!existsSync(target) && !existsSync(path.dirname(target)))
     ) {
       return;
     }

@@ -325,24 +325,44 @@ const inboxCol = ({
 // ---- a chat --------------------------------------------------------------------
 
 /**
- * The chat header, as chat-header.tsx draws it: the inbox toggle, the title with its caret
- * (which opens the chat's menu), then at the right what the chat has in flight and the
- * pop-out glyph, then `right` (the pane toggle while the pane is shut). `working` is the
- * work in flight (from workLine) while a task runs; `tasks` draws the quiet checklist a
- * chat whose tasks have all finished keeps there. A chat that filed no task has neither.
+ * The chat header, as chat-header.tsx draws it: 56px, three columns with the outer two
+ * equally wide so the title stands in the middle. At the left the inbox toggle; in the
+ * middle the title with its caret (which opens the chat's menu) and, under it, the one
+ * line saying where the chat's work stands (`line`, from statusLine), its only loading
+ * state; at the right the tasks mark (`tasks`: "running" for the planning dot alone,
+ * true for the checklist once they finish), the pop-out glyph, then `right` (the pane
+ * toggle while the pane is shut). A chat that filed no task has no mark.
  */
-const threadHead = (
-  title,
-  { right = "", working = "", tasks = false } = {},
-) => `
-  <div class="flex shrink-0 items-center gap-2 bg-background p-3">
-    <span class="grid size-7 shrink-0 place-items-center text-foreground/80"><i class="ph ph-sidebar-simple text-[16px]"></i></span>
-    <span class="flex h-8 min-w-0 items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
-    <span class="flex-1"></span>
-    ${working || (tasks ? tasksMark : "")}
-    <span class="grid size-8 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-picture-in-picture text-[16px]"></i></span>
-    ${right}
+const threadHead = (title, { right = "", line = "", tasks = false } = {}) => `
+  <div class="grid h-14 shrink-0 grid-cols-[96px_minmax(0,1fr)_96px] items-start gap-x-2 bg-background px-3 pt-2">
+    <div class="flex h-8 items-center"><span class="grid size-8 shrink-0 place-items-center text-foreground/80"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
+    <div class="flex min-w-0 flex-col items-center">
+      <span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
+      <div class="-mt-1 flex h-4 max-w-full min-w-0 justify-center">${line}</div>
+    </div>
+    <div class="flex h-8 items-center justify-end gap-x-1">
+      ${tasks === "running" ? `<span class="grid size-8 shrink-0 place-items-center">${planningDot}</span>` : tasks ? tasksMark : ""}
+      <span class="grid size-8 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-picture-in-picture text-[16px]"></i></span>
+      ${right}
+    </div>
   </div>`;
+
+/** The line under a chat's title (chat-status-line.tsx), 12px: while it works the planning dot and the step in the shimmer; `tone` "done" for the muted check, "wait" for the amber question, "failed" for the red warning. */
+const statusLine = (text, { tone = "run" } = {}) => {
+  const mark = {
+    run: planningDot,
+    done: `<i class="ph ph-check text-[14px] text-muted-foreground"></i>`,
+    wait: `<i class="ph ph-question text-[14px] text-warning-700"></i>`,
+    failed: `<i class="ph ph-warning-circle text-[14px] text-error-700"></i>`,
+  }[tone];
+  const color = {
+    run: "text-brand-600",
+    done: "text-muted-foreground",
+    wait: "text-foreground/80",
+    failed: "text-error-700",
+  }[tone];
+  return `<span class="flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5">${mark}<span class="min-w-0 truncate ${color}">${text}</span></span>`;
+};
 
 /** The checklist a head keeps once a chat's tasks have finished; pressed, it lists them. */
 const tasksMark = `<span class="grid size-8 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-list-checks text-[16px]"></i></span>`;
@@ -414,7 +434,7 @@ const pricing = (stage = 1) =>
     .filter(Boolean)
     .join("");
 
-/** A chat column: header (with the work in flight while `working` names a step, or with `tasks` the checklist of finished ones), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
+/** A chat column: header (the step under the title while `working` names one, and the tasks mark per `tasks`), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
   title = PRICING_TITLE,
   body = pricing(2),
@@ -427,7 +447,7 @@ const thread = ({
   replyEl = "",
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
-    ${head || threadHead(title, { working: working ? workLine(working) : "", tasks })}
+    ${head || threadHead(title, { line: working ? statusLine(working) : "", tasks })}
     <div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
     <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${foot}${replyEl || replyBox(reply)}</div>
   </div>`;

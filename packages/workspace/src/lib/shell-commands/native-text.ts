@@ -47,6 +47,11 @@ interface NativeTextRoute {
   wantsBuiltin?: (args: string[]) => boolean;
   /** Operands it writes rather than reads (`sort -o out`, `dd of=out`). */
   writes?: (args: string[]) => string[];
+  /**
+   * Prints nothing but paths, so on Windows every backslash it prints is a
+   * separator the shell spells as a slash.
+   */
+  printsPaths?: boolean;
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
@@ -96,7 +101,7 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "coreutils", mode: "native", name: "uniq" },
   { binary: "coreutils", mode: "native", name: "comm" },
   { binary: "coreutils", mode: "native", name: "join" },
-  { binary: "coreutils", mode: "native", name: "realpath" },
+  { binary: "coreutils", mode: "native", name: "realpath", printsPaths: true },
   { binary: "coreutils", mode: "native", name: "shuf" },
   { binary: "coreutils", mode: "native", name: "numfmt" },
   { binary: "coreutils", mode: "native", name: "od" },
@@ -122,7 +127,10 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     binary: "grep",
     mode: "fallback",
     name: "grep",
-    wantsNative: grepWantsNative,
+    // On Windows a recursive grep prints `reports\b.md:...`, which nothing
+    // respells for the shell, so the builtin keeps walking there.
+    wantsNative: (args) =>
+      process.platform !== "win32" && grepWantsNative(args),
   },
   {
     binary: "coreutils",
@@ -139,7 +147,9 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "coreutils", mode: "fallback", name: "md5sum" },
   // uutils builds `stat` for Unix only.
   { binary: "coreutils", mode: "fallback", name: "stat", platforms: UNIX },
-  { binary: "xargs", mode: "fallback", name: "xargs" },
+  // What uutils' xargs starts is a program on the PATH, and Windows has none
+  // for `echo`, `printf` or the rest of what models hand it.
+  { binary: "xargs", mode: "fallback", name: "xargs", platforms: UNIX },
 ];
 
 /** What the shell's builtins print when they refuse an option. */
@@ -336,7 +346,10 @@ export function createNativeTextCommand(
         route.name === "find"
           ? quietRefusedFolders(streams.stderr)
           : streams.stderr,
-      stdout: streams.stdout,
+      stdout:
+        route.printsPaths && process.platform === "win32"
+          ? streams.stdout.replaceAll("\\", "/")
+          : streams.stdout,
     };
   });
 }

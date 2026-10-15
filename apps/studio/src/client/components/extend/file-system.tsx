@@ -2997,9 +2997,18 @@ export function FileSystem({
                   ? viewSelect
                   : viewTabs("flex gap-0")}
                 {sortMenu}
-                {toolbarInto.tail === undefined && (
+                {/* With the folder alone, its menu and search follow sort,
+                    beside the rows they act on and where search stands
+                    beside a file; beside a file, search alone, at the
+                    section's end. */}
+                {toolbarInto.tail === undefined ? (
                   <>
                     <span className="flex-1" />
+                    {searchField("compact")}
+                  </>
+                ) : (
+                  <>
+                    {renderHeaderActions ? renderHeaderActions() : null}
                     {searchField("compact")}
                   </>
                 )}
@@ -3015,8 +3024,6 @@ export function FileSystem({
                 }}
               >
                 {renderHeaderPrimary ? renderHeaderPrimary() : null}
-                {renderHeaderActions ? renderHeaderActions() : null}
-                {searchField("compact")}
               </div>,
               toolbarInto.tail,
             )}

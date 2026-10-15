@@ -1,9 +1,6 @@
-import { openSettings } from "@/client/atoms/settings-modal";
-import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 import {
   type ChatId,
   browserTargetOf,
@@ -13,7 +10,6 @@ import {
   type WindowTabAnswer,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
-import { APP_NAME } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
@@ -24,6 +20,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
 import { openMenuLink } from "./menu-link";
+import { openLinkAddress } from "./open-link-address";
 import {
   chatOfAskingPage,
   pagePlacementOf,
@@ -32,15 +29,7 @@ import {
   tasksPlacementOf,
 } from "./placement";
 import { visitInTab } from "./tab-history";
-import {
-  memoryOfHref,
-  screenOfHref,
-  settingOfHref,
-  skillOfHref,
-  taskHref,
-  tasksHref,
-  tasksOfHref,
-} from "./tab-location";
+import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { isFreshTab } from "./tab-model";
 import {
   chatHref,
@@ -219,40 +208,14 @@ export function useOpeners({
       sayNoChat();
       return;
     }
-    // A memory is shown where all of them are, in Settings, brought to the
-    // one named; a screen of its own would be one memory with nothing to do
-    // to it.
-    const memory = memoryOfHref(href);
-    if (memory) {
-      openSettings({ memory, tab: "Memory" });
+    // A memory, a skill, a setting or a named screen opens where it lives,
+    // which is a route of its own only for some named screens.
+    const route = openLinkAddress(href);
+    if (route === undefined) {
       return;
     }
-    // A skill likewise, in Settings, open on the one named.
-    const skill = skillOfHref(href);
-    if (skill) {
-      openSettings({ skill, tab: "Skills" });
-      return;
-    }
-    // A setting likewise, in Settings, on its page and lit; a name Settings
-    // has no row or page for is searched for there instead.
-    const setting = settingOfHref(href);
-    if (setting) {
-      openSettings({ setting });
-      return;
-    }
-    // A screen a reply named opens where it lives: a place at its own
-    // address, or a dialog over the window.
-    const screen = screenOfHref(href);
-    if (screen !== undefined) {
-      if (!isScreenName(screen)) {
-        sayNoScreen();
-        return;
-      }
-      if (screen === "shortcuts") {
-        openShortcutGuide();
-      } else {
-        openScreen(SCREENS[screen].href, options);
-      }
+    if (route !== href) {
+      openScreen(route, options);
       return;
     }
     // A chat's tasks, or one task, are a tab in the chat's group, a task in
@@ -627,10 +590,6 @@ export function useOpeners({
 }
 
 /** Says a chat's address named none of the chats here. */
-function sayNoScreen() {
-  toast(`This version of ${APP_NAME} doesn't have that screen`);
-}
-
 function sayNoChat() {
   toast("No chat at that address", {
     description: "It may have been deleted, or the link is not for this chat.",

@@ -182,22 +182,6 @@ export function skillOfHref(href: string): string | undefined {
   return screen.kind === "skill" ? screen.name : undefined;
 }
 
-/**
- * The setting an address names: a row's id, a page's name, or what an older
- * link named that Settings no longer has, which Settings searches for.
- * Nothing for any other address.
- */
-export function settingOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "setting" ? screen.name : undefined;
-}
-
-/** The screen an address names, by its name, known or not. Nothing for any other address. */
-export function screenOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "namedScreen" ? screen.name : undefined;
-}
-
 /** A name that is a whole volume on Windows, which is where a path there starts. */
 function isDrive(name: string) {
   return /^[a-z]:$/i.test(name);

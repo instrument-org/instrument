@@ -27,6 +27,7 @@ import { outputFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
+import { openLinkAddress } from "./open-link-address";
 import {
   chatHref,
   chatOfGroup,
@@ -156,14 +157,25 @@ export function useAppTabs() {
   const lastChat = useAtomValue(chatGroupAtom);
   const activeRouter = getTabRouter(model.selectedId);
 
-  /** A tab of its own at an address, up at once unless asked to wait behind. */
+  /**
+   * A tab of its own at an address, up at once unless asked to wait behind.
+   * A link address opens where it lives instead (`openLinkAddress`).
+   */
   const open = (href: string, { select = true }: { select?: boolean } = {}) => {
+    const at = openLinkAddress(href);
+    if (at === undefined) {
+      return;
+    }
     setModel((current) =>
-      addTab(current, { id: freshTabId(), pathname: href, select }),
+      addTab(current, { id: freshTabId(), pathname: at, select }),
     );
   };
-  /** The tab up goes to an address, one step on in its history. */
-  const navigate = (href: string, { replace = false } = {}) => {
+  /** The tab up goes to an address, one step on in its history; a link address opens where it lives instead. */
+  const navigate = (to: string, { replace = false } = {}) => {
+    const href = openLinkAddress(to);
+    if (href === undefined) {
+      return;
+    }
     if (!activeRouter) {
       open(href);
       return;

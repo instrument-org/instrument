@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import { type ChatId } from "../schemas/chat-id";
 import { ChatDirSchema } from "../schemas/paths";
@@ -9,6 +9,7 @@ import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * `~` in the shell is the home the rules hold, so a path the agent spells
@@ -38,6 +39,8 @@ beforeAll(async () => {
   await fs.mkdir(chatRoot, { recursive: true });
   originalHome = process.env.HOME;
   process.env.HOME = home;
+  // Where Windows reads the home folder from.
+  vi.stubEnv("USERPROFILE", home);
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // The system's own temp folders, which hold this test's planted home.
   const { tempFolders: _tests, ...system } = getWorkspaceConfig();
@@ -46,19 +49,20 @@ beforeAll(async () => {
 
 afterAll(async () => {
   process.env.HOME = originalHome;
+  vi.unstubAllEnvs();
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
 it("expands ~ to the home the rules hold", async () => {
   const result = await run('echo ~ "$HOME"');
-  expect(result.stdout).toBe(`${home} ${home}\n`);
+  expect(result.stdout).toBe(`${shellPath(home)} ${shellPath(home)}\n`);
 });
 
 it("asks for Documents when the agent lists ~/Documents", async () => {
   const result = await run("ls ~/Documents");
   const said = `${result.stdout}${result.stderr}`;
   expect(result.exitCode).not.toBe(0);
-  expect(said).toContain(`${home}/Documents`);
+  expect(said).toContain(`${shellPath(home)}/Documents`);
   expect(said).not.toContain("taxes.txt");
   expect(said).not.toContain("//Documents");
 });

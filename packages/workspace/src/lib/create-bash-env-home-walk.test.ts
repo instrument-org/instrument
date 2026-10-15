@@ -14,6 +14,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * The one agent's shell walks the home folder at the chat's budget and its
@@ -54,14 +55,20 @@ beforeAll(async () => {
   const wide = path.join(home, "wide");
   await fs.mkdir(path.join(chatRoot, "work", "wide"), { recursive: true });
   await fs.mkdir(wide, { recursive: true });
-  await Promise.all(
-    Array.from({ length: WIDE_FILES }, (_, index) =>
-      Promise.all([
-        fs.writeFile(path.join(wide, `f${index}`), ""),
-        fs.writeFile(path.join(chatRoot, "work", "wide", `f${index}`), ""),
-      ]),
-    ),
-  );
+  // In batches: Windows runs out of file handles opening them all at once.
+  for (let start = 0; start < WIDE_FILES; start += 1000) {
+    await Promise.all(
+      Array.from({ length: Math.min(1000, WIDE_FILES - start) }, (_, i) =>
+        Promise.all([
+          fs.writeFile(path.join(wide, `f${start + i}`), ""),
+          fs.writeFile(
+            path.join(chatRoot, "work", "wide", `f${start + i}`),
+            "",
+          ),
+        ]),
+      ),
+    );
+  }
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // The home folder holds this computer's folder for the app, which is what
   // marks it as home.
@@ -76,10 +83,11 @@ afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe("walks over the home folder", () => {
+// A walk of 20,000 entries takes several seconds on Windows.
+describe("walks over the home folder", { timeout: 60_000 }, () => {
   it("stop at the home folder's budget, pointing at rg", async () => {
     const result = await run(
-      `find ${path.join(tmpDir, "Home")} -name nothing-here`,
+      `find ${shellPath(path.join(tmpDir, "Home"))} -name nothing-here`,
     );
 
     expect(result.exitCode).toBe(1);
@@ -100,11 +108,11 @@ describe("walks over the home folder", () => {
   it("start over with each call into the same shell", async () => {
     const bash = await shell();
     const first = await bash.exec(
-      `find ${path.join(tmpDir, "Home", "wide")} -name f1`,
+      `find ${shellPath(path.join(tmpDir, "Home", "wide"))} -name f1`,
     );
     expect(first.stderr).toContain("stopped walking");
 
-    const next = await bash.exec(`ls ${path.join(tmpDir, "Home")}`);
+    const next = await bash.exec(`ls ${shellPath(path.join(tmpDir, "Home"))}`);
     expect(next.stdout).toContain("wide");
   });
 });

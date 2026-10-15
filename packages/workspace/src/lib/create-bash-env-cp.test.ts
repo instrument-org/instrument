@@ -10,6 +10,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Guards the local patch to just-bash's `MountableFs`, carried until the
@@ -66,10 +67,13 @@ describe.each<MountedFolder.Access>(["read-only", "read-write"])(
   "cp -R of a %s mount holding symlinks",
   (access) => {
     it("copies everything but the links and names them", async () => {
-      const result = await run(access, `cp -R ${attachedDir} work/copy`);
+      const result = await run(
+        access,
+        `cp -R ${shellPath(attachedDir)} work/copy`,
+      );
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr.replaceAll(attachedDir, "<docs>"))
+      expect(result.stderr.replaceAll(shellPath(attachedDir), "<docs>"))
         .toMatchInlineSnapshot(`
         "cp: cannot copy '<docs>': copied all but 2 entries: <docs>/link.txt: EPERM: operation not permitted, symlink '/work/copy/link.txt'; <docs>/sub/up: EPERM: operation not permitted, symlink '/work/copy/sub/up'
         "
@@ -90,7 +94,10 @@ describe.each<MountedFolder.Access>(["read-only", "read-write"])(
 
     it("copies a subtree with no links in it cleanly", async () => {
       await fs.rm(path.join(attachedDir, "sub", "up"));
-      const result = await run(access, `cp -R ${attachedDir}/sub work/sub`);
+      const result = await run(
+        access,
+        `cp -R ${shellPath(attachedDir)}/sub work/sub`,
+      );
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");

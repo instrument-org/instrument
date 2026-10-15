@@ -10,6 +10,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Guards the `ls` part of the local just-bash patch, carried until upstream
@@ -74,14 +75,21 @@ beforeAll(async () => {
   for (let d = 0; d < DIRECTORIES; d++) {
     const dir = path.join(attachedDir, `d${String(d).padStart(2, "0")}`);
     await fs.mkdir(dir, { recursive: true });
-    await Promise.all(
-      Array.from({ length: FILES_PER_DIRECTORY }, (_, f) =>
-        fs.writeFile(path.join(dir, `f${String(f).padStart(5, "0")}`), ""),
-      ),
-    );
+    // In batches: Windows runs out of file handles opening them all at once.
+    for (let start = 0; start < FILES_PER_DIRECTORY; start += 1000) {
+      await Promise.all(
+        Array.from({ length: 1000 }, (_, i) =>
+          fs.writeFile(
+            path.join(dir, `f${String(start + i).padStart(5, "0")}`),
+            "",
+          ),
+        ),
+      );
+    }
   }
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
-});
+  // Windows takes most of a minute to write the tree.
+}, 120_000);
 
 afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
@@ -89,12 +97,13 @@ afterAll(async () => {
 
 describe("ls over a large folder mount", () => {
   it("lists a large directory in long format in linear time", async () => {
-    // Guarded by the test timeout.
-    const result = await run(`ls -l '${attachedDir}/d00' | wc -l`);
+    // Guarded by the test timeout, which leaves room for Windows reading the
+    // folder several times slower and none for the quadratic listing.
+    const result = await run(`ls -l '${shellPath(attachedDir)}/d00' | wc -l`);
 
     expect(result.stderr).toBe("");
     expect(result.stdout.trim()).toBe(String(FILES_PER_DIRECTORY + 1));
-  });
+  }, 15_000);
 
   it("stops a recursive listing at the entry budget", async () => {
     const result = await budgeted("ls -R /");
@@ -126,7 +135,7 @@ describe("ls over a large folder mount", () => {
   });
 
   it("lists the whole tree from the agent's shell, whose budget is larger", async () => {
-    const result = await run(`ls -R '${attachedDir}' | wc -l`);
+    const result = await run(`ls -R '${shellPath(attachedDir)}' | wc -l`);
 
     expect(result.exitCode).toBe(0);
     expect(Number(result.stdout.trim())).toBeGreaterThan(

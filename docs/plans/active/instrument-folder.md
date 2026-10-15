@@ -1,6 +1,6 @@
 # Plan: everything visible in the Instrument folder
 
-Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md); nothing built.
+Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md). F1's folder, renderer and sweep are built; what F1 still owes is in its row of the phase table.
 
 The Instrument folder becomes something a person can open in Finder, Spotlight or Obsidian: a folder per chat with its transcript as Markdown and what the agent made, their drafts, topics, memories, skills and apps as plain files. The app's records stay in the hidden `.instrument/`, which ends fully closed to the agent. Attachments stop being copies: what the person hands over from disk is opened to the chat where it lies.
 
@@ -42,15 +42,17 @@ On this computer, per workspace: a topic's granted folders and a chat's grants m
 ## `CHAT.md`
 
 - Rendered from the fold, deterministically, so two renders of the same records are the same bytes. Written whole through a temp name (`.~CHAT.md.tmp`) and a rename at the end of each turn, by the device running the chat. Edits to it do not last, and a sync service's conflict copy of it is deleted on sight.
-- Front matter: `started`, `topics` (names), and nothing listing files, pages or apps. First line of the body: an "Open this chat in Instrument" link, `instrument://chat/<id>`.
+- Front matter: `started`, `topics` (names), and nothing listing files, pages or apps. First line of the body: an "Open this chat in Instrument" link, `instrument://chat/<id>`. No heading above it: the folder is named for the chat.
 - A heading per day and per message. What a person sees in the chat stays visible: messages, cards with their answer, files, a model switch. The work between two visible messages folds into one HTML `<details>` whose summary is "Worked for N minutes", holding plain `<pre>` lines: reasoning, a step's label and short detail, a task's steps indented. Never callouts; Obsidian does not render Markdown inside `<details>`.
+- A message's heading says who said it and when, at the moment it was said rather than when its turn began, so a reply follows the fold of the work it came out of. A fold's minutes run to the end of the last call in it, since a fold holding one call that ran for two minutes took two minutes.
+- The zone the days and times are written in is handed to the renderer, never read from the process, and the names of the days and the months are the renderer's own: only digits come from the system's calendar data, so an updated copy of it cannot move a heading. The device writing the file hands in its own zone.
 - The agent may read and search it like any file; it is how one chat finds another's words without opening records.
 
 ## Chat folder lifecycle
 
 1. Created at Send of the first message, named by that message's first words (the words are final by then). The agent's output folder and pasted files need it during the first turn.
 2. Renamed to the title between turns, once the title settles. Never renamed while a turn runs. `settings.json` in the record folder holds `folder`, the name it last gave the folder; references to pasted files are stored relative to the chat folder, so a rename breaks none.
-3. Names follow the sync rules: no `/ \ : * ? " < > |`, no leading dot, no trailing dot or space, no reserved Windows names, at most 80 characters, a number (` 2`) only on collision.
+3. Names follow the sync rules: no `/ \ : * ? " < > |`, no leading dot, no trailing dot or space, no reserved Windows names, at most 80 characters, a number (` 2`) only on collision. A name is taken by making the folder, which the system does in one step, rather than by listing what is there and picking what is free: two chats under one title, settling at the same moment or swept together, would otherwise both pick that name and share a folder.
 4. If the folder `settings.json` names is gone (deleted, renamed or moved in Finder), the chat's next change makes a fresh one by the current title. The old one, wherever it went, is the person's.
 5. Never deleted for being empty. Deleting a chat in the app opens a delete screen that shows what goes: the chat itself (its records and transcript) always, and its folder with what the agent made only if the person checks that option, which starts unchecked. An unchecked folder stays as the person's own files.
 6. At the update, every existing chat gets its folder and `CHAT.md`, built from the converter's fold. Files old chats already made stay where they are.
@@ -155,6 +157,7 @@ After records phases 1 to 5, since everything here reads and writes the new reco
 | # | Phase | Done means |
 |---|---|---|
 | F1 | Chat folders: lifecycle, `CHAT.md` renderer and writer, output folder and handoff notes moved, folders for every existing chat | A converted clone of a real install has a folder and `CHAT.md` for every chat; renders are byte-identical across runs |
+| F1, still to build | The writer on the end of a turn and the rename once the title settles, which today only the launch sweep does; `$INSTRUMENT_OUTPUT` and `handoff-notes.md` moved into the chat's folder, which needs the folder mounted for the agent (`workspace-fs-layout.ts`) and the prompt's output folder pointed at it | A turn's own writes reach `CHAT.md` without a relaunch; the agent writes its notes and its finished work in the chat's folder |
 | F2 | Drafts: `DRAFT.md`, both sequences, several per chat, crash-safe Send, migration | Both sequences driven in the app, with a crash injected between each step of Send |
 | F3 | Attachments by reference: file grants on all three systems, pasted files, stored shape, the copy and `$INSTRUMENT_ATTACHMENTS` removed, migration | The agent edits an attached file in place on macOS and Linux, and on Windows through the shell and file tools |
 | F4 | `TOPIC.md`, `Memory/`, `Skills/`, `APP.md`, instructions by threshold, `.instrument` closed with no exceptions | A test asserts a chat reaches nothing inside `.instrument`; approvals survive the move |

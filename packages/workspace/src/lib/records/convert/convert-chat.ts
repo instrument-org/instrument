@@ -6,11 +6,13 @@ import { z } from "zod";
 import { CHAT_DB_FILE_NAME } from "../../../constants";
 import { type ChatId, ChatIdSchema } from "../../../schemas/chat-id";
 import { Session } from "../../../schemas/session";
+import { type SessionMessagePart } from "../../../schemas/session/message-part";
+import { isToolPart } from "../../is-tool-part";
 import { blobPath, isBlobName, writeBlob } from "../blobs";
 import { type DeviceId } from "../device-id";
 import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
 import { ChatFold, type FoldedSession } from "../fold";
-import { partFromRecord, partToRecord } from "../part-blobs";
+import { partFromRecord, partToRecord, type SaveBlob } from "../part-blobs";
 import { type LogRecord, type MarkRecord, RECORD_FORMAT } from "../record";
 import { RecordWriter, type Unsequenced } from "../record-writer";
 import { syncDirectory } from "../sync-directory";
@@ -21,6 +23,7 @@ import {
   MAX_DIFFERENCES,
 } from "./compare";
 import {
+  type ChatDbPart,
   type ChatDbRead,
   type ChatDbSession,
   readChatDb,
@@ -30,6 +33,11 @@ import {
 /**
  * Turning a chat's `chat.db` into records: a log per session, the person's
  * marks, and a blob for each file a tool returned, all from this device.
+ *
+ * Each part is written as its row held it rather than as reading it gave, so
+ * a payload this build cannot read is in the line as it was written and a
+ * build that learns its shape can read it. `chat.db` is set aside and later
+ * deleted, which makes the line the only copy left.
  *
  * The records are written into a folder in the chat's record folder that
  * sync engines skip (`.~convert-<pid>.tmp`), synced to disk, and folded back
@@ -343,7 +351,7 @@ async function logRecords(
   chat: ChatId,
   { messages, session, told }: ChatDbSession,
   { app, deviceId }: ConvertOptions,
-  save: (bytes: Uint8Array, mediaType: string) => Promise<string>,
+  save: SaveBlob,
 ): Promise<Unsequenced<LogRecord>[]> {
   const at = lastUpdate(session);
   const records: Unsequenced<LogRecord>[] = [
@@ -368,7 +376,7 @@ async function logRecords(
   for (const { message, parts } of messages) {
     records.push({ t: "message", at, message });
     for (const part of parts) {
-      records.push({ t: "part", at, part: await partToRecord(part, save) });
+      records.push({ t: "part", at, part: await partRecord(part, save) });
     }
   }
   if (session.rolledOverAfterMessageId !== undefined) {
@@ -390,6 +398,27 @@ async function logRecords(
     }
   }
   return records;
+}
+
+/**
+ * The part a log keeps: the row `chat.db` held, with the bytes in its output
+ * moved into a blob. The row rather than the read of it, because a read
+ * stands in for whatever it cannot make sense of -- a payload of a type no
+ * schema here has, or one written before a field its schema now describes,
+ * comes back as `data-unknown` saying so, and a failed call's `rawInput`
+ * folds into `input`. Reading the line back gives the read's answer again,
+ * since a record and the store go through the same schema.
+ */
+async function partRecord(
+  { part, stored }: ChatDbPart,
+  save: SaveBlob,
+): Promise<SessionMessagePart.Type> {
+  const written = await partToRecord(part, save);
+  const swapped: { output?: unknown } =
+    written !== part && isToolPart(written) ? { output: written.output } : {};
+  // The row's own payload, which no type here describes once its shape has
+  // retired: the same reason reading one is a cast rather than a parse.
+  return { ...stored, ...swapped } as SessionMessagePart.Type;
 }
 
 /**
@@ -542,13 +571,13 @@ async function verify(
       addDifferences(
         found,
         `${where} parts`,
-        parts.map(({ metadata }) => metadata.id),
+        parts.map(({ part }) => part.metadata.id),
         theirParts.map(({ metadata }) => metadata.id),
       );
       const partsById = new Map(
         theirParts.map((part) => [part.metadata.id, part]),
       );
-      for (const part of parts) {
+      for (const { part } of parts) {
         const theirPart = partsById.get(part.metadata.id);
         let readBack: unknown;
         try {

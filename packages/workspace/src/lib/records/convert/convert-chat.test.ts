@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import superjson from "superjson";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { withTempDir } from "../../../test/helpers/temp-dir";
 import { disposeSessionsStoreStorage } from "../../session-store-storage";
@@ -27,6 +28,7 @@ import { convertChat, convertWorkspaceChats } from "./convert-chat";
 import {
   CHAT_SESSION,
   INTERRUPTED,
+  OLDER_SESSION,
   part,
   saveMessage,
   saveSession,
@@ -34,6 +36,7 @@ import {
   tell,
   writeChat,
   writeEveryKindChat,
+  writeOlderThanSchemasChat,
   writeUntitledChat,
 } from "./test-chats";
 
@@ -116,6 +119,20 @@ function failRenamesTo(to: RegExp): void {
       ? Promise.reject(new Error("The disk went away"))
       : rename(from, target),
   );
+}
+
+const PartLineSchema = z.object({ part: z.unknown(), t: z.literal("part") });
+
+/** The part each of a log's part lines holds, as its bytes have it. */
+async function partLines(file: string): Promise<unknown[]> {
+  const text = await fs.readFile(file, "utf8");
+  return text
+    .split("\n")
+    .filter((line) => line !== "")
+    .flatMap((line) => {
+      const parsed = PartLineSchema.safeParse(JSON.parse(line) as unknown);
+      return parsed.success ? [parsed.data.part] : [];
+    });
 }
 
 /** Each record a log holds, by kind, a part by its type. */
@@ -427,6 +444,145 @@ describe("convertChat", () => {
     expect(superjson.parse(String(row?.blob))).toMatchObject({
       state: "input-available",
     });
+  });
+
+  it("writes a payload no schema here reads as the row held it, and reads it back as unknown", async () => {
+    const dir = chatPath("older-than-its-schemas");
+    await writeOlderThanSchemasChat(dir);
+
+    const result = await convertChat(dir, OPTIONS);
+
+    expect(result.kind).toBe("converted");
+    const log = path.join(dir, logFileName(OLDER_SESSION, DEVICE_A));
+    // Everything after the first message's text.
+    expect((await partLines(log)).slice(1)).toMatchInlineSnapshot(`
+      [
+        {
+          "data": {
+            "handle": "t1",
+            "title": "Find hotels",
+          },
+          "metadata": {
+            "createdAt": "2026-10-14T12:03:40.000Z",
+            "id": "prt_01K7A000000000000000000220",
+            "messageId": "msg_01K7A000000000000000000022",
+            "sessionId": "ses_01K7A000000000000000000020",
+          },
+          "type": "data-adoptedTask",
+        },
+        {
+          "data": {
+            "events": [
+              {
+                "status": "done",
+                "summary": "Three hotels",
+                "title": "Find hotels",
+              },
+            ],
+          },
+          "metadata": {
+            "createdAt": "2026-10-14T12:03:41.000Z",
+            "id": "prt_01K7A000000000000000000221",
+            "messageId": "msg_01K7A000000000000000000022",
+            "sessionId": "ses_01K7A000000000000000000020",
+          },
+          "type": "data-taskEvent",
+        },
+        {
+          "input": {
+            "path": "map.png",
+          },
+          "metadata": {
+            "createdAt": "2026-10-14T12:03:42.000Z",
+            "endedAt": "2026-10-14T12:00:23.000Z",
+            "id": "prt_01K7A000000000000000000222",
+            "messageId": "msg_01K7A000000000000000000022",
+            "sessionId": "ses_01K7A000000000000000000020",
+            "startedAt": "2026-10-14T12:00:22.000Z",
+          },
+          "output": {
+            "blob": "sha256-a694d888a1b59b444944827ef314d864d2bb445ac852f1fcd4939c4e835a460f.png",
+            "bytes": 16,
+            "filePath": "map.png",
+            "mediaType": "image/png",
+            "mimeType": "image/png",
+            "modifiedAt": 1,
+            "state": "image",
+          },
+          "rawInput": {
+            "filePath": "map.png",
+          },
+          "state": "output-available",
+          "toolCallId": "call-222",
+          "type": "tool-read_file",
+        },
+      ]
+    `);
+    const [session] = (await foldFolder(dir)).sessions;
+    expect(session?.messages.at(-1)?.parts).toMatchInlineSnapshot(`
+      [
+        {
+          "data": {
+            "originalType": "data-adoptedTask",
+            "reason": "no schema for data-adoptedTask",
+          },
+          "metadata": {
+            "createdAt": 2026-10-14T12:03:40.000Z,
+            "id": "prt_01K7A000000000000000000220",
+            "messageId": "msg_01K7A000000000000000000022",
+            "sessionId": "ses_01K7A000000000000000000020",
+          },
+          "type": "data-unknown",
+        },
+        {
+          "data": {
+            "originalType": "data-taskEvent",
+            "reason": "✖ Invalid input: expected string, received undefined
+        → at events[0].sessionId",
+          },
+          "metadata": {
+            "createdAt": 2026-10-14T12:03:41.000Z,
+            "id": "prt_01K7A000000000000000000221",
+            "messageId": "msg_01K7A000000000000000000022",
+            "sessionId": "ses_01K7A000000000000000000020",
+          },
+          "type": "data-unknown",
+        },
+        {
+          "input": {
+            "path": "map.png",
+          },
+          "metadata": {
+            "createdAt": 2026-10-14T12:03:42.000Z,
+            "endedAt": 2026-10-14T12:00:23.000Z,
+            "id": "prt_01K7A000000000000000000222",
+            "messageId": "msg_01K7A000000000000000000022",
+            "sessionId": "ses_01K7A000000000000000000020",
+            "startedAt": 2026-10-14T12:00:22.000Z,
+          },
+          "output": {
+            "blob": "sha256-a694d888a1b59b444944827ef314d864d2bb445ac852f1fcd4939c4e835a460f.png",
+            "bytes": 16,
+            "filePath": "map.png",
+            "mediaType": "image/png",
+            "mimeType": "image/png",
+            "modifiedAt": 1,
+            "state": "image",
+          },
+          "state": "output-available",
+          "toolCallId": "call-222",
+          "type": "tool-read_file",
+        },
+      ]
+    `);
+    expect(await listing(dir)).toMatchInlineSnapshot(`
+      [
+        "blobs/sha256-a694d888a1b59b444944827ef314d864d2bb445ac852f1fcd4939c4e835a460f.png",
+        "chat.db",
+        "marks.dev_AAAAAAAA.jsonl",
+        "ses_01K7A000000000000000000020.dev_AAAAAAAA.jsonl",
+      ]
+    `);
   });
 
   it("finds what the records would not hold, and leaves the chat as it was", async () => {

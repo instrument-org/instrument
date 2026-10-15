@@ -71,18 +71,44 @@ export function part(
   fields: Record<string, unknown>,
   metadata: Record<string, unknown> = {},
 ): SessionMessagePart.Type {
-  return SessionMessagePart.coerce(
-    SessionMessageRelaxedPart.Schema.parse({
-      ...fields,
-      metadata: {
-        createdAt: at(n),
-        id: partId(n),
-        messageId: message,
-        sessionId: session,
-        ...metadata,
-      },
-    }),
-  );
+  return SessionMessagePart.coerce(row(session, message, n, fields, metadata));
+}
+
+/**
+ * A part numbered `n` as the store keeps one, which reading it does not give
+ * back: a payload of a type no schema here has, one written before a field
+ * its schema now describes, or a failed call's `rawInput`. Typed as a part
+ * because that is what the store takes, and nothing here describes a payload
+ * whose shape has retired.
+ */
+function storedPart(
+  session: StoreId.Session,
+  message: StoreId.Message,
+  n: number,
+  fields: Record<string, unknown>,
+  metadata: Record<string, unknown> = {},
+): SessionMessagePart.Type {
+  return row(session, message, n, fields, metadata) as SessionMessagePart.Type;
+}
+
+/** The row a part is stored as, through the schema the store writes with. */
+function row(
+  session: StoreId.Session,
+  message: StoreId.Message,
+  n: number,
+  fields: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+): SessionMessageRelaxedPart.Type {
+  return SessionMessageRelaxedPart.Schema.parse({
+    ...fields,
+    metadata: {
+      createdAt: at(n),
+      id: partId(n),
+      messageId: message,
+      sessionId: session,
+      ...metadata,
+    },
+  });
 }
 
 /** Stores what a session was told, as each fact's module stores it. */
@@ -374,6 +400,66 @@ export const INTERRUPTED = {
   errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
   state: "output-error",
 };
+
+/** The session of `writeOlderThanSchemasChat`. */
+export const OLDER_SESSION = sessionId(20);
+
+/**
+ * A chat older than the schemas that read it: a data part of a type no
+ * schema here has, one whose payload was written before a field its schema
+ * now describes, and a call whose row kept the model's input in `rawInput`
+ * beside the file in its output. Reading any of the three gives back less
+ * than the row holds.
+ */
+export function writeOlderThanSchemasChat(dir: string): Promise<ChatId> {
+  return writeChat(dir, async (chat) => {
+    const s = OLDER_SESSION;
+    await saveSession(chat, {
+      createdAt: at(0),
+      id: s,
+      title: "What the task did",
+      titleSettledAt: at(1),
+      updatedAt: at(25),
+    });
+    await saveMessage(chat, user(s, 21), [text(s, 21, "What did it do?")]);
+    await saveMessage(chat, assistant(s, 22), [
+      storedPart(s, messageId(22), 220, {
+        data: { handle: "t1", title: "Find hotels" },
+        type: "data-adoptedTask",
+      }),
+      storedPart(s, messageId(22), 221, {
+        // Written before an event named the task's session, which its
+        // schema now asks for.
+        data: {
+          events: [
+            { status: "done", summary: "Three hotels", title: "Find hotels" },
+          ],
+        },
+        type: "data-taskEvent",
+      }),
+      storedPart(
+        s,
+        messageId(22),
+        222,
+        {
+          input: { path: "map.png" },
+          output: {
+            base64Data: IMAGE.toString("base64"),
+            filePath: "map.png",
+            mimeType: "image/png",
+            modifiedAt: 1,
+            state: "image",
+          },
+          rawInput: { filePath: "map.png" },
+          state: "output-available",
+          toolCallId: "call-222",
+          type: "tool-read_file",
+        },
+        { endedAt: at(23), startedAt: at(22) },
+      ),
+    ]);
+  });
+}
 
 /** A chat whose title the app may still change, never updated since it began. */
 export function writeUntitledChat(dir: string): Promise<ChatId> {

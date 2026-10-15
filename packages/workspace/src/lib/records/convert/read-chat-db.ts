@@ -33,14 +33,28 @@ import { type ToldWhat } from "../record";
  *
  * What comes back is what the store's reads gave, through the same schemas
  * and in the same order: every session, its messages by id, each message's
- * parts by id, and what the session was last told. Moved folders are not
- * read back where a move took them, which the store did for display; the
- * records keep the paths as they were written.
+ * parts by id with the row each was read from, and what the session was
+ * last told. Moved folders are not read back where a move took them, which
+ * the store did for display; the records keep the paths as they were
+ * written.
  */
 
 interface ChatDbMessage {
   message: SessionMessage.Type;
-  parts: SessionMessagePart.Type[];
+  parts: ChatDbPart[];
+}
+
+/** A part as the store read it, beside the row it was read from. */
+export interface ChatDbPart {
+  /** The part the store's read gave, which a record of it reads back as. */
+  part: SessionMessagePart.Type;
+  /**
+   * The row itself, which is what a log keeps. Reading a part fills in what
+   * its payload's schema defaults, drops what that schema has no field for,
+   * and gives back `data-unknown` in place of a payload no schema here reads
+   * at all, so only the row holds what was written.
+   */
+  stored: SessionMessageRelaxedPart.Type;
 }
 
 export interface ChatDbSession {
@@ -228,20 +242,20 @@ async function readParts(
   sessionId: StoreId.Session,
   messageId: StoreId.Message,
   taken: Set<string>,
-): Promise<SessionMessagePart.Type[]> {
-  const parts: SessionMessagePart.Type[] = [];
+): Promise<ChatDbPart[]> {
+  const parts: ChatDbPart[] = [];
   for (const id of await idsUnder(
     storage,
     StorageKey.parts(sessionId, messageId),
     (value) => StoreId.PartSchema.safeParse(value),
   )) {
     const key = StorageKey.part(sessionId, messageId, id);
-    const part = await need(
+    const stored = await need(
       getParsedStorageItem(key, SessionMessageRelaxedPart.Schema, storage),
       key,
     );
     taken.add(key);
-    parts.push(SessionMessagePart.coerce(part));
+    parts.push({ part: SessionMessagePart.coerce(stored), stored });
   }
   return parts;
 }

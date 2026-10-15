@@ -11,6 +11,7 @@ import { chatGrants } from "../chat/grants";
 import { chatDenials } from "./denials";
 import { type NativeReach } from "../native-sandbox";
 import { runtimeLayout } from "../runtime-dir";
+import { skillSourceRoots } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { readPermissionSettings, type Rules, rulesFor } from "./rules";
@@ -39,6 +40,11 @@ export async function chatRules({
     extraAllows: Object.values(folders)
       .map((folder) => folder.path)
       .filter((folderPath) => path.resolve(folderPath) !== path.resolve(home)),
+    // The same folders the shell mounts read-only, so the file tools and the
+    // commands agree about a skill the agent was told to read where it is.
+    extraReadOnly: skillSourceRoots(getWorkspaceConfig())
+      .filter((root) => root.readOnly)
+      .map((root) => root.dir),
     denials: (await chatDenials(chatId))
       .filter((denial) => denial.kind === "folder")
       .map((denial) => denial.target),

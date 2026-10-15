@@ -264,6 +264,7 @@ export interface Rules {
 export function rulesFor({
   denials = [],
   extraAllows = [],
+  extraReadOnly = [],
   grants = [],
   home = os.homedir(),
   settings,
@@ -271,6 +272,14 @@ export function rulesFor({
   /** Folders the person said not now to in this chat. */
   denials?: readonly string[];
   extraAllows?: readonly string[];
+  /**
+   * Folders the chat reads without a grant and never changes: the skill
+   * sources its shell mounts read-only. The app's own are hidden folders in
+   * the home folder, which the app-files place holds and asks about, so
+   * without these a loaded skill is a question the person has to answer
+   * about the app's own files.
+   */
+  extraReadOnly?: readonly string[];
   grants?: readonly ChatGrant[];
   home?: string;
   settings: PermissionSettings;
@@ -301,6 +310,9 @@ export function rulesFor({
   }
   for (const allowed of extraAllows) {
     rules.push({ level: "allow", path: allowed, source: "grant" });
+  }
+  for (const readable of extraReadOnly) {
+    rules.push({ level: "readOnly", path: readable, source: "system" });
   }
   // An Always allow for the folder or one holding it, given in Settings or
   // from any chat's card, outranks a chat's earlier "Not now". A card's

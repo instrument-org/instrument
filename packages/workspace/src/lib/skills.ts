@@ -13,6 +13,7 @@ import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
+import { runtimeLayout } from "./runtime-dir";
 import { workspaceLayout } from "./workspace-layout";
 
 export const FILE_LIST_LIMIT = 50;
@@ -317,6 +318,37 @@ export function getSkillSources(
       source: "workspace",
     },
   ];
+}
+
+/**
+ * The folder each skill source is read from, and whether the agent may only
+ * read it. One entry per folder: the two bundled sources collapse onto the
+ * prepared directory, since neither can run from the signed app bundle.
+ *
+ * The shell mounts these (`buildSkillMounts`) and the chat's rules allow
+ * them (`permissions/chat-rules.ts`), from here, so that the tool that reads
+ * a file and the command that reads the same file agree about it. They did
+ * not: the mounts were built from this list and the rules were not, so
+ * `read_file` on a loaded skill asked the person for a folder the shell was
+ * already reading.
+ */
+export function skillSourceRoots(
+  config: Pick<
+    WorkspaceConfig,
+    "registryDir" | "rootDir" | "runtimeDir" | "systemSkillsDir"
+  >,
+): { dir: AbsolutePath; readOnly: boolean }[] {
+  const roots = new Map<string, { dir: AbsolutePath; readOnly: boolean }>();
+  for (const { dir, id } of getSkillSources(config)) {
+    const root = BUNDLED_SOURCE_IDS.has(id)
+      ? AbsolutePathSchema.parse(runtimeLayout(config.runtimeDir).skills)
+      : dir;
+    if (roots.has(root)) {
+      continue;
+    }
+    roots.set(root, { dir: root, readOnly: id !== "workspace" });
+  }
+  return [...roots.values()];
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

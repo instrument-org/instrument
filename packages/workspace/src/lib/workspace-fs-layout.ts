@@ -35,7 +35,7 @@ import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { runtimeLayout } from "./runtime-dir";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
-import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
+import { skillSourceRoots } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workspaceLayout } from "./workspace-layout";
 import { workspaceMachineDir } from "./workspace-machine-dir";
@@ -626,27 +626,11 @@ function tempFolders(): AbsolutePath[] {
  * wholesale by the updater, so they are materialized once per machine instead.
  */
 function buildSkillMounts(): WorkspaceFsMount[] {
-  const config = getWorkspaceConfig();
-  const mounts = new Map<string, WorkspaceFsMount>();
-
-  for (const { dir, id } of getSkillSources(config)) {
-    const bundled = BUNDLED_SOURCE_IDS.has(id);
-    const hostRoot = bundled
-      ? AbsolutePathSchema.parse(runtimeLayout(config.runtimeDir).skills)
-      : dir;
-    // Both bundled ids reach the prepared directory, and the first one to
-    // claim it stands for both.
-    if (mounts.has(hostRoot)) {
-      continue;
-    }
-    mounts.set(hostRoot, {
-      hostRoot,
-      shellRoot: shellPath(hostRoot),
-      readOnly: id !== "workspace",
-    });
-  }
-
-  return [...mounts.values()];
+  return skillSourceRoots(getWorkspaceConfig()).map(({ dir, readOnly }) => ({
+    hostRoot: dir,
+    shellRoot: shellPath(dir),
+    readOnly,
+  }));
 }
 
 /**

@@ -3,10 +3,12 @@
 // pure function; this module is the only place that touches `AfterPackContext`.
 
 import { type AfterPackContext, Arch } from "electron-builder";
+import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { THIRD_PARTY_LICENSES_DIR_NAME } from "../src/shared/third-party-licenses";
+import { documentTypesWearingAppIcon } from "./file-associations";
 import {
   type ElectronPlatform,
   isElectronPlatform,
@@ -44,7 +46,54 @@ export function runAfterPack(context: AfterPackContext) {
   verifyPackagedPnpm(context);
   verifyPackagedFfmpeg(context);
   verifyPackagedMacBridge(context);
+  dropAppIconFromDocumentTypes(context);
   writePackagedLicenses(context);
+}
+
+/**
+ * Takes the app's icon off the document types electron-builder gave it to
+ * (see documentTypesWearingAppIcon). Runs before signing, so the edited
+ * Info.plist is the one sealed.
+ */
+function dropAppIconFromDocumentTypes(context: AfterPackContext) {
+  if (context.electronPlatformName !== "darwin") {
+    return;
+  }
+  const plist = path.join(
+    context.appOutDir,
+    `${context.packager.appInfo.productFilename}.app`,
+    "Contents",
+    "Info.plist",
+  );
+  const plutil = (args: string[]) =>
+    execFileSync("plutil", args, { encoding: "utf8" });
+  // A lone string is no JSON document to plutil, so the icon's name is read raw.
+  const appIcon = plutil([
+    "-extract",
+    "CFBundleIconFile",
+    "raw",
+    "-o",
+    "-",
+    plist,
+  ]).trim();
+  const types: unknown = JSON.parse(
+    plutil(["-extract", "CFBundleDocumentTypes", "json", "-o", "-", plist]),
+  );
+  if (!appIcon || !Array.isArray(types)) {
+    throw new Error(`Could not read the document types in ${plist}.`);
+  }
+  // Deleted from the last, so each index still names the type it did.
+  const wearing = documentTypesWearingAppIcon(types, appIcon).toReversed();
+  for (const index of wearing) {
+    plutil([
+      "-remove",
+      `CFBundleDocumentTypes.${index}.CFBundleTypeIconFile`,
+      plist,
+    ]);
+  }
+  console.log(
+    `afterPack: took the app icon off ${wearing.length} document types`,
+  );
 }
 
 // Only a binary matching the host platform AND arch can be executed during

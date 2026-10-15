@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  documentTypesWearingAppIcon,
   WINDOWS_EXTENSIONS,
   windowsFileAssociationsScript,
 } from "./file-associations";
+
+describe("documentTypesWearingAppIcon", () => {
+  it("names the types given the app's icon and leaves the rest", () => {
+    expect(
+      documentTypesWearingAppIcon(
+        [
+          { CFBundleTypeIconFile: "icon.icns" },
+          {},
+          { CFBundleTypeIconFile: "markdown.icns" },
+          { CFBundleTypeIconFile: "icon.icns" },
+        ],
+        "icon.icns",
+      ),
+    ).toEqual([0, 3]);
+  });
+});
 
 describe("windowsFileAssociationsScript", () => {
   it("adds Instrument to Open With and takes it out on uninstall", () => {

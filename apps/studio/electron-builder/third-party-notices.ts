@@ -176,8 +176,9 @@ export function listAsarPackages(asarPath: string) {
     if (!PACKAGE_MANIFEST.test(relative)) {
       continue;
     }
+    // The archive is read in the platform's own separators, as it lists them.
     const { name, version } = JSON.parse(
-      extractFile(asarPath, relative).toString("utf8"),
+      extractFile(asarPath, entry.replace(/^[\\/]/, "")).toString("utf8"),
     ) as PackageJson; // A package's own manifest.
     if (name && version) {
       packages.push({ name, version });

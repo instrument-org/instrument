@@ -50,6 +50,19 @@ export const LEGACY_TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
 /**
+ * Where every chat's own folder is, at the workspace's top level: the one
+ * folder of the six a person opens that the app writes rather than reads,
+ * holding a folder per chat named for what the chat is about.
+ */
+export const CHATS_FOLDER_NAME = "Chats";
+/**
+ * A chat's transcript in its folder, written from its records at the end of
+ * each turn. Capitalized like the one file that says what a folder is in each
+ * of the six: a folder in `Chats/` without it is not a chat's.
+ */
+export const CHAT_FILE_NAME = "CHAT.md";
+
+/**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between
  * the prompt that teaches it and the renderer that draws it, and a fence

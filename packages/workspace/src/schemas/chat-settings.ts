@@ -73,6 +73,13 @@ export const ChatSettingsSchema = z.object({
   // What the person said not now to in this chat. One that will not parse
   // costs the chat these alone.
   denials: z.array(ChatDenialSchema).optional().catch(undefined),
+  // The name this chat's own folder was last given under `Chats/`, which is
+  // the app's whole hold on that folder: the folder is found by this name and
+  // never by what is inside it, so a folder renamed or moved in a file
+  // manager is not followed, and the chat's next change makes a fresh one
+  // under its current title. References to what the person pasted are stored
+  // relative to the folder, so a rename breaks none of them.
+  folder: z.string().min(1).optional().catch(undefined),
   // The folders granted in this chat, oldest first. One that will not parse
   // costs the chat its grants rather than the rest of its settings.
   grants: z.array(ChatGrantSchema).optional().catch(undefined),

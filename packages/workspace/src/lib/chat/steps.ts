@@ -1,10 +1,13 @@
-import { z } from "zod";
-
-import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
 import { isToolPart } from "../is-tool-part";
+import {
+  callActivity,
+  clipLine,
+  partCreatedAt,
+  toolCallLine,
+} from "./call-label";
 
 /**
  * One line of a task's transcript read as a sequence of steps: what its agent
@@ -21,9 +24,6 @@ export interface Step {
 
 /** How much of a spoken line the outline keeps. */
 const SAID_MAX_LENGTH = 200;
-
-/** How much of a step label the outline keeps. */
-const LABEL_MAX_LENGTH = 120;
 
 /** The outline as text, one step per line, the time in the reader's zone. */
 export function renderSteps(steps: Step[]): string {
@@ -84,7 +84,7 @@ export async function sessionSteps({
         steps.push({
           at: message.metadata.createdAt,
           kind: "user",
-          text: clip(text, SAID_MAX_LENGTH),
+          text: clipLine(text, SAID_MAX_LENGTH),
         });
       }
       for (const part of message.parts) {
@@ -92,7 +92,7 @@ export async function sessionSteps({
           steps.push({
             at: message.metadata.createdAt,
             kind: "sent",
-            text: clip(part.data.text, SAID_MAX_LENGTH),
+            text: clipLine(part.data.text, SAID_MAX_LENGTH),
           });
         }
       }
@@ -108,7 +108,7 @@ export async function sessionSteps({
           steps.push({
             at: partCreatedAt(part) ?? message.metadata.createdAt,
             kind: "said",
-            text: clip(text, SAID_MAX_LENGTH),
+            text: clipLine(text, SAID_MAX_LENGTH),
           });
         }
         continue;
@@ -117,19 +117,12 @@ export async function sessionSteps({
         continue;
       }
       const at = partCreatedAt(part) ?? message.metadata.createdAt;
-      const input = LabelInputSchema.safeParse(part.input);
-      const callActivity = input.success
-        ? input.data.activity?.trim()
-        : undefined;
-      if (callActivity && callActivity !== activity) {
-        activity = callActivity;
-        steps.push({
-          at,
-          kind: "activity",
-          text: clip(callActivity, LABEL_MAX_LENGTH),
-        });
+      const named = callActivity(part);
+      if (named && named !== activity) {
+        activity = named;
+        steps.push({ at, kind: "activity", text: named });
       }
-      steps.push(toolStep(part, at));
+      steps.push({ at, kind: "call", text: toolCallLine(part) });
     }
   }
   return steps;
@@ -153,91 +146,4 @@ export async function trajectorySince(
       ? activities
       : steps.filter((step) => step.kind === "call")
   ).map((step) => step.text);
-}
-
-function clip(text: string, maxLength: number): string {
-  const oneLine = text.replaceAll(/\s*\n\s*/g, " ");
-  return oneLine.length > maxLength
-    ? `${oneLine.slice(0, maxLength)}…`
-    : oneLine;
-}
-
-/** The fields of a call's input the outline can label it by. */
-const LabelInputSchema = z.object({
-  activity: z.string().optional(),
-  command: z.string().optional(),
-  explanation: z.string().optional(),
-  filePath: z.string().optional(),
-  name: z.string().optional(),
-  query: z.string().optional(),
-  url: z.string().optional(),
-});
-
-/** The fields of a call's output that say how it ended. */
-const OutcomeOutputSchema = z.object({
-  exitCode: z.number().optional(),
-  processId: z.string().optional(),
-});
-
-const PartMetadataSchema = z.object({ createdAt: z.date() });
-
-function outcome(part: SessionMessagePart.ToolPart): string {
-  switch (part.state) {
-    // A call can wait in `input-available` behind a write ahead of it in the
-    // queue; only `startedAt` says it began.
-    case "input-available": {
-      return part.metadata.startedAt !== undefined ? " (running)" : " (queued)";
-    }
-    case "input-streaming": {
-      return " (running)";
-    }
-    case "output-available": {
-      const output = OutcomeOutputSchema.safeParse(part.output);
-      if (!output.success) {
-        return "";
-      }
-      if (output.data.processId !== undefined) {
-        return ` (still running as ${output.data.processId})`;
-      }
-      return output.data.exitCode !== undefined && output.data.exitCode !== 0
-        ? ` (exit ${output.data.exitCode})`
-        : "";
-    }
-    case "output-error": {
-      return " (failed)";
-    }
-    default: {
-      return "";
-    }
-  }
-}
-
-function partCreatedAt(part: SessionMessagePart.Type): Date | undefined {
-  const metadata = PartMetadataSchema.safeParse(part.metadata);
-  return metadata.success ? metadata.data.createdAt : undefined;
-}
-
-/**
- * A tool call as one line: the tool's name, the agent's own label for the call,
- * and how it ended. A `bash` call that outlived its window names the process it
- * became.
- */
-function toolStep(part: SessionMessagePart.ToolPart, at: Date): Step {
-  const tool = part.type.slice("tool-".length);
-  const parsed = LabelInputSchema.safeParse(part.input);
-  const input = parsed.success ? parsed.data : {};
-
-  const label =
-    input.explanation?.trim() ||
-    input.command ||
-    input.filePath ||
-    input.query ||
-    input.url ||
-    input.name ||
-    tool;
-  return {
-    at,
-    kind: "call",
-    text: `${tool}: ${clip(label, LABEL_MAX_LENGTH)}${outcome(part)}`,
-  };
 }

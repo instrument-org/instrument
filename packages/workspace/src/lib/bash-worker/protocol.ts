@@ -20,6 +20,7 @@ export const WORKER_CONFIG_KEYS = [
   "chatTemplateDir",
   "macHelperBinPath",
   "seatbeltHelperPath",
+  "mxcExecPath",
   "nativeSandbox",
   "nodeExecEnv",
   "pnpmBinPath",

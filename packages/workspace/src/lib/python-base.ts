@@ -10,7 +10,11 @@ import { type ChatId } from "../schemas/chat-id";
 import { filterShellOutput } from "./filter-shell-output";
 import { readJsonRecordSync, updateJsonRecord } from "./json-record-file";
 import { inheritedEnv } from "./native-env";
-import { withInstallerClosed, wrapNativeCommand } from "./native-sandbox";
+import {
+  launchNative,
+  withInstallerClosed,
+  wrapNativeCommand,
+} from "./native-sandbox";
 import { ensureManagedPython } from "./run-uv";
 import {
   RELEASE_AGE_DAYS,
@@ -496,13 +500,15 @@ async function importEverything(
     "-c",
     `import sys; sys.path.append(${JSON.stringify(dir)}); ${PYTHON_BASE_SPEC.map(({ smoke }) => `import ${smoke}`).join("; ")}`,
   ]);
-  const result = await execa(spawned.file, spawned.args, {
+  const env = {
+    ...inheritedEnv(process.env, spawned.reach),
+    MPLBACKEND: "Agg",
+  };
+  const launch = launchNative(spawned, { env });
+  const result = await execa(launch.file, launch.args, {
     all: true,
     cancelSignal: AbortSignal.timeout(SMOKE_TIMEOUT_MS),
-    env: {
-      ...inheritedEnv(process.env, spawned.reach),
-      MPLBACKEND: "Agg",
-    },
+    env,
     extendEnv: false,
     reject: false,
     stdin: "ignore",

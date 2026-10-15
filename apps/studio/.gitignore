@@ -18,6 +18,9 @@ resources/uv/
 # Vendored uutils binaries (downloaded by scripts/download-uutils.ts)
 resources/uutils/
 
+# Vendored MXC launcher (downloaded by scripts/download-mxc.ts)
+resources/mxc/
+
 # Document-viewer WASM binaries (copied from node_modules by the main build)
 resources/vendor/
 

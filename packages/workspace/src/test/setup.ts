@@ -77,6 +77,15 @@ setWorkspaceConfig({
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
+  // On Windows, INSTRUMENT_TEST_MXC_EXEC names MXC's launcher so a suite
+  // runs with native commands held by it (with INSTRUMENT_MXC=1 as well).
+  ...(process.env.INSTRUMENT_TEST_MXC_EXEC
+    ? {
+        mxcExecPath: AbsolutePathSchema.parse(
+          process.env.INSTRUMENT_TEST_MXC_EXEC,
+        ),
+      }
+    : {}),
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

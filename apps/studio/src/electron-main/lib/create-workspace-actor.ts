@@ -57,6 +57,7 @@ import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { windowsDriveNames } from "./windows-drives";
 import {
+  getMxcExecPath,
   getPNPMBinPath,
   getUutilsDir,
   getUvBinPath,
@@ -162,6 +163,7 @@ export function createWorkspaceActor() {
       resolveAlias,
       macHelperBinPath: macHelperBinPath(),
       seatbeltHelperPath: seatbeltHelperPath(),
+      mxcExecPath: getMxcExecPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // Beside the other per-machine state rather than in the workspace: the

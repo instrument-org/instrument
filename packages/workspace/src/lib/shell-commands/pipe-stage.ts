@@ -16,6 +16,7 @@ import { PassThrough, type Readable } from "node:stream";
 
 import { inheritedEnv } from "../native-env";
 import {
+  launchNative,
   NativeSandboxUnavailableError,
   wrapNativeCommand,
 } from "../native-sandbox";
@@ -251,14 +252,23 @@ export function startPipeStage(
   ];
   let child: ChildProcess;
   try {
-    child = spawn(spawned.file, spawned.args, {
+    const env = { ...inheritedEnv(process.env, spawned.reach), ...options.env };
+    const launch = launchNative(spawned, {
+      cwd: options.cwd,
+      env,
+      windowsVerbatimArguments: options.windowsVerbatimArguments,
+    });
+    child = spawn(launch.file, launch.args, {
       cwd: options.cwd,
       // A background run's kill signals the process group the child leads.
       detached: sink !== undefined && process.platform !== "win32",
-      env: { ...inheritedEnv(process.env, spawned.reach), ...options.env },
+      env,
       stdio,
       windowsHide: true,
-      windowsVerbatimArguments: options.windowsVerbatimArguments,
+      // Under MXC the program's command line is in the launcher's request.
+      windowsVerbatimArguments: spawned.mxc
+        ? false
+        : options.windowsVerbatimArguments,
     });
   } finally {
     // The program holds its own copy of the read end now. Closing ours is

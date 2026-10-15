@@ -25,4 +25,5 @@ The interface carries no Node types, so the patch is no larger than the interpre
 - Wait for #453: rejected, since it streams only builtins and has stalled.
 - One `sh -c` under one sandbox wrap for each run of native stages: rejected, since it merges every stage's stderr, so a refused path can no longer be attributed to the stage that hit it, and it needs shell quoting of host paths (and a shell on Windows).
 - A FIFO from `mkfifo` per pipe, to avoid the private `readStop` on Node's child stdio streams: rejected, since Node has no `mkfifo`, so it costs a process per pipe, and Windows has no FIFO.
+- Handing a program the producer's pipe directly on Windows too: rejected, since the end Node holds is overlapped and uutils and ripgrep abort reading it, intermittently; Windows relays the bytes through the app.
 - Moving the shell to brush for real OS pipes: still a later spike once its `ProcessLauncher` hook is released; this covers the native case now on every platform the app ships.

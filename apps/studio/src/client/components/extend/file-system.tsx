@@ -2917,6 +2917,13 @@ export function FileSystem({
       value={searchInput}
     />
   );
+  // Whether one of the views is drawn, rather than what stands for the
+  // folder when it has nothing to show.
+  const isViewShown =
+    currentUnreadable === null &&
+    !(isLoadingCurrentFolder && currentEntries.length === 0) &&
+    !(currentEntries.length === 0 && emptyState && !isSearching) &&
+    !(currentEntries.length === 0 && (view !== "columns" || isSearching));
   return (
     <div
       className={cn(
@@ -3057,7 +3064,28 @@ export function FileSystem({
           </div>
         </div>
       )}
-      <div className="relative min-h-0 flex-1">
+      <div
+        className="relative min-h-0 flex-1"
+        // Where no view is drawn (a folder that is empty, unreadable or still
+        // being read, or a search that found nothing) the whole of it is
+        // empty space, as the views' own empty space is; what is pressable
+        // in it keeps its press.
+        onPointerDown={
+          isViewShown || !onEmptyPress
+            ? undefined
+            : (event) => {
+                if (
+                  event.button === 0 &&
+                  !(
+                    event.target instanceof Element &&
+                    event.target.closest("a, button, input")
+                  )
+                ) {
+                  onEmptyPress();
+                }
+              }
+        }
+      >
         {currentUnreadable !== null ? (
           currentUnreadable
         ) : isLoadingCurrentFolder && currentEntries.length === 0 ? (

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { updateChatRecord } from "../../lib/chat-record";
 import { updateChatSettings } from "../../lib/chat-settings";
+import { appRefusal } from "../../lib/permissions/apps";
 import { openAsks, recordAsk } from "../../lib/permissions/asks";
 import { chatDenials } from "../../lib/permissions/denials";
 import { readPermissionSettings } from "../../lib/permissions/rules";
@@ -227,5 +228,68 @@ describe("permissions.answer", () => {
       { answer: ["allowed"], sessionId: task },
     ]);
     expect(await openAsks(chatId)).toEqual([]);
+  });
+
+  // The card names an app as its command asked for it, and an Always allow
+  // keeps that name, which is how Settings › Permissions lists the app; it
+  // then holds in every chat, and "Allow in this chat" in this one only.
+  it.each([
+    ["Calendar", "com.apple.iCal"],
+    ["Reminders", "com.apple.reminders"],
+    ["Contacts", "com.apple.AddressBook"],
+    ["Mail", "com.apple.mail"],
+    ["Notes", "com.apple.Notes"],
+    ["Messages", "com.apple.MobileSMS"],
+  ])(
+    "lists %s in Settings by the card's name once allowed always",
+    async (name, bundleId) => {
+      const app = { bundleId, name };
+      const here = await chatWithTask();
+      const elsewhere = await chatWithTask();
+      await recordAsk(
+        { chatId: here.chatId, sessionId: here.own },
+        "app",
+        name,
+      );
+      const [card] = await openAsks(here.chatId);
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "always", id: here.chatId },
+        { context: context() },
+      );
+
+      expect((await readPermissionSettings()).apps).toEqual([
+        expect.objectContaining({ level: "allow", name }),
+      ]);
+      expect(await appRefusal(here.chatId, app, undefined)).toBeUndefined();
+      expect(
+        await appRefusal(elsewhere.chatId, app, undefined),
+      ).toBeUndefined();
+    },
+  );
+
+  it("allows an app in the asking chat only, without listing it in Settings", async () => {
+    const app = { bundleId: "com.apple.AddressBook", name: "Contacts" };
+    const here = await chatWithTask();
+    const elsewhere = await chatWithTask();
+    await recordAsk(
+      { chatId: here.chatId, sessionId: here.own },
+      "app",
+      "Contacts",
+    );
+    const [card] = await openAsks(here.chatId);
+
+    await call(
+      permissions.answer,
+      { askId: card?.id ?? "", decision: "allowed", id: here.chatId },
+      { context: context() },
+    );
+
+    expect((await readPermissionSettings()).apps).toEqual([]);
+    expect(await appRefusal(here.chatId, app, undefined)).toBeUndefined();
+    expect(await appRefusal(elsewhere.chatId, app, undefined)).toBe(
+      "using Contacts needs the person's yes first.",
+    );
   });
 });

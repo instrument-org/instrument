@@ -167,6 +167,18 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
       "",
   },
   {
+    files: ["licenses"],
+    id: "uutils",
+    license: () =>
+      "MIT (coreutils, findutils, grep); MIT OR Apache-2.0 (diffutils)",
+    name: "uutils (coreutils, findutils' xargs, diffutils' cmp, grep)",
+    // Vendored by scripts/download-uutils.ts, which writes the license texts
+    // of every archive it took and the versions beside the binaries.
+    origin: { dir: path.join(STUDIO_DIR, "resources", "uutils") },
+    ships: ["resources/uutils/"],
+    version: (dir) => readFileSync(path.join(dir, ".versions"), "utf8").trim(),
+  },
+  {
     files: ["LICENSE"],
     id: "pnpm",
     license: () => "MIT",

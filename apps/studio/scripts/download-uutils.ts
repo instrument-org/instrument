@@ -289,16 +289,20 @@ async function vendor(archive: Archive, platform: NodePlatform) {
         chmodSync(dest, 0o755);
       }
     }
-    const license =
-      findFile(extractDir, "LICENSE") ?? findFile(extractDir, "LICENSE-MIT");
-    if (license) {
-      copyFileSync(
-        license,
-        path.join(
-          RESOURCES_UUTILS_DIR,
-          `LICENSE-${path.basename(archive.repo)}`,
-        ),
-      );
+    // Every license text the archive carries (diffutils is MIT or Apache),
+    // under licenses/, which the packaged app's licenses folder copies whole.
+    const project = path.basename(archive.repo);
+    for (const name of ["LICENSE", "LICENSE-MIT", "LICENSE-APACHE"]) {
+      const license = findFile(extractDir, name);
+      if (license) {
+        mkdirSync(path.join(RESOURCES_UUTILS_DIR, "licenses"), {
+          recursive: true,
+        });
+        copyFileSync(
+          license,
+          path.join(RESOURCES_UUTILS_DIR, "licenses", `${project}-${name}`),
+        );
+      }
     }
   } finally {
     rmSync(extractDir, { force: true, recursive: true });
@@ -329,7 +333,8 @@ async function main() {
   const target: Target = `${platform}-${resolveArch()}`;
   const archives = ARCHIVES[target];
   const marker = path.join(RESOURCES_UUTILS_DIR, ".version");
-  const version = `${target} ${archives.map((archive) => archive.sha256.slice(0, 12)).join(" ")}`;
+  // "2" is the layout: binaries, licenses/ and .versions.
+  const version = `2 ${target} ${archives.map((archive) => archive.sha256.slice(0, 12)).join(" ")}`;
   const vendored =
     existsSync(marker) &&
     readFileSync(marker, "utf8").trim() === version &&
@@ -353,6 +358,11 @@ async function main() {
     await vendor(archive, platform);
   }
   writeFileSync(marker, `${version}\n`);
+  // What the licenses folder names as this component's version.
+  writeFileSync(
+    path.join(RESOURCES_UUTILS_DIR, ".versions"),
+    `${archives.map((archive) => `${path.basename(archive.repo)} ${archive.tag.replace(/^v/, "")}`).join(", ")}\n`,
+  );
   const total = readdirSync(RESOURCES_UUTILS_DIR)
     .map((name) => statSync(path.join(RESOURCES_UUTILS_DIR, name)).size)
     .reduce((sum, size) => sum + size, 0);

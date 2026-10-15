@@ -1,6 +1,6 @@
 # GNU text commands on bundled uutils
 
-**Status:** open, measured 2026-10-15; a prototype routes the commands below by a fixed table with no conditions, closes the macOS media libraries, and starts native commands from cached Seatbelt bytecode behind a flag, and waits on a decision to ship it.
+**Status:** open, measured 2026-10-15; a prototype routes the commands below by a fixed table with no conditions and waits on a decision to ship it. The Seatbelt launcher and the media libraries as places are split out to ship on their own.
 
 [The shell stays just-bash](../decisions/2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) parked native text commands for two reasons: macOS ships BSD tools while models write GNU flags, and Windows has no coreutils. uutils removes both. It is the MIT-licensed Rust reimplementation of GNU coreutils (findutils, diffutils and grep beside it), prebuilt for every target Studio ships, and Ubuntu 26.04 already uses it as its default `coreutils`. This page records what bundling it buys and costs, how far a native start can be made cheap, the routing options, and what brush would change.
 
@@ -85,14 +85,14 @@ With the macOS helper, a 20-iteration loop of a native command costs about 0.12 
 | | Corpus | Loops (extra per 20 iterations, today / with the helper) | macOS `find ~` and `grep -r ~` |
 | --- | --- | --- | --- |
 | **A.** Every command in the set always native, `find` and `tr` included | 229 of 245, but `find -newermt` fails | every one of the 710 loops in the record: 0.43 s / 0.12 s | no dialog once the media libraries are closed, but uutils `find -prune` opens what it prunes |
-| **B.** A fixed table: each command native or builtin, on every call | 229 of 245 | 559 loops natively (`tr` and `find` stay builtins): 0.43 s / 0.12 s | none, once the Music, TV and Photos libraries are closed (below) |
+| **B.** A fixed table: each command native or builtin, on every call | 229 of 245 | 571 loops natively (`tr` stays a builtin): 0.43 s / 0.12 s | none, once the Music, TV and Photos libraries are closed (below) |
 | **C.** Builtin first, native when the builtin refuses an option, plus argument rules for `date`, `grep -r` and `find` | 223 of 245 | none on the common path | an argument rule for `find` and `grep` |
 
 C loses six cases B passes because trying the builtin first keeps its silent divergences wherever it does not refuse outright (`wc` and `uniq` padding, `cut` on tabs, `date` formats), and it answers a command in a loop differently from the same command run once. Its one advantage was loop cost, which the helper cuts to 6 ms a start. So the branch takes **B**:
 
 - **Native everywhere:** `sort`, `uniq`, `comm`, `join`, `cut`, `wc`, `head`, `tail`, `date`, `seq`, `od`, `sha256sum`, `md5sum`, `numfmt`, `realpath`, `shuf`, `dd`, `cmp`.
-- **Native on macOS and Linux:** `stat` (uutils builds it for Unix only), `grep` (a recursive grep on Windows prints relative paths with backslashes), `xargs` (it starts programs from the PATH, and Windows has no `echo` or `printf`; `xargs -I{} echo` printed `Error: Command not found` in the Windows preview).
-- **Builtins:** `find` (findutils 0.10.0 parses no `-newermt` date, prints backslashes on Windows, and its walks set off macOS's privacy dialogs, three conditions for a speedup `rg` already gives), `tr` (ties the builtin and runs in 139 loops), `diff`, `sed`, `awk`, `cat`, `ls`, `cp`, `mv`.
+- **Native on macOS and Linux:** `find` (below), `stat` (uutils builds it for Unix only), `grep` (a recursive grep on Windows prints relative paths with backslashes), `xargs` (it starts programs from the PATH, and Windows has no `echo` or `printf`; `xargs -I{} echo` printed `Error: Command not found` in the Windows preview).
+- **Builtins:** `tr` (ties the builtin and runs in 139 loops), `diff`, `sed`, `awk`, `cat`, `ls`, `cp`, `mv`.
 
 There is no condition left. An earlier version of the table sent a recursive `grep` from the home folder to the builtin on macOS, to stop macOS's privacy dialogs; [the next section](#macos-privacy-dialogs) found their cause and closed it in the rules, and a 6 ms start removed the reason for C.
 
@@ -121,14 +121,14 @@ Closing the libraries holds for every native program, `python`'s `os.walk` inclu
 
 ## find
 
-`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It stays a builtin for now:
+`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It runs uutils on macOS and Linux and the builtin on Windows.
 
-- just-bash#597 (carried on the records branch as `mountable-dirents-3.6.0.diff`) reads each folder once rather than once per entry: a 21,000-file `find -type f` takes 135 ms on macOS instead of 734, and 383 ms on Windows instead of 8,423. uutils `find` took 63 ms over 20,000 files through the shell, so native would save about 70 ms on a walk that size, and nothing on the small folders most calls walk. Measured by the records branch, not re-run here.
-- findutils 0.10.0 parses no `-newermt` date. `main` parses ISO dates since 2026-08-20 ("find: parse ISO 8601 dates in -newerXt to match GNU"), unreleased; it reads them as UTC where GNU reads local time, a one-line upstream change. The builtin carries `-newermt` already.
-- On Windows uutils `find` prints backslashes.
-- Its `-prune` opens the folder first (above).
-
-`find` joins the table on macOS and Linux with the findutils release after 0.10.0, if its `-prune` is fixed or the rules close everything macOS guards; the corpus shows it passing 23 of 24 against the builtin's 18.
+- **Answers.** On the corpus the builtin misses `-type f` from `.`, `-printf` with `%TY-%Tm-%Td`, `-prune`, `-L` and `-type f,d`; uutils misses only `-newermt` with a time, which the builtin misses as well. The table passes 229 of 245 with `find` native against 224 with the builtin, `find`'s own cases 23 of 24 against 18, on the macOS and the Linux runs alike.
+- **Speed.** just-bash#597 (carried on the records branch as `mountable-dirents-3.6.0.diff`) reads each folder once rather than once per entry, which brings the builtin's 21,000-file `find -type f` to 135 ms on macOS (from 734) and 383 ms on Windows (from 8,423); uutils took 63 ms over 20,000 files through the shell. With the launcher a native start costs about 6 ms, so a native `find` is never the slower of the two. The builtin also stops at 20,000 entries over the home folder and 300,000 in all.
+- **Privacy dialogs.** uutils' `-prune` opens the pruned folder before skipping it, which set off macOS's Media Library dialog over `~/Movies/TV`. With the media libraries closed as places the sandbox refuses that open first: in a notarized preview, `find ~/Movies -path ~/Movies/TV -prune -o -print` and `find ~ -maxdepth 3` ran with no dialog and no request to macOS beyond the ones it answers silently.
+- **What the app hides.** The native sandbox does not hide the chat's `.instrument` folder or its `tasks/`, which the builtin never lists. The command's arguments carry a prune of every `.instrument` by name and of `tasks/` by path ahead of the caller's expression, with an explicit `-print` when the expression has no action of its own, and only the start points are held to the rules as paths.
+- **Windows** keeps the builtin: uutils prints backslashes there, which `-path '*/.*'` and `-prune` written with slashes never match, and once Windows has a sandbox each spawn will cost about 45 ms more.
+- **`-newermt`.** findutils 0.10.0 parses no date; `main` parses ISO dates since 2026-08-20, unreleased, reading them as UTC where GNU reads local time.
 
 ## Going further
 
@@ -141,7 +141,7 @@ Closing the libraries holds for every native program, `python`'s `os.walk` inclu
 | `node -e 0` | 877 ms | 509 ms |
 | `sort /dev/null` | 449 ms | 138 ms |
 
-In the rebuilt preview on the macOS VM, a notarized app launched with the helper set, 20 native `sort` starts took 135 ms, 6.75 ms each, against 22 ms before.
+In the rebuilt preview on the macOS VM, a notarized app launched with the helper set, 20 native `sort` starts took 135 ms, 6.75 ms each, against 22 ms before. Built into the app as `instrument-seatbelt` (signed with the app's Developer ID and the hardened runtime, checked in afterPack), 20 native `cat` starts took 172 ms on the VM; the same app with the launcher removed fell back to sandbox-exec and took 483 ms, with the same refusals.
 
 **Linux.** Building the bubblewrap arguments, the walk for names that run code included, takes 1.4 to 1.9 ms on the M5 Max with a whole repository granted; bubblewrap itself 3.6 ms on the VM. The preview's 21 ms a start is therefore mostly something not yet measured on Linux (Electron's spawn and the per-command environment, on a slow VM); profiling a dev build there with `--cpu-prof` is the next step. A namespace kept alive saves the 3.6 ms and weakens the code-name binds, so it is not the lever.
 
@@ -218,9 +218,9 @@ It deserves a spike for macOS and Linux, where the OS sandbox already holds ever
 
 ## What would change it
 
-- findutils fixing `-newermt` and Windows separators: `find` joins the table and the `find` patches go.
+- findutils fixing Windows separators: `find` joins the Windows column and the `find` patches go.
 - Streaming pipelines in just-bash (#453), adjacent native stages run as one OS pipeline, or brush: the pipeline row above becomes the terminal's.
 - uutils sed's next release with `-z`: worth scoring against the builtin again.
 - A Windows OS sandbox. MXC measured about 45 ms a spawn on top of process creation, so a sandboxed native command there costs roughly 70 ms against 25 ms today, which favors keeping more of the Windows column on the builtins. Windows timings taken over plain SSH run in a non-interactive logon session and are not comparable; take them in the interactive session the test-host scripts use.
-- The builtin `find` gaining `readdirWithFileTypes` on `MountableFs` (just-bash#597) cuts a 21,000-file `find -type f` from 734 to 135 ms on macOS and from 8.4 s to 0.38 s on Windows, which widens the margin `find` stays a builtin on.
+- The builtin `find` gaining `readdirWithFileTypes` on `MountableFs` (just-bash#597) cuts a 21,000-file `find -type f` from 734 to 135 ms on macOS and from 8.4 s to 0.38 s on Windows, which widens the margin `find` stays a builtin on Windows.
 - A builtin `realpath` patch that answers with `/` separators on every host stops applying once `realpath` is routed to uutils; when both land, the Windows respelling of the native `realpath` is the one that holds.

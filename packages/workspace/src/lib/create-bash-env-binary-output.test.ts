@@ -11,6 +11,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { withShellOutputSink } from "./shell-commands/output-sink";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -158,14 +159,41 @@ describe("a native program's stdout shown as the shell's output", () => {
     expect(result.stdout).toBe("https://***@example.com\n");
   });
 
-  // The shell decodes output that is not UTF-8 as builtin cat's is shown:
-  // one character per byte. A file it reaches holds the bytes themselves.
-  it("shows text with an invalid byte one character per byte", async () => {
-    const bytes = Buffer.concat([
-      Buffer.from("héllo "),
-      Buffer.from([0x89, 0x0a]),
-    ]);
-    const result = await run(writes(bytes));
-    expect(result.stdout).toBe("hÃ©llo \u0089\n");
+  // A file it reaches holds the bytes themselves; the shell's output shows
+  // the UTF-8 around a stray byte as text, and the byte as its Latin-1 char.
+  const MIXED = Buffer.concat([
+    Buffer.from("héllo "),
+    Buffer.from([0x89, 0x0a]),
+  ]);
+  const MIXED_SHOWN = `héllo ${String.fromCharCode(0x89)}\n`;
+
+  it("shows text with a stray byte as text and the byte alone", async () => {
+    const result = await run(writes(MIXED));
+    expect(result.stdout).toBe(MIXED_SHOWN);
+  });
+
+  it("shows a stray byte on stderr the same way", async () => {
+    const result = await run(
+      `node -e 'process.stderr.write(Buffer.from("${MIXED.toString("base64")}", "base64"))'`,
+    );
+    expect(result.stderr).toBe(MIXED_SHOWN);
+  });
+
+  it("shows a background run's live view as its final output", async () => {
+    const chunks: string[] = [];
+    const result = await withShellOutputSink(
+      (text) => {
+        chunks.push(text);
+      },
+      () => run(writes(MIXED)),
+    );
+    expect(result.stdout).toBe(MIXED_SHOWN);
+    expect(chunks.join("")).toBe(MIXED_SHOWN);
+  });
+
+  it("has printf write the bytes its escapes name", async () => {
+    const result = await run("printf '\\x89\\303\\251' > printf.bin");
+    expect(result.exitCode).toBe(0);
+    expect([...(await read("printf.bin"))]).toEqual([0x89, 0xc3, 0xa9]);
   });
 });

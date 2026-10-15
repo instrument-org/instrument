@@ -16,7 +16,11 @@ import {
 } from "../native-sandbox";
 
 import { watchSubprocessTree } from "../subprocess-tree";
-import { collectAndForward, currentShellOutputSink } from "./output-sink";
+import {
+  collectAndForward,
+  currentShellOutputSink,
+  decodeForDisplay,
+} from "./output-sink";
 
 /** A finished subprocess's two output streams, kept apart. */
 export interface ShimStreams {
@@ -173,7 +177,7 @@ export async function execShim(
   const result = await subprocess;
   await streamed;
   await finishTreeTermination?.();
-  const stderr = asBuffer(result.stderr).toString("utf8");
+  const stderr = decodeForDisplay(asBuffer(result.stderr));
   const stdoutBytes = asBuffer(result.stdout);
   const stdout = stdoutBytes.toString("utf8");
   const noted = withShimNotes({

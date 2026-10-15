@@ -126,6 +126,10 @@
     {
       "name": "printf bytes",
       "diff": "printf-bytes-3.6.0.diff"
+    },
+    {
+      "name": "lenient display",
+      "diff": "lenient-display-3.6.0.diff"
     }
   ]
 }

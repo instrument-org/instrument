@@ -21,7 +21,11 @@ import {
 } from "../native-sandbox";
 import { watchSubprocessTree } from "../subprocess-tree";
 import { execShim, withShimNotes } from "./exec-shim";
-import { collectAndForward, currentShellOutputSink } from "./output-sink";
+import {
+  collectAndForward,
+  currentShellOutputSink,
+  decodeForDisplay,
+} from "./output-sink";
 
 /**
  * Native pipeline stages joined by OS pipes.
@@ -328,9 +332,7 @@ export function startPipeStage(
       live?.end();
     }
   };
-  const stderr = collect(child.stderr, live, endLive).then((bytes) =>
-    bytes.toString("utf8"),
-  );
+  const stderr = collect(child.stderr, live, endLive).then(decodeForDisplay);
   let isMaxBuffer = false;
   const collectStdout = () =>
     collect(child.stdout, live, endLive, options.maxStdout, () => {

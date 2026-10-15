@@ -1,6 +1,5 @@
 import { type Command, defineCommand } from "just-bash";
 import { existsSync } from "node:fs";
-import os from "node:os";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -75,26 +74,8 @@ export function grepWalks(args: string[]): boolean {
 }
 
 /**
- * Whether one of the arguments is the home folder or a folder holding it.
- * On macOS a native program walking there opens Desktop, Documents and
- * Music, and macOS puts up its own privacy dialog for each, which the walk
- * waits on until someone answers; the builtin asks the rules before it opens
- * a folder and never opens one they keep for asking.
- */
-export function reachesAboveHome(args: string[], home = os.homedir()): boolean {
-  return args.some((arg) => {
-    if (!nodePath.isAbsolute(arg)) {
-      return false;
-    }
-    const dir = nodePath.resolve(arg);
-    return dir === "/" || isAtOrUnder(dir, home);
-  });
-}
-
-/**
  * Not here, so the builtin answers: `find` (findutils 0.10.0 parses no
- * `-newermt` date, prints backslashes on Windows, and walks into macOS's
- * privacy dialogs), `tr` (ties the builtin and runs in loops), and `diff`,
+ * `-newermt` date and prints backslashes on Windows), `tr` (ties the builtin and runs in loops), and `diff`,
  * `sed` and `awk` (the uutils ones fail cases the builtins pass).
  */
 const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
@@ -226,16 +207,6 @@ export function createNativeTextCommand(
 ): Command {
   return defineCommand(route.name, async (args, ctx) => {
     const walks = route.walks?.(args) ?? false;
-    // The one call that does not go to uutils: a walk from the home folder
-    // on macOS, which would hang on the system's privacy dialogs.
-    if (
-      ctx.origCommand !== undefined &&
-      walks &&
-      process.platform === "darwin" &&
-      reachesAboveHome(args)
-    ) {
-      return await ctx.origCommand(args);
-    }
     const program = uutilsProgram(route.binary);
     if (program === undefined) {
       return ctx.origCommand

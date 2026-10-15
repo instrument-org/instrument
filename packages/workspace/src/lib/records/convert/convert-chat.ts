@@ -50,8 +50,18 @@ import {
  *
  * Safe to run again: a run cut off while writing left only a folder to
  * remove, and one cut off while moving files into place left a renamed
- * folder whose moves the next run finishes. A chat that holds records
- * already, from this device or another, is not converted again.
+ * folder whose moves the next run finishes.
+ *
+ * What the folder holds already decides whether the chat converts at all
+ * (`recordsThere`). Records from another device are never written over. This
+ * device's own are read: a log holding only its header, and marks, say no
+ * more than the session rows they came from, which is what the writer beside
+ * the store (`lib/store-records.ts`) leaves when the app reads a chat before
+ * this has run. Those are removed and written again from `chat.db`, so the
+ * chat ends up as a first conversion would have left it. Records holding
+ * messages, parts or a retraction are a history of their own, and the
+ * comparison with `chat.db` says whether they are a conversion that already
+ * ran or turns a build took before one did.
  *
  * Each record's `at` is when the session was last updated, which is all
  * `chat.db` says of when anything was written, and is the newest record's
@@ -91,6 +101,14 @@ export type ChatConversion =
   /** The records would not read back as `chat.db` does. */
   | { differences: Difference[]; kind: "different" }
   | { error: string; kind: "failed" }
+  /**
+   * The records this device wrote hold a history that is not what `chat.db`
+   * says, which only a build that took turns on the chat before converting it
+   * leaves. Neither file stands for the whole chat, and nothing here can tell
+   * which part of each is the newer, so the chat keeps `chat.db` and is said
+   * back rather than merged.
+   */
+  | { differences: Difference[]; kind: "half-written" }
   | { kind: "no-store" }
   /** `chat.db` cannot be read as the store read it. */
   | { error: string; kind: "unreadable" };
@@ -135,6 +153,7 @@ export async function convertWorkspaceChats(
     converted: 0,
     different: 0,
     failed: 0,
+    "half-written": 0,
     "no-store": 0,
     unreadable: 0,
   };
@@ -143,7 +162,12 @@ export async function convertWorkspaceChats(
   }
   return {
     chats,
-    complete: counts.different + counts.failed + counts.unreadable === 0,
+    complete:
+      counts.different +
+        counts.failed +
+        counts["half-written"] +
+        counts.unreadable ===
+      0,
     counts,
   };
 }
@@ -159,7 +183,8 @@ export async function convertChat(
     if (store.length === 0) {
       return { kind: "no-store" };
     }
-    if (await holdsRecords(chatDir)) {
+    const there = await recordsThere(chatDir, options.deviceId);
+    if (there.kind === "elsewhere") {
       return { kind: "already-converted", store };
     }
     const chat = ChatIdSchema.safeParse(path.basename(chatDir));
@@ -169,7 +194,7 @@ export async function convertChat(
         kind: "failed",
       };
     }
-    return await convert(chatDir, chat.data, store, options);
+    return await convert(chatDir, chat.data, store, there, options);
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : String(error),
@@ -182,6 +207,7 @@ async function convert(
   chatDir: string,
   chat: ChatId,
   store: string[],
+  there: Extract<RecordsThere, { kind: "history" | "restating" }>,
   options: ConvertOptions,
 ): Promise<ChatConversion> {
   const work = path.join(chatDir, `.~convert-${process.pid}.tmp`);
@@ -195,6 +221,23 @@ async function convert(
     await fs.rm(path.join(work, SOURCE), { force: true, recursive: true });
     if (read.kind === "unreadable") {
       return read;
+    }
+    if (there.kind === "history") {
+      // Either the records hold the whole chat -- this ran before and only
+      // `chat.db` was left to move, or the chat was written through the
+      // records from its first message -- or a build wrote turns into them
+      // over a history only `chat.db` holds, which no merge can answer for.
+      const missing = await sameShape(chatDir, read);
+      return missing.length === 0
+        ? { kind: "already-converted", store }
+        : { differences: missing, kind: "half-written" };
+    }
+    // The files a bridge wrote beside the store before this ran carry the
+    // names a conversion writes and say no more than the session rows do, so
+    // they go and `chat.db` is written out whole. Before anything is written,
+    // so a run cut off here leaves the chat as it was before the app read it.
+    for (const file of there.restating) {
+      await fs.rm(file, { force: true });
     }
     const written = await writeRecords(work, chat, read, options);
     const differences = [
@@ -255,10 +298,63 @@ async function storeFiles(chatDir: string): Promise<string[]> {
   return files;
 }
 
-async function holdsRecords(chatDir: string): Promise<boolean> {
-  return (await fs.readdir(chatDir)).some(
-    (name) => parseRecordFileName(name) !== undefined,
-  );
+/** What a chat's record folder holds already, which says whether it converts. */
+type RecordsThere =
+  /** Records another device wrote, which this one never writes over. */
+  | { kind: "elsewhere" }
+  /** Records of this device's holding messages, parts or a retraction. */
+  | { kind: "history" }
+  /**
+   * Nothing, or no more than this device's own restatement of the session
+   * rows: the files it removes and writes again from `chat.db`.
+   */
+  | { kind: "restating"; restating: string[] };
+
+/** The records a session row restates, which a conversion writes from it. */
+const RESTATED = new Set(["mark", "rollover", "session", "stopped", "told"]);
+
+async function recordsThere(
+  chatDir: string,
+  device: DeviceId,
+): Promise<RecordsThere> {
+  const restating: string[] = [];
+  let history = false;
+  for (const name of (await fs.readdir(chatDir)).toSorted()) {
+    const parsed = parseRecordFileName(name);
+    if (!parsed) {
+      continue;
+    }
+    if (parsed.device !== device) {
+      return { kind: "elsewhere" };
+    }
+    const file = path.join(chatDir, name);
+    if (await restatesOnly(file)) {
+      restating.push(file);
+    } else {
+      history = true;
+    }
+  }
+  return history ? { kind: "history" } : { kind: "restating", restating };
+}
+
+/**
+ * Whether every line of a record file says no more than the session row it
+ * came from: its header, a mark, where its context was reset, who stopped
+ * its turn, what it was told. A line this build cannot read counts for a
+ * history, so a file holding anything unaccounted for is left alone rather
+ * than written over.
+ */
+async function restatesOnly(file: string): Promise<boolean> {
+  const text = await fs.readFile(file, "utf8");
+  return text.split("\n").every((line) => {
+    if (line.trim() === "") {
+      return true;
+    }
+    const record = parseJson(line);
+    return (
+      isRecord(record) && typeof record.t === "string" && RESTATED.has(record.t)
+    );
+  });
 }
 
 interface Written {
@@ -511,6 +607,61 @@ function sessionRow(folded: FoldedSession): unknown {
         }),
     ...(folded.stopped ? { stoppedBy: folded.stopped.by } : {}),
   };
+}
+
+/**
+ * Where the records already in a chat's folder do not cover what `chat.db`
+ * holds: every session, each one's messages in order, and each message's
+ * parts. A conversion wrote all of them at once from one read, so it covers
+ * every one; so does a chat whose every message went through the records as
+ * it was written. A log a writer beside the store began part way through a
+ * chat is missing the messages written before it, which is what this finds.
+ *
+ * Ids and their order, and no more: reading `chat.db` again stamps a call a
+ * process left in flight with the moment of that read
+ * (`sweepInterruptedToolCalls`), so no two reads of such a chat agree field
+ * for field. The conversion's own verification is the field-by-field one,
+ * against the read it wrote from.
+ */
+async function sameShape(
+  dir: string,
+  read: Extract<ChatDbRead, { kind: "read" }>,
+): Promise<Difference[]> {
+  const fold = new ChatFold();
+  for (const name of (await fs.readdir(dir)).toSorted()) {
+    if (parseRecordFileName(name)) {
+      fold.add(name, await fs.readFile(path.join(dir, name)));
+    }
+  }
+  const found: Difference[] = [];
+  const folded = new Map(fold.chat().sessions.map((one) => [one.id, one]));
+  for (const { messages, session } of read.sessions) {
+    const mine = folded.get(session.id);
+    folded.delete(session.id);
+    if (!mine) {
+      addDifference(found, session.id, "a session", undefined);
+      continue;
+    }
+    addDifferences(
+      found,
+      `${session.id} messages`,
+      messages.map(({ message }) => message.id),
+      mine.messages.map(({ id }) => id),
+    );
+    const byId = new Map(mine.messages.map((message) => [message.id, message]));
+    for (const { message, parts } of messages) {
+      addDifferences(
+        found,
+        `${session.id}/${message.id} parts`,
+        parts.map(({ part }) => part.metadata.id),
+        byId.get(message.id)?.parts.map(({ metadata }) => metadata.id),
+      );
+    }
+  }
+  for (const extra of folded.keys()) {
+    addDifference(found, extra, undefined, "a session chat.db does not hold");
+  }
+  return found.slice(0, MAX_DIFFERENCES);
 }
 
 /**

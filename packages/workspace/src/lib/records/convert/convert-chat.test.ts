@@ -5,12 +5,16 @@ import superjson from "superjson";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { type ChatId } from "../../../schemas/chat-id";
+import { type Session } from "../../../schemas/session";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { withTempDir } from "../../../test/helpers/temp-dir";
 import { disposeSessionsStoreStorage } from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
 import { Store } from "../../store";
+import { StoreRecords } from "../../store-records";
 import { blobPath } from "../blobs";
+import { ChatRecords, installChatRecords } from "../chat-records";
 import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
 import { foldChat, type FoldedChat, type FoldedSession } from "../fold";
 import { partFromRecord } from "../part-blobs";
@@ -150,6 +154,79 @@ function writeReadParts(): void {
         : record,
     ),
   );
+}
+
+/**
+ * What is under `dir` but its `chat.db`: each record file as its text with
+ * the chat's own id taken out, since two chats differ by the id every log
+ * header carries, and each blob as its bytes.
+ */
+async function recordFiles(dir: string): Promise<Record<string, string>> {
+  const chat = path.basename(dir);
+  const files: Record<string, string> = {};
+  for (const name of await listing(dir)) {
+    if (name === "chat.db") {
+      continue;
+    }
+    const read = await fs.readFile(path.join(dir, name));
+    files[name] = name.endsWith(".jsonl")
+      ? read.toString("utf8").replaceAll(`"${chat}"`, '"<chat>"')
+      : read.toString("base64");
+  }
+  return files;
+}
+
+/**
+ * Writes to the chat's store with the records in place beside it that the
+ * app keeps, in the chat's own folder and from this device: what a build
+ * with no conversion in front of it leaves in a chat it reads. `write` is
+ * handed the session row the store holds, as the app reads one.
+ */
+async function asTheAppReadsIt(
+  dir: string,
+  chat: ChatId,
+  write: (session: Session.Type) => Promise<void>,
+): Promise<void> {
+  const records = new ChatRecords({
+    app: "0.0.0-test",
+    device: DEVICE_A,
+    dirOf: () => dir,
+    fsync: false,
+  });
+  installChatRecords(records);
+  try {
+    const session = (
+      await Store.getSession(CHAT_SESSION, chat)
+    )._unsafeUnwrap();
+    if (!session) {
+      throw new Error(`${chat} has no session ${CHAT_SESSION}`);
+    }
+    await write(session);
+  } finally {
+    await StoreRecords.settle();
+    installChatRecords(undefined);
+    await disposeSessionsStoreStorage(chat);
+  }
+}
+
+/**
+ * A chat holding a tool output no record can carry, which the comparison
+ * finds and no run ever converts.
+ */
+function writeHoldsAMapChat(dir: string): Promise<ChatId> {
+  const s = sessionId(1);
+  return writeChat(dir, async (chat) => {
+    await saveSession(chat, { createdAt: at(0), id: s, title: "Maps" });
+    await saveMessage(chat, assistantMessage(s, messageId(1), at(1)), [
+      part(s, messageId(1), 10, {
+        input: { command: "count" },
+        output: new Map([["words", 3]]),
+        state: "output-available",
+        toolCallId: "call-10",
+        type: "tool-bash",
+      }),
+    ]);
+  });
 }
 
 /** Each record a log holds, by kind, a part by its type. */
@@ -664,19 +741,7 @@ describe("convertChat", () => {
 
   it("finds what the records would not hold, and leaves the chat as it was", async () => {
     const dir = chatPath("holds-a-map");
-    const s = sessionId(1);
-    await writeChat(dir, async (chat) => {
-      await saveSession(chat, { createdAt: at(0), id: s, title: "Maps" });
-      await saveMessage(chat, assistantMessage(s, messageId(1), at(1)), [
-        part(s, messageId(1), 10, {
-          input: { command: "count" },
-          output: new Map([["words", 3]]),
-          state: "output-available",
-          toolCallId: "call-10",
-          type: "tool-bash",
-        }),
-      ]);
-    });
+    await writeHoldsAMapChat(dir);
     const before = await contents(dir);
 
     const result = await convertChat(dir, OPTIONS);
@@ -799,6 +864,61 @@ describe("convertChat", () => {
     expect(await contents(dir)).toEqual(before);
   });
 
+  it("converts a chat the writer beside the store left a header and marks in", async () => {
+    // Frozen, so the call left in flight is swept to the same moment in both
+    // conversions and the two folders compare byte for byte.
+    vi.useFakeTimers({ now: at(500), toFake: ["Date"] });
+    const clean = chatPath("restated-clean");
+    await writeEveryKindChat(clean);
+    expect((await convertChat(clean, OPTIONS)).kind).toBe("converted");
+
+    const dir = chatPath("restated");
+    const chat = await writeEveryKindChat(dir);
+    // Saving the row is all the app has to do to the chat: the records take
+    // its header and the marks it carries, and none of its history.
+    await asTheAppReadsIt(dir, chat, (session) => saveSession(chat, session));
+    expect(await listing(dir)).toEqual([
+      "chat.db",
+      marksFileName(DEVICE_A),
+      logFileName(CHAT_SESSION, DEVICE_A),
+    ]);
+    expect(
+      await recordKinds(path.join(dir, logFileName(CHAT_SESSION, DEVICE_A))),
+    ).toEqual(["session", "rollover"]);
+
+    const result = await convertChat(dir, OPTIONS);
+
+    expect(result.kind).toBe("converted");
+    expect(await listing(dir)).toEqual(EVERY_KIND_FILES);
+    expect(await recordFiles(dir)).toEqual(await recordFiles(clean));
+  });
+
+  it("keeps a chat whose records hold turns a build took before it ran", async () => {
+    const dir = chatPath("half-written");
+    const chat = await writeEveryKindChat(dir);
+    await asTheAppReadsIt(dir, chat, async (session) => {
+      await saveSession(chat, session);
+      await saveMessage(
+        chat,
+        userMessage(CHAT_SESSION, messageId(99), at(200)),
+      );
+    });
+    const before = await contents(dir);
+
+    const result = await convertChat(dir, OPTIONS);
+
+    expect(result.kind).toBe("half-written");
+    // The records hold the one message the turn added, and `chat.db` the
+    // chat's whole history and a task's, which no log of the records names.
+    const where =
+      result.kind === "half-written"
+        ? result.differences.map(({ path: one }) => one)
+        : [];
+    expect(where).toContain(`${CHAT_SESSION} messages.length`);
+    expect(where).toContain(`${TASK_SESSION}`);
+    expect(await contents(dir)).toEqual(before);
+  });
+
   it("says a chat the store could not read is unreadable, and writes nothing", async () => {
     const dir = chatPath("unreadable");
     const s = sessionId(1);
@@ -851,6 +971,7 @@ describe("convertWorkspaceChats", () => {
           "converted": 2,
           "different": 0,
           "failed": 0,
+          "half-written": 0,
           "no-store": 1,
           "unreadable": 0,
         },
@@ -869,6 +990,7 @@ describe("convertWorkspaceChats", () => {
           "converted": 0,
           "different": 0,
           "failed": 0,
+          "half-written": 0,
           "no-store": 1,
           "unreadable": 0,
         },
@@ -880,5 +1002,49 @@ describe("convertWorkspaceChats", () => {
       text: "New chat",
     });
     expect(hello?.updatedAt).toEqual(at(0));
+  });
+
+  it("leaves the chat it could not convert on its chat.db and converts the rest", async () => {
+    const chats = path.join(root.path, "chats");
+    await writeEveryKindChat(path.join(chats, "a-trip"));
+    await writeUntitledChat(path.join(chats, "b-hello"));
+    const maps = path.join(chats, "c-maps");
+    await writeHoldsAMapChat(maps);
+    const kept = await contents(maps);
+
+    const first = await convertWorkspaceChats(chats, OPTIONS);
+
+    expect(first.complete).toBe(false);
+    expect(first.counts).toEqual({
+      "already-converted": 0,
+      converted: 2,
+      different: 1,
+      failed: 0,
+      "half-written": 0,
+      "no-store": 0,
+      unreadable: 0,
+    });
+    expect(await contents(maps)).toEqual(kept);
+    expect(await listing(path.join(chats, "a-trip"))).toEqual(EVERY_KIND_FILES);
+
+    // The chats that converted have their `chat.db` moved out of the folder
+    // before the next launch, which is what makes the retry cost a listing.
+    for (const name of ["a-trip", "b-hello"]) {
+      await fs.rm(path.join(chats, name, "chat.db"));
+    }
+    const converted = await contents(path.join(chats, "a-trip"));
+
+    const again = await convertWorkspaceChats(chats, OPTIONS);
+
+    expect(again.counts).toEqual({
+      "already-converted": 0,
+      converted: 0,
+      different: 1,
+      failed: 0,
+      "half-written": 0,
+      "no-store": 2,
+      unreadable: 0,
+    });
+    expect(await contents(path.join(chats, "a-trip"))).toEqual(converted);
   });
 });

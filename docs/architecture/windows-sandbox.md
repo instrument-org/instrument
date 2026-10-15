@@ -24,6 +24,20 @@ Two things were recorded here as blocking it, and both were re-tested on build 2
 
 Note that `scripts/sandbox-bakeoff/probe.ts` cannot produce a Windows result: it reads `const mac = process.platform === "darwin"`, runs everything through `/bin/sh -c`, and asks for `containment: { type: mac ? "seatbelt" : "bubblewrap" }`. Whatever produced the earlier Windows verdict is not in this repository, which is reason enough to re-measure rather than read.
 
+Two things are settled about how it would ship. The elevated tier is out:
+it wants an administrator-approved setup with local accounts and firewall
+rules, and this is not an app whose user should have to understand that. And
+git runs with the person's own `.gitconfig` readable, rather than with HOME
+redirected and `GIT_CONFIG_NOSYSTEM` set: a chat that commits as the wrong
+author is worse than one more file in the list, and the app has no business
+pretending the person's own tools are configured differently than they are.
+
+What is not settled is the version floor, and the fallback matters more than
+the floor does: an older Windows drops silently to the AppContainer tier,
+where #1464 does bite. Silently is the wrong behavior. Settings says plainly
+there which Windows this is, that the sandbox is not protecting it, and what
+updating would change.
+
 So Windows 11 at a build still to be pinned runs native programs under MXC, generated from the same rules as Seatbelt and bubblewrap, behind the same `wrapNativeCommand` seam (`wxc-exec.exe --config-base64 <b64> -- <cmd>` fits its `{file, args}` return, and `--dry-run` makes a generated policy testable without running anything), and the notice in Settings goes away there. It costs about 45 ms a spawn against roughly 6 ms for Seatbelt. Older Windows stays as it is, with the notice.
 
 ## Related

@@ -42,4 +42,10 @@ describe("dictated text", () => {
       expect(stripDictatedMarks(wire)).toBe(`x ${words} y`);
     },
   );
+
+  it("writes several lines as a token each, which read back as the words", () => {
+    const wire = dictatedToken("one\ntwo");
+    expect(wire).toBe("[one](dictated:)\n[two](dictated:)");
+    expect(stripDictatedMarks(wire)).toBe("one\ntwo");
+  });
 });

@@ -79,11 +79,16 @@ export async function* listenForDictation({
   const id = crypto.randomUUID();
   let opened = false;
   let ended = false;
-  // Audio goes out in the order it was recorded, each chunk read in turn.
+  // Audio goes out in the order it was recorded, each chunk read in turn. A
+  // step that fails is dropped rather than stopping the ones after it, Stop
+  // above all.
   let sending = Promise.resolve();
+  const then = (step: () => Promise<void> | void) => {
+    sending = sending.then(step).catch(() => undefined);
+  };
   streams.set(id, {
     feed: (chunk) => {
-      sending = sending.then(async () => {
+      then(async () => {
         const bytes = Buffer.from(await chunk.arrayBuffer());
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(bytes);
@@ -91,7 +96,7 @@ export async function* listenForDictation({
       });
     },
     finish: () => {
-      sending = sending.then(() => {
+      then(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "stop" }));
         }

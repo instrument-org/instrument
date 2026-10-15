@@ -10,9 +10,14 @@ const unescape = (label: string) => label.replaceAll(/\\(.)/g, "$1");
 
 export type DictatedTextSegment = { dictated: boolean; text: string };
 
-/** The wire form of words someone dictated. */
+/** The wire form of words someone dictated, a token per line. */
 export function dictatedToken(text: string) {
-  return `[${text.replaceAll(/[\\\]]/g, "\\$&")}](dictated:)`;
+  return text
+    .split("\n")
+    .map((line) =>
+      line ? `[${line.replaceAll(/[\\\]]/g, "\\$&")}](dictated:)` : line,
+    )
+    .join("\n");
 }
 
 /** A line split into dictated and typed runs, in order, for the composer to mark. */

@@ -5,6 +5,7 @@ import superjson from "superjson";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { withTempDir } from "../../../test/helpers/temp-dir";
 import { disposeSessionsStoreStorage } from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
@@ -14,6 +15,7 @@ import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
 import { foldChat, type FoldedChat, type FoldedSession } from "../fold";
 import { partFromRecord } from "../part-blobs";
 import { readLog } from "../read-records";
+import * as recordModule from "../record";
 import {
   assistantMessage,
   at,
@@ -133,6 +135,21 @@ async function partLines(file: string): Promise<unknown[]> {
       const parsed = PartLineSchema.safeParse(JSON.parse(line) as unknown);
       return parsed.success ? [parsed.data.part] : [];
     });
+}
+
+/**
+ * Makes the converter write each part as reading it gave, which is what
+ * loses a payload no schema here reads.
+ */
+function writeReadParts(): void {
+  const line = recordModule.recordLine;
+  vi.spyOn(recordModule, "recordLine").mockImplementation((record) =>
+    line(
+      record.t === "part"
+        ? { ...record, part: SessionMessagePart.coerce(record.part) }
+        : record,
+    ),
+  );
 }
 
 /** Each record a log holds, by kind, a part by its type. */
@@ -583,6 +600,66 @@ describe("convertChat", () => {
         "ses_01K7A000000000000000000020.dev_AAAAAAAA.jsonl",
       ]
     `);
+  });
+
+  it("will not convert a chat whose part lines hold the read of a payload rather than the payload", async () => {
+    const dir = chatPath("writes-what-it-read");
+    await writeOlderThanSchemasChat(dir);
+    const before = await contents(dir);
+    writeReadParts();
+
+    const result = await convertChat(dir, OPTIONS);
+
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "differences": [
+          {
+            "old": ""t1"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000220 line.data.handle",
+          },
+          {
+            "now": ""data-adoptedTask"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000220 line.data.originalType",
+          },
+          {
+            "now": ""no schema for data-adoptedTask"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000220 line.data.reason",
+          },
+          {
+            "old": ""Find hotels"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000220 line.data.title",
+          },
+          {
+            "now": ""data-unknown"",
+            "old": ""data-adoptedTask"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000220 line.type",
+          },
+          {
+            "old": "[{"status":"done","summary":"Three hotels","title":"Find hotels"}]",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000221 line.data.events",
+          },
+          {
+            "now": ""data-taskEvent"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000221 line.data.originalType",
+          },
+          {
+            "now": ""✖ Invalid input: expected string, received undefined\\n  → at events[0].sessionId"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000221 line.data.reason",
+          },
+          {
+            "now": ""data-unknown"",
+            "old": ""data-taskEvent"",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000221 line.type",
+          },
+          {
+            "old": "{"filePath":"map.png"}",
+            "path": "ses_01K7A000000000000000000020/msg_01K7A000000000000000000022/prt_01K7A000000000000000000222 line.rawInput",
+          },
+        ],
+        "kind": "different",
+      }
+    `);
+    expect(await contents(dir)).toEqual(before);
   });
 
   it("finds what the records would not hold, and leaves the chat as it was", async () => {

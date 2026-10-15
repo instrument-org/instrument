@@ -517,15 +517,24 @@ function sessionRow(folded: FoldedSession): unknown {
  * Folds the records in `work` and compares them with what `chat.db` held:
  * every session row, every message in order, each of its parts in order
  * with its blobs read back, and what each session was told.
+ *
+ * Every part is compared twice. A fold reads one through the same schema the
+ * store does, so a payload neither can read comes back as `data-unknown` on
+ * both sides however little the line holds; the line itself is compared with
+ * the row as well, as plain JSON, which is what a build that has a schema
+ * for that payload would read.
  */
 async function verify(
   work: string,
   read: Extract<ChatDbRead, { kind: "read" }>,
 ): Promise<Difference[]> {
   const fold = new ChatFold();
+  const lines = new Map<string, unknown>();
   for (const name of (await fs.readdir(work)).toSorted()) {
     if (parseRecordFileName(name)) {
-      fold.add(name, await fs.readFile(path.join(work, name)));
+      const bytes = await fs.readFile(path.join(work, name));
+      fold.add(name, bytes);
+      addPartLines(lines, bytes);
     }
   }
   const found: Difference[] = [];
@@ -577,7 +586,7 @@ async function verify(
       const partsById = new Map(
         theirParts.map((part) => [part.metadata.id, part]),
       );
-      for (const { part } of parts) {
+      for (const { part, stored } of parts) {
         const theirPart = partsById.get(part.metadata.id);
         let readBack: unknown;
         try {
@@ -586,6 +595,12 @@ async function verify(
           readBack = `its blob did not read back: ${String(error)}`;
         }
         addDifferences(found, `${where}/${part.metadata.id}`, part, readBack);
+        addDifferences(
+          found,
+          `${where}/${part.metadata.id} line`,
+          withoutOutput(stored),
+          withoutOutput(lines.get(part.metadata.id)),
+        );
       }
     }
     addDifferences(found, `${session.id} told`, told, mine.told);
@@ -594,6 +609,49 @@ async function verify(
     addDifference(found, extra, undefined, "a session chat.db does not hold");
   }
   return found;
+}
+
+/**
+ * Files the part each of a file's part lines holds under its id, as plain
+ * JSON: what the bytes hold, before any schema here reads them.
+ */
+function addPartLines(lines: Map<string, unknown>, bytes: Buffer): void {
+  for (const line of bytes.toString("utf8").split("\n")) {
+    const record = parseJson(line);
+    if (!isRecord(record) || record.t !== "part" || !isRecord(record.part)) {
+      continue;
+    }
+    const id = isRecord(record.part.metadata)
+      ? record.part.metadata.id
+      : undefined;
+    if (typeof id === "string") {
+      lines.set(id, record.part);
+    }
+  }
+}
+
+/**
+ * A part as its line is compared with its row: every field but the output,
+ * whose bytes the comparison of the parts reads back out of its blob.
+ */
+function withoutOutput(part: unknown): unknown {
+  if (!isRecord(part)) {
+    return part;
+  }
+  const { output: _output, ...rest } = part;
+  return rest;
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

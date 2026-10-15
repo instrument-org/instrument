@@ -1,8 +1,10 @@
-import { type ChatGrant } from "../../schemas/chat-settings";
+import {
+  type ChatGrant,
+  readChatPermissions,
+  updateChatPermissions,
+} from "../permissions/rules";
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { chatDir } from "../record-folders";
-import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { remapMovedPath } from "../moved-paths";
 
@@ -10,10 +12,13 @@ import { remapMovedPath } from "../moved-paths";
  * The folders granted in a chat, oldest first, each where it is now: a grant
  * stored before a migration moved its folder is read back where it went
  * (`remapMovedPath`).
+ *
+ * Kept on this computer rather than in the chat, since every one of them
+ * names a folder here; see `chats` in the permission settings.
  */
 export async function chatGrants(chatId: ChatId): Promise<ChatGrant[]> {
-  const record = await readChatRecord(chatDir(chatId));
-  return (record.settings?.grants ?? []).map((grant) => ({
+  const held = await readChatPermissions(chatId);
+  return held.grants.map((grant) => ({
     ...grant,
     path: AbsolutePathSchema.parse(remapMovedPath(grant.path)),
   }));
@@ -38,8 +43,7 @@ export async function grantFolder({
 
 /**
  * Grants a chat a file the user sent, read and write, where it is on disk:
- * the rules open that file alone, whatever its folder's place says, as they
- * open a folder sent with a message.
+ * the rules open that file alone, whatever its folder's place says.
  */
 export async function grantFile({
   chatId,
@@ -61,11 +65,10 @@ async function addGrant(
 ): Promise<ChatGrant> {
   const wanted = AbsolutePathSchema.parse(path);
   let granted: ChatGrant | undefined;
-  await updateChatRecord(chatDir(chatId), "settings", (record) => {
-    const grants = record.settings?.grants ?? [];
-    granted = grants.find((grant) => isGrantOf(grant, wanted));
+  await updateChatPermissions(chatId, (held) => {
+    granted = held.grants.find((grant) => isGrantOf(grant, wanted));
     if (granted) {
-      return record.raw;
+      return held;
     }
     granted = {
       grantedAt: getCurrentDate(),
@@ -73,7 +76,7 @@ async function addGrant(
       path: wanted,
       source,
     };
-    return { ...record.raw, grants: [...grants, granted] };
+    return { ...held, grants: [...held.grants, granted] };
   });
   if (!granted) {
     throw new Error(`${path} was not granted`);
@@ -90,11 +93,9 @@ export async function revokeGrant({
   path: string;
 }): Promise<void> {
   const wanted = AbsolutePathSchema.parse(path);
-  await updateChatRecord(chatDir(chatId), "settings", (record) => ({
-    ...record.raw,
-    grants: (record.settings?.grants ?? []).filter(
-      (grant) => !isGrantOf(grant, wanted),
-    ),
+  await updateChatPermissions(chatId, (held) => ({
+    ...held,
+    grants: held.grants.filter((grant) => !isGrantOf(grant, wanted)),
   }));
 }
 

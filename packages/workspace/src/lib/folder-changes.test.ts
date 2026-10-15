@@ -57,6 +57,11 @@ beforeEach(async () => {
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
+    // A chat's grants live in this computer's permission settings, so each
+    // case needs a machine folder of its own as much as a chat of its own.
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(rootDir, "machine"),
+    ),
   });
   await initializeTestChat({
     initialSettings: {},

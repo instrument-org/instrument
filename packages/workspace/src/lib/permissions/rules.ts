@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
-import { type ChatGrant } from "../../schemas/chat-settings";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
+import { recordChanged } from "../record-changes";
 import {
   hostPathWithin,
   namesStream,
@@ -33,6 +34,45 @@ import {
  * rule per folder they or an "Always allow" added, and the switch that turns
  * every Ask first into a yes. A place nobody changed keeps its default.
  */
+
+/**
+ * A folder or a file the person opened to one chat. `kind: "file"` is a file
+ * sent with a message, opened alone: the rules allow it, and nothing mounts
+ * it.
+ */
+const ChatGrantSchema = z.object({
+  grantedAt: z.coerce.date(),
+  kind: z.literal("file").optional(),
+  path: AbsolutePathSchema,
+  source: z.enum(["attached", "card"]),
+});
+
+/** A Mac app the agent may control in one chat, by the name a script tells it by. */
+const ChatAppGrantSchema = z.object({
+  app: z.string().min(1),
+  /** Its bundle id where it could be found, so a route that knows the app by its id meets the same grant. */
+  bundleId: z.string().optional(),
+  grantedAt: z.coerce.date(),
+});
+
+/** A folder or an app the person said not now to in one chat. */
+const ChatDenialSchema = z.object({
+  deniedAt: z.coerce.date(),
+  kind: z.enum(["app", "folder"]),
+  target: z.string().min(1),
+});
+
+const ChatPermissionsSchema = z.object({
+  appGrants: z.array(ChatAppGrantSchema).catch([]).default([]),
+  denials: z.array(ChatDenialSchema).catch([]).default([]),
+  grants: z.array(ChatGrantSchema).catch([]).default([]),
+});
+
+export type ChatPermissions = z.output<typeof ChatPermissionsSchema>;
+export type ChatGrant = z.output<typeof ChatGrantSchema>;
+export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
+export type ChatDenial = z.output<typeof ChatDenialSchema>;
+
 const PermissionSettingsSchema = z.object({
   /**
    * Apps on this computer, by the name a script tells them by, that the
@@ -61,6 +101,28 @@ const PermissionSettingsSchema = z.object({
     .default([]),
   places: z
     .partialRecord(PlaceIdSchema.exclude(["output"]), LevelSchema)
+    .catch({})
+    .default({}),
+  /**
+   * What the person allowed inside one chat, by its id: a folder or a file
+   * from a card, and the Mac apps allowed there, with what they said not now
+   * to. Kept here rather than in the chat, because every one of them names
+   * something on this computer. The chat's own folder travels with the
+   * workspace, and a path written on a Mac resolves to a different folder of
+   * the same name on Windows, which opened it without anyone being asked.
+   *
+   * One chat that will not parse costs that chat its grants rather than
+   * everyone's.
+   */
+  chats: z
+    .record(
+      z.string(),
+      ChatPermissionsSchema.catch(() => ({
+        appGrants: [],
+        denials: [],
+        grants: [],
+      })),
+    )
     .catch({})
     .default({}),
   withoutAsking: z.boolean().catch(false).default(false),
@@ -93,6 +155,55 @@ export async function updatePermissionSettings(
   );
   return PermissionSettingsSchema.parse(written);
 }
+
+/** What one chat holds, or nothing held yet. */
+export async function readChatPermissions(
+  chatId: string,
+): Promise<ChatPermissions> {
+  const settings = await readPermissionSettings();
+  return settings.chats[chatId] ?? EMPTY_CHAT_PERMISSIONS;
+}
+
+/**
+ * Changes what one chat holds. A chat with nothing left in it is taken out
+ * rather than left as an empty object, so the file does not grow a row per
+ * chat that was only ever asked about.
+ */
+export async function updateChatPermissions(
+  chatId: string,
+  change: (held: ChatPermissions) => ChatPermissions,
+): Promise<ChatPermissions> {
+  let next = EMPTY_CHAT_PERMISSIONS;
+  await updatePermissionSettings((settings) => {
+    next = change(settings.chats[chatId] ?? EMPTY_CHAT_PERMISSIONS);
+    const empty =
+      next.appGrants.length === 0 &&
+      next.denials.length === 0 &&
+      next.grants.length === 0;
+    const { [chatId]: _taken, ...rest } = settings.chats;
+    return { ...settings, chats: empty ? rest : { ...rest, [chatId]: next } };
+  });
+  // Said as a change to the chat's settings, which is what these were until
+  // they moved here: everything watching a chat's folders, its apps or its
+  // open cards wakes on that and needs to know nothing about where they are
+  // kept.
+  const chat = ChatIdSchema.safeParse(chatId);
+  if (chat.success) {
+    recordChanged(chat.data, "settings");
+  }
+  return next;
+}
+
+/** Forgets everything one chat held, for a chat that has been deleted. */
+export async function forgetChatPermissions(chatId: string): Promise<void> {
+  await updateChatPermissions(chatId, () => EMPTY_CHAT_PERMISSIONS);
+}
+
+const EMPTY_CHAT_PERMISSIONS: ChatPermissions = {
+  appGrants: [],
+  denials: [],
+  grants: [],
+};
 
 /**
  * What a rule makes of its folder: a person's level, or "readOnly", which

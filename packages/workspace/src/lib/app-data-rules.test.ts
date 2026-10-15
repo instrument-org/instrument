@@ -77,7 +77,13 @@ const SHAPES = [
   },
 ];
 
-const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
+const settings = {
+  apps: [],
+  chats: {},
+  folders: [],
+  places: {},
+  withoutAsking: false,
+};
 // Seatbelt and bubblewrap hold native commands on macOS and Linux only, and
 // the refusals read out of a command's output are theirs.
 const nativeSandboxed = process.platform !== "win32";

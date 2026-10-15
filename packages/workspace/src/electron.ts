@@ -93,6 +93,7 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
+export { moveChatPermissions } from "./lib/permissions/move-chat-permissions";
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";

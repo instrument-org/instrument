@@ -28,6 +28,7 @@ import {
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
+  moveChatPermissions,
   renameChatDatabases,
   setBashWorkerFactory,
   settleWorkspaceDb,
@@ -108,6 +109,10 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
   await convertChatDatabases(deviceId, rootDir);
+  // After the converter, so a chat that failed to convert still has its
+  // permissions carried: the two are independent, and a chat left on its
+  // database is one the person is most likely to open next.
+  await carryChatPermissions();
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -391,6 +396,26 @@ function reportChatRecords(records: ChatRecordsSplit) {
   if (records.failed > 0) {
     logger.warn(
       `Left ${records.failed} chat entr${records.failed === 1 ? "y" : "ies"} to move on the next boot`,
+    );
+  }
+}
+
+/**
+ * Bring what each chat allowed out of its own settings and into this
+ * computer's permission settings. Idempotent; a failure must not block boot.
+ */
+async function carryChatPermissions() {
+  try {
+    const { moved } = await moveChatPermissions();
+    if (moved > 0) {
+      logger.info(
+        `Chat permissions: moved ${moved} chat${moved === 1 ? "" : "s"} onto this computer's settings`,
+      );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
     );
   }
 }

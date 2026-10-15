@@ -5,12 +5,11 @@ import { promisify } from "node:util";
 import { type ChatId } from "../../schemas/chat-id";
 import { type ChatAppGrant } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
-import { chatDir } from "../record-folders";
 import { type Level } from "./places";
 import { type Asker, raiseAsk, waitingNote } from "./asks";
 import { chatDenials } from "./denials";
+import { readChatPermissions, updateChatPermissions } from "./rules";
 import { readPermissionSettings } from "./rules";
 
 const execFileAsync = promisify(execFile);
@@ -106,22 +105,22 @@ export async function appRefusal(
 }
 
 async function chatAppGrants(chatId: ChatId): Promise<ChatAppGrant[]> {
-  const record = await readChatRecord(chatDir(chatId));
-  return record.settings?.appGrants ?? [];
+  return (await readChatPermissions(chatId)).appGrants;
 }
 
 /** Lets this chat use `app`. A grant already held stays as it was. */
 export async function grantApp(chatId: ChatId, app: string): Promise<void> {
   const bundleId = await appBundleId(app);
-  await updateChatRecord(chatDir(chatId), "settings", (record) => {
-    const grants = record.settings?.appGrants ?? [];
-    if (grants.some((grant) => isFor({ ...grant, name: grant.app }, app))) {
-      return record.raw;
+  await updateChatPermissions(chatId, (held) => {
+    if (
+      held.appGrants.some((grant) => isFor({ ...grant, name: grant.app }, app))
+    ) {
+      return held;
     }
     return {
-      ...record.raw,
+      ...held,
       appGrants: [
-        ...grants,
+        ...held.appGrants,
         { app: app.trim(), bundleId, grantedAt: getCurrentDate() },
       ],
     };

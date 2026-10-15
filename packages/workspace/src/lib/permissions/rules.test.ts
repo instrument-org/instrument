@@ -10,7 +10,13 @@ import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
 // (`C:\Users\someone` on Windows), so a folder the rules name compares as is.
 const home = nodePath.resolve("/Users/someone");
 const inHome = (relative: string) => nodePath.join(home, relative);
-const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
+const settings = {
+  apps: [],
+  chats: {},
+  folders: [],
+  places: {},
+  withoutAsking: false,
+};
 
 describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
   const rules = rulesFor({

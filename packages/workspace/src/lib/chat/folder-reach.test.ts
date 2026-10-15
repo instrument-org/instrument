@@ -35,6 +35,7 @@ vi.mock(import("../permissions/rules"), async (importOriginal) => ({
   readPermissionSettings: () =>
     Promise.resolve({
       apps: [],
+      chats: {},
       folders: [],
       places: world.places,
       withoutAsking: false,

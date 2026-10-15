@@ -23,7 +23,13 @@ describe("what runs code later stays closed with folders open unasked", () => {
   const home = "/home/someone";
   const rules = rulesFor({
     home,
-    settings: { apps: [], folders: [], places: {}, withoutAsking: true },
+    settings: {
+      apps: [],
+      chats: {},
+      folders: [],
+      places: {},
+      withoutAsking: true,
+    },
   });
 
   it.each([

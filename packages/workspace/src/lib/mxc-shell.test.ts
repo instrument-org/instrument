@@ -85,7 +85,8 @@ describe.runIf(held)("a chat's shell under MXC", () => {
       "node -e \"require('fs').writeFileSync('made.txt', 'ok'); console.log(require('fs').realpathSync.native('made.txt'))\"",
     );
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(result.stdout).toMatch(/^[A-Z]:\\.*made\.txt\n$/i);
+    // Resolved to its drive-letter path, which the shell spells its own way.
+    expect(result.stdout).toMatch(/^\/[a-z]\/.*\/made\.txt\n$/i);
     expect(
       await fs.readFile(path.join(tmpDir, "chats", "mxc", "made.txt"), "utf8"),
     ).toBe("ok");

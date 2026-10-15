@@ -118,6 +118,10 @@
     {
       "name": "pipe handoffs",
       "diff": "native-pipes-3.6.0.diff"
+    },
+    {
+      "name": "xargs options",
+      "diff": "xargs-options-3.6.0.diff"
     }
   ]
 }

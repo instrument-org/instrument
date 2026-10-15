@@ -255,6 +255,22 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     expect(performance.now() - started).toBeLessThan(1500);
   });
 
+  // The builtin xargs answers every -P call, so it has to read the attached
+  // and combined option forms models write, which the patch's xargs part adds.
+  it.each([
+    ["printf 'a\\nb\\n' | xargs -P4 -n1 echo", "a\nb\n"],
+    ["printf 'a\\nb\\n' | xargs -P2 -I{} echo {}x", "ax\nbx\n"],
+    ["printf 'a b\\0c\\0' | xargs -0 -P2 -n1 echo", "a b\nc\n"],
+    ["printf 'a b\\0c\\0' | xargs -0P2 -n1 echo", "a b\nc\n"],
+    ["printf 'a b\\nc\\n' | xargs --max-procs=2 -L1 echo", "a b\nc\n"],
+  ])("reads xargs' option forms under -P: %s", async (command, stdout) => {
+    const result = await run(command);
+    expect({ stdout: result.stdout, stderr: result.stderr }).toEqual({
+      stdout,
+      stderr: "",
+    });
+  });
+
   it("reads an empty pipe as empty rather than waiting", async () => {
     const result = await run("true | sort | wc -l");
     expect(result.stdout.trim()).toBe("0");

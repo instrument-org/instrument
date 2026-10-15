@@ -54,6 +54,11 @@ type ShimOptions = Omit<
  * actually reported.
  */
 export function collapseProgress(output: string) {
+  // The pattern tries a match at every character, a second per 35 MB, so
+  // output with no carriage return at all skips it.
+  if (!output.includes("\r")) {
+    return output;
+  }
   // The lookahead spares \r\n, so Windows line endings are left intact.
   return output.replaceAll(/[^\n]*\r(?!\n)/g, "");
 }

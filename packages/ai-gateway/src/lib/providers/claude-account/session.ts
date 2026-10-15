@@ -118,6 +118,11 @@ export class ClaudeCodeSession {
         },
         model: shape.modelId,
         pathToClaudeCodeExecutable: shape.executablePath,
+        // Every tool the session may call is in `allowedTools`, and nothing
+        // answers a permission prompt, so anything else is refused outright.
+        // Left out, the CLI picks its own default, which can be `auto`: a
+        // classifier model judging each call on the user's account.
+        permissionMode: "dontAsk",
         // Ours is the record, but the CLI's own transcript, kept in the
         // config folder Instrument signs it in through, is what lets a later
         // request resume this session with its tool calls and images intact

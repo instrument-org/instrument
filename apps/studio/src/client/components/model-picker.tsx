@@ -61,6 +61,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 const PANEL_WIDTH = "42.5rem";
 const PANEL_HEIGHT_REM = 32.5;
 const PANEL_HEIGHT = `${String(PANEL_HEIGHT_REM)}rem`;
+/** The narrower panel shown while there is nothing to pick. */
+const EMPTY_PANEL_WIDTH = "23.75rem";
 
 /** The chosen model's row, the same pressed state the inbox's filters use. */
 const CHOSEN = "bg-accent text-accent-foreground";
@@ -156,6 +158,10 @@ export function ModelPicker({
   const selectedName =
     selectedModel?.name.trim() ??
     (modelURI ? (modelNameFromURI(modelURI) ?? null) : null);
+  // Nothing connected yet: the panel is only a way to connect something, with
+  // no search or provider rail around an empty list.
+  const isEmpty =
+    !isLoading && !isError && !models?.length && !errors?.length;
   const placeholderText = isLoading
     ? "Loading models..."
     : isError
@@ -240,17 +246,32 @@ export function ModelPicker({
         maxHeight={PANEL_HEIGHT}
         side={hangsOff ? placement.side : undefined}
         sideOffset={hangsOff ? placement.sideOffset : undefined}
-        style={{
-          height: PANEL_HEIGHT,
-          ...(hangsOff
-            ? { width: placement.width }
-            : {
+        style={
+          isEmpty
+            ? {
                 maxWidth: "var(--radix-popover-content-available-width)",
-                width: PANEL_WIDTH,
-              }),
-        }}
+                width: EMPTY_PANEL_WIDTH,
+              }
+            : {
+                height: PANEL_HEIGHT,
+                ...(hangsOff
+                  ? { width: placement.width }
+                  : {
+                      maxWidth: "var(--radix-popover-content-available-width)",
+                      width: PANEL_WIDTH,
+                    }),
+              }
+        }
       >
-        {isOpen && (
+        {isOpen && isEmpty && (
+          <NoModelsYet
+            onAddProvider={() => {
+              closePopover();
+              onAddProvider?.();
+            }}
+          />
+        )}
+        {isOpen && !isEmpty && (
           <PickerPanel
             errors={errors ?? []}
             isError={isError}
@@ -479,10 +500,6 @@ function PickerPanel({
                 >
                   Retry
                 </Button>
-              </EmptyMessage>
-            ) : rail.length === 0 ? (
-              <EmptyMessage text={`Connect a provider to use ${APP_NAME}`}>
-                <AddProviderButton onClick={onAddProvider} />
               </EmptyMessage>
             ) : rows.length === 0 ? (
               <EmptyMessage
@@ -922,6 +939,36 @@ function FailedConnection({
         </Button>
       </div>
     </EmptyMessage>
+  );
+}
+
+/**
+ * What the picker opens to while no provider is connected: the kinds of
+ * account that bring models, and the one way to connect one, which opens the
+ * sign-in dialog.
+ */
+function NoModelsYet({ onAddProvider }: { onAddProvider: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-8 py-8 text-center">
+      <div aria-hidden className="flex items-center gap-1.5">
+        <AIProviderIcon
+          className="size-7"
+          colored
+          type={OUR_MODELS.providerType}
+        />
+        <AIProviderIcon className="size-7" colored type="chatgpt-account" />
+        <AIProviderIcon className="size-7" colored type="claude-account" />
+      </div>
+      <p className="text-base font-medium">No models yet</p>
+      <p className="text-sm text-muted-foreground">
+        Log in to {APP_NAME} for a free trial, or use the ChatGPT or Claude
+        plan you already pay for.
+      </p>
+      <Button autoFocus onClick={onAddProvider} variant="brand">
+        <PlusIcon className="size-4" />
+        Add a provider
+      </Button>
+    </div>
   );
 }
 

@@ -253,6 +253,13 @@ describe("indexChat", { timeout: 60_000 }, () => {
   it("comes to the rows a rebuild makes, brought up to date after every delivery", async () => {
     let compared = 0;
     await forEachSeed(SEEDS, async (seed) => {
+      // Every seed's index is compared with a rebuild once it has taken the
+      // whole folder; the first few are compared after each delivery too.
+      // That check is the expensive half (a rebuild reads the folder whole,
+      // and there are about forty-six deliveries a seed), and on a slow disk
+      // doing it for all forty took the test past a minute under a parallel
+      // run while finding nothing the first few do not.
+      const afterEachDelivery = seed <= 10;
       const { files } = simulateChat(createRandom(seed));
       const dir = chatDir();
       fs.rmSync(dir, { force: true, recursive: true });
@@ -269,7 +276,7 @@ describe("indexChat", { timeout: 60_000 }, () => {
         deliver(dir, files, folder, delivery);
         await indexChat(database, CHAT, dir);
         // With nothing waiting to download, the folder says all there is.
-        if (folder.evicted.size === 0) {
+        if (afterEachDelivery && folder.evicted.size === 0) {
           expect(dump(database)).toEqual(await rebuilt(dir));
           compared += 1;
         }

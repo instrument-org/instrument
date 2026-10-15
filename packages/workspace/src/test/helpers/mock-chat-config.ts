@@ -33,6 +33,7 @@ import {
 } from "../../schemas/web-search";
 import { type BrowserConfig, type WorkspaceConfig } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
+import { mxcTestConfig } from "./mxc-test-config";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
 
@@ -138,6 +139,7 @@ export function createMockChatConfig(
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
     uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
+    ...mxcTestConfig(),
   };
 
   // Register this model's provider config and mirror production, where the

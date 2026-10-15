@@ -40,6 +40,7 @@ import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call"
 import { cacheSessionFor } from "../lib/fork-cache-session";
 import { ChatReads } from "../lib/chat-reads";
 import { Store } from "../lib/store";
+import { StoreRecords } from "../lib/store-records";
 import { turnNoteFor } from "../lib/turn-note";
 import { chatDir } from "../lib/record-folders";
 import { getChatSettings } from "../lib/chat-settings";
@@ -1063,9 +1064,14 @@ export const llmRequestLogic = fromPromise<
 
   // Remove abort listener since we've completed
   signal.removeEventListener("abort", abortListener);
-  // The turn is over, so what it was holding goes: every part of it that
-  // settled has been written, and one that never did is lost, as a reply cut
-  // off is.
+  // The turn is over, so what it was holding goes, once the records hold what
+  // settled: an append waits its turn in the chat's queue, so a part let go of
+  // before its record lands is in the turn's memory no longer and in the
+  // records not yet, and the read below would not see it. That read is what
+  // tells the turn what to run next, and the last thing a reply settles is its
+  // tool call, so a call missing from it is one nobody makes and nobody
+  // answers. A part that never settled is lost here, as a reply cut off is.
+  await StoreRecords.landed(input.chatId);
   live?.clear();
 
   return { message: assistantMessage, parts: await getCurrentParts() };

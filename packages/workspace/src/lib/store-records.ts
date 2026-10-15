@@ -134,6 +134,19 @@ export namespace StoreRecords {
   }
 
   /**
+   * Lands what the chat has queued so far, for a writer about to let go of
+   * the only other copy: an append waits its turn, and nothing else waits on
+   * one, so a part the store has taken is in the records a moment later
+   * rather than at once. A chat's appends go in order, so the one queued last
+   * standing is every earlier one standing; one queued after this is asked
+   * for is nobody's to wait for here, which is what keeps a chat whose task
+   * is still writing from holding up its own reply.
+   */
+  export async function landed(chatId: ChatId): Promise<void> {
+    await tails.get(chatId);
+  }
+
+  /**
    * Lands every chat's records and takes no more: the app on its way out.
    * The appends queued first, since one still waiting its turn would be
    * refused by records already closed and lost with them.

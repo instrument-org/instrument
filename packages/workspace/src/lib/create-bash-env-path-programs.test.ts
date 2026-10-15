@@ -121,7 +121,7 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
         "type ls",
         "type -t ls",
         "hash ls && hash -t ls; echo $?",
-        "type file",
+        "type tr",
       ].join("\n"),
     );
     expect(result.stdout.split("\n")).toEqual([
@@ -130,7 +130,7 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
       "ls is a shell builtin",
       "builtin",
       "1",
-      "file is a shell builtin",
+      "tr is a shell builtin",
       "",
     ]);
   });

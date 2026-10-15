@@ -122,6 +122,10 @@
     {
       "name": "xargs options",
       "diff": "xargs-options-3.6.0.diff"
+    },
+    {
+      "name": "printf bytes",
+      "diff": "printf-bytes-3.6.0.diff"
     }
   ]
 }

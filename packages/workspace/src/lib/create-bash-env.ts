@@ -45,8 +45,14 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
+import { createMailCommand, MAIL_COMMAND } from "./shell-commands/mail";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
+import {
+  createMessagesCommand,
+  MESSAGES_COMMAND,
+} from "./shell-commands/messages";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import { createNotesCommand, NOTES_COMMAND } from "./shell-commands/notes";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
@@ -423,6 +429,27 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: ({ layout, chatId }) => createShortcutsCommand(chatId, layout),
     listInDescription: true,
     name: SHORTCUTS_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: MAIL_COMMAND.description,
+    factory: ({ layout, chatId }) => createMailCommand(chatId, layout),
+    listInDescription: true,
+    name: MAIL_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: NOTES_COMMAND.description,
+    factory: ({ layout, chatId }) => createNotesCommand(chatId, layout),
+    listInDescription: true,
+    name: NOTES_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: MESSAGES_COMMAND.description,
+    factory: ({ layout, chatId }) => createMessagesCommand(chatId, layout),
+    listInDescription: true,
+    name: MESSAGES_COMMAND.name,
     platforms: ["darwin"],
   },
   {

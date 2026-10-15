@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -8,6 +9,7 @@ import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { chatDir } from "../record-folders";
 import { type Level } from "./places";
+import { type Asker, raiseAsk, waitingNote } from "./asks";
 import { chatDenials } from "./denials";
 import { readPermissionSettings } from "./rules";
 
@@ -63,6 +65,44 @@ export async function appReach(chatId: ChatId, app: string): Promise<Level> {
     }
   }
   return rule?.level ?? "ask";
+}
+
+/** A Mac app as its card names it, and as macOS knows it. */
+export interface MacApp {
+  bundleId: string;
+  name: string;
+}
+
+/**
+ * Why the agent may not use `app` in this chat yet, or undefined when it
+ * may: the person said not now to it here, Settings › Permissions marks it
+ * Not allowed, or nobody has answered for it yet, which raises its card for
+ * `asker` to be woken with the answer. A rule, a grant or a "not now" holds
+ * whether it names the app or its bundle id. The card names the app, and so
+ * does the rule an Always allow on it writes, which is how Settings lists it.
+ */
+export async function appRefusal(
+  chatId: ChatId,
+  app: MacApp,
+  asker: Asker | undefined,
+): Promise<string | undefined> {
+  const byName = await appReach(chatId, app.name);
+  const level =
+    byName === "ask" ? await appReach(chatId, app.bundleId) : byName;
+  if (level === "allow") {
+    return undefined;
+  }
+  if (level === "never") {
+    return (await appDenied(chatId, app.name)) ||
+      (await appDenied(chatId, app.bundleId))
+      ? `the person said not now to ${app.name} in this chat. Don't look for another way to use it; say what you skipped without it.`
+      : `${app.name} is marked Not allowed in Settings › Permissions, so ${APP_NAME} won't use it. Tell the person what you skipped.`;
+  }
+  if (!asker) {
+    return `using ${app.name} needs the person's yes first.`;
+  }
+  raiseAsk(asker, "app", app.name);
+  return `${waitingNote(app.name)} Run this again once they allow it.`;
 }
 
 async function chatAppGrants(chatId: ChatId): Promise<ChatAppGrant[]> {

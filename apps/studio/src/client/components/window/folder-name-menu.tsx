@@ -63,14 +63,12 @@ export function FolderNameMenu({
           <span className="min-w-0 flex-1 truncate">{folder.name}</span>
           <CheckIcon className="size-3.5" />
         </DropdownMenuItem>
-        {ancestors.map((ancestor, depth) => (
+        {ancestors.map((ancestor) => (
           <DropdownMenuItem
             key={ancestor.path}
             onSelect={() => {
               onGo(ancestor.path);
             }}
-            // Each a step further in, the way the Save dialog stacks them.
-            style={{ paddingLeft: 8 + (depth + 1) * 12 }}
           >
             <FolderMark large path={ancestor.path} />
             <span className="min-w-0 truncate">{ancestor.name}</span>

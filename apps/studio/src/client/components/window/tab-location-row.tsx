@@ -485,6 +485,9 @@ function Field({ location }: { location: TabLocation }) {
                         open?.run();
                       }}
                     >
+                      {crumb.path === undefined ? null : (
+                        <FolderMark large path={crumb.path} />
+                      )}
                       <span className="min-w-0 truncate">{crumb.label}</span>
                     </DropdownMenuItem>
                   );

@@ -21,6 +21,8 @@ export interface LocationCrumb {
   label: string;
   /** Where a press on it goes; absent on the last, which is where the tab is. */
   to?: OpenTarget;
+  /** The folder it names, for a part of a path on the computer. */
+  path?: string;
 }
 
 /** A disk or a cloud service's folder, by the name the sidebar lists it under. */
@@ -246,7 +248,7 @@ function pathCrumbs(
         : join(at, name, separator);
     return !rooted || index === names.length - 1
       ? { label: name }
-      : { label: name, to: { href: folderHref(at), kind: "screen" } };
+      : { label: name, path: at, to: { href: folderHref(at), kind: "screen" } };
   });
 }
 

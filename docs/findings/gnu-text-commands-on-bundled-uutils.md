@@ -1,6 +1,6 @@
 # GNU text commands on bundled uutils
 
-**Status:** open, measured 2026-10-15; a prototype routes the commands below by a fixed table and waits on a decision to ship it.
+**Status:** open, measured 2026-10-15; a prototype routes the commands below by a fixed table with no conditions, closes the macOS media libraries, and starts native commands from cached Seatbelt bytecode behind a flag, and waits on a decision to ship it.
 
 [The shell stays just-bash](../decisions/2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) parked native text commands for two reasons: macOS ships BSD tools while models write GNU flags, and Windows has no coreutils. uutils removes both. It is the MIT-licensed Rust reimplementation of GNU coreutils (findutils, diffutils and grep beside it), prebuilt for every target Studio ships, and Ubuntu 26.04 already uses it as its default `coreutils`. This page records what bundling it buys and costs, how far a native start can be made cheap, the routing options, and what brush would change.
 
@@ -84,9 +84,9 @@ With the macOS helper, a 20-iteration loop of a native command costs about 0.12 
 
 | | Corpus | Loops (extra per 20 iterations, today / with the helper) | macOS `find ~` and `grep -r ~` |
 | --- | --- | --- | --- |
-| **A.** Every command in the set always native, `find` and `tr` included | 229 of 245, but `find -newermt` fails | every one of the 710 loops in the record: 0.43 s / 0.12 s | hangs on the privacy dialogs |
-| **B.** A fixed table: each command native or builtin, on every call | 229 of 245 | 559 loops natively (`tr` and `find` stay builtins): 0.43 s / 0.12 s | one rule: a recursive `grep` from the home folder runs the builtin |
-| **C.** Builtin first, native when the builtin refuses an option, plus argument rules for `date`, `grep -r` and `find` | 223 of 245 | none on the common path | the same rule, for `find` and `grep` |
+| **A.** Every command in the set always native, `find` and `tr` included | 229 of 245, but `find -newermt` fails | every one of the 710 loops in the record: 0.43 s / 0.12 s | no dialog once the media libraries are closed, but uutils `find -prune` opens what it prunes |
+| **B.** A fixed table: each command native or builtin, on every call | 229 of 245 | 559 loops natively (`tr` and `find` stay builtins): 0.43 s / 0.12 s | none, once the Music, TV and Photos libraries are closed (below) |
+| **C.** Builtin first, native when the builtin refuses an option, plus argument rules for `date`, `grep -r` and `find` | 223 of 245 | none on the common path | an argument rule for `find` and `grep` |
 
 C loses six cases B passes because trying the builtin first keeps its silent divergences wherever it does not refuse outright (`wc` and `uniq` padding, `cut` on tabs, `date` formats), and it answers a command in a loop differently from the same command run once. Its one advantage was loop cost, which the helper cuts to 6 ms a start. So the branch takes **B**:
 
@@ -94,13 +94,79 @@ C loses six cases B passes because trying the builtin first keeps its silent div
 - **Native on macOS and Linux:** `stat` (uutils builds it for Unix only), `grep` (a recursive grep on Windows prints relative paths with backslashes), `xargs` (it starts programs from the PATH, and Windows has no `echo` or `printf`; `xargs -I{} echo` printed `Error: Command not found` in the Windows preview).
 - **Builtins:** `find` (findutils 0.10.0 parses no `-newermt` date, prints backslashes on Windows, and its walks set off macOS's privacy dialogs, three conditions for a speedup `rg` already gives), `tr` (ties the builtin and runs in 139 loops), `diff`, `sed`, `awk`, `cat`, `ls`, `cp`, `mv`.
 
-The one condition kept: on macOS a recursive `grep` whose start is the home folder or a folder holding it runs the builtin. It is clearly safe, since it falls back to today's behavior, and clearly worth it: the alternative is a native walk opening `~/Documents` and `~/Music`, macOS putting up its own Documents and Media Library dialogs naming the app, and the call waiting on them until it times out at two minutes. The Seatbelt profile already denies `~/Documents` and it still happened, so a profile deny does not get ahead of macOS's own check. Any native program walking there has the same exposure (`python -c 'os.walk(...)'`); `grep -r` is where a model does it without thinking. Getting it under 6 ms a start does not remove this condition, and it removes the reason for C.
+There is no condition left. An earlier version of the table sent a recursive `grep` from the home folder to the builtin on macOS, to stop macOS's privacy dialogs; [the next section](#macos-privacy-dialogs) found their cause and closed it in the rules, and a 6 ms start removed the reason for C.
 
 On Windows, paths are respelled only where a routed command prints nothing but paths: `realpath`'s backslashes become slashes. `filterShellOutput` still respells only drive-absolute paths, so `a\nb` in a script's output is left alone, and `find` and `grep`, which would need more, stay builtins there.
 
+## macOS privacy dialogs
+
+A native `find ~` on macOS once hung for two minutes on macOS's own dialogs naming the app. Traced on the macOS 27 VM with tccd's log (`AUTHREQ_CTX`, `AUTHREQ_ATTRIBUTION`, `AUTHREQ_PROMPTING`), each command run in a chat of a notarized preview, the app as the responsible process:
+
+- **The Documents dialog was the app, not the walk.** It came two seconds after launch, attributed to the app's main process opening its output folder, before any command ran. A person answers it once at first launch; most will allow it, since the output folder lives there.
+- **The Seatbelt profile is consulted before macOS's check.** A native `ls ~/Documents`, which the profile denies, failed with `Operation not permitted` and tccd logged no request at all, while the app's own Documents question was still open on screen.
+- **The walk's dialog came from a path no rule held.** A native `find ~ -maxdepth 2` asked for Full Disk Access (denied, no prompt), Photos (refused with `Policy disallows prompt`, since the app declares no Photos usage), and Media Library twice, the second time with a dialog. Narrowed by hand: listing `~/Music`, `~/Movies` or `~/Pictures` asks Media Library and gets an answer with no dialog; listing `~/Movies/TV`, the TV and Music apps' library, puts the dialog up. The walk waited 51.7 s, until it was answered.
+
+So a dialog appears only where the rules leave a path open to native programs and the app holds no answer from macOS for its service: never where the rules deny or ask, since the profile refuses first, and never where the person already granted the app the folder. Today that leaves the media libraries. Desktop, Documents, Downloads, iCloud Drive, `/Volumes` and `~/Library` (other apps' data, Mail, Messages, the keychain) are places the rules ask about or keep closed, so the profile denies them.
+
+Ways to stop it, each tried:
+
+| Way | Result |
+| --- | --- |
+| Close the libraries in the rules (`~/Music/Music`, `~/Music/iTunes`, `~/Movies/TV`, `~/Pictures/Photos Library.photoslibrary` join other apps' files) | No dialog: in the rebuilt preview `ls ~/Movies/TV` was refused by the sandbox and raised the card for that folder, a native `grep -r` over the whole home folder finished in 197 ms, and macOS's own `find ~ -maxdepth 4` in 48 ms, each with no dialog. On the branch |
+| Disclaim responsibility (`responsibility_spawnattrs_setdisclaim`), so macOS treats the program as its own responsible process | No dialog, because a command-line program has none to show: the read is refused silently. But it also loses every grant the person gave Instrument: a disclaimed `ls ~/Documents/Instrument` was refused where the plain one read it. Not usable |
+| Prune the libraries from the walk (`find ~ -path ~/Movies/TV -prune`) | macOS's `find` honors it and asks nothing; uutils `find` 0.10.0 opens the folder before `-prune` applies and the dialog came anyway. `stat` of the folder itself asks nothing |
+| A second Seatbelt profile from inside the sandbox | Refused: `sandbox_apply` in an already sandboxed process fails with `Operation not permitted` |
+
+Closing the libraries holds for every native program, `python`'s `os.walk` included, and asks the person the same way any other closed folder does. What it does not cover is a TCC-guarded path outside those names (a Photos library saved under another name, a second Music library on an external drive under `/Volumes`, which asks anyway); one of those would put a dialog up the way `~/Movies/TV` did, and the fix is the same line in the place.
+
+## find
+
+`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It stays a builtin for now:
+
+- just-bash#597 (carried on the records branch as `mountable-dirents-3.6.0.diff`) reads each folder once rather than once per entry: a 21,000-file `find -type f` takes 135 ms on macOS instead of 734, and 383 ms on Windows instead of 8,423. uutils `find` took 63 ms over 20,000 files through the shell, so native would save about 70 ms on a walk that size, and nothing on the small folders most calls walk. Measured by the records branch, not re-run here.
+- findutils 0.10.0 parses no `-newermt` date. `main` parses ISO dates since 2026-08-20 ("find: parse ISO 8601 dates in -newerXt to match GNU"), unreleased; it reads them as UTC where GNU reads local time, a one-line upstream change. The builtin carries `-newermt` already.
+- On Windows uutils `find` prints backslashes.
+- Its `-prune` opens the folder first (above).
+
+`find` joins the table on macOS and Linux with the findutils release after 0.10.0, if its `-prune` is fixed or the rules close everything macOS guards; the corpus shows it passing 23 of 24 against the builtin's 18.
+
+## Going further
+
+**The helper serves every native command, not only uutils.** It sits in `wrapNativeCommand`, so `python`, `node`, `rg`, `git` and a program on the PATH start through it too. In the shell on the M5 Max:
+
+| 20 starts of | sandbox-exec | Cached bytecode |
+| --- | --- | --- |
+| `rg --version` | 430 ms | 134 ms |
+| `git --version` | 425 ms | 121 ms |
+| `node -e 0` | 877 ms | 509 ms |
+| `sort /dev/null` | 449 ms | 138 ms |
+
+In the rebuilt preview on the macOS VM, a notarized app launched with the helper set, 20 native `sort` starts took 135 ms, 6.75 ms each, against 22 ms before.
+
+**Linux.** Building the bubblewrap arguments, the walk for names that run code included, takes 1.4 to 1.9 ms on the M5 Max with a whole repository granted; bubblewrap itself 3.6 ms on the VM. The preview's 21 ms a start is therefore mostly something not yet measured on Linux (Electron's spawn and the per-command environment, on a slow VM); profiling a dev build there with `--cpu-prof` is the next step. A namespace kept alive saves the 3.6 ms and weakens the code-name binds, so it is not the lever.
+
+**Windows.** The 25 ms a start was measured inside the preview through CDP; the 7.5 ms process creation and the 14.7 ms with `windowsHide` were taken over SSH, a non-interactive logon session, and need repeating in the interactive one before anyone builds on them. Once Windows has a sandbox, MXC costs about 45 ms a spawn on top, roughly 70 ms a native command, which argues for keeping Windows' column short.
+
+**More commands.** Outside the table the corpus finds little: `tr` passes either way except `tr '\0'`, which the builtin gets wrong; `touch` would fix the builtin discarding `-t` and `-r` (#364), but it writes every operand, so each needs the write check; `printf` is the interpreter's own and cannot be shadowed; `ls` stays a builtin so the entries the app hides stay hidden. At 6 ms a start `tr` could join at a cost of about 0.12 s per 20-iteration loop; on Linux, until its start cost moves, 0.4 s.
+
+## One name, one implementation
+
+Shipping the builtin, the system's tool and uutils side by side under distinct names, for the agent to choose from, would add names nothing in the record uses. Across 21,313 calls no model wrote `gsort`, `gdate`, `gawk`, `gsed`, `ggrep`, `/usr/bin/sort` or a `--version` probe of a text tool, and only three calls asked `which` or `command -v` about one, each a survey of the environment. After a refused option the next call was the same tool with other flags 50 times, `awk` or `perl` 31, Python 11, something else 16, and another build of the same tool by name never. Models write GNU flags against the name they know; the name should answer GNU.
+
+## The private API
+
+The helper calls `sandbox_compile_string` and `sandbox_apply`, which no header declares.
+
+- **Notarization** checks the signature, the hardened runtime and a malware scan; it does not look for private symbols. App Store review does, and Instrument does not ship there.
+- **Chromium** declares the same pair, with the same three-field `sandbox_profile_t`, in `sandbox/mac/seatbelt.cc` (`Seatbelt::Compile`, `ApplyCompiledProfile`), and its `SandboxSerializer` has a compiled target: the browser compiles a profile and the child applies the bytes. Every Chrome on a Mac relies on the call staying put.
+- **Codex** runs `/usr/bin/sandbox-exec -p <profile>` for each command and caches nothing; Apple marks `sandbox-exec` deprecated in its man page, as it marked `sandbox_init` deprecated in 10.8 with no replacement, and both still ship.
+- **The bytecode format** is never stored or shipped: each set of rules is compiled on the person's Mac, by its own libsandbox, when first used, and held in memory for the launch. A new macOS that changed the format would change the compiler with it.
+- **The fallback** is in place: a helper that fails to compile, or is absent, leaves `wrapNativeCommand` on `sandbox-exec`, which is what runs today. A `sandbox_apply` that failed would exit 126 rather than run unsandboxed.
+- **Could one change break both?** Yes, if Apple withdrew process-applied Seatbelt profiles altogether: `sandbox-exec` is itself a thin caller of the same library. That would also take Chrome's renderer sandbox and every agent CLI's with it, so it would come with a replacement and notice; the helper adds no exposure there that `sandbox-exec` does not already have.
+
 ## Refusals
 
-Every uutils command names the path it was refused in the message's last `: ` segment, which `refusedPathIn` already reads: Seatbelt's refusals as `Operation not permitted` (`sort`, `grep`, `cmp`, `stat`) or `Permission denied` (`wc`, `cut`, `uniq`, `head`, `date`, `comm`), bubblewrap's closed folders as `No such file or directory` and the read-only home as `Read-only file system`. The prototype also checks each argument that names an existing path against the rules before it starts the program, the way `rg` does, so `sort ~/.ssh/known_hosts` raises the card for `~/.ssh` and names the file exactly as a builtin would. That removes the reason the decision gave for keeping path-taking commands builtins. The same held in the packaged previews: `sort ~/.bashrc` on Linux, `sort ~/AppData/Local/IconCache.db` on Windows and `sort ~/.ssh/known_hosts` through `run-bash` on macOS each named the file and raised the card for its folder before anything started. A recursive `grep` skips a refused file with no message and exits 1.
+Every uutils command names the path it was refused in the message's last `: ` segment, which `refusedPathIn` already reads: Seatbelt's refusals as `Operation not permitted` (`sort`, `grep`, `cmp`, `stat`) or `Permission denied` (`wc`, `cut`, `uniq`, `head`, `date`, `comm`), bubblewrap's closed folders as `No such file or directory` and the read-only home as `Read-only file system`. The prototype also checks each argument that names an existing path against the rules before it starts the program, the way `rg` does, so `sort ~/.ssh/known_hosts` raises the card for `~/.ssh` and names the file exactly as a builtin would. That removes the reason the decision gave for keeping path-taking commands builtins. The same held in the packaged previews: `sort ~/.bashrc` on Linux, `sort ~/AppData/Local/IconCache.db` on Windows and `sort ~/.ssh/known_hosts` through `run-bash` on macOS each named the file and raised the card for its folder before anything started. A recursive `grep` prints GNU's `grep: <path>: Operation not permitted` for each file it is refused on the way, as GNU grep does; `-s` silences them.
 
 ## Size and packaging
 
@@ -121,7 +187,7 @@ macOS ships them inside the signed bundle like uv: electron-builder re-signs eac
 
 ## In the packaged app
 
-Preview builds of the first prototype (builtin first, `find` native) for macOS arm64, Windows x64 and Linux arm64 and x64 built, passed afterPack's check, and were signed (and on macOS notarized). Installed on the macOS 27 VM, the Windows 11 PC and the Ubuntu 26.04 arm64 VM, a chat's own shell (`workspace.debug.runBash`, no model involved) named the bundled programs for `command -v sort cmp`, reported `sort (uutils coreutils) 0.12.0`, and answered `sort -g`, `uniq -c`, `cmp`, `grep -H`, `date -d '... +3 days'`, `realpath --relative-to`, `shuf`, `head -q` and UTF-8 through `sort | wc -c` as GNU does on all three; `xargs -I{}` on macOS and Linux. On Linux the program's process 1 was `bwrap` with the profile's mounts. The fixed table and the macOS helper have not been through a preview; Linux x64 and Windows on ARM were built but never run.
+Preview builds of the first prototype (builtin first, `find` native) for macOS arm64, Windows x64 and Linux arm64 and x64 built, passed afterPack's check, and were signed (and on macOS notarized). Installed on the macOS 27 VM, the Windows 11 PC and the Ubuntu 26.04 arm64 VM, a chat's own shell (`workspace.debug.runBash`, no model involved) named the bundled programs for `command -v sort cmp`, reported `sort (uutils coreutils) 0.12.0`, and answered `sort -g`, `uniq -c`, `cmp`, `grep -H`, `date -d '... +3 days'`, `realpath --relative-to`, `shuf`, `head -q` and UTF-8 through `sort | wc -c` as GNU does on all three; `xargs -I{}` on macOS and Linux. On Linux the program's process 1 was `bwrap` with the profile's mounts. A later macOS preview of the fixed table, with the media libraries closed and the helper set at launch, is the one the privacy-dialog and start-cost numbers above come from; Linux x64 and Windows on ARM were built but never run.
 
 ## An agent with and without them
 

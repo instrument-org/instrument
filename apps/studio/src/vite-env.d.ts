@@ -85,6 +85,8 @@ declare namespace NodeJS {
       STUDIO_OWN_PRIVACY: string | undefined;
       /** Set by Windows: the drive it runs from, such as `C:`. */
       SystemDrive: string | undefined;
+      /** Set by Windows: its own folder, such as `C:\Windows`. */
+      SystemRoot: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       WAYLAND_DISPLAY: string | undefined;

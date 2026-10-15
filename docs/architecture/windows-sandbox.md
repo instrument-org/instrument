@@ -14,11 +14,17 @@ Settings › Permissions says so on Windows, in plain words, with a link to this
 
 ## What closes it
 
-Microsoft's MXC (`@microsoft/mxc-sdk`, AppContainer-based) is the candidate. It is deny-by-default, so the rules become a list of the folders a program may reach: the user's tool folders, the chat's work folder, and the folders granted. It needs Windows 11 24H2 or later and a one-time administrator step.
+Microsoft's MXC (`@microsoft/mxc-sdk`, AppContainer-based) is the candidate. It is deny-by-default, so the rules become a list of the folders a program may reach: the user's tool folders, the chat's work folder, and the folders granted. It needs Windows 11 24H2 or later. It needs no administrator step for the mode we would use: `wxc-host-prep`'s `prepare-system-drive` grants AppContainer SIDs, which is a different tier, and a run from an unelevated token reports `needsDaclAugmentation: false`.
 
-Its filesystem policy works in our probes. What blocks adopting it is [microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464): inside its base container a program cannot turn an open file back into a drive-letter path (`GetFinalPathNameByHandleW` with `VOLUME_NAME_DOS` is refused). Node's `fs.realpath` fails on every path, and Git for Windows cannot read its working directory unless the drive root is readable, which would turn an allow list back into a deny list. In the sandbox bake-off, node and git also failed to start with `STATUS_DLL_INIT_FAILED`.
+Two things were recorded here as blocking it, and both were re-tested on build 26200.9711 and did not hold.
 
-Once that is fixed upstream, Windows 11 24H2 and later run native programs under MXC, generated from the same rules as Seatbelt and bubblewrap, behind the same `wrapNativeCommand` seam, and the notice in Settings goes away there. Older Windows stays as it is, with the notice.
+[microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464), where a program inside the base container cannot turn an open file back into a drive-letter path, does not reproduce on that build: `GetFinalPathNameByHandleW` with `VOLUME_NAME_DOS` answers, `fs.realpathSync.native` works, and `git status`, `rev-parse`, `log` and `commit` exit 0 **with no grant on the drive root at all**, which is what the earlier reading of this said was impossible. Only `QueryDosDevice` is still refused, and nothing here calls it. The issue's reporters were on 26100.9457, so the floor sits somewhere between the two and one host cannot narrow it.
+
+`STATUS_DLL_INIT_FAILED` was the harness, not MXC. It is [microsoft/mxc#1465](https://github.com/microsoft/mxc/issues/1465): from a session-0 or network-logon token every binary importing USER32 dies with `0xC0000142`, whatever the UI policy says. Our bake-off ran over SSH. On the same host with the same policy, in an interactive session, node, git and powershell all exit 0. Granting the whole of `C:\` read-write did not help, which is what rules out a DLL search path; Git's own `env.exe` named the real refusal, `NtCreateDirectoryObject(\BaseNamedObjects\msys-2.0...)` with `0xC0000022`, which is [microsoft/mxc#1061](https://github.com/microsoft/mxc/issues/1061).
+
+Note that `scripts/sandbox-bakeoff/probe.ts` cannot produce a Windows result: it reads `const mac = process.platform === "darwin"`, runs everything through `/bin/sh -c`, and asks for `containment: { type: mac ? "seatbelt" : "bubblewrap" }`. Whatever produced the earlier Windows verdict is not in this repository, which is reason enough to re-measure rather than read.
+
+So Windows 11 at a build still to be pinned runs native programs under MXC, generated from the same rules as Seatbelt and bubblewrap, behind the same `wrapNativeCommand` seam (`wxc-exec.exe --config-base64 <b64> -- <cmd>` fits its `{file, args}` return, and `--dry-run` makes a generated policy testable without running anything), and the notice in Settings goes away there. It costs about 45 ms a spawn against roughly 6 ms for Seatbelt. Older Windows stays as it is, with the notice.
 
 ## Related
 

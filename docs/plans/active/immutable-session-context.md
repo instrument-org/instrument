@@ -1,6 +1,6 @@
 # Immutable session context and append-only corrections
 
-Status: Phases 1 through 4 implemented. Phase 5 is not: a request is covered for reconstruction determinism over its messages, but nothing asserts byte stability across the serialized tool definitions. Compaction is settled: the baseline is written again only when the window rolls over past it or a build bumps `SESSION_CONTEXT_VERSION`, never because the stored prompt differs, and a changed computer is an append-only correction (`lib/session-baseline.ts`, `lib/environment.ts`). Skill removals remain open, as does the decision below about where a mid-session model switch leaves a baseline.
+Status: Phases 1 through 4 implemented. Phase 5 is not: a request is covered for reconstruction determinism over its messages, but nothing asserts byte stability across the serialized tool definitions. Compaction is settled: the baseline is written again only when the window rolls over past it or a build bumps `SESSION_CONTEXT_VERSION`, never because the stored prompt differs, and a changed computer is an append-only correction (`lib/session-baseline.ts`, `lib/environment.ts`). Skill removals are settled, 2026-10-15: the agent is not told about one. A removed skill is a `load_skill` that comes back not found, with the catalog beside it, which is the agent's own recovery path and costs nothing until it is used; telling every session about every removal spends context on a skill the session was never going to load. So `data-skillChanges` goes on persisting created and updated names only. What remains open is the decision below about where a mid-session model switch leaves a baseline.
 
 ## Problem
 
@@ -61,7 +61,7 @@ Use the existing `data-skillChanges` part to tell the model about workspace skil
 
 Do not add watchers or snapshotting for Claude, Codex, Cursor, registry, system, or other third-party skill locations. Changes outside the existing writable workspace-skill tracking remain visible on a later not-found response or in a new session's baseline catalog.
 
-Skill removals remain outside the first implementation because `data-skillChanges` deliberately persists only created and updated names. Supporting removals later requires an explicit product decision about UI data, model behavior, and persisted schema compatibility. It should not be inferred from a new broad scan.
+Skill removals stay out, and not only for the first implementation. `data-skillChanges` persists created and updated names on purpose. Telling the agent about a removal buys nothing a failed `load_skill` does not already buy: the call comes back not found with the catalog beside it, which is the recovery the agent would take anyway, and it costs context only in the session that actually reaches for the skill. Announcing removals costs every session on every turn after one. Decided 2026-10-15; reopen it only for a case where the agent cannot recover from the not-found, which the catalog makes hard to construct.
 
 ### Date rollover
 

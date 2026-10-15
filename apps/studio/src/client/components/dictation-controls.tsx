@@ -68,7 +68,7 @@ export function DictationButton({
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Stop and add your words</p>
+          <p>Stop and add what you said</p>
         </TooltipContent>
       </Tooltip>
     );
@@ -137,10 +137,40 @@ export function DictationCancel({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Cancel and discard the recording</p>
+        <p>Throw away what you said</p>
       </TooltipContent>
     </Tooltip>
   );
+}
+
+/**
+ * What stands in for the words when there are none to show: that it is
+ * listening, that the words will come at Stop when live text isn't working,
+ * or that they are on their way.
+ */
+function quietLine({ live, phase }: Dictation) {
+  return live?.status === "lost" || live?.status === "unavailable"
+    ? "Your words will show up when you stop."
+    : phase.kind === "transcribing" && !phase.live
+      ? "Adding your words…"
+      : "Listening…";
+}
+
+/**
+ * The words to show where they will land, for a box that shows them in its
+ * text: what has been heard, or the line about live text not working.
+ */
+export function landingWords(dictation: Dictation): {
+  interim: string;
+  settled: string;
+} {
+  const quiet = quietLine(dictation);
+  return quiet === "Listening…"
+    ? {
+        interim: dictation.live?.interim ?? "",
+        settled: dictation.live?.settled ?? "",
+      }
+    : { interim: quiet, settled: "" };
 }
 
 /**
@@ -175,12 +205,7 @@ export function DictationReadout({
   if (!isDictating(phase)) {
     return null;
   }
-  const quiet =
-    live?.status === "lost" || live?.status === "unavailable"
-      ? "Live text isn't available, so your words will appear when you stop."
-      : phase.kind === "transcribing" && !phase.live
-        ? "Adding your words…"
-        : "Listening…";
+  const quiet = quietLine(dictation);
   return (
     <span
       aria-live="polite"
@@ -250,7 +275,7 @@ export function useDictatedText({
 /**
  * A textarea with dictation along its foot, inside the box: the microphone at
  * the right, and while recording, Cancel and the words being heard along
- * the foot. What is already in the box stays, read-only, and gets the new
+ * the foot. What is already in the box stays, editable, and gets the new
  * words after it.
  */
 export function DictatedTextarea({
@@ -258,14 +283,9 @@ export function DictatedTextarea({
   dictation,
   ...props
 }: React.ComponentProps<typeof Textarea> & { dictation: Dictation }) {
-  const dictating = isDictating(dictation.phase);
   return (
     <div className="relative">
-      <Textarea
-        className={cn("pb-10", className)}
-        {...props}
-        readOnly={dictating || props.readOnly}
-      />
+      <Textarea className={cn("pb-10", className)} {...props} />
       <div className="pointer-events-none absolute inset-x-2 bottom-1.5 flex items-center gap-2 [&>*]:pointer-events-auto">
         <DictationCancel dictation={dictation} size="sm" />
         <DictationReadout dictation={dictation} />

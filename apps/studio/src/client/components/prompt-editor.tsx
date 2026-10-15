@@ -217,6 +217,7 @@ export function PromptEditor({
   bounds,
   defaultValue,
   dictating = false,
+  dictatingWords,
   disabled,
   onChange,
   onPaste,
@@ -235,10 +236,15 @@ export function PromptEditor({
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
   /**
-   * Someone is dictating into the box: the words stand still, read-only,
-   * with a mark at the end where theirs will land.
+   * Someone is dictating into the box: a mark at the end of the words
+   * shows where theirs will land. The box stays editable meanwhile.
    */
   dictating?: boolean;
+  /**
+   * The words being heard, shown after the mark where they will land, the
+   * stretch still being heard fainter. Left out where they show elsewhere.
+   */
+  dictatingWords?: { interim: string; settled: string };
   disabled: boolean;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
@@ -503,17 +509,33 @@ export function PromptEditor({
     if (!view) {
       return;
     }
-    const editable = !disabled && !dictating;
+    const editable = !disabled;
     if (!editable) {
-      refocusOnEditableRef.current ||= view.hasFocus();
+      refocusOnEditableRef.current = view.hasFocus();
     }
     view.setProps({ editable: () => editable });
-    view.dispatch(view.state.tr.setMeta(dictationKey, { dictating }));
     if (editable && refocusOnEditableRef.current) {
       refocusOnEditableRef.current = false;
       view.focus();
     }
-  }, [disabled, dictating]);
+  }, [disabled]);
+
+  const settledWords = dictatingWords?.settled;
+  const interimWords = dictatingWords?.interim;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    view.dispatch(
+      view.state.tr.setMeta(dictationKey, {
+        dictating,
+        words: dictating
+          ? { interim: interimWords ?? "", settled: settledWords ?? "" }
+          : undefined,
+      }),
+    );
+  }, [dictating, settledWords, interimWords]);
 
   // Navigating between skills reuses this view, so the placeholder has to track
   // the prop rather than the value captured when the view was constructed.

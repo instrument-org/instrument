@@ -227,7 +227,7 @@ export function createWorkspaceActor() {
       buttons: ["Keep dictating", "Quit"],
       cancelId: 0,
       defaultId: 0,
-      detail: "If you quit now, what you've said so far won't be added.",
+      detail: "If you quit now, you'll lose what you've said.",
       message: "You're still dictating",
       noLink: true,
       type: "warning",

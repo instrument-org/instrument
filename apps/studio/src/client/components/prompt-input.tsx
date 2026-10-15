@@ -17,6 +17,7 @@ import {
   DictationCancel,
   DictationReadout,
   DictationSendTip,
+  landingWords,
 } from "@/client/components/dictation-controls";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
@@ -1044,15 +1045,7 @@ export const PromptInput = ({
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
         // a block or a draft always has room over its words.
-        notice={
-          // In a pill the words being heard sit over what is written, with
-          // the controls staying in its row below.
-          variant === "pill" && dictating ? (
-            <DictationReadout className="px-2" dictation={dictation} />
-          ) : variant === "pill" && !pillOpen ? undefined : (
-            noticeRow
-          )
-        }
+        notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
           variant === "pill" && dictating ? (
             <DictationCancel dictation={dictation} size="sm" />
@@ -1181,6 +1174,13 @@ export const PromptInput = ({
           bounds={composerBounds}
           defaultValue={value}
           dictating={dictating}
+          // A pill shows the words being heard where they will land, between
+          // Cancel and Stop; a block shows them in its bar instead.
+          dictatingWords={
+            variant === "pill" && dictating
+              ? landingWords(dictation)
+              : undefined
+          }
           disabled={disabled || isLoading}
           key={draftKeyString(draftKey)}
           onChange={setValue}

@@ -246,14 +246,16 @@ function read(): Index {
     return index;
   }
   const known: Index = { chats: new Map(), root, sessions: new Map() };
-  let skipped = 0;
+  const skipped: string[] = [];
   for (const name of listDirs(root)) {
     if (addChatFrom(known, path.join(root, name)) === undefined) {
-      skipped += 1;
+      skipped.push(name);
     }
   }
-  if (skipped > 0) {
-    console.warn(`Skipping ${skipped} chat folder(s) with no session`);
+  if (skipped.length > 0) {
+    console.warn(
+      `Skipping chat folders with no session: ${skipped.join(", ")}`,
+    );
   }
   index = known;
   return known;

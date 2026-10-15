@@ -41,7 +41,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Electron reads an app's archive as a folder](electron-reads-asar-archives-as-folders.md) — `du` counted every Electron app's `app.asar` twice; `ls`, `find` and This Mac still see a folder | `du` fixed, rest open |
 | [The macOS folder ask holds a listing, not a write](macos-folder-ask-holds-listings-not-writes.md) | worked around in `task folder --add` |
 | [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md) | resolved |
-| [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): compatibility, speed, start cost and size of running `sort`, `find`, `grep` and the rest natively on every platform | open, fixed-table prototype awaiting a decision |
+| [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): compatibility, speed, start cost and size of running `sort`, `find`, `grep` and the rest natively on every platform | resolved, shipped as a fixed table |
 
 ### The agent browser and the in-app browser
 

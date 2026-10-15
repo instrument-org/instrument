@@ -321,6 +321,36 @@ export function quietRefusedFolders(stderr: string): string {
   return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed\n`;
 }
 
+/** Each archive a route's binary comes from. */
+const BINARY_PROJECTS: Record<UutilsBinary, string> = {
+  coreutils: "coreutils",
+  diffutils: "diffutils",
+  find: "findutils",
+  grep: "grep",
+  xargs: "findutils",
+};
+
+/**
+ * The fixed table as Markdown, one row per command and a column per
+ * platform: what docs/architecture/native-and-builtin-commands.md shows,
+ * held equal to this file by native-text-doc.test.ts.
+ */
+export function nativeTextRoutesTable(): string {
+  const cell = (route: NativeTextRoute, platform: NodeJS.Platform) =>
+    (route.platforms?.includes(platform) ?? true) ? "uutils" : "builtin";
+  const rows = NATIVE_TEXT_ROUTES.toSorted((a, b) =>
+    a.name.localeCompare(b.name),
+  ).map(
+    (route) =>
+      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | uutils ${BINARY_PROJECTS[route.binary]} |`,
+  );
+  return [
+    "| Command | macOS | Linux | Windows | From |",
+    "| --- | --- | --- | --- | --- |",
+    ...rows,
+  ].join("\n");
+}
+
 /** The bundled program for a route, when this build carries it. */
 export function uutilsProgram(binary: UutilsBinary): string | undefined {
   const dir = getWorkspaceConfig().uutilsDir;

@@ -1,12 +1,15 @@
 import {
   type ChosenItem,
   type FileTab,
+  finderBesideColumnsWidthAtom,
+  finderBesideWidthAtom,
   fileTreeOpenAtom,
   fileTreeWidthAtom,
 } from "@/client/atoms/window";
 import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
+import { ResizeHandle } from "@/client/components/resize-handle";
 import {
   type RailBounds,
   StudioSidebarRail,
@@ -29,16 +32,28 @@ import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { atom, useAtom, useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useAtom } from "jotai";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf } from "./app-tabs";
 import { AskTray } from "./ask-tray";
-import { ComputerPage, type FolderOnScreen } from "./computer-page";
+import {
+  BESIDE_MOTION_CLASSNAME,
+  ComputerPage,
+  type FolderOnScreen,
+} from "./computer-page";
 import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
 import { GlyphButton } from "./glyph-button";
@@ -68,14 +83,22 @@ const TREE_BOUNDS: RailBounds = {
   max: 480,
   min: 180,
 };
-/** The same for the folder itself beside a file, in the layouts it narrows into. */
+/**
+ * The same for the folder itself beside a file; the columns open two
+ * columns wide.
+ */
 const BESIDE_BOUNDS: RailBounds = {
   collapse: 150,
   initial: 300,
-  max: 560,
+  max: 640,
   min: 220,
 };
-const besideWidthAtom = atom(BESIDE_BOUNDS.initial);
+const BESIDE_COLUMNS_INITIAL = 480;
+/** How the file fades as it slides away, as long as the folder takes to widen. */
+const BESIDE_EXIT_TRANSITION = {
+  duration: 0.38,
+  ease: [0.2, 0, 0, 1],
+} as const;
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -87,11 +110,13 @@ const PILE_POSES = [
  * This Mac shows a folder or file in the current tab. Back returns to the
  * folder after opening a file; Space previews the selection in Quick Look.
  *
- * A file opened from the Finder takes the Finder's place in its tab, with the
- * Finder's folder as a tree at its left and the file's crumbs over it, so the files
- * of a folder can be leafed through, and a link between two documents
- * followed, without going back to the Finder. A row in the tree or a link
- * in the document swaps the file in the same tab.
+ * In a tab of the window's own, a file opened from the Finder slides in
+ * beside the folder, which narrows to make room and stays as it was, so the
+ * files of a folder can be leafed through with a click or an arrow, and a
+ * link between two documents followed, without going back to the Finder. In
+ * a chat's own tab the file takes the Finder's place instead, with the
+ * Finder's folder as a tree at its left. Either way a row or a link in the
+ * document swaps the file in the same tab.
  *
  * A page's file (HTML) is what a browser is for. In a file tab with a tree
  * it is drawn as its page beside the tree, by a guest the browser keeps as
@@ -122,7 +147,7 @@ export function FilesScreen({
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view: FileSystemView | undefined;
 }) {
-  const { browser, openPage, openScreen, rowLead, rowTail, rowTools } =
+  const { browser, openPage, openScreen, rowHoldsTools, rowLead, rowTail } =
     useWindow();
   const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
     useWindowTabs();
@@ -188,20 +213,73 @@ export function FilesScreen({
       to: "/files",
     });
   };
-  // A file opened from a list or the grid in a tab of the window's own opens
-  // beside the folder in that layout, narrowed, rather than beside a tree.
-  // The columns and the gallery are a folder's preview already.
-  const isBeside =
-    tree !== undefined &&
-    rowTools !== undefined &&
-    (view === "list" || view === "icons");
-  const [isFolderBesideOpen, setFolderBesideOpen] = useState(true);
-  const besideWidth = useAtomValue(besideWidthAtom);
-  const [besideTools, setBesideTools] = useState<HTMLElement | null>(null);
+  // In a tab of the window's own a file opened from the folder opens beside
+  // it: the folder narrows as the file slides in from the right, and widens
+  // again as it slides away. The folder stays mounted throughout, so what it
+  // had selected, open and scrolled to is all still there either way.
+  const isBesideLayout =
+    rowHoldsTools === true && (file === undefined || tree !== undefined);
+  const isFileOpen = isBesideLayout && file !== undefined;
+  const [isFolderShown, setFolderShown] = useState(true);
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
+  // From the file going until it has slid away.
+  const [isClosing, setClosing] = useState(false);
+  const [wasFileOpen, setWasFileOpen] = useState(isFileOpen);
+  if (wasFileOpen !== isFileOpen) {
+    setWasFileOpen(isFileOpen);
+    setClosing(!isFileOpen);
+    if (isFileOpen) {
+      setFolderShown(true);
+      setBesidePicked([]);
+    }
+  }
+  const [storedBesideWidth, setStoredBesideWidth] = useAtom(
+    view === "columns" ? finderBesideColumnsWidthAtom : finderBesideWidthAtom,
+  );
+  // Followed by hand while its edge is dragged, and kept once let go.
+  const [draggedWidth, setDraggedWidth] = useState<number | null>(null);
+  const draggedWidthNow = useRef<number | null>(null);
+  // The columns narrow to the ones standing, up to that: a file in the
+  // first column has no folder above it to show.
+  const [columnsFit, setColumnsFit] = useState<number | null>(null);
+  const [layout, setLayout] = useState<HTMLDivElement | null>(null);
+  // In a narrow tab the folder keeps to its share, so the file is never
+  // the narrower of the two.
+  const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!layout) {
+      return;
+    }
+    const measure = () => {
+      // Layout px, the units the widths are kept in, whatever the zoom.
+      setLayoutWidth(layout.offsetWidth);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(layout);
+    return () => {
+      observer.disconnect();
+    };
+  }, [layout]);
+  const besideWidth = Math.min(
+    draggedWidth ??
+      (view === "columns" && columnsFit !== null
+        ? Math.min(storedBesideWidth, columnsFit)
+        : storedBesideWidth),
+    layoutWidth === null
+      ? Number.POSITIVE_INFINITY
+      : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
+  );
+  const clampBesideWidth = (width: number) =>
+    Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
   // Whether the folder beside has had the open file selected: until it has,
   // an empty selection is the listing still arriving, not a click on nothing.
   const besideHeld = useRef(false);
+  useEffect(() => {
+    if (!isFileOpen) {
+      besideHeld.current = false;
+    }
+  }, [isFileOpen]);
   const closeBeside = () => {
     besideHeld.current = false;
     void navigate({
@@ -215,14 +293,19 @@ export function FilesScreen({
       to: "/files",
     });
   };
+  const onFolderChange = (next: FolderOnScreen | null) => {
+    setFolder((current) =>
+      JSON.stringify(current) === JSON.stringify(next) ? current : next,
+    );
+  };
   // One click (or an arrow) on another file shows it, in the step already
-  // up, the way the columns preview it; several show as a pile; nothing
-  // picked puts the file away and gives the folder its width back.
-  const onBesideFolder = (next: FolderOnScreen | null) => {
-    if (!next) {
+  // up, the way the columns preview it; several show as a pile; a folder
+  // picked is the columns walking on, beside the file; nothing picked puts
+  // the file away and gives the folder its width back.
+  const onBesidePick = (picked: ChosenItem[]) => {
+    if (!isFileOpen) {
       return;
     }
-    const picked = next.selectedItems;
     setBesidePicked((current) =>
       JSON.stringify(current) === JSON.stringify(picked) ? current : picked,
     );
@@ -236,14 +319,30 @@ export function FilesScreen({
       closeBeside();
     }
   };
+  // A file arriving with no layout of its own, as one opened into a tab of
+  // its own, stands beside the folder its tree names, which is written into
+  // its step ahead of the layout the folder writes there itself.
+  const isDirectFile = isFileOpen && tree !== undefined && view === undefined;
+  const folderRoot = isDirectFile ? tree : root;
+  const folderPath = isDirectFile ? "" : path;
+  useLayoutEffect(() => {
+    if (!isDirectFile) {
+      return;
+    }
+    void navigate({
+      replace: true,
+      search: (previous) => ({ ...previous, path: "", root: tree }),
+      to: "/files",
+    });
+  }, [isDirectFile, navigate, tree]);
   // The open file under the folder's root, for the folder to open with it
   // selected.
   const rootHostPath =
-    root === "~"
+    folderRoot === "~"
       ? window.api.homeDir
-      : root.startsWith("~/")
-        ? `${window.api.homeDir}/${root.slice(2)}`
-        : root;
+      : folderRoot.startsWith("~/")
+        ? `${window.api.homeDir}/${folderRoot.slice(2)}`
+        : folderRoot;
   const besideSelect =
     file?.startsWith(`${rootHostPath}/`) === true
       ? file.slice(rootHostPath.length + 1)
@@ -518,23 +617,246 @@ export function FilesScreen({
   const askButton = activeFile && (
     <FileAskButton name={activeFile.name} path={activeFile.hostPath} />
   );
+  const actionsLead =
+    hostedTabId === undefined ? (
+      askButton
+    ) : (
+      <>
+        <PageEditToggle tabId={hostedTabId} />
+        {askButton}
+      </>
+    );
+  // The page's file drawn into the slot the viewer gives it: square at the
+  // bottom left while something stands against it, and at the right
+  // whatever the pane's own corner is; the pane's corners when nothing does.
+  const pageInSlot = (isBesideSomething: boolean) =>
+    hostedFile === undefined
+      ? {}
+      : {
+          page: (
+            <div
+              className={
+                isBesideSomething
+                  ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
+                  : "h-full"
+              }
+              ref={setSlot}
+            />
+          ),
+        };
+  // What the document links to opens where the folder's rows do: in this
+  // tab, unless a tab of its own is asked for; a folder opens as the Finder
+  // standing in it.
+  const openLinkedFile = (hostPath: string, options?: { newTab?: boolean }) => {
+    if (hostPath.endsWith("/")) {
+      openScreen(folderHref(hostPath.slice(0, -1)), options);
+    } else if (options?.newTab) {
+      openScreen(
+        fileHref(hostPath, tree === undefined ? {} : { tree }),
+        options,
+      );
+    } else {
+      showFile(hostPath);
+    }
+  };
+
+  if (isBesideLayout) {
+    const fileOffset = isFolderShown ? besideWidth : 0;
+    const closeButton = (
+      <ToolbarTooltip label="Close the file">
+        <Button
+          aria-label="Close the file"
+          className={toolbarClassName({
+            className: "shrink-0",
+            pressed: false,
+          })}
+          onClick={closeBeside}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <XIcon className="size-4" />
+        </Button>
+      </ToolbarTooltip>
+    );
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div
+          className="@container/beside relative flex min-h-0 flex-1 overflow-hidden"
+          ref={setLayout}
+        >
+          <div
+            className={cn(
+              "relative h-full shrink-0 overflow-hidden transition-[width]",
+              BESIDE_MOTION_CLASSNAME,
+              draggedWidth !== null && "transition-none",
+            )}
+            // Folded away, nothing in it takes the keyboard.
+            inert={isFileOpen && !isFolderShown}
+            style={{ width: isFileOpen ? fileOffset : "100%" }}
+          >
+            <ComputerPage
+              {...(isFileOpen || isClosing
+                ? {
+                    beside: {
+                      isClosing,
+                      isFolderShown,
+                      isResizing: draggedWidth !== null,
+                      onFit: setColumnsFit,
+                      onPick: onBesidePick,
+                      toggle: (
+                        <TreeToggle
+                          isOpen={isFolderShown}
+                          label={
+                            isFolderShown
+                              ? "Hide the folder"
+                              : "Show the folder"
+                          }
+                          onToggle={() => {
+                            setFolderShown((shown) => !shown);
+                          }}
+                        />
+                      ),
+                      width: besideWidth,
+                    },
+                  }
+                : {})}
+              onFolderChange={onFolderChange}
+              onOpenFile={
+                isFileOpen
+                  ? (tab) => {
+                      showFile(tab.hostPath, { replace: true });
+                    }
+                  : openFile
+              }
+              path={folderPath}
+              root={folderRoot}
+              select={isFileOpen ? besideSelect : select}
+              toolsInRow
+              view={view}
+              {...(isFileOpen ? {} : quickLook.props)}
+            />
+          </div>
+          {isFileOpen && isFolderShown && (
+            <div
+              className="absolute inset-y-0 w-0"
+              style={{ left: besideWidth }}
+            >
+              <ResizeHandle
+                anchor={() => layout?.getBoundingClientRect().left}
+                className="left-0 -translate-x-1/2"
+                collapse={{
+                  below: BESIDE_BOUNDS.collapse ?? 0,
+                  onCollapse: () => {
+                    draggedWidthNow.current = null;
+                    setDraggedWidth(null);
+                    setFolderShown(false);
+                  },
+                }}
+                getWidth={() => besideWidth}
+                grows="right"
+                label="Resize the folder"
+                max={BESIDE_BOUNDS.max}
+                min={BESIDE_BOUNDS.min}
+                onReset={() => {
+                  setStoredBesideWidth(
+                    view === "columns"
+                      ? BESIDE_COLUMNS_INITIAL
+                      : BESIDE_BOUNDS.initial,
+                  );
+                }}
+                onResize={(width) => {
+                  draggedWidthNow.current = clampBesideWidth(width);
+                  setDraggedWidth(draggedWidthNow.current);
+                }}
+                onResizeEnd={() => {
+                  if (draggedWidthNow.current !== null) {
+                    setStoredBesideWidth(draggedWidthNow.current);
+                  }
+                  draggedWidthNow.current = null;
+                  setDraggedWidth(null);
+                }}
+                onResizeStart={() => {
+                  draggedWidthNow.current = besideWidth;
+                  setDraggedWidth(besideWidth);
+                }}
+                value={besideWidth}
+              />
+            </div>
+          )}
+          <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+            <AnimatePresence
+              onExitComplete={() => {
+                setClosing(false);
+              }}
+            >
+              {activeFile &&
+                viewerFile && (
+                  // As wide as it will be from the start, so the file slides in
+                  // whole rather than unfolding from a sliver.
+                  <motion.div
+                    className={cn(
+                      "absolute inset-y-0 left-0 bg-background transition-[width]",
+                      BESIDE_MOTION_CLASSNAME,
+                      draggedWidth !== null && "transition-none",
+                      isFolderShown && "border-l border-border",
+                    )}
+                    exit={{ opacity: 0 }}
+                    key="file"
+                    style={{ width: `calc(100cqw - ${fileOffset}px)` }}
+                    transition={BESIDE_EXIT_TRANSITION}
+                  >
+                    <WhilePresent>
+                      {(isPresent) => (
+                        <FileOpenContext value={openLinkedFile}>
+                          <LinkSurface
+                            base={folderOf(activeFile.hostPath)}
+                            openFile={openLinkedFile}
+                          >
+                            {besidePicked.length > 1 ? (
+                              <>
+                                <div className="flex size-full">
+                                  <SeveralPicked items={besidePicked} />
+                                </div>
+                                {isPresent &&
+                                  rowTail &&
+                                  createPortal(closeButton, rowTail)}
+                              </>
+                            ) : (
+                              <div className="relative size-full">
+                                <FileViewer
+                                  // Its actions leave the row with it, for the
+                                  // folder's own to come back.
+                                  actionsInto={isPresent ? rowTail : null}
+                                  actionsLead={actionsLead}
+                                  actionsTrail={closeButton}
+                                  className={FULL_BLEED}
+                                  editable
+                                  file={viewerFile}
+                                  key={activeFile.hostPath}
+                                  {...pageInSlot(isFolderShown)}
+                                />
+                                {/* A page in Edit keeps its asks in its own dock instead. */}
+                                {!(
+                                  hostedTabId !== undefined &&
+                                  editTabs[hostedTabId]
+                                ) && <AskTray path={activeFile.hostPath} />}
+                              </div>
+                            )}
+                          </LinkSurface>
+                        </FileOpenContext>
+                      )}
+                    </WhilePresent>
+                  </motion.div>
+                )}
+            </AnimatePresence>
+          </div>
+        </div>
+        {quickLook.dialog}
+      </div>
+    );
+  }
 
   if (activeFile && viewerFile && tree !== undefined) {
-    // What the document links to opens where the tree's rows do: in this
-    // tab, unless a tab of its own is asked for; a folder opens as the
-    // Finder standing in it.
-    const openLinkedFile = (
-      hostPath: string,
-      options?: { newTab?: boolean },
-    ) => {
-      if (hostPath.endsWith("/")) {
-        openScreen(folderHref(hostPath.slice(0, -1)), options);
-      } else if (options?.newTab) {
-        openScreen(fileHref(hostPath, { tree }), options);
-      } else {
-        showFile(hostPath);
-      }
-    };
     return (
       <FileOpenContext value={openLinkedFile}>
         <LinkSurface
@@ -547,137 +869,48 @@ export function FilesScreen({
               stays mounted while closed, so what it had open is still open
               when it returns. The Finder's own ground rather than a tinted
               panel, so the tree reads as the list it was opened from. */}
-            {isBeside ? (
-              <StudioSidebarRail
-                bounds={BESIDE_BOUNDS}
-                isOpen={isFolderBesideOpen}
-                label="Resize the folder"
-                onCollapse={() => {
-                  setFolderBesideOpen(false);
-                }}
-                panelClassName="bg-background"
-                widthAtom={besideWidthAtom}
-              >
-                <ComputerPage
-                  beside
-                  onFolderChange={onBesideFolder}
-                  onOpenFile={(tab) => {
-                    showFile(tab.hostPath, { replace: true });
-                  }}
-                  path={path}
-                  root={root}
-                  {...(besideSelect === undefined
-                    ? {}
-                    : { select: besideSelect })}
-                  toolbarInto={{ lead: besideTools }}
-                  {...(view === undefined ? {} : { view })}
-                />
-              </StudioSidebarRail>
-            ) : (
-              <StudioSidebarRail
-                bounds={TREE_BOUNDS}
-                isOpen={isTreeOpen}
-                label="Resize the tree"
-                onCollapse={() => {
-                  setTreeOpen(false);
-                }}
-                panelClassName="bg-background"
-                widthAtom={fileTreeWidthAtom}
-              >
-                <FileTree
-                  onOpen={showFile}
-                  root={tree}
-                  selected={activeFile.hostPath}
-                />
-              </StudioSidebarRail>
-            )}
-            {/* At the row's far left, over the tree it puts away; beside the
-              folder, a section of the row as wide as the folder, holding
-              the folder's own controls, which fold away with it. */}
+            <StudioSidebarRail
+              bounds={TREE_BOUNDS}
+              isOpen={isTreeOpen}
+              label="Resize the tree"
+              onCollapse={() => {
+                setTreeOpen(false);
+              }}
+              panelClassName="bg-background"
+              widthAtom={fileTreeWidthAtom}
+            >
+              <FileTree
+                onOpen={showFile}
+                root={tree}
+                selected={activeFile.hostPath}
+              />
+            </StudioSidebarRail>
+            {/* At the row's far left, over the tree it puts away. */}
             {rowLead &&
               createPortal(
-                isBeside ? (
-                  <div
-                    className={cn(
-                      "flex h-10 shrink-0 items-center gap-1",
-                      isFolderBesideOpen &&
-                        "-ml-2 border-r border-border pr-2 pl-2",
-                    )}
-                    style={isFolderBesideOpen ? { width: besideWidth } : {}}
-                  >
-                    <TreeToggle
-                      isOpen={isFolderBesideOpen}
-                      label={
-                        isFolderBesideOpen
-                          ? "Hide the folder"
-                          : "Show the folder"
-                      }
-                      onToggle={() => {
-                        setFolderBesideOpen((open) => !open);
-                      }}
-                    />
-                    <div
-                      className={cn(
-                        "flex min-w-0 flex-1 items-center",
-                        !isFolderBesideOpen && "hidden",
-                      )}
-                      ref={setBesideTools}
-                    />
-                  </div>
-                ) : (
-                  <TreeToggle
-                    isOpen={isTreeOpen}
-                    onToggle={() => {
-                      setTreeOpen((open) => !open);
-                    }}
-                  />
-                ),
+                <TreeToggle
+                  isOpen={isTreeOpen}
+                  onToggle={() => {
+                    setTreeOpen((open) => !open);
+                  }}
+                />,
                 rowLead,
               )}
-            {isBeside && besidePicked.length > 1 ? (
-              <SeveralPicked items={besidePicked} />
-            ) : (
-              <div className="relative min-h-0 min-w-0 flex-1">
-                <FileViewer
-                  actionsInto={rowTail}
-                  actionsLead={
-                    hostedTabId === undefined ? (
-                      askButton
-                    ) : (
-                      <>
-                        <PageEditToggle tabId={hostedTabId} />
-                        {askButton}
-                      </>
-                    )
-                  }
-                  className={FULL_BLEED}
-                  editable
-                  file={viewerFile}
-                  key={activeFile.hostPath}
-                  {...(hostedFile === undefined
-                    ? {}
-                    : {
-                        page: (
-                          // Square at the bottom left while the tree stands
-                          // against it, and at the right whatever the pane's own
-                          // corner is; the pane's corners when the tree is away.
-                          <div
-                            className={
-                              isTreeOpen
-                                ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
-                                : "h-full"
-                            }
-                            ref={setSlot}
-                          />
-                        ),
-                      })}
-                />
-                {/* A page in Edit keeps its asks in its own dock instead. */}
-                {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
-                  <AskTray path={activeFile.hostPath} />
-                )}
-              </div>
-            )}
+            <div className="relative min-h-0 min-w-0 flex-1">
+              <FileViewer
+                actionsInto={rowTail}
+                actionsLead={actionsLead}
+                className={FULL_BLEED}
+                editable
+                file={viewerFile}
+                key={activeFile.hostPath}
+                {...pageInSlot(isTreeOpen)}
+              />
+              {/* A page in Edit keeps its asks in its own dock instead. */}
+              {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
+                <AskTray path={activeFile.hostPath} />
+              )}
+            </div>
           </div>
         </LinkSurface>
       </FileOpenContext>
@@ -711,20 +944,11 @@ export function FilesScreen({
           </LinkSurface>
         ) : (
           <ComputerPage
-            onFolderChange={(next) => {
-              setFolder((current) =>
-                JSON.stringify(current) === JSON.stringify(next)
-                  ? current
-                  : next,
-              );
-            }}
+            onFolderChange={onFolderChange}
             onOpenFile={openFile}
             path={path}
             root={root}
             select={select}
-            {...(rowTools === undefined
-              ? {}
-              : { toolbarInto: { lead: rowTools, tail: rowTail } })}
             view={view}
             {...quickLook.props}
           />
@@ -734,6 +958,16 @@ export function FilesScreen({
       {quickLook.dialog}
     </div>
   );
+}
+
+/** Renders its children with whether they are still present, or on their way out of an `AnimatePresence`. */
+function WhilePresent({
+  children,
+}: {
+  children: (isPresent: boolean) => ReactNode;
+}) {
+  const isPresent = useIsPresent();
+  return children(isPresent);
 }
 
 /** Several picked in the folder beside a file: the last few as a loose pile in the file's place, and Ask about them all. */

@@ -17,8 +17,6 @@ import {
   FileSystemFolderGlyph,
   type FileSystemHandle,
   type FileSystemItem,
-  type FileSystemListColumn,
-  type FileSystemProps,
   type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
@@ -119,6 +117,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -161,9 +160,12 @@ const PLACES_BOUNDS: RailBounds = {
   min: 140,
 };
 
-/** The list beside an open file: the names, and when each changed, in what room is left. */
-const BESIDE_LIST_COLUMNS: FileSystemListColumn[] = ["updatedAt"];
-const BESIDE_LIST_COLUMN_WIDTHS = { updatedAt: 120 };
+/**
+ * How the row's section over the folder moves as a file opens beside it and
+ * closes, in step with the folder narrowing under it.
+ */
+export const BESIDE_MOTION_CLASSNAME =
+  "duration-[380ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
 
 /** A page's width over its height, the shape a document's picture is drawn in. */
 const PAGE_ASPECT = 0.78;
@@ -250,7 +252,7 @@ export interface FolderOnScreen {
  * itself, so walking the folders leaves the tab where it is.
  */
 export function ComputerPage({
-  beside = false,
+  beside,
   onFolderChange,
   onOpenFile,
   onQuickLook,
@@ -260,14 +262,27 @@ export function ComputerPage({
   refreshInterval = REFRESH_MS,
   root,
   select,
-  toolbarInto,
+  toolsInRow = false,
   view: viewInHistory,
 }: {
   /**
-   * Narrowed beside an open file: no places, the toolbar folded into
-   * `toolbarInto.lead`, and the list down to the names and when each changed.
+   * A file open beside the folder, which narrows to `width` with its places
+   * put away and its controls in the row's section over it, behind `toggle`.
+   * `isClosing` while the file slides away: the places and the row are the
+   * folder's again, and the views keep their narrowed layout until the
+   * folder has its width back.
    */
-  beside?: boolean;
+  beside?: {
+    isClosing: boolean;
+    isFolderShown: boolean;
+    isResizing: boolean;
+    /** How wide the columns standing beside the file are, for the folder to narrow to. */
+    onFit: (width: number) => void;
+    /** Everything picked, a folder the columns stand in included, whenever it changes. */
+    onPick: (picked: ChosenItem[]) => void;
+    toggle: ReactNode;
+    width: number;
+  };
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
   /** A file the user opened, when a granted folder covers it. */
@@ -284,12 +299,14 @@ export function ComputerPage({
   root: string;
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
-  /** Where the toolbar's controls go instead of the folder's own header: see `FileSystem`. */
-  toolbarInto?: FileSystemProps["toolbarInto"];
+  /** Whether the folder's controls go in the tab's row, in a tab of the window's own, rather than a header of their own. */
+  toolsInRow?: boolean;
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view?: FileSystemView;
 }) {
-  const { askAbout, openScreen, rowLead } = useWindow();
+  const { askAbout, openScreen, rowLead, rowTail } = useWindow();
+  const isBesideOpen = beside !== undefined && !beside.isClosing;
+  const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
@@ -1031,6 +1048,33 @@ export function ComputerPage({
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
+  // Beside a file, everything picked by where it is: the folder on screen
+  // leaves out the folder the columns stand in, which is still a pick.
+  const pickedBeside = selectedItems.flatMap((item): ChosenItem[] => {
+    const itemHostPath = hostPathOfItem(item);
+    return itemHostPath ? [{ kind: item.kind, path: itemHostPath }] : [];
+  });
+  const pickedKey = JSON.stringify(pickedBeside);
+  // Told as a file opens beside the folder and as the picks change, and
+  // only then: the file beside moving on is not a pick.
+  const tellPicked = useEffectEvent((next: ChosenItem[]) => {
+    beside?.onPick(next);
+  });
+  useEffect(() => {
+    tellPicked(pickedBeside);
+    // The selection by its key: the rows are rebuilt on every re-read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBesideOpen, pickedKey]);
+  // The file beside moved on from somewhere other than the folder, a link
+  // in it or the page it is going to another file: picked here too when
+  // it is listed, so the folder and the file agree.
+  const isSelectListed = select !== undefined && itemsByPath.has(select);
+  useEffect(() => {
+    if (isBesideOpen && isSelectListed) {
+      setSelectedPath(select);
+      setSelectedPaths([select]);
+    }
+  }, [isBesideOpen, isSelectListed, select]);
 
   // A type with no viewer here goes to the app the computer would use, the way
   // a double-click in the system's file manager does: a disk image mounts and
@@ -1199,7 +1243,14 @@ export function ComputerPage({
   const [isPlacesOpen, setPlacesOpen] = useState(false);
   const [isPlacesShown, setPlacesShown] = useAtom(finderPlacesOpenAtom);
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
-  const isNarrow = useIsNarrow(frame);
+  // Narrowed beside a file the folder is as wide as it was before it, so
+  // the places slide away and back rather than standing over it.
+  const isFrameNarrow = useIsNarrow(frame);
+  const [wasNarrow, setWasNarrow] = useState(isFrameNarrow);
+  if (beside === undefined && wasNarrow !== isFrameNarrow) {
+    setWasNarrow(isFrameNarrow);
+  }
+  const isNarrow = beside === undefined ? isFrameNarrow : wasNarrow;
   const placesVisible = isNarrow ? isPlacesOpen : isPlacesShown;
   const placesToggle = (
     <PlacesToggle
@@ -1532,21 +1583,59 @@ export function ComputerPage({
       {/* At the row's far left where the tab has one, the way a file's tree
           toggle is, and as wide as the places beside the folder so the
           folder's own controls start where the folder does; at the head of
-          the toolbar where it does not. */}
+          the toolbar where it does not. In a tab of the window's own the
+          folder's controls follow it in a section of the row's own, which
+          with a file open beside the folder is as wide as the folder and
+          holds them all, behind the toggle that folds the folder away. */}
       {rowLead &&
-        !beside &&
-        createPortal(
-          <div
-            className={cn(
-              "flex h-10 shrink-0 items-center",
-              placesVisible && !isNarrow && "-ml-2 border-r border-border pl-2",
-            )}
-            style={placesVisible && !isNarrow ? { width: placesWidth } : {}}
-          >
-            {placesToggle}
-          </div>,
-          rowLead,
-        )}
+        (toolsInRow
+          ? createPortal(
+              <div
+                className={cn(
+                  "-ml-2 flex h-10 shrink-0 items-center gap-1 border-r pl-2 transition-[width,border-color] [interpolate-size:allow-keywords]",
+                  BESIDE_MOTION_CLASSNAME,
+                  beside?.isResizing && "transition-none",
+                  isBesideOpen && beside.isFolderShown
+                    ? "border-border pr-2"
+                    : "border-transparent",
+                )}
+                style={{
+                  width:
+                    isBesideOpen && beside.isFolderShown
+                      ? beside.width
+                      : "auto",
+                }}
+              >
+                <div
+                  className={cn(
+                    "flex h-10 shrink-0 items-center border-r transition-[width,border-color] [interpolate-size:allow-keywords]",
+                    BESIDE_MOTION_CLASSNAME,
+                    !isBesideOpen && placesVisible && !isNarrow
+                      ? "border-border"
+                      : "border-transparent",
+                  )}
+                  style={{
+                    // Less the section's own inset, so its edge is the places'.
+                    width:
+                      !isBesideOpen && placesVisible && !isNarrow
+                        ? placesWidth - 8
+                        : "auto",
+                  }}
+                >
+                  {isBesideOpen ? beside.toggle : placesToggle}
+                </div>
+                <div
+                  className={cn(
+                    "flex min-w-0 items-center",
+                    isBesideOpen && "flex-1",
+                    isBesideOpen && !beside.isFolderShown && "hidden",
+                  )}
+                  ref={setRowTools}
+                />
+              </div>,
+              rowLead,
+            )
+          : createPortal(placesToggle, rowLead))}
       {isNarrow && isPlacesOpen && (
         <button
           aria-label="Hide the sidebar"
@@ -1558,22 +1647,25 @@ export function ComputerPage({
           type="button"
         />
       )}
-      {beside ? null : isNarrow ? (
-        <nav
-          className={cn(
-            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
-            !isPlacesOpen && "hidden",
-          )}
-          onKeyDown={onPlacesKeyDown}
-        >
-          {placeLists}
-        </nav>
+      {isNarrow ? (
+        isBesideOpen ? null : (
+          <nav
+            className={cn(
+              "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
+              !isPlacesOpen && "hidden",
+            )}
+            onKeyDown={onPlacesKeyDown}
+          >
+            {placeLists}
+          </nav>
+        )
       ) : (
         // Beside the folder the way the window's own rail is: its edge
-        // drags, an over-drag puts it away, and it slides at its width.
+        // drags, an over-drag puts it away, and it slides at its width,
+        // away while a file is open beside the folder.
         <StudioSidebarRail
           bounds={PLACES_BOUNDS}
-          isOpen={isPlacesShown}
+          isOpen={isPlacesShown && !isBesideOpen}
           label="Resize the sidebar"
           onCollapse={() => {
             setPlacesShown(false);
@@ -1639,10 +1731,8 @@ export function ComputerPage({
                 getHostPath={(item) => hostPathOfItem(item) || undefined}
                 items={items}
                 key={`${root}#${openings}`}
-                listColumns={beside ? BESIDE_LIST_COLUMNS : listColumns}
-                listColumnWidths={
-                  beside ? BESIDE_LIST_COLUMN_WIDTHS : listColumnWidths
-                }
+                listColumns={listColumns}
+                listColumnWidths={listColumnWidths}
                 loadChildren={async ({ path: prefix }) => {
                   // The recents are one flat list of files; nothing on it opens.
                   if (isRecents) {
@@ -1683,12 +1773,8 @@ export function ComputerPage({
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
                 }}
-                {...(beside
-                  ? {}
-                  : {
-                      onListColumnsChange: setListColumns,
-                      onListColumnWidthsChange: setListColumnWidths,
-                    })}
+                onListColumnsChange={setListColumns}
+                onListColumnWidthsChange={setListColumnWidths}
                 onPathChange={setCurrent}
                 onRenameCommit={rename}
                 onSelectionChange={(item, all) => {
@@ -1869,7 +1955,17 @@ export function ComputerPage({
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
                 title={rootName}
-                toolbarInto={toolbarInto}
+                {...(beside === undefined
+                  ? {}
+                  : { besideWidth: beside.width, onBesideFit: beside.onFit })}
+                {...(toolsInRow
+                  ? {
+                      toolbarInto: {
+                        lead: rowTools,
+                        ...(isBesideOpen ? {} : { tail: rowTail ?? null }),
+                      },
+                    }
+                  : {})}
                 view={view}
               />
             </div>

@@ -258,6 +258,8 @@ export type FileSystemProps = {
    */
   moveFocusWithSelection?: boolean;
   onColumnWidthChange?: (columnWidth: number) => void;
+  /** Beside a file, how wide the columns standing in the columns view are, so the folder can narrow to them rather than past them. */
+  onBesideFit?: (width: number) => void;
   /**
    * The paths of what is selected, to the clipboard, by the system's key for
    * it: ⌥⌘C on the Mac, Ctrl+Shift+C on Windows. Left out, the key is
@@ -342,6 +344,13 @@ export type FileSystemProps = {
   renderHeaderPrimary?: () => React.ReactNode;
   /** Controls drawn among the toolbar's own, between the filters and the search. */
   renderHeaderActions?: () => React.ReactNode;
+  /**
+   * Narrowed to this width beside a file open from it, in CSS px: the
+   * columns give up their preview of the selected file, which is open beside
+   * them, and the list keeps its columns past the names, as wide as this,
+   * for a sideways scroll to reach rather than dropping them.
+   */
+  besideWidth?: number;
   /**
    * Where the toolbar's controls go instead of a header of their own: `lead`
    * takes the views, sort and filter, and `tail` the host's primary action,
@@ -1635,6 +1644,7 @@ const VIEW_OPTIONS: Array<{
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
 ];
 export function FileSystem({
+  besideWidth,
   className,
   columnWidth: columnWidthProp,
   contextMenuPath = null,
@@ -1652,6 +1662,7 @@ export function FileSystem({
   loadChildren,
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
+  onBesideFit,
   onColumnWidthChange,
   onCopyPath,
   onDuplicate,
@@ -2877,6 +2888,7 @@ export function FileSystem({
   const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
+    besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
     draggable: dragArea.draggable,
@@ -2890,6 +2902,7 @@ export function FileSystem({
     loadPreviewImageUrl,
     menuTargetPath: contextMenuPath,
     moveFocusWithSelection,
+    onBesideFit,
     onColumnWidthChange,
     onExpandFolder: ensureChildren,
     onFolderHover: prefetchChildren,
@@ -3918,6 +3931,7 @@ const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 type FileSystemViewProps = {
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
+  besideWidth: number | undefined;
   columnWidth?: number;
   currentPath: string;
   /**
@@ -3940,6 +3954,7 @@ type FileSystemViewProps = {
   /** The row a context menu is open on, outlined rather than selected. */
   menuTargetPath: null | string;
   moveFocusWithSelection: boolean;
+  onBesideFit?: (width: number) => void;
   onColumnWidthChange?: (columnWidth: number) => void;
   /** A folder opened in place in the list, whose contents are needed now. */
   onExpandFolder: (folderPath: string) => void;
@@ -4562,7 +4577,10 @@ const ICON_TILE_GAP_X = 4; // gap-x-1
 const ICON_TILE_HEIGHT = 102; // h-16 glyph box + gap-1.5 + two text-xs lines
 const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
+// How far a tile has to move between two drawings of the grid to glide there.
+const TILE_GLIDE_MIN = 8;
 function FileSystemIconsView({
+  besideWidth,
   draggable,
   entries,
   listingNavRef,
@@ -4609,10 +4627,17 @@ function FileSystemIconsView({
   // rows — the windowing below depends on that mapping. It stays null until
   // the first client measure; server markup must not guess.
   const [columnCount, setColumnCount] = React.useState<null | number>(null);
+  // Where each tile stood when the grid was last drawn or resized.
+  const tilePlaces = React.useRef(new Map<string, { x: number; y: number }>());
   React.useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || typeof ResizeObserver === "undefined") return;
     const update = () => {
+      // As the grid stands before a new count rearranges it, squeezed or
+      // stretched since it was drawn, for the tiles to glide from.
+      for (const [path, tile] of itemRefs.current) {
+        tilePlaces.current.set(path, { x: tile.offsetLeft, y: tile.offsetTop });
+      }
       const available = viewport.clientWidth - ICON_GRID_PADDING * 2;
       setColumnCount(
         Math.max(
@@ -4630,6 +4655,40 @@ function FileSystemIconsView({
     return () => observer.disconnect();
   }, []);
   const resolvedColumnCount = columnCount ?? 1;
+  // Beside a file the tiles glide to where a narrower or wider grid puts
+  // them as the folder narrows and widens, rather than jumping a row at a
+  // time: from where each was drawn last, so one caught mid-glide carries
+  // on, and one the window left out for a render comes back from its place.
+  const isBeside = besideWidth !== undefined;
+  React.useLayoutEffect(() => {
+    const places = new Map(tilePlaces.current);
+    for (const [path, tile] of itemRefs.current) {
+      const place = { x: tile.offsetLeft, y: tile.offsetTop };
+      places.set(path, place);
+      const was = tilePlaces.current.get(path);
+      if (
+        !isBeside ||
+        !was ||
+        Math.abs(was.x - place.x) + Math.abs(was.y - place.y) < TILE_GLIDE_MIN
+      ) {
+        continue;
+      }
+      const transform = getComputedStyle(tile).transform;
+      const gliding =
+        transform === "none" ? null : new DOMMatrixReadOnly(transform);
+      for (const animation of tile.getAnimations()) animation.cancel();
+      tile.animate(
+        [
+          {
+            transform: `translate(${was.x + (gliding?.e ?? 0) - place.x}px, ${was.y + (gliding?.f ?? 0) - place.y}px)`,
+          },
+          { transform: "none" },
+        ],
+        { duration: 380, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+      );
+    }
+    tilePlaces.current = places;
+  });
   const rowCount = Math.ceil(entries.length / resolvedColumnCount);
   const { end, start } = useVirtualWindow({
     count: rowCount,
@@ -4709,7 +4768,12 @@ function FileSystemIconsView({
           // a grid instead of flashing a single stacked column until the
           // first client measure.
           style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
+            // Beside a file the count is the one measured, so a tile moves
+            // to its next row in the render that glides it there.
+            gridTemplateColumns:
+              isBeside && columnCount !== null
+                ? `repeat(${columnCount}, minmax(0, 1fr))`
+                : "repeat(auto-fill, minmax(6.5rem, 1fr))",
             top: start * ICON_ROW_STRIDE,
           }}
         >
@@ -4822,6 +4886,8 @@ const LIST_INDENT = 16;
 const LIST_NAME_MIN_WIDTH = 200;
 // Room kept clear on the right for the overlaid scrollbar.
 const LIST_EDGE_PADDING = 24;
+// A row's inset past its last column (mx-1.5 px-1.5).
+const LIST_ROW_INSET = 12;
 // How narrow and how wide a column beside Name can be dragged.
 const LIST_COLUMN_WIDTH_MIN = 64;
 const LIST_COLUMN_WIDTH_MAX = 480;
@@ -5064,6 +5130,7 @@ function FileSystemListHeader({
  * them, and only those in view are drawn.
  */
 function FileSystemListView({
+  besideWidth,
   currentPath,
   draggable,
   enabledListColumns,
@@ -5215,7 +5282,7 @@ function FileSystemListView({
       ...column,
       width: listColumnWidths[column.key] ?? column.width,
     }));
-    if (width === null) return shown;
+    if (width === null || besideWidth !== undefined) return shown;
     let room = width - LIST_EDGE_PADDING - LIST_NAME_MIN_WIDTH;
     return shown.filter((column) => {
       room -= column.width;
@@ -5292,200 +5359,223 @@ function FileSystemListView({
     selectedRowIndex >= start && selectedRowIndex < end
       ? selectedPath
       : (rows.slice(start, end).find((row) => row.entry)?.entry?.path ?? null);
+  // Beside a file the names fill the folder's width and the other columns
+  // start at its edge, scrolled to sideways; the same boxes either way, so
+  // the list keeps its place as the folder narrows and widens.
+  const besideMinWidth =
+    besideWidth === undefined
+      ? undefined
+      : Math.max(besideWidth, LIST_NAME_MIN_WIDTH + LIST_EDGE_PADDING) +
+        LIST_ROW_INSET +
+        columns.reduce((sum, column) => sum + column.width, 0);
   return (
-    <div className="flex size-full flex-col" ref={rootRef}>
-      <FileSystemListHeader
-        columns={columns}
-        enabledColumns={enabledListColumns}
-        onColumnsChange={onListColumnsChange}
-        onColumnWidthsChange={(widths) => {
-          onListColumnWidthsChange({ ...listColumnWidths, ...widths });
-        }}
-        onSortColumnClick={onSortColumnClick}
-        sort={sort}
-      />
-      {rows.length === 0 ? (
-        <FileSystemEmptyState
-          label={
-            fileFilter
-              ? "No items match the active filters"
-              : "This folder is empty"
-          }
-        />
-      ) : (
-        <InlineScrollArea2
-          className="min-h-0 flex-1"
-          orientation="vertical"
-          viewportProps={{
-            "aria-label": "Files",
-            // A press past the last row lets go of the selection, as in the
-            // Finder; one with ⌘ or Shift held keeps it.
-            onPointerDown: (event) => {
-              if (
-                event.button === 0 &&
-                selectionModeOf(event) === null &&
-                event.target instanceof HTMLElement &&
-                !event.target.closest('[role="option"]')
-              ) {
-                onSelect(null);
-              }
-            },
-            role: "listbox",
+    <div
+      className={cn(
+        "size-full",
+        besideMinWidth !== undefined &&
+          "overflow-x-auto overflow-y-hidden overscroll-x-contain",
+      )}
+      ref={rootRef}
+    >
+      <div
+        className="flex h-full flex-col"
+        style={besideMinWidth === undefined ? {} : { minWidth: besideMinWidth }}
+      >
+        <FileSystemListHeader
+          columns={columns}
+          enabledColumns={enabledListColumns}
+          onColumnsChange={onListColumnsChange}
+          onColumnWidthsChange={(widths) => {
+            onListColumnWidthsChange({ ...listColumnWidths, ...widths });
           }}
-          viewportRef={viewportRef}
-        >
-          <div
-            className="relative min-h-full"
-            style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
+          onSortColumnClick={onSortColumnClick}
+          sort={sort}
+        />
+        {rows.length === 0 ? (
+          <FileSystemEmptyState
+            label={
+              fileFilter
+                ? "No items match the active filters"
+                : "This folder is empty"
+            }
+          />
+        ) : (
+          <InlineScrollArea2
+            className="min-h-0 flex-1"
+            orientation="vertical"
+            viewportProps={{
+              "aria-label": "Files",
+              // A press past the last row lets go of the selection, as in the
+              // Finder; one with ⌘ or Shift held keeps it.
+              onPointerDown: (event) => {
+                if (
+                  event.button === 0 &&
+                  selectionModeOf(event) === null &&
+                  event.target instanceof HTMLElement &&
+                  !event.target.closest('[role="option"]')
+                ) {
+                  onSelect(null);
+                }
+              },
+              role: "listbox",
+            }}
+            viewportRef={viewportRef}
           >
             <div
-              className="absolute inset-x-0 flex flex-col"
-              data-file-system-listing=""
-              style={{ top: start * LIST_ROW_HEIGHT }}
+              className="relative min-h-full"
+              style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
             >
-              {rows.slice(start, end).map((row) => {
-                const { depth, entry } = row;
-                if (entry === null && "note" in row) {
-                  return (
-                    <div
-                      className="mx-1.5 flex h-6 shrink-0 items-center px-1.5 text-xs text-muted-foreground"
-                      key={`note:${row.notePath}`}
-                      style={{ paddingLeft: depth * LIST_INDENT + 6 }}
-                    >
-                      <span className="ml-5.5 truncate">{row.note}</span>
-                    </div>
-                  );
-                }
-                if (entry === null) {
-                  return (
-                    <div
-                      aria-hidden
-                      className="mx-1.5 flex h-6 shrink-0 items-center px-1.5"
-                      key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
-                      style={{ paddingLeft: depth * LIST_INDENT + 6 }}
-                    >
-                      <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
-                    </div>
-                  );
-                }
-                const isSelected = selection.has(entry.path);
-                const isExpanded =
-                  entry.kind === "folder" &&
-                  (isRevealing || expanded.has(entry.path));
-                const isRenaming = entry.path === renamingPath;
-                return (
-                  <div
-                    aria-expanded={
-                      entry.kind === "folder" ? isExpanded : undefined
-                    }
-                    aria-selected={isSelected}
-                    className={cn(
-                      "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                      isSelected && SELECTED_ROW_CLASSNAME,
-                      entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
-                    )}
-                    data-file-system-item={entry.path}
-                    draggable={draggable && !isRenaming}
-                    key={entry.path}
-                    onClick={(event) => {
-                      rowGestures.click(entry, event, () => rowEntries);
-                    }}
-                    onContextMenu={(event) => {
-                      onItemContextMenu?.(entry, event);
-                    }}
-                    onDoubleClick={() => {
-                      rowGestures.doubleClick();
-                      onOpen(entry);
-                    }}
-                    onPointerEnter={() => {
-                      if (entry.kind === "folder") onFolderHover?.(entry.path);
-                    }}
-                    onPointerDown={(event) => {
-                      rowGestures.press(entry, event, () => rowEntries);
-                    }}
-                    ref={(element) => {
-                      if (element) {
-                        rowRefs.current.set(entry.path, element);
-                      } else {
-                        rowRefs.current.delete(entry.path);
-                      }
-                    }}
-                    role="option"
-                    tabIndex={entry.path === tabStopPath ? 0 : -1}
-                  >
-                    <div
-                      className="flex min-w-0 flex-1 items-center"
-                      style={{ paddingLeft: depth * LIST_INDENT }}
-                    >
-                      <span
+              <div
+                className="absolute inset-x-0 flex flex-col"
+                data-file-system-listing=""
+                style={{ top: start * LIST_ROW_HEIGHT }}
+              >
+                {rows.slice(start, end).map((row) => {
+                  const { depth, entry } = row;
+                  if (entry === null && "note" in row) {
+                    return (
+                      <div
+                        className="mx-1.5 flex h-6 shrink-0 items-center px-1.5 text-xs text-muted-foreground"
+                        key={`note:${row.notePath}`}
+                        style={{ paddingLeft: depth * LIST_INDENT + 6 }}
+                      >
+                        <span className="ml-5.5 truncate">{row.note}</span>
+                      </div>
+                    );
+                  }
+                  if (entry === null) {
+                    return (
+                      <div
                         aria-hidden
-                        className="flex h-6 w-4 shrink-0 items-center justify-center"
-                        // The chevron opens and closes the folder and does
-                        // nothing else: the press never reaches the row, so
-                        // the selection stays where it was.
-                        onClick={(event) => {
-                          if (entry.kind !== "folder") return;
-                          event.stopPropagation();
-                          toggleFolder(entry, !isExpanded);
-                        }}
-                        onDoubleClick={(event) => {
-                          if (entry.kind === "folder") event.stopPropagation();
-                        }}
-                        onPointerDown={(event) => {
-                          if (entry.kind !== "folder") return;
-                          event.stopPropagation();
-                          event.preventDefault();
-                        }}
+                        className="mx-1.5 flex h-6 shrink-0 items-center px-1.5"
+                        key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
+                        style={{ paddingLeft: depth * LIST_INDENT + 6 }}
                       >
-                        {entry.kind === "folder" ? (
-                          <ChevronRight
-                            className={cn(
-                              "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
-                              isExpanded && "rotate-90",
-                              isSelected
-                                ? SELECTED_ROW_SECONDARY_CLASSNAME
-                                : "text-muted-foreground",
-                            )}
-                            strokeWidth={2.5}
-                          />
-                        ) : null}
-                      </span>
-                      <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
-                        <FileSystemRowGlyph entry={entry} />
-                      </span>
-                      {isRenaming ? (
-                        renderNameField(entry, "-mr-0.5 ml-1 h-5")
-                      ) : (
-                        <span
-                          className="ml-1.5 min-w-0 flex-1 truncate"
-                          data-file-system-name=""
-                        >
-                          {shownName(entry)}
-                        </span>
+                        <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
+                      </div>
+                    );
+                  }
+                  const isSelected = selection.has(entry.path);
+                  const isExpanded =
+                    entry.kind === "folder" &&
+                    (isRevealing || expanded.has(entry.path));
+                  const isRenaming = entry.path === renamingPath;
+                  return (
+                    <div
+                      aria-expanded={
+                        entry.kind === "folder" ? isExpanded : undefined
+                      }
+                      aria-selected={isSelected}
+                      className={cn(
+                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        isSelected && SELECTED_ROW_CLASSNAME,
+                        entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
                       )}
-                    </div>
-                    {columns.map((column) => (
-                      <span
-                        className={cn(
-                          "shrink-0 truncate px-2 text-xs tabular-nums",
-                          column.align === "end" && "text-right",
-                          isSelected
-                            ? SELECTED_ROW_SECONDARY_CLASSNAME
-                            : "text-muted-foreground",
-                        )}
-                        key={column.key}
-                        style={{ width: column.width }}
+                      data-file-system-item={entry.path}
+                      draggable={draggable && !isRenaming}
+                      key={entry.path}
+                      onClick={(event) => {
+                        rowGestures.click(entry, event, () => rowEntries);
+                      }}
+                      onContextMenu={(event) => {
+                        onItemContextMenu?.(entry, event);
+                      }}
+                      onDoubleClick={() => {
+                        rowGestures.doubleClick();
+                        onOpen(entry);
+                      }}
+                      onPointerEnter={() => {
+                        if (entry.kind === "folder")
+                          onFolderHover?.(entry.path);
+                      }}
+                      onPointerDown={(event) => {
+                        rowGestures.press(entry, event, () => rowEntries);
+                      }}
+                      ref={(element) => {
+                        if (element) {
+                          rowRefs.current.set(entry.path, element);
+                        } else {
+                          rowRefs.current.delete(entry.path);
+                        }
+                      }}
+                      role="option"
+                      tabIndex={entry.path === tabStopPath ? 0 : -1}
+                    >
+                      <div
+                        className="flex min-w-0 flex-1 items-center"
+                        style={{ paddingLeft: depth * LIST_INDENT }}
                       >
-                        {listCellText(entry, column.key)}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })}
+                        <span
+                          aria-hidden
+                          className="flex h-6 w-4 shrink-0 items-center justify-center"
+                          // The chevron opens and closes the folder and does
+                          // nothing else: the press never reaches the row, so
+                          // the selection stays where it was.
+                          onClick={(event) => {
+                            if (entry.kind !== "folder") return;
+                            event.stopPropagation();
+                            toggleFolder(entry, !isExpanded);
+                          }}
+                          onDoubleClick={(event) => {
+                            if (entry.kind === "folder")
+                              event.stopPropagation();
+                          }}
+                          onPointerDown={(event) => {
+                            if (entry.kind !== "folder") return;
+                            event.stopPropagation();
+                            event.preventDefault();
+                          }}
+                        >
+                          {entry.kind === "folder" ? (
+                            <ChevronRight
+                              className={cn(
+                                "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
+                                isExpanded && "rotate-90",
+                                isSelected
+                                  ? SELECTED_ROW_SECONDARY_CLASSNAME
+                                  : "text-muted-foreground",
+                              )}
+                              strokeWidth={2.5}
+                            />
+                          ) : null}
+                        </span>
+                        <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
+                          <FileSystemRowGlyph entry={entry} />
+                        </span>
+                        {isRenaming ? (
+                          renderNameField(entry, "-mr-0.5 ml-1 h-5")
+                        ) : (
+                          <span
+                            className="ml-1.5 min-w-0 flex-1 truncate"
+                            data-file-system-name=""
+                          >
+                            {shownName(entry)}
+                          </span>
+                        )}
+                      </div>
+                      {columns.map((column) => (
+                        <span
+                          className={cn(
+                            "shrink-0 truncate px-2 text-xs tabular-nums",
+                            column.align === "end" && "text-right",
+                            isSelected
+                              ? SELECTED_ROW_SECONDARY_CLASSNAME
+                              : "text-muted-foreground",
+                          )}
+                          key={column.key}
+                          style={{ width: column.width }}
+                        >
+                          {listCellText(entry, column.key)}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </InlineScrollArea2>
-      )}
+          </InlineScrollArea2>
+        )}
+      </div>
     </div>
   );
 }
@@ -5558,6 +5648,7 @@ export function FileSystemRowGlyph({
 }
 function FileSystemColumnsView(props: FileSystemViewProps) {
   const {
+    besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
     draggable,
@@ -5566,6 +5657,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     loadPreviewImageUrl,
     menuTargetPath,
     moveFocusWithSelection,
+    onBesideFit,
     onColumnWidthChange,
     onFolderHover,
     onItemContextMenu,
@@ -5718,6 +5810,22 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
   }, [columnPaths.length, deferredSelectedPath]);
+  // Beside a file the last columns stay in view as the folder narrows, so
+  // the file reads as the column after the one it is in.
+  const isBeside = besideWidth !== undefined;
+  React.useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!isBeside || !container) return;
+    const observer = new ResizeObserver(() => {
+      container.scrollLeft = container.scrollWidth;
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [isBeside]);
+  const trailWidth = listedColumnPaths.length * columnWidth;
+  React.useEffect(() => {
+    if (isBeside) onBesideFit?.(trailWidth);
+  }, [isBeside, onBesideFit, trailWidth]);
   return (
     <InlineScrollArea2
       orientation="horizontal"
@@ -5794,7 +5902,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
           <div className="min-w-72 flex-1 contain-inline-size">
             {renderUnreadable?.(unreadableColumnPath, "pane")}
           </div>
-        ) : selectedFile ? (
+        ) : isBeside ? null : selectedFile ? (
           <InlineScrollArea2
             className="min-w-60 flex-1 contain-inline-size"
             orientation="vertical"

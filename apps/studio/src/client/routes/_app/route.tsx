@@ -457,12 +457,11 @@ function RouteScreen({ href }: { href: string }) {
   const { view: screenView, walked: walkedFolder } =
     useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
-  // The row's head, tools and tail: where a folder puts its sidebar's toggle,
+  // The row's head and tail: where a folder puts its sidebar's toggle,
   // its views, sort and filter, and its Ask and search, and a file's viewer a
   // toggle for its panel and its actions.
   const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
   const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
-  const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const computerTab = computerTabOf(href);
   const fromHref = screenLocation(href, {
     appsBySlug,
@@ -493,16 +492,10 @@ function RouteScreen({ href }: { href: string }) {
           {...(computerTab
             ? {
                 leading: (
-                  <>
-                    <div
-                      className="flex shrink-0 items-center empty:hidden"
-                      ref={setRowLead}
-                    />
-                    <div
-                      className="flex shrink-0 items-center empty:hidden"
-                      ref={setRowTools}
-                    />
-                  </>
+                  <div
+                    className="flex shrink-0 items-center empty:hidden"
+                    ref={setRowLead}
+                  />
                 ),
               }
             : {})}
@@ -520,7 +513,14 @@ function RouteScreen({ href }: { href: string }) {
           location={location}
         />
       )}
-      <WindowContext value={{ ...appWindow, rowLead, rowTail, rowTools }}>
+      <WindowContext
+        value={{
+          ...appWindow,
+          rowHoldsTools: computerTab !== undefined,
+          rowLead,
+          rowTail,
+        }}
+      >
         <FileOpenContext
           value={(path, options) => {
             appWindow.openPath(path, options);

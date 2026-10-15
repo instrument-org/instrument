@@ -443,6 +443,22 @@ export const fileTreeWidthAtom = keptAtom<number>(
 );
 
 /**
+ * How wide a folder is beside a file open in it, in CSS px, dragged at its
+ * right edge: one width for the list and the grid, and one for the columns,
+ * which open two columns wide so the folder above the file's shows too.
+ */
+export const finderBesideWidthAtom = keptAtom<number>(
+  "view",
+  "finder-beside-width.v1",
+  300,
+);
+export const finderBesideColumnsWidthAtom = keptAtom<number>(
+  "view",
+  "finder-beside-columns-width.v1",
+  480,
+);
+
+/**
  * The list view's columns beside Name, picked from its header's menu. One set
  * for every folder, the way the Finder's own defaults are one set.
  */

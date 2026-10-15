@@ -78,7 +78,7 @@ export function grepWalks(args: string[]): boolean {
 /**
  * Not here, so the builtin answers: `tr` (ties the builtin and runs in
  * loops), `diff`, `sed` and `awk` (the uutils ones fail cases the builtins
- * pass), and on Windows `find`, `grep` and `xargs`.
+ * pass).
  */
 const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "coreutils", name: "sort", writes: sortOutput },
@@ -106,13 +106,10 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // uutils builds `stat` for Unix only.
   { binary: "coreutils", name: "stat", platforms: UNIX },
   { binary: "diffutils", name: "cmp" },
-  // On Windows a recursive grep prints relative paths with backslashes,
-  // which nothing respells for the shell.
-  { binary: "grep", name: "grep", platforms: UNIX, walks: grepWalks },
-  // On Windows uutils' find prints backslashes, which `-path '*/.*'` and
-  // `-prune` patterns written with slashes never match, and a sandboxed
-  // spawn there will cost far more than the builtin's walk.
-  { binary: "find", name: "find", platforms: UNIX, walks: () => true },
+  // On Windows both join the paths they walk with `/`, as the shell spells
+  // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
+  { binary: "grep", name: "grep", walks: grepWalks },
+  { binary: "find", name: "find", walks: () => true },
   // What xargs starts is a program on the PATH. Windows has no `echo` or
   // `printf` of its own, so there xargs' PATH starts with links to the
   // coreutils it carries (coreutilsLinks).
@@ -298,6 +295,17 @@ function xargsEnv(env: Record<string, string>): Record<string, string> {
   const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
   const rest = key === undefined ? "" : (env[key] ?? "");
   return { ...env, [key ?? "Path"]: `${dir};${rest}` };
+}
+
+/**
+ * The environment for `find` and `grep`. On Windows a walk joins what it
+ * finds with `\`, so they would print `reports\b.md`, and a `-path` or
+ * `-prune` pattern written with `/` would match nothing. The build Studio
+ * ships (instrument-org/uutils-build) joins with `/` when
+ * UUTILS_PATH_SEPARATOR is `slash`.
+ */
+function pathSeparatorEnv(env: Record<string, string>): Record<string, string> {
+  return { ...env, UUTILS_PATH_SEPARATOR: "slash" };
 }
 
 /** How uutils' find reports a folder the native sandbox refused. */
@@ -488,7 +496,13 @@ export function createNativeTextCommand(
       {
         cancelSignal: ctx.signal,
         cwd: hostCwd,
-        env: windows && route.name === "xargs" ? xargsEnv(env) : env,
+        env: !windows
+          ? env
+          : route.name === "xargs"
+            ? xargsEnv(env)
+            : route.binary === "find" || route.binary === "grep"
+              ? pathSeparatorEnv(env)
+              : env,
         ...(windows ? { windowsVerbatimArguments: true } : {}),
         // A walk was checked where it starts; a folder it passes that the
         // sandbox refuses is skipped without a card, as the shell's own

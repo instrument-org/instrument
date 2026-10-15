@@ -11,13 +11,8 @@ import path from "node:path";
 const MIN_BINARY_BYTES = 200_000;
 
 /** The binaries a target carries, as download-uutils.ts vendors them. */
-export function expectedUutils(platform: string, arch: string): string[] {
-  const names =
-    platform !== "win32"
-      ? ["coreutils", "diffutils", "find", "grep", "xargs"]
-      : arch === "arm64"
-        ? ["coreutils"]
-        : ["coreutils", "diffutils", "xargs"];
+export function expectedUutils(platform: string): string[] {
+  const names = ["coreutils", "diffutils", "find", "grep", "xargs"];
   return names.map((name) => (platform === "win32" ? `${name}.exe` : name));
 }
 

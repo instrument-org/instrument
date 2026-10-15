@@ -304,10 +304,8 @@ function verifyPackagedUutils(context: AfterPackContext) {
     throw new Error(`Unsupported electron platform: ${platformName}`);
   }
   const dir = resolvePackagedUutilsDir(context.appOutDir, platformName);
-  const verified = verifyUutilsDir(
-    dir,
-    expectedUutils(platformName, Arch[context.arch]),
-    { execute: canExecuteForTarget({ arch: context.arch, platformName }) },
-  );
+  const verified = verifyUutilsDir(dir, expectedUutils(platformName), {
+    execute: canExecuteForTarget({ arch: context.arch, platformName }),
+  });
   console.log(`afterPack: verified uutils at ${dir} (${verified.join(", ")})`);
 }

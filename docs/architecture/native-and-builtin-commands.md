@@ -15,7 +15,7 @@ A name found nowhere is `command not found`, status 127. `command -v`, `type` an
 
 ## GNU text commands on uutils
 
-The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256) on the platforms marked, and the just-bash builtin elsewhere. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes.
+The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes.
 
 <!-- generated: native-text routes; `pnpm fix` writes this -->
 
@@ -26,8 +26,8 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `cut` | uutils | uutils | uutils | uutils coreutils |
 | `date` | uutils | uutils | uutils | uutils coreutils |
 | `dd` | uutils | uutils | uutils | uutils coreutils |
-| `find` | uutils | uutils | builtin | uutils findutils |
-| `grep` | uutils | uutils | builtin | uutils grep |
+| `find` | uutils | uutils | uutils | uutils findutils |
+| `grep` | uutils | uutils | uutils | uutils grep |
 | `head` | uutils | uutils | uutils | uutils coreutils |
 | `join` | uutils | uutils | uutils | uutils coreutils |
 | `md5sum` | uutils | uutils | uutils | uutils coreutils |
@@ -46,7 +46,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 
 <!-- end generated -->
 
-The Windows exceptions, each for one reason: `find` and `grep -r` print relative paths with backslashes, which patterns written with slashes never match; `stat` is not built for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
+On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the uutils-build patch reads: the paths they walk come back joined with `/`, as the shell spells them, and `-path` and `-prune` patterns written with `/` match (uutils/findutils#907, uutils/grep#143). `stat` stays the builtin there, since uutils does not build it for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
 
 `find` gets a prune of every `.instrument` folder by name and of the chat's `tasks/` by path ahead of the caller's expression, and only its start points are held to the rules as paths; each folder the sandbox refuses on the way is counted in one stderr line. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin.
 
@@ -86,4 +86,4 @@ The OS sandbox refuses; it does not hide. A program it holds gets `Operation not
 
 ## Known divergences from GNU
 
-What uutils answers differently from GNU, from a corpus of 245 model-written invocations run against GNU coreutils, findutils, diffutils and grep: `find -newermt` with a time (the builtin misses it too), `date -d '... next friday'`, and on Windows `stat` (not built) and relative paths with backslashes. The builtins that remain diverge in their own ways (`tr '\0'`, `sed -z`, gawk's extensions). To re-score after a uutils release, run the corpus in the finding against GNU on Linux and against each platform's build; the method and the last scores are in [the uutils finding](../findings/gnu-text-commands-on-bundled-uutils.md).
+What uutils answers differently from GNU, from a corpus of 245 model-written invocations run against GNU coreutils, findutils, diffutils and grep: `find -newermt` with a time (the builtin misses it too), `date -d '... next friday'`, and on Windows `stat` (not built) and `find -printf` times, which uutils prints in local time there whatever `TZ` says. The builtins that remain diverge in their own ways (`tr '\0'`, `sed -z`, gawk's extensions). To re-score after a uutils release, run the corpus in the finding against GNU on Linux and against each platform's build; the method and the last scores are in [the uutils finding](../findings/gnu-text-commands-on-bundled-uutils.md).

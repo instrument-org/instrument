@@ -7,16 +7,18 @@ import { expectedUutils, verifyUutilsDir } from "./verify-uutils";
 
 /** What `uutils:download` vendored for this machine, if it ran. */
 const VENDORED = path.resolve(import.meta.dirname, "../resources/uutils");
-const names = expectedUutils(process.platform, process.arch);
+const names = expectedUutils(process.platform);
 
 describe("expectedUutils", () => {
   it.each([
-    ["darwin", "arm64", ["coreutils", "diffutils", "find", "grep", "xargs"]],
-    ["linux", "x64", ["coreutils", "diffutils", "find", "grep", "xargs"]],
-    ["win32", "x64", ["coreutils.exe", "diffutils.exe", "xargs.exe"]],
-    ["win32", "arm64", ["coreutils.exe"]],
-  ])("%s %s", (platform, arch, expected) => {
-    expect(expectedUutils(platform, arch)).toEqual(expected);
+    ["darwin", ["coreutils", "diffutils", "find", "grep", "xargs"]],
+    ["linux", ["coreutils", "diffutils", "find", "grep", "xargs"]],
+    [
+      "win32",
+      ["coreutils.exe", "diffutils.exe", "find.exe", "grep.exe", "xargs.exe"],
+    ],
+  ])("%s", (platform, expected) => {
+    expect(expectedUutils(platform)).toEqual(expected);
   });
 });
 

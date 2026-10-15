@@ -57,7 +57,7 @@ export function FolderNameMenu({
           </Button>
         </DropdownMenuTrigger>
       </ToolbarTooltip>
-      <DropdownMenuContent align="start" className="max-h-[70vh] min-w-56">
+      <DropdownMenuContent align="start" className="min-w-56">
         <DropdownMenuItem disabled>
           <FolderMark large path={folder.path} />
           <span className="min-w-0 flex-1 truncate">{folder.name}</span>

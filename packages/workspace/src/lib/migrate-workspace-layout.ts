@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   CHAT_DB_FILE_NAME,
@@ -32,6 +33,7 @@ import {
 } from "./move-entry";
 import { recordMovedPaths } from "./moved-paths";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
+import { STORE_TABLE } from "./store-table";
 import { workspaceLayout } from "./workspace-layout";
 
 // Legacy on-disk names this migration renames to their current equivalents.
@@ -40,6 +42,11 @@ const LEGACY_DB_FILE_NAME = "sessions.db";
 const LEGACY_STATE_FILE_NAME = "project-state.json";
 const LEGACY_SETTINGS_FILE_NAME = "instrument.json";
 const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
+
+// Where the empty `chat.db` a chat held while its own sessions were still in
+// the `task.db` beside it is kept, with what the migrations set aside rather
+// than delete.
+const EMPTY_STORES_SET_ASIDE_DIR_NAME = "empty-chat-stores";
 
 // `.state` is intentionally not migrated: the task db stores direct path
 // references to screenshots/bash-output under `.state/`, so moving the files
@@ -62,7 +69,9 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // (splitChatRecords).
 // 6: the app's folders moved from the workspace's top level into its
 // `.instrument/` (moveAppFoldersIntoDataDir).
-export const WORKSPACE_LAYOUT_VERSION = 6;
+// 7: a chat whose `chat.db` holds no sessions given the `task.db` beside it
+// that holds its conversation (renameChatDatabases).
+export const WORKSPACE_LAYOUT_VERSION = 7;
 
 // The temp folder an external browser cloned the person's Chrome profile
 // into, in the workspace's `.instrument/`, which nothing writes since that
@@ -97,7 +106,8 @@ export interface WorkspaceLayoutMigration {
   // What moving the app's folders into the workspace's `.instrument/`, and
   // setting aside what 1.x left in `projects/`, did, for the boot log.
   appFolders: AppFoldersMove;
-  // What splitting each chat's records from its work did, for the boot log.
+  // What naming each chat's database and splitting its records from its work
+  // did, for the boot log.
   chatRecords: ChatRecordsSplit;
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
@@ -169,7 +179,7 @@ export function migrateWorkspaceLayout({
   }
 
   const movedIn = moveAppFoldersIntoDataDir({ machineDir, rootDir });
-  renameChatDatabases(rootDir);
+  const named = renameChatDatabases(rootDir);
   const removedBrowserProfileCloneCount = normalizeTasks(
     path.join(rootDir, TASKS_DIR_NAME),
   );
@@ -187,7 +197,11 @@ export function migrateWorkspaceLayout({
   // folder goes.
   removeIfEmptySync(path.join(rootDir, TASKS_DIR_NAME));
   // After the 1.x migration, whose chats it splits too.
-  const chatRecords = splitChatRecords({ machineDir, rootDir });
+  const split = splitChatRecords({ machineDir, rootDir });
+  const chatRecords: ChatRecordsSplit = {
+    done: [...named.done, ...split.done],
+    failed: named.failed + split.failed,
+  };
   fs.rmSync(
     path.join(workspaceLayout(rootDir).dataDir, EXTERNAL_BROWSER_TMP_DIR_NAME),
     {
@@ -424,32 +438,71 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
 /**
  * Renames each chat's database from the name it had while a chat was a task
  * record (`task.db`) to `chat.db`, and the window's, which is scoped like a
- * chat. Only `chats/<id>/.instrument` is touched: a folder an earlier build
- * left under a chat's `tasks/` stays as it is.
+ * chat. Only a chat's own record folder is touched: a folder an earlier build
+ * left under a chat's `tasks/` stays as it is, and so does a chat the 1.x
+ * migration staged and has not finished, whose database that migration names
+ * itself.
  */
-function renameChatDatabases(rootDir: string) {
-  const { chatsDir } = workspaceLayout(rootDir);
-  const chats = fs.existsSync(chatsDir)
+function renameChatDatabases(rootDir: string): ChatRecordsSplit {
+  const named: ChatRecordsSplit = { done: [], failed: 0 };
+  const layout = workspaceLayout(rootDir);
+  const chats = fs.existsSync(layout.chatsDir)
     ? fs
-        .readdirSync(chatsDir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => path.join(chatsDir, entry.name))
+        .readdirSync(layout.chatsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+        .map((entry) => path.join(layout.chatsDir, entry.name))
     : [];
-  for (const folder of [...chats, workspaceLayout(rootDir).windowDir]) {
-    renameChatDatabase(path.join(folder, PRIVATE_FOLDER_NAME));
+  for (const folder of [...chats, layout.windowDir]) {
+    const name = path.basename(folder);
+    renameChatDatabase({
+      asideDir: path.join(
+        layout.setAsideDir,
+        EMPTY_STORES_SET_ASIDE_DIR_NAME,
+        name,
+      ),
+      name,
+      named,
+      recordDir: folder,
+    });
   }
+  return named;
 }
 
 /**
  * One folder's `task.db` as `chat.db`: its sidecars first and the database
  * last, so a sweep cut short between them leaves the rest for the next boot's
- * sweep rather than a database apart from its write-ahead log. A name already
- * taken is never overwritten.
+ * sweep rather than a database apart from its write-ahead log. It lands in
+ * the folder's own `.instrument/`, which the split that follows lifts to the
+ * top of the record folder.
+ *
+ * A `chat.db` holding the chat's own sessions is never overwritten, wherever
+ * the chat opens it: at the top of its record folder, or still in the
+ * folder's `.instrument/` for a chat no split has reached.
  */
-function renameChatDatabase(privateDir: string) {
+function renameChatDatabase({
+  asideDir,
+  name,
+  named,
+  recordDir,
+}: {
+  asideDir: string;
+  /** The chat the folder is, which a line names it by. */
+  name: string;
+  named: ChatRecordsSplit;
+  recordDir: string;
+}) {
+  const privateDir = path.join(recordDir, PRIVATE_FOLDER_NAME);
+  const legacy = path.join(privateDir, LEGACY_TASK_DB_FILE_NAME);
+  if (!fs.existsSync(legacy)) {
+    return;
+  }
+  const atTop = path.join(recordDir, CHAT_DB_FILE_NAME);
+  const store = fs.existsSync(atTop)
+    ? atTop
+    : path.join(privateDir, CHAT_DB_FILE_NAME);
   if (
-    !fs.existsSync(path.join(privateDir, LEGACY_TASK_DB_FILE_NAME)) ||
-    fs.existsSync(path.join(privateDir, CHAT_DB_FILE_NAME))
+    fs.existsSync(store) &&
+    !freeStoreName({ asideDir, legacy, name, named, store })
   ) {
     return;
   }
@@ -459,6 +512,101 @@ function renameChatDatabase(privateDir: string) {
       path.join(privateDir, CHAT_DB_FILE_NAME + suffix),
     );
   }
+}
+
+/**
+ * Takes the name `chat.db` back for the `task.db` beside it where the
+ * `chat.db` there holds no sessions and the `task.db` does: a build that
+ * opened the chat before a sweep reached it left an empty store under the
+ * new name, and nothing outside this sweep reads `task.db`, so the chat
+ * opens empty while its conversation sits in a file nothing reads. The empty
+ * one is set aside in the workspace's own folder rather than deleted,
+ * sidecars first and the database last, so a sweep cut short leaves no
+ * database paired with a sidecar that is not its own. Answers whether the
+ * name is free.
+ *
+ * Where both hold sessions, or either cannot be read, both files stay as
+ * they are, the `task.db` under its own name, and a line says which held
+ * what: choosing between two conversations is a person's to do, and no later
+ * sweep settles it, so it is not counted as left over either. Every sweep
+ * after leaves the same two files.
+ */
+function freeStoreName({
+  asideDir,
+  legacy,
+  name,
+  named,
+  store,
+}: {
+  asideDir: string;
+  legacy: string;
+  name: string;
+  named: ChatRecordsSplit;
+  store: string;
+}): boolean {
+  const inStore = holdsSessions(store);
+  const inLegacy = holdsSessions(legacy);
+  if (inStore !== false || inLegacy !== true) {
+    named.done.push(
+      `${name}: left ${store} (${sessionsHeld(inStore)}) beside ${legacy} (${sessionsHeld(inLegacy)})`,
+    );
+    return false;
+  }
+  let aside = asideDir;
+  for (let suffix = 2; entryExists(aside); suffix += 1) {
+    aside = `${asideDir}-${suffix.toString()}`;
+  }
+  try {
+    for (const suffix of [...DB_FILE_SUFFIXES.filter(Boolean), ""]) {
+      const from = `${store}${suffix}`;
+      if (fs.existsSync(from)) {
+        moveEntrySync(from, path.join(aside, path.basename(from)));
+      }
+    }
+  } catch (error) {
+    named.failed++;
+    named.done.push(
+      `could not set aside ${store} (${String(error)}); left it there`,
+    );
+    return false;
+  }
+  named.done.push(
+    `${name}: set aside ${store}, which held no sessions, in ${aside}, and took the ${LEGACY_TASK_DB_FILE_NAME} beside it`,
+  );
+  return true;
+}
+
+/**
+ * Whether a store holds a session, or `undefined` where SQLite could not
+ * read it, which is as good as holding one: nothing then moves. Read-only
+ * and one statement over the key each session is filed under, with none of
+ * the store's own migrations run on it, so a store this build has not opened
+ * is left exactly as the build that wrote it left it.
+ */
+function holdsSessions(file: string): boolean | undefined {
+  let database: DatabaseSync | undefined;
+  try {
+    database = new DatabaseSync(file, { readOnly: true });
+    return (
+      database
+        .prepare(
+          `select key from ${STORE_TABLE} where key like 'sessions:%' limit 1`,
+        )
+        .get() !== undefined
+    );
+  } catch {
+    return undefined;
+  } finally {
+    database?.close();
+  }
+}
+
+/** What a line says a store held. */
+function sessionsHeld(sessions: boolean | undefined): string {
+  if (sessions === undefined) {
+    return "could not be read";
+  }
+  return sessions ? "holds sessions" : "holds none";
 }
 
 // Normalizes every task folder to the current layout.

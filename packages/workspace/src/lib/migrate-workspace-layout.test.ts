@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
@@ -8,6 +9,7 @@ import {
   type LayoutMarks,
   migrateWorkspaceLayout,
 } from "./migrate-workspace-layout";
+import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 
 // The tasks here are 1.x-shaped on purpose, which is what the adoption into
 // chats looks for; it has tests of its own, and would move them out from under
@@ -20,6 +22,14 @@ const NOTHING_ADOPTED = {
   leftOver: 0,
   topicCount: 0,
 };
+
+// A session row as the store keeps one: the only row the sweep reads to tell
+// which of two databases holds the chat's conversation.
+const SESSION_KEY = "sessions:ses_01ARZ3NDEKTSV4RRFFQ69G5FAV";
+const OTHER_SESSION_KEY = "sessions:ses_01ARZ3NDEKTSV4RRFFQ69G5FAW";
+
+// Where the sweep keeps an empty database it took the chat's name back from.
+const EMPTY_STORES = "empty-chat-stores";
 
 let rootDir: string;
 // This computer's folder for the workspace, where each chat's work goes.
@@ -497,6 +507,47 @@ describe("migrateWorkspaceLayout", () => {
         .toSorted();
     }
 
+    // Real stores, since which one the sweep gives the chat's name to is
+    // read from the rows each holds.
+    function writeChatStores(
+      id: string,
+      stores: Record<string, readonly (readonly [string, unknown])[]>,
+    ) {
+      const privateDir = path.join(rootDir, "chats", id, ".instrument");
+      fs.mkdirSync(privateDir, { recursive: true });
+      for (const [name, rows] of Object.entries(stores)) {
+        writeStoreRowsSync(path.join(privateDir, name), rows);
+      }
+    }
+
+    function sessionKeys(...segments: string[]): string[] {
+      const database = new DatabaseSync(path.join(rootDir, ...segments), {
+        readOnly: true,
+      });
+      try {
+        return database
+          .prepare(`select key from ${STORE_TABLE} where key like 'sessions:%'`)
+          .all()
+          .map((row) => String(row.key));
+      } finally {
+        database.close();
+      }
+    }
+
+    // Where a chat's records sat before the split lifted them to the top of
+    // its folder, which is where the sweep names its database.
+    function privateDirOf(id: string) {
+      return path.join(rootDir, ".instrument", "chats", id, ".instrument");
+    }
+
+    function asideFiles(id: string) {
+      return fs
+        .readdirSync(
+          path.join(rootDir, ".instrument", ".pre-chats", EMPTY_STORES, id),
+        )
+        .toSorted();
+    }
+
     it("renames task.db to chat.db with its sidecars, once", () => {
       writeChatFiles("2026-10-01-chat", {
         "settings.json": "{}",
@@ -536,14 +587,22 @@ describe("migrateWorkspaceLayout", () => {
       expect(chatFiles("2026-10-01-chat")).toEqual(["chat.db", "chat.db-wal"]);
     });
 
-    it("never overwrites a chat.db that is already there", () => {
+    // Neither file is a database SQLite can read, so what each holds is
+    // unknown and the one under the name the chat opens keeps it.
+    it("never overwrites a chat.db it could not read", () => {
       writeChatFiles("2026-10-01-chat", {
         "chat.db": "current",
         "task.db": "stale",
       });
 
+      const result = migrate();
+      marks = { ...marks, layoutVersion: 0 };
       migrate();
 
+      expect(result.chatRecords.done).toContain(
+        `2026-10-01-chat: left ${path.join(privateDirOf("2026-10-01-chat"), "chat.db")} (could not be read) beside ${path.join(privateDirOf("2026-10-01-chat"), "task.db")} (could not be read)`,
+      );
+      expect(result.chatRecords.failed).toBe(0);
       expect(read(".instrument", "chats", "2026-10-01-chat", "chat.db")).toBe(
         "current",
       );
@@ -558,6 +617,166 @@ describe("migrateWorkspaceLayout", () => {
           "task.db",
         ),
       ).toBe("stale");
+    });
+
+    it("leaves a chat that has only its chat.db as it is", () => {
+      writeChatStores("2026-10-01-chat", { "chat.db": [[SESSION_KEY, {}]] });
+
+      const result = migrate();
+      marks = { ...marks, layoutVersion: 0 };
+      migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(chatFiles("2026-10-01-chat")).toEqual(["chat.db"]);
+      expect(
+        sessionKeys(".instrument", "chats", "2026-10-01-chat", "chat.db"),
+      ).toEqual([SESSION_KEY]);
+      expect(exists(".instrument", ".pre-chats", EMPTY_STORES)).toBe(false);
+    });
+
+    // The shape a real install was found in: a build opened the chat before
+    // a sweep reached it, so the store it made under the new name holds the
+    // store's own bookkeeping and nothing of the conversation, which is
+    // still in the task.db beside it.
+    it("takes the task.db that holds the sessions, setting the empty store aside", () => {
+      writeChatStores("2026-10-12-chat", {
+        "chat.db": [["__migration_version__", 9]],
+        "task.db": [[SESSION_KEY, {}]],
+      });
+      writeChatFiles("2026-10-12-chat", {
+        "chat.db-wal": "the empty one's",
+        "task.db-wal": "the chat's own",
+      });
+
+      const result = migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(result.chatRecords.done).toContain(
+        `2026-10-12-chat: set aside ${path.join(privateDirOf("2026-10-12-chat"), "chat.db")}, which held no sessions, in ${path.join(rootDir, ".instrument", ".pre-chats", EMPTY_STORES, "2026-10-12-chat")}, and took the task.db beside it`,
+      );
+      // The chat's own store under the name the chat opens, its write-ahead
+      // log with it, and the empty one set aside with its own, where a
+      // person can still read it and nothing else does. Reading a database
+      // beside a write-ahead log leaves a shared-memory file, which travels
+      // with the rest.
+      expect(chatFiles("2026-10-12-chat")).toEqual([
+        "chat.db",
+        "chat.db-shm",
+        "chat.db-wal",
+      ]);
+      expect(
+        sessionKeys(".instrument", "chats", "2026-10-12-chat", "chat.db"),
+      ).toEqual([SESSION_KEY]);
+      expect(
+        read(".instrument", "chats", "2026-10-12-chat", "chat.db-wal"),
+      ).toBe("the chat's own");
+      expect(asideFiles("2026-10-12-chat")).toEqual([
+        "chat.db",
+        "chat.db-shm",
+        "chat.db-wal",
+      ]);
+
+      marks = { ...marks, layoutVersion: 0 };
+      expect(migrate().chatRecords.failed).toBe(0);
+
+      expect(chatFiles("2026-10-12-chat")).toEqual([
+        "chat.db",
+        "chat.db-shm",
+        "chat.db-wal",
+      ]);
+      expect(asideFiles("2026-10-12-chat")).toEqual([
+        "chat.db",
+        "chat.db-shm",
+        "chat.db-wal",
+      ]);
+      expect(
+        exists(".instrument", ".pre-chats", EMPTY_STORES, "2026-10-12-chat-2"),
+      ).toBe(false);
+    });
+
+    // The same shadowing in a chat a split already reached: the empty store
+    // is at the top of its record folder, where the chat opens it, and the
+    // task.db is still below in the folder's own `.instrument/`.
+    it("takes the task.db for a chat whose records were already lifted", () => {
+      const recordDir = path.join(
+        rootDir,
+        ".instrument",
+        "chats",
+        "2026-10-12-chat",
+      );
+      fs.mkdirSync(path.join(recordDir, ".instrument"), { recursive: true });
+      writeStoreRowsSync(path.join(recordDir, "chat.db"), [
+        ["__migration_version__", 9],
+      ]);
+      writeStoreRowsSync(path.join(recordDir, ".instrument", "task.db"), [
+        [SESSION_KEY, {}],
+      ]);
+
+      const result = migrate();
+      marks = { ...marks, layoutVersion: 0 };
+      migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(chatFiles("2026-10-12-chat")).toEqual(["chat.db"]);
+      expect(
+        sessionKeys(".instrument", "chats", "2026-10-12-chat", "chat.db"),
+      ).toEqual([SESSION_KEY]);
+      expect(asideFiles("2026-10-12-chat")).toEqual(["chat.db"]);
+    });
+
+    it("leaves both stores alone where each holds sessions", () => {
+      writeChatStores("2026-10-01-chat", {
+        "chat.db": [[SESSION_KEY, {}]],
+        "task.db": [[OTHER_SESSION_KEY, {}]],
+      });
+
+      const result = migrate();
+      marks = { ...marks, layoutVersion: 0 };
+      migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(result.chatRecords.done).toContain(
+        `2026-10-01-chat: left ${path.join(privateDirOf("2026-10-01-chat"), "chat.db")} (holds sessions) beside ${path.join(privateDirOf("2026-10-01-chat"), "task.db")} (holds sessions)`,
+      );
+      expect(
+        sessionKeys(".instrument", "chats", "2026-10-01-chat", "chat.db"),
+      ).toEqual([SESSION_KEY]);
+      expect(
+        sessionKeys(
+          ".instrument",
+          "chats",
+          "2026-10-01-chat",
+          ".instrument",
+          "task.db",
+        ),
+      ).toEqual([OTHER_SESSION_KEY]);
+      expect(exists(".instrument", ".pre-chats", EMPTY_STORES)).toBe(false);
+    });
+
+    // A chat the 1.x migration staged and could not finish holds the task's
+    // own database beside the one that migration wrote for the chat, and
+    // names them itself once it finishes.
+    it("leaves a staged chat's databases to the 1.x migration", () => {
+      writeChatFiles(".2026-10-01-chat.partial", {
+        ".chat.db": "staged",
+        "task.db": "the task's own",
+      });
+
+      migrate();
+
+      expect(
+        fs
+          .readdirSync(
+            path.join(
+              rootDir,
+              ".instrument",
+              "chats",
+              ".2026-10-01-chat.partial",
+              ".instrument",
+            ),
+          )
+          .toSorted(),
+      ).toEqual([".chat.db", "task.db"]);
     });
 
     it("renames the window's database too", () => {

@@ -34,7 +34,8 @@ export const WORKSPACE_DATA_ENTRIES = {
   memory: "memory",
   /**
    * What the migrations set aside rather than delete: 1.x projects and empty
-   * tasks, and the records of tasks an earlier build kept in a chat.
+   * tasks, the records of tasks an earlier build kept in a chat, and the
+   * empty database a chat held while its sessions were in another file.
    */
   setAside: ".pre-chats",
   /** The workspace's own skills, which the agent reads and writes. */

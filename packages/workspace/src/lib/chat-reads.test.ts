@@ -289,8 +289,9 @@ describe("the reads that build a model request", () => {
     // them, and a task that reads its chat's would never look empty, which is
     // what tells a started task from one nobody has written in.
     expect(
-      (await ChatReads.messageIds({ chatId, sessionId: task.id }))
-        ._unsafeUnwrap(),
+      (
+        await ChatReads.messageIds({ chatId, sessionId: task.id })
+      )._unsafeUnwrap(),
     ).toEqual(
       (await Store.getMessageIds(task.id, chatId))._unsafeUnwrap().toSorted(),
     );

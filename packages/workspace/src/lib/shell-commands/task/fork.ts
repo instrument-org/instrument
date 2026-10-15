@@ -197,7 +197,10 @@ async function startFork({
   /** Called with the task's session before its first turn starts. */
   onSession?: (sessionId: StoreId.Session) => void;
 }): Promise<ChatTask> {
-  const chatSession = await ChatReads.session({ chatId, sessionId: chatSessionId });
+  const chatSession = await ChatReads.session({
+    chatId,
+    sessionId: chatSessionId,
+  });
   if (chatSession.isErr()) {
     throw chatSession.error;
   }

@@ -309,10 +309,12 @@ describe("EditFile", () => {
       );
 
       expect(result.isOk()).toBe(true);
-      expect(await fs.readFile(
+      expect(
+        await fs.readFile(
           path.join(MOCK_WORKSPACE_DIRS.work, chatId, "blanks.ts"),
           "utf8",
-        )).toBe(
+        ),
+      ).toBe(
         [
           "const first = 1;",
           "",
@@ -340,12 +342,12 @@ describe("EditFile", () => {
       );
 
       expect(result.isErr()).toBe(true);
-      expect(await fs.readFile(
+      expect(
+        await fs.readFile(
           path.join(MOCK_WORKSPACE_DIRS.work, chatId, "pair.ts"),
           "utf8",
-        )).toContain(
-        "const keep = 1;",
-      );
+        ),
+      ).toContain("const keep = 1;");
     });
 
     it("refuses a block anchored on matching first and last lines with an unrelated middle", async () => {

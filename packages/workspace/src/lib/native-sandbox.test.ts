@@ -661,7 +661,9 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
   // so the folder it names is home itself. The walk for names that run code
   // has to stop at the entries such a rule closes, not at home.
   it("leaves a hidden home folder the rules hold at ask closed to a program", () => {
-    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-dot-")));
+    const home = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "bwrap-dot-")),
+    );
     mkdirSync(path.join(home, ".config/nvim/.git"), { recursive: true });
     const rules: Rule[] = [
       { level: "allow", path: home, source: "grant" },
@@ -670,7 +672,13 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
 
     const args = bwrapArgs(reachOver(home, rules)).join(" ");
 
-    expect(reachOf({ home, rules, withoutAsking: false }, path.join(home, ".config"), "write").level).toBe("ask");
+    expect(
+      reachOf(
+        { home, rules, withoutAsking: false },
+        path.join(home, ".config"),
+        "write",
+      ).level,
+    ).toBe("ask");
     for (const closed of [".config", ".config/nvim", ".config/nvim/.git"]) {
       expect(args).not.toContain(
         `--bind ${path.join(home, closed)} ${path.join(home, closed)}`,

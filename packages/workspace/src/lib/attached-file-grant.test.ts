@@ -65,7 +65,7 @@ function rulesWith(grants: Parameters<typeof rulesFor>[0]["grants"]): Rules {
         },
       ],
       places: {},
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
   });
 }
@@ -154,9 +154,9 @@ describe("sending a file from the disk", () => {
     expect(sent.isOk()).toBe(true);
     expect(await chatGrants(chatId)).toEqual([]);
     // Still Not allowed, so the first reach raises a card rather than reading.
-    expect(reachOf(rulesWith([]), path.join(closed, "taxes.md"), "read").level).toBe(
-      "never",
-    );
+    expect(
+      reachOf(rulesWith([]), path.join(closed, "taxes.md"), "read").level,
+    ).toBe("never");
     await disposeSessionsStoreStorage(chatId);
   });
 });

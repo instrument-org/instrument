@@ -125,7 +125,14 @@ const PermissionSettingsSchema = z.object({
     )
     .catch({})
     .default({}),
-  withoutAsking: z.boolean().catch(false).default(false),
+  /**
+   * "Use folders without asking", under the name it deserves on disk: every
+   * folder rule that would ask says yes instead. The passwords place still
+   * asks, and a path no rule holds still asks before a change, so the name
+   * claims more than the switch does, which is the right way round for a
+   * line someone reads while deciding whether to turn it on.
+   */
+  dangerouslyAllowEveryFolder: z.boolean().catch(false).default(false),
 });
 export type PermissionSettings = z.output<typeof PermissionSettingsSchema>;
 
@@ -246,7 +253,7 @@ export interface Rules {
   asker?: Asker;
   home: string;
   rules: Rule[];
-  withoutAsking: boolean;
+  dangerouslyAllowEveryFolder: boolean;
 }
 
 /**
@@ -309,7 +316,11 @@ export function rulesFor({
     }
     rules.push({ denied: true, level: "never", path: denied, source: "grant" });
   }
-  return { home, rules, withoutAsking: settings.withoutAsking };
+  return {
+    home,
+    rules,
+    dangerouslyAllowEveryFolder: settings.dangerouslyAllowEveryFolder,
+  };
 }
 
 /**
@@ -402,13 +413,13 @@ export function ruleRank(rule: Rule): number {
  * the switch is for the person's folders, and the native profiles keep
  * such a path closed to changes whatever it says.
  */
-export function levelWithoutAsking<L extends Access>(
+export function levelAllowingEveryFolder<L extends Access>(
   level: L,
   rule: Rule | undefined,
-  withoutAsking: boolean,
+  dangerouslyAllowEveryFolder: boolean,
 ): "allow" | L {
   return level === "ask" &&
-    withoutAsking &&
+    dangerouslyAllowEveryFolder &&
     rule !== undefined &&
     rule.place !== "passwords"
     ? "allow"
@@ -497,7 +508,11 @@ export function reachOf(
   const level =
     access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
   return {
-    level: levelWithoutAsking(level, best?.rule, rules.withoutAsking),
+    level: levelAllowingEveryFolder(
+      level,
+      best?.rule,
+      rules.dangerouslyAllowEveryFolder,
+    ),
     rule: best?.rule,
   };
 }

@@ -28,7 +28,7 @@ describe("what runs code later stays closed with folders open unasked", () => {
       chats: {},
       folders: [],
       places: {},
-      withoutAsking: true,
+      dangerouslyAllowEveryFolder: true,
     },
   });
 

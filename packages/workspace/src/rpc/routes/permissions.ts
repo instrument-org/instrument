@@ -49,7 +49,7 @@ const PermissionsViewSchema = z.object({
       paths: z.array(z.string()),
     }),
   ),
-  withoutAsking: z.boolean(),
+  dangerouslyAllowEveryFolder: z.boolean(),
 });
 
 function view(
@@ -69,7 +69,7 @@ function view(
           : (settings.places[place.id] ?? PLACE_DEFAULTS[place.id]),
       paths: place.paths,
     })),
-    withoutAsking: settings.withoutAsking,
+    dangerouslyAllowEveryFolder: settings.dangerouslyAllowEveryFolder,
   };
 }
 
@@ -163,14 +163,14 @@ const removeFolder = base
   );
 
 /** "Use folders without asking": every Ask first becomes a yes. */
-const setWithoutAsking = base
-  .input(z.object({ withoutAsking: z.boolean() }))
+const setDangerouslyAllowEveryFolder = base
+  .input(z.object({ dangerouslyAllowEveryFolder: z.boolean() }))
   .output(PermissionsViewSchema)
   .handler(async ({ input }) =>
     view(
       await updatePermissionSettings((settings) => ({
         ...settings,
-        withoutAsking: input.withoutAsking,
+        dangerouslyAllowEveryFolder: input.dangerouslyAllowEveryFolder,
       })),
     ),
   );
@@ -317,5 +317,5 @@ export const permissions = {
   removeFolder,
   setFolder,
   setPlace,
-  setWithoutAsking,
+  setDangerouslyAllowEveryFolder,
 };

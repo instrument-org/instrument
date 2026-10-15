@@ -14,7 +14,7 @@ const settings = {
   chats: {},
   folders: [],
   places: {},
-  withoutAsking: false,
+  dangerouslyAllowEveryFolder: false,
 };
 
 it("asks once for a folder a call runs into, under that call", async () => {

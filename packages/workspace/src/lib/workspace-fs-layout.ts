@@ -810,7 +810,7 @@ function layoutRules(
       path: mount.hostRoot,
       source: "grant",
     })),
-    withoutAsking: false,
+    dangerouslyAllowEveryFolder: false,
   };
   const system = (level: Rule["level"], path: string): Rule => ({
     level,

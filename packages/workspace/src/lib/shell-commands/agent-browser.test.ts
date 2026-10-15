@@ -353,7 +353,7 @@ describe("resolveAgentBrowserPathArgs", () => {
       rules: {
         home: path.resolve("/Users/sam"),
         rules: [],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     });
     fs = new InMemoryFs();
@@ -527,7 +527,7 @@ describe("agent-browser file operands and the folder rules", () => {
             source: "folder",
           },
         ],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     });
     ctx = {
@@ -1011,7 +1011,7 @@ describe("agent-browser file operands spelled as the host spells them", () => {
       rules: {
         home: String.raw`C:\Users\sam`,
         rules: [],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     });
     fs = new InMemoryFs();

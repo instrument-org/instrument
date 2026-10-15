@@ -82,7 +82,7 @@ const settings = {
   chats: {},
   folders: [],
   places: {},
-  withoutAsking: false,
+  dangerouslyAllowEveryFolder: false,
 };
 // Seatbelt and bubblewrap hold native commands on macOS and Linux only, and
 // the refusals read out of a command's output are theirs.
@@ -202,13 +202,13 @@ function layoutUnder(
   {
     grants = [],
     opened = [],
-    withoutAsking = false,
+    dangerouslyAllowEveryFolder = false,
   }: {
     /** Folders the chat was allowed by a card. */
     grants?: string[];
     /** Folders Settings › Permissions allows. */
     opened?: string[];
-    withoutAsking?: boolean;
+    dangerouslyAllowEveryFolder?: boolean;
   },
 ) {
   const rules: Rules = {
@@ -226,7 +226,7 @@ function layoutUnder(
           level: "allow" as const,
           path: AbsolutePathSchema.parse(folder),
         })),
-        withoutAsking,
+        dangerouslyAllowEveryFolder,
       },
     }),
     asker: { chatId: ChatIdSchema.parse("2026-10-13-chat"), sessionId },
@@ -267,7 +267,7 @@ function personRules(paths: Paths) {
       name: "Settings allowing its keys",
       opened: [path.join(paths.workspaceMachine, "keys")],
     },
-    { name: "folders used without asking", withoutAsking: true },
+    { name: "folders used without asking", dangerouslyAllowEveryFolder: true },
     {
       name: "Settings allowing a link deep in Downloads that leads to its keys",
       opened: [paths.deepLinks.keys],
@@ -1006,7 +1006,7 @@ describe("the app's own data in a temp folder, which a link leads to", () => {
       })),
       { appData: true, level: "never", path: spelled, source: "system" },
     ],
-    withoutAsking: false,
+    dangerouslyAllowEveryFolder: false,
   };
 
   afterAll(() => {

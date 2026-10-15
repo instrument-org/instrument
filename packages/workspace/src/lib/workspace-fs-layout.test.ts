@@ -74,7 +74,11 @@ describe("buildBashFs", () => {
         },
       },
       ...(rules.length > 0 && {
-        rules: { home: os.homedir(), rules, withoutAsking: false },
+        rules: {
+          home: os.homedir(),
+          rules,
+          dangerouslyAllowEveryFolder: false,
+        },
       }),
       chatHostRoot: WorkDirSchema.parse(chatRoot),
     });
@@ -745,7 +749,7 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
         },
         home: path.join(tmpDir, "home"),
         rules: [{ level, path: drives, place: "drives", source: "place" }],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     });
   }

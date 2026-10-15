@@ -15,7 +15,7 @@ const settings = {
   chats: {},
   folders: [],
   places: {},
-  withoutAsking: false,
+  dangerouslyAllowEveryFolder: false,
 };
 
 describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
@@ -85,7 +85,7 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
   });
 
   it("turns asks into allows without asking but sign-ins', never never", () => {
-    const relaxed = { ...rules, withoutAsking: true };
+    const relaxed = { ...rules, dangerouslyAllowEveryFolder: true };
     expect(reachOf(relaxed, `${home}/Desktop/a.png`, "write").level).toBe(
       "allow",
     );
@@ -148,7 +148,7 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     const declined = rulesFor({
       denials: [`${home}/Desktop/Trip`],
       home,
-      settings: { ...settings, withoutAsking: true },
+      settings: { ...settings, dangerouslyAllowEveryFolder: true },
     });
     const reach = reachOf(declined, `${home}/Desktop/Trip/a.png`, "read");
     expect(reach.level).toBe("never");
@@ -340,7 +340,7 @@ describe("reachOf at one depth", () => {
     (_order, rules) => {
       expect(
         reachOf(
-          { home, rules: [...rules], withoutAsking: false },
+          { home, rules: [...rules], dangerouslyAllowEveryFolder: false },
           `${home}/.ssh/id_ed25519`,
           "read",
         ).level,
@@ -362,7 +362,7 @@ describe("reachOf on Windows, where a name's trailing dots are dropped", () => {
         source: "system",
       },
     ],
-    withoutAsking: false,
+    dangerouslyAllowEveryFolder: false,
   };
 
   afterEach(() => {
@@ -400,7 +400,7 @@ describe("reachOf on Windows, where a folder has second names", () => {
         source: "system",
       },
     ],
-    withoutAsking: false,
+    dangerouslyAllowEveryFolder: false,
   };
 
   beforeEach(() => {
@@ -493,7 +493,7 @@ it.runIf(process.platform === "win32")(
             source: "system",
           },
         ],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       };
       const levelOf = (...segments: string[]) =>
         reachOf(rules, nodePath.join(ws, ...segments), "read").level;

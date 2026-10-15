@@ -53,7 +53,7 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
           source: "place",
         },
       ],
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
     spell: (hostPath) => `/c${slashed(hostPath)}`,
   });
@@ -97,7 +97,7 @@ it("lets cd pass through the app's own data to a folder inside it the agent reac
           source: "system",
         },
       ],
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
     spell: slashed,
   });
@@ -135,7 +135,7 @@ it
       rules: [
         { appData: true, level: "never", path: "/tmp/ws", source: "system" },
       ],
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
     spell: (spelled) => spelled,
   });
@@ -155,7 +155,7 @@ it("checks a hard link's source as a change, since writing the link writes it", 
     rules: {
       home: "/Users/sam",
       rules: [{ level: "allow", path: "/Users/sam/repo", source: "grant" }],
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
     spell: (hostPath) => hostPath,
   });
@@ -237,7 +237,7 @@ describe.runIf(process.platform !== "win32")(
           source: "system",
         },
       ],
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     };
 
     it.each([
@@ -312,7 +312,7 @@ describe.skipIf(process.platform === "win32")(
               source: "system",
             },
           ],
-          withoutAsking: false,
+          dangerouslyAllowEveryFolder: false,
         },
         spell: (hostPath) => hostPath,
       });

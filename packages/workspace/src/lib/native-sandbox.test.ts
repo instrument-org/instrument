@@ -55,7 +55,7 @@ function reachOver(home: string, rules: Rule[]): NativeReach {
   return {
     readOnly: [],
     readWrite: [],
-    rules: { home, rules, withoutAsking: false },
+    rules: { home, rules, dangerouslyAllowEveryFolder: false },
   };
 }
 
@@ -118,7 +118,7 @@ describe.skipIf(onWindows)(
       rules: {
         home,
         rules: [{ level: "ask", path: `${home}/Library`, source: "place" }],
-        withoutAsking: true,
+        dangerouslyAllowEveryFolder: true,
       },
     };
 
@@ -482,7 +482,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
   it("keeps a sign-in folder closed when using folders without asking opens the other hidden ones", async () => {
     mkdirSync(path.join(home, ".ssh"), { recursive: true });
     writeFileSync(path.join(home, ".ssh", "id"), "k");
-    const withoutAsking = {
+    const dangerouslyAllowEveryFolder = {
       ...reach,
       rules: {
         ...reach.rules,
@@ -497,11 +497,15 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
           } satisfies Rule,
           ...reach.rules.rules,
         ],
-        withoutAsking: true,
+        dangerouslyAllowEveryFolder: true,
       },
     };
     const cat = (file: string) => {
-      const spawned = wrapNativeCommand("/bin/cat", [file], withoutAsking);
+      const spawned = wrapNativeCommand(
+        "/bin/cat",
+        [file],
+        dangerouslyAllowEveryFolder,
+      );
       return execa(spawned.file, spawned.args, { reject: false });
     };
     expect((await cat(path.join(home, ".hidden", "x"))).exitCode).toBe(0);
@@ -674,7 +678,7 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
 
     expect(
       reachOf(
-        { home, rules, withoutAsking: false },
+        { home, rules, dangerouslyAllowEveryFolder: false },
         path.join(home, ".config"),
         "write",
       ).level,
@@ -891,7 +895,11 @@ describe.skipIf(onWindows)("bwrapArgs over names that run code", () => {
     } = {},
   ): string[] {
     const args = bwrapArgs(
-      { readOnly: [], readWrite, rules: { home, rules, withoutAsking: false } },
+      {
+        readOnly: [],
+        readWrite,
+        rules: { home, rules, dangerouslyAllowEveryFolder: false },
+      },
       walk,
     );
     const lines: string[] = [];

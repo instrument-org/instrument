@@ -38,7 +38,7 @@ vi.mock(import("../permissions/rules"), async (importOriginal) => ({
       chats: {},
       folders: [],
       places: world.places,
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     }),
 }));
 vi.mock(import("../path-exists"), () => ({

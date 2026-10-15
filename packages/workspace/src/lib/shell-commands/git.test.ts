@@ -168,7 +168,7 @@ describe("createGitCommand arg policy", () => {
             rules: [
               { level: "allow", path: layout.chat.hostRoot, source: "system" },
             ],
-            withoutAsking: false,
+            dangerouslyAllowEveryFolder: false,
           },
         },
       });

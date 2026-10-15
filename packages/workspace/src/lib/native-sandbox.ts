@@ -22,7 +22,7 @@ import { hostPathWithin, realHostPath } from "./host-path";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
-  levelWithoutAsking,
+  levelAllowingEveryFolder,
   type Reach,
   reachOf,
   ruleRank,
@@ -131,7 +131,7 @@ export function seatbeltProfile(
   /** The ssh-agent's socket the app was started with, if any. */
   agentSocket = appEnv.SSH_AUTH_SOCK,
 ): string {
-  const { home, rules, withoutAsking } = reach.rules;
+  const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   const entries: {
     depth: number;
     /** The folder the entry opens, for an allow. */
@@ -149,7 +149,11 @@ export function seatbeltProfile(
     },
   ];
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
     const filter = (spelled: string) =>
       rule.dotEntries
         ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
@@ -245,7 +249,11 @@ export function seatbeltProfile(
   // what is in them is a different path and stays as the rules say.
   const closedAbove = new Set<string>();
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
     if (level === "allow" || level === "readOnly" || rule.dotEntries) {
       continue;
     }
@@ -606,7 +614,7 @@ export function bwrapArgs(
       appEnv.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.() ?? 0}`,
   },
 ): string[] {
-  const { home, rules, withoutAsking } = reach.rules;
+  const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   /** "empty" is a read-only empty folder made where nothing is yet. */
   type Access = "empty" | "none" | "read" | "write";
   const entries: {
@@ -637,7 +645,11 @@ export function bwrapArgs(
   const standIn = unreadableFile();
   add(path.dirname(standIn), "read", 3);
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
     // A file the user sent that runs code when its folder is used (an
     // `.envrc`) opens to reading alone, as the rules have it.
     const access =
@@ -682,7 +694,11 @@ export function bwrapArgs(
       if (!rule.dotEntries) {
         return [resolveReal(rule.path)];
       }
-      return levelWithoutAsking(rule.level, rule, withoutAsking) === "allow"
+      return levelAllowingEveryFolder(
+        rule.level,
+        rule,
+        dangerouslyAllowEveryFolder,
+      ) === "allow"
         ? []
         : dotEntriesIn(rule.path).map(resolveReal);
     }),
@@ -690,7 +706,11 @@ export function bwrapArgs(
   const guarded = new Set<string>();
   for (const rule of rules) {
     if (
-      levelWithoutAsking(rule.level, rule, withoutAsking) !== "allow" ||
+      levelAllowingEveryFolder(
+        rule.level,
+        rule,
+        dangerouslyAllowEveryFolder,
+      ) !== "allow" ||
       rule.source === "system"
     ) {
       continue;
@@ -1088,7 +1108,7 @@ function currentReach(): NativeReach | undefined {
         place: "passwords",
         source: "place",
       })),
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
   };
 }

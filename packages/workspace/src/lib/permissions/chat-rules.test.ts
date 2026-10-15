@@ -27,7 +27,7 @@ const chatRoot = WorkDirSchema.parse(
   realpathSync(mkdtempSync(path.join(os.tmpdir(), "chat-rules-"))),
 );
 const reach = nativeReachFor(
-  { home: os.homedir(), rules: [], withoutAsking: false },
+  { home: os.homedir(), rules: [], dangerouslyAllowEveryFolder: false },
   buildWorkspaceFsLayout({ chatHostRoot: chatRoot }),
 );
 const runtimeDir = getWorkspaceConfig().runtimeDir;

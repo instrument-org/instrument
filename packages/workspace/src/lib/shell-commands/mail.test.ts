@@ -349,7 +349,7 @@ describe("mail's attachments and the folder rules", () => {
         rules: [
           { level: "never", path: path.join(root, "closed"), source: "folder" },
         ],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     });
     const ran = await answer();

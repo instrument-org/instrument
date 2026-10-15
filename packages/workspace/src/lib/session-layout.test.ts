@@ -46,7 +46,7 @@ vi.mock(import("./permissions/chat-rules"), async (importOriginal) => ({
         ...(sessionId && { asker: { chatId, partId, sessionId } }),
         home: "/Users/sam",
         rules: [],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     }),
 }));

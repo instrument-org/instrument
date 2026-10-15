@@ -33,13 +33,13 @@ describe("dictated text", () => {
   it.each(["items[0]", "a ] b", "back\\slash"])(
     "keeps %s whole through the wire form",
     (words) => {
-      const line = `x ${dictatedToken(words)} y`;
-      expect(splitDictatedText(line)).toEqual([
+      const wire = `x ${dictatedToken(words)} y`;
+      expect(splitDictatedText(wire)).toEqual([
         { dictated: false, text: "x " },
         { dictated: true, text: words },
         { dictated: false, text: " y" },
       ]);
-      expect(stripDictatedMarks(line)).toBe(`x ${words} y`);
+      expect(stripDictatedMarks(wire)).toBe(`x ${words} y`);
     },
   );
 });

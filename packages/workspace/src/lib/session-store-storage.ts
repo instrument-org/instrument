@@ -3,7 +3,7 @@ import sqlite from "db0/connectors/node-sqlite";
 import { errAsync, ok, okAsync, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import { type DatabaseSync } from "node:sqlite";
-import { createStorage } from "unstorage";
+import { createStorage, type Storage } from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -139,6 +139,28 @@ async function close(open: OpenStore) {
   const instance = await open.database.getInstance();
   instance.close();
   await open.storage.dispose();
+}
+
+/**
+ * Closes the database of an open that failed, which nothing else can close:
+ * no `OpenStore` reached the entry for a dispose or the idle sweep to find.
+ * An open handle holds a lock on the file on Windows, where a chat whose
+ * database cannot be read would otherwise be impossible to trash.
+ *
+ * A close that fails leaves no handle either: the database was never opened,
+ * or it is closed already. Only what failed the open is worth reporting.
+ */
+async function closeFailedOpen(
+  database: Database<Connector<DatabaseSync>>,
+  storage: Storage,
+) {
+  try {
+    const instance = await database.getInstance();
+    instance.close();
+    await storage.dispose();
+  } catch {
+    // Nothing is open to leak, and the open's own error is the one to report.
+  }
 }
 
 /**
@@ -418,6 +440,9 @@ function startOpen(
           STORES.delete(chatId);
         }
       }
+      // Awaited before the error reaches the caller, so a caller that trashes
+      // a chat it cannot read finds the file unlocked.
+      await closeFailedOpen(database, storage);
       throw result.error;
     }
     if (!isCurrent) {

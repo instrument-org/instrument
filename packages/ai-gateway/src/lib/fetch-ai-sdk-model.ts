@@ -57,7 +57,10 @@ export async function fetchAISDKModel({
       );
     }
 
-    const sdk = await aiSDKForProviderConfig(config, workspaceServerURL);
+    const sdk = await aiSDKForProviderConfig(config, workspaceServerURL, {
+      sourceModelIdOf: (modelId) =>
+        modelId === model.providerId ? model.sourceModelId : undefined,
+    });
     return sdk(model.providerId);
   });
 }

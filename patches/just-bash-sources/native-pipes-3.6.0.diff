@@ -107,10 +107,18 @@ index 7008371..f942c42 100644
      },
      path,
 diff --git a/packages/just-bash/src/interpreter/interpreter.ts b/packages/just-bash/src/interpreter/interpreter.ts
-index 157f0cc..527855c 100644
+index 157f0cc..8dee7d8 100644
 --- a/packages/just-bash/src/interpreter/interpreter.ts
 +++ b/packages/just-bash/src/interpreter/interpreter.ts
-@@ -89,7 +89,20 @@ import { isPosixSpecialBuiltin } from "./helpers/shell-constants.js";
+@@ -16,6 +16,7 @@ import type {
+   ConditionalCommandNode,
+   GroupNode,
+   PipelineNode,
++  RedirectionNode,
+   ScriptNode,
+   SimpleCommandNode,
+   StatementNode,
+@@ -89,7 +90,45 @@ import { isPosixSpecialBuiltin } from "./helpers/shell-constants.js";
  import { nullCommandExitStatus } from "./helpers/substitution-status.js";
  import { isWordLiteralMatch } from "./helpers/word-matching.js";
  import { traceSimpleCommand } from "./helpers/xtrace.js";
@@ -119,6 +127,31 @@ index 157f0cc..527855c 100644
 +  executePipeline as executePipelineHelper,
 +  settleHandoffAsStdin,
 +} from "./pipeline-execution.js";
++
++/** `2>/dev/null`, which leaves stdout where it was. */
++function discardsOnlyStderr(redirection: RedirectionNode): boolean {
++  const target = redirection.target;
++  return (
++    redirection.fd === 2 &&
++    (redirection.operator === ">" || redirection.operator === ">>") &&
++    target.type === "Word" &&
++    target.parts.length === 1 &&
++    target.parts[0]?.type === "Literal" &&
++    target.parts[0].value === "/dev/null"
++  );
++}
++
++/** A redirection that gives fd 0 something other than the pipe. */
++function redirectsStdin(redirection: RedirectionNode): boolean {
++  const input =
++    redirection.operator === "<" ||
++    redirection.operator === "<&" ||
++    redirection.operator === "<>" ||
++    redirection.operator === "<<" ||
++    redirection.operator === "<<-" ||
++    redirection.operator === "<<<";
++  return input ? (redirection.fd ?? 0) === 0 : redirection.fd === 0;
++}
 +
 +/** Names `dispatchBuiltin` answers itself, whatever is registered. */
 +const SHELL_DISPATCHED = new Set([
@@ -132,19 +165,24 @@ index 157f0cc..527855c 100644
  import {
    markProcessSubstitutions,
    releaseProcessSubstitutions,
-@@ -667,6 +680,19 @@ export class Interpreter {
+@@ -667,6 +706,24 @@ export class Interpreter {
      stdinClosed: boolean,
      onTransaction: (transaction: RedirectionTransaction) => void,
    ): Promise<ExecResult> {
 +    // What the pipeline offered this stage. Taken here so no command this
 +    // one runs in expanding its words sees it.
++    // A stage whose stdout is the pipe may hand it on; one that discards its
++    // stderr (`2>/dev/null`) still does, and anything else on fd 1 or 2
++    // needs the bytes.
++    const discardsStderr = node.redirections.length > 0;
 +    const pipeOutputOffer =
-+      this.ctx.state.pipeOutputOffer === true && node.redirections.length === 0;
++      this.ctx.state.pipeOutputOffer === true &&
++      node.redirections.every(discardsOnlyStderr);
 +    let stdinHandoff = this.ctx.state.pendingStdinHandoff;
 +    this.ctx.state.pipeOutputOffer = false;
 +    this.ctx.state.pendingStdinHandoff = undefined;
-+    // A redirection decides fd 0 and fd 1 from bytes, so it gets them.
-+    if (stdinHandoff && node.redirections.length > 0) {
++    // A redirection of fd 0 replaces the pipe, from bytes.
++    if (stdinHandoff && node.redirections.some(redirectsStdin)) {
 +      stdin = await settleHandoffAsStdin(this.ctx, stdinHandoff);
 +      stdinHandoff = undefined;
 +    }
@@ -152,7 +190,7 @@ index 157f0cc..527855c 100644
      // Update currentLine for $LINENO
      if (node.line !== undefined) {
        this.ctx.state.currentLine = node.line;
-@@ -1003,6 +1029,10 @@ export class Interpreter {
+@@ -1003,6 +1060,10 @@ export class Interpreter {
      let controlFlowError: BreakError | ContinueError | null = null;
  
      try {
@@ -163,7 +201,29 @@ index 157f0cc..527855c 100644
        cmdResult = await this.runCommand(
          commandName,
          args,
-@@ -1142,6 +1172,21 @@ export class Interpreter {
+@@ -1053,6 +1114,21 @@ export class Interpreter {
+       cmdResult.internalProducerOmitsShellPrefix,
+     );
+     transaction.finish();
++    // What a handoff writes to stderr once settled goes where `2>/dev/null`
++    // sent the rest of it.
++    const handedOn = cmdResult.pipeHandoff;
++    if (handedOn && discardsStderr) {
++      cmdResult = {
++        ...cmdResult,
++        pipeHandoff: {
++          token: handedOn.token,
++          settle: async (options) => ({
++            ...(await handedOn.settle(options)),
++            stderr: "",
++          }),
++        },
++      };
++    }
+ 
+     // If we caught a break/continue error, re-throw it after applying redirections
+     if (controlFlowError) {
+@@ -1142,6 +1218,21 @@ export class Interpreter {
      stdinRedirected = false,
      stdinConnected = false,
    ): Promise<ExecResult> {
@@ -345,10 +405,10 @@ index 61df695..1734bab 100644
    // In bash, stderr from each pipeline command goes to the terminal (parent),
 diff --git a/b/packages/just-bash/src/interpreter/pipeline-handoff.test.ts b/packages/just-bash/src/interpreter/pipeline-handoff.test.ts
 new file mode 100644
-index 0000000..61b10b2
+index 0000000..d5e8cf9
 --- /dev/null
 +++ b/packages/just-bash/src/interpreter/pipeline-handoff.test.ts
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,127 @@
 +import { describe, expect, it } from "vitest";
 +import { Bash } from "../Bash.js";
 +import type { Command, ExecResult } from "../types.js";
@@ -456,6 +516,20 @@ index 0000000..61b10b2
 +    expect(log).toEqual(["settle discard=true"]);
 +  });
 +
++  it("hands on the stdout of a stage discarding its stderr, and drops that stderr", async () => {
++    const log: string[] = [];
++    const bash = new Bash({ customCommands: commands(log) });
++    const result = await bash.exec("produce l 2>/dev/null | consume");
++    expect(result.stdout).toBe('token=t:l\n stdin=""\n');
++    expect(result.stderr).toBe("");
++  });
++
++  it("hands the stream to a consumer that redirects its stdout", async () => {
++    const bash = new Bash({ customCommands: commands([]) });
++    const result = await bash.exec("produce m | consume > /tmp/m; cat /tmp/m");
++    expect(result.stdout).toBe('token=t:m\n stdin=""\n');
++  });
++
 +  it("offers nothing to a last stage or a redirected one", async () => {
 +    const bash = new Bash({ customCommands: commands([]) });
 +    const result = await bash.exec("produce j; produce k > /tmp/k | cat; cat /tmp/k");
@@ -463,14 +537,14 @@ index 0000000..61b10b2
 +  });
 +});
 diff --git a/packages/just-bash/src/interpreter/redirections.ts b/packages/just-bash/src/interpreter/redirections.ts
-index 455fab0..ec01af6 100644
+index 455fab0..95390c8 100644
 --- a/packages/just-bash/src/interpreter/redirections.ts
 +++ b/packages/just-bash/src/interpreter/redirections.ts
 @@ -1452,6 +1452,10 @@ export async function applyRedirections(
    if (result.internalPipeStatusOverride) {
      finalResult.internalPipeStatusOverride = result.internalPipeStatusOverride;
    }
-+  // Offered only to a command with no redirections, whose stdout is the pipe.
++  // Offered only to a command whose stdout is the pipe (`2>/dev/null` at most).
 +  if (result.pipeHandoff) {
 +    finalResult.pipeHandoff = result.pipeHandoff;
 +  }

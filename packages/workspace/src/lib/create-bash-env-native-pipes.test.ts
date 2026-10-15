@@ -85,6 +85,8 @@ describe.runIf(vendored)("native pipelines", () => {
     "seq 3 | cat | wc -l",
     "seq 3 | while read x; do echo L$x; done | tail -1",
     "rg -c w1 words.txt | sort",
+    "rg --files . 2>/dev/null | sort | head -3",
+    "sort words.txt | uniq > uniq.txt; wc -l < uniq.txt",
     "printf 'b\\na\\n' | sort | head -1",
   ])("prints what the buffered path prints: %s", async (command) => {
     const streamed = await run(command);

@@ -1,6 +1,6 @@
 # Plan: chat records as append-only logs, one per session per device
 
-Status: approved to build on branch `chat-records`, stacked on `workspace-layout`; phases 1 to 3 built (`packages/workspace/src/lib/records/`, not wired into the app, and `workspace.db`, which the app uses for the index's existing tables and the activity log), phase 4 next. Nothing merges to main until it has been reviewed.
+Status: approved to build on branch `chat-records`, stacked on `workspace-layout`; phases 1 to 5 built, and phase 5's acceptance run has passed (see [What the acceptance run covered](#what-the-acceptance-run-covered)), leaving phase 6. Nothing merges to main until it has been reviewed.
 
 A chat's record today is a SQLite file, `chat.db`, inside the workspace's `.instrument/` folder, which the person may put in iCloud Drive, Dropbox or OneDrive. A sync engine copies files whole and can upload a database mid-transaction, and today's store rewrites nearly every row after its first write (a streaming part is saved whole every 100 ms). This plan makes the record append-only JSONL that a sync engine can carry safely, keeps one rebuildable SQLite database on each computer, and rebuilds the read side around what the window draws today.
 
@@ -152,6 +152,12 @@ A chat being opened is checked first for a log that is not downloaded (`st_block
 - Move each converted `chat.db` to `set-aside/chat-db/` on this computer, out of the synced folder. Deleting the set-aside copies is a later release's call.
 - Bump `formatVersion` in `workspace.json`, so an older build refuses the folder (`workspace-refusal.ts`) instead of showing empty chats.
 - The 1.x migration (`migrate-legacy-tasks.ts`) writes logs directly, so no `chat.db` writer survives. Beta.61 data reaches `.instrument/chats/<id>/chat.db` through the layout migration and converts from there.
+
+### What the acceptance run covered
+
+A clone of the install this plan names converts whole: every chat's records read back as its `chat.db` held them, field for field, and a run over the same folder again finds each chat already converted and writes nothing. The run covers the chats the layout sweep makes out of that install's remaining 1.x tasks, and a second corpus of the databases an earlier conversion set aside. The 1.x migration still writes a chat's rows into a `chat.db` for the conversion to read, rather than writing its logs itself, so a `chat.db` writer does survive for the chats it makes.
+
+What that install's own history leaves to the fixture in `convert-chat.test.ts`: a rollover, a stopped turn, an unread or `stoppedAt` mark, a task as a session, and a tool output with bytes in it. Its chats hold one session each, because a task of that era kept a database of its own, which this plan leaves set aside. What it does exercise heavily is a payload no schema here reads: a part type 1.x wrote accounts for a twentieth of its part lines, each held as its row was written rather than as a read of it gives.
 
 ## Phases
 

@@ -5,8 +5,9 @@ export interface LoginModalProps {
   // Offer only the Instrument account login: no ChatGPT, Claude, or manual
   // provider, for callers that mean signing in to Instrument itself.
   instrumentOnly?: boolean;
-  // Open straight to the add-provider form because a provider is required.
-  reason?: "provider-required";
+  // Why it opened: `provider-required` goes straight to the providers to add,
+  // and `dictation` says that signing in is what dictation needs.
+  reason?: "dictation" | "provider-required";
 }
 
 interface LoginModalState {

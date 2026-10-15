@@ -11,6 +11,9 @@ const ReportKindSchema = z.enum(["crash", "hang", "error", "feedback"]);
 export type ReportKind = z.output<typeof ReportKindSchema>;
 
 /** One report as it is sent: the body of `POST /reports`. */
+/** The longest note a report carries, which the dialog holds typing and dictation to. */
+export const REPORT_NOTE_MAX_LENGTH = 5000;
+
 export const ReportInputSchema = z.object({
   automatic: z.boolean(),
   /** Exactly the text the person saw under Show details. */
@@ -19,7 +22,7 @@ export const ReportInputSchema = z.object({
   fingerprint: z.string().min(1).max(128).optional(),
   kind: ReportKindSchema,
   /** The person's own words. */
-  note: z.string().max(5000).optional(),
+  note: z.string().max(REPORT_NOTE_MAX_LENGTH).optional(),
   /** Where the report started: "crash", "help-menu", "route-error", ... */
   surface: z.string().regex(/^[a-z-]{1,40}$/),
   title: z.string().min(1).max(300),

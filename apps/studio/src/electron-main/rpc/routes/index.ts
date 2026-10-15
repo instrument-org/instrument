@@ -9,6 +9,7 @@ import { browsingData } from "./browsing-data";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
+import { dictation } from "./dictation";
 import { drafts } from "./drafts";
 import { features } from "./features";
 import { files } from "./files";
@@ -42,6 +43,7 @@ export const router = {
   chatgptAccount,
   claudeAccount,
   debug,
+  dictation,
   drafts,
   features,
   files,

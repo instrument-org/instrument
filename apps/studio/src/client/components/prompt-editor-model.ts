@@ -12,11 +12,21 @@ import {
   splitSkillMention,
 } from "@instrument-org/shared/skill-mention";
 import {
+  dictatedToken,
+  splitDictatedText,
+} from "@instrument-org/shared/dictated-text";
+import {
   Fragment,
+  type Mark,
   type Node as ProseMirrorNode,
   Schema,
 } from "prosemirror-model";
-import { type Command, type TextSelection } from "prosemirror-state";
+import {
+  type Command,
+  type EditorState,
+  type TextSelection,
+  type Transaction,
+} from "prosemirror-state";
 
 export const promptSchema = new Schema({
   nodes: {
@@ -64,6 +74,17 @@ export const promptSchema = new Schema({
       },
     },
     text: { group: "inline" },
+  },
+  marks: {
+    /**
+     * Words the person dictated rather than typed, which the model is told
+     * were spoken. It looks like any other text; editing inside it keeps it.
+     */
+    dictated: {
+      inclusive: false,
+      parseDOM: [{ tag: "span[data-dictated]" }],
+      toDOM: () => ["span", { "data-dictated": "" }, 0],
+    },
   },
 });
 
@@ -129,7 +150,7 @@ export function promptDocFromPastedText(
     const nodes = splitSkillText(line).flatMap(
       (segment: SkillTextSegment): ProseMirrorNode[] => {
         if (segment.type === "text") {
-          return textNodes(segment.text);
+          return markedTextNodes(segment.text);
         }
         const name =
           segment.type === "skill"
@@ -153,11 +174,56 @@ export function promptDocFromText(value: string) {
       (segment: SkillMentionSegment): ProseMirrorNode[] =>
         segment.type === "skill"
           ? [promptSchema.nodes.skill.create({ name: segment.name })]
-          : textNodes(segment.text),
+          : markedTextNodes(segment.text),
     );
     return promptSchema.nodes.paragraph.create(null, Fragment.from(nodes));
   });
   return promptSchema.nodes.doc.create(null, paragraphs);
+}
+
+/**
+ * Puts dictated words at the end of the document, after a space on its last
+ * line, so several takes in a row read as one run of sentences; into the last
+ * line itself when it is empty (an empty box, or one that ends on a fresh
+ * line). The words carry the dictated mark and the space before them does
+ * not; nothing already written is touched, and the step undoes as one.
+ */
+/**
+ * The space dictated words need before them at the end of `doc`: none on an
+ * empty last line or after a space, one after anything else, a chip included.
+ */
+export function dictationLead(doc: ProseMirrorNode): "" | " " {
+  const end = doc.lastChild?.lastChild;
+  if (!end) {
+    return "";
+  }
+  return end.isText && /\s$/.test(end.text ?? "") ? "" : " ";
+}
+
+export function appendDictated(state: EditorState, text: string): Transaction {
+  const [first = "", ...rest] = text.trim().split("\n");
+  const { doc } = state;
+  const lineEnd = doc.content.size - 1;
+  const lead = dictationLead(doc);
+  const tr = state.tr.insert(
+    lineEnd,
+    Fragment.from([
+      ...(lead ? [promptSchema.text(lead)] : []),
+      ...(first ? textNodes(first, [dictatedMark()]) : []),
+    ]),
+  );
+  if (rest.length > 0) {
+    tr.insert(
+      tr.doc.content.size,
+      rest.map((line) =>
+        promptSchema.nodes.paragraph.create(
+          null,
+          Fragment.from(line ? textNodes(line, [dictatedMark()]) : []),
+        ),
+      ),
+    );
+  }
+  return tr;
 }
 
 export function promptTextFromDoc(doc: ProseMirrorNode) {
@@ -168,23 +234,42 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
     for (let childIndex = 0; childIndex < paragraph.childCount; childIndex++) {
       const node = paragraph.child(childIndex);
       const app = appOfNode(node);
+      const text = node.text ?? "";
+      const dictated =
+        promptSchema.marks.dictated.isInSet(node.marks) !== undefined;
       value +=
         node.type === promptSchema.nodes.skill
           ? skillMentionToken(String(node.attrs.name))
           : app
             ? appMentionToken(app)
-            : (node.text ?? "");
+            : dictated && text.trim()
+              ? dictatedToken(text)
+              : text;
     }
     paragraphs.push(value);
   }
   return paragraphs.join("\n");
 }
 
-/** The text of a line as nodes: its apps as tokens, the rest as text. */
-function textNodes(text: string): ProseMirrorNode[] {
+/** The text of a line as nodes: its apps as tokens, the rest as text with `marks`. */
+function textNodes(
+  text: string,
+  marks: readonly Mark[] = [],
+): ProseMirrorNode[] {
   return splitAppMentions(text).map((segment) =>
     segment.type === "app"
       ? promptSchema.nodes.app.create(segment.app)
-      : promptSchema.text(segment.text),
+      : promptSchema.text(segment.text, marks),
   );
 }
+
+/** The text of a line as nodes, its dictated runs carrying the dictated mark. */
+function markedTextNodes(text: string): ProseMirrorNode[] {
+  return splitDictatedText(text).flatMap((segment) =>
+    segment.text
+      ? textNodes(segment.text, segment.dictated ? [dictatedMark()] : [])
+      : [],
+  );
+}
+
+const dictatedMark = () => promptSchema.marks.dictated.create();

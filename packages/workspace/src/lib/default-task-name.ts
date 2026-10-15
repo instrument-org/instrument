@@ -1,3 +1,4 @@
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -15,8 +16,10 @@ export function defaultTaskName(
 ): string {
   // A skill mention is stored in its `[$name](skill:name)` wire form, which is
   // markup no one typed and would spend most of the budget below.
-  const text = renderSkillMentionsAsText(
-    typeof source === "string" ? source : textForMessage(source),
+  const text = stripDictatedMarks(
+    renderSkillMentionsAsText(
+      typeof source === "string" ? source : textForMessage(source),
+    ),
   ).trim();
 
   if (text.length <= MAX_CHARS) {

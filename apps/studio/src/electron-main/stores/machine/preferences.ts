@@ -2,6 +2,10 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { MACHINE_PREFERENCES_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  DictationLanguageSchema,
+  DictationMicrophoneSchema,
+} from "@/shared/dictation";
+import {
   NO_SIDEBAR_CHANGES,
   SidebarPlacesSchema,
 } from "@/shared/sidebar-places";
@@ -10,10 +14,17 @@ import { z } from "zod";
 
 /**
  * What a person chose for this computer, whichever workspace is open: which
- * builds it updates to, whether error reports are sent without asking, and
- * what the Files sidebar pins, whose paths are this computer's. Per-workspace choices are in `workspace/preferences.ts`.
+ * builds it updates to, whether error reports are sent without asking, what
+ * the Files sidebar pins, whose paths are this computer's, and the microphone,
+ * language and sounds dictation uses. Per-workspace choices are in `workspace/preferences.ts`.
  */
 export const MachinePreferencesSchema = z.object({
+  // Unset means the language is detected from the recording.
+  dictationLanguage: DictationLanguageSchema.optional().catch(undefined),
+  // Unset means the system's default input.
+  dictationMicrophone: DictationMicrophoneSchema.optional().catch(undefined),
+  // A short sound when dictation starts and when it stops.
+  dictationSounds: z.boolean().catch(true).default(true),
   // Release channels are not exposed to the user and are used internally for testing
   releaseChannel: z
     .enum(["latest", "beta", "alpha"])

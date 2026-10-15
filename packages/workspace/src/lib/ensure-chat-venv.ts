@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
-import { ensurePythonBase, linkPythonBase } from "./python-base";
+import { linkPythonBase, refreshPythonBaseIfDue } from "./python-base";
 import { ensureManagedPython, runUvCommand } from "./run-uv";
 import { MANAGED_PYTHON_VERSION, chatVenvDir, chatVenvPython } from "./uv";
 import { workDir } from "./work-dir";
@@ -27,8 +27,21 @@ const inFlightVenvCreation = new Map<
 let createChatVenv = runUvVenv;
 
 /**
+ * Asks for a check of the base packages when one is due. The bash worker
+ * replaces it with a request to the main thread, so one thread owns the
+ * refresh and the processes it starts.
+ */
+let requestPythonBaseRefresh = refreshPythonBaseIfDue;
+
+export function setPythonBaseRefresher(next: () => void): void {
+  requestPythonBaseRefresh = next;
+}
+
+/**
  * The chat's venv, made first when it has no usable one, with the base
- * packages behind it once they are installed.
+ * packages behind it once they are installed. Every `python`, `pip` and
+ * `uv` command comes through here, so it is also where a due check of the
+ * base packages starts, in the background.
  */
 export async function ensureChatVenv({
   signal,
@@ -41,6 +54,7 @@ export async function ensureChatVenv({
   if (error === undefined) {
     await linkPythonBase(chatId);
   }
+  requestPythonBaseRefresh();
   return error;
 }
 
@@ -125,9 +139,6 @@ async function runUvVenv(chatId: ChatId): Promise<ChatVenvError | undefined> {
   if (python) {
     return python;
   }
-  // Tried again here when the launch could not install it (offline, say).
-  // Nothing waits on it.
-  void ensurePythonBase();
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went

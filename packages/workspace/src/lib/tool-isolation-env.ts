@@ -62,8 +62,11 @@ export function uvPythonBaseDir(uvDataDir: string): string {
   return path.join(uvDataDir, "python-base");
 }
 
-/** How many days old a package must be before an install takes it. */
-const RELEASE_AGE_DAYS = 7;
+/**
+ * How many days old a package must be before an install takes it, as
+ * pnpm's `minimumReleaseAge` holds npm packages.
+ */
+export const RELEASE_AGE_DAYS = 7;
 
 /**
  * The environment that pins uv (and anything that runs the real pip) to

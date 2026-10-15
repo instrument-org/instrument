@@ -109,7 +109,6 @@ const config: KnipConfig = {
         "ps",
         "security",
         "taskkill",
-        "uv", // The developer's own uv, which locks python-base (scripts/lock-python-base.ts)
         "xcode-select",
       ],
       ignoreDependencies: [

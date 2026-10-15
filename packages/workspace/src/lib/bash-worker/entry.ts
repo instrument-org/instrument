@@ -10,7 +10,11 @@ import { parentPort } from "node:worker_threads";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
-import { setChatVenvCreator, type ChatVenvError } from "../ensure-chat-venv";
+import {
+  setChatVenvCreator,
+  setPythonBaseRefresher,
+  type ChatVenvError,
+} from "../ensure-chat-venv";
 import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
@@ -105,6 +109,9 @@ setChatVenvCreator(
       post({ requestId, chatId, type: "venv" });
     }),
 );
+setPythonBaseRefresher(() => {
+  post({ type: "python-base-refresh" });
+});
 
 port.on("message", (message: ToWorker) => {
   switch (message.type) {

@@ -30,6 +30,18 @@ describe("ensureChatVenv", () => {
     ).toBeLessThan(vi.mocked(runUvCommand).mock.invocationCallOrder[0] ?? 0);
   });
 
+  it("asks for a check of the base packages on every command, made venv or not", async () => {
+    const { existsSync } = await import("node:fs");
+    const { refreshPythonBaseIfDue } = await import("./python-base");
+    vi.mocked(refreshPythonBaseIfDue).mockClear();
+    vi.mocked(existsSync).mockReturnValueOnce(true).mockReturnValueOnce(true);
+
+    const chatId = createMockChatConfig(ChatIdSchema.parse("warm-python"));
+
+    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
+    expect(refreshPythonBaseIfDue).toHaveBeenCalledTimes(1);
+  });
+
   it("makes no venv when the managed Python could not be installed", async () => {
     const { ensureManagedPython, runUvCommand } = await import("./run-uv");
     vi.mocked(runUvCommand).mockClear();

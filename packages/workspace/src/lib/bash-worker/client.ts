@@ -6,6 +6,7 @@ import { omit, pick } from "radashi";
 import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { ensureChatVenv } from "../ensure-chat-venv";
+import { refreshPythonBaseIfDue } from "../python-base";
 import {
   currentShellOutputSink,
   type ShellOutputSink,
@@ -295,6 +296,10 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       } else {
         instance.trees.delete(message.pid);
       }
+      return;
+    }
+    case "python-base-refresh": {
+      refreshPythonBaseIfDue();
       return;
     }
     case "venv": {

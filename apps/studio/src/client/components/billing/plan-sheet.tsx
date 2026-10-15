@@ -17,6 +17,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import {
+  checkoutTrialLine,
   describeDate,
   isDowngrade,
   platformRefusalCode,
@@ -239,7 +240,12 @@ function PlanSheetBody({
         <DialogDescription>
           {isChanging
             ? changeDescription(status, offer)
-            : "Every plan includes everything. You'll finish in your browser."}
+            : [
+                checkoutTrialLine(offer),
+                "Every plan includes everything. You'll finish in your browser.",
+              ]
+                .filter(Boolean)
+                .join(" ")}
         </DialogDescription>
       </DialogHeader>
       <div>

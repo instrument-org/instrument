@@ -10,6 +10,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
+  checkoutTrialLine,
   describeDate,
   describeDay,
   describeWhen,
@@ -19,6 +20,7 @@ import {
   scheduledPlanChange,
   subscribedPlan,
   subscriptionEndsAt,
+  subscriptionPhaseLine,
   windowLabel,
 } from "@/client/lib/billing";
 import { cn } from "@/client/lib/utils";
@@ -183,6 +185,7 @@ function PlanGroup({ status }: { status: Status }) {
       : undefined;
     const price = plan ? formatPriceInWords(plan.price) : "";
     const paymentFailed = hasPaymentFailed(status);
+    const phaseLine = subscriptionPhaseLine(status, price, now);
     return (
       <SettingsSection title="Plan">
         <StateArrival state={arrival}>
@@ -216,9 +219,11 @@ function PlanGroup({ status }: { status: Status }) {
                     ? `Ends ${describeDate(endsAt, now)}`
                     : change
                       ? `Switches to ${change.name} on ${describeDate(change.at, now)}. You keep ${plan?.name ?? "this plan"} until then.`
-                      : renewsAt
-                        ? `Renews ${describeDate(renewsAt, now)}`
-                        : undefined
+                      : phaseLine
+                        ? phaseLine
+                        : renewsAt
+                          ? `Renews ${describeDate(renewsAt, now)}`
+                          : undefined
               }
               // Status names no plan while a payment is owed, since none is in
               // effect; the row then says only that there is a subscription.
@@ -294,7 +299,12 @@ function PlanGroup({ status }: { status: Status }) {
                 ? trialEndsAt
                   ? `Ends ${describeDay(trialEndsAt)}`
                   : `Starts with your first message to ${APP_NAME}'s AI${days ? ` and runs ${days} days` : ""}.`
-                : `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`
+                : [
+                    checkoutTrialLine(offer),
+                    `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
             }
             title={isTrial ? "Free trial" : "No plan"}
           >

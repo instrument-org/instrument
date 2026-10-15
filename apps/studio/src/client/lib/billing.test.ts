@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   allowanceLabel,
+  checkoutTrialLine,
   describeWhen,
   isAccessRevoked,
   noticeCopy,
   planCardAction,
   refusalNotice,
   stopLineText,
+  subscriptionPhaseLine,
   upgradePlan,
   usageWarning,
   usageWarningText,
@@ -446,5 +448,100 @@ describe("isAccessRevoked", () => {
     },
   ])("$name: $expected", ({ expected, status }) => {
     expect(isAccessRevoked(status)).toBe(expected);
+  });
+});
+
+describe("checkoutTrialLine", () => {
+  const intro = {
+    available: true,
+    cardRequired: true,
+    days: 7,
+    intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
+    mode: "intro" as const,
+  };
+
+  it.each([
+    {
+      expected: "Your first month is $1.",
+      label: "an intro month",
+      trial: intro,
+    },
+    {
+      expected: "Your first 3 months are $1 each.",
+      label: "intro months",
+      trial: { ...intro, intro: { ...intro.intro, months: 3 } },
+    },
+    {
+      expected:
+        "Free for 7 days. You won't be charged if you cancel before it ends.",
+      label: "a card trial",
+      trial: { ...intro, intro: undefined, mode: "card" as const },
+    },
+    {
+      expected: undefined,
+      label: "a no-card trial",
+      trial: {
+        available: true,
+        cardRequired: false,
+        days: 7,
+        mode: "no_card" as const,
+      },
+    },
+    {
+      expected: undefined,
+      label: "a trial already used",
+      trial: { ...intro, available: false },
+    },
+  ])("$label", ({ expected, trial }) => {
+    expect(checkoutTrialLine({ ...offer, trial })).toBe(expected);
+  });
+
+  it("feeds the card-required notice", () => {
+    const notice = refusalNotice({
+      now: NOW,
+      offer: { ...offer, trial: intro },
+      refusal: { code: "subscription-required", reason: "card-required" },
+      refusedAt: NOW,
+      status: undefined,
+      statusReadAt: 0,
+    });
+
+    expect(notice && noticeCopy(notice, NOW)).toMatchObject({
+      line: "Your first month is $1. Or switch to your own model.",
+      title: "Choose a plan to start",
+    });
+  });
+});
+
+describe("subscriptionPhaseLine", () => {
+  const subscribed = (phase: NonNullable<Status["subscription"]>["phase"]) =>
+    ({
+      canSubscribe: false,
+      plan: "basic",
+      subscription: { cancelAtPeriodEnd: false, phase, status: "active" },
+      trial: { state: "ended" },
+      windows: [],
+    }) satisfies Status;
+
+  it.each([
+    {
+      expected: "Free trial until October 12, then $10 a month",
+      phase: {
+        endsAt: new Date(2026, 9, 12, 9, 0).toISOString(),
+        key: "trialing" as const,
+      },
+    },
+    {
+      expected: "Intro price until November 5, then $10 a month",
+      phase: {
+        endsAt: new Date(2026, 10, 5, 9, 0).toISOString(),
+        key: "intro" as const,
+      },
+    },
+    { expected: undefined, phase: undefined },
+  ])("$phase.key", ({ expected, phase }) => {
+    expect(subscriptionPhaseLine(subscribed(phase), "$10 a month", NOW)).toBe(
+      expected,
+    );
   });
 });

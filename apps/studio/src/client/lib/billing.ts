@@ -48,6 +48,52 @@ export function formatPriceInWords(price: OfferPlan["price"]) {
 }
 
 /**
+ * The trial a new subscriber gets through Checkout, in one line, or nothing
+ * when the offer has none for this account (or its trial starts in the app).
+ */
+export function checkoutTrialLine(offer: Offer | undefined) {
+  const trial = offer?.trial;
+  if (!trial || trial.available === false) {
+    return undefined;
+  }
+  if (trial.mode === "intro" && trial.intro) {
+    const amount = formatAmount({ ...trial.intro.price, interval: null });
+    return trial.intro.months === 1
+      ? `Your first month is ${amount}.`
+      : `Your first ${trial.intro.months} months are ${amount} each.`;
+  }
+  if (
+    trial.mode === "card" ||
+    (trial.mode === undefined && trial.cardRequired)
+  ) {
+    return `Free for ${trial.days} days. You won't be charged if you cancel before it ends.`;
+  }
+  return undefined;
+}
+
+/**
+ * A subscription's Stripe trial or intro price, while it runs: what the plan
+ * row says in place of its renewal date.
+ */
+export function subscriptionPhaseLine(
+  status: Status | undefined,
+  price: string,
+  now: Date,
+) {
+  const phase = status?.subscription?.phase;
+  if (!phase) {
+    return undefined;
+  }
+  const until = phase.endsAt
+    ? ` until ${describeDate(new Date(phase.endsAt), now)}`
+    : "";
+  const then = price ? `, then ${price}` : "";
+  return phase.key === "trialing"
+    ? `Free trial${until}${then}`
+    : `Intro price${until}${then}`;
+}
+
+/**
  * How much AI a plan carries, against the first plan offered: "Standard" for
  * that one, "4× Standard" for one with four times its limits. Never dollars.
  */
@@ -304,7 +350,12 @@ export type BillingNotice =
   | { kind: "access-revoked" }
   | { kind: "payment-failed" }
   | { kind: "plan-limit"; resetsAt?: Date; upgradeTo?: OfferPlan }
-  | { kind: "plan-required"; reason?: string }
+  | {
+      kind: "plan-required";
+      reason?: string;
+      // What Checkout starts with, for a trial that needs one.
+      trialLine?: string;
+    }
   | {
       /** What the refusal was about, when it was not a missing plan. */
       after?: "access-revoked" | "payment-failed";
@@ -357,9 +408,14 @@ export function refusalNotice({
       if (refusal.reason === "trial-ended" || refusal.reason === "trial-used") {
         return { kind: "trial-ended" };
       }
+      const trialLine =
+        refusal.reason === "card-required"
+          ? checkoutTrialLine(offer)
+          : undefined;
       return {
         kind: "plan-required",
         ...(refusal.reason && { reason: refusal.reason }),
+        ...(trialLine && { trialLine }),
       };
     }
     case "usage-limit-exceeded": {
@@ -434,11 +490,11 @@ export function noticeCopy(
         action: choosePlan,
         line:
           notice.reason === "card-required"
-            ? "Add a card to start it, or switch to your own model."
+            ? `${notice.trialLine ?? "Start it in Checkout."} Or switch to your own model.`
             : "Choose a plan, or switch to your own model.",
         title:
           notice.reason === "card-required"
-            ? "Start your free trial"
+            ? "Choose a plan to start"
             : `${APP_NAME}'s AI needs a plan`,
       };
     }
@@ -487,7 +543,7 @@ export function stopLineText(refusal: BillingRefusal) {
           return `Stopped: ${APP_NAME}'s AI isn't available on this account.`;
         }
         case "card-required": {
-          return "Stopped: a card is needed to start your free trial.";
+          return "Stopped: choose a plan to start.";
         }
         case "payment-failed": {
           return "Stopped: your payment didn't go through.";

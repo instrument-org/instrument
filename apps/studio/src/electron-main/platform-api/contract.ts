@@ -30,6 +30,16 @@ const BillingStatusSchema = z.object({
        */
       plan: z.string().optional(),
       /**
+       * A Stripe trial (`trialing`) or an intro price (`intro`) still
+       * running, and when it ends.
+       */
+      phase: z
+        .object({
+          endsAt: z.string().optional(),
+          key: z.enum(["intro", "trialing"]),
+        })
+        .optional(),
+      /**
        * A downgrade waiting for the period's end: the plan it moves to and
        * when. Until then `plan` stays the one paid for now.
        */
@@ -86,6 +96,19 @@ const BillingOfferSchema = z.object({
       available: z.boolean().optional(),
       cardRequired: z.boolean(),
       days: z.number(),
+      /** A first `months` at `price` through Checkout, in the `intro` mode. */
+      intro: z
+        .object({
+          months: z.number(),
+          price: z.object({ currency: z.string(), unitAmount: z.number() }),
+        })
+        .optional(),
+      /**
+       * How the trial starts: in the app (`no_card`), or through Checkout
+       * with a card (`card`) or at an intro price (`intro`). Absent from an
+       * API older than trial modes, which only ran `no_card` and `card`.
+       */
+      mode: z.enum(["card", "intro", "no_card"]).optional(),
     })
     .nullable(),
   /**

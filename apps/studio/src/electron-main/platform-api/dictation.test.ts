@@ -232,6 +232,12 @@ describe("transcribeDictation", () => {
       });
     });
 
+    it("starts fresh for another account signing in", async () => {
+      await respond(429, "0", reached);
+      mockGetToken.mockReturnValue("another-token");
+      expect(dictationAllowance(beforeReset)).toEqual({ exhausted: false });
+    });
+
     it("is not called used up on a zero with no reset time to wait for", async () => {
       await respond(429, "0", reached);
       await respond(200, "0", { durationSeconds: 2, text: "Hi" });

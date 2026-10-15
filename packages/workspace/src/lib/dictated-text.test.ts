@@ -30,9 +30,16 @@ describe("dictated text", () => {
     );
   });
 
-  it("leaves a bracket out rather than end the run early", () => {
-    expect(splitDictatedText(dictatedToken("a [b] c"))).toEqual([
-      { dictated: true, text: "a [b c" },
-    ]);
-  });
+  it.each(["items[0]", "a ] b", "back\\slash"])(
+    "keeps %s whole through the wire form",
+    (words) => {
+      const line = `x ${dictatedToken(words)} y`;
+      expect(splitDictatedText(line)).toEqual([
+        { dictated: false, text: "x " },
+        { dictated: true, text: words },
+        { dictated: false, text: " y" },
+      ]);
+      expect(stripDictatedMarks(line)).toBe(`x ${words} y`);
+    },
+  );
 });

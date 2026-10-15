@@ -24,7 +24,8 @@ import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
-import { history, redo, undo } from "prosemirror-history";
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
+import { closeHistory, history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import {
@@ -335,8 +336,11 @@ export function PromptEditor({
       attributes: editorAttributes(initialProps.placeholder),
       clipboardTextParser: (text) =>
         Slice.maxOpen(promptDocFromPastedText(text, currentSkills()).content),
+      // Copied words leave as they read: dictated ones without their mark.
       clipboardTextSerializer: (slice) =>
-        promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
+        stripDictatedMarks(
+          promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
+        ),
       dispatchTransaction: (transaction) => {
         const nextState = view.state.apply(transaction);
         view.updateState(nextState);
@@ -531,6 +535,13 @@ export function PromptEditor({
           : undefined,
       }),
     );
+    // Follow the words being heard as they grow past what the box shows,
+    // without moving the caret.
+    if (dictating) {
+      view.dom
+        .querySelector(".dictation-landing")
+        ?.scrollIntoView({ block: "nearest" });
+    }
   }, [dictating, settledWords, interimWords]);
 
   // Navigating between skills reuses this view, so the placeholder has to track
@@ -610,7 +621,8 @@ export function PromptEditor({
       if (!view) {
         return;
       }
-      const tr = appendDictated(view.state, text);
+      // Its own undo step, apart from typing that just came before it.
+      const tr = closeHistory(appendDictated(view.state, text));
       // Someone typing while the words were transcribed keeps their caret;
       // otherwise it goes after the words, ready to carry on from them.
       if (!view.hasFocus()) {

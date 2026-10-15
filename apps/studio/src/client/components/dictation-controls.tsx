@@ -279,7 +279,7 @@ export function landingWords(dictation: Dictation): {
  * around it moves. Before any words it says it is listening; when live text
  * is unavailable it says the words will come at Stop instead.
  */
-export function DictationReadout({
+function DictationReadout({
   className,
   dictation,
 }: {

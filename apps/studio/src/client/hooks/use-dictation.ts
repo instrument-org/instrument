@@ -13,6 +13,7 @@ import {
   type DictationStreamEvent,
   type DictationSurface,
 } from "@/shared/dictation";
+import { APP_NAME } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -190,9 +191,11 @@ export function useDictation({
   // The recording in progress, if any, and what it reports to.
   const session = useRef<Session>(undefined);
   // A take that failed to send for a reason that might pass, for Try Again.
-  const kept = useRef<{ audio: Blob; deliver: (text: string) => void }>(
-    undefined,
-  );
+  const kept = useRef<{
+    audio: Blob;
+    deliver: (text: string) => void;
+    onLanded?: () => void;
+  }>(undefined);
 
   // The live stream whose words the box shows, until they land.
   const shownLive = useRef<LiveStream>(undefined);
@@ -300,7 +303,7 @@ export function useDictation({
     clearLive();
     setPhase({ kind: "idle" });
     if (error) {
-      kept.current = { audio, deliver };
+      kept.current = { audio, deliver, onLanded };
       report({ kind: "server" }, retryKept);
       return;
     }
@@ -321,17 +324,28 @@ export function useDictation({
     const notice = describeDictationProblem(problem, {
       canOpenSettings: isMacOS(),
     });
-    kept.current = notice.keepsRecording ? { audio, deliver } : undefined;
+    kept.current = notice.keepsRecording
+      ? { audio, deliver, onLanded }
+      : undefined;
     report(problem, retryKept);
   };
 
+  // Only from rest: a retry while another take records or lands would set
+  // the phase under it.
+  const busy = useRef(false);
   function retryKept() {
     const take = kept.current;
-    if (!take) {
+    if (!take || session.current || busy.current) {
       return;
     }
-    setPhase({ kind: "transcribing", pressed: "stop" });
-    void transcribe(take.audio, take.deliver);
+    busy.current = true;
+    setPhase({
+      kind: "transcribing",
+      pressed: take.onLanded ? "send" : "stop",
+    });
+    void transcribe(take.audio, take.deliver, take.onLanded).finally(() => {
+      busy.current = false;
+    });
   }
 
   const stopTicker = () => {
@@ -514,7 +528,16 @@ export function useDictation({
       preferences: prefs,
     } = latest.current;
     if (signedIn === false) {
-      openLogin({ instrumentOnly: true, reason: "dictation" });
+      // The sign-in dialog would take the place of a dialog this box sits
+      // in, and what was written there with it, so only the composer opens it.
+      if (surface === "composer") {
+        openLogin({ instrumentOnly: true, reason: "dictation" });
+      } else {
+        toast.info("Log in to dictate", {
+          description: `Dictation comes with an ${APP_NAME} account.`,
+          id: toastId,
+        });
+      }
       return;
     }
     const current: Session = {
@@ -553,6 +576,11 @@ export function useDictation({
       }
       return;
     }
+    if (current.ended) {
+      // Canceled while the allowance was checked: ask for nothing more.
+      giveUp();
+      return;
+    }
     kept.current = undefined;
     toast.dismiss(toastId);
     // The stream opens while the microphone does, and hears the take from
@@ -567,6 +595,11 @@ export function useDictation({
         : access;
     if (answer === "denied" || answer === "restricted") {
       giveUp({ kind: "microphone-refused" });
+      return;
+    }
+    if (current.ended) {
+      // Canceled while macOS was asked: the microphone stays closed.
+      giveUp();
       return;
     }
 

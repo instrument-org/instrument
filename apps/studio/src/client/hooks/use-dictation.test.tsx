@@ -399,6 +399,55 @@ describe("useDictation", () => {
     );
   });
 
+  it("still sends after Try Again when Send ended the take", async () => {
+    mocks.open.mockResolvedValue(fakeCapture());
+    mocks.transcribe.mockResolvedValueOnce({
+      failure: { kind: "connection" },
+      ok: false,
+    });
+    const sent = vi.fn();
+    const { result } = setup();
+    await startRecording(result);
+
+    act(() => {
+      result.current.stop({ onLanded: sent });
+    });
+    await waitFor(() => {
+      expect(mocks.toast.error).toHaveBeenCalled();
+    });
+    expect(sent).not.toHaveBeenCalled();
+    act(() => {
+      toastOptions(mocks.toast.error.mock.calls[0]).action.onClick();
+    });
+    await waitFor(() => {
+      expect(sent).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("opens no microphone for a start canceled while it was checking", async () => {
+    let allow: (value: { exhausted: boolean }) => void = () => undefined;
+    mocks.allowance.mockReturnValueOnce(
+      new Promise((resolve) => {
+        allow = resolve;
+      }),
+    );
+    const { result } = setup();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    act(() => {
+      result.current.start();
+    });
+    act(() => {
+      result.current.cancel();
+    });
+    await act(async () => {
+      allow({ exhausted: false });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.open).not.toHaveBeenCalled();
+    expect(result.current.phase.kind).toBe("idle");
+  });
+
   it("keeps the take when the allowance runs out mid-day", async () => {
     mocks.open.mockResolvedValue(fakeCapture());
     mocks.transcribe.mockResolvedValueOnce({

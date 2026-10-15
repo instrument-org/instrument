@@ -2,13 +2,17 @@
 // reads or writes it: the composer that marks words a person dictated, the
 // transcript and lists that show them as plain words, and the workspace that
 // tells the model they were spoken. The composer writes `[words](dictated:)`.
-const DICTATED_PATTERN = /\[([^\]\n]+)\]\(dictated:\)/g;
+// A `]` or `\` in the words is escaped with a `\`, so the label holds any
+// text the person dictated or edited into it.
+const DICTATED_PATTERN = /\[((?:\\.|[^\]\\\n])+)\]\(dictated:\)/g;
+
+const unescape = (label: string) => label.replaceAll(/\\(.)/g, "$1");
 
 export type DictatedTextSegment = { dictated: boolean; text: string };
 
-/** The wire form of words someone dictated. A `]` in them would end the label, so it is left out. */
+/** The wire form of words someone dictated. */
 export function dictatedToken(text: string) {
-  return `[${text.replaceAll("]", "")}](dictated:)`;
+  return `[${text.replaceAll(/[\\\]]/g, "\\$&")}](dictated:)`;
 }
 
 /** A line split into dictated and typed runs, in order, for the composer to mark. */
@@ -19,7 +23,7 @@ export function splitDictatedText(line: string): DictatedTextSegment[] {
     if (match.index > last) {
       segments.push({ dictated: false, text: line.slice(last, match.index) });
     }
-    segments.push({ dictated: true, text: match[1] ?? "" });
+    segments.push({ dictated: true, text: unescape(match[1] ?? "") });
     last = match.index + match[0].length;
   }
   if (last < line.length) {
@@ -30,7 +34,9 @@ export function splitDictatedText(line: string): DictatedTextSegment[] {
 
 /** The words as a person reads them: each dictated run as its plain words. */
 export function stripDictatedMarks(text: string) {
-  return text.replaceAll(DICTATED_PATTERN, "$1");
+  return text.replaceAll(DICTATED_PATTERN, (_, label: string) =>
+    unescape(label),
+  );
 }
 
 /**
@@ -39,5 +45,8 @@ export function stripDictatedMarks(text: string) {
  * word that makes no sense there may be one that sounds like it.
  */
 export function renderDictatedForModel(text: string) {
-  return text.replaceAll(DICTATED_PATTERN, "<dictated>$1</dictated>");
+  return text.replaceAll(
+    DICTATED_PATTERN,
+    (_, label: string) => `<dictated>${unescape(label)}</dictated>`,
+  );
 }

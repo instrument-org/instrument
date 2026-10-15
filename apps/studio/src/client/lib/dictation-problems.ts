@@ -117,6 +117,7 @@ export function describeDictationProblem(
       return canOpenSettings
         ? {
             action: "open-settings",
+            // oxlint-disable-next-line studio/no-os-words -- only on macOS (`canOpenSettings`)
             description: `You can let ${APP_NAME} use the microphone in System Settings.`,
             keepsRecording: false,
             title: "Couldn't use the microphone",

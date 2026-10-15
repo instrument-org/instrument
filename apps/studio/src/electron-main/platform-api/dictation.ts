@@ -33,14 +33,19 @@ const ErrorSchema = z.object({
 
 /**
  * What the last answer said about today's allowance: seconds left, and when
- * it comes back once there are none. Held in memory only, so a press of the
- * mic can be told before recording that there is nothing left to spend.
+ * it comes back once there are none, for the session it was said to. Held in
+ * memory only, so a press of the mic can be told before recording that there
+ * is nothing left to spend, and another account signing in starts fresh.
  */
-let lastAllowance: { remainingSeconds?: number; resetsAt?: string } = {};
+let lastAllowance: {
+  remainingSeconds?: number;
+  resetsAt?: string;
+  token?: null | string;
+} = {};
 
 /** Keeps that today's dictation is used up until `resetsAt`. */
 export function noteDictationUsedUp(resetsAt: string | undefined) {
-  lastAllowance = { remainingSeconds: 0, resetsAt };
+  lastAllowance = { remainingSeconds: 0, resetsAt, token: getToken() };
 }
 
 function remainingSecondsOf(response: Response): number | undefined {
@@ -58,7 +63,10 @@ export function dictationAllowance(now = Date.now()): {
   exhausted: boolean;
   resetsAt?: string;
 } {
-  const { remainingSeconds, resetsAt } = lastAllowance;
+  const { remainingSeconds, resetsAt, token } = lastAllowance;
+  if (token !== getToken()) {
+    return { exhausted: false };
+  }
   const resets = resetsAt === undefined ? Number.NaN : Date.parse(resetsAt);
   const exhausted =
     remainingSeconds !== undefined &&
@@ -158,13 +166,14 @@ export async function transcribeDictation({
       lastAllowance = {
         remainingSeconds: remainingSeconds ?? 0,
         resetsAt: failure.resetsAt,
+        token: getToken(),
       };
       return failed({ ...failure, remainingSeconds: remainingSeconds ?? 0 });
     }
     return failed(failure);
   }
   if (remainingSeconds !== undefined) {
-    lastAllowance = { remainingSeconds };
+    lastAllowance = { remainingSeconds, token: getToken() };
   }
 
   let json: unknown;

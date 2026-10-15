@@ -11,6 +11,38 @@ vi.mock("./child-tasks-query", () => ({
   useChatTasks: () => ({ data: [] }),
 }));
 
+/** The jobs the chat left running in the test running. */
+const jobs = vi.hoisted(() => ({ running: [] as unknown[] }));
+
+vi.mock("@/client/hooks/use-task-background-processes", () => ({
+  useTaskBackgroundProcesses: () => jobs.running,
+}));
+
+const { stopAllJobs } = vi.hoisted(() => ({ stopAllJobs: vi.fn() }));
+
+vi.mock("@/client/hooks/use-stop-background-process", () => ({
+  useStopBackgroundProcess: () => ({
+    busy: false,
+    stop: vi.fn(),
+    stopAll: stopAllJobs,
+  }),
+}));
+
+// The command's highlighting reads the theme, which is beside the point here.
+vi.mock("@/client/components/message-part/bash-command-section", () => ({
+  BashCommandPreview: ({ command }: { command: string }) => (
+    <code>{command}</code>
+  ),
+}));
+
+const JOB = (id: string, explanation: string) => ({
+  command: `npx serve -l 4173 ${id}`,
+  explanation,
+  id,
+  sessionId: "ses_chat",
+  startedAt: new Date(Date.now() - 90_000),
+});
+
 const { stopSessions } = vi.hoisted(() => ({
   stopSessions:
     vi.fn<(input: { id: string; sessionId?: string }) => Promise<void>>(),
@@ -27,6 +59,8 @@ vi.mock("@/client/rpc/client", () => ({
 }));
 
 beforeEach(() => {
+  jobs.running = [];
+  stopAllJobs.mockReset();
   stopSessions.mockReset();
   stopSessions.mockResolvedValue(undefined);
 });
@@ -60,6 +94,35 @@ describe("ChatStatusLine", () => {
     await expect.element(page.getByText("Done")).toBeVisible();
     await expect
       .element(page.getByRole("button", { name: "Stop" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("says how many jobs are still running once the work is done", async () => {
+    jobs.running = [
+      JOB("bg_1", "Serving the comparison page"),
+      JOB("bg_2", "Checking Intercom's pricing every hour"),
+    ];
+    await renderInBrowser(
+      <ChatStatusLine chat={chat("idle")} onOpenTask={vi.fn()} />,
+    );
+    await expect.element(page.getByText("Done")).toBeVisible();
+    await expect.element(page.getByText("2 jobs running")).toBeVisible();
+    await userEvent.click(page.getByText("2 jobs running"));
+    await expect
+      .element(page.getByText("Serving the comparison page"))
+      .toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Stop all" }));
+    expect(stopAllJobs).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the line to the work while the chat works", async () => {
+    jobs.running = [JOB("bg_1", "Serving the comparison page")];
+    await renderInBrowser(
+      <ChatStatusLine chat={chat("working")} onOpenTask={vi.fn()} />,
+    );
+    await expect.element(page.getByText("Reading the fares")).toBeVisible();
+    await expect
+      .element(page.getByText("1 job running"))
       .not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { useTaskBackgroundProcesses } from "@/client/hooks/use-task-background-processes";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
@@ -47,10 +48,13 @@ const DONE = "Done";
  * chat's own work is done, so the line stays once work is done. Nothing
  * once the user stopped the chat's turn, or the user or the chat stopped
  * that task. Only labels of work and task names are said here, never the
- * agent's own words. While anything runs, its dot turns into a Stop when
- * pointed at, which ends the chat's turn and every task's. Pressed anywhere
- * else, it lists the chat's tasks; with no task filed it is only a line.
- * Nothing at all in a chat that has only talked.
+ * agent's own words. Once nothing is at work or waiting, it adds how many
+ * jobs the chat and its tasks left running after a middle dot, still and in
+ * muted gray, since a job running is not the agent at work. While anything
+ * runs, its dot turns into a Stop when pointed at, which ends the chat's turn
+ * and every task's. Pressed anywhere else, it lists the chat's tasks and
+ * jobs; with neither it is only a line. Nothing at all in a chat that has
+ * only talked and left nothing running.
  */
 export function ChatStatusLine({
   chat,
@@ -61,51 +65,70 @@ export function ChatStatusLine({
   onOpenTask: (sessionId: StoreId.Session) => void;
 }) {
   const listed = useChatTasks(chat.id).data;
+  const jobs = useTaskBackgroundProcesses(chat.id).length;
   const line = statusLine({ chat, listed });
-  if (!line) {
+  // What the chat left running is said once nothing is at work or waiting
+  // on the user, whose step or question has the line until then.
+  const jobsLine =
+    jobs > 0 && line?.tone !== "run" && line?.tone !== "wait"
+      ? jobsRunning(jobs)
+      : undefined;
+  if (!line && !jobsLine) {
     return null;
   }
   const text = (
-    <span
-      className={cn(
-        "min-w-0 truncate",
-        line.tone === "run" && "brand-shiny-text",
-        line.tone === "wait" && "text-foreground/80",
-        line.tone === "failed" && "text-error-700 dark:text-error-300",
-        (line.tone === "done" || line.tone === "stopped") &&
-          "text-muted-foreground",
+    <>
+      {line && (
+        <span
+          className={cn(
+            "min-w-0 truncate",
+            line.tone === "run" && "brand-shiny-text",
+            line.tone === "wait" && "text-foreground/80",
+            line.tone === "failed" && "text-error-700 dark:text-error-300",
+            (line.tone === "done" || line.tone === "stopped") &&
+              "text-muted-foreground",
+          )}
+        >
+          {line.text}
+        </span>
       )}
-    >
-      {line.text}
-    </span>
+      {line && jobsLine && (
+        <span aria-hidden className="shrink-0 text-muted-foreground/60">
+          ·
+        </span>
+      )}
+      {jobsLine && (
+        <span className="shrink-0 text-muted-foreground">{jobsLine}</span>
+      )}
+    </>
   );
   // While anything runs, the mark is also the chat's Stop: pointing at the
   // line puts a stop in the dot's place, and the rest of the line still
   // lists the tasks.
-  const mark =
-    line.tone === "run" ? (
-      <StopChatButton chatId={chat.id} />
-    ) : (
-      <StatusMark tone={line.tone} />
-    );
+  const mark = !line ? null : line.tone === "run" ? (
+    <StopChatButton chatId={chat.id} />
+  ) : (
+    <StatusMark tone={line.tone} />
+  );
+  const opens = Boolean(listed?.length) || jobs > 0;
   return (
     <div
       aria-live="polite"
       className={cn(
         "group/line flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5",
-        (listed?.length || line.tone === "run") &&
+        (opens || line?.tone === "run") &&
           "hover:bg-accent has-data-[state=open]:bg-accent",
       )}
     >
       {mark}
-      {listed?.length ? (
+      {opens ? (
         <ChatTasksPopover
           align="center"
           chatId={chat.id}
           onOpen={onOpenTask}
           tasks={chat.runningTasks}
           trigger={
-            <button className="flex min-w-0" type="button">
+            <button className="flex min-w-0 items-center gap-1.5" type="button">
               {text}
             </button>
           }
@@ -115,6 +138,11 @@ export function ChatStatusLine({
       )}
     </div>
   );
+}
+
+/** How many jobs the chat and its tasks left running, said after the line's state. */
+function jobsRunning(count: number) {
+  return `${count} ${count === 1 ? "job" : "jobs"} running`;
 }
 
 /**

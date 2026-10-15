@@ -31,6 +31,10 @@ vi.mock("./child-tasks-query", () => ({
   useChatTasks: () => ({ data: listed.tasks }),
 }));
 
+vi.mock("@/client/hooks/use-task-background-processes", () => ({
+  useTaskBackgroundProcesses: () => [],
+}));
+
 const { stopSessions } = vi.hoisted(() => ({
   stopSessions:
     vi.fn<(input: { id: string; sessionId?: string }) => Promise<void>>(),

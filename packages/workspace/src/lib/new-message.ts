@@ -22,7 +22,7 @@ import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { chatDir, resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
-import { grantFile, grantFolder } from "./chat/grants";
+import { grantFile } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
@@ -156,10 +156,6 @@ export async function newMessage({
       },
       type: "data-reply",
     });
-  }
-
-  for (const folder of folders ?? []) {
-    await grantFolder({ chatId, path: folder.path, source: "attached" });
   }
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {

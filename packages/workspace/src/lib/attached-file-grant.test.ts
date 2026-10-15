@@ -119,6 +119,46 @@ describe("sending a file from the disk", () => {
     // Closed before the folder goes: Windows removes no file held open.
     await disposeSessionsStoreStorage(chatId);
   });
+
+  // A folder is a scope rather than a document: sending one says where the
+  // work is, not that everything in it may be read. The agent asks the first
+  // time it reaches in, and the person answers on a card. A file is the
+  // opposite -- sending it is handing it over -- which is the case above.
+  it("grants nothing for a folder the person sends", async () => {
+    const chatId = ChatIdSchema.parse(`attached-folder-${++chatCount}`);
+    createMockChatConfigForDir(path.join(root, "tasks", chatId), {
+      unplaced: true,
+    });
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      chatsDir: AbsolutePathSchema.parse(path.join(root, "workspace", "chats")),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+      workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
+    });
+    await initializeTestChat({ chatId, initialSettings: {} });
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("expected the chat's session");
+    }
+
+    const sent = await newMessage({
+      chatId,
+      folders: [{ path: AbsolutePathSchema.parse(closed) }],
+      modelURI: AIGatewayModelURI.Schema.parse(
+        "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
+      ),
+      prompt: "Have a look in here.",
+      sessionId,
+    });
+
+    expect(sent.isOk()).toBe(true);
+    expect(await chatGrants(chatId)).toEqual([]);
+    // Still Not allowed, so the first reach raises a card rather than reading.
+    expect(reachOf(rulesWith([]), path.join(closed, "taxes.md"), "read").level).toBe(
+      "never",
+    );
+    await disposeSessionsStoreStorage(chatId);
+  });
 });
 
 describe("a file granted to a chat, in the shell", () => {

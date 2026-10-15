@@ -44,6 +44,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `df` | uutils | uutils | uutils | uutils coreutils |  |
 | `diff` | system | system | builtin | system |  |
 | `factor` | uutils | uutils | uutils | uutils coreutils |  |
+| `file` | system | system | builtin | system |  |
 | `find` | uutils | uutils | uutils | uutils findutils |  |
 | `fmt` | uutils | uutils | uutils | uutils coreutils |  |
 | `grep` | uutils | uutils | uutils | uutils grep |  |
@@ -76,6 +77,8 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 Most of the table replaces a builtin. The rest fills gaps: `arch`, `b2sum`, `base32`, `basenc`, `cksum`, `df`, `factor`, `fmt`, `id`, `nproc`, `pr`, `sha224sum`, `sha384sum`, `sha512sum`, `tsort` and `uname` are commands just-bash does not have, which would otherwise reach the PATH: the BSD versions on macOS, with their own flags, and on Windows usually nothing. Only the ones that print are routed. The coreutils that change the system or act on other processes (`shred`, `chown`, `chgrp`, `chroot`, `mknod`, `mkfifo`, `stty`, `install`, `link`, `unlink`, `sync`, `nice`, `nohup`, `timeout`, `kill`) and the ones that report on the computer's users (`who`, `users`, `pinky`, `uptime`, `hostid`, `logname`) stay with the PATH. `id` falls to the PATH on Windows, since uutils does not build it there.
 
 `diff` runs the system's: BSD diff on macOS answers 9 of the corpus's 11 diff cases against GNU, where the builtin answers 5 and uutils diffutils 3, and Linux carries GNU diff itself. The two BSD misses are `-u` and `-ru`, whose file headers print the time without GNU's nanoseconds and zone. Re-scored through the agent's shell after routing, it still answers 9 of 11.
+
+`file` runs the system's too, which macOS and Linux both carry; it is the same program on both, so there is no corpus score, and the comparison is against what it reports. Over 27 files of common types the builtin named 3 wrong (64 random bytes as UTF-8 text, UTF-8 text as ASCII, an SVG as XML), went by the extension for CSV and Markdown, and gave no image size, page count or architecture, which the system's does. In 33 real `file` calls the builtin's failures were not wrong answers: five were a `process.env` error the env-write patch since fixed, two an old stub's "file is not available", and two files that really were missing; where it ran, it named every PNG, JPEG, PDF and text file right.
 
 On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the uutils-build patch reads: the paths they walk come back joined with `/`, as the shell spells them, and `-path` and `-prune` patterns written with `/` match (uutils/findutils#907, uutils/grep#143). `stat` stays the builtin there, since uutils does not build it for Windows. `xargs` runs natively there with a folder of hard links to the coreutils binary first on its PATH (`echo.exe`, `printf.exe`, `basename.exe`; not `expand`, `hostname`, `more`, `timeout` or `whoami`, which System32 also has), since what it starts is a program on the PATH and Windows has none of those.
 

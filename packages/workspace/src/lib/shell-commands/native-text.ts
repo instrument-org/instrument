@@ -201,6 +201,15 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     platforms: UNIX,
     system: { darwin: () => ["/usr/bin/diff"], linux: () => linuxBin("diff") },
   },
+  // The computer's own file reads the magic numbers, where the builtin goes
+  // by a few signatures and the extension: it calls random bytes UTF-8 text
+  // and UTF-8 text ASCII, and names no image size or page count.
+  {
+    binary: "system",
+    name: "file",
+    platforms: UNIX,
+    system: { darwin: () => ["/usr/bin/file"], linux: () => linuxBin("file") },
+  },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
   { binary: "grep", name: "grep", walks: grepWalks },

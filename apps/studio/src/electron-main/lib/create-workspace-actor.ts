@@ -25,6 +25,7 @@ import {
   closeAllAgentBrowserSessions,
   type DeviceId,
   ensurePythonBase,
+  giveChatsTheirFolders,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -115,6 +116,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
   await convertChatDatabases(deviceId, rootDir);
+  // Once every chat is on its records, each gets the folder a person opens,
+  // written from them.
+  await writeChatFolders(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -466,6 +470,34 @@ async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
       logger.warn(
         `Chat records: left ${where} on its database and will try again next launch: ${reason}`,
       );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
+/**
+ * Give every chat the folder a person opens, `Chats/<title>/`, with its
+ * transcript written from its records. Runs after the converter, so a chat
+ * whose conversation was still in a database has records to write from.
+ * Idempotent: a chat whose folder and transcript are already what its
+ * records say is left alone, so this costs a launch a listing of the folder.
+ * A failure must not block boot.
+ */
+async function writeChatFolders(rootDir: string) {
+  try {
+    const startedAt = performance.now();
+    const swept = await giveChatsTheirFolders(rootDir);
+    logger.info(
+      `Chat folders: wrote ${swept.counts.written} and found ${swept.counts["already-there"]} already there, in ${Math.round(performance.now() - startedAt)}ms`,
+    );
+    for (const chat of swept.chats) {
+      if (chat.kind === "failed") {
+        logger.warn(`Chat folders: ${chat.id} has none: ${chat.error}`);
+      }
     }
   } catch (error) {
     captureServerException(

@@ -105,6 +105,8 @@ export {
   convertWorkspaceChats,
   type WorkspaceConversion,
 } from "./lib/records/convert/convert-chat";
+export { giveChatsTheirFolders } from "./lib/chat-folders/boot";
+export { type ChatFoldersSwept } from "./lib/chat-folders/sweep";
 export { chatRecords } from "./lib/records/chat-records";
 export { StoreRecords } from "./lib/store-records";
 export {

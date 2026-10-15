@@ -1,5 +1,6 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { ORPCError } from "@orpc/client";
 
 type Offer = RPCOutput["billing"]["offer"];
 type OfferPlan = Offer["plans"][number];
@@ -128,22 +129,85 @@ export function subscriptionEndsAt(status: Status | undefined) {
 }
 
 /**
+ * A downgrade waiting for the end of the period: when it happens, and the
+ * plan it moves to, by the offer's name for it.
+ */
+export function scheduledPlanChange(
+  status: Status | undefined,
+  offer: Offer | undefined,
+) {
+  const change = status?.subscription?.scheduledChange;
+  if (!change) {
+    return undefined;
+  }
+  return {
+    at: new Date(change.at),
+    key: change.plan,
+    name:
+      offer?.plans.find((plan) => plan.key === change.plan)?.name ??
+      change.plan,
+  };
+}
+
+/**
+ * Whether `plan` costs less than the one this account pays for, which the
+ * API holds until the period ends rather than applying now.
+ */
+export function isDowngrade(
+  plan: OfferPlan,
+  status: Status | undefined,
+  offer: Offer | undefined,
+) {
+  const from = subscribedPlan(status, offer)?.price?.unitAmount;
+  const to = plan.price?.unitAmount;
+  return typeof from === "number" && typeof to === "number" && to < from;
+}
+
+/**
+ * The `data.code` a platform refusal carries (`cancel-scheduled`, say), when
+ * the error is one.
+ */
+export function platformRefusalCode(error: unknown) {
+  if (!(error instanceof ORPCError)) {
+    return undefined;
+  }
+  const data: unknown = error.data;
+  return typeof data === "object" &&
+    data !== null &&
+    "code" in data &&
+    typeof data.code === "string"
+    ? data.code
+    : undefined;
+}
+
+/**
  * What a plan card's button does for this account: subscribe, switch a live
  * subscription to it, start the trial on it, or nothing, on the plan they are
- * on.
+ * on. While a downgrade waits, the plan they are on offers to keep it, and
+ * the plan it moves to offers nothing.
  */
-export type PlanCardAction = "current" | "subscribe" | "switch" | "trial";
+export type PlanCardAction =
+  | "current"
+  | "keep"
+  | "scheduled"
+  | "subscribe"
+  | "switch"
+  | "trial";
 
 export function planCardAction(
   plan: OfferPlan,
   status: Status | undefined,
   { trial = false }: { trial?: boolean } = {},
 ): PlanCardAction {
+  const scheduled = status?.subscription?.scheduledChange?.plan;
   if (
     status?.subscription &&
     (status.subscription.plan ?? status.plan) === plan.key
   ) {
-    return "current";
+    return scheduled ? "keep" : "current";
+  }
+  if (scheduled === plan.key) {
+    return "scheduled";
   }
   if (status?.subscription && !status.canSubscribe) {
     return "switch";

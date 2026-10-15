@@ -113,6 +113,11 @@ function RouteComponent() {
                     "subscription.currentPeriodEnd",
                     status.data.subscription?.currentPeriodEnd,
                   ],
+                  [
+                    "subscription.scheduledChange",
+                    status.data.subscription?.scheduledChange &&
+                      `${status.data.subscription.scheduledChange.plan} at ${status.data.subscription.scheduledChange.at}`,
+                  ],
                 ]}
               />
               <Table

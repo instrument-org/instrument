@@ -1,35 +1,56 @@
-import { type RPCOutput } from "@/client/rpc/client";
+import { planSheetAtom } from "@/client/atoms/plan-sheet";
+import { type RPCInput, type RPCOutput } from "@/client/rpc/client";
 import { renderWithProviders } from "@/tests/render";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
+import { ORPCError } from "@orpc/client";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountSection } from "../settings/account-section";
 import { ChatBillingNotice } from "./chat-billing-notice";
+import { PlanSheet } from "./plan-sheet";
 
+type ChangePlan = RPCOutput["billing"]["changePlan"];
 type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
 // What the mocked platform answers, set per test.
-const { mutation, platform, query } = vi.hoisted(() => {
+const { mutation, platform, query, toastError } = vi.hoisted(() => {
   const answers: {
+    changePlan: (input: RPCInput["billing"]["changePlan"]) => Promise<unknown>;
     offer: unknown;
     signedIn: boolean;
     status: unknown;
-  } = { offer: null, signedIn: true, status: null };
+  } = {
+    changePlan: () => Promise.resolve(null),
+    offer: null,
+    signedIn: true,
+    status: null,
+  };
   return {
-    mutation: () => (options?: object) => ({
-      mutationFn: () => Promise.resolve({ url: "" }),
-      ...options,
-    }),
+    mutation:
+      (
+        answer: (input: never) => Promise<unknown> = () =>
+          Promise.resolve({ url: "" }),
+      ) =>
+      (options?: object) => ({
+        mutationFn: answer,
+        ...options,
+      }),
     platform: answers,
     query: (key: string, read: () => unknown) => (options?: object) => ({
       queryFn: () => Promise.resolve(read()),
       queryKey: [key],
       ...options,
     }),
+    toastError: vi.fn(),
   };
 });
+
+vi.mock("@/client/lib/toast", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  toast: { error: toastError },
+}));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
@@ -41,7 +62,11 @@ vi.mock("@/client/rpc/client", () => ({
       },
     },
     billing: {
-      changePlan: { mutationOptions: mutation() },
+      changePlan: {
+        mutationOptions: mutation((input: RPCInput["billing"]["changePlan"]) =>
+          platform.changePlan(input),
+        ),
+      },
       offer: { queryOptions: query("offer", () => platform.offer) },
       openCheckout: { mutationOptions: mutation() },
       openPortal: { mutationOptions: mutation() },
@@ -112,7 +137,26 @@ const onBasic = (
   windows: [{ key: "5h", percentUsed: percent, resetsAt: SOON }],
 });
 
+// Pro, with a downgrade to Basic waiting for the end of the period.
+const onProSwitchingToBasic = (): Status => ({
+  ...onBasic({
+    plan: "pro",
+    scheduledChange: { at: NEXT_MONTH, plan: "basic" },
+  }),
+  plan: "pro",
+});
+
+const periodEnd = new Date(NEXT_MONTH).toLocaleDateString("en-US", {
+  day: "numeric",
+  month: "long",
+  ...(new Date(NEXT_MONTH).getFullYear() === new Date().getFullYear()
+    ? {}
+    : { year: "numeric" }),
+});
+
 beforeEach(() => {
+  platform.changePlan = () => Promise.resolve(null);
+  toastError.mockClear();
   platform.offer = OFFER;
   platform.signedIn = true;
   platform.status = null;
@@ -175,6 +219,28 @@ describe("Settings > Account", () => {
     }
   });
 
+  it("says when a scheduled downgrade starts, and keeps the plan on request", async () => {
+    platform.status = onProSwitchingToBasic();
+    const changePlan = vi.fn(() =>
+      Promise.resolve({ plan: "pro", status: "applied" } satisfies ChangePlan),
+    );
+    platform.changePlan = changePlan;
+    renderWithProviders(<AccountSection />);
+
+    expect(
+      await screen.findByText(
+        `Switches to Basic on ${periodEnd}. You keep Pro until then.`,
+      ),
+    ).toBeDefined();
+    expect(screen.getByText(/Pro · \$40 a month/)).toBeDefined();
+    expect(screen.queryByText("Change plan")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep my plan" }));
+    await vi.waitFor(() => {
+      expect(changePlan).toHaveBeenCalledWith({ plan: "pro" });
+    });
+  });
+
   it("offers only a way to log in while logged out", async () => {
     platform.signedIn = false;
     renderWithProviders(<AccountSection />);
@@ -215,6 +281,112 @@ describe("Settings > Account", () => {
     expect(screen.queryByText("Change plan")).toBeNull();
     expect(screen.queryByText("Choose a plan")).toBeNull();
     expect(screen.queryByText("Keep my plan")).toBeNull();
+  });
+});
+
+describe("the plan sheet", () => {
+  const openSheet = async (status: Status) => {
+    platform.status = status;
+    const { store } = renderWithProviders(<PlanSheet />);
+    act(() => {
+      store.set(planSheetAtom, {});
+    });
+    await screen.findByText("Change your plan");
+  };
+  const card = async (plan: string) => {
+    await vi.waitFor(() => {
+      expect(document.querySelector(`[data-plan-card="${plan}"]`)).not.toBe(
+        null,
+      );
+    });
+    const element = document.querySelector<HTMLElement>(
+      `[data-plan-card="${plan}"]`,
+    );
+    return within(element ?? document.body);
+  };
+
+  it("says a smaller plan starts when the period ends, before it is chosen", async () => {
+    await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
+
+    expect(
+      screen.getByText(
+        `A smaller plan starts on ${periodEnd}, and you keep Pro until then.`,
+      ),
+    ).toBeDefined();
+    const basic = await card("basic");
+    expect(basic.getByText(`Starts ${periodEnd}`)).toBeDefined();
+    expect(
+      basic.getByRole("button", { name: "Switch to Basic" }),
+    ).toBeDefined();
+  });
+
+  it("says when a scheduled downgrade starts once it is chosen", async () => {
+    await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
+    platform.changePlan = () =>
+      Promise.resolve({
+        effectiveAt: NEXT_MONTH,
+        plan: "pro",
+        status: "scheduled",
+      } satisfies ChangePlan);
+
+    fireEvent.click(
+      (await card("basic")).getByRole("button", { name: "Switch to Basic" }),
+    );
+
+    expect(
+      await screen.findByText(`Switching to Basic on ${periodEnd}`),
+    ).toBeDefined();
+    expect(
+      screen.getByText("You keep Pro and its limits until then."),
+    ).toBeDefined();
+  });
+
+  it("offers to keep the plan while a downgrade waits", async () => {
+    const changePlan = vi.fn(() =>
+      Promise.resolve({ plan: "pro", status: "applied" } satisfies ChangePlan),
+    );
+    platform.changePlan = changePlan;
+    await openSheet(onProSwitchingToBasic());
+
+    expect(
+      screen.getByText(
+        `Your plan switches to Basic on ${periodEnd}, and you keep Pro until then.`,
+      ),
+    ).toBeDefined();
+    const basic = await card("basic");
+    expect(basic.getByText(`Starts ${periodEnd}`)).toBeDefined();
+    expect(basic.queryByRole("button")).toBeNull();
+    const pro = await card("pro");
+    expect(pro.getByText(`Until ${periodEnd}`)).toBeDefined();
+
+    fireEvent.click(pro.getByRole("button", { name: "Keep Pro" }));
+    await vi.waitFor(() => {
+      expect(changePlan).toHaveBeenCalledWith({ plan: "pro" });
+    });
+  });
+
+  it("says why a plan set to end can't switch, with the way to resume it", async () => {
+    const message =
+      "Your plan is set to end. Resume it in billing settings to switch plans.";
+    platform.changePlan = () =>
+      Promise.reject(
+        new ORPCError("CONFLICT", {
+          data: { code: "cancel-scheduled" },
+          message,
+        }),
+      );
+    await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
+
+    fireEvent.click(
+      (await card("basic")).getByRole("button", { name: "Switch to Basic" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("Couldn't change your plan", {
+        action: { label: "Manage billing", onClick: expect.any(Function) },
+        description: message,
+      });
+    });
   });
 });
 

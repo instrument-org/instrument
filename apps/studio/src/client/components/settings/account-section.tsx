@@ -16,6 +16,7 @@ import {
   formatPriceInWords,
   hasPaymentFailed,
   isAccessRevoked,
+  scheduledPlanChange,
   subscribedPlan,
   subscriptionEndsAt,
   windowLabel,
@@ -33,9 +34,10 @@ type Status = RPCOutput["billing"]["status"];
 /**
  * Settings > Account: who is logged in, then the plan and how it is paid,
  * then how much of its limits is used, as percentages and reset times.
- * Changing the plan opens the plan sheet; the card, invoices, and canceling
- * are Stripe's portal. A ChatGPT or Claude account is a provider, so it lives
- * in Providers, not here.
+ * Changing the plan opens the plan sheet, and keeping it while a downgrade
+ * waits drops that downgrade; the card, invoices, and canceling are Stripe's
+ * portal. A ChatGPT or Claude account is a provider, so it lives in
+ * Providers, not here.
  */
 export function AccountSection() {
   const { isSignedIn } = useBillingStatus();
@@ -107,8 +109,23 @@ function PlanGroup({ status }: { status: Status }) {
   const openPortal = () => {
     portal.mutate(undefined);
   };
+  const { refetch } = useBillingStatus();
+  // Choosing the plan they are on again drops the downgrade waiting on it.
+  const keepPlan = useMutation(
+    rpcClient.billing.changePlan.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't keep your plan", {
+          description: error.message,
+        });
+      },
+      onSettled: () => {
+        void refetch();
+      },
+    }),
+  );
   const now = new Date();
   const plan = subscribedPlan(status, offer);
+  const change = scheduledPlanChange(status, offer);
   const subscription = status.subscription;
   // The plan settles in when a change made in Stripe's portal or Checkout
   // lands as the window takes focus.
@@ -116,6 +133,7 @@ function PlanGroup({ status }: { status: Status }) {
     status.plan,
     subscription?.status,
     subscriptionEndsAt(status)?.toISOString(),
+    subscription?.scheduledChange?.plan,
   ].join(" ");
 
   if (isAccessRevoked(status)) {
@@ -196,9 +214,11 @@ function PlanGroup({ status }: { status: Status }) {
                   ? "Payment overdue"
                   : endsAt
                     ? `Ends ${describeDate(endsAt, now)}`
-                    : renewsAt
-                      ? `Renews ${describeDate(renewsAt, now)}`
-                      : undefined
+                    : change
+                      ? `Switches to ${change.name} on ${describeDate(change.at, now)}. You keep ${plan?.name ?? "this plan"} until then.`
+                      : renewsAt
+                        ? `Renews ${describeDate(renewsAt, now)}`
+                        : undefined
               }
               // Status names no plan while a payment is owed, since none is in
               // effect; the row then says only that there is a subscription.
@@ -212,6 +232,16 @@ function PlanGroup({ status }: { status: Status }) {
                 <Button
                   disabled={portal.isPending}
                   onClick={openPortal}
+                  size="sm"
+                >
+                  Keep my plan
+                </Button>
+              ) : change && plan ? (
+                <Button
+                  disabled={keepPlan.isPending}
+                  onClick={() => {
+                    keepPlan.mutate({ plan: plan.key });
+                  }}
                   size="sm"
                 >
                   Keep my plan

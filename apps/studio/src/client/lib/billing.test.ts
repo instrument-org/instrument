@@ -352,6 +352,22 @@ describe("planCardAction", () => {
       plan: plus,
       status: onPlan("basic"),
     },
+    {
+      expected: "keep",
+      name: "the plan they are on while a downgrade waits",
+      plan: plus,
+      status: onPlan("pro", {
+        scheduledChange: { at: NOW.toISOString(), plan: "basic" },
+      }),
+    },
+    {
+      expected: "scheduled",
+      name: "the plan a waiting downgrade moves to",
+      plan: standard,
+      status: onPlan("pro", {
+        scheduledChange: { at: NOW.toISOString(), plan: "basic" },
+      }),
+    },
   ])("$name: $expected", ({ expected, plan, status, trial }) => {
     expect(plan && planCardAction(plan, status, { trial })).toBe(expected);
   });

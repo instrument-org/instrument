@@ -29,6 +29,13 @@ const BillingStatusSchema = z.object({
        * fails and the subscription no longer entitles.
        */
       plan: z.string().optional(),
+      /**
+       * A downgrade waiting for the period's end: the plan it moves to and
+       * when. Until then `plan` stays the one paid for now.
+       */
+      scheduledChange: z
+        .object({ at: z.string(), plan: z.string() })
+        .optional(),
       status: z.string(),
     })
     .optional(),
@@ -95,16 +102,24 @@ const BillingOfferSchema = z.object({
 export const contract = {
   billing: {
     /**
-     * Moves a live subscription to another offered plan, charging the
-     * difference now; the new limits apply once that payment succeeds.
+     * Moves a live subscription to another offered plan. An upgrade charges
+     * the difference now, and its limits apply once that payment succeeds
+     * (`pending` until then). A downgrade is `scheduled` for the period's end
+     * (`effectiveAt`), with nothing credited. Choosing the current plan again
+     * drops a scheduled downgrade and answers `applied`.
      */
     changePlan: base.input(z.object({ plan: z.string() })).output(
       z.object({
+        /** When a `scheduled` change takes effect: the period's end. */
+        effectiveAt: z.string().optional(),
         /** Where the change's invoice is paid while it is pending. */
         invoiceUrl: z.string().optional(),
-        /** The plan in effect now: the old one while the change is pending. */
+        /**
+         * The plan in effect now: the old one while the change is pending or
+         * scheduled.
+         */
         plan: z.string().nullable(),
-        status: z.enum(["applied", "pending"]),
+        status: z.enum(["applied", "pending", "scheduled"]),
       }),
     ),
     createCheckout: base

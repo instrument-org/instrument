@@ -58,10 +58,12 @@ const openPortal = authenticated.handler(async () => {
 });
 
 /**
- * Moves a live subscription to another plan through the API, which charges
- * the difference with Stripe's pending updates so the higher limits wait on
- * the payment. When that payment needs the person (a card to confirm), the
- * API hands back the invoice's page, opened like Checkout.
+ * Moves a live subscription to another plan through the API. An upgrade
+ * charges the difference with Stripe's pending updates so the higher limits
+ * wait on the payment; when that payment needs the person (a card to
+ * confirm), the API hands back the invoice's page, opened like Checkout. A
+ * downgrade is scheduled for the end of the period, and choosing the current
+ * plan again drops it.
  */
 const changePlan = authenticated
   .input(z.object({ plan: z.string() }))

@@ -74,6 +74,7 @@ export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   killAllBackgroundProcesses,
+  listRunningBackgroundProcesses,
 } from "./lib/background-processes";
 export {
   type BashWorkerFactory,

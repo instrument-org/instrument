@@ -21,7 +21,10 @@ import {
   effectiveDisplayProtocol,
   resolveOzonePlatform,
 } from "@/electron-main/lib/ozone-platform";
-import { requestQuitApproval } from "@/electron-main/lib/quit";
+import {
+  quitsWithLastWindow,
+  requestQuitApproval,
+} from "@/electron-main/lib/quit";
 import { getPlatformApiReachability } from "@/electron-main/platform-api/reachability";
 import {
   clearServerExceptions,
@@ -496,12 +499,14 @@ const closeWindow = base.input(z.void()).handler(({ context }) => {
 });
 
 /**
- * Asks about running agents ahead of a quit the window is about to start, so
- * it can settle what it keeps for next launch only once the quit is certain.
- * The approval latches, so the close that follows does not ask again.
+ * Asks about running work ahead of the window closing itself, where that
+ * close is a quit, so the window can settle what it keeps for next launch
+ * only once the close is certain. The approval latches, so the close that
+ * follows does not ask again. Where the app stays running without a window,
+ * closing one stops nothing and needs no approval.
  */
-const approveQuit = base.input(z.void()).handler(async () => ({
-  approved: await requestQuitApproval(),
+const approveWindowClose = base.input(z.void()).handler(async () => ({
+  approved: quitsWithLastWindow ? await requestQuitApproval() : true,
 }));
 
 const events = {
@@ -685,7 +690,7 @@ const showFolderPicker = base
   });
 
 export const utils = {
-  approveQuit,
+  approveWindowClose,
   browserOpenTarget,
   clearExceptions,
   closeWindow,

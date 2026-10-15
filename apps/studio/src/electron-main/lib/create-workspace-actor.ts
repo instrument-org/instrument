@@ -16,7 +16,6 @@ import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-fo
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { APP_NAME } from "@instrument-org/shared";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachChats,
@@ -52,6 +51,7 @@ import { getWorkspaceFolder } from "./get-workspace-folder";
 import { workspacePrivateDir } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
+import { quitPrompt, runningJobNames } from "./quit-prompt";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { windowsDriveNames } from "./windows-drives";
@@ -223,9 +223,9 @@ export function createWorkspaceActor() {
     }
   });
 
-  // Warn before stopping in-flight agents. Fails open so a count error never
-  // blocks quitting.
-  const confirmQuitWithRunningAgents = async (): Promise<boolean> => {
+  // Warn before stopping in-flight agents and the jobs chats left running.
+  // Fails open so a count error never blocks quitting.
+  const confirmQuitWithRunningWork = async (): Promise<boolean> => {
     let count = 0;
     try {
       ({ count } = await call(
@@ -241,17 +241,19 @@ export function createWorkspaceActor() {
       return true;
     }
 
-    if (count === 0) {
+    const prompt = quitPrompt({
+      agentCount: count,
+      jobNames: runningJobNames(),
+    });
+    if (!prompt) {
       return true;
     }
 
     const options: Electron.MessageBoxOptions = {
+      ...prompt,
       buttons: ["Cancel", "Quit"],
       cancelId: 0,
       defaultId: 0,
-      detail:
-        "Active tasks will be interrupted and you may lose in-progress work.",
-      message: `Quit ${APP_NAME}?`,
       noLink: true,
       type: "warning",
     };
@@ -302,7 +304,7 @@ export function createWorkspaceActor() {
           if (is.dev && !isQuitGuardForcedInDev()) {
             return Promise.resolve(true);
           }
-          return confirmQuitWithRunningAgents();
+          return confirmQuitWithRunningWork();
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         stopServices: fromPromise(async () => {

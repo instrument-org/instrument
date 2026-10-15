@@ -198,10 +198,11 @@ export function useAppTabs() {
       closeInModel(id);
       return;
     }
-    // The last tab closing quits the app on every platform, once the person
-    // has said yes about running agents. Only then does the tab go, leaving
-    // the inbox for next launch; a canceled quit leaves the window as it was.
-    void rpcClient.utils.approveQuit.call().then(({ approved }) => {
+    // The last tab closing closes the window, which quits the app outside
+    // macOS once the person has said yes about running work. Only then does
+    // the tab go, leaving the inbox for the next window; a canceled quit
+    // leaves the window as it was.
+    void rpcClient.utils.approveWindowClose.call().then(({ approved }) => {
       if (approved) {
         closeInModel(id);
         void rpcClient.utils.closeWindow.call();

@@ -39,7 +39,7 @@ Two top-level windows, each its own `BrowserWindow` / web contents, both loaded 
 
 They share kept state (e.g. `zoomAtom`): the main process sends each window's writes to the other, so anything scoped to the app window (tab commands, its chrome) must not assume it is running in the onboarding window.
 
-Closing the last window quits the app on **every** platform, macOS included, and runs the same running-agent confirmation as Cmd+Q (`lib/quit-machine.ts`). Nothing outlives the last window; see `docs/decisions/2026-07-25-quit-when-the-last-window-closes.md`.
+Closing the last window quits the app on Windows and Linux, asking first about running work as Cmd+Q does (`lib/quit-machine.ts`). On macOS the app stays in the Dock with its work going, and the Dock icon or a notification brings a window back (`quitsWithLastWindow` in `lib/quit.ts`); see `docs/decisions/2026-10-15-stay-in-the-dock-when-the-last-window-closes.md`.
 
 ## Workspaces and stores
 

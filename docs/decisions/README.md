@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-15 | [Stay in the Dock when the last window closes, on macOS](2026-10-15-stay-in-the-dock-when-the-last-window-closes.md) |
 | 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |
 | 2026-10-12 | [Carry the just-bash command-limit and stdin-bytes fixes as a local patch until they are released](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md) |
 | 2026-10-12 | [Programs on the PATH run natively, by name, under the same rules](2026-10-12-programs-on-path-run-natively.md) |
@@ -50,7 +51,7 @@ Newest first. A struck-through entry has been superseded.
 | 2026-07-27 | [Turn context through AsyncLocalStorage](2026-07-27-turn-context-through-async-local-storage.md) |
 | 2026-07-27 | [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md) |
 | 2026-07-27 | ~~[Controls activate on press, not release](2026-07-27-controls-activate-on-press.md)~~ superseded by 2026-07-29 |
-| 2026-07-25 | [Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md) |
+| 2026-07-25 | ~~[Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md)~~ superseded by 2026-10-15 |
 | 2026-07-24 | ~~[web_fetch blocks private addresses to match the sandbox](2026-07-24-web-fetch-private-address-guard.md)~~ superseded by 2026-10-06 |
 | 2026-07-21 | [A bundled skill lives in the registry only if another agent could use it](2026-07-21-where-a-bundled-skill-lives.md) |
 | 2026-07-21 | [Git without the user's credentials](2026-07-21-git-without-user-credentials.md) |

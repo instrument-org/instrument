@@ -456,6 +456,18 @@ export function listChatBackgroundProcesses(
 }
 
 /**
+ * Every process still running in any chat, oldest first: what quitting would
+ * stop, for the prompt that asks first.
+ */
+export function listRunningBackgroundProcesses(): BackgroundProcessInfo[] {
+  return [...recordsBySession.values()]
+    .flatMap((records) => [...records.values()])
+    .filter((record) => record.status === "running")
+    .map((record) => toInfo(record))
+    .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+}
+
+/**
  * The processes of one session that ended without anyone asking them to and
  * whose ending the agent has not been told: what wakes a session that is no
  * longer working (`lib/chat/job-wake.ts`). A stop the agent, the user, or the

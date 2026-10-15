@@ -146,6 +146,8 @@ A server that never exits wakes nothing until the age cap stops it.
 
 A task page's header carries a pill beside the task's title and menu ("2 running", [`task-background-processes.tsx`](../../apps/studio/src/client/components/task/task-background-processes.tsx)), drawn only while something the agent started is still running. It opens a popover headed "Still running" that lists each command under the agent's label for it, with how long it has run and a stop for that one, plus a Stop (or Stop all) for every one, and says they end when the app quits or after two hours. The pill and the transcript both read `useTaskBackgroundProcesses`, so the transcript also marks a step whose command is still running and stops it from there; a chat's task list stops a whole task. The wording keeps the word "process" out of sight, since the audience did not ask for a server and does not know they have one.
 
+Quitting stops every one of them, so the quit asks first whenever any is running and names each by its label, or by the start of its command when the agent wrote none ([`quit-prompt.ts`](../../apps/studio/src/electron-main/lib/quit-prompt.ts)). On macOS closing the last window is not a quit: the app stays in the Dock and they keep running.
+
 One other renderer change: a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
 
 **What is still missing:** the app itself shows nothing when the two-hour cap fires; the word comes only from the agent its ending wakes. And nothing outside a task's own page counts them, so a task you are not looking at can hold a running process invisibly.

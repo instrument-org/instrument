@@ -195,7 +195,7 @@ Each worth doing when someone is in the file.
 - Two live routes hand-roll a `{ revision }` ping (`skill.ts:237`, `chat/background-processes.ts:117`), costing a refetch round trip each; make them `liveRead`.
 - `create-bash-env.ts:723-782`: command objects and their names are two hand-kept arrays, `customCommandDefs()` is called twice, the `which` set and `MAIN_THREAD_COMMANDS` are separate lists. Derive them from the definitions.
 - `PromptInput` draws `ComposerAddMenu`, `ModelPicker`, the context ring and Send twice, once per layout; `ModelPicker` is half controlled and closes twice. The composer's `isLoading` lock and the refocus workaround from d9a18c120 protect nothing since 5832bbb59 (confirm the server orders concurrent `createMessage` first).
-- `rpc/routes/utils.ts` (696 lines) holds window controls and `approveQuit` beside `routes/window.ts`; move them.
+- `rpc/routes/utils.ts` (696 lines) holds window controls and `approveWindowClose` beside `routes/window.ts`; move them.
 - Draft teardown lives in three places (`app-window.tsx:324-343`, `use-drafts.ts:205-229`); one `forgetDraft(id)`.
 - Bookmarks' `BookmarkNameField` can adopt `useInlineRename`; rename is otherwise down to the hook and the Finder's `renameStep`, which stays separate.
 - Beta `chats/<id>/tasks/` folders are special-cased in `workspace-fs-layout.ts:700-712`, `resolve-agent-path.ts:263` and `rg.ts:228`; a layout step moving them into `.pre-chats/` drops all three. `isProjectFolder` is defined twice in the migrations.

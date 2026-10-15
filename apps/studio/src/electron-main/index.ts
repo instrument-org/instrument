@@ -42,7 +42,6 @@ import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   app,
-  BrowserWindow,
   dialog,
   nativeImage,
   nativeTheme,
@@ -69,7 +68,11 @@ import { startAppCatalog } from "./lib/app-catalog";
 import { startNotices } from "./lib/notices";
 import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
-import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
+import {
+  quitsWithLastWindow,
+  requestQuitApproval,
+  withdrawQuitApproval,
+} from "./lib/quit";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -271,7 +274,9 @@ async function bootstrapPrimaryInstance() {
   });
 
   startAgentCompletionNotifications({
-    hasAppWindow: () => getAppWindow() !== null,
+    // With no window, a notification's click opens one where the app stays
+    // running; elsewhere no window means the app is quitting.
+    canRevealChat: () => !quitsWithLastWindow || getAppWindow() !== null,
     revealChat,
     workspaceConfig,
     workspaceRef,
@@ -334,9 +339,9 @@ async function bootstrapPrimaryInstance() {
     if (showHeldWindows()) {
       return;
     }
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // The Dock icon brings a window back once every window is closed. A
+    // hidden window drawing a file's picture is not one to come back to.
+    if (!getForegroundWindow()) {
       if (shouldShowOnboarding()) {
         openOnboarding();
       } else {
@@ -404,13 +409,13 @@ function shouldShowOnboarding(): boolean {
   return !getWorkspaceState().get("hasCompletedProviderSetup");
 }
 
-// Closing the last window quits, on macOS too. Staying resident is the macOS
-// convention, but nothing here is meant to outlive its window: agents would
-// keep running with no window to watch or stop them from, which reads as work
-// the user already ended. The window's own close handler asks about running
-// agents first, so this only ever runs once that is settled.
+// Closing the last window quits outside macOS, where the window's own close
+// handler has already asked about running work. On macOS the app stays in the
+// Dock with its work going, and Cmd+Q asks.
 app.on("window-all-closed", () => {
-  app.quit();
+  if (quitsWithLastWindow) {
+    app.quit();
+  }
 });
 
 function applyThemeToWindows() {

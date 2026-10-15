@@ -4,7 +4,11 @@ import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
 import { openExternal } from "@/electron-main/lib/open-external";
-import { isQuitApproved, requestQuitApproval } from "@/electron-main/lib/quit";
+import {
+  isQuitApproved,
+  quitsWithLastWindow,
+  requestQuitApproval,
+} from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
@@ -202,12 +206,16 @@ export function openAppWindow({
     revealAppWindow(onShow);
   }
 
-  // Closing the last window the user can see quits the app, so the
-  // running-agent warning has to happen here, while the window still exists.
+  // Where closing the last window the user can see quits the app, the
+  // running-work warning has to happen here, while the window still exists.
   // Asking after the fact would destroy the window first and leave a canceled
   // quit with a running process the user can't get back to.
   appWindow.on("close", (event) => {
-    if (isQuitApproved() || hasVisibleWindowOtherThan(appWindow)) {
+    if (
+      !quitsWithLastWindow ||
+      isQuitApproved() ||
+      hasVisibleWindowOtherThan(appWindow)
+    ) {
       return;
     }
     event.preventDefault();
@@ -237,7 +245,7 @@ export function openAppWindow({
     isTakingAsks = false;
     publisher.publish("window.focus-changed", null);
     // The window is already out of the list by now, so nothing to exclude.
-    if (!hasVisibleWindowOtherThan(null)) {
+    if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
       app.quit();
     }
   });

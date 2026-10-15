@@ -43,6 +43,8 @@ interface NativeTextRoute {
   platforms?: NodeJS.Platform[];
   /** A fallback command's calls the builtin answers wrongly without saying so. */
   wantsNative?: (args: string[]) => boolean;
+  /** A native command's calls uutils cannot answer and the builtin can. */
+  wantsBuiltin?: (args: string[]) => boolean;
   /** Operands it writes rather than reads (`sort -o out`, `dd of=out`). */
   writes?: (args: string[]) => string[];
 }
@@ -108,7 +110,14 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "diffutils", mode: "native", name: "cmp" },
   // On Windows uutils' find joins what it prints with backslashes, so a
   // `-path '*/.*'` or `-prune` pattern written with slashes matches nothing.
-  { binary: "find", mode: "native", name: "find", platforms: UNIX },
+  // Its -newermt reads no date at all in 0.10.0, which the builtin does.
+  {
+    binary: "find",
+    mode: "native",
+    name: "find",
+    platforms: UNIX,
+    wantsBuiltin: (args) => args.some((arg) => /^-newer[a-zB]t$/.test(arg)),
+  },
   {
     binary: "grep",
     mode: "fallback",
@@ -264,6 +273,9 @@ export function createNativeTextCommand(
   { chatId, layout }: { chatId: ChatId; layout: WorkspaceFsLayout },
 ): Command {
   return defineCommand(route.name, async (args, ctx) => {
+    if (ctx.origCommand !== undefined && route.wantsBuiltin?.(args)) {
+      return await ctx.origCommand(args);
+    }
     if (
       route.mode === "fallback" &&
       ctx.origCommand !== undefined &&

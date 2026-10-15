@@ -158,6 +158,14 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     expect(result.stdout.trim()).toBe("16");
   });
 
+  it.skipIf(process.platform === "win32")(
+    "leaves find -newermt, which uutils cannot parse, to the builtin",
+    async () => {
+      const result = await run("find . -name 'a.txt' -newermt 2000-01-01");
+      expect(result).toMatchObject({ exitCode: 0, stdout: "./a.txt\n" });
+    },
+  );
+
   it("reads an empty pipe as empty rather than waiting", async () => {
     const result = await run("true | sort | wc -l");
     expect(result.stdout.trim()).toBe("0");

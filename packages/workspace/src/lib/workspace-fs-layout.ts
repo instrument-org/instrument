@@ -855,7 +855,20 @@ function layoutRules(
         hostPathWithin(closed, real) !== null,
     );
   });
-  return { ...given, rules: [...outsideAppData, ...own] };
+  // Each rule names its folder by a path the rules can compare on their own:
+  // absolute, and on Windows carrying the drive it is on. The rules resolve
+  // every path they compare and do it the first time they are asked, which is
+  // inside a command, where just-bash blocks `process.cwd()` -- the one thing
+  // Windows' `resolve` has to read for a path that names no drive, so the
+  // command dies on a security violation instead of reading the file.
+  // Resolved here, before the shell starts.
+  return {
+    ...given,
+    rules: [...outsideAppData, ...own].map((rule) => ({
+      ...rule,
+      path: nodePath.resolve(rule.path),
+    })),
+  };
 }
 
 /**

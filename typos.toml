@@ -79,6 +79,7 @@ extend-exclude = [
   "packages/workspace/evals/decision/corpus/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
+  "apps/studio/licenses/",
   "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
   "patches/",
   "apps/studio/resources/tailwind-browser.js",

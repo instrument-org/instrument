@@ -1,11 +1,12 @@
 // Orchestrates electron-builder's `afterPack` step: prune foreign-platform
-// binaries, then verify the packaged ripgrep binary. Each hook is a pure
-// function; this module is the only place that touches `AfterPackContext`.
+// binaries, verify the packaged ones, then write their licenses. Each hook is a
+// pure function; this module is the only place that touches `AfterPackContext`.
 
 import { type AfterPackContext, Arch } from "electron-builder";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
+import { THIRD_PARTY_LICENSES_DIR_NAME } from "../src/shared/third-party-licenses";
 import {
   type ElectronPlatform,
   isElectronPlatform,
@@ -13,11 +14,17 @@ import {
   resolvePackagedPnpm,
   resolvePackagedRipgrep,
   resolvePackagedUv,
+  resolveResourcesDir,
   resolveUnpackedDir,
 } from "./paths";
 import { pruneForeignBinaries } from "./prune-foreign-binaries";
 import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
+import {
+  THIRD_PARTY_COMPONENTS,
+  writeThirdPartyLicenses,
+} from "./third-party-licenses";
 import { verifyFfmpegBinary, verifyFfmpegChecksum } from "./verify-ffmpeg";
+import { findUnlicensedBinaries } from "./verify-licenses";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
 import { verifyUvBinary } from "./verify-uv";
 
@@ -29,6 +36,7 @@ export function runAfterPack(context: AfterPackContext) {
   verifyPackagedPnpm(context);
   verifyPackagedFfmpeg(context);
   verifyPackagedMacBridge(context);
+  writePackagedLicenses(context);
 }
 
 // Only a binary matching the host platform AND arch can be executed during
@@ -159,6 +167,37 @@ function verifyPackagedMacBridge(context: AfterPackContext) {
       `afterPack: verified ${name} at ${file} (${statSync(file).size} bytes)`,
     );
   }
+}
+
+/**
+ * Every native program and WebAssembly module that shipped has a license
+ * entry, and `licenses/` beside the app's other resources holds their texts.
+ * Runs before signing, so the folder is sealed into the macOS signature.
+ */
+function writePackagedLicenses(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+
+  const unlicensed = findUnlicensedBinaries({
+    components: THIRD_PARTY_COMPONENTS,
+    unpackedDir: resolveUnpackedDir(context.appOutDir, platformName),
+  });
+  if (unlicensed.length > 0) {
+    throw new Error(
+      `These packaged binaries have no license entry: ${unlicensed.join(", ")}. Add each to THIRD_PARTY_COMPONENTS in electron-builder/third-party-licenses.ts with its license texts.`,
+    );
+  }
+
+  const outDir = path.join(
+    resolveResourcesDir(context.appOutDir, platformName),
+    THIRD_PARTY_LICENSES_DIR_NAME,
+  );
+  const entries = writeThirdPartyLicenses({ outDir, platformName });
+  console.log(
+    `afterPack: wrote licenses for ${entries.length} components to ${outDir}`,
+  );
 }
 
 function verifyPackagedPnpm(context: AfterPackContext) {

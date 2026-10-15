@@ -798,6 +798,30 @@ export function mxcFilesystemPolicy(
   for (const folder of closed) {
     add(folder, "deny", 5);
   }
+  /** What the deepest entry at or above `folder` gives it; none is closed. */
+  const accessAt = (folder: string): Access => {
+    for (let at = folder; ; at = path.dirname(at)) {
+      const held = entries.get(fold(at));
+      if (held) {
+        return held.access;
+      }
+      if (at === path.dirname(at)) {
+        return "deny";
+      }
+    }
+  };
+  // A path that is not there matters only where something could make it,
+  // in a folder that can be changed; elsewhere its entry only slows every
+  // start (a third of a millisecond each), and most rules name places that
+  // exist on another platform.
+  for (const [key, entry] of entries) {
+    if (
+      !existsSync(entry.path) &&
+      accessAt(path.dirname(entry.path)) !== "write"
+    ) {
+      entries.delete(key);
+    }
+  }
   const listed = (access: Access) =>
     [...entries.values()]
       .filter((entry) => entry.access === access)
@@ -809,17 +833,7 @@ export function mxcFilesystemPolicy(
   // do; its deny still refuses listing it and reading anything in it. Only
   // a closed one: MXC gives a folder named for looking at that access and
   // no more, so naming a readable one would take its reads away.
-  const closedAt = (folder: string) => {
-    for (let at = folder; ; at = path.dirname(at)) {
-      const held = entries.get(fold(at));
-      if (held) {
-        return held.access === "deny";
-      }
-      if (at === path.dirname(at)) {
-        return true;
-      }
-    }
-  };
+  const closedAt = (folder: string) => accessAt(folder) === "deny";
   const above = new Map<string, string>();
   for (const entry of entries.values()) {
     if (entry.access === "deny") {

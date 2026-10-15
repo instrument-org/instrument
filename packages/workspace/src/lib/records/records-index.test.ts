@@ -1,8 +1,9 @@
 import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { type DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { withTempDir } from "../../test/helpers/temp-dir";
 import { makeActivityTable } from "../ai-usage/store";
@@ -421,53 +422,114 @@ describe("indexChat", { timeout: 60_000 }, () => {
     database.close();
   });
 
-  it.runIf(SPARSE)(
-    "marks a file not downloaded instead of reading it, and folds it once it is",
-    async () => {
+  describe("a file whose stat reports no blocks behind its bytes", () => {
+    const PLATFORM = process.platform;
+
+    afterEach(() => {
+      Object.defineProperty(process, "platform", { value: PLATFORM });
+      vi.restoreAllMocks();
+    });
+
+    /**
+     * Stats `file` the way macOS reports one iCloud has not downloaded, and
+     * the way NTFS reports one whose bytes live in its MFT record: the size
+     * it has, with no blocks behind it.
+     */
+    function withoutBlocks(file: string): void {
+      vi.spyOn(fsPromises, "stat").mockImplementation((target) => {
+        const stat = fs.statSync(target);
+        if (String(target) === file) {
+          stat.blocks = 0;
+        }
+        return Promise.resolve(stat);
+      });
+    }
+
+    const session = sessionId(1);
+    const name = logFileName(session, DEVICE_A);
+    const lines = [
+      recordLine(header(0, { device: DEVICE_A, id: session })),
+      recordLine(messageRecord(1, userMessage(session, messageId(2), at(1)))),
+      recordLine(messageRecord(2, userMessage(session, messageId(3), at(2)))),
+    ];
+    const upTo = (count: number) => lines.slice(0, count).join("");
+
+    const fileRows = (database: DatabaseSync) =>
+      database
+        .prepare("SELECT name, downloaded, size FROM files ORDER BY name")
+        .all();
+
+    it.each(["darwin", "win32"])("is read on %s", async (platform) => {
       const dir = chatDir();
-      const session = sessionId(1);
-      const name = logFileName(session, DEVICE_A);
       const file = path.join(dir, name);
-      const lines = [
-        recordLine(header(0, { device: DEVICE_A, id: session })),
-        recordLine(messageRecord(1, userMessage(session, messageId(2), at(1)))),
-      ];
-      fs.writeFileSync(file, lines[0] ?? "");
-      const other = logFileName(sessionId(9), DEVICE_B);
-      placeholder(path.join(dir, other), 300);
+      fs.writeFileSync(file, upTo(3));
+      Object.defineProperty(process, "platform", { value: platform });
+      withoutBlocks(file);
       const database = memoryDb();
       await indexChat(database, CHAT, dir);
 
-      const downloaded = () =>
-        database
-          .prepare("SELECT name, downloaded, size FROM files ORDER BY name")
-          .all();
-      expect(downloaded()).toEqual([
-        { downloaded: 1, name, size: (lines[0] ?? "").length },
-        { downloaded: 0, name: other, size: 0 },
+      expect(fileRows(database)).toEqual([
+        { downloaded: 1, name, size: upTo(3).length },
       ]);
-      expect(indexedSessions(database).map(({ id }) => id)).toEqual([session]);
-
-      // Another device grew it, and only the placeholder is here.
-      placeholder(file, lines.join("").length);
-      await indexChat(database, CHAT, dir);
-      expect(downloaded()).toEqual([
-        { downloaded: 0, name, size: (lines[0] ?? "").length },
-        { downloaded: 0, name: other, size: 0 },
+      expect(indexedSessions(database)[0]?.messages).toEqual([
+        messageId(2),
+        messageId(3),
       ]);
-      expect(indexedSessions(database)[0]?.messages).toEqual([]);
-
-      fs.writeFileSync(file, lines.join(""));
-      await indexChat(database, CHAT, dir);
-      expect(indexedSessions(database)[0]?.messages).toEqual([messageId(2)]);
-      expect(downloaded()[0]).toEqual({
-        downloaded: 1,
-        name,
-        size: lines.join("").length,
-      });
       database.close();
-    },
-  );
+    });
+
+    it("keeps what it held when the download it asks for fails, and folds it once it arrives", async () => {
+      const dir = chatDir();
+      const file = path.join(dir, name);
+      fs.writeFileSync(file, upTo(2));
+      const database = memoryDb();
+      await indexChat(database, CHAT, dir);
+
+      // Another device grew it, and iCloud has none of the bytes it grew by:
+      // the read asks for them, which offline is a read that fails.
+      fs.writeFileSync(file, upTo(3));
+      Object.defineProperty(process, "platform", { value: "darwin" });
+      withoutBlocks(file);
+      const open = vi
+        .spyOn(fsPromises, "open")
+        .mockRejectedValue(
+          Object.assign(new Error("timed out"), { code: "ETIMEDOUT" }),
+        );
+      await indexChat(database, CHAT, dir);
+      expect(open).toHaveBeenCalledWith(file, "r");
+      expect(fileRows(database)).toEqual([
+        { downloaded: 0, name, size: upTo(2).length },
+      ]);
+      expect(indexedSessions(database)[0]?.messages).toEqual([messageId(2)]);
+
+      vi.restoreAllMocks();
+      await indexChat(database, CHAT, dir);
+      expect(fileRows(database)).toEqual([
+        { downloaded: 1, name, size: upTo(3).length },
+      ]);
+      expect(indexedSessions(database)[0]?.messages).toEqual([
+        messageId(2),
+        messageId(3),
+      ]);
+      database.close();
+    });
+
+    it("raises a read that fails where no file waits on a download", async () => {
+      const dir = chatDir();
+      const file = path.join(dir, name);
+      fs.writeFileSync(file, upTo(3));
+      Object.defineProperty(process, "platform", { value: "win32" });
+      withoutBlocks(file);
+      vi.spyOn(fsPromises, "open").mockRejectedValue(
+        Object.assign(new Error("no reading that"), { code: "EACCES" }),
+      );
+      const database = memoryDb();
+      await expect(indexChat(database, CHAT, dir)).rejects.toThrow(
+        "no reading that",
+      );
+      database.close();
+    });
+  });
 
   it("rebuilds its own tables, and nothing else, when their version changes", async () => {
     const dir = chatDir();

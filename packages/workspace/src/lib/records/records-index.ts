@@ -53,9 +53,12 @@ import { TAIL_BYTES, tailHash } from "./record-writer";
  * and modification time are as last read is kept; one that grew, and still
  * ends its old length with the bytes it had, has only its new bytes folded;
  * any other (shorter, its old end changed, new, a conflict copy) is folded
- * from its start, its old rows dropped. A file the sync engine has not
- * downloaded (no blocks on disk for its bytes) is marked and not read, so
- * reading it never asks for the download; what it held before stays.
+ * from its start, its old rows dropped. Reading a file is what asks iCloud
+ * for one it has not downloaded, so a file with bytes to fold is read
+ * whatever its blocks on disk say; a file already folded to the size and
+ * modification time it has is kept, and never asked for. A read that fails
+ * on a file waiting for its download marks the file not downloaded, with
+ * what it held before, and the next pass asks again.
  */
 
 /** The shape of the tables below. Any change to a table, or to what a row means, bumps it, and every chat is folded again. */
@@ -401,47 +404,58 @@ async function updateFile(
   if (!stat.isFile()) {
     return "gone";
   }
-  const downloaded = !(stat.blocks === 0 && stat.size > 0);
   if (
     row &&
     row.size === stat.size &&
     row.mtime_ms === stat.mtimeMs &&
-    row.downloaded === downloaded
+    row.downloaded
   ) {
     return "kept";
   }
-  if (!downloaded) {
+  // A file iCloud has not downloaded reports the size it will have with no
+  // blocks behind it. macOS alone is read that way: elsewhere a file whose
+  // bytes live in its own metadata reports no blocks and is all there (NTFS
+  // keeps one of a few hundred bytes inside its MFT record).
+  const awaitingDownload =
+    process.platform === "darwin" && stat.blocks === 0 && stat.size > 0;
+  try {
+    if (row && row.size <= stat.size) {
+      const tailStart = Math.max(0, row.size - TAIL_BYTES);
+      const start = Math.min(row.folded_offset, tailStart);
+      const bytes = await readFrom(file, start, stat.size - start);
+      if (
+        start + bytes.length >= row.size &&
+        tailHash(bytes.subarray(tailStart - start, row.size - start)) ===
+          row.tail_hash
+      ) {
+        return fold(parsed, row, bytes.subarray(row.folded_offset - start), {
+          mtimeMs: stat.mtimeMs,
+          size: start + bytes.length,
+          tail: tailHash(bytes),
+        });
+      }
+    }
+    const bytes = await readFrom(file, 0, stat.size);
+    return {
+      ...fold(parsed, unread(name), bytes, {
+        mtimeMs: stat.mtimeMs,
+        size: bytes.length,
+        tail: tailHash(bytes),
+      }),
+      refold: true,
+    };
+  } catch (error) {
+    if (!awaitingDownload) {
+      throw error;
+    }
+    // The read asked for the download and it did not arrive, as it cannot
+    // offline. The file keeps what it held, and the next pass asks again.
     return {
       messages: new Map(),
       refold: false,
       row: { ...(row ?? unread(name)), downloaded: false },
     };
   }
-  if (row && row.size <= stat.size) {
-    const tailStart = Math.max(0, row.size - TAIL_BYTES);
-    const start = Math.min(row.folded_offset, tailStart);
-    const bytes = await readFrom(file, start, stat.size - start);
-    if (
-      start + bytes.length >= row.size &&
-      tailHash(bytes.subarray(tailStart - start, row.size - start)) ===
-        row.tail_hash
-    ) {
-      return fold(parsed, row, bytes.subarray(row.folded_offset - start), {
-        mtimeMs: stat.mtimeMs,
-        size: start + bytes.length,
-        tail: tailHash(bytes),
-      });
-    }
-  }
-  const bytes = await readFrom(file, 0, stat.size);
-  return {
-    ...fold(parsed, unread(name), bytes, {
-      mtimeMs: stat.mtimeMs,
-      size: bytes.length,
-      tail: tailHash(bytes),
-    }),
-    refold: true,
-  };
 }
 
 /** The row of a file nothing of has been read. */

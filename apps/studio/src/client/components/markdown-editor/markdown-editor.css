@@ -614,7 +614,11 @@ textarea.md-input {
 }
 .md-editor .milkdown .ProseMirror .md-link-broken {
   text-decoration: underline wavy;
-  text-decoration-color: color-mix(in srgb, var(--destructive) 70%, transparent);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--destructive) 70%,
+    transparent
+  );
   text-underline-offset: 3px;
 }
 /* Inline code as Typography draws it in Studio: weight and backticks. */

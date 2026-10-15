@@ -58,6 +58,7 @@ import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { getWorkspaceConfig } from "./workspace-config";
+import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
   CALENDAR_COMMAND,
   CONTACTS_COMMAND,
@@ -696,16 +697,18 @@ export function createBashDescription() {
 }
 
 /**
- * The folders the agent works with, by the names the shell gives them: its
- * work folder, what the person sent the chat (none for the window), the
- * output folder, and the folder of the skill it loaded last, where it has
- * loaded one, in the shell's spelling.
+ * The folders the agent works with, by the names the shell gives them: the
+ * workspace's apps, its work folder, what the person sent the chat (none for
+ * the window), the output folder, the folder of the skill it loaded last,
+ * where it has loaded one, and the workspace's own skills, in the shell's
+ * spelling.
  */
 function folderVariables(
   layout: WorkspaceFsLayout,
   loadedSkillDir: string | undefined,
 ): Record<string, string> {
   return {
+    [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
     ...(layout.record && {
       [FOLDER_VARIABLES.attachments]: shellPath(
         getChatAttachmentsDir(layout.record.hostRoot),
@@ -716,6 +719,7 @@ function folderVariables(
       [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
     }),
     [FOLDER_VARIABLES.work]: layout.chat.shellRoot,
+    [FOLDER_VARIABLES.workspaceSkills]: shellPath(getWorkspaceSkillsDir()),
   };
 }
 

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { workDir } from "../../src/lib/work-dir";
+import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
 
@@ -93,6 +94,38 @@ const namesFilesInFull: Assertion = {
     };
   },
   text: "Names files to the person by their paths, not a shell variable",
+};
+
+/**
+ * The prompt names the workspace's skills folder only as
+ * `$INSTRUMENT_WORKSPACE_SKILLS`, and the file tools read no variable, so a
+ * skill written with one would land in a folder named after it.
+ */
+const savesTheSkillInTheWorkspace: Assertion = {
+  check: ({ chatId }) => {
+    const skillsDir = getWorkspaceSkillsDir();
+    const skills = filesUnder(skillsDir).filter(
+      (file) =>
+        path.basename(file) === "SKILL.md" &&
+        /meeting/i.test(fs.readFileSync(path.join(skillsDir, file), "utf8")),
+    );
+    // A path that starts with a variable reads as relative, so a skill
+    // written that way lands in the work folder.
+    const misplaced = filesUnder(workDir(chatId)).filter((file) =>
+      file.includes("INSTRUMENT_"),
+    );
+    return {
+      evidence:
+        misplaced.length > 0
+          ? `Wrote under a variable's name: ${misplaced.join(", ")}`
+          : skills.length > 0
+            ? `Saved ${skills.join(", ")}`
+            : `No meeting-notes SKILL.md in ${skillsDir}`,
+      passed: skills.length > 0 && misplaced.length === 0,
+      text: "Saves the new skill in the workspace's skills folder, by its path",
+    };
+  },
+  text: "Saves the new skill in the workspace's skills folder, by its path",
 };
 
 /** What the person sends: a CSV whose amount column adds up to `AMOUNT_TOTAL`. */
@@ -235,6 +268,12 @@ export const WORK_FOLDER_EVALS = [
     ],
     name: "work-folder-attachment-after-refusal",
     prompt: 'Run ls -la "$INSTRUMENT_ATTACHMENTS/.." and tell me what it says.',
+  }),
+  defineEval({
+    assertions: [savesTheSkillInTheWorkspace],
+    name: "work-folder-workspace-skill",
+    prompt:
+      "Make me a skill that turns raw meeting notes into decisions and action items, and save it so I can use it in my other chats.",
   }),
   defineEval({
     assertions: [installsWherePnpmMakesAManifest, reportsTheSlug],

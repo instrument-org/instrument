@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { EnvironmentChangeSchema } from "../environment";
 import { MountedFolder } from "../mounted-folder";
 import { RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
@@ -14,8 +15,8 @@ export namespace SessionMessageDataPart {
    *   `maxSteps`, `reply`,
    *   `skillChanges`, and `skillMentions`. A repeat is impossible by
    *   construction; nothing to guard.
-   * - **Diff**: what changed since last time -- `folderChanges`,
-   *   `modelChange`. Self-limiting: no change, no part.
+   * - **Diff**: what changed since last time -- `environmentChange`,
+   *   `folderChanges`, `modelChange`. Self-limiting: no change, no part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
    *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
@@ -40,6 +41,7 @@ export namespace SessionMessageDataPart {
     "browserStatus",
     "contextRollover",
     "dateChange",
+    "environmentChange",
     "fileChanges",
     "fromChat",
     "intent",
@@ -765,6 +767,18 @@ export namespace SessionMessageDataPart {
   export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
+   * The facts about the computer that differ from what the session was last
+   * told, each at its new value, written to the user message sent after the
+   * change: the chat moved to another computer, the OS updated, the time zone
+   * or a folder moved. Never rewrites the baseline that told the old values.
+   */
+  const EnvironmentChangeDataPartSchema = EnvironmentChangeSchema;
+
+  export type EnvironmentChangeDataPart = z.output<
+    typeof EnvironmentChangeDataPartSchema
+  >;
+
+  /**
    * Whole minutes since the user last wrote in this chat, written to a
    * message they sent after a long enough silence to mean they went away and
    * came back.
@@ -947,6 +961,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.chatTopics]: ChatTopicsDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
+    [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,

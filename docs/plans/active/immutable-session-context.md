@@ -1,6 +1,6 @@
 # Immutable session context and append-only corrections
 
-Status: Phases 1 through 4 implemented. Phase 5 is not: a request is covered for reconstruction determinism over its messages, but nothing asserts byte stability across the serialized tool definitions. Compaction behavior and skill removals remain open, as does the decision below about where a mid-session model switch leaves a baseline that is never rewritten.
+Status: Phases 1 through 4 implemented. Phase 5 is not: a request is covered for reconstruction determinism over its messages, but nothing asserts byte stability across the serialized tool definitions. Compaction is settled: the baseline is written again only when the window rolls over past it or a build bumps `SESSION_CONTEXT_VERSION`, never because the stored prompt differs, and a changed computer is an append-only correction (`lib/session-baseline.ts`, `lib/environment.ts`). Skill removals remain open, as does the decision below about where a mid-session model switch leaves a baseline.
 
 ## Problem
 

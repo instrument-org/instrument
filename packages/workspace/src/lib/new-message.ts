@@ -15,6 +15,7 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { detectDateChange } from "./date-change";
+import { detectEnvironmentChange } from "./environment";
 import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
 import { folderReach } from "./chat/folder-reach";
@@ -227,6 +228,21 @@ export async function newMessage({
     getWorkspaceConfig().captureException(dateChange.error);
   } else if (dateChange.value) {
     parts.push(dateChange.value);
+  }
+
+  // The session context names the computer it started on and is never
+  // rewritten, so a chat that moved to another computer, or whose computer
+  // changed under it, is told here instead.
+  const environmentChange = await detectEnvironmentChange({
+    chatId,
+    messageId,
+    sessionId,
+  });
+  if (environmentChange.isErr()) {
+    // Awareness of the computer is best-effort; never block sending.
+    getWorkspaceConfig().captureException(environmentChange.error);
+  } else if (environmentChange.value) {
+    parts.push(environmentChange.value);
   }
 
   // Nothing in the context says what time it is, so a message sent a day after

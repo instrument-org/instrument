@@ -152,6 +152,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-dateChange": {
       return `<data-dateChange date="${part.data.date}" />`;
     }
+    case "data-environmentChange": {
+      const facts = Object.entries(part.data)
+        .map(([fact, value]) => `${fact}="${value}"`)
+        .join(" ");
+      return `<data-environmentChange ${facts} />`;
+    }
     case "data-fileChanges": {
       const files = part.data.files
         .map((file) => `${file.filePath} (${file.status})`)

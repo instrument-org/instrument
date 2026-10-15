@@ -14,10 +14,8 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import {
-  prepareModelMessages,
-  SESSION_CONTEXT_VERSION,
-} from "./prepare-model-messages";
+import { prepareModelMessages } from "./prepare-model-messages";
+import { SESSION_CONTEXT_VERSION } from "./session-baseline";
 import { Store } from "./store";
 import { chatDir } from "./record-folders";
 import { shellPath } from "./workspace-fs-layout";
@@ -639,9 +637,17 @@ describe("prepareModelMessages", () => {
 
     it("leaves a task's inherited baseline to its chat when rebuilding", async () => {
       const chatSessionId = sessionId;
-      await save(
-        contextMessage(new Date(), "The prompt the previous build wrote."),
+      const inherited = contextMessage(
+        new Date(),
+        "The prompt the previous build wrote.",
       );
+      await save({
+        ...inherited,
+        metadata: {
+          ...inherited.metadata,
+          contextVersion: SESSION_CONTEXT_VERSION - 1,
+        },
+      });
       const forkedAt = userMessage("Look into it in the background.");
       await save(forkedAt);
       sessionId = StoreId.newSessionId();
@@ -679,7 +685,9 @@ describe("prepareModelMessages", () => {
       ).toHaveLength(1);
     });
 
-    it("rebuilds a baseline whose system prompt this build no longer writes, once", async () => {
+    it("keeps a baseline whose system prompt this build no longer writes", async () => {
+      // What an app update and a chat moving to another computer both look
+      // like. The new prompt reaches the chat at its next rollover.
       await save(
         contextMessage(new Date(), "The prompt the previous build wrote."),
       );
@@ -687,38 +695,104 @@ describe("prepareModelMessages", () => {
         contextMessage(new Date(), "The prompt this build writes."),
       ];
 
-      const first = await prepare();
+      const request = JSON.stringify(await prepare());
 
-      expect(getMessages).toHaveBeenCalledOnce();
-      expect(JSON.stringify(first)).toContain("The prompt this build writes.");
-      expect(JSON.stringify(first)).not.toContain(
-        "The prompt the previous build wrote.",
-      );
+      expect(getMessages).not.toHaveBeenCalled();
+      expect(request).toContain("The prompt the previous build wrote.");
+      expect(request).not.toContain("The prompt this build writes.");
+    });
+
+    it("starts each request with the whole of the one before it", async () => {
+      await save(userMessage("first"));
+      const first = await prepare();
+      // An app update rewrites the prompt this build would write, and the
+      // computer changes under the chat: neither touches what was sent.
+      contextMessages = [
+        contextMessage(new Date(), "The prompt a later build writes."),
+      ];
+      await save(assistantMessage("Done."));
+      const moved = userMessage("and now?");
+      await save({
+        ...moved,
+        parts: [
+          ...moved.parts,
+          {
+            data: { computer: "Windows (win32 10.0.26200)", platform: "win32" },
+            metadata: partMetadata(moved.id),
+            type: "data-environmentChange",
+          },
+        ],
+      });
 
       const second = await prepare();
 
-      expect(getMessages).toHaveBeenCalledOnce();
-      expect(second).toEqual(first);
+      // The last messages of the first request carried its cache breakpoints,
+      // which the second places on its own last messages instead. A marker is
+      // not part of the bytes a cache matches, so it is left out here.
+      const withoutBreakpoints = (messages: ModelMessage[]): unknown =>
+        JSON.parse(
+          JSON.stringify(messages, (key, value: unknown) =>
+            key === "providerOptions" ? undefined : value,
+          ),
+        );
+      expect(withoutBreakpoints(second.slice(0, first.length - 1))).toEqual(
+        withoutBreakpoints(first.slice(0, first.length - 1)),
+      );
+      expect(JSON.stringify(second.at(-1))).toContain(
+        "Windows (win32 10.0.26200)",
+      );
     });
 
-    it("rebuilds the baseline of a session an agent since merged into this one wrote", async () => {
-      const stored = contextMessage(
-        new Date(),
-        "You are a task. Write a brief.",
-      );
-      await save({
-        ...stored,
-        metadata: { ...stored.metadata, agentName: "main" },
+    it("writes the baseline again when the window rolls over past it", async () => {
+      const smallWindowModel = createMockAIGatewayModel({
+        contextLength: 1000,
       });
+      await save(userMessage("First question"));
+      await prepare(smallWindowModel);
+      for (let index = 0; index < 4; index++) {
+        await save(assistantMessageWithUsage(`turn ${index}`, 900));
+      }
+      // Minted now, as a build writing it would: after the turns it follows.
       contextMessages = [
-        contextMessage(new Date(), "You are Instrument: the one agent."),
+        contextMessage(new Date(), "The prompt a later build writes."),
       ];
+
+      const rolledOver = JSON.stringify(await prepare(smallWindowModel));
+
+      expect(getMessages).toHaveBeenCalledTimes(2);
+      expect(rolledOver).toContain("The prompt a later build writes.");
+      expect(rolledOver).not.toContain("You are a helpful agent.");
+
+      await save(userMessage("Next question"));
+      await prepare(smallWindowModel);
+
+      // Written once for the rollover, then read back like any other.
+      expect(getMessages).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends a task's own baseline rather than the one it inherited", async () => {
+      const chatSessionId = sessionId;
+      await save(contextMessage(new Date(), "The chat's prompt."));
+      const forkedAt = userMessage("Look into it in the background.");
+      await save(forkedAt);
+      sessionId = StoreId.newSessionId();
+      await Store.saveSession(
+        {
+          createdAt: new Date(),
+          forkedAtMessageId: forkedAt.id,
+          id: sessionId,
+          parentId: chatSessionId,
+          title: "Task",
+        },
+        chatId,
+      );
+      await save(contextMessage(new Date(), "The task's own prompt."));
 
       const request = JSON.stringify(await prepare());
 
-      expect(getMessages).toHaveBeenCalledOnce();
-      expect(request).toContain("You are Instrument: the one agent.");
-      expect(request).not.toContain("Write a brief.");
+      expect(getMessages).not.toHaveBeenCalled();
+      expect(request).toContain("The task's own prompt.");
+      expect(request).not.toContain("The chat's prompt.");
     });
 
     it("keeps a baseline whose context message differs but whose prompt is current", async () => {

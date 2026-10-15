@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-15 | [A chat's start is written once, and what changes is told after it](2026-10-15-a-chats-start-is-written-once.md) |
 | 2026-10-14 | [Carry just-bash's option to fail a redirect into a missing folder as a local patch](2026-10-14-carry-the-redirect-directories-patch.md) |
 | 2026-10-14 | [Carry just-bash's fix for a glob after a quoted folder as a local patch](2026-10-14-carry-the-glob-after-quotes-patch.md) |
 | 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |

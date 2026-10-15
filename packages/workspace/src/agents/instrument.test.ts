@@ -1,3 +1,4 @@
+import os from "node:os";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -286,6 +287,21 @@ describe("shouldContinueAfterHandingOff", () => {
 
 describe("instrumentAgent", () => {
   const prompt = instrumentAgent.systemPrompt();
+
+  it("writes the same system prompt on every computer", () => {
+    // A synced chat keeps the prompt it started with, so one naming this
+    // computer's folders or platform would be wrong everywhere else.
+    expect(prompt).not.toContain(os.homedir());
+    const platform = process.platform;
+    try {
+      for (const other of ["darwin", "linux", "win32"] as const) {
+        Object.defineProperty(process, "platform", { value: other });
+        expect(instrumentAgent.systemPrompt()).toBe(prompt);
+      }
+    } finally {
+      Object.defineProperty(process, "platform", { value: platform });
+    }
+  });
 
   it("does the work with every tool, the chat's and a worker's alike", () => {
     expect(

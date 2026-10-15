@@ -1,5 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { err, ok, Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
@@ -37,6 +37,7 @@ import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { chatDir } from "./record-folders";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { sanitizeModelText } from "./sanitize-model-text";
+import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
 import { shellPath } from "./workspace-fs-layout";
@@ -48,19 +49,6 @@ import { shellPath } from "./workspace-fs-layout";
  * since the next request leaves it out or says it differently.
  */
 export const TRANSIENT = { instrument: { transient: true } };
-
-/**
- * The shape of the session baseline this build writes.
- *
- * A change to an agent's system prompt needs no bump: a stored system message
- * that differs from `agent.systemPrompt()` is rebuilt on its own. Bump this
- * when the rest of what `agent.getMessages` writes, the context message,
- * starts carrying something a session that already has a baseline stored
- * would otherwise never see. Without a bump such a session keeps the context
- * message it was opened with for the rest of its life.
- */
-
-export const SESSION_CONTEXT_VERSION = 41;
 
 export async function prepareModelMessages({
   agent,
@@ -149,7 +137,7 @@ export async function prepareModelMessages({
   // Asked on every request rather than read straight off the session, so a
   // boundary drawn when a smaller model ran out stops narrowing the history
   // once a model with room for it is the one being asked.
-  const rolledOverAfterMessageId = contextRolloverBoundaryInForce({
+  let rolledOverAfterMessageId = contextRolloverBoundaryInForce({
     rolledOverAfterMessageId: session?.rolledOverAfterMessageId,
     rolledOverUnderUsableTokens: session?.rolledOverUnderUsableTokens,
     usable,
@@ -235,6 +223,7 @@ export async function prepareModelMessages({
       // refused for size, which is the behavior this feature is replacing
       // rather than a regression it introduces.
       if (saveResult.isOk()) {
+        rolledOverAfterMessageId = newest.id;
         nonContextMessages = narrowed;
         budget = computeContextBudget({
           contextLength,
@@ -272,82 +261,20 @@ export async function prepareModelMessages({
     }
   }
 
-  // The session's baseline: built once, when the session first needs model
-  // input, and reused verbatim for the rest of the session. Rebuilding it later
-  // would rewrite the front of every subsequent request -- the bytes a provider
-  // cache is keyed on -- to restate facts that mostly did not change. Values
-  // that do change reach the model as append-only corrections on the user turn
-  // where they were detected instead (see `SessionMessage.toModelMessages`).
-  //
-  // The one thing that does rewrite it is a build whose baseline holds
-  // something the stored one cannot: the marker each message carries says which
-  // shape it was written under, and a baseline older than this build's is
-  // replaced on the first turn after the upgrade and then reused like any
-  // other. A baseline of this build's shape whose system message is not the
-  // prompt this build writes is replaced the same way. So the prefix moves once
-  // per prompt or shape change, and never on a clock. A marker from ahead of
-  // this build is left alone, since an older release running against a newer
-  // baseline has nothing better to put there.
-  let contextMessages = existingSessionContextMessages;
-
-  const systemPrompt = agent.systemPrompt();
-  const hasOutdatedBaseline = contextMessages.some((message) => {
-    const version = message.metadata.contextVersion ?? 0;
-    return (
-      version < SESSION_CONTEXT_VERSION ||
-      (version === SESSION_CONTEXT_VERSION &&
-        message.metadata.realRole === "system" &&
-        textOf(message) !== systemPrompt)
-    );
+  // The front of every request, written once and read back verbatim; see
+  // `session-baseline.ts` for the few times it is written again.
+  const baselineResult = await sessionBaseline({
+    agent,
+    chatId,
+    contextMessages: existingSessionContextMessages,
+    rolledOverAfterMessageId,
+    sessionId,
+    signal,
   });
-
-  if (contextMessages.length === 0 || hasOutdatedBaseline) {
-    // Replaced rather than added to: two baselines in the store are two
-    // baselines in every later request, and the superseded one would keep being
-    // sent for the rest of the session. A task's inherited baseline belongs to
-    // its chat, which replaces it on its own next turn, so only this session's
-    // own are removed.
-    for (const message of contextMessages.filter(
-      (stored) => stored.metadata.sessionId === sessionId,
-    )) {
-      const removeResult = await Store.removeMessage(
-        message.id,
-        message.metadata.sessionId,
-        chatId,
-        { signal },
-      );
-
-      if (removeResult.isErr()) {
-        return err(removeResult.error);
-      }
-    }
-
-    const builtContextMessages = await agent.getMessages({
-      sessionId,
-      chatId,
-    });
-
-    const newContextMessages = builtContextMessages.map((message) => ({
-      ...message,
-      metadata: {
-        ...message.metadata,
-        contextVersion: SESSION_CONTEXT_VERSION,
-      },
-    }));
-
-    const saveResults = await Promise.all(
-      newContextMessages.map((message) =>
-        Store.saveMessageWithParts(message, chatId, { signal }),
-      ),
-    );
-
-    const combinedResult = Result.combine(saveResults);
-    if (combinedResult.isErr()) {
-      return err(combinedResult.error);
-    }
-
-    contextMessages = newContextMessages;
+  if (baselineResult.isErr()) {
+    return err(baselineResult.error);
   }
+  const contextMessages = baselineResult.value;
 
   const orderedMessages = dropTrailingFailedMessages([
     // ulid sorts oldest to newest
@@ -444,10 +371,4 @@ export async function prepareModelMessages({
   }
 
   return ok(preparedMessages);
-}
-
-function textOf(message: SessionMessage.ContextWithParts) {
-  return message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("");
 }

@@ -11,6 +11,7 @@ export { backgroundProcessesModelNote } from "./lib/background-processes-model-t
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
 export { chatTopicsModelNote } from "./lib/chat-topics-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
+export { environmentChangeModelNote } from "./lib/environment-model-text";
 export { describeMessageError } from "./lib/describe-message-error";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";

@@ -23,16 +23,20 @@ export const CHAT_FOLDER_NAMES = {
 
 /**
  * The variables the agent's shell sets, naming the folders it works with:
- * its chat's work folder, where every command starts; what the person sent
- * the chat, in its record folder; the output folder, where finished work
- * goes; and the folder of the skill it loaded last, where that skill's
- * scripts run from. Every program the shell starts sees them too.
+ * the workspace's apps; its chat's work folder, where every command starts;
+ * what the person sent the chat, in its record folder; the output folder,
+ * where finished work goes; the folder of the skill it loaded last, where
+ * that skill's scripts run from; and the workspace's own writable skills.
+ * Every program the shell starts sees them too. The system prompt names
+ * folders by these, never by path, so it reads the same on every computer.
  */
 export const FOLDER_VARIABLES = {
+  apps: "INSTRUMENT_APPS",
   attachments: "INSTRUMENT_ATTACHMENTS",
   output: "INSTRUMENT_OUTPUT",
   skill: "INSTRUMENT_SKILL_DIR",
   work: "INSTRUMENT_WORK",
+  workspaceSkills: "INSTRUMENT_WORKSPACE_SKILLS",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
 // A chat's SQLite store, every session in it, in its record folder.

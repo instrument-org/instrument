@@ -2,6 +2,7 @@ import {
   backgroundProcessesModelNote,
   browserStatusModelNote,
   dateChangeModelNote,
+  environmentChangeModelNote,
   isAddressableChatFilePath,
   jobEventModelNote,
   maxStepsModelNote,
@@ -56,6 +57,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // summarizing compaction it would be describing.
   "data-contextRollover": "dev",
   "data-dateChange": "dev",
+  "data-environmentChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -241,6 +243,16 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={dateChangeModelNote(part.data)}
+        />
+      );
+    }
+    case "data-environmentChange": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={environmentChangeModelNote(part.data) ?? ""}
         />
       );
     }

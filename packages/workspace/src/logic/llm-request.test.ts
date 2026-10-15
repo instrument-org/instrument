@@ -29,7 +29,7 @@ import { logFileName } from "../lib/records/file-names";
 import { liveView } from "../lib/records/views";
 import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
+import { SESSION_CONTEXT_VERSION } from "../lib/session-baseline";
 import { Store } from "../lib/store";
 import { StoreRecords } from "../lib/store-records";
 import { getWorkspaceConfig } from "../lib/workspace-config";

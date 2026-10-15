@@ -1,21 +1,31 @@
 import { dedent, sift } from "radashi";
 
 import { contextDateKey, formatContextDate } from "../lib/context-date";
+import {
+  folderVariablesText,
+  platformGuidance,
+} from "../lib/environment-model-text";
 import { getCurrentDate } from "../lib/get-current-date";
-import { getSystemInfo } from "../lib/get-system-info";
 import { isToolPart } from "../lib/is-tool-part";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import { type Environment } from "../schemas/environment";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type AgentName } from "./types";
 
+/**
+ * @param environment The computer the text describes, recorded with it so a
+ * later message can tell what changed since.
+ */
 export function createContextMessage({
   agentName,
+  environment,
   now,
   sessionId,
   textParts,
 }: {
   agentName: AgentName;
+  environment?: Environment;
   now: Date;
   sessionId: StoreId.Session;
   textParts: (boolean | null | string | undefined)[];
@@ -33,6 +43,7 @@ export function createContextMessage({
     metadata: {
       agentName,
       createdAt: now,
+      ...(environment && { environment }),
       realRole: "user",
       sessionId,
     },
@@ -94,17 +105,26 @@ export function createSystemMessage({
 }
 
 /**
+ * The computer the session starts on, as the context message tells it.
  * `network` names what reaches the network, for an agent whose shell and
  * tools have any; the chat's have none.
  */
-export function getSystemInfoText({ network }: { network?: string } = {}) {
+export function getSystemInfoText({
+  environment,
+  network,
+}: {
+  environment: Environment;
+  network?: string;
+}) {
   const now = getCurrentDate();
+  const guidance = platformGuidance(environment.platform);
   return dedent`
     <system_info>
-    The user's computer: ${getSystemInfo()}. You run on it: their files and apps belong to this system, and so does anything you write for them to run.
+    The user's computer: ${environment.computer}. You run on it: their files and apps belong to this system, and so does anything you write for them to run.${guidance === undefined ? "" : ` ${guidance}`}
     Your shell: an emulated POSIX shell with GNU coreutils spellings, whatever the user's computer is. Reach for \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.${network === undefined ? "" : ` ${network}`}
+    ${folderVariablesText(environment)}
     Current date: ${formatContextDate(contextDateKey(now))} -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
-    Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}, the computer's and so a fair guide to where the user is. This session started at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} local time; \`date\` in your shell gives the time now.
+    Time zone: ${environment.timeZone}, the computer's and so a fair guide to where the user is. This session started at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} local time; \`date\` in your shell gives the time now.
     </system_info>
   `.trim();
 }

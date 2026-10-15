@@ -16,10 +16,8 @@ import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config"
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
 import { instrumentAgent } from "../../agents/instrument";
 import { createSession } from "../create-session";
-import {
-  prepareModelMessages,
-  SESSION_CONTEXT_VERSION,
-} from "../prepare-model-messages";
+import { prepareModelMessages } from "../prepare-model-messages";
+import { SESSION_CONTEXT_VERSION } from "../session-baseline";
 import { Store } from "../store";
 import { chatDir } from "../record-folders";
 import { updateChatSettings } from "../chat-settings";

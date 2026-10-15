@@ -25,6 +25,7 @@ import { backgroundProcessesModelNote } from "../../lib/background-processes-mod
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
+import { environmentChangeModelNote } from "../../lib/environment-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -38,6 +39,7 @@ import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
+import { EnvironmentSchema } from "../environment";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
 
@@ -150,6 +152,12 @@ export namespace SessionMessage {
      * older than any shape a build names and so is rebuilt once.
      */
     contextVersion: z.number().optional(),
+    /**
+     * The computer the baseline told the model about, on the message that
+     * tells it. What a later environment note is measured against. Absent on
+     * a baseline from before it was recorded.
+     */
+    environment: EnvironmentSchema.optional(),
     realRole: z.enum(["system", "user", "assistant"]),
   });
   const SystemMetadataSchema = BaseMetadataSchema;
@@ -455,6 +463,20 @@ export namespace SessionMessage {
             text: dateChangeModelNote(dateChangePart.data),
             type: "text",
           });
+        }
+
+        const environmentChangePart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-environmentChange";
+          } => part.type === "data-environmentChange",
+        );
+        if (environmentChangePart) {
+          const note = environmentChangeModelNote(environmentChangePart.data);
+          if (note) {
+            injectedParts.push({ text: note, type: "text" });
+          }
         }
 
         const messageGapPart = message.parts.find(

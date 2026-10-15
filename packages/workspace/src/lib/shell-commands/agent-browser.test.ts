@@ -26,6 +26,7 @@ import {
   BrowserFollowUp,
   withBrowserFollowUp,
 } from "./agent-browser-follow-up";
+import { NETWORK_IDLE_GAVE_UP } from "./agent-browser-network-idle";
 
 vi.mock("execa");
 
@@ -484,6 +485,35 @@ describe("agent-browser routing", () => {
     // Lets the daemon run the plugin under Electron's node on packaged builds.
     expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
     expect(env.HOME).not.toBe(os.homedir());
+  });
+
+  it("gives a network-idle wait the harness's timeout and reports when the network stayed busy", async () => {
+    const { args } = await spawnedWith(["wait", "--load", "networkidle"]);
+    expect(args.slice(-5)).toEqual([
+      "wait",
+      "--load",
+      "networkidle",
+      "--timeout",
+      "5000",
+    ]);
+
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValue({
+      exitCode: 1,
+      stderr:
+        "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
+      stdout: "",
+    } as never);
+    const result = await command.execute(
+      ["wait", "--load", "networkidle"],
+      commandCtx,
+    );
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: NETWORK_IDLE_GAVE_UP,
+    });
   });
 
   it("passes upload files to the browser absolute", async () => {

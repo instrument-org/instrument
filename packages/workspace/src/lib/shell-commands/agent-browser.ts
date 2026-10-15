@@ -46,6 +46,11 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
+import {
+  capNetworkIdleWait,
+  isUncappedNetworkIdleWait,
+  networkIdleWaitResult,
+} from "./agent-browser-network-idle";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
@@ -636,7 +641,8 @@ export function createAgentBrowserCommand({
         stdout: "",
       };
     }
-    const resolvedArgs = bridgedArgs.args;
+    const cappedNetworkIdle = isUncappedNetworkIdleWait(bridgedArgs.args);
+    const resolvedArgs = capNetworkIdleWait(bridgedArgs.args);
 
     // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
@@ -805,11 +811,12 @@ export function createAgentBrowserCommand({
       });
     }
 
-    return {
+    const output = {
       exitCode,
       stderr: scrub(result.stderr),
       stdout: scrub(result.stdout),
     };
+    return cappedNetworkIdle ? networkIdleWaitResult(output) : output;
   });
 }
 

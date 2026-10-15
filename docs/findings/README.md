@@ -51,6 +51,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
+| [Network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md) | worked around |
 | [Agent clicks land where the element was](agent-clicks-land-where-the-element-was.md) | worked around, open upstream |
 | [`open` returned before the page had loaded](open-returns-before-the-page-loads.md) — the bridge answered `Page.navigate` on commit, so `open` returned onto a document still parsing | fixed, measured |
 | [App reload destroys every in-app browser page](app-reload-destroys-the-in-app-browser.md) | contained |

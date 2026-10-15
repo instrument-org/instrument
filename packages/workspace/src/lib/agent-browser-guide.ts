@@ -38,7 +38,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 - Click the field and type, rather than \`fill\`, which sets the value from script and sends no key events.
 - \`open\` reports the navigation, not the page: its checkmark can front a title like "Access to this page has been denied", which is a refusal.
-- Wait for a named condition (\`wait --url\`, \`wait --text\`, \`wait <selector>\`). \`wait --load networkidle\` costs about a second every time and never returns on a page that holds a connection open.
+- \`open\` returns once the page has loaded, so act on it right away. When you do need to wait, wait for a named condition (\`wait --url\`, \`wait --text\`, \`wait <selector>\`). \`wait --load networkidle\` costs about a second on a quiet page, and a page that holds a connection open never goes quiet, so here it gives up after five seconds.
 - Never invent a deep URL; find it through \`web_search\`, the site's own links, or the user.
 - Take a site's pages a few at a time. When it starts refusing, stop and tell the user rather than fetching the same pages with \`curl\`, a script, or \`read <url>\`, which get refused even with a browser's headers; a \`429\` there is usually that refusal, not a rate limit.
 - \`read <url>\` fetches without the browser, so it has none of the user's sign-ins and none of the page's script-rendered content; for either, \`open\` the page and run \`read\` with no URL.

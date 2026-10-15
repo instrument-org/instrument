@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -39,7 +39,13 @@ const switchModelId =
   process.env.CLAUDE_CONTINUITY_SWITCH_MODEL ?? "claude-haiku-5-5";
 const realHome = userInfo().homedir;
 const executablePath =
-  process.env.CLAUDE_CONTINUITY_CLI ?? `${realHome}/.local/bin/claude`;
+  process.env.CLAUDE_CONTINUITY_CLI ??
+  join(
+    realHome,
+    ".local",
+    "bin",
+    process.platform === "win32" ? "claude.exe" : "claude",
+  );
 const outDir =
   process.env.CLAUDE_CONTINUITY_OUT ??
   join(tmpdir(), `claude-continuity-${Date.now()}`);
@@ -193,12 +199,14 @@ function runTool(
  * the resume records in the config folder, and the transcripts Claude Code
  * files under the home folder its processes run in, beside the user's own
  * sessions started there. A transcript is this test's when it ever held
- * `marker`, which the chat's first message carries, and a record is this
- * test's when its transcript is; nothing else is touched. Moving both aside
- * is what leaving a Mac looks like to the next one; moving them back is
- * coming home to it.
+ * `marker`, which the chat's first message carries, or was made during the
+ * test and holds the code word (an older Claude Code forks a transcript
+ * without the first message). A record is this test's when its transcript
+ * is; nothing else is touched. Moving both aside is what leaving a Mac looks
+ * like to the next one; moving them back is coming home to it.
  */
 function localState(marker: string) {
+  const startedAt = Date.now();
   const records = join(realHome, ".claude", "instrument-sessions");
   const project = join(
     realHome,
@@ -210,9 +218,14 @@ function localState(marker: string) {
   const entries = () => (existsSync(project) ? readdirSync(project) : []);
   const ours = () => {
     for (const name of entries()) {
+      if (!name.endsWith(".jsonl")) {
+        continue;
+      }
+      const path = join(project, name);
+      const text = readFileSync(path, "utf8");
       if (
-        name.endsWith(".jsonl") &&
-        readFileSync(join(project, name), "utf8").includes(marker)
+        text.includes(marker) ||
+        (statSync(path).birthtimeMs >= startedAt && text.includes(CODE_WORD))
       ) {
         sessionIds.add(name.replace(/\.jsonl$/, ""));
       }
@@ -242,7 +255,7 @@ function localState(marker: string) {
   const move = (from: string[], to: string) => {
     mkdirSync(to, { recursive: true });
     for (const path of from) {
-      renameSync(path, join(to, path.split("/").at(-1) ?? ""));
+      renameSync(path, join(to, basename(path)));
     }
   };
   const restore = (from: string, to: string) => {

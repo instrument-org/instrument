@@ -82,7 +82,7 @@ export type TabLocation =
       hostPath?: string;
       kind: "folder";
       path: string;
-      /** How many are picked in it, when that is several and they stand in for a file open beside it: the place is then them. */
+      /** How many are picked in it, when that is several and they stand in for a file open beside it: the place is then them. A path of "" is the recents, which are in no one folder. */
       picked?: number;
     }
   | { kind: "newTab" }
@@ -129,11 +129,15 @@ export function locationCrumbs(
     }
     // Several picked are the place, under the folder they are in.
     case "folder": {
-      return location.picked === undefined
-        ? pathCrumbs(location.path, { home, volumes })
+      if (location.picked === undefined) {
+        return pathCrumbs(location.path, { home, volumes });
+      }
+      const count = { label: `${location.picked} items` };
+      return location.path === ""
+        ? [count]
         : [
             ...pathCrumbs(location.path, { home, linksLast: true, volumes }),
-            { label: `${location.picked} items` },
+            count,
           ];
     }
     case "newTab":

@@ -54,6 +54,12 @@ describe("locationCrumbs", () => {
     `);
   });
 
+  it("names several picked from the recents as a count alone", () => {
+    expect(readable({ kind: "folder", path: "", picked: 4 })).toEqual([
+      "4 items",
+    ]);
+  });
+
   it("walks a Windows folder up from the home folder", () => {
     expect(
       readable(

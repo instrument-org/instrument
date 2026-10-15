@@ -18,7 +18,10 @@ import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { noteFileOpened } from "@/client/hooks/use-recent-files";
-import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
+import {
+  useWatchedFileGone,
+  useWatchedFileUrl,
+} from "@/client/hooks/use-watched-file-url";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -52,6 +55,7 @@ import {
   BESIDE_MOTION_CLASSNAME,
   ComputerPage,
   type FolderOnScreen,
+  RECENTS_ROOT,
 } from "./computer-page";
 import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
@@ -514,9 +518,20 @@ export function FilesScreen({
     ? reachablePath(activeFile.hostPath, reach.data?.folders ?? {})
     : undefined;
 
+  // Several picked stand in the file's place, so the row, a draft and the
+  // conversation are told about them rather than the file under the pile.
+  const isSeveralPicked = isFileOpen && besidePicked.length > 1;
+  const shownFile = isSeveralPicked ? undefined : activeFile;
   useTabSurface(
     "picked",
-    isFileOpen && besidePicked.length > 1 ? besidePicked.length : null,
+    isSeveralPicked
+      ? {
+          count: besidePicked.length,
+          ...(folder && folderRoot !== RECENTS_ROOT
+            ? { folder: { hostPath: folder.hostPath, walked: folder.walked } }
+            : {}),
+        }
+      : null,
   );
   useTabSurface(
     "walked",
@@ -526,12 +541,12 @@ export function FilesScreen({
   );
   useTabSurface(
     "view",
-    activeFile
+    shownFile
       ? {
           file: {
             ...(activeMount === undefined ? {} : { mount: activeMount }),
-            name: activeFile.name,
-            path: activeFile.hostPath,
+            name: shownFile.name,
+            path: shownFile.hostPath,
           },
           screen: "file",
         }
@@ -552,7 +567,7 @@ export function FilesScreen({
   );
   // The same folder and selection by host path, for a draft's chip. Only
   // for the window's own tabs: a draft's band has a Finder of its own.
-  const finderFolder = activeFile || groupTab ? null : folder;
+  const finderFolder = shownFile || groupTab ? null : folder;
   useTabSurface(
     "finder",
     finderFolder && {
@@ -561,7 +576,11 @@ export function FilesScreen({
     },
   );
 
-  // A missing file returns to the preceding visit, or closes its dedicated tab.
+  // A missing file returns to the preceding visit, or closes its dedicated
+  // tab; beside its folder, it slides away and leaves the folder. Asked as
+  // the file opens and again whenever its watch says it went, so trashing it
+  // from the folder beside it, or moving a folder above it, puts it away.
+  const isFileGone = useWatchedFileGone(file);
   useEffect(() => {
     if (!file) {
       return;
@@ -575,7 +594,11 @@ export function FilesScreen({
         });
         if (response.status === 404 && !controller.signal.aborted) {
           toast(`${segmentsOf(file).at(-1) ?? file} is no longer there`);
-          leaveFile();
+          if (isFileOpen) {
+            closeBeside();
+          } else {
+            leaveFile();
+          }
         }
       } catch {
         // The channel is not up, or the request was cut off: not the file's
@@ -585,9 +608,9 @@ export function FilesScreen({
     return () => {
       controller.abort();
     };
-    // Once per file the tab shows.
+    // Once per file the tab shows, and once more if it goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
+  }, [file, isFileGone]);
   // Watched, so the viewer shows the file as it is rather than as it was
   // opened: a write lands in the open tab.
   const activeFileUrl = useWatchedFileUrl(activeFile?.hostPath);

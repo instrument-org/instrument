@@ -41,7 +41,6 @@ import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
-import { folderOf } from "@/client/components/window/host-path";
 import {
   type TabLocation,
   taskHref,
@@ -479,7 +478,14 @@ function RouteScreen({ href }: { href: string }) {
   const location: TabLocation =
     // Several picked beside a file stand where it stood.
     fromHref.kind === "file" && picked !== undefined
-      ? { kind: "folder", path: folderOf(fromHref.path), picked }
+      ? picked.folder
+        ? {
+            hostPath: picked.folder.hostPath,
+            kind: "folder",
+            path: picked.folder.walked,
+            picked: picked.count,
+          }
+        : { kind: "folder", path: "", picked: picked.count }
       : fromHref.kind === "folder" && screenView?.folder
         ? {
             ...fromHref,

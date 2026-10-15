@@ -31,8 +31,12 @@ export interface TabSurface {
    * alone: a draft's band has a Finder of its own.
    */
   finder?: FinderShown;
-  /** How many are picked in the folder beside a file, when it is several, which the row names in the file's place. */
-  picked?: number;
+  /**
+   * Several picked in the folder beside a file, which the row names in the
+   * file's place: how many, and the folder on screen they were picked in,
+   * none for the recents, which are from all over.
+   */
+  picked?: { count: number; folder?: { hostPath: string; walked: string } };
   /** Where the window's page is drawn while this tab is up; one of the window's own tabs alone. */
   slot?: PageSlot;
   /**
@@ -106,7 +110,7 @@ type SameFact = {
 };
 const sameFact: SameFact = {
   finder: sameData,
-  picked: (a, b) => a === b,
+  picked: sameData,
   slot: (a, b) =>
     a !== null &&
     b !== null &&

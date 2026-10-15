@@ -1,7 +1,6 @@
 import {
   type ChosenItem,
   type FileTab,
-  finderBesideColumnsWidthAtom,
   finderBesideWidthAtom,
   fileTreeOpenAtom,
   fileTreeWidthAtom,
@@ -84,16 +83,15 @@ const TREE_BOUNDS: RailBounds = {
   min: 180,
 };
 /**
- * The same for the folder itself beside a file; the columns open two
- * columns wide.
+ * The same for the folder itself beside a file, no narrower than its section
+ * of the row needs to name it beside its controls.
  */
 const BESIDE_BOUNDS: RailBounds = {
   collapse: 150,
   initial: 300,
   max: 640,
-  min: 220,
+  min: 260,
 };
-const BESIDE_COLUMNS_INITIAL = 480;
 /** How the file fades as it slides away, as long as the folder takes to widen. */
 const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
@@ -234,14 +232,11 @@ export function FilesScreen({
     }
   }
   const [storedBesideWidth, setStoredBesideWidth] = useAtom(
-    view === "columns" ? finderBesideColumnsWidthAtom : finderBesideWidthAtom,
+    finderBesideWidthAtom,
   );
   // Followed by hand while its edge is dragged, and kept once let go.
   const [draggedWidth, setDraggedWidth] = useState<number | null>(null);
   const draggedWidthNow = useRef<number | null>(null);
-  // The columns narrow to the ones standing, up to that: a file in the
-  // first column has no folder above it to show.
-  const [columnsFit, setColumnsFit] = useState<number | null>(null);
   const [layout, setLayout] = useState<HTMLDivElement | null>(null);
   // In a narrow tab the folder keeps to its share, so the file is never
   // the narrower of the two.
@@ -262,26 +257,14 @@ export function FilesScreen({
     };
   }, [layout]);
   const besideWidth = Math.min(
-    draggedWidth ??
-      (view === "columns" && columnsFit !== null
-        ? Math.min(storedBesideWidth, columnsFit)
-        : storedBesideWidth),
+    draggedWidth ?? storedBesideWidth,
     layoutWidth === null
       ? Number.POSITIVE_INFINITY
       : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
   );
   const clampBesideWidth = (width: number) =>
     Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
-  // Whether the folder beside has had the open file selected: until it has,
-  // an empty selection is the listing still arriving, not a click on nothing.
-  const besideHeld = useRef(false);
-  useEffect(() => {
-    if (!isFileOpen) {
-      besideHeld.current = false;
-    }
-  }, [isFileOpen]);
   const closeBeside = () => {
-    besideHeld.current = false;
     void navigate({
       search: (previous) => ({
         ...previous,
@@ -299,9 +282,9 @@ export function FilesScreen({
     );
   };
   // One click (or an arrow) on another file shows it, in the step already
-  // up, the way the columns preview it; several show as a pile; a folder
-  // picked is the columns walking on, beside the file; nothing picked puts
-  // the file away and gives the folder its width back.
+  // up, the way the columns preview it; several show as a pile. A folder
+  // picked, or none, leaves the file where it is: walking from folder to
+  // folder never puts it away, and neither does a folder's listing arriving.
   const onBesidePick = (picked: ChosenItem[]) => {
     if (!isFileOpen) {
       return;
@@ -309,13 +292,15 @@ export function FilesScreen({
     setBesidePicked((current) =>
       JSON.stringify(current) === JSON.stringify(picked) ? current : picked,
     );
-    if (picked.some((item) => item.path === file)) {
-      besideHeld.current = true;
-    }
     const [only] = picked;
     if (picked.length === 1 && only?.kind === "file" && only.path !== file) {
       showFile(only.path, { replace: true });
-    } else if (picked.length === 0 && besideHeld.current) {
+    }
+  };
+  // A press on empty space in the folder is the one click that puts the
+  // file away and gives the folder its width back, as the × does.
+  const onBesideEmpty = () => {
+    if (isFileOpen) {
       closeBeside();
     }
   };
@@ -701,7 +686,7 @@ export function FilesScreen({
                       isClosing,
                       isFolderShown,
                       isResizing: draggedWidth !== null,
-                      onFit: setColumnsFit,
+                      onEmpty: onBesideEmpty,
                       onPick: onBesidePick,
                       toggle: (
                         <TreeToggle
@@ -758,11 +743,7 @@ export function FilesScreen({
                 max={BESIDE_BOUNDS.max}
                 min={BESIDE_BOUNDS.min}
                 onReset={() => {
-                  setStoredBesideWidth(
-                    view === "columns"
-                      ? BESIDE_COLUMNS_INITIAL
-                      : BESIDE_BOUNDS.initial,
-                  );
+                  setStoredBesideWidth(BESIDE_BOUNDS.initial);
                 }}
                 onResize={(width) => {
                   draggedWidthNow.current = clampBesideWidth(width);

@@ -276,8 +276,8 @@ export function ComputerPage({
     isClosing: boolean;
     isFolderShown: boolean;
     isResizing: boolean;
-    /** How wide the columns standing beside the file are, for the folder to narrow to. */
-    onFit: (width: number) => void;
+    /** A press on empty space in the folder, which puts the file away. */
+    onEmpty: () => void;
     /** Everything picked, a folder the columns stand in included, whenever it changes. */
     onPick: (picked: ChosenItem[]) => void;
     toggle: ReactNode;
@@ -1275,7 +1275,15 @@ export function ComputerPage({
   const leaveRoot = () => {
     const search = rootParentSearch(rootHostPath, view);
     if (search) {
-      void navigate({ search, to: "/files" });
+      // A file open beside the folder stays open while it goes up.
+      void navigate({
+        search: (previous) => ({
+          ...search,
+          file: previous.file,
+          tree: previous.tree,
+        }),
+        to: "/files",
+      });
     }
   };
 
@@ -1957,7 +1965,10 @@ export function ComputerPage({
                 title={rootName}
                 {...(beside === undefined
                   ? {}
-                  : { besideWidth: beside.width, onBesideFit: beside.onFit })}
+                  : {
+                      besideWidth: beside.width,
+                      onEmptyPress: beside.onEmpty,
+                    })}
                 {...(toolsInRow
                   ? {
                       toolbarInto: {

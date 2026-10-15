@@ -442,20 +442,11 @@ export const fileTreeWidthAtom = keptAtom<number>(
   240,
 );
 
-/**
- * How wide a folder is beside a file open in it, in CSS px, dragged at its
- * right edge: one width for the list and the grid, and one for the columns,
- * which open two columns wide so the folder above the file's shows too.
- */
+/** How wide a folder is beside a file open in it, in CSS px, dragged at its right edge. One width for every view. */
 export const finderBesideWidthAtom = keptAtom<number>(
   "view",
   "finder-beside-width.v1",
   300,
-);
-export const finderBesideColumnsWidthAtom = keptAtom<number>(
-  "view",
-  "finder-beside-columns-width.v1",
-  480,
 );
 
 /**

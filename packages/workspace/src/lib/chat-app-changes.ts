@@ -7,6 +7,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { isConnected } from "./apps/connection";
 import { listApps } from "./apps/store";
+import { ChatReads } from "./chat-reads";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
@@ -88,17 +89,24 @@ export function detectChatAppChanges({
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const storage = yield* getSessionsStoreStorage(chatId);
-      const stored = await getParsedStorageItem(
-        StorageKey.chatAppsBaseline(sessionId),
-        ChatAppsBaselineSchema,
-        storage,
-        { signal },
-      );
+      const stored = await ChatReads.told({
+        chatId,
+        fromStore: () =>
+          getParsedStorageItem(
+            StorageKey.chatAppsBaseline(sessionId),
+            ChatAppsBaselineSchema,
+            storage,
+            { signal },
+          ),
+        schema: ChatAppsBaselineSchema,
+        sessionId,
+        what: "apps",
+      });
       const current = await currentChatApps();
       yield* setChatAppsBaseline(chatId, sessionId, current, { signal });
       // Missing on the first message of a session, whose context already
       // lists the apps as they stand.
-      if (stored.isErr()) {
+      if (stored.isErr() || stored.value === undefined) {
         return ok(undefined);
       }
       const events = appEventsBetween(stored.value, current);

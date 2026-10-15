@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { okAsync } from "neverthrow";
 import { alphabetical } from "radashi";
+import { z } from "zod";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -507,6 +509,127 @@ describe("the transcript a chat is drawn and told from", () => {
       });
       live.clear();
     }
+  });
+});
+
+describe("the standing facts a session was told", () => {
+  const schema = z.array(z.object({ path: z.string() }));
+  const never = () => okAsync<undefined | { path: string }[], Error>(undefined);
+
+  it("reads back what the session was last told, and not an earlier one", async () => {
+    const { chatId, sessionId } = await startChat();
+    await writeTurn(chatId, sessionId);
+    StoreRecords.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+    StoreRecords.told(chatId, sessionId, "folders", [{ path: "/b" }]);
+    await landed(chatId);
+
+    expect(
+      (
+        await ChatReads.told({
+          chatId,
+          fromStore: never,
+          schema,
+          sessionId,
+          what: "folders",
+        })
+      )._unsafeUnwrap(),
+    ).toEqual([{ path: "/b" }]);
+  });
+
+  it.each([
+    { name: "one never told", told: undefined },
+    { name: "one told it no longer holds", told: null },
+  ])(
+    "answers nothing for $name, without reading the store",
+    async ({ told }) => {
+      const { chatId, sessionId } = await startChat();
+      await writeTurn(chatId, sessionId);
+      if (told === null) {
+        StoreRecords.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+        StoreRecords.told(chatId, sessionId, "folders", undefined);
+      }
+      await landed(chatId);
+      const fromStore = vi.fn(never);
+
+      expect(
+        (
+          await ChatReads.told({
+            chatId,
+            fromStore,
+            schema,
+            sessionId,
+            what: "folders",
+          })
+        )._unsafeUnwrap(),
+      ).toBeUndefined();
+      expect(fromStore).not.toHaveBeenCalled();
+    },
+  );
+
+  it("gives a task what its chat was told before it forked", async () => {
+    const { chatId, sessionId } = await startChat();
+    const { asked } = await writeTurn(chatId, sessionId);
+    StoreRecords.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+    const task = await addChildTask(chatId, {
+      createdAt: new Date(),
+      forkedAtMessageId: asked.id,
+      id: StoreId.newSessionId(),
+      title: "Count them",
+      updatedAt: new Date(),
+    });
+    await landed(chatId);
+
+    expect(
+      (
+        await ChatReads.told({
+          chatId,
+          fromStore: never,
+          schema,
+          sessionId: task.id,
+          what: "folders",
+        })
+      )._unsafeUnwrap(),
+    ).toEqual([{ path: "/a" }]);
+  });
+
+  it("answers nothing for a fact written in a shape this build cannot read", async () => {
+    const { chatId, sessionId } = await startChat();
+    await writeTurn(chatId, sessionId);
+    StoreRecords.told(chatId, sessionId, "folders", { folders: "/a" });
+    await landed(chatId);
+
+    expect(
+      (
+        await ChatReads.told({
+          chatId,
+          fromStore: never,
+          schema,
+          sessionId,
+          what: "folders",
+        })
+      )._unsafeUnwrap(),
+    ).toBeUndefined();
+  });
+
+  it("reads the store where this process writes no records", async () => {
+    installChatRecords(undefined);
+    const { chatId, sessionId } = await startChat();
+    const fromStore = vi.fn(() =>
+      okAsync<undefined | { path: string }[], Error>([{ path: "/stored" }]),
+    );
+
+    expect(
+      (
+        await ChatReads.told({
+          chatId,
+          fromStore,
+          schema,
+          sessionId,
+          what: "folders",
+        })
+      )._unsafeUnwrap(),
+    ).toEqual([{ path: "/stored" }]);
+    expect(fromStore).toHaveBeenCalledTimes(1);
   });
 });
 

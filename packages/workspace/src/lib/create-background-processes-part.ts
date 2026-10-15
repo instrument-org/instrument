@@ -5,6 +5,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { listBackgroundProcesses } from "./background-processes";
 import { getCurrentDate } from "./get-current-date";
+import { ChatReads } from "./chat-reads";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
@@ -51,14 +52,21 @@ export async function createBackgroundProcessesPart({
       return undefined;
     }
 
-    const reported = await getParsedStorageItem(
-      StorageKey.backgroundProcessesReported(sessionId),
-      ReportedProcessesSchema,
-      storage.value,
-    );
+    const reported = await ChatReads.told({
+      chatId,
+      fromStore: () =>
+        getParsedStorageItem(
+          StorageKey.backgroundProcessesReported(sessionId),
+          ReportedProcessesSchema,
+          storage.value,
+        ),
+      schema: ReportedProcessesSchema,
+      sessionId,
+      what: "processes",
+    });
     // An error here is "nothing recorded yet" as often as a real failure, and
     // both mean this session has been told nothing.
-    const previous = reported.isOk() ? reported.value : [];
+    const previous = reported.isOk() ? (reported.value ?? []) : [];
 
     const now = getCurrentDate().getTime();
     const processes = listBackgroundProcesses(sessionId);

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { ChatReads } from "./chat-reads";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import {
   listMemories,
@@ -58,14 +59,21 @@ export async function createMemoryPart({
     if (storage.isErr()) {
       return undefined;
     }
-    const reported = await getParsedStorageItem(
-      StorageKey.memoryReported(sessionId),
-      ToldSchema,
-      storage.value,
-    );
+    const reported = await ChatReads.told({
+      chatId,
+      fromStore: () =>
+        getParsedStorageItem(
+          StorageKey.memoryReported(sessionId),
+          ToldSchema,
+          storage.value,
+        ),
+      schema: ToldSchema,
+      sessionId,
+      what: "memory",
+    });
     // Nothing recorded reads as told nothing, which is what an empty memory
     // also reads as: a fresh chat with nothing to remember gets no note.
-    const told = reported.isOk() ? reported.value : {};
+    const told = reported.isOk() ? (reported.value ?? {}) : {};
     if (isEqual(told, digests)) {
       return undefined;
     }
@@ -140,12 +148,19 @@ export async function recordMemoryReported({
   if (storage.isErr()) {
     return;
   }
-  const reported = await getParsedStorageItem(
-    StorageKey.memoryReported(sessionId),
-    ToldSchema,
-    storage.value,
-  );
-  const told = omit(reported.isOk() ? reported.value : {}, [name]);
+  const reported = await ChatReads.told({
+    chatId,
+    fromStore: () =>
+      getParsedStorageItem(
+        StorageKey.memoryReported(sessionId),
+        ToldSchema,
+        storage.value,
+      ),
+    schema: ToldSchema,
+    sessionId,
+    what: "memory",
+  });
+  const told = omit(reported.isOk() ? (reported.value ?? {}) : {}, [name]);
   const digests = memory ? { ...told, ...memoryDigests([memory]) } : told;
   await setParsedStorageItem(
     StorageKey.memoryReported(sessionId),

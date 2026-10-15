@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { ChatReads } from "./chat-reads";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
@@ -19,6 +20,20 @@ export function getFoldersBaseline(
   chatId: ChatId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
+) {
+  return ChatReads.told({
+    chatId,
+    fromStore: () => fromStore(chatId, sessionId, { signal }),
+    schema: FoldersBaselineSchema,
+    sessionId,
+    what: "folders",
+  });
+}
+
+function fromStore(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  { signal }: { signal?: AbortSignal },
 ) {
   return safeTry<FoldersBaseline | undefined, Error>(async function* () {
     const storage = yield* getSessionsStoreStorage(chatId);

@@ -1,4 +1,5 @@
 import { okAsync, ResultAsync } from "neverthrow";
+import { type z } from "zod";
 
 import { type ChatId } from "../schemas/chat-id";
 import { type Session } from "../schemas/session";
@@ -6,8 +7,10 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
+import { type ToldWhat } from "./records/record";
 import { sessionOf } from "./records/session-of";
 import {
+  toldView,
   contextTokensView,
   conversationView,
   everyMessageView,
@@ -202,6 +205,44 @@ export namespace ChatReads {
             inputTokensIn,
           ),
     );
+  }
+
+  /**
+   * What the session was last told of one standing fact: the folders it can
+   * reach, the apps it is connected to, the browser's tabs, the memories it
+   * was given, the processes it left running. Each is written as a record
+   * when it changes, and read back here to be compared with what holds now,
+   * so the agent is told only the difference.
+   *
+   * `fromStore` is that fact's own read of the store, for a chat whose
+   * records are not held yet. It goes when the store does.
+   */
+  export function told<Schema extends z.ZodType, StoreFailure>({
+    chatId,
+    fromStore,
+    schema,
+    sessionId,
+    what,
+  }: {
+    chatId: ChatId;
+    fromStore: () => ResultAsync<undefined | z.output<Schema>, StoreFailure>;
+    schema: Schema;
+    sessionId: StoreId.Session;
+    what: ToldWhat;
+  }): ResultAsync<undefined | z.output<Schema>, Failure | StoreFailure> {
+    return recorded(chatId).andThen((records) => {
+      if (!records?.held) {
+        return fromStore();
+      }
+      const held = toldView(records.read, sessionId, what);
+      if (held === undefined || held === null) {
+        return okAsync(undefined);
+      }
+      const parsed = schema.safeParse(held);
+      // A fact this build cannot read is one the agent is told again in
+      // full, which is what a missing one does: the record stays as written.
+      return okAsync(parsed.success ? parsed.data : undefined);
+    });
   }
 
   /**

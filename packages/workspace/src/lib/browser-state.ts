@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type BrowserTargetId } from "../types";
+import { ChatReads } from "./chat-reads";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
@@ -64,7 +65,22 @@ export function getBrowserState(
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
-  return safeTry<BrowserState | undefined, Error>(async function* () {
+  return ChatReads.told({
+    chatId,
+    fromStore: () => storedBrowserState(chatId, sessionId, { signal }),
+    schema: z.unknown(),
+    sessionId,
+    what: "browser",
+  }).map((held) => (held === undefined ? undefined : browserStateOf(held)));
+}
+
+/** What the store holds, as written: the shape is settled by its reader. */
+function storedBrowserState(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  { signal }: { signal?: AbortSignal },
+) {
+  return safeTry<unknown, Error>(async function* () {
     const storage = yield* getSessionsStoreStorage(chatId);
     const result = await getParsedStorageItem(
       StorageKey.browserState(sessionId),
@@ -72,7 +88,7 @@ export function getBrowserState(
       storage,
       { signal },
     );
-    return ok(result.isErr() ? undefined : browserStateOf(result.value));
+    return ok(result.isErr() ? undefined : result.value);
   });
 }
 

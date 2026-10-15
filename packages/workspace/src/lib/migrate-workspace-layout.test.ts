@@ -22,6 +22,7 @@ const NOTHING_ADOPTED = {
   emptyCount: 0,
   leftOver: 0,
   topicCount: 0,
+  unreadable: [],
 };
 
 // A session row as the store keeps one: the only row the sweep reads to tell
@@ -85,6 +86,30 @@ function writeProjectFolder(name: string, projectId: string): void {
   fs.writeFileSync(path.join(rootDir, "projects", name, "AGENTS.md"), "do x");
 }
 
+/** The sessions a store at this path holds, which name the conversation in it. */
+function sessionKeys(...segments: string[]): string[] {
+  const database = new DatabaseSync(path.join(rootDir, ...segments), {
+    readOnly: true,
+  });
+  try {
+    return database
+      .prepare(`select key from ${STORE_TABLE} where key like 'sessions:%'`)
+      .all()
+      .map((row) => String(row.key));
+  } finally {
+    database.close();
+  }
+}
+
+/** What the sweep set aside of the record named `id`, having taken its name. */
+function asideFiles(id: string) {
+  return fs
+    .readdirSync(
+      path.join(rootDir, ".instrument", ".pre-chats", EMPTY_STORES, id),
+    )
+    .toSorted();
+}
+
 function writeTaskSettings(chatId: string, settings: Record<string, unknown>) {
   const privateDir = path.join(rootDir, "tasks", chatId, ".instrument");
   fs.mkdirSync(privateDir, { recursive: true });
@@ -119,6 +144,7 @@ describe("migrateWorkspaceLayout", () => {
         emptyCount: 0,
         leftOver: 0,
         topicCount: 0,
+        unreadable: [],
       },
       movedTaskCount: 0,
       removedBrowserProfileCloneCount: 0,
@@ -302,6 +328,89 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("main");
     expect(read("tasks", "abc", ".instrument", "task.db-wal")).toBe("wal");
     expect(read("tasks", "abc", ".instrument", "task.db-shm")).toBe("shm");
+  });
+
+  // The database the 1.x migration reads to make the task's chat. A task can
+  // hold an empty `task.db` beside the `sessions.db` its conversation is in,
+  // and nothing but this sweep reads `sessions.db`.
+  describe("a 1.x task's database", () => {
+    function writeTaskStores(
+      id: string,
+      stores: Record<string, readonly (readonly [string, unknown])[]>,
+    ) {
+      const privateDir = path.join(rootDir, "tasks", id, ".instrument");
+      fs.mkdirSync(privateDir, { recursive: true });
+      for (const [name, rows] of Object.entries(stores)) {
+        writeStoreRowsSync(path.join(privateDir, name), rows);
+      }
+    }
+
+    function privateDirOf(id: string) {
+      return path.join(rootDir, "tasks", id, ".instrument");
+    }
+
+    it("gives the task the database that holds its conversation", () => {
+      writeTaskStores("abc", {
+        "sessions.db": [[SESSION_KEY, {}]],
+        "task.db": [["__migration_version__", 9]],
+      });
+      // What the 1.x migration reads once the sweep has named the files: the
+      // conversation, rather than the empty store that would have it set the
+      // whole task aside as one nobody said anything in.
+      const read1xMigrationSaw: string[] = [];
+      vi.mocked(migrateLegacyTasks).mockImplementation(() => {
+        read1xMigrationSaw.push(
+          ...sessionKeys("tasks", "abc", ".instrument", "task.db"),
+        );
+        return NOTHING_ADOPTED;
+      });
+
+      const result = migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(result.chatRecords.done).toContain(
+        `abc: set aside ${path.join(privateDirOf("abc"), "task.db")}, which held no sessions, in ${path.join(rootDir, ".instrument", ".pre-chats", EMPTY_STORES, "abc")}, and took the sessions.db beside it`,
+      );
+      expect(read1xMigrationSaw).toEqual([SESSION_KEY]);
+      expect(sessionKeys("tasks", "abc", ".instrument", "task.db")).toEqual([
+        SESSION_KEY,
+      ]);
+      expect(asideFiles("abc")).toEqual(["task.db"]);
+
+      marks = { ...marks, layoutVersion: 0 };
+      expect(migrate().chatRecords.failed).toBe(0);
+
+      expect(sessionKeys("tasks", "abc", ".instrument", "task.db")).toEqual([
+        SESSION_KEY,
+      ]);
+      expect(asideFiles("abc")).toEqual(["task.db"]);
+      expect(exists(".instrument", ".pre-chats", EMPTY_STORES, "abc-2")).toBe(
+        false,
+      );
+    });
+
+    it("leaves both databases alone where each holds sessions", () => {
+      writeTaskStores("abc", {
+        "sessions.db": [[OTHER_SESSION_KEY, {}]],
+        "task.db": [[SESSION_KEY, {}]],
+      });
+
+      const result = migrate();
+      marks = { ...marks, layoutVersion: 0 };
+      migrate();
+
+      expect(result.chatRecords.failed).toBe(0);
+      expect(result.chatRecords.done).toContain(
+        `abc: left ${path.join(privateDirOf("abc"), "task.db")} (holds sessions) beside ${path.join(privateDirOf("abc"), "sessions.db")} (holds sessions)`,
+      );
+      expect(sessionKeys("tasks", "abc", ".instrument", "task.db")).toEqual([
+        SESSION_KEY,
+      ]);
+      expect(sessionKeys("tasks", "abc", ".instrument", "sessions.db")).toEqual(
+        [OTHER_SESSION_KEY],
+      );
+      expect(exists(".instrument", ".pre-chats", EMPTY_STORES)).toBe(false);
+    });
   });
 
   it("is idempotent — a second run no-ops", () => {
@@ -521,32 +630,10 @@ describe("migrateWorkspaceLayout", () => {
       }
     }
 
-    function sessionKeys(...segments: string[]): string[] {
-      const database = new DatabaseSync(path.join(rootDir, ...segments), {
-        readOnly: true,
-      });
-      try {
-        return database
-          .prepare(`select key from ${STORE_TABLE} where key like 'sessions:%'`)
-          .all()
-          .map((row) => String(row.key));
-      } finally {
-        database.close();
-      }
-    }
-
     // Where a chat's records sat before the split lifted them to the top of
     // its folder, which is where the sweep names its database.
     function privateDirOf(id: string) {
       return path.join(rootDir, ".instrument", "chats", id, ".instrument");
-    }
-
-    function asideFiles(id: string) {
-      return fs
-        .readdirSync(
-          path.join(rootDir, ".instrument", ".pre-chats", EMPTY_STORES, id),
-        )
-        .toSorted();
     }
 
     it("renames task.db to chat.db with its sidecars, once", () => {

@@ -428,6 +428,11 @@ function sweepWorkspaceLayout(rootDir: string) {
         `Left ${migration.legacyTasks.leftOver} earlier task(s) or project(s) to move on the next boot`,
       );
     }
+    for (const task of migration.legacyTasks.unreadable) {
+      logger.warn(
+        `Left the earlier task in ${task} where it is: its database could not be read`,
+      );
+    }
     reportChatRecords(migration.chatRecords);
     if (migration.removedBrowserProfileCloneCount > 0) {
       logger.info(

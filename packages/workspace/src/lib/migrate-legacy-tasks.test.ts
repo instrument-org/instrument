@@ -259,6 +259,7 @@ describe("migrateLegacyTasks", () => {
       emptyCount: 0,
       leftOver: 0,
       topicCount: 0,
+      unreadable: [],
     });
 
     const chat = "2026-06-23-rotating-red-square";
@@ -703,6 +704,47 @@ describe("migrateLegacyTasks", () => {
       emptyCount: 0,
       leftOver: 0,
       topicCount: 0,
+      unreadable: [],
+    });
+    expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(
+      before,
+    );
+  });
+
+  // A database with no store table in it holds nothing this can read, which
+  // is not the same as a task nobody said anything in: setting the task aside
+  // would file a conversation that may be in there under the empty ones, and
+  // counting it as left over would sweep every boot forever over a state no
+  // boot settles. It stays where it is and is named.
+  it("names a task whose database cannot be read and leaves it where it is", () => {
+    legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    const unreadable = path.join(root, "tasks", "2026-06-24-unreadable");
+    writeJson(path.join(unreadable, ".instrument", "settings.json"), {
+      name: "Half a task",
+    });
+    new DatabaseSync(path.join(unreadable, ".instrument", "task.db")).close();
+
+    const result = migrateLegacyTasks(root);
+
+    expect(result).toMatchObject({
+      adoptedCount: 1,
+      emptyCount: 0,
+      leftOver: 0,
+      unreadable: [unreadable],
+    });
+    expect(
+      fs.readdirSync(path.join(unreadable, ".instrument")).toSorted(),
+    ).toEqual(["settings.json", "task.db"]);
+    expect(
+      fs.readdirSync(path.join(root, ".instrument", ".pre-chats")).toSorted(),
+    ).toEqual(["task-records"]);
+
+    const before = fs.readdirSync(root, { recursive: true }).toSorted();
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 0,
+      emptyCount: 0,
+      leftOver: 0,
+      unreadable: [unreadable],
     });
     expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(
       before,

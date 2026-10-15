@@ -77,6 +77,12 @@ export interface LegacyTasksMigration {
   leftOver: number;
   /** Topics written for projects that matched none. */
   topicCount: number;
+  /**
+   * Tasks left where they are, named, because the database holding their
+   * conversation could not be read: a person can look at one, and no later
+   * boot reads it any better, so they are not counted as left over.
+   */
+  unreadable: string[];
 }
 
 interface ConversationMessage {
@@ -134,6 +140,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     emptyCount: 0,
     leftOver: 0,
     topicCount: 0,
+    unreadable: [],
   };
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
   const { chatsDir } = workspaceLayout(rootDir);
@@ -188,6 +195,8 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
       });
       if (adopted.kind === "empty") {
         migration.emptyCount += 1;
+      } else if (adopted.kind === "unreadable") {
+        migration.unreadable.push(path.join(tasksDir, name));
       } else {
         migration.adoptedCount += 1;
         stagedDirs.push(adopted.stagingDir);
@@ -241,8 +250,9 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
 /**
  * One task made into a staged chat, which the caller names once every task
  * has been staged; or set aside, for the tutorial and a task the user
- * never said anything in. Throws when anything fails, leaving the task where
- * it was and no chat staged.
+ * never said anything in; or left where it is, for one whose database could
+ * not be read. Throws when anything fails, leaving the task where it was and
+ * no chat staged.
  */
 function adoptTask({
   chatsDir,
@@ -263,13 +273,19 @@ function adoptTask({
       kind: "adopted";
       stagingDir: string;
     }
-  | { kind: "empty" } {
+  | { kind: "empty" }
+  | { kind: "unreadable" } {
   const taskName = path.basename(chatDir);
   const privateDir = path.join(chatDir, PRIVATE_FOLDER_NAME);
   const settings = readJson(path.join(privateDir, SETTINGS_FILE_NAME)) ?? {};
   const conversation = readConversation(
     path.join(privateDir, LEGACY_TASK_DB_FILE_NAME),
   );
+  // A database nobody can read may hold the whole conversation, so the task
+  // stays where it is rather than being set aside as one holding nothing.
+  if (conversation.unreadable) {
+    return { kind: "unreadable" };
+  }
   if (
     conversation.tutorial ||
     !conversation.messages.some((message) => message.role === "user")
@@ -544,29 +560,40 @@ function projectFolders(raw: unknown): TopicFolder[] {
  * What the user saw of a task: every top-level session in the order they
  * began, each message in order, the user's words and files and the replies'
  * words, and nothing else.
+ *
+ * A database SQLite cannot read, or one with no store table in it, is
+ * answered as itself rather than as a task nobody said anything in: what it
+ * holds is unknown, so the task it belongs to is left where it is instead of
+ * being set aside for holding nothing.
  */
 function readConversation(dbPath: string): {
   messages: ConversationMessage[];
   title?: string;
   /** Whether it is the tutorial's replay, which a chat is not made for. */
   tutorial: boolean;
+  /** Whether the database is there and could not be read. */
+  unreadable: boolean;
 } {
   const messages: ConversationMessage[] = [];
   if (!fs.existsSync(dbPath)) {
-    return { messages, tutorial: false };
+    return { messages, tutorial: false, unreadable: false };
   }
-  const db = new DatabaseSync(dbPath, { readOnly: true });
   let rows: StoreRow[];
   try {
-    // node:sqlite types a row as a record of any column value; these are two
-    // of the store's own columns.
-    rows = db
-      .prepare(
-        `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
-      )
-      .all() as unknown as StoreRow[];
-  } finally {
-    db.close();
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      // node:sqlite types a row as a record of any column value; these are
+      // two of the store's own columns.
+      rows = db
+        .prepare(
+          `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
+        )
+        .all() as unknown as StoreRow[];
+    } finally {
+      db.close();
+    }
+  } catch {
+    return { messages, tutorial: false, unreadable: true };
   }
 
   const sessions: { createdAt: string; id: string; title?: string }[] = [];
@@ -692,6 +719,7 @@ function readConversation(dbPath: string): {
     messages,
     ...(title ? { title } : {}),
     tutorial,
+    unreadable: false,
   };
 }
 

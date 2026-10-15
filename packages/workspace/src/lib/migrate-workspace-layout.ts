@@ -43,9 +43,10 @@ const LEGACY_STATE_FILE_NAME = "project-state.json";
 const LEGACY_SETTINGS_FILE_NAME = "instrument.json";
 const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
 
-// Where the empty `chat.db` a chat held while its own sessions were still in
-// the `task.db` beside it is kept, with what the migrations set aside rather
-// than delete.
+// Where an empty database a record held while its own sessions were still in
+// the file beside it is kept, with what the migrations set aside rather than
+// delete: a chat's `chat.db` beside its `task.db`, and a 1.x task's `task.db`
+// beside its `sessions.db`.
 const EMPTY_STORES_SET_ASIDE_DIR_NAME = "empty-chat-stores";
 
 // `.state` is intentionally not migrated: the task db stores direct path
@@ -71,7 +72,9 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // `.instrument/` (moveAppFoldersIntoDataDir).
 // 7: a chat whose `chat.db` holds no sessions given the `task.db` beside it
 // that holds its conversation (renameChatDatabases).
-export const WORKSPACE_LAYOUT_VERSION = 7;
+// 8: a 1.x task whose `task.db` holds no sessions given the `sessions.db`
+// beside it that holds its conversation (normalizeTaskPrivateFiles).
+export const WORKSPACE_LAYOUT_VERSION = 8;
 
 // The temp folder an external browser cloned the person's Chrome profile
 // into, in the workspace's `.instrument/`, which nothing writes since that
@@ -174,15 +177,15 @@ export function migrateWorkspaceLayout({
         emptyCount: 0,
         leftOver: 0,
         topicCount: 0,
+        unreadable: [],
       },
     };
   }
 
   const movedIn = moveAppFoldersIntoDataDir({ machineDir, rootDir });
   const named = renameChatDatabases(rootDir);
-  const removedBrowserProfileCloneCount = normalizeTasks(
-    path.join(rootDir, TASKS_DIR_NAME),
-  );
+  const normalized: ChatRecordsSplit = { done: [], failed: 0 };
+  const removedBrowserProfileCloneCount = normalizeTasks(rootDir, normalized);
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
   const legacyTasks = migrateLegacyTasks(rootDir);
@@ -199,8 +202,8 @@ export function migrateWorkspaceLayout({
   // After the 1.x migration, whose chats it splits too.
   const split = splitChatRecords({ machineDir, rootDir });
   const chatRecords: ChatRecordsSplit = {
-    done: [...named.done, ...split.done],
-    failed: named.failed + split.failed,
+    done: [...named.done, ...normalized.done, ...split.done],
+    failed: named.failed + normalized.failed + split.failed,
   };
   fs.rmSync(
     path.join(workspaceLayout(rootDir).dataDir, EXTERNAL_BROWSER_TMP_DIR_NAME),
@@ -387,8 +390,17 @@ function moveIfMissingTarget(source: string, destination: string) {
 // and no-ops on a task already in the current shape. Called for every task by
 // the mark-gated boot sweep. Returns the number of browser profile clones
 // deleted.
-function normalizeTask(taskFolder: string): number {
-  normalizeTaskPrivateFiles(taskFolder);
+function normalizeTask({
+  normalized,
+  setAsideDir,
+  taskFolder,
+}: {
+  normalized: ChatRecordsSplit;
+  /** Where a store the task's own takes the name back from is kept. */
+  setAsideDir: string;
+  taskFolder: string;
+}): number {
+  normalizeTaskPrivateFiles({ normalized, setAsideDir, taskFolder });
   normalizeTaskSettingsFile(taskFolder);
   // After both, so `state.json` is under its current name and the settings
   // file it folds into is in the private dir.
@@ -413,20 +425,50 @@ function normalizeTaskAttachments(taskFolder: string) {
   }
 }
 
-// Renames a 1.x task's private files to the names the 1.x migration reads:
-// sessions.db -> task.db (with sidecars) and the legacy state file ->
-// state.json.
-function normalizeTaskPrivateFiles(taskFolder: string) {
+/**
+ * Renames a 1.x task's private files to the names the 1.x migration reads:
+ * `sessions.db` to `task.db` (with sidecars) and the legacy state file to
+ * `state.json`.
+ *
+ * The task gets the database that holds its conversation, by the rule a
+ * chat's own rename follows: where a `task.db` is already there holding no
+ * sessions and the `sessions.db` holds them, the empty one is set aside and
+ * the `sessions.db` takes the name. Nothing but this reads `sessions.db`, so
+ * leaving the empty one under the name would cost the task its whole
+ * conversation: the 1.x migration would read none of it and set the task
+ * aside as one nobody ever said anything in.
+ */
+function normalizeTaskPrivateFiles({
+  normalized,
+  setAsideDir,
+  taskFolder,
+}: {
+  normalized: ChatRecordsSplit;
+  setAsideDir: string;
+  taskFolder: string;
+}) {
   const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
   if (!fs.existsSync(privateDir)) {
     return;
   }
 
-  for (const suffix of DB_FILE_SUFFIXES) {
-    moveIfMissingTarget(
-      path.join(privateDir, LEGACY_DB_FILE_NAME + suffix),
-      path.join(privateDir, LEGACY_TASK_DB_FILE_NAME + suffix),
-    );
+  const legacy = path.join(privateDir, LEGACY_DB_FILE_NAME);
+  const store = path.join(privateDir, LEGACY_TASK_DB_FILE_NAME);
+  const name = path.basename(taskFolder);
+  if (
+    !fs.existsSync(legacy) ||
+    !fs.existsSync(store) ||
+    freeStoreName({
+      asideDir: path.join(setAsideDir, EMPTY_STORES_SET_ASIDE_DIR_NAME, name),
+      legacy,
+      name,
+      named: normalized,
+      store,
+    })
+  ) {
+    for (const suffix of DB_FILE_SUFFIXES) {
+      moveIfMissingTarget(legacy + suffix, store + suffix);
+    }
   }
 
   moveIfMissingTarget(
@@ -530,21 +572,22 @@ function renameChatDatabase({
 }
 
 /**
- * Takes the name `chat.db` back for the `task.db` beside it where the
- * `chat.db` there holds no sessions and the `task.db` does: a build that
- * opened the chat before a sweep reached it left an empty store under the
- * new name, and nothing outside this sweep reads `task.db`, so the chat
- * opens empty while its conversation sits in a file nothing reads. The empty
- * one is set aside in the workspace's own folder rather than deleted,
- * sidecars first and the database last, so a sweep cut short leaves no
- * database paired with a sidecar that is not its own. Answers whether the
- * name is free.
+ * Takes a name back for the database beside it, where the one holding the
+ * name holds no sessions and the one beside it does: a build that opened a
+ * chat before a sweep reached it left an empty store under the name the chat
+ * opens, and a 1.x task can hold an empty `task.db` beside the `sessions.db`
+ * that is the only file its conversation is in. Nothing but this sweep reads
+ * the file the conversation is in, so the record opens empty while the whole
+ * of it sits in a file nothing reads. The empty one is set aside in the
+ * workspace's own folder rather than deleted, sidecars first and the
+ * database last, so a sweep cut short leaves no database paired with a
+ * sidecar that is not its own. Answers whether the name is free.
  *
  * Where both hold sessions, or either cannot be read, both files stay as
- * they are, the `task.db` under its own name, and a line says which held
- * what: choosing between two conversations is a person's to do, and no later
- * sweep settles it, so it is not counted as left over either. Every sweep
- * after leaves the same two files.
+ * they are, each under its own name, and a line says which held what:
+ * choosing between two conversations is a person's to do, and no later sweep
+ * settles it, so it is not counted as left over either. Every sweep after
+ * leaves the same two files.
  */
 function freeStoreName({
   asideDir,
@@ -586,7 +629,7 @@ function freeStoreName({
     return false;
   }
   named.done.push(
-    `${name}: set aside ${store}, which held no sessions, in ${aside}, and took the ${LEGACY_TASK_DB_FILE_NAME} beside it`,
+    `${name}: set aside ${store}, which held no sessions, in ${aside}, and took the ${path.basename(legacy)} beside it`,
   );
   return true;
 }
@@ -625,18 +668,22 @@ function sessionsHeld(sessions: boolean | undefined): string {
 }
 
 // Normalizes every task folder to the current layout.
-function normalizeTasks(tasksDir: string) {
+function normalizeTasks(rootDir: string, normalized: ChatRecordsSplit) {
+  const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
   if (!fs.existsSync(tasksDir)) {
     return 0;
   }
+  const { setAsideDir } = workspaceLayout(rootDir);
   let removedBrowserProfileCloneCount = 0;
   for (const entry of fs.readdirSync(tasksDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    removedBrowserProfileCloneCount += normalizeTask(
-      path.join(tasksDir, entry.name),
-    );
+    removedBrowserProfileCloneCount += normalizeTask({
+      normalized,
+      setAsideDir,
+      taskFolder: path.join(tasksDir, entry.name),
+    });
   }
   return removedBrowserProfileCloneCount;
 }

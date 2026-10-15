@@ -541,11 +541,8 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
-  // A text command uutils always answers is that program; one that tries
-  // the builtin first is described as the builtin it usually is.
-  const route = nativeTextRoutes().find(
-    (each) => each.name === name && each.mode === "native",
-  );
+  // A text command uutils answers is described by that program.
+  const route = nativeTextRoutes().find((each) => each.name === name);
   try {
     program = route
       ? uutilsProgram(route.binary)

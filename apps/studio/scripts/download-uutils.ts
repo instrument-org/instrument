@@ -54,9 +54,9 @@ const GREP = { repo: "uutils/grep", tag: "0.2.0" };
  * Every archive per target, by its sha256 as published. Linux takes the musl
  * builds where they exist (coreutils, findutils), which run on any
  * distribution; diffutils and grep publish only glibc builds, which need
- * glibc 2.34 or later. Windows on ARM gets coreutils alone, the only one of
- * the four with a build for it; the commands the others answer stay the
- * shell's own there.
+ * glibc 2.34 or later. Windows takes coreutils and diffutils only, since
+ * grep and xargs stay the shell's own there, and Windows on ARM coreutils
+ * alone, the only one with a build for it.
  */
 const ARCHIVES: Record<Target, Archive[]> = {
   "darwin-arm64": [
@@ -70,7 +70,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-aarch64-apple-darwin.tar.xz",
-      binaries: ["find", "xargs"],
+      binaries: ["xargs"],
       sha256:
         "f2f7a6071f6b321f62d54f2e9303a3bd18c348fdc5464253e4f24ac3bfc55b04",
     },
@@ -100,7 +100,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-x86_64-apple-darwin.tar.xz",
-      binaries: ["find", "xargs"],
+      binaries: ["xargs"],
       sha256:
         "d74273aab28e95c253570e3f1958387dc98e2b73f569674c30173d78876fb50b",
     },
@@ -130,7 +130,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-aarch64-unknown-linux-musl.tar.xz",
-      binaries: ["find", "xargs"],
+      binaries: ["xargs"],
       sha256:
         "c2dad7fbf0cd6b108f833b0a42651f3ad796b6dfa71d303ca1ab51eed3ce3afe",
     },
@@ -160,7 +160,7 @@ const ARCHIVES: Record<Target, Archive[]> = {
     {
       ...FINDUTILS,
       asset: "findutils-x86_64-unknown-linux-musl.tar.xz",
-      binaries: ["find", "xargs"],
+      binaries: ["xargs"],
       sha256:
         "e7c10ea19e1dce2549aaf6f35e15bf42a5e8141d6100c499b6d6fc9b25ea9209",
     },
@@ -198,26 +198,13 @@ const ARCHIVES: Record<Target, Archive[]> = {
       sha256:
         "45d6760c136ef42cdba1e2dbb492b0858be98099d6c7fb3e300a3adcfbc54cfe",
     },
-    {
-      ...FINDUTILS,
-      asset: "findutils-x86_64-pc-windows-msvc.zip",
-      binaries: ["find", "xargs"],
-      sha256:
-        "d056b1151f70fdb0c5e6ab216a153ac7161d84afc6764766a6ab92ab441d16fc",
-    },
+    // grep and xargs stay the shell's own on Windows (see native-text.ts).
     {
       ...DIFFUTILS,
       asset: "diffutils-x86_64-pc-windows-msvc.zip",
       binaries: ["diffutils"],
       sha256:
         "36c900a06060ee31621fcdecb9bf223b40dd23d45e91ba98101b5d3aa5c70d18",
-    },
-    {
-      ...GREP,
-      asset: "uu_grep-x86_64-pc-windows-msvc.zip",
-      binaries: ["grep"],
-      sha256:
-        "b364af18fb6367b41b6489a9d2f1e92c8fa80dc37af8aa4fece3293015f03871",
     },
   ],
 };

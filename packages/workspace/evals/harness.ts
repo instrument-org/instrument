@@ -77,6 +77,11 @@ const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
 );
+/** The uutils binaries `pnpm --filter @instrument-org/studio uutils:download` vendors. */
+const UUTILS_DIR = path.resolve(
+  import.meta.dirname,
+  "../../../apps/studio/resources/uutils",
+);
 
 // The pnpm the app ships, as its JS entry: the workspace runs pnpm with node,
 // so a shell shim from PATH (pnpm's own installer writes one) dies on line 2.
@@ -618,6 +623,11 @@ export async function runEvals(
       ),
       toolBinDir: toolBinDirIn(workspaceRootDir),
       uvDataDir: path.join(workspaceRootDir, "uv-data"),
+      // The uutils Studio vendors, so the shell's GNU text commands are the
+      // app's; EVAL_BUILTINS_ONLY=1 leaves them the shell's own, to compare.
+      ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
+        ? {}
+        : { uutilsDir: UUTILS_DIR }),
       webSearch: unavailableWebSearchClient,
     },
   });

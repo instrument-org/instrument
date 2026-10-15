@@ -34,7 +34,8 @@
   },
   "devDependencies": {
     "@instrument-org/typescript-config": "workspace:*",
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=24.21.0"

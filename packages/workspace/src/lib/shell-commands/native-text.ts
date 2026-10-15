@@ -19,6 +19,7 @@ import {
 } from "../workspace-fs-layout";
 import { mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
+import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 /** The bundled uutils binaries, by their base name. */
@@ -51,10 +52,14 @@ interface NativeTextRoute {
   /** Walks the folders it is given, which the sandbox may refuse on the way. */
   walks?: (args: string[]) => boolean;
   /**
-   * Arguments the uutils program accepts but does not honor, which send the
-   * call to the builtin; `args` is how the generated table names them.
+   * Arguments the program accepts but does not honor, or output it cannot
+   * hand the shell, which send the call to the builtin; `args` is how the generated table names them.
    */
   builtinFor?: { args: string; matches: (args: string[]) => boolean };
+  /** The arguments as the program gets them, when they differ. */
+  programArgs?: (args: string[]) => string[];
+  /** Variables the program runs with besides the shell's own. */
+  env?: Record<string, string>;
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
@@ -209,6 +214,35 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     name: "file",
     platforms: UNIX,
     system: { darwin: () => ["/usr/bin/file"], linux: () => linuxBin("file") },
+  },
+  // The builtin tar builds the whole archive in memory, refuses a file over
+  // the shell's 256 MB read cap, and has no xz without a native module, and
+  // every platform carries a tar that streams: bsdtar on macOS and in
+  // Windows' System32 (since Windows 10), GNU tar on Linux. Windows' is
+  // named by its full path, so another tar earlier on the PATH never runs.
+  {
+    binary: "system",
+    builtinFor: {
+      args: "`-f -` or no `-f` when creating",
+      matches: tarWritesStdout,
+    },
+    // Keeps bsdtar on macOS from adding a `._` file of metadata beside each
+    // file it archives.
+    env: { COPYFILE_DISABLE: "1" },
+    name: "tar",
+    programArgs: tarProgramArgs,
+    system: {
+      darwin: () => ["/usr/bin/tar"],
+      linux: () => linuxBin("tar"),
+      win32: () => [
+        nodePath.win32.join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "tar.exe",
+        ),
+      ],
+    },
+    writes: tarWrites,
   },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
@@ -604,8 +638,10 @@ export function createNativeTextCommand(
           args,
           maskedUnder(starts.length > 0 ? starts : ["."], layout, resolvePath),
         )
-      : args;
-    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+      : (route.programArgs?.(args) ?? args);
+    const context = resolveCommandContext(chatId, ctx);
+    const { hostCwd } = context;
+    const env = { ...context.env, ...route.env };
     const stdin = subprocessStdin(ctx.stdin);
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";

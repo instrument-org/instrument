@@ -279,3 +279,25 @@ describe.skipIf(!existsSync("/usr/bin/diff"))("with the system's diff", () => {
     expect(result.stdout).toMatch(/^one\s+one\ntwo\s+\|\s+2\n$/);
   });
 });
+
+describe.skipIf(!existsSync("/usr/bin/tar"))("with the system's tar", () => {
+  it("makes and opens a gzipped archive, leaving the private folder out", async () => {
+    const result = await run(
+      [
+        "mkdir -p pack/.instrument && cp a.txt pack && echo s > pack/.instrument/x",
+        "tar czf pack.tgz pack && tar tzf pack.tgz | sort",
+        "mkdir -p out && tar -C out -xzf pack.tgz && cat out/pack/a.txt",
+        "tar czf - a.txt | tar tzf -",
+      ].join("\n"),
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "pack/
+      pack/a.txt
+      one
+      two
+      a.txt
+      "
+    `);
+  });
+});

@@ -15,12 +15,11 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { detectDateChange } from "./date-change";
-
+import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
 import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
-import { Store } from "./store";
 import { chatDir, resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
 import { grantFile, grantFolder } from "./chat/grants";
@@ -346,13 +345,13 @@ async function createChatTopicsPart({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr()) {
     return undefined;
   }
   const tagged = session.value.topics ?? [];
   if (tagged.length === 0) {
-    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
+    const messages = await ChatReads.modelHistory({ chatId, sessionId });
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>

@@ -5,8 +5,8 @@ import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
+import { ChatReads } from "../chat-reads";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { chatGrants } from "./grants";
 import { type PlaceId, placePaths } from "../permissions/places";
 import { readPermissionSettings } from "../permissions/rules";
@@ -123,7 +123,7 @@ async function topicFolderPaths(chatId: ChatId): Promise<string[]> {
   if (!sessionId) {
     return [];
   }
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   const tagged = session.isOk() ? (session.value.topics ?? []) : [];
   if (tagged.length === 0) {
     return [];

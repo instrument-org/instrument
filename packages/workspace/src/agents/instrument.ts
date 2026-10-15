@@ -15,6 +15,7 @@ import {
 import { buildAppsContextText } from "../lib/apps/context";
 import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildFoldersText } from "../lib/build-folders-text";
+import { ChatReads } from "../lib/chat-reads";
 import { folderReach } from "../lib/chat/folder-reach";
 import { outputFolderPath } from "../lib/chat/output-folder";
 import { TypedError } from "../lib/errors";
@@ -142,21 +143,17 @@ export const instrumentAgent = setupAgent({
         return ok(undefined);
       }
 
-      const messageIds = yield* Store.getMessageIdsAfter(
-        sessionId,
-        parentMessageId,
+      // This run's messages: the one it answered and the session's own after
+      // it. A run whose message the session does not have is one whose steps
+      // cannot be placed, and reads as none.
+      const own = yield* ChatReads.modelHistory({
         chatId,
-        { signal },
-      );
-
-      const messages = yield* Store.getMessagesWithParts(
-        {
-          messageIds: [parentMessageId, ...messageIds],
-          sessionId,
-          chatId,
-        },
-        { signal },
-      );
+        inherited: false,
+        sessionId,
+        signal,
+      });
+      const start = own.findIndex(({ id }) => id === parentMessageId);
+      const messages = start === -1 ? [] : own.slice(start);
 
       const usedNonReadOnlyTools = messages.some((message) =>
         message.parts.some(

@@ -71,6 +71,18 @@ export function listView(read: ChatRead): Session.Type[] {
 }
 
 /**
+ * The ids of the session's messages, oldest first: what a reader that only
+ * places a message among the others needs, without reading any of them.
+ */
+export function messageIdsView(
+  read: ChatRead,
+  sessionId: StoreId.Session,
+  options: HistoryOptions = {},
+): StoreId.Message[] {
+  return messagesOf(read, sessionId, options).map((message) => message.id);
+}
+
+/**
  * What the chat view draws for everyone: user and assistant messages, each
  * with the parts that show in the conversation, and a folder a message sent
  * where a move took it.
@@ -194,14 +206,17 @@ export function mergeViews(
  * holds for a window of `usable` tokens. The messages before it keep their
  * blob references, since past a rollover only the person's words are sent.
  * A blob that is gone leaves its call an error saying so.
+ *
+ * `inherited: false` reads the session's own messages alone, for a reader
+ * that is looking at one run rather than at the whole request.
  */
 export async function modelHistoryView(
   read: ChatRead,
   sessionId: StoreId.Session,
-  { usable }: { usable?: number } = {},
+  { inherited, usable }: HistoryOptions & { usable?: number } = {},
 ): Promise<SessionMessage.WithParts[]> {
   const session = read.chat.sessions.find(({ id }) => id === sessionId);
-  const messages = historyOf(read.chat, sessionId);
+  const messages = messagesOf(read, sessionId, { inherited });
   const boundary = contextRolloverBoundaryInForce({
     rolledOverAfterMessageId: session?.rollover?.after,
     rolledOverUnderUsableTokens: session?.rollover?.usableTokens,

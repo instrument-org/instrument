@@ -1,6 +1,6 @@
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 
 /**
  * The folder of the skill each session loaded last, as its shell names it
@@ -34,10 +34,7 @@ export async function lastLoadedSkillDir({
   if (loaded.has(sessionId)) {
     return loaded.get(sessionId);
   }
-  const messages = await Store.getMessagesWithParts(
-    { chatId, sessionId },
-    { signal },
-  );
+  const messages = await ChatReads.modelHistory({ chatId, sessionId, signal });
   if (messages.isErr()) {
     return undefined;
   }

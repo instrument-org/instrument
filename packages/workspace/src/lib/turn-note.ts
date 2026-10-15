@@ -4,7 +4,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { sessionRole } from "./chat/children";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 import { systemNote } from "./system-note";
 import { isTypedByUser } from "./typed-by-user";
 
@@ -84,10 +84,7 @@ export async function turnNoteFor({
   signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts(
-    { sessionId, chatId },
-    { signal },
-  );
+  const messages = await ChatReads.modelHistory({ chatId, sessionId, signal });
   if (messages.isErr()) {
     return undefined;
   }

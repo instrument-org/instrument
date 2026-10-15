@@ -8,6 +8,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import { ChatReads } from "./chat-reads";
 import { getChatAttachmentsDir } from "./chat-dir-utils";
 import {
   applyContextRollover,
@@ -74,10 +75,15 @@ export async function prepareModelMessages({
   signal: AbortSignal;
   chatId: ChatId;
 }) {
-  const messageResults = await Store.getMessagesWithParts(
-    { sessionId, chatId },
-    { signal },
-  );
+  const contextLength = effectiveContextLength(model);
+  const usable = usableContextTokens(contextLength);
+
+  const messageResults = await ChatReads.modelHistory({
+    chatId,
+    sessionId,
+    signal,
+    usable,
+  });
 
   // Every failure is re-wrapped rather than returned as it came. A neverthrow
   // `Err` carries the success type of the result it came from, so passing the
@@ -107,11 +113,8 @@ export async function prepareModelMessages({
   // window: a reported count from before a reset describes a request that is no
   // longer being sent, and taking it at face value would roll the session over
   // again on every turn, eating another slice of history each time.
-  const sessionResult = await Store.getSession(sessionId, chatId, { signal });
+  const sessionResult = await ChatReads.session({ chatId, sessionId, signal });
   const session = sessionResult.isOk() ? sessionResult.value : undefined;
-
-  const contextLength = effectiveContextLength(model);
-  const usable = usableContextTokens(contextLength);
 
   // Recorded before anything is measured or reset, so the transcript says the
   // model moved even on a turn that then fails. Attached to the newest message
@@ -209,20 +212,22 @@ export async function prepareModelMessages({
             rolledOverAfterMessageId: newest.id,
           });
 
-    if (
-      newest &&
-      session &&
-      narrowed &&
-      narrowed.length < allNonContextMessages.length
-    ) {
-      const saveResult = await Store.saveSession(
-        {
-          ...session,
-          rolledOverAfterMessageId: newest.id,
-          rolledOverUnderUsableTokens: usable,
-        },
-        chatId,
-        { signal },
+    if (newest && narrowed && narrowed.length < allNonContextMessages.length) {
+      // The row is read here rather than taken from the boundary read above,
+      // because the row is what is written: the store is still what keeps a
+      // session, and a row written from anything but itself would carry the
+      // other side's answer for every field the boundary is not.
+      const stored = await Store.getSession(sessionId, chatId, { signal });
+      const saveResult = await stored.asyncAndThen((row) =>
+        Store.saveSession(
+          {
+            ...row,
+            rolledOverAfterMessageId: newest.id,
+            rolledOverUnderUsableTokens: usable,
+          },
+          chatId,
+          { signal },
+        ),
       );
 
       // A boundary we could not record is one that would not survive the next

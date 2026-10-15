@@ -17,6 +17,7 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
+import { ChatReads } from "../lib/chat-reads";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
@@ -310,13 +311,11 @@ export const agentMachine = setup({
         chatId: ChatId;
       }
     >(async ({ input, signal }) => {
-      const messageResults = await Store.getMessagesWithParts(
-        {
-          sessionId: input.sessionId,
-          chatId: input.chatId,
-        },
-        { signal },
-      );
+      const messageResults = await ChatReads.modelHistory({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+        signal,
+      });
 
       if (messageResults.isErr()) {
         throw new Error(

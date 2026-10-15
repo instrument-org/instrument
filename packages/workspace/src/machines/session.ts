@@ -15,6 +15,7 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
+import { ChatReads } from "../lib/chat-reads";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { sessionRole } from "../lib/chat/children";
@@ -144,14 +145,16 @@ export const sessionMachine = setup({
       StoreId.Message | undefined,
       { sessionId: StoreId.Session; chatId: ChatId }
     >(async ({ input, signal }) => {
-      const result = await Store.getMessageIds(input.sessionId, input.chatId, {
+      const result = await ChatReads.messageIds({
+        chatId: input.chatId,
+        inherited: false,
+        sessionId: input.sessionId,
         signal,
       });
       if (result.isErr()) {
         throw new Error(result.error.message);
       }
-      // ulid sorts oldest to newest
-      return alphabetical(result.value, (id) => id).at(-1);
+      return result.value.at(-1);
     }),
 
     saveQueuedMessage: fromPromise<

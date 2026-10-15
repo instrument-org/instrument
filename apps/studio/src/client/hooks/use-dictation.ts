@@ -169,7 +169,7 @@ export function useDictation({
 }): Dictation {
   const [phase, setPhase] = useState<DictationPhase>({ kind: "idle" });
   const [live, setLive] = useState<LiveText>();
-  const [stream, setStream] = useState<MediaStream>();
+  const [micStream, setMicStream] = useState<MediaStream>();
   // Each dictation's toasts are its own, so one box starting or landing never
   // takes away another's Try Again and strands its recording.
   const toastId = `dictation:${surface}:${useId()}`;
@@ -339,7 +339,7 @@ export function useDictation({
       clearInterval(session.current.ticker);
     }
     session.current?.release?.();
-    setStream(undefined);
+    setMicStream(undefined);
   };
 
   const playCue = (cue: "start" | "stop") => {
@@ -616,7 +616,7 @@ export function useDictation({
     capture.onEnded(() => {
       stop();
     });
-    setStream(capture.stream);
+    setMicStream(capture.stream);
     setPhase({ kind: "recording" });
     playCue("start");
   };
@@ -651,6 +651,6 @@ export function useDictation({
       void start();
     },
     stop,
-    stream,
+    stream: micStream,
   };
 }

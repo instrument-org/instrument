@@ -228,10 +228,12 @@ function MicrophoneAccessRow() {
   }
   const detail = {
     denied:
+      // oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS
       "Microphone access is off in System Settings, so you can't dictate.",
     granted: `${APP_NAME} can use the microphone.`,
     "not-determined": "macOS asks the first time you dictate.",
     restricted:
+      // oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS
       "This Mac doesn't allow microphone access, so you can't dictate.",
   }[status];
 
@@ -253,6 +255,7 @@ function MicrophoneAccessRow() {
         size="sm"
         variant="outline"
       >
+        {/* oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS */}
         Open System Settings
       </Button>
     </div>

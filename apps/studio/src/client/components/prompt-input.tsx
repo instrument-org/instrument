@@ -17,6 +17,7 @@ import {
   DictationCancel,
   DictationReadout,
   DictationSendTip,
+  DictationWave,
   landingWords,
 } from "@/client/components/dictation-controls";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
@@ -885,6 +886,7 @@ export const PromptInput = ({
             >
               {dictating ? (
                 <>
+                  <DictationWave dictation={dictation} />
                   <DictationCancel dictation={dictation} />
                   <DictationReadout dictation={dictation} />
                 </>
@@ -1048,7 +1050,10 @@ export const PromptInput = ({
         notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
           variant === "pill" && dictating ? (
-            <DictationCancel dictation={dictation} size="sm" />
+            <div className="flex items-center gap-2 pl-1.5">
+              <DictationWave dictation={dictation} />
+              <DictationCancel dictation={dictation} size="sm" />
+            </div>
           ) : variant === "pill" ? (
             // The picker has no button of its own here: it hangs off an empty
             // box over the plus, so its panel opens from the plus when the menu

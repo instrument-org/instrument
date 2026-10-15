@@ -99,6 +99,13 @@ const setLanguage = base
     }
   });
 
+/** Whether dictation plays a sound as it starts and stops. */
+const setSounds = base
+  .input(z.object({ on: z.boolean() }))
+  .handler(({ input }) => {
+    getMachinePreferences().set("dictationSounds", input.on);
+  });
+
 /** Whether today's dictation is known to be used up, and when it comes back. */
 const allowance = base.handler(() => dictationAllowance());
 
@@ -110,5 +117,6 @@ export const dictation = {
   recording,
   setLanguage,
   setMicrophone,
+  setSounds,
   transcribe,
 };

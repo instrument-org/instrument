@@ -76,6 +76,12 @@ export const SETTINGS_INDEX = [
     title: "Dictation language",
   },
   {
+    detail: "A sound when dictation starts and stops.",
+    id: "dictation-sounds",
+    tab: "General",
+    title: "Dictation sounds",
+  },
+  {
     detail: `Whether macOS lets ${APP_NAME} use the microphone.`,
     id: "microphone-access",
     tab: "General",

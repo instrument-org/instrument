@@ -15,13 +15,14 @@ import {
   appendDictatedText,
   appendDictatedTextWithin,
 } from "@/client/lib/dictation-text";
+import { createWaveLevel, rmsOf } from "@/client/lib/dictation-wave-level";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { type DictationSurface } from "@/shared/dictation";
 import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * The microphone, then Stop while recording. It never stands in for Send:
@@ -49,7 +50,7 @@ export function DictationButton({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            aria-label={working ? "Adding your words" : "Stop"}
+            aria-label={working ? "Transcribing" : "Stop"}
             className={cn(
               box,
               "shrink-0 rounded-full bg-foreground p-0 text-background hover:bg-foreground/85 disabled:opacity-100",
@@ -68,7 +69,7 @@ export function DictationButton({
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Stop and add what you said</p>
+          <p>Stop</p>
         </TooltipContent>
       </Tooltip>
     );
@@ -137,9 +138,107 @@ export function DictationCancel({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Throw away what you said</p>
+        <p>Cancel</p>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/** How often the wave takes a new bar from the microphone. */
+const WAVE_STEP_MS = 50;
+const WAVE_BAR_PX = 2;
+const WAVE_GAP_PX = 2;
+
+/**
+ * A small wave of the microphone's recent loudness, newest at the right, so
+ * someone can see it hears them before any words come. Its height follows
+ * the voice rather than the room (`createWaveLevel`), and it keeps its place
+ * flat once the recording stops.
+ */
+export function DictationWave({
+  className,
+  dictation,
+}: {
+  className?: string;
+  dictation: Dictation;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const { phase, stream } = dictation;
+  const live = phase.kind === "recording" ? stream : undefined;
+  const shown = isDictating(phase);
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) {
+      return;
+    }
+    const width = element.clientWidth;
+    const height = element.clientHeight;
+    const ratio = window.devicePixelRatio || 1;
+    element.width = Math.round(width * ratio);
+    element.height = Math.round(height * ratio);
+    const painter = element.getContext("2d");
+    const bars: number[] = Array.from(
+      { length: Math.floor(width / (WAVE_BAR_PX + WAVE_GAP_PX)) },
+      () => 0,
+    );
+    const paint = () => {
+      if (!painter) {
+        return;
+      }
+      painter.setTransform(ratio, 0, 0, ratio, 0, 0);
+      painter.clearRect(0, 0, width, height);
+      painter.fillStyle = getComputedStyle(element).color;
+      bars.forEach((level, index) => {
+        const bar = Math.max(WAVE_BAR_PX, level * height);
+        painter.beginPath();
+        painter.roundRect(
+          index * (WAVE_BAR_PX + WAVE_GAP_PX),
+          (height - bar) / 2,
+          WAVE_BAR_PX,
+          bar,
+          WAVE_BAR_PX / 2,
+        );
+        painter.fill();
+      });
+    };
+    paint();
+    if (!live) {
+      return;
+    }
+    const context = new AudioContext();
+    const analyzer = context.createAnalyser();
+    analyzer.fftSize = 1024;
+    context.createMediaStreamSource(live).connect(analyzer);
+    const samples = new Float32Array(analyzer.fftSize);
+    const level = createWaveLevel();
+    let frame = 0;
+    let last = 0;
+    const tick = (time: number) => {
+      frame = requestAnimationFrame(tick);
+      if (time - last < WAVE_STEP_MS) {
+        return;
+      }
+      last = time;
+      analyzer.getFloatTimeDomainData(samples);
+      bars.shift();
+      bars.push(level(rmsOf(samples)));
+      paint();
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      void context.close().catch(() => undefined);
+    };
+  }, [live, shown]);
+  if (!shown) {
+    return null;
+  }
+  return (
+    <canvas
+      aria-hidden="true"
+      className={cn("h-5 w-24 shrink-0 text-muted-foreground/70", className)}
+      ref={canvas}
+    />
   );
 }
 
@@ -150,9 +249,9 @@ export function DictationCancel({
  */
 function quietLine({ live, phase }: Dictation) {
   return live?.status === "lost" || live?.status === "unavailable"
-    ? "Your words will show up when you stop."
+    ? "Live text unavailable"
     : phase.kind === "transcribing" && !phase.live
-      ? "Adding your words…"
+      ? "Transcribing…"
       : "Listening…";
 }
 
@@ -287,6 +386,7 @@ export function DictatedTextarea({
     <div className="relative">
       <Textarea className={cn("pb-10", className)} {...props} />
       <div className="pointer-events-none absolute inset-x-2 bottom-1.5 flex items-center gap-2 [&>*]:pointer-events-auto">
+        <DictationWave dictation={dictation} />
         <DictationCancel dictation={dictation} size="sm" />
         <DictationReadout dictation={dictation} />
         <DictationButton
@@ -301,8 +401,8 @@ export function DictatedTextarea({
 }
 
 /**
- * Send, saying while dictating that it stops first: the words land, then the
- * message goes.
+ * Send, named in a tooltip while dictating like the bar's other controls. It
+ * stops first: the words land, then the message goes.
  */
 export function DictationSendTip({
   children,
@@ -318,7 +418,7 @@ export function DictationSendTip({
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent>
-        <p>Stop and send</p>
+        <p>Send</p>
       </TooltipContent>
     </Tooltip>
   );

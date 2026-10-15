@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   hasToken: true,
   open: vi.fn(),
   openLogin: vi.fn(),
+  playCue: vi.fn(),
+  preferences: {} as Record<string, unknown>,
   toast: { dismiss: vi.fn(), error: vi.fn(), info: vi.fn() },
   transcribe: vi.fn(),
 }));
@@ -56,7 +58,7 @@ vi.mock(import("@/client/rpc/client"), () => ({
       live: {
         get: {
           experimental_liveOptions: () => ({
-            queryFn: () => Promise.resolve({}),
+            queryFn: () => Promise.resolve(mocks.preferences),
             queryKey: ["preferences"],
           }),
         },
@@ -67,6 +69,9 @@ vi.mock(import("@/client/rpc/client"), () => ({
 vi.mock(import("@/client/lib/toast"), () => ({
   // `as`: only the calls the hook makes.
   toast: mocks.toast as never,
+}));
+vi.mock(import("@/client/lib/dictation-sounds"), () => ({
+  playDictationCue: mocks.playCue,
 }));
 vi.mock(import("@/client/atoms/login-modal"), () => ({
   openLogin: mocks.openLogin,
@@ -161,6 +166,7 @@ async function startRecording(result: {
 
 beforeEach(() => {
   mocks.hasToken = true;
+  mocks.preferences = {};
   // No live stream unless a test opens one, so the take is uploaded at Stop.
   mocks.listen.mockImplementation(async function* () {
     yield { failure: { kind: "server" }, type: "unavailable" };
@@ -208,6 +214,27 @@ describe("useDictation", () => {
     });
 
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("plays a sound as it starts listening and as it stops", async () => {
+    mocks.open.mockResolvedValue(fakeCapture());
+    const { result } = setup();
+    await startRecording(result);
+    act(() => {
+      result.current.stop();
+    });
+    expect(mocks.playCue.mock.calls).toEqual([["start"], ["stop"]]);
+  });
+
+  it("plays no sounds when they are turned off", async () => {
+    mocks.preferences = { dictationSounds: false };
+    mocks.open.mockResolvedValue(fakeCapture());
+    const { result } = setup();
+    await startRecording(result);
+    act(() => {
+      result.current.stop();
+    });
+    expect(mocks.playCue).not.toHaveBeenCalled();
   });
 
   it("transcribes on Stop and hands over the words", async () => {

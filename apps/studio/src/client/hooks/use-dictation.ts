@@ -5,6 +5,7 @@ import {
   describeDictationProblem,
   type DictationProblem,
 } from "@/client/lib/dictation-problems";
+import { playDictationCue } from "@/client/lib/dictation-sounds";
 import { toast } from "@/client/lib/toast";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -105,6 +106,8 @@ export type Dictation = {
   cancel: () => void;
   /** What the live stream has heard, from the press until the words land. */
   live: LiveText | undefined;
+  /** The microphone while it records, for the wave. */
+  stream: MediaStream | undefined;
   phase: DictationPhase;
   start: () => void;
   /**
@@ -166,6 +169,7 @@ export function useDictation({
 }): Dictation {
   const [phase, setPhase] = useState<DictationPhase>({ kind: "idle" });
   const [live, setLive] = useState<LiveText>();
+  const [stream, setStream] = useState<MediaStream>();
   // Each dictation's toasts are its own, so one box starting or landing never
   // takes away another's Try Again and strands its recording.
   const toastId = `dictation:${surface}:${useId()}`;
@@ -335,6 +339,13 @@ export function useDictation({
       clearInterval(session.current.ticker);
     }
     session.current?.release?.();
+    setStream(undefined);
+  };
+
+  const playCue = (cue: "start" | "stop") => {
+    if (latest.current.preferences?.dictationSounds !== false) {
+      playDictationCue(cue);
+    }
   };
 
   const stop = ({ onLanded }: { onLanded?: () => void } = {}) => {
@@ -345,6 +356,7 @@ export function useDictation({
     }
     current.ended = true;
     stopTicker();
+    playCue("stop");
     session.current = undefined;
     const length = capture.elapsedMs();
     const pressed = onLanded ? "send" : "stop";
@@ -604,7 +616,9 @@ export function useDictation({
     capture.onEnded(() => {
       stop();
     });
+    setStream(capture.stream);
     setPhase({ kind: "recording" });
+    playCue("start");
   };
 
   // Gone mid-recording: finish it when its words have somewhere to go,
@@ -637,5 +651,6 @@ export function useDictation({
       void start();
     },
     stop,
+    stream,
   };
 }

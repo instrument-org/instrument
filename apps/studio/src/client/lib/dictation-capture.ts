@@ -58,7 +58,8 @@ export class MicCapture {
   private readonly stopped: Promise<void>;
 
   private constructor(
-    private readonly stream: MediaStream,
+    /** The microphone's stream, for anything that wants to listen along. */
+    readonly stream: MediaStream,
     private readonly recorder: MediaRecorder,
   ) {
     this.stopped = new Promise((resolve) => {

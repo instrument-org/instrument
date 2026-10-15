@@ -8,6 +8,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
+import { Switch } from "@/client/components/ui/switch";
 import {
   pickableInputs,
   resolveMicrophone,
@@ -50,7 +51,7 @@ function useInputDevices() {
 
 /**
  * Dictation's settings: which microphone it records from, which language it
- * listens for, and on a Mac, whether macOS lets the app use the microphone.
+ * listens for, whether it plays sounds, and on a Mac, whether macOS lets the app use the microphone.
  */
 export function DictationSettings() {
   const { data: preferences } = useQuery(
@@ -67,6 +68,14 @@ export function DictationSettings() {
     rpcClient.dictation.setLanguage.mutationOptions({
       onError: (error) => {
         toast.error("Couldn't change the language", { cause: error });
+      },
+    }),
+  );
+
+  const setSounds = useMutation(
+    rpcClient.dictation.setSounds.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change dictation sounds", { cause: error });
       },
     }),
   );
@@ -168,6 +177,26 @@ export function DictationSettings() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div
+          className="flex items-start justify-between gap-4"
+          {...settingAnchor("dictation-sounds")}
+        >
+          <div className="min-w-0 space-y-0.5">
+            <Label htmlFor="dictation-sounds">Sounds</Label>
+            <p className="text-xs text-muted-foreground">
+              Play a sound when dictation starts and stops.
+            </p>
+          </div>
+          <Switch
+            checked={preferences?.dictationSounds ?? true}
+            disabled={setSounds.isPending}
+            id="dictation-sounds"
+            onCheckedChange={(on) => {
+              setSounds.mutate({ on });
+            }}
+          />
         </div>
 
         {isMacOS() && <MicrophoneAccessRow />}

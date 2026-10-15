@@ -224,11 +224,11 @@ export function createWorkspaceActor() {
       return true;
     }
     const options: Electron.MessageBoxOptions = {
-      buttons: ["Keep dictating", "Quit"],
+      buttons: ["Cancel", "Quit"],
       cancelId: 0,
       defaultId: 0,
-      detail: "If you quit now, you'll lose what you've said.",
-      message: "You're still dictating",
+      detail: "Your dictation will be lost.",
+      message: "Quit while dictating?",
       noLink: true,
       type: "warning",
     };

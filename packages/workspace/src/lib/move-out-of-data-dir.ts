@@ -13,9 +13,15 @@ import path from "node:path";
  * - Nothing stored is rewritten. Each of these folders is found by reading
  *   it, so the one thing that says which folder is the resolver, and the
  *   move is what makes the resolver true.
- * - It never merges. A top level that already holds the folder is left as
- *   it is, so a second run cannot write over what the person put there, and
- *   the hidden copy stays where it is rather than being half-emptied.
+ * - It never merges into a folder with something in it. A top level that
+ *   already holds the folder with the person's own work in it is left as it
+ *   is, so a second run cannot write over what they put there, and the
+ *   hidden copy stays where it is rather than being half-emptied.
+ * - An empty folder of that name is moved into, since nothing can be written
+ *   over and leaving it would hide what was hidden for good: the resolver
+ *   reads the empty one and the person's work stays somewhere they cannot
+ *   find. Both the app and the person make these, so it is the common case
+ *   rather than a corner of one.
  * - A failure leaves everything where it was. The next launch tries again.
  */
 
@@ -50,12 +56,11 @@ export async function moveOutOfDataDir({
   if (held.length === 0) {
     return { kind: "none" };
   }
-  const taken = await fs
-    .access(to)
-    .then(() => true)
-    .catch(() => false);
-  if (taken) {
-    return { kind: "already-there", where: to };
+  const there = await fs.readdir(to).catch(() => undefined);
+  if (there !== undefined) {
+    return there.some((entry) => entry !== ".DS_Store")
+      ? { kind: "already-there", where: to }
+      : moveEachInto({ from, held, to });
   }
   try {
     await fs.rename(from, to);
@@ -63,4 +68,34 @@ export async function moveOutOfDataDir({
     return { error: String(error), kind: "failed" };
   }
   return { count: held.length, kind: "moved", where: to };
+}
+
+/**
+ * Into the empty folder already at the top level, one entry at a time, since
+ * the folder itself cannot be renamed over one that is there. The hidden
+ * folder goes once it holds nothing; an entry left behind keeps it, and the
+ * next launch moves that one.
+ */
+async function moveEachInto({
+  from,
+  held,
+  to,
+}: {
+  from: string;
+  held: string[];
+  to: string;
+}): Promise<FolderMoved> {
+  let moved = 0;
+  for (const entry of held) {
+    try {
+      await fs.rename(path.join(from, entry), path.join(to, entry));
+      moved += 1;
+    } catch (error) {
+      if (moved === 0) {
+        return { error: String(error), kind: "failed" };
+      }
+    }
+  }
+  await fs.rmdir(from).catch(() => undefined);
+  return { count: moved, kind: "moved", where: to };
 }

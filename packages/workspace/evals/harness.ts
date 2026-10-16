@@ -633,7 +633,7 @@ export async function runEvals(
       // app's; EVAL_BUILTINS_ONLY=1 leaves them the shell's own, to compare.
       ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
         ? {}
-        : { uutilsDir: UUTILS_DIR }),
+        : { uutilsDir: UUTILS_DIR, uutilsOutsideSandbox: true }),
       webSearch: unavailableWebSearchClient,
     },
   });

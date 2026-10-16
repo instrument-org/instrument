@@ -1,10 +1,23 @@
-import { type Command, defineCommand, getCommandNames } from "just-bash";
+import {
+  type Command,
+  type CommandContext,
+  defineCommand,
+  getCommandNames,
+} from "just-bash";
 import { execFileSync } from "node:child_process";
-import { existsSync, linkSync, mkdirSync, rmSync, statSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { inheritedEnv } from "../native-env";
 import { CHAT_FOLDER_NAMES } from "../../constants";
 import { isAtOrUnder, relativeWithin } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
@@ -20,6 +33,10 @@ import {
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
+import { classifyUnsandboxed, type TierBFixup } from "./unsandboxed-uutils";
+import { unsandboxedEnv } from "./unsandboxed-uutils-env";
+import { uutilsBinaryReviewed } from "./unsandboxed-uutils-integrity";
+import { openOperandForStdin } from "./unsandboxed-uutils-operand";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 /** The bundled uutils binaries, by their base name. */
@@ -603,6 +620,69 @@ function mountedRefusal(
   });
 }
 
+/** How a call runs outside the native sandbox, when it may. */
+interface UnsandboxedRun {
+  args: string[];
+  /** The file the call named, open, for the program's stdin (tier B). */
+  fd?: number;
+  fixup?: TierBFixup;
+  operand?: string;
+}
+
+/**
+ * Whether this call of a bundled uutils program runs outside the native
+ * sandbox, and with what: a call the reviewed rules allow
+ * (`unsandboxed-uutils.ts`), of a binary that is the one they were
+ * reviewed against, where the app asks for it. A tier B call also needs its
+ * file to pass the shell's checks, and stdin free for it: a stage reading
+ * the previous one's pipe keeps it, and wc, whose output gains the file's
+ * name here, does not hand its stdout straight to the next program.
+ */
+function unsandboxedRun(
+  route: NativeTextRoute,
+  args: string[],
+  program: string,
+  ctx: Pick<CommandContext, "offerPipeHandoff" | "stdinHandoff">,
+  layout: WorkspaceFsLayout,
+  resolvePath: (arg: string) => string,
+): UnsandboxedRun | undefined {
+  if (
+    (route.binary !== "coreutils" && route.binary !== "grep") ||
+    getWorkspaceConfig().uutilsOutsideSandbox !== true
+  ) {
+    return undefined;
+  }
+  const tier = classifyUnsandboxed(route.name, args);
+  if (tier.tier === "sandbox" || !uutilsBinaryReviewed(program)) {
+    return undefined;
+  }
+  if (tier.tier === "A") {
+    return { args };
+  }
+  if (
+    ctx.stdinHandoff !== undefined ||
+    (tier.fixup === "wcAppendName" && ctx.offerPipeHandoff === true)
+  ) {
+    return undefined;
+  }
+  const fd = openOperandForStdin({
+    layout,
+    operand: tier.operand,
+    resolvePath,
+  });
+  return fd === undefined
+    ? undefined
+    : { args: tier.argv, fd, fixup: tier.fixup, operand: tier.operand };
+}
+
+/**
+ * wc's output for one count of a file it read on stdin, as it prints it for
+ * the file by name: the count, a space, the name.
+ */
+export function withWcName(stdout: string, name: string): string {
+  return /^\d+\n$/.test(stdout) ? `${stdout.slice(0, -1)} ${name}\n` : stdout;
+}
+
 /**
  * The shell command for one route: the bundled uutils program in a native
  * sandbox, with the same working directory, environment, stdin and
@@ -632,16 +712,38 @@ export function createNativeTextCommand(
     if (refusal) {
       return { exitCode: 2, stderr: `${refusal}\n`, stdout: "" };
     }
-    const programArgs = starts
-      ? findWithHiddenEntriesPruned(
-          args,
-          maskedUnder(starts.length > 0 ? starts : ["."], layout, resolvePath),
-        )
-      : (route.programArgs?.(args) ?? args);
+    const outside = unsandboxedRun(
+      route,
+      args,
+      program,
+      ctx,
+      layout,
+      resolvePath,
+    );
+    const programArgs = outside
+      ? outside.args
+      : starts
+        ? findWithHiddenEntriesPruned(
+            args,
+            maskedUnder(
+              starts.length > 0 ? starts : ["."],
+              layout,
+              resolvePath,
+            ),
+          )
+        : (route.programArgs?.(args) ?? args);
     const context = resolveCommandContext(chatId, ctx);
     const { hostCwd } = context;
-    const env = { ...context.env, ...route.env };
+    const env = outside
+      ? unsandboxedEnv({ ...inheritedEnv(), ...context.env })
+      : { ...context.env, ...route.env };
     const stdin = subprocessStdin(ctx.stdin);
+    // The name wc prints for the file, as the program would have been given
+    // it.
+    const wcName =
+      outside?.fixup === "wcAppendName" && outside.operand !== undefined
+        ? hostPathArgs([outside.operand])[0]
+        : undefined;
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";
     const argv = [
@@ -650,55 +752,73 @@ export function createNativeTextCommand(
     ];
     // A system program takes Node's own quoting; uutils needs its own.
     const windows = process.platform === "win32" && route.binary !== "system";
-    return runNative(
-      ctx,
-      program,
-      // uutils on Windows expands `*`, `?` and `[...]` in any argument that
-      // reached it unquoted, and Node quotes only those holding a space:
-      // `cut -d '*'` would get file names. Every argument goes quoted.
-      windows ? argv.map((arg) => quoteWindowsArgument(arg)) : argv,
-      {
-        cancelSignal: ctx.signal,
-        cwd: hostCwd,
-        env: !windows
-          ? env
-          : route.name === "xargs"
-            ? xargsEnv(env)
-            : route.binary === "find" || route.binary === "grep"
-              ? pathSeparatorEnv(env)
-              : env,
-        ...(windows ? { windowsVerbatimArguments: true } : {}),
-        // A walk was checked where it starts; a folder it passes that the
-        // sandbox refuses is skipped without a card, as the shell's own
-        // walks skip one.
-        ...(walks ? { walks: true as const } : {}),
-        // `sort` with no file reads stdin, so an empty pipe has to reach it
-        // as one, and no pipe as nothing to read.
-        ...((stdin ?? ctx.stdinConnected)
-          ? { input: stdin ?? Buffer.alloc(0) }
-          : { stdin: "ignore" as const }),
-      },
-      (result) => {
-        // Text tools print data rather than progress, so there is no
-        // carriage return redraw to collapse; what they print is still
-        // filtered for credentials like any native output.
-        const streams = mapStreams(shimOutput(result, route.name), (text) =>
-          filterShellOutput(text),
-        );
-        return {
-          exitCode: result.exitCode ?? 1,
-          stderr:
-            route.name === "find"
-              ? quietRefusedFolders(streams.stderr)
-              : streams.stderr,
-          stdout:
-            route.printsPaths && process.platform === "win32"
-              ? streams.stdout.replaceAll("\\", "/")
-              : streams.stdout,
-          ...binaryStdout(result, { data: route.writesData?.(args) }),
-        };
-      },
-    );
+    try {
+      return await runNative(
+        ctx,
+        program,
+        // uutils on Windows expands `*`, `?` and `[...]` in any argument that
+        // reached it unquoted, and Node quotes only those holding a space:
+        // `cut -d '*'` would get file names. Every argument goes quoted.
+        windows ? argv.map((arg) => quoteWindowsArgument(arg)) : argv,
+        {
+          cancelSignal: ctx.signal,
+          cwd: hostCwd,
+          env:
+            outside || !windows
+              ? env
+              : route.name === "xargs"
+                ? xargsEnv(env)
+                : route.binary === "find" || route.binary === "grep"
+                  ? pathSeparatorEnv(env)
+                  : env,
+          ...(windows ? { windowsVerbatimArguments: true } : {}),
+          // A walk was checked where it starts; a folder it passes that the
+          // sandbox refuses is skipped without a card, as the shell's own
+          // walks skip one.
+          ...(walks ? { walks: true as const } : {}),
+          ...(outside
+            ? { ownEnvOnly: true as const, unsandboxed: true as const }
+            : {}),
+          // `sort` with no file reads stdin, so an empty pipe has to reach it
+          // as one, and no pipe as nothing to read. A tier B call reads its
+          // file there instead.
+          ...(outside?.fd !== undefined
+            ? { stdin: "ignore" as const, stdinFd: outside.fd }
+            : (stdin ?? ctx.stdinConnected)
+              ? { input: stdin ?? Buffer.alloc(0) }
+              : { stdin: "ignore" as const }),
+        },
+        (result) => {
+          // Text tools print data rather than progress, so there is no
+          // carriage return redraw to collapse; what they print is still
+          // filtered for credentials like any native output.
+          const named =
+            wcName === undefined || result.exitCode !== 0
+              ? result
+              : { ...result, stdout: withWcName(result.stdout, wcName) };
+          const streams = mapStreams(shimOutput(named, route.name), (text) =>
+            filterShellOutput(text),
+          );
+          return {
+            exitCode: result.exitCode ?? 1,
+            stderr:
+              route.name === "find"
+                ? quietRefusedFolders(streams.stderr)
+                : streams.stderr,
+            stdout:
+              route.printsPaths && process.platform === "win32"
+                ? streams.stdout.replaceAll("\\", "/")
+                : streams.stdout,
+            ...binaryStdout(result, { data: route.writesData?.(args) }),
+          };
+        },
+      );
+    } finally {
+      // The program holds its own copy once it started.
+      if (outside?.fd !== undefined) {
+        closeSync(outside.fd);
+      }
+    }
   });
   return {
     ...command,

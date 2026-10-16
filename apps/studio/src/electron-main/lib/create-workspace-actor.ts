@@ -199,6 +199,7 @@ export function createWorkspaceActor() {
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
       uutilsDir: getUutilsDir(),
+      uutilsOutsideSandbox: true,
       toolBinDir: getBinDirectoryPath(),
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,

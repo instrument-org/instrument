@@ -187,6 +187,7 @@ setWorkspaceConfig({
   uutilsDir: AbsolutePathSchema.parse(
     path.resolve(import.meta.dirname, "../../../apps/studio/resources/uutils"),
   ),
+  uutilsOutsideSandbox: true,
   webSearch: unavailableWebSearchClient,
 });
 

@@ -241,6 +241,10 @@ export interface WorkspaceConfig {
   // `grep`) that answer the shell's GNU text commands natively; absent, those
   // commands stay the shell's own.
   uutilsDir?: AbsolutePath;
+  // Whether a uutils call the reviewed rules allow runs outside the native
+  // sandbox (`shell-commands/unsandboxed-uutils.ts`). Off, every call runs
+  // sandboxed, which is what a test gets unless it asks.
+  uutilsOutsideSandbox?: boolean;
   // The bundled Mac helper behind the `calendar` and `contacts` commands and
   // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;

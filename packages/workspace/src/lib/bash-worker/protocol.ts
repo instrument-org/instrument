@@ -32,6 +32,7 @@ export const WORKER_CONFIG_KEYS = [
   "tempFolders",
   "toolBinDir",
   "uutilsDir",
+  "uutilsOutsideSandbox",
   "uvBinPath",
   "uvDataDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];

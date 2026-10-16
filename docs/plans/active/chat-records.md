@@ -1,6 +1,6 @@
 # Plan: chat records as append-only logs, one per session per device
 
-Status: approved to build on branch `chat-records`, stacked on `workspace-layout`. Phases 1, 2 and 4 are built and phase 5's acceptance run has passed (see [What the acceptance run covered](#what-the-acceptance-run-covered)). Three things this plan describes are not built, checked against the code rather than against this line: phase 3's incremental index is written and tested but reachable from nothing, so every read is a fold and no launch notices another device's file; phase 5's 1.x migration still writes a `chat.db` rather than logs; and a chat's permission asks are written into its record `settings.json`, not held in memory as the live view says. Phase 6 is [instrument-folder.md](instrument-folder.md). Nothing merges to main until it has been reviewed.
+Status: approved to build on branch `chat-records`, stacked on `workspace-layout`. Phases 1, 2 and 4 are built and phase 5's acceptance run has passed (see [What the acceptance run covered](#what-the-acceptance-run-covered)). Phase 4 is finished down to the store: `Store`, its KV table, superjson and the delta persistence are gone, and a chat is written through `ChatWrites` and read through `ChatReads`. Two things this plan describes are not built, checked against the code rather than against this line: phase 3's incremental index (`records-index.ts`) is written and tested but reachable from nothing, so a chat whose records changed is folded whole rather than from its new bytes, and no launch notices another device's file; and phase 5's 1.x migration still writes a `chat.db` for the converter to read rather than writing logs itself. Phase 6 is [instrument-folder.md](instrument-folder.md). Nothing merges to main until it has been reviewed.
 
 A chat's record today is a SQLite file, `chat.db`, inside the workspace's `.instrument/` folder, which the person may put in iCloud Drive, Dropbox or OneDrive. A sync engine copies files whole and can upload a database mid-transaction, and today's store rewrites nearly every row after its first write (a streaming part is saved whole every 100 ms). This plan makes the record append-only JSONL that a sync engine can carry safely, keeps one rebuildable SQLite database on each computer, and rebuilds the read side around what the window draws today.
 
@@ -12,7 +12,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 - One log file per session per device, and one marks file per device. Every file has exactly one writer: the device its name carries.
 - A change is a new line, never an edit. The newest snapshot of a message or part wins.
 - Only settled records are written. Streaming deltas are never persisted, and there is no journal for them; a crash mid-reply loses the unfinished part, which then reads as interrupted.
-- Live data (a tool call's `activity` while its input streams, the task page's streaming text, permission asks) stays in memory and goes to the window only.
+- Live data (a tool call's `activity` while its input streams, the task page's streaming text) stays in memory and goes to the window only. A card the person has not answered is the exception: it is kept under `state.asks` in the chat's `settings.json`, because the chat list reads every chat's open asks, and because a card is a question that has to be there again after a relaunch.
 - Images and every other binary a tool returns become blobs named by their hash in the chat's `blobs/`, which travel with the chat.
 - Big command output stays on this computer, in `work/<chat>/.tool-output/`, as today; the log keeps its head, tail and path.
 - One SQLite database per workspace on this computer, `workspace.db`: the index and the activity log.
@@ -101,14 +101,14 @@ Every line is one JSON object, keys in this order so a reader can skip by prefix
 | `retract` | `messages: [ids]`, `why` | Drops those messages and their parts from the fold. Ids are never reused. | `removeMessage` |
 | `rollover` | `after`, `usableTokens` | Newest wins; same meaning as `rolledOverAfterMessageId` today. | two session fields |
 | `stopped` | `by: user, chat or app` | Applies until a message that starts a turn follows it. | `stoppedBy` |
-| `told` | `what: folders, apps, memory, processes or browser`, `value` | Newest per `what` wins; `null` clears. | the five baseline keys and `browser-state:<s>` |
+| `state` | `what: folders, apps, memory, processes or browser`, `value` | Newest per `what` wins; `null` clears. | the five baseline keys and `browser-state:<s>` |
 | `mark` (marks file only, no header) | `session`, `field`, `value`, `device`. Values: title `{text, settled}`; starred and archived a boolean; unread `{byUser}` or `null`; topics an array of topic ids; stoppedAt an ISO date | Across every device's marks file, newest `at` per (session, field) wins, ties going to the larger device id. An unsettled title never beats a settled one. The winning mark's `at` is when it was set (today's `starredAt`, `archivedAt`, `unreadAt`, `titleSettledAt`). | the mark half of `sessions:<s>` |
 
 A session's history is its own logs; a task's is its parent's fold up to `forkedAt` (by message id, never by byte offset), then its own logs.
 
 Records from several logs of one session are ordered by place: the sum of the header's `continues` plus the record's own `seq`, ties going to `at`, then the log, then a hash of the line. That holds because a device that has read another device's newer records starts its next log with a header saying so, rather than appending to the old one. Two logs that each hold records past what the other's writer had read of that session are a fork: the fold keeps both continuations and flags the session. Its display is outside v1. A record is known by its log, place, `seq` and line hash, so an identical copy from a sync conflict folds once and a copy whose bytes differ keeps both.
 
-Dates inside `told` values and tool outputs come back as ISO strings; their readers coerce them.
+Dates inside `state` values and tool outputs come back as ISO strings; their readers coerce them.
 
 ## Writing
 
@@ -134,7 +134,7 @@ Dates inside `told` values and tool outputs come back as ISO strings; their read
 | A step finishes | Message row overwritten with usage and finish reason | A second message line for the same id |
 | Title, star, archive, unread, topics, Stop | Fields on the session row, through `saveMark` | A mark line in this device's marks file |
 | `updatedAt` every turn | Session row rewritten | Not stored: the newest record's `at` |
-| Baselines and browser hosts | Keys replaced whole | A `told` line per change |
+| Baselines and browser hosts | Keys replaced whole | A `state` line per change |
 | Rollover | Two session fields and a part on the newest message | A `rollover` line and the same `data-contextRollover` part line |
 | System prompt changes | Session-context messages deleted and written again | `retract` for the old ones, then new message and part lines |
 | A task starts | A session row with `parentId` and `forkedAtMessageId` | A new log whose header names `parent` and `forkedAt` |
@@ -161,7 +161,7 @@ Each open chat has one fold in memory, updated by its own appends. Views read th
 |---|---|---|---|
 | list | Chat list, header, status line rows, tasks popover | `chats.live.list`, `chats.live.tasks`, `chats.live.info`, `chats.session`; the digest reads in `lib/chat/chats.ts`, `activity.ts`, `standing.ts`, `children.ts`, `lib/chat-info.ts`, `lib/usage-summary.ts` | `workspace.db`, plus the running chat's in-memory state |
 | conversation | What the chat view draws for everyone, and the task page's transcript | `message.live.list` (full read, then rereads of changed messages) | The fold: user messages with `data-attachments`, `data-viewContext`, `data-reply`; finished assistant messages with their text (files and message fences); `data-asks`, `data-folderChanges`, `data-permissionAnswer`, `data-fileChanges`, `data-skillChanges`, `data-modelChange`, `data-taskEvent` (stopped by the person or the app), `data-fromChat`; `tool-choose` and `tool-connect_app`; message errors and `max-steps` |
-| live | The running turn: status line step, typing dots, permission asks, whether the agent runs, the task page's streaming text and running calls | `chats.live.activity`, `permissions.liveAsks`, the in-flight half of `message.live.list`, `latestStepIn` reading `input-streaming` parts | Memory only, never disk |
+| live | The running turn: status line step, typing dots, permission asks, whether the agent runs, the task page's streaming text and running calls | `chats.live.activity`, `permissions.liveAsks`, the in-flight half of `message.live.list`, `latestStepIn` reading `input-streaming` parts | Memory, except the open asks themselves, which the chat's `settings.json` keeps |
 | steps | Every tool call, reasoning and developer-only data part in order, for developer mode, the task page's tool rows, `task log`, wake notes, and the X-ray view later | `lib/chat/steps.ts`, `latest-session.ts`, the reads in `wake.ts`, `shell-commands/task/fork.ts` | The fold, interleaved by part id so developer mode can merge it with conversation |
 | model history | The model request | Reads in `lib/prepare-model-messages.ts`, `date-change.ts`, `message-gap.ts`, `turn-note.ts`, `loaded-skill.ts`, `browser-skill-delivery.ts`, `new-message.ts`, `chat/folder-reach.ts`, `agents/instrument.ts`, `machines/agent.ts`, `machines/session.ts` | The fold from the last rollover forward; blobs read and encoded at send time |
 | search | The agent's `chat read` and `chat search` | `lib/shell-commands/chat.ts` | Fold and scan, skipping files the index marks not downloaded; full-text search later |

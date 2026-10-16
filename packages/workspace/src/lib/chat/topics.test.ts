@@ -2,7 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { recordMovedPaths } from "../moved-paths";
@@ -18,17 +18,24 @@ import {
   updateTopic,
 } from "./topics";
 
-// Topics are files at the workspace root, so each test gets a root of its own.
+// Topics are files at the workspace root, so each test gets a root of its
+// own, removed after it rather than left in the machine's temporary folder.
+const roots: string[] = [];
+
 beforeEach(async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "topics-"));
+  roots.push(root);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatsDir: AbsolutePathSchema.parse(
-      path.join(await fs.mkdtemp(path.join(os.tmpdir(), "topics-")), "chats"),
-    ),
-    rootDir: WorkspaceDirSchema.parse(
-      await fs.mkdtemp(path.join(os.tmpdir(), "topics-")),
-    ),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
+    rootDir: WorkspaceDirSchema.parse(root),
   });
+});
+
+afterEach(async () => {
+  await Promise.all(
+    roots.splice(0).map((root) => fs.rm(root, { force: true, recursive: true })),
+  );
 });
 
 describe("topicName", () => {

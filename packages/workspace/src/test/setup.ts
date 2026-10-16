@@ -115,6 +115,13 @@ afterAll(async () => {
   installChatRecords(undefined);
   await testRecords?.dispose();
   testRecords = undefined;
+  // The two folders this file made, which are a test file's each: left
+  // behind, a run of the suite adds a few hundred to the machine's temporary
+  // folder, and enough runs fill it to the point where nothing on the
+  // machine can make another one.
+  for (const dir of [rootDir, machineDir]) {
+    fs.rmSync(dir, { force: true, recursive: true });
+  }
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

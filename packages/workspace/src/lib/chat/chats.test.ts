@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
 import {
@@ -94,6 +94,8 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // Task state and sessions are real files under the mock workspace, so a task
 // id reused across runs would read the last run's chats.
 let counter = 0;
+/** Every root a case made, removed after it. */
+const roots: string[] = [];
 /**
  * A workspace of its own: chats, topics and the window's state all live
  * under the root, so each test gets one.
@@ -103,6 +105,7 @@ const freshChat = async () => {
     ChatIdSchema.parse(`chats-${Date.now()}-${(counter += 1)}`),
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chats-root-"));
+  roots.push(root);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
@@ -122,6 +125,12 @@ beforeEach(() => {
   alive.value = new Set();
   pendingWakes.value = new Set();
   pendingJobWakes.value = new Set();
+});
+
+afterEach(() => {
+  for (const root of roots.splice(0)) {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
 });
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));

@@ -6,6 +6,7 @@ import { HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { handoffNotesPath } from "./chat-dir-utils";
+import { chatFolderTheyOpen } from "./chat/output-folder";
 import { chatDir, chatOwnFolder } from "./record-folders";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
 import { shellPath } from "./workspace-fs-layout";
@@ -31,16 +32,21 @@ export function agentHandoffNotesPath(chatId: ChatId): string {
 
 /**
  * Where a chat's handoff notes are: its own folder under `Chats/`, beside
- * the transcript and what it made, and the record folder for a chat that
- * has no folder yet.
+ * the transcript and what it made, and the record folder for a chat whose
+ * folder is not one the person opens or that has no folder yet.
  *
  * They moved out of the record folder because `.instrument/` closes to the
  * agent entirely, and these are the one file in there it wrote. A person
  * reading the folder meets them as what they are, the agent's own notes on
  * the conversation, rather than as something hidden from them.
+ *
+ * The agent writes this file itself, so it has to be somewhere it may
+ * write: a workspace in the app's own data is a place the rules ask about,
+ * and the notes are the one thing it has to be able to write without
+ * anyone being there to answer. See `finishedWorkFolder`.
  */
 function notesPathFor(chatId: ChatId): AbsolutePath {
-  const own = chatOwnFolder(chatDir(chatId));
+  const own = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
   return own === undefined
     ? handoffNotesPath(chatDir(chatId))
     : AbsolutePathSchema.parse(path.join(own, HANDOFF_NOTES_FILE_NAME));

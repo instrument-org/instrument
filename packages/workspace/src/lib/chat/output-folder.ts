@@ -49,8 +49,19 @@ export function outputFolderPath(): string {
  * inside it and wins on its own.
  */
 export function finishedWorkFolder(ownFolder: string | undefined): string {
-  const output = outputFolderPath();
-  return ownFolder !== undefined && pathIsWithin(ownFolder, output)
+  return chatFolderTheyOpen(ownFolder) ?? outputFolderPath();
+}
+
+/**
+ * A chat's own folder when it is one the person opens, which means inside
+ * their Instrument folder, and nothing when it is not: what the agent may
+ * write into it goes to the Instrument folder or stays in the records
+ * instead. See {@link finishedWorkFolder} for why.
+ */
+export function chatFolderTheyOpen(
+  ownFolder: string | undefined,
+): string | undefined {
+  return ownFolder !== undefined && pathIsWithin(ownFolder, outputFolderPath())
     ? ownFolder
-    : output;
+    : undefined;
 }

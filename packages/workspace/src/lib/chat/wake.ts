@@ -523,7 +523,7 @@ async function onSessionDone(
     ...(said === undefined ? [] : needsNamedIn(said)),
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
-  await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
+  await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
   const tabs = await openTabsOf(ref);

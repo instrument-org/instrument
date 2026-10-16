@@ -120,6 +120,9 @@ export function sessionRole(
  * Writes what the task list reads onto a task's session: who stopped its
  * last turn, and that something happened in it now. Queued per task, so two
  * landing together each build on the other.
+ *
+ * A stop is never taken off here: it is a record of something that happened,
+ * and what retires it is a message starting a turn after it (`session-of.ts`).
  */
 export function touchTask(
   chatId: ChatId,

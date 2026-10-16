@@ -13,8 +13,9 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor, writtenIn } from "../../test/helpers/chat-task";
 import { updateChatSettings } from "../chat-settings";
 import { recordAsk } from "./asks";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { taskEventModelNote } from "../task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { leftRunning } from "./activity";
@@ -104,7 +105,7 @@ function wakesOf(chatId: string) {
 
 /** The task events of the notes written into `chatId`'s own session. */
 async function notesIn(chatId: ChatId) {
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
     chatId,
     sessionId: sessionOfChat(chatId) ?? StoreId.newSessionId(),
   });
@@ -124,7 +125,7 @@ async function saidByTask(
 ) {
   const at = new Date(2026, 9, 13, 9, 0);
   const messageId = StoreId.newMessageId();
-  const written = await Store.saveMessageWithParts(
+  const written = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: {
@@ -191,12 +192,15 @@ describe("a stopped task", () => {
       expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("chat");
     });
 
+    // Its next turn ended on words rather than on a stop, so the note the
+    // chat hears names no stop. The stop itself stays on the record until a
+    // message starts a turn after it (`session-of.ts`).
+    await saidByTask(chatId, taskSession, "Carrying on.");
     publisher.publish("session.done", { id: chatId, sessionId: taskSession });
     await vi.waitFor(() => {
       expect(wakesOf(chatId)).toHaveLength(1);
     }, 5000);
     expect(wakesOf(chatId)[0]).not.toHaveProperty("stoppedBy");
-    expect((await childTask(chatId, taskSession))?.stoppedBy).toBeUndefined();
   });
 });
 
@@ -224,7 +228,7 @@ describe("a task whose request timed out", () => {
     const { chatId, taskSession } = await chatWithTask();
     const now = new Date();
     const labeled = StoreId.newMessageId();
-    await Store.saveMessageWithParts(
+    await ChatWrites.saveMessageWithParts(
       {
         id: labeled,
         metadata: {
@@ -267,7 +271,7 @@ describe("a task whose request timed out", () => {
       chatId,
     );
     const cutOff = StoreId.newMessageId();
-    await Store.saveMessageWithParts(
+    await ChatWrites.saveMessageWithParts(
       {
         id: cutOff,
         metadata: {
@@ -381,7 +385,7 @@ describe("a wake on its way", () => {
     );
     // The person's message, then the note.
     await vi.waitFor(async () => {
-      const messages = await Store.getMessagesWithParts({ chatId, sessionId });
+      const messages = await ChatReads.transcript({ chatId, sessionId });
       expect(messages._unsafeUnwrap()).toHaveLength(2);
     });
     expect(hasPendingWake(chatId)).toBe(true);
@@ -400,7 +404,7 @@ describe("a task the app's quit cut off", () => {
     // Mid-turn as the quit lands: a step labeled, its command still going.
     const messageId = StoreId.newMessageId();
     const now = new Date();
-    await Store.saveMessageWithParts(
+    await ChatWrites.saveMessageWithParts(
       {
         id: messageId,
         metadata: {
@@ -454,7 +458,7 @@ describe("a task the app's quit cut off", () => {
       }
     `);
     expect(sent.slice(sentBefore)).toEqual([]);
-    const chatMessages = await Store.getMessagesWithParts({
+    const chatMessages = await ChatReads.transcript({
       chatId,
       sessionId: sessionOfChat(chatId) ?? taskSession,
     });
@@ -487,7 +491,7 @@ describe("a task the app's quit cut off", () => {
     const now = Date.now();
     const stepAt = new Date(now - 120_000);
     const callAt = new Date(now - 118_000);
-    await Store.saveMessageWithParts(
+    await ChatWrites.saveMessageWithParts(
       {
         id: messageId,
         metadata: {
@@ -527,7 +531,7 @@ describe("a task the app's quit cut off", () => {
     await noteTasksInterruptedByQuit([{ chatId, sessionId: taskSession }]);
 
     const notes = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         chatId,
         sessionId: sessionOfChat(chatId) ?? taskSession,
       })
@@ -548,14 +552,15 @@ describe("a task the app's quit cut off", () => {
       ]
     `);
     const call = (
-      await Store.getMessageWithParts({
+      await ChatReads.transcript({
         chatId,
-        messageId,
+        only: new Set([messageId]),
         sessionId: taskSession,
       })
     )
       ._unsafeUnwrap()
-      .parts.find((part) => part.metadata.id === partId);
+      .flatMap((message) => message.parts)
+      .find((part) => part.metadata.id === partId);
     expect(call).toMatchObject({
       errorText: "This action was interrupted when the app closed.",
       metadata: { endedAt: expect.any(Date) },

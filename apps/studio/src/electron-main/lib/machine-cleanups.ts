@@ -2,6 +2,7 @@ import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
   BROWSER_FOLDER_NAMES,
   entryExists,
+  moveEntrySync,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import childProcess from "node:child_process";
@@ -65,7 +66,48 @@ function steps(where: {
         unhideAppFolder(where.workspace, done);
       },
     ],
+    [
+      "take in the Claude sign-in kept at the top of this computer's data",
+      (done) => {
+        takeInClaudeAccount(where, done);
+      },
+    ],
   ];
+}
+
+/**
+ * The config folder our copy of Claude Code runs with, from the top of
+ * userData into the workspace's folder on this computer, beside its other
+ * keys. It is a sign-in, and every other sign-in is the workspace's.
+ *
+ * Only the default workspace takes it in: the folder predates every other
+ * one, as the root key stores do (`removeTakenInRootKeys`). Moved only where
+ * nothing is at the new place, so a workspace already signed in keeps the
+ * account it has and the root folder stays for whoever wants it.
+ */
+function takeInClaudeAccount(
+  {
+    machineDir,
+    userDataDir,
+    workspace,
+  }: {
+    machineDir: string;
+    userDataDir: string;
+    workspace: ResolvedWorkspace;
+  },
+  done: string[],
+) {
+  if (!workspace.isDefault) {
+    return;
+  }
+  const from = path.join(userDataDir, WORKSPACE_MACHINE_ENTRIES.claudeAccount);
+  const to = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.claudeAccount);
+  if (!entryExists(from) || entryExists(to)) {
+    return;
+  }
+  fs.mkdirSync(machineDir, { recursive: true });
+  moveEntrySync(from, to);
+  done.push(`moved the Claude sign-in from ${from} to ${to}`);
 }
 
 /**

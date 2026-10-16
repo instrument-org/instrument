@@ -121,6 +121,63 @@ describe("the browser homes kept per chat", () => {
   });
 });
 
+describe("the Claude sign-in at the top of this computer's data", () => {
+  const atRoot = () => path.join(userDataDir, "claude-account");
+  const inWorkspace = () => path.join(machineDir(), "claude-account");
+
+  it("moves it in beside the workspace's other keys", () => {
+    write(path.join(atRoot(), ".credentials.json"), "the sign-in");
+
+    const done = clean();
+
+    expect(tree(inWorkspace())).toEqual([".credentials.json"]);
+    expect(
+      fs.readFileSync(path.join(inWorkspace(), ".credentials.json"), "utf8"),
+    ).toBe("the sign-in");
+    expect(fs.existsSync(atRoot())).toBe(false);
+    expect(done).toContain(
+      `moved the Claude sign-in from ${atRoot()} to ${inWorkspace()}`,
+    );
+  });
+
+  it("has nothing left to say on the boot after", () => {
+    write(path.join(atRoot(), ".credentials.json"), "the sign-in");
+    clean();
+
+    expect(clean()).toEqual([]);
+    expect(tree(inWorkspace())).toEqual([".credentials.json"]);
+  });
+
+  it("leaves the workspace's own sign-in alone, and the root folder where it is", () => {
+    write(path.join(atRoot(), ".credentials.json"), "the older sign-in");
+    write(path.join(inWorkspace(), ".credentials.json"), "this workspace's");
+
+    expect(clean()).toEqual([]);
+    expect(
+      fs.readFileSync(path.join(inWorkspace(), ".credentials.json"), "utf8"),
+    ).toBe("this workspace's");
+    expect(fs.existsSync(atRoot())).toBe(true);
+  });
+
+  it("leaves it for another workspace, which never kept it there", () => {
+    write(path.join(atRoot(), ".credentials.json"), "the sign-in");
+
+    const done = cleanUpMachineData({
+      machineDir: workspaceMachineDirOf(userDataDir, "other"),
+      userDataDir,
+      workspace: {
+        id: "other",
+        isDefault: false,
+        path: path.join(userDataDir, "workspaces", "other"),
+        pinned: false,
+      },
+    });
+
+    expect(done).toEqual([]);
+    expect(fs.existsSync(atRoot())).toBe(true);
+  });
+});
+
 describe("the hidden attribute on .instrument", () => {
   const dataDir = () =>
     path.join(defaultWorkspacePath(userDataDir), ".instrument");

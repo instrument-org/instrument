@@ -6,6 +6,7 @@ import {
 } from "@/electron-main/lib/claude-code-download";
 import { claudeSignInMachine } from "@/electron-main/lib/claude-sign-in";
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
+import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import {
@@ -19,12 +20,13 @@ import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
+  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import { execFile } from "node:child_process";
 import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { app, shell } from "electron";
+import { shell } from "electron";
 import { createActor, fromPromise, waitFor } from "xstate";
 import { z } from "zod";
 
@@ -159,12 +161,16 @@ signIn.subscribe({
 
 /**
  * Where our copy of Claude Code keeps its Claude sign-in, as its config
- * folder. Apart from the person's own `~/.claude`, so signing in here never
- * changes which account their own Claude Code uses, and theirs never signs
- * this one out.
+ * folder: the workspace's folder on this computer, beside its other keys.
+ * Apart from the person's own `~/.claude`, so signing in here never changes
+ * which account their own Claude Code uses, and theirs never signs this one
+ * out.
  */
 function accountDir() {
-  return path.join(app.getPath("userData"), "claude-account");
+  return path.join(
+    workspaceMachineDir(),
+    WORKSPACE_MACHINE_ENTRIES.claudeAccount,
+  );
 }
 
 /** The CLI's last reading, with the install and sign-in under way now. */

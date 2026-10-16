@@ -149,6 +149,12 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */
   browser: "browser",
   /**
+   * The config folder our copy of Claude Code runs with, holding the Claude
+   * subscription it is signed in to. Beside `keys` because it is one, and
+   * per workspace for the same reason every other sign-in is.
+   */
+  claudeAccount: "claude-account",
+  /**
    * `workspace.db`: the index of the workspace's chats, rebuilt from them
    * whenever it is missing, and the activity log.
    */

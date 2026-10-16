@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   createMemoryPart,
@@ -14,28 +14,33 @@ import {
   resetMemoryReported,
 } from "./create-memory-part";
 import { forgetMemory, memoryDir, saveMemory } from "./memory/store";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
+import { chatFor } from "../test/helpers/chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
-const id = ChatIdSchema.parse("memory-part-test");
 const sessionId = StoreId.newSessionId();
 
+// A chat of its own per test: the records hold an open chat by its id, so a
+// second chat under one name would still be writing into the folder the test
+// before it took away.
+let chats = 0;
 let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-part-test-"));
-  const dir = path.join(root, TASKS_DIR_NAME, id);
+  const dir = path.join(root, TASKS_DIR_NAME, `memory-part-${++chats}`);
   await fs.mkdir(dir, { recursive: true });
   chatId = createMockChatConfigForDir(dir);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),
   });
+  // What a chat was last told of memory is written into its session's log, so
+  // the chat holds the session before any of it is recorded.
+  await chatFor(sessionId, chatId);
 });
 
 afterEach(async () => {
-  await disposeSessionsStoreStorage(id);
   await fs.rm(root, { force: true, recursive: true });
 });
 

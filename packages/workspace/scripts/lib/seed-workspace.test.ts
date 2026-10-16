@@ -4,8 +4,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { workspaceLayout } from "../../src/lib/workspace-layout";
-import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { ChatReads } from "../../src/lib/chat-reads";
+import { writingChatRecords } from "../../src/lib/records/chat-records";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
 import { folderReach } from "../../src/lib/chat/folder-reach";
 import { getChatSettings } from "../../src/lib/chat-settings";
@@ -21,11 +21,15 @@ import {
 
 const opened: ChatId[] = [];
 
-// Storage handles are cached by task id, and every case here seeds the same
-// fixture into a new directory under the same ids. Without this, a read in one
-// case leaves a handle open on its workspace that the next case would reuse.
+// A chat is held open by id, and every case here seeds the same fixture into
+// a new directory under the same ids. Without this, a read in one case leaves
+// the chat open on its workspace, and the next case reads that one: the
+// sessions of every case so far, in the folder the first one made.
 afterEach(async () => {
-  await Promise.all(opened.splice(0).map(disposeSessionsStoreStorage));
+  const records = writingChatRecords();
+  for (const id of opened.splice(0)) {
+    await records?.close(id);
+  }
 });
 
 function at<T>(items: readonly T[], index: number): T {

@@ -858,7 +858,7 @@ describe("sessionMachine", () => {
         </user>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
-          <tool tool="read_file" state="output-error" callId="test-call-1">
+          <tool tool="unavailable" state="output-error" callId="test-call-1">
             <input>
               {
                 "filePath": "test.txt"
@@ -1081,7 +1081,10 @@ describe("sessionMachine", () => {
     });
     await runTestMachine(result);
     stop();
-    expect([...kinds].toSorted()).toEqual(["agent", "messages", "session"]);
+    // Its messages and its agent, and nothing of the session itself: a
+    // session's own records are its header, where its context was reset, who
+    // stopped it and what it was told, and a turn writes none of those.
+    expect([...kinds].toSorted()).toEqual(["agent", "messages"]);
   });
 
   it("should stop agents during llm request", async () => {
@@ -1491,7 +1494,7 @@ describe("sessionMachine", () => {
             <input>
               "none"
             </input>
-            <error>This action was stopped.</error>
+            <error>This action was cut off before it could run.</error>
           </tool>
         </assistant>
         <session-context instrument realRole="system" />

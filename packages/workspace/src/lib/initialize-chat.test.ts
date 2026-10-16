@@ -8,12 +8,15 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { initializeChat } from "./initialize-chat";
+import { DEVICE_ID_PATTERN } from "./records/device-id";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T[\d:.]+Z/g;
+// This computer's id, which every test run makes a fresh one of.
+const DEVICE_ID = new RegExp(DEVICE_ID_PATTERN, "g");
 
 let rootDir: string;
 
@@ -63,9 +66,14 @@ describe("initializeChat", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(await listPaths(chatDir(chatId))).toMatchInlineSnapshot(`
+    // Its session's log, started with the chat, and its settings.
+    expect(
+      (await listPaths(chatDir(chatId))).map((name) =>
+        name.replaceAll(DEVICE_ID, "<device>"),
+      ),
+    ).toMatchInlineSnapshot(`
       [
-        "chat.db",
+        "ses_01M3AX9RF3C2E9RTATMB602W0B.<device>.jsonl",
         "settings.json",
       ]
     `);

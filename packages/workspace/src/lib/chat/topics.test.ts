@@ -34,7 +34,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) => fs.rm(root, { force: true, recursive: true })),
+    roots
+      .splice(0)
+      .map((root) => fs.rm(root, { force: true, recursive: true })),
   );
 });
 

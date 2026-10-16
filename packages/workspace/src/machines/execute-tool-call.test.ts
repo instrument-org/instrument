@@ -216,11 +216,11 @@ describe("executeToolCallMachine", () => {
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:02.000Z,
-            "id": "prt_00000000Z88888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
+            "endedAt": 2013-08-31T12:00:07.000Z,
+            "id": "prt_00000000Z8888888888888888A",
+            "messageId": "msg_00000000Z88888888888888889",
+            "sessionId": "ses_00000000Z88888888888888888",
+            "startedAt": 2013-08-31T12:00:04.000Z,
           },
           "output": {
             "command": "pnpm install",
@@ -232,7 +232,6 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "mocked stdout
         mocked stderr",
-            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -272,11 +271,11 @@ describe("executeToolCallMachine", () => {
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:02.000Z,
-            "id": "prt_00000000Z98888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
+            "endedAt": 2013-08-31T12:00:06.000Z,
+            "id": "prt_00000000Z9888888888888888A",
+            "messageId": "msg_00000000Z98888888888888889",
+            "sessionId": "ses_00000000Z98888888888888888",
+            "startedAt": 2013-08-31T12:00:03.000Z,
           },
           "output": {
             "command": "pnpm throw-error",
@@ -288,7 +287,6 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "pnpm: Shell command failed
         ",
-            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -328,11 +326,11 @@ describe("executeToolCallMachine", () => {
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:02.000Z,
-            "id": "prt_00000000ZA8888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
+            "endedAt": 2013-08-31T12:00:06.000Z,
+            "id": "prt_00000000ZA888888888888888A",
+            "messageId": "msg_00000000ZA8888888888888889",
+            "sessionId": "ses_00000000ZA8888888888888888",
+            "startedAt": 2013-08-31T12:00:03.000Z,
           },
           "output": {
             "command": "pnpm hang-command",
@@ -344,7 +342,6 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "mocked stdout
         mocked stderr",
-            "spillFilePath": undefined,
           },
           "preliminary": false,
           "state": "output-available",
@@ -414,11 +411,11 @@ describe("executeToolCallMachine", () => {
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
-            "id": "prt_00000000ZB8888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
+            "endedAt": 2013-08-31T12:00:05.000Z,
+            "id": "prt_00000000ZB888888888888888A",
+            "messageId": "msg_00000000ZB8888888888888889",
+            "sessionId": "ses_00000000ZB8888888888888888",
+            "startedAt": 2013-08-31T12:00:03.000Z,
           },
           "output": {
             "content": "Hello, world!",
@@ -481,11 +478,11 @@ describe("executeToolCallMachine", () => {
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
-            "id": "prt_00000000ZC8888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
+            "endedAt": 2013-08-31T12:00:05.000Z,
+            "id": "prt_00000000ZC888888888888888A",
+            "messageId": "msg_00000000ZC8888888888888889",
+            "sessionId": "ses_00000000ZC8888888888888888",
+            "startedAt": 2013-08-31T12:00:03.000Z,
           },
           "output": {
             "filePath": "./nonexistent.txt",

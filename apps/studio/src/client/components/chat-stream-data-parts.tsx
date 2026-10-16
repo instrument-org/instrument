@@ -107,7 +107,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // chats at the moment this one opened, and the topics this one is filed
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
-  "data-chatTopics": "dev",
+  "data-topics": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -220,7 +220,7 @@ export function renderDataPart({
         />
       );
     }
-    case "data-chatTopics": {
+    case "data-topics": {
       return (
         <ModelContextDebugCard
           className={noteClassName}

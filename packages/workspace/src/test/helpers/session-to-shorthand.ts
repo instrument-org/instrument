@@ -148,8 +148,8 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-chatContext": {
       return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
     }
-    case "data-chatTopics": {
-      return `<data-chatTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-chatTopics>`;
+    case "data-topics": {
+      return `<data-topics>${part.data.topics.map((topic) => topic.name).join(",")}</data-topics>`;
     }
     case "data-contextRollover": {
       const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;

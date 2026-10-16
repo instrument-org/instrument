@@ -270,14 +270,14 @@ export async function newMessage({
 
     // The chat's topics ride on every message sent in it, and the model
     // note is rendered only when they changed since the last one.
-    const chatTopicsPart = await createChatTopicsPart({
+    const topicsPart = await createTopicsPart({
       createdAt,
       messageId,
       sessionId,
       chatId,
     });
-    if (chatTopicsPart) {
-      parts.push(chatTopicsPart);
+    if (topicsPart) {
+      parts.push(topicsPart);
     }
 
     // What the agent remembers about the user, told once and again only when
@@ -351,7 +351,7 @@ export async function newMessage({
  * none and never has: a chat untagged since its last message gets an empty
  * part, so the note can say the topics are gone.
  */
-async function createChatTopicsPart({
+async function createTopicsPart({
   createdAt,
   messageId,
   sessionId,
@@ -372,7 +372,7 @@ async function createChatTopicsPart({
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>
-        message.parts.some((part) => part.type === "data-chatTopics"),
+        message.parts.some((part) => part.type === "data-topics"),
       );
     if (!toldBefore) {
       return undefined;
@@ -398,7 +398,7 @@ async function createChatTopicsPart({
   return {
     data: { topics },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
-    type: "data-chatTopics",
+    type: "data-topics",
   };
 }
 

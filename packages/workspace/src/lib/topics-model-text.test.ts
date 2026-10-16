@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { chatTopicsModelNote } from "./chat-topics-model-text";
+import { topicsModelNote } from "./topics-model-text";
 
-describe("chatTopicsModelNote", () => {
+describe("topicsModelNote", () => {
   it("names the topics, then gives each one's instructions and folders", () => {
     expect(
-      chatTopicsModelNote({
+      topicsModelNote({
         topics: [
           {
             emoji: "✈️",
@@ -35,7 +35,7 @@ describe("chatTopicsModelNote", () => {
   });
 
   it("cuts long instructions on a paragraph break, naming the topic's own file", () => {
-    const note = chatTopicsModelNote({
+    const note = topicsModelNote({
       topics: [
         {
           instructions: `${"a".repeat(19_990)}\n\n${"ZZZ ".repeat(30)}`,

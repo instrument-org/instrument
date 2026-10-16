@@ -6,31 +6,6 @@ import { AbsolutePathSchema, RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 
 export namespace SessionMessageDataPart {
-  /**
-   * Every part below is one of three cadences, and which one it is decides
-   * whether it needs to guard against repeating itself.
-   *
-   * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `fromChat`, `intent`, `jobEvent`,
-   *   `maxSteps`, `outputLimit`, `reply`,
-   *   `skillChanges`, and `skillMentions`. A repeat is impossible by
-   *   construction; nothing to guard.
-   * - **Diff**: what changed since last time -- `environmentChange`,
-   *   `folderChanges`, `modelChange`. Self-limiting: no change, no part.
-   * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
-   *   These are the ones that will restate an unchanged fact on every single
-   *   turn unless their producer compares against what this session was last
-   *   told. `createBrowserStatusPart` and `createMemoryPart` each do, and
-   *   `toModelMessages` skips a topics or view note that
-   *   reads the same as the last one; a new state part that forgets is not a
-   *   failure anyone sees, it just quietly spends context.
-   *
-   * Adding a part? Decide which of the three it is first.
-   *
-   * Two members below are none of the three, because nothing writes them:
-   * see `fileChanges` and `chatContext`.
-   */
   export const NameSchema = z.enum([
     "appEvent",
     "asks",
@@ -57,12 +32,65 @@ export namespace SessionMessageDataPart {
     "reply",
     "taskEvent",
     "chatContext",
-    "chatTopics",
+    "topics",
     "unknown",
     "viewContext",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
+
+  /**
+   * How often a part says something new, which is what decides whether
+   * sending it again can repeat a fact the session already has.
+   *
+   * - `event`: something that happened on this turn. A repeat is impossible
+   *   by construction.
+   * - `diff`: what changed since last time. Self-limiting: no change, no
+   *   part.
+   * - `state`: the whole current picture, which reads the same on every turn
+   *   the picture did not change. Assembly compares each one against the last
+   *   note it sent for that part and sends nothing when they match, so this
+   *   is the declaration that keeps a standing fact from being restated.
+   * - `unwritten`: nothing writes it. `fileChanges` and `chatContext` are
+   *   retired, and `unknown` is what an unreadable payload becomes.
+   */
+  export type Cadence = "diff" | "event" | "state" | "unwritten";
+
+  /**
+   * Every part's cadence, which assembly reads rather than each note's author
+   * remembering: a part declared `state` here cannot restate itself, and one
+   * added without a line here does not compile.
+   */
+  export const CADENCE = {
+    appEvent: "event",
+    asks: "event",
+    attachments: "event",
+    backgroundProcesses: "state",
+    browserStatus: "state",
+    chatContext: "unwritten",
+    contextRollover: "event",
+    dateChange: "event",
+    environmentChange: "diff",
+    fileChanges: "unwritten",
+    folderChanges: "diff",
+    fromChat: "event",
+    intent: "event",
+    jobEvent: "event",
+    maxSteps: "event",
+    memory: "state",
+    messageGap: "event",
+    modelChange: "diff",
+    outputLimit: "event",
+    permissionAnswer: "event",
+    questionAnswer: "event",
+    reply: "event",
+    skillChanges: "event",
+    skillMentions: "event",
+    taskEvent: "event",
+    topics: "state",
+    unknown: "unwritten",
+    viewContext: "state",
+  } satisfies Record<Name, Cadence>;
 
   // Folders granted in the chat or taken back since the session last heard --
   // attached to the user message that starts the next turn so the model knows
@@ -911,7 +939,7 @@ export namespace SessionMessageDataPart {
    * there. State cadence: rendered only when it differs from the note before
    * it, so a chat tagged once is told once.
    */
-  const ChatTopicsDataPartSchema = z.object({
+  const TopicsDataPartSchema = z.object({
     topics: z.array(
       z.object({
         about: z.string().optional(),
@@ -925,7 +953,7 @@ export namespace SessionMessageDataPart {
     ),
   });
 
-  export type ChatTopicsDataPart = z.output<typeof ChatTopicsDataPartSchema>;
+  export type TopicsDataPart = z.output<typeof TopicsDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -1001,7 +1029,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
-    [NameSchema.enum.chatTopics]: ChatTopicsDataPartSchema,
+    [NameSchema.enum.topics]: TopicsDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,

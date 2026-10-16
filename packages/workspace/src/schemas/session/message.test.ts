@@ -421,6 +421,44 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("repeats an unchanged event note, which is a different turn's news", async () => {
+    const first = baseMetadata();
+    const second = baseMetadata();
+    const gap = { minutes: 90 };
+
+    function asked(
+      ids: ReturnType<typeof baseMetadata>,
+      text: string,
+    ): SessionMessage.WithParts {
+      return {
+        id: ids.messageId,
+        metadata: ids.messageMetadata,
+        parts: [
+          { metadata: ids.partMetadata, state: "done", text, type: "text" },
+          {
+            data: gap,
+            metadata: { ...ids.partMetadata, id: StoreId.newPartId() },
+            type: "data-messageGap",
+          },
+        ],
+        role: "user",
+      };
+    }
+
+    const result = await SessionMessage.toModelMessages(
+      [asked(first, "Back."), asked(second, "Back again.")],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+    const notes = result
+      .flatMap((message) =>
+        Array.isArray(message.content) ? message.content : [],
+      )
+      .filter(
+        (part) => part.type === "text" && part.text.includes("last wrote"),
+      );
+    expect(notes).toHaveLength(2);
+  });
+
   it("does not repeat unchanged browser status", async () => {
     const first = baseMetadata();
     const second = baseMetadata();

@@ -226,7 +226,9 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     prompt.push(
       {
         content: [
-          ...(resumed.text ? [{ text: resumed.text, type: "text" as const }] : []),
+          ...(resumed.text
+            ? [{ text: resumed.text, type: "text" as const }]
+            : []),
           {
             input: JSON.parse(handOff?.input ?? "{}") as unknown,
             toolCallId: handOff?.toolCallId ?? "",

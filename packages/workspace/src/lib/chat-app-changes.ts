@@ -45,7 +45,7 @@ export function setChatAppsBaseline(
   sessionId: StoreId.Session,
   apps: ChatAppsBaseline,
 ) {
-  return ChatWrites.told(chatId, sessionId, "apps", apps);
+  return ChatWrites.state(chatId, sessionId, "apps", apps);
 }
 
 /**
@@ -70,7 +70,7 @@ export function detectChatAppChanges({
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const stored = await ChatReads.told({
+      const stored = await ChatReads.state({
         chatId,
         schema: ChatAppsBaselineSchema,
         sessionId,
@@ -103,7 +103,7 @@ export function detectChatAppChanges({
 
 /**
  * What changed between two readings of the apps, as the events a chat is
- * told: an app gone is removed, one that lost its connection is
+ * state: an app gone is removed, one that lost its connection is
  * disconnected, one that gained it is connected. An app set up but not yet
  * connected is the conversation's own doing and says nothing.
  */

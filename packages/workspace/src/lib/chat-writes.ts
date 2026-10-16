@@ -8,7 +8,7 @@ import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { isArriving } from "./records/arriving";
 import { type ChatRecords, writingChatRecords } from "./records/chat-records";
-import { type ToldWhat } from "./records/record";
+import { type StateWhat } from "./records/record";
 
 /**
  * What a chat is written through: its records, and nothing beside them.
@@ -110,14 +110,14 @@ export namespace ChatWrites {
    * the memories it was given, the processes it left running. `undefined`
    * says it has been told nothing, so the next message tells it the whole.
    */
-  export function told(
+  export function state(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    what: ToldWhat,
+    what: StateWhat,
     value: unknown,
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
-      wrote(writing.told(chatId, sessionId, what, value ?? null), undefined),
+      wrote(writing.state(chatId, sessionId, what, value ?? null), undefined),
     );
   }
 

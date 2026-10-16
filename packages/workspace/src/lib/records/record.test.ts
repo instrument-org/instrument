@@ -129,14 +129,14 @@ describe("parseLogLine", () => {
       {
         at: at(1),
         seq: 7,
-        t: "told",
+        t: "state",
         value: [{ path: "/a" }],
         what: "folders",
       },
     ],
     [
       "something cleared",
-      { at: at(1), seq: 8, t: "told", value: null, what: "browser" },
+      { at: at(1), seq: 8, t: "state", value: null, what: "browser" },
     ],
   ])("reads back %s as written", (_name, record) => {
     expect(parseLogLine(recordLine(record))).toEqual(record);

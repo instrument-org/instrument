@@ -21,7 +21,7 @@ import { StorageKey } from "../../storage-key";
 import { runStoreMigrations } from "../../store-migrations";
 import { STORE_TABLE } from "../../store-table";
 import { type WrappedStorage, wrapStorage } from "../../wrap-storage";
-import { type ToldWhat } from "../record";
+import { type StateWhat } from "../record";
 
 /**
  * Reading a chat's `chat.db` as the store read it, for turning it into
@@ -34,7 +34,7 @@ import { type ToldWhat } from "../record";
  * What comes back is what the store's reads gave, through the same schemas
  * and in the same order: every session, its messages by id, each message's
  * parts by id with the row each was read from, and what the session was
- * last told. Moved folders are not read back where a move took them, which
+ * last state. Moved folders are not read back where a move took them, which
  * the store did for display; the records keep the paths as they were
  * written.
  */
@@ -61,7 +61,7 @@ export interface ChatDbSession {
   messages: ChatDbMessage[];
   session: Session.Type;
   /** What the session was last told of each, as its module wrote it. */
-  told: Partial<Record<ToldWhat, unknown>>;
+  state: Partial<Record<StateWhat, unknown>>;
 }
 
 export type ChatDbRead =
@@ -81,9 +81,9 @@ export type ChatDbRead =
   /** The store could not have read the chat either. */
   | { error: string; kind: "unreadable" };
 
-/** The key of each thing a session is told, as the store kept it. */
+/** The key of each thing a session is state, as the store kept it. */
 export const TOLD_KEYS: readonly (readonly [
-  ToldWhat,
+  StateWhat,
   (session: StoreId.Session) => string,
 ])[] = [
   ["apps", StorageKey.chatAppsBaseline],
@@ -175,7 +175,7 @@ async function readStorage(storage: WrappedStorage): Promise<ChatDbRead> {
     sessions.push({
       messages: await readMessages(storage, id, taken),
       session,
-      told: await readTold(storage, id, taken),
+      state: await readState(storage, id, taken),
     });
   }
   const leftBehind: Record<string, number> = {};
@@ -266,12 +266,12 @@ async function readParts(
  * does not decode, or holds nothing, is as good as none, as it was to the
  * module.
  */
-async function readTold(
+async function readState(
   storage: WrappedStorage,
   sessionId: StoreId.Session,
   taken: Set<string>,
-): Promise<ChatDbSession["told"]> {
-  const told: ChatDbSession["told"] = {};
+): Promise<ChatDbSession["state"]> {
+  const state: ChatDbSession["state"] = {};
   for (const [what, keyOf] of TOLD_KEYS) {
     const key = keyOf(sessionId);
     const value = decode(await need(storage.getItemRaw(key), key));
@@ -279,10 +279,10 @@ async function readTold(
       taken.add(key);
     }
     if (value !== undefined && value !== null) {
-      told[what] = value;
+      state[what] = value;
     }
   }
-  return told;
+  return state;
 }
 
 /** The ids under a key, sorted as the store sorted them. */

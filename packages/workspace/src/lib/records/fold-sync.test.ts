@@ -258,8 +258,8 @@ function messageIdsOf(model: SessionModel | undefined): StoreId.Message[] {
 
 /** What a session's own records come to, written the generator's way. */
 function expectedOf(model: SessionModel) {
-  const told = Object.fromEntries(
-    [...model.told]
+  const state = Object.fromEntries(
+    [...model.state]
       .filter(([, value]) => value !== null && value !== undefined)
       .toSorted(([a], [b]) => (a < b ? -1 : 1)),
   );
@@ -272,13 +272,13 @@ function expectedOf(model: SessionModel) {
     })),
     rollover: model.rollover,
     stopped: model.stopped,
-    told,
+    state,
   };
 }
 
 function written(session: FoldedSession) {
-  const { messages, rollover, stopped, told } = session;
-  return { messages, rollover, stopped, told };
+  const { messages, rollover, stopped, state } = session;
+  return { messages, rollover, stopped, state };
 }
 
 /** The winning mark of each field: settled titles first, then the newest, then the larger device id. */

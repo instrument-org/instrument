@@ -57,7 +57,7 @@ function withVisit(hosts: string[] | undefined, url: string): string[] {
 }
 
 export function getBrowserState(chatId: ChatId, sessionId: StoreId.Session) {
-  return ChatReads.told({
+  return ChatReads.state({
     chatId,
     schema: z.unknown(),
     sessionId,
@@ -129,7 +129,7 @@ export function recordVisitedHosts({
       lastUsedAt: new Date(),
       visitedHosts,
     });
-    yield* ChatWrites.told(chatId, sessionId, "browser", state);
+    yield* ChatWrites.state(chatId, sessionId, "browser", state);
     return ok(undefined);
   });
 }

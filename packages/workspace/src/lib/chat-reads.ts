@@ -7,10 +7,10 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
-import { type ToldWhat } from "./records/record";
+import { type StateWhat } from "./records/record";
 import { sessionOf } from "./records/session-of";
 import {
-  toldView,
+  stateView,
   contextTokensView,
   conversationView,
   everyMessageView,
@@ -154,7 +154,7 @@ export namespace ChatReads {
    * when it changes, and read back here to be compared with what holds now,
    * so the agent is told only the difference.
    */
-  export function told<Schema extends z.ZodType>({
+  export function state<Schema extends z.ZodType>({
     chatId,
     schema,
     sessionId,
@@ -163,10 +163,10 @@ export namespace ChatReads {
     chatId: ChatId;
     schema: Schema;
     sessionId: StoreId.Session;
-    what: ToldWhat;
+    what: StateWhat;
   }): ResultAsync<undefined | z.output<Schema>, Failure> {
     return read(chatId).map((chat) => {
-      const held = toldView(chat, sessionId, what);
+      const held = stateView(chat, sessionId, what);
       if (held === undefined || held === null) {
         return undefined;
       }

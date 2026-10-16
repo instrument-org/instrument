@@ -80,7 +80,7 @@ const FileFoldSchema = z.object({
   header: z.string().optional(),
   /**
    * The newest record of each kind a newer one replaces: in a log
-   * `rollover`, `stopped` and `told:<what>`; in a marks file
+   * `rollover`, `stopped` and `state:<what>`; in a marks file
    * `<session> <field>`.
    */
   latest: z.record(z.string(), LatestSchema),
@@ -324,7 +324,7 @@ function prepare(database: DatabaseSync): Statements {
         forked INTEGER NOT NULL,
         rollover TEXT,
         stopped TEXT,
-        told TEXT NOT NULL,
+        state TEXT NOT NULL,
         marks TEXT NOT NULL,
         retracted TEXT NOT NULL,
         PRIMARY KEY (chat, id)
@@ -356,7 +356,7 @@ function prepare(database: DatabaseSync): Statements {
       "INSERT INTO chats (id, session, title, created_at, updated_at, starred, archived, unread, topics, tasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ),
     insertSession: database.prepare(
-      "INSERT INTO sessions (chat, id, parent, forked_at, handle, title, created_at, updated_at, forked, rollover, stopped, told, marks, retracted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO sessions (chat, id, parent, forked_at, handle, title, created_at, updated_at, forked, rollover, stopped, state, marks, retracted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ),
     readFiles: database.prepare(
       "SELECT name, size, mtime_ms, tail_hash, folded_offset, last_seq, downloaded, skipped, refused, folded FROM files WHERE chat = ?",
@@ -590,8 +590,8 @@ function fold(
       case "stopped":
         keepNewest(folded, record.t, line, place);
         break;
-      case "told":
-        keepNewest(folded, `told:${record.what}`, line, place);
+      case "state":
+        keepNewest(folded, `state:${record.what}`, line, place);
         break;
     }
   }
@@ -758,15 +758,15 @@ function sessionSummary(
   );
   const rollover = latest.get("rollover");
   const stopped = latest.get("stopped");
-  const told: Record<string, unknown> = {};
+  const state: Record<string, unknown> = {};
   for (const key of [...latest.keys()].toSorted()) {
     const record = latest.get(key);
     if (
-      record?.t === "told" &&
+      record?.t === "state" &&
       record.value !== null &&
       record.value !== undefined
     ) {
-      told[record.what] = record.value;
+      state[record.what] = record.value;
     }
   }
   const marks = marksOf(parts.marks);
@@ -793,7 +793,7 @@ function sessionSummary(
       stopped?.t === "stopped"
         ? JSON.stringify({ at: stopped.at.toISOString(), by: stopped.by })
         : null,
-      JSON.stringify(told),
+      JSON.stringify(state),
       JSON.stringify(
         Object.fromEntries(
           Object.values(marks)

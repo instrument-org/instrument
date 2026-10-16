@@ -452,12 +452,12 @@ describe("a chat written through its records", () => {
       })
     )._unsafeUnwrap();
 
-    const told = (await records.service.read(chatId)).chat.sessions[0]?.told;
-    expect(told?.folders).toEqual(
+    const state = (await records.service.read(chatId)).chat.sessions[0]?.state;
+    expect(state?.folders).toEqual(
       asRecorded((await getFoldersBaseline(chatId, sessionId))._unsafeUnwrap()),
     );
-    expect(told?.apps).toEqual({ gmail: { connected: true, name: "Gmail" } });
-    expect(told?.browser).toEqual(
+    expect(state?.apps).toEqual({ gmail: { connected: true, name: "Gmail" } });
+    expect(state?.browser).toEqual(
       asRecorded((await getBrowserState(chatId, sessionId))._unsafeUnwrap()),
     );
   });
@@ -472,13 +472,13 @@ describe("a chat written through its records", () => {
     });
 
     expect(
-      (await records.service.read(chatId)).chat.sessions[0]?.told.memory,
+      (await records.service.read(chatId)).chat.sessions[0]?.state.memory,
     ).toEqual({});
 
     await resetMemoryReported({ chatId, sessionId });
 
     expect(
-      (await records.service.read(chatId)).chat.sessions[0]?.told.memory,
+      (await records.service.read(chatId)).chat.sessions[0]?.state.memory,
     ).toBeUndefined();
   });
 });

@@ -123,7 +123,7 @@ const PartSchema = z
     message: "A part names itself, its message, its session and its date",
   });
 
-const ToldWhatSchema = z.enum([
+const StateWhatSchema = z.enum([
   "apps",
   "browser",
   "folders",
@@ -131,7 +131,7 @@ const ToldWhatSchema = z.enum([
   "processes",
 ]);
 
-export type ToldWhat = z.output<typeof ToldWhatSchema>;
+export type StateWhat = z.output<typeof StateWhatSchema>;
 
 const LogRecordSchema = z.discriminatedUnion("t", [
   SessionHeaderSchema,
@@ -158,11 +158,11 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     by: z.enum(["app", "chat", "user"]),
   }),
   z.object({
-    t: z.literal("told"),
+    t: z.literal("state"),
     ...envelope,
-    /** Which standing fact the session was last told. */
-    what: ToldWhatSchema,
-    /** What it was told, as that fact's own module writes it; `null` clears it. */
+    /** Which standing fact the session was last state. */
+    what: StateWhatSchema,
+    /** What it was state, as that fact's own module writes it; `null` clears it. */
     value: z.unknown(),
   }),
 ]);

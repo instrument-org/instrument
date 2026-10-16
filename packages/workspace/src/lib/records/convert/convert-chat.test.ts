@@ -236,8 +236,8 @@ async function recordKinds(file: string): Promise<string[]> {
     switch (record.t) {
       case "part":
         return `part ${record.part.type}`;
-      case "told":
-        return `told ${record.what}`;
+      case "state":
+        return `state ${record.what}`;
       default:
         return record.t;
     }
@@ -326,11 +326,11 @@ describe("convertChat", () => {
         "message",
         "part tool-bash",
         "rollover",
-        "told apps",
-        "told browser",
-        "told folders",
-        "told memory",
-        "told processes",
+        "state apps",
+        "state browser",
+        "state folders",
+        "state memory",
+        "state processes",
       ]
     `);
     expect(
@@ -344,7 +344,7 @@ describe("convertChat", () => {
         "part tool-read_file",
         "part text",
         "stopped",
-        "told folders",
+        "state folders",
       ]
     `);
 
@@ -420,7 +420,7 @@ describe("convertChat", () => {
             "after": "msg_01K7A000000000000000000005",
             "usableTokens": 120000,
           },
-          "told": {
+          "state": {
             "apps": {
               "gmail": {
                 "connected": true,
@@ -486,18 +486,18 @@ describe("convertChat", () => {
           "id": "ses_01K7A000000000000000000002",
           "marks": {},
           "parent": "ses_01K7A000000000000000000001",
-          "stopped": {
-            "at": 2026-10-14T12:01:30.000Z,
-            "by": "user",
-          },
-          "title": "Find hotels",
-          "told": {
+          "state": {
             "folders": [
               {
                 "path": "/Users/someone/Trips",
               },
             ],
           },
+          "stopped": {
+            "at": 2026-10-14T12:01:30.000Z,
+            "by": "user",
+          },
+          "title": "Find hotels",
           "updatedAt": 2026-10-14T12:01:30.000Z,
           "writtenBy": Map {
             "msg_01K7A000000000000000000007" => "dev_AAAAAAAA",

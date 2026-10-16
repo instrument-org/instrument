@@ -23,7 +23,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 /**
  * What each read of a chat gives back, for a chat written the way the app
  * writes one: its history as the model is sent it, the transcript it is drawn
- * from, the standing facts its session was told, and the lines its own search
+ * from, the standing facts its session was state, and the lines its own search
  * reads.
  *
  * Dates are frozen except where a test moves the clock on purpose.
@@ -403,15 +403,15 @@ describe("the transcript a chat is drawn and told from", () => {
 describe("the standing facts a session was told", () => {
   const schema = z.array(z.object({ path: z.string() }));
 
-  it("reads back what the session was last told, and not an earlier one", async () => {
+  it("reads back what the session was last state, and not an earlier one", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/a" }]);
-    await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/b" }]);
+    await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);
+    await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/b" }]);
 
     expect(
       (
-        await ChatReads.told({
+        await ChatReads.state({
           chatId,
           schema,
           sessionId,
@@ -422,19 +422,19 @@ describe("the standing facts a session was told", () => {
   });
 
   it.each([
-    { name: "one never told", told: undefined },
-    { name: "one told it no longer holds", told: null },
-  ])("answers nothing for $name", async ({ told }) => {
+    { name: "one never told", state: undefined },
+    { name: "one told it no longer holds", state: null },
+  ])("answers nothing for $name", async ({ state }) => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    if (told === null) {
-      await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/a" }]);
-      await ChatWrites.told(chatId, sessionId, "folders", undefined);
+    if (state === null) {
+      await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);
+      await ChatWrites.state(chatId, sessionId, "folders", undefined);
     }
 
     expect(
       (
-        await ChatReads.told({ chatId, schema, sessionId, what: "folders" })
+        await ChatReads.state({ chatId, schema, sessionId, what: "folders" })
       )._unsafeUnwrap(),
     ).toBeUndefined();
   });
@@ -442,7 +442,7 @@ describe("the standing facts a session was told", () => {
   it("gives a task what its chat was told before it forked", async () => {
     const { chatId, sessionId } = await startChat();
     const { asked } = await writeTurn(chatId, sessionId);
-    await ChatWrites.told(chatId, sessionId, "folders", [{ path: "/a" }]);
+    await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);
     const task = await addChildTask(chatId, {
       createdAt: new Date(),
       forkedAtMessageId: asked.id,
@@ -453,7 +453,7 @@ describe("the standing facts a session was told", () => {
 
     expect(
       (
-        await ChatReads.told({
+        await ChatReads.state({
           chatId,
           schema,
           sessionId: task.id,
@@ -466,11 +466,11 @@ describe("the standing facts a session was told", () => {
   it("answers nothing for a fact written in a shape this build cannot read", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    await ChatWrites.told(chatId, sessionId, "folders", { folders: "/a" });
+    await ChatWrites.state(chatId, sessionId, "folders", { folders: "/a" });
 
     expect(
       (
-        await ChatReads.told({
+        await ChatReads.state({
           chatId,
           schema,
           sessionId,

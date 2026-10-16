@@ -28,7 +28,7 @@ const ReportedProcessesSchema = z.array(
  *
  * `ended` is the half that a restart needs. Nothing in the registry survives a
  * quit, so after one there is no process to describe -- and silence would leave
- * the agent believing the last thing it was told, which was that a server was
+ * the agent believing the last thing it was state, which was that a server was
  * up. Naming what went away is the only way to correct that.
  */
 export async function createBackgroundProcessesPart({
@@ -43,7 +43,7 @@ export async function createBackgroundProcessesPart({
   chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const reported = await ChatReads.told({
+    const reported = await ChatReads.state({
       chatId,
       schema: ReportedProcessesSchema,
       sessionId,
@@ -68,7 +68,7 @@ export async function createBackgroundProcessesPart({
     // words. It is therefore in neither list: calling it running would claim a
     // server is up, and calling it ended would tell the agent to start a second
     // copy of something still holding the port. It stays in what this session has
-    // been told, so it is reported as ended once it settles or the app restarts.
+    // been state, so it is reported as ended once it settles or the app restarts.
     const stillThere = processes
       .filter(
         (process) =>
@@ -95,7 +95,7 @@ export async function createBackgroundProcessesPart({
       return undefined;
     }
 
-    await ChatWrites.told(chatId, sessionId, "processes", stillThere);
+    await ChatWrites.state(chatId, sessionId, "processes", stillThere);
 
     return {
       data: { ended, running },

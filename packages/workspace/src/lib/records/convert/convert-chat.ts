@@ -312,7 +312,7 @@ type RecordsThere =
   | { kind: "restating"; restating: string[] };
 
 /** The records a session row restates, which a conversion writes from it. */
-const RESTATED = new Set(["mark", "rollover", "session", "stopped", "told"]);
+const RESTATED = new Set(["mark", "rollover", "session", "stopped", "state"]);
 
 async function recordsThere(
   chatDir: string,
@@ -341,7 +341,7 @@ async function recordsThere(
 /**
  * Whether every record in a file says no more than the session row it came
  * from: its header, a mark, where its context was reset, who stopped its
- * turn, what it was told. A whole line this build cannot read counts for a
+ * turn, what it was state. A whole line this build cannot read counts for a
  * history, so a file holding anything unaccounted for is left alone rather
  * than written over.
  *
@@ -454,11 +454,11 @@ function lastUpdate(session: Session.Type): Date {
 
 /**
  * A session's log: its header, each message followed by its parts, then
- * where its context was last reset, who stopped it, and what it was told.
+ * where its context was last reset, who stopped it, and what it was state.
  */
 async function logRecords(
   chat: ChatId,
-  { messages, session, told }: ChatDbSession,
+  { messages, session, state }: ChatDbSession,
   { app, deviceId }: ConvertOptions,
   save: SaveBlob,
 ): Promise<Unsequenced<LogRecord>[]> {
@@ -502,8 +502,8 @@ async function logRecords(
     records.push({ t: "stopped", at, by: session.stoppedBy });
   }
   for (const [what] of TOLD_KEYS) {
-    if (what in told) {
-      records.push({ t: "told", at, what, value: told[what] });
+    if (what in state) {
+      records.push({ t: "state", at, what, value: state[what] });
     }
   }
   return records;
@@ -680,7 +680,7 @@ async function sameShape(
 /**
  * Folds the records in `work` and compares them with what `chat.db` held:
  * every session row, every message in order, each of its parts in order
- * with its blobs read back, and what each session was told.
+ * with its blobs read back, and what each session was state.
  *
  * Every part is compared twice. A fold reads one through the same schema the
  * store does, so a payload neither can read comes back as `data-unknown` on
@@ -712,7 +712,7 @@ async function verify(
   }
   const folded = new Map(fold.chat().sessions.map((one) => [one.id, one]));
   const load = (name: string) => fs.readFile(blobPath(work, name));
-  for (const { messages, session, told } of read.sessions) {
+  for (const { messages, session, state } of read.sessions) {
     const mine = folded.get(session.id);
     folded.delete(session.id);
     if (!mine) {
@@ -768,7 +768,7 @@ async function verify(
         );
       }
     }
-    addDifferences(found, `${session.id} told`, told, mine.told);
+    addDifferences(found, `${session.id} state`, state, mine.state);
   }
   for (const extra of folded.keys()) {
     addDifference(found, extra, undefined, "a session chat.db does not hold");

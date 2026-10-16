@@ -5,10 +5,9 @@ import { type StoreId } from "../../schemas/store-id";
 import { TOOL_NAMES } from "../../tools/name";
 import { contextRolloverBoundaryInForce } from "../apply-context-rollover";
 import { isToolPart } from "../is-tool-part";
-import { remapMovedPath } from "../moved-paths";
 import { type ChatRead } from "./chat-records";
 import { historyOf } from "./fold";
-import { type ToldWhat } from "./record";
+import { type StateWhat } from "./record";
 import { type LoadBlob, partFromRecord } from "./part-blobs";
 import { sessionOf } from "./session-of";
 
@@ -87,8 +86,7 @@ export function messageIdsView(
 
 /**
  * What the chat view draws for everyone: user and assistant messages, each
- * with the parts that show in the conversation, and a folder a message sent
- * where a move took it.
+ * with the parts that show in the conversation.
  */
 export function conversationView(
   read: ChatRead,
@@ -100,9 +98,9 @@ export function conversationView(
       ? [
           {
             ...message,
-            parts: message.parts
-              .filter((part) => inConversation(message, part))
-              .map(withSentFoldersWhereTheyAre),
+            parts: message.parts.filter((part) =>
+              inConversation(message, part),
+            ),
           },
         ]
       : [],
@@ -234,16 +232,15 @@ export async function modelHistoryView(
   // A boundary the history does not hold sends everything, as the request's own reading of it does.
   const sentFrom = messages.findIndex((message) => message.id === boundary) + 1;
   return Promise.all(
-    messages.map(async (message, index) => {
-      const parts = message.parts.map(withSentFoldersWhereTheyAre);
-      return {
-        ...message,
-        parts:
-          index < sentFrom
-            ? parts
-            : await Promise.all(parts.map((part) => inflated(part, read.load))),
-      };
-    }),
+    messages.map(async (message, index) => ({
+      ...message,
+      parts:
+        index < sentFrom
+          ? message.parts
+          : await Promise.all(
+              message.parts.map((part) => inflated(part, read.load)),
+            ),
+    })),
   );
 }
 
@@ -264,9 +261,7 @@ export async function everyMessageView(
     messagesOf(read, sessionId, options).map(async (message) => ({
       ...message,
       parts: await Promise.all(
-        message.parts
-          .map(withSentFoldersWhereTheyAre)
-          .map((part) => inflated(part, load)),
+        message.parts.map((part) => inflated(part, load)),
       ),
     })),
   );
@@ -282,17 +277,17 @@ export async function everyMessageView(
  * along with its own, so a fact set before the task forked is still its own
  * starting point.
  */
-export function toldView(
+export function stateView(
   read: ChatRead,
   sessionId: StoreId.Session,
-  what: ToldWhat,
+  what: StateWhat,
 ): unknown {
   const sessions = read.chat.sessions;
   const session = sessions.find(({ id }) => id === sessionId);
   const parent = session?.parent
     ? sessions.find(({ id }) => id === session.parent)
     : undefined;
-  return session?.told[what] ?? parent?.told[what];
+  return session?.state[what] ?? parent?.state[what];
 }
 
 export function contextTokensView(
@@ -409,28 +404,6 @@ function cachedLoad(load: LoadBlob): LoadBlob {
     }
     return bytes;
   };
-}
-
-/**
- * A part as read, with the folders its message sent read back where a move
- * took them (`remapMovedPath`): a folder sent from inside the workspace
- * before the workspace moved is shown, and opens, where it is now. What is
- * written stays as it was.
- */
-function withSentFoldersWhereTheyAre(
-  part: SessionMessagePart.Type,
-): SessionMessagePart.Type {
-  if (part.type !== "data-attachments" || !part.data.folders) {
-    return part;
-  }
-  const sent = part.data.folders;
-  const folders = sent.map((folder) => ({
-    ...folder,
-    path: remapMovedPath(folder.path),
-  }));
-  return folders.every((folder, index) => folder.path === sent[index]?.path)
-    ? part
-    : { ...part, data: { ...part.data, folders } };
 }
 
 function isMissing(error: unknown): boolean {

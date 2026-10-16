@@ -17,7 +17,7 @@ import {
   type MarkField,
   type MarkRecord,
   type SessionHeader,
-  type ToldWhat,
+  type StateWhat,
 } from "./record";
 
 /**
@@ -73,7 +73,7 @@ export interface FoldedSession {
   stopped?: { at: Date; by: "app" | "chat" | "user" };
   title?: string;
   /** What the session was last told of each, leaving out what was cleared. */
-  told: Partial<Record<ToldWhat, unknown>>;
+  state: Partial<Record<StateWhat, unknown>>;
   /** When the session's newest record was written. */
   updatedAt: Date;
   /**
@@ -111,7 +111,7 @@ interface SessionState {
   /** The highest `seq` of each log, of any record and of records after its header. */
   seqs: Map<string, { data: number; last: number }>;
   stopped?: Newest<NonNullable<FoldedSession["stopped"]>>;
-  told: Map<ToldWhat, Newest<unknown>>;
+  state: Map<StateWhat, Newest<unknown>>;
   updatedAt: number;
 }
 
@@ -207,11 +207,11 @@ export class ChatFold {
    * every log of it folded so far, with the last `seq` read of each, and
    * what their headers say their writers had read.
    */
-  continuesFor(session: StoreId.Session): Record<string, number> {
-    const state = this.#sessions.get(session);
+  continuesFor(id: StoreId.Session): Record<string, number> {
+    const session = this.#sessions.get(id);
     const read = new Map<string, number>();
-    for (const [stem, { value }] of state?.headers ?? []) {
-      raise(read, stem, state?.seqs.get(stem)?.last ?? 0);
+    for (const [stem, { value }] of session?.headers ?? []) {
+      raise(read, stem, session?.seqs.get(stem)?.last ?? 0);
       for (const [other, seq] of Object.entries(value.continues ?? {})) {
         raise(read, other, seq);
       }
@@ -230,8 +230,8 @@ export class ChatFold {
       return this.#chat;
     }
     const sessions: FoldedSession[] = [];
-    for (const [id, state] of this.#sessions) {
-      const built = this.#folded.get(id) ?? this.#build(id, state);
+    for (const [id, session] of this.#sessions) {
+      const built = this.#folded.get(id) ?? this.#build(id, session);
       if (built) {
         sessions.push(built);
       }
@@ -242,12 +242,12 @@ export class ChatFold {
     return this.#chat;
   }
 
-  #build(id: string, state: SessionState): FoldedSession | undefined {
-    const header = rootHeader(headersOf(state));
+  #build(id: string, session: SessionState): FoldedSession | undefined {
+    const header = rootHeader(headersOf(session));
     if (!header) {
       return undefined;
     }
-    const built = folded(header, state, this.#marks.get(id) ?? {});
+    const built = folded(header, session, this.#marks.get(id) ?? {});
     this.#folded.set(id, built);
     return built;
   }
@@ -269,21 +269,21 @@ export class ChatFold {
       return;
     }
     this.#changed(header.id);
-    const state = this.#session(header.id);
-    const seqs = state.seqs.get(stem) ?? { data: 0, last: -1 };
-    state.seqs.set(stem, {
+    const session = this.#session(header.id);
+    const seqs = session.seqs.get(stem) ?? { data: 0, last: -1 };
+    session.seqs.set(stem, {
       data:
         record.t === "session" ? seqs.data : Math.max(seqs.data, record.seq),
       last: Math.max(seqs.last, record.seq),
     });
-    state.updatedAt = Math.max(state.updatedAt, record.at.getTime());
+    session.updatedAt = Math.max(session.updatedAt, record.at.getTime());
     switch (record.t) {
       case "session":
-        keepNewest(state.headers, stem, record, place);
+        keepNewest(session.headers, stem, record, place);
         break;
       case "message":
         keepNewest(
-          state.messages,
+          session.messages,
           record.message.id,
           { device: header.device, value: record.message },
           place,
@@ -291,7 +291,7 @@ export class ChatFold {
         break;
       case "part":
         keepNewest(
-          state.parts,
+          session.parts,
           record.part.metadata.id,
           { device: header.device, value: record.part },
           place,
@@ -299,12 +299,12 @@ export class ChatFold {
         break;
       case "retract":
         for (const id of record.messages) {
-          state.retracted.add(id);
+          session.retracted.add(id);
         }
         break;
       case "rollover":
-        state.rollover = newer(
-          state.rollover,
+        session.rollover = newer(
+          session.rollover,
           {
             after: record.after,
             ...(record.usableTokens === undefined
@@ -315,14 +315,14 @@ export class ChatFold {
         );
         break;
       case "stopped":
-        state.stopped = newer(
-          state.stopped,
+        session.stopped = newer(
+          session.stopped,
           { at: record.at, by: record.by },
           place,
         );
         break;
-      case "told":
-        keepNewest(state.told, record.what, record.value, place);
+      case "state":
+        keepNewest(session.state, record.what, record.value, place);
         break;
     }
   }
@@ -370,17 +370,17 @@ export class ChatFold {
     if (existing) {
       return existing;
     }
-    const state: SessionState = {
+    const session: SessionState = {
       headers: new Map(),
       messages: new Map(),
       parts: new Map(),
       retracted: new Set(),
       seqs: new Map(),
-      told: new Map(),
+      state: new Map(),
       updatedAt: 0,
     };
-    this.#sessions.set(id, state);
-    return state;
+    this.#sessions.set(id, session);
+    return session;
   }
 }
 
@@ -463,23 +463,23 @@ export function historyOf(
 
 function folded(
   header: SessionHeader,
-  state: SessionState,
+  session: SessionState,
   marks: MarkState,
 ): FoldedSession {
-  const told: FoldedSession["told"] = {};
-  for (const what of [...state.told.keys()].toSorted()) {
-    const value = state.told.get(what)?.value;
+  const state: FoldedSession["state"] = {};
+  for (const what of [...session.state.keys()].toSorted()) {
+    const value = session.state.get(what)?.value;
     if (value !== null && value !== undefined) {
-      told[what] = value;
+      state[what] = value;
     }
   }
-  const { messages, writtenBy } = messagesOf(state);
+  const { messages, writtenBy } = messagesOf(session);
   return {
     chat: header.chat,
     createdAt: header.createdAt,
     forked: isForked(
-      headersOf(state),
-      new Map([...state.seqs].map(([stem, { data }]) => [stem, data])),
+      headersOf(session),
+      new Map([...session.seqs].map(([stem, { data }]) => [stem, data])),
     ),
     ...(header.forkedAt === undefined ? {} : { forkedAt: header.forkedAt }),
     ...(header.handle === undefined ? {} : { handle: header.handle }),
@@ -487,29 +487,29 @@ function folded(
     marks: foldedMarks(marks),
     messages,
     ...(header.parent === undefined ? {} : { parent: header.parent }),
-    ...(state.rollover && { rollover: state.rollover.value }),
-    ...(state.stopped && { stopped: state.stopped.value }),
+    ...(session.rollover && { rollover: session.rollover.value }),
+    ...(session.stopped && { stopped: session.stopped.value }),
     ...(header.title === undefined ? {} : { title: header.title }),
-    told,
-    updatedAt: new Date(state.updatedAt),
+    state,
+    updatedAt: new Date(session.updatedAt),
     writtenBy,
   };
 }
 
-function messagesOf(state: SessionState): {
+function messagesOf(session: SessionState): {
   messages: SessionMessage.WithParts[];
   writtenBy: Map<string, DeviceId>;
 } {
   const parts = new Map<string, Written<SessionMessagePart.Type>[]>();
-  for (const { value } of state.parts.values()) {
+  for (const { value } of session.parts.values()) {
     const list = parts.get(value.value.metadata.messageId) ?? [];
     list.push(value);
     parts.set(value.value.metadata.messageId, list);
   }
   const writtenBy = new Map<string, DeviceId>();
-  const messages = [...state.messages.values()]
+  const messages = [...session.messages.values()]
     .map(({ value }) => value)
-    .filter(({ value }) => !state.retracted.has(value.id))
+    .filter(({ value }) => !session.retracted.has(value.id))
     .toSorted((a, b) => compare([a.value.id], [b.value.id]))
     .map(({ device, value: message }) => {
       writtenBy.set(message.id, device);
@@ -535,8 +535,10 @@ function foldedMarks(marks: MarkState): FoldedMarks {
   };
 }
 
-function headersOf(state: SessionState): Map<string, SessionHeader> {
-  return new Map([...state.headers].map(([stem, { value }]) => [stem, value]));
+function headersOf(session: SessionState): Map<string, SessionHeader> {
+  return new Map(
+    [...session.headers].map(([stem, { value }]) => [stem, value]),
+  );
 }
 
 /** A mark as the person made it, apart from where in its file it is. */

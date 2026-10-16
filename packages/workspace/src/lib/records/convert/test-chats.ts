@@ -132,7 +132,7 @@ function row(
   });
 }
 
-/** Stores what a session was told, as each fact's module stores it. */
+/** Stores what a session was state, as each fact's module stores it. */
 export async function tell(
   chat: ChatId,
   key: string,
@@ -182,7 +182,7 @@ function text(session: StoreId.Session, n: number, words: string) {
  * from it, which the person stopped; user, assistant and context messages
  * with text, reasoning, data parts (one of a type no build reads) and tool
  * calls in every state; an image and a PDF a tool returned, the image twice;
- * and each thing a session is told. Its newest assistant message ends in a
+ * and each thing a session is state. Its newest assistant message ends in a
  * call still waiting to run, which opening the chat finishes as interrupted.
  */
 export function writeEveryKindChat(dir: string): Promise<ChatId> {

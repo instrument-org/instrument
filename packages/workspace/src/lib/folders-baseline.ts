@@ -12,7 +12,7 @@ type FoldersBaseline = z.output<typeof FoldersBaselineSchema>;
 
 /** Reads the session's folders baseline, or undefined when none is stored yet. */
 export function getFoldersBaseline(chatId: ChatId, sessionId: StoreId.Session) {
-  return ChatReads.told({
+  return ChatReads.state({
     chatId,
     schema: FoldersBaselineSchema,
     sessionId,
@@ -26,5 +26,5 @@ export function setFoldersBaseline(
   sessionId: StoreId.Session,
   folders: FoldersBaseline,
 ) {
-  return ChatWrites.told(chatId, sessionId, "folders", folders);
+  return ChatWrites.state(chatId, sessionId, "folders", folders);
 }

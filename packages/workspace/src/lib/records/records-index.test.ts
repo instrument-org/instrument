@@ -126,7 +126,7 @@ function indexedSessions(database: DatabaseSync) {
         rollover: json(row.rollover),
         stopped: json(row.stopped),
         title: row.title,
-        told: json(row.told),
+        state: json(row.state),
         updatedAt: row.updated_at,
       };
     });
@@ -155,7 +155,7 @@ function foldedSessions(chat: FoldedChat) {
       ? { at: session.stopped.at.toISOString(), by: session.stopped.by }
       : null,
     title: session.title ?? null,
-    told: session.told,
+    state: session.state,
     updatedAt: session.updatedAt.getTime(),
   }));
 }

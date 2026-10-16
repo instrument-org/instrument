@@ -349,7 +349,7 @@ describe("a change the file does not report leaves it alone", () => {
   });
 
   it("renders the same file when the chat is told a standing fact again", () => {
-    const told = [
+    const state = [
       ...wholeChatFiles(),
       log(
         DEVICE_B,
@@ -359,12 +359,12 @@ describe("a change the file does not report leaves it alone", () => {
             device: DEVICE_B,
             id: chatSession,
           }),
-          { t: "told", seq: 1, at: at(500), value: ["/tmp"], what: "folders" },
+          { t: "state", seq: 1, at: at(500), value: ["/tmp"], what: "folders" },
         ],
         { generation: 2 },
       ),
     ];
-    expect(render(foldChat(told))).toBe(render(foldChat(wholeChatFiles())));
+    expect(render(foldChat(state))).toBe(render(foldChat(wholeChatFiles())));
   });
 });
 

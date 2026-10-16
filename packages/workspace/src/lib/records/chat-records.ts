@@ -39,7 +39,7 @@ import {
   type MarkField,
   type MarkRecord,
   type SessionHeader,
-  type ToldWhat,
+  type StateWhat,
 } from "./record";
 import { type Unsequenced } from "./record-writer";
 import { sessionOf } from "./session-of";
@@ -163,7 +163,7 @@ interface PendingSession {
   retracted: Map<StoreId.Message, number>;
   rollover?: Queued<NonNullable<FoldedSession["rollover"]>>;
   stopped?: Queued<NonNullable<FoldedSession["stopped"]>>;
-  told: Map<ToldWhat, Queued<unknown>>;
+  state: Map<StateWhat, Queued<unknown>>;
 }
 
 /** One file this process appends to, and how far its writes reach. */
@@ -544,10 +544,10 @@ export class ChatRecords {
   }
 
   /** What the session was last told of one standing fact; `null` clears it. */
-  told(
+  state(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    what: ToldWhat,
+    what: StateWhat,
     value: unknown,
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
@@ -556,14 +556,14 @@ export class ChatRecords {
         at,
         changed: () => recordChanged(chat.id, "session"),
         hold: (session, ticket) => {
-          session.told.set(what, { ticket, value });
+          session.state.set(what, { ticket, value });
           return (held) => {
-            if (held.told.get(what)?.ticket === ticket) {
-              held.told.delete(what);
+            if (held.state.get(what)?.ticket === ticket) {
+              held.state.delete(what);
             }
           };
         },
-        record: () => ({ t: "told", at, what, value }),
+        record: () => ({ t: "state", at, what, value }),
       });
     });
   }
@@ -1275,7 +1275,7 @@ function pendingOf(chat: OpenChat, sessionId: StoreId.Session): PendingSession {
     messages: new Map(),
     parts: new Map(),
     retracted: new Map(),
-    told: new Map(),
+    state: new Map(),
   };
   chat.pending.set(sessionId, session);
   return session;
@@ -1299,7 +1299,7 @@ function unhold(
     session.messages.size === 0 &&
     session.parts.size === 0 &&
     session.retracted.size === 0 &&
-    session.told.size === 0
+    session.state.size === 0
   ) {
     chat.pending.delete(sessionId);
   }
@@ -1599,7 +1599,7 @@ function startedSession(
     marks: {},
     messages: [],
     ...(parent !== undefined && { parent }),
-    told: {},
+    state: {},
     ...(title !== undefined && { title }),
     updatedAt: at,
     writtenBy: new Map(),
@@ -1654,12 +1654,12 @@ function overlaid(
     messages.delete(id);
     writtenBy.delete(id);
   }
-  const told = { ...session.told };
-  for (const [what, { value }] of queued.told) {
+  const state = { ...session.state };
+  for (const [what, { value }] of queued.state) {
     if (value === null || value === undefined) {
-      delete told[what];
+      delete state[what];
     } else {
-      told[what] = value;
+      state[what] = value;
     }
   }
   let marks = session.marks;
@@ -1672,7 +1672,7 @@ function overlaid(
     messages: [...messages.values()].toSorted((a, b) => byId(a.id, b.id)),
     ...(queued.rollover && { rollover: queued.rollover.value }),
     ...(queued.stopped && { stopped: queued.stopped.value }),
-    told,
+    state,
     updatedAt: new Date(Math.max(session.updatedAt.getTime(), queued.at)),
     writtenBy,
   };

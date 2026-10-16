@@ -13,6 +13,7 @@ import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { ChatWrites } from "../chat-writes";
+import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { cardLine, openAsks } from "./asks";
@@ -302,7 +303,7 @@ export async function renameChat(
 ): Promise<boolean> {
   return saveMark(chatId, (session) => ({
     ...session,
-    title,
+    title: cappedTitle(title),
     titleSettledAt: new Date(),
   }));
 }

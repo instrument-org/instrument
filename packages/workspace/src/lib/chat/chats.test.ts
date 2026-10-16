@@ -769,6 +769,21 @@ describe("listChats", () => {
     expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
   });
 
+  it("cuts a typed name to the length its folder is named under", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries", 1);
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+
+    await renameChat(
+      await chatFor(sessionId),
+      "A very long name for a grocery list that runs on and on past what a folder name may hold",
+    );
+    const [renamed] = await listChats();
+    expect(renamed?.title).toBe(
+      "A very long name for a grocery list that runs on and on past what a folder name",
+    );
+  });
+
   it("is working while a task filed from it runs, and says its step", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");

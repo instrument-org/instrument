@@ -1,5 +1,6 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { cappedTitle } from "./chat-folders/folder-name";
 import { ChatWrites } from "./chat-writes";
 import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { ChatReads } from "./chat-reads";
@@ -33,7 +34,7 @@ export async function updateSessionTitle({
   const renameResult = await ChatWrites.saveSession(
     {
       ...storedSession.value,
-      title,
+      title: cappedTitle(title),
       updatedAt: new Date(),
     },
     chatId,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { numberedName, safeName } from "./folder-name";
+import { cappedTitle, numberedName, safeName } from "./folder-name";
 
 describe("a title as a folder name", () => {
   it("keeps the words, the spaces and the capitals", () => {
@@ -84,6 +84,38 @@ describe("a title as a folder name", () => {
 
   it("composes the name, so it compares equal to a decomposed listing", () => {
     expect(safeName("Cafe\u0301 notes")).toBe("Café notes");
+  });
+});
+
+describe("a title held to the cap its folder is named under", () => {
+  it("leaves a title that fits alone", () => {
+    expect(cappedTitle("Quiet dishwashers for a small kitchen")).toBe(
+      "Quiet dishwashers for a small kitchen",
+    );
+  });
+
+  it("cuts a long title at a word, under the cap", () => {
+    const title = cappedTitle(
+      "A very long title about dishwashers that runs on and on past what a folder name may hold",
+    );
+    expect(title).toBe(
+      "A very long title about dishwashers that runs on and on past what a folder name",
+    );
+    expect(title.length).toBeLessThanOrEqual(80);
+  });
+
+  it("cuts a single long word at the cap", () => {
+    expect(cappedTitle("x".repeat(200))).toBe("x".repeat(80));
+  });
+
+  it("leaves the title and the folder naming the chat the same way", () => {
+    const long =
+      "Quiet dishwashers under 900 dollars that fit a narrow galley kitchen and run at night";
+    expect(safeName(cappedTitle(long))).toBe(cappedTitle(long));
+  });
+
+  it("keeps what a title may end on and a folder name may not", () => {
+    expect(cappedTitle("Wait...")).toBe("Wait...");
   });
 });
 

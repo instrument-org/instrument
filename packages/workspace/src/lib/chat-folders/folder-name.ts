@@ -32,9 +32,10 @@ const ILLEGAL = /["$*/:<>?\\|\u0000-\u001F]/g;
 const RESERVED = /^(?:con|prn|aux|nul|com\d|lpt\d)(?:\.|$)/i;
 
 /**
- * How long a folder's name may run. Short enough that the deepest path a
- * chat's own files reach inside it still fits in the 260 characters Windows
- * allows a path, under a synced folder of the person's own choosing.
+ * How long a folder's name may run, and with it the title the folder is named
+ * from. Short enough that the deepest path a chat's own files reach inside it
+ * still fits in the 260 characters Windows allows a path, under a synced
+ * folder of the person's own choosing.
  */
 const MAX_LENGTH = 80;
 
@@ -74,6 +75,18 @@ export function safeName(title: string | undefined): string {
   // A name a system keeps for a device is not one a folder may have, and a
   // trailing underscore is the shortest thing that makes it a name again.
   return cut === "" || RESERVED.test(cut) ? `${cut}_` : cut;
+}
+
+/**
+ * A chat's title, held to the same length its folder's name is. The folder is
+ * named from the title, so a title that ran past the cap would leave the app
+ * and the disk calling the chat two different things.
+ *
+ * Cut rather than refused, and cut at a word where one is near the end, as a
+ * name is: someone who types two hundred characters keeps the first eighty.
+ */
+export function cappedTitle(title: string): string {
+  return atWordBoundary(title, MAX_LENGTH);
 }
 
 /**

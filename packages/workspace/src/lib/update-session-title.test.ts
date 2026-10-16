@@ -47,6 +47,27 @@ describe("updateSessionTitle", () => {
     );
   });
 
+  it("cuts a title the model wrote long to the length its folder is named under", async () => {
+    mockGetSession.mockReturnValue(okAsync(storedSession("Untitled chat")));
+
+    await expect(
+      updateSessionTitle({
+        sessionId,
+        chatId,
+        title:
+          "A very long title about dishwashers that runs on and on past what a folder name may hold",
+      }),
+    ).resolves.toBe(true);
+
+    expect(mockSaveSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title:
+          "A very long title about dishwashers that runs on and on past what a folder name",
+      }),
+      chatId,
+    );
+  });
+
   it("skips when the user renamed while generation was in flight", async () => {
     mockGetSession.mockReturnValue(okAsync(storedSession("My cool app")));
 

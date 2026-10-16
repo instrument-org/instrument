@@ -212,9 +212,16 @@ export function rulesFs({
     "readFileBytes",
     "readlink",
   ]);
+  // Every method that changes the filesystem, by the name just-bash gives it.
+  // `createExclusive` is the one that does not read as a write: it is what
+  // `mktemp` names its file with, so leaving it out let an entry be made
+  // wherever the rules close, with no card and no refusal. A method added to
+  // the interface and not to this set falls through unchecked, which is why
+  // the list is of the whole interface rather than of what we expect.
   const writes = new Set([
     "appendFile",
     "chmod",
+    "createExclusive",
     "mkdir",
     "rm",
     "utimes",

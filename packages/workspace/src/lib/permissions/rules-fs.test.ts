@@ -72,6 +72,46 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   `);
 });
 
+it("refuses the entry mktemp makes, which is a write by another name", async () => {
+  const sam = onDisk("/Users/sam");
+  // The folders exist, so what the proxy does is the only thing under test.
+  const delegate = new InMemoryFs({
+    "/.ssh/config": "Host *",
+    "/work/keep.txt": "k",
+  });
+  const refusals: string[] = [];
+  const fs = rulesFs({
+    delegate,
+    hostRoot: sam,
+    onRefusal: (refusal) => refusals.push(refusal),
+    rules: {
+      home: sam,
+      rules: [
+        { level: "never", path: nodePath.join(sam, ".ssh"), source: "place" },
+        { level: "allow", path: nodePath.join(sam, "work"), source: "system" },
+      ],
+      dangerouslyAllowEveryFolder: false,
+    },
+    spell: (hostPath) => `/c${slashed(hostPath)}`,
+  });
+
+  // `mktemp` names its file with this rather than with `writeFile`, so a
+  // proxy that checks only the writes it knows lets an entry be made where
+  // the rules say never.
+  await expect(
+    fs.createExclusive?.("/.ssh/tmp.XXXXXX", { directory: false, mode: 0o600 }),
+  ).rejects.toThrow(/EACCES/);
+  await expect(
+    fs.createExclusive?.("/.ssh/tmp.XXXXXX", { directory: true, mode: 0o700 }),
+  ).rejects.toThrow(/EACCES/);
+  expect(refusals).toHaveLength(2);
+  expect(await delegate.exists("/.ssh/tmp.XXXXXX")).toBe(false);
+
+  // And makes one where they do not.
+  await fs.createExclusive?.("/work/tmp.XXXXXX", { directory: true, mode: 0o700 });
+  expect(await delegate.exists("/work/tmp.XXXXXX")).toBe(true);
+});
+
 it("lets cd pass through the app's own data to a folder inside it the agent reaches, and refuses the rest plainly", async () => {
   const tmp = onDisk("/tmp");
   const refusals: string[] = [];

@@ -121,6 +121,59 @@ describe("the browser homes kept per chat", () => {
   });
 });
 
+describe("the feature flags kept in a file of their own", () => {
+  const dataDir = () =>
+    path.join(defaultWorkspacePath(userDataDir), ".instrument");
+  const preferences = () =>
+    JSON.parse(
+      fs.readFileSync(path.join(dataDir(), "preferences.json"), "utf8"),
+    ) as Record<string, unknown>;
+
+  it("merges them into the preferences and takes the file away", () => {
+    write(
+      path.join(dataDir(), "features.json"),
+      JSON.stringify({ context_ring: true, retired_flag: true }),
+    );
+    write(
+      path.join(dataDir(), "preferences.json"),
+      JSON.stringify({ theme: "dark" }),
+    );
+
+    const done = clean();
+
+    expect(preferences()).toEqual({
+      features: { context_ring: true },
+      theme: "dark",
+    });
+    expect(fs.existsSync(path.join(dataDir(), "features.json"))).toBe(false);
+    expect(done).toContain(
+      `merged 1 feature flag into ${path.join(dataDir(), "preferences.json")}`,
+    );
+  });
+
+  it("writes the preferences for a workspace that had none", () => {
+    write(
+      path.join(dataDir(), "features.json"),
+      JSON.stringify({ context_ring: true }),
+    );
+
+    clean();
+
+    expect(preferences()).toEqual({ features: { context_ring: true } });
+  });
+
+  it("has nothing left to say on the boot after", () => {
+    write(
+      path.join(dataDir(), "features.json"),
+      JSON.stringify({ context_ring: true }),
+    );
+    clean();
+
+    expect(clean()).toEqual([]);
+    expect(preferences()).toEqual({ features: { context_ring: true } });
+  });
+});
+
 describe("the browser's own downloads folder", () => {
   const dir = () => path.join(defaultWorkspacePath(userDataDir), "downloads");
 

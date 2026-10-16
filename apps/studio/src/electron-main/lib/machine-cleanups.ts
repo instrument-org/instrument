@@ -5,6 +5,7 @@ import {
   entryExists,
   moveEntrySync,
 } from "@instrument-org/workspace/electron";
+import { FeatureNameSchema } from "@/shared/features";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import childProcess from "node:child_process";
 import fs from "node:fs";
@@ -13,6 +14,7 @@ import path from "node:path";
 import {
   readWorkspaceIdentity,
   type ResolvedWorkspace,
+  writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
 
@@ -79,7 +81,75 @@ function steps(where: {
         removeDownloadsFallback(where.workspace, done);
       },
     ],
+    [
+      "merge features.json into preferences.json",
+      (done) => {
+        mergeFeaturesIntoPreferences(where.workspace, done);
+      },
+    ],
   ];
+}
+
+/**
+ * The experimental flags, out of a `features.json` of their own and into
+ * `preferences.json` beside the rest of what the person chose for the
+ * workspace. Before any store opens, so the preferences read the merged
+ * file rather than writing their defaults over it.
+ *
+ * A flag the file holds wins over one already under `features` in the
+ * preferences, since the preferences had none before this; a flag this
+ * build does not know is dropped, as the flags' own store dropped it. The
+ * old file goes only once the merged preferences are written.
+ */
+function mergeFeaturesIntoPreferences(
+  workspace: ResolvedWorkspace,
+  done: string[],
+) {
+  const dataDir = workspaceLayout(workspace.path).dataDir;
+  const file = path.join(dataDir, "features.json");
+  const stored = readJsonObject(file);
+  if (!stored) {
+    // Not there, or a file this cannot read, which held nothing worth
+    // keeping either way: the flags' own store wrote its defaults over one
+    // it could not parse.
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  const flags = Object.fromEntries(
+    Object.entries(stored).flatMap(([name, value]) =>
+      FeatureNameSchema.safeParse(name).success && typeof value === "boolean"
+        ? [[name, value]]
+        : [],
+    ),
+  );
+  const preferencesFile = path.join(dataDir, "preferences.json");
+  const preferences = readJsonObject(preferencesFile) ?? {};
+  const features = preferences.features;
+  writeJsonAtomic(preferencesFile, {
+    ...preferences,
+    features: {
+      ...(isJsonObject(features) ? features : {}),
+      ...flags,
+    },
+  });
+  fs.rmSync(file, { force: true });
+  done.push(
+    `merged ${Object.keys(flags).length.toString()} feature flag${Object.keys(flags).length === 1 ? "" : "s"} into ${preferencesFile}`,
+  );
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readJsonObject(file: string): Record<string, unknown> | undefined {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    return isJsonObject(parsed) ? parsed : undefined;
+  } catch {
+    // Not there, or not a file the app wrote: nothing to take from it.
+    return undefined;
+  }
 }
 
 /**

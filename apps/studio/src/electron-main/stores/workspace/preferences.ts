@@ -1,6 +1,12 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceDataDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  type FeatureName,
+  FeatureNameSchema,
+  type Features,
+  FeaturesSchema,
+} from "@/shared/features";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { APP_FLAVOR } from "@instrument-org/shared";
 import Store from "electron-store";
@@ -18,6 +24,18 @@ export type AgentCompletionNotificationMode = z.output<
 >;
 
 /**
+ * Every feature, off. A file with a flag missing would leave a switch bound
+ * to it reading nothing where the type promises a boolean, so the switch
+ * would render uncontrolled; parsed rather than built, so the keys come from
+ * the one list of them.
+ */
+function featuresAllOff(): Features {
+  return FeaturesSchema.parse(
+    Object.fromEntries(FeatureNameSchema.options.map((name) => [name, false])),
+  );
+}
+
+/**
  * What a person chose for this workspace, kept in it so the choices travel
  * with it. Machine-wide choices are in `machine/preferences.ts`.
  */
@@ -32,6 +50,13 @@ export const WorkspacePreferencesSchema = z.object({
   developerMode: z
     .boolean()
     .catch(import.meta.env.DEV || APP_FLAVOR.kind === "preview"),
+  /**
+   * The experimental features the developer panel turns on. Here rather than
+   * in a `features.json` of its own: a flag is one of the person's choices
+   * for the workspace like the rest of these, and one file is one read, one
+   * write and one event.
+   */
+  features: FeaturesSchema.catch(() => featuresAllOff()),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
 });
 
@@ -77,4 +102,22 @@ export function isDeveloperMode() {
 
 export function setDefaultModelURI(modelURI: AIGatewayModelURI.Type): void {
   getWorkspacePreferences().set("defaultModelURI", modelURI);
+}
+
+/** Every experimental feature and whether it is on, each by name. */
+export function getWorkspaceFeatures(): Features {
+  return FeaturesSchema.parse({
+    ...featuresAllOff(),
+    ...getWorkspacePreferences().get("features"),
+  });
+}
+
+export function setWorkspaceFeature(
+  feature: FeatureName,
+  enabled: boolean,
+): void {
+  getWorkspacePreferences().set("features", {
+    ...getWorkspaceFeatures(),
+    [feature]: enabled,
+  });
 }

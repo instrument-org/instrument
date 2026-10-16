@@ -11,6 +11,7 @@ import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
 import {
+  chatOwnFolder,
   forgetChat,
   resolveChat,
   chatDir,
@@ -38,10 +39,18 @@ import {
  */
 export async function trashChat({
   id,
+  itsFolder = false,
   workspaceConfig,
   workspaceRef,
 }: {
   id: ChatId;
+  /**
+   * Whether the chat's own folder goes too, with the transcript and
+   * whatever the agent made in it. Off unless the person asked on the
+   * delete screen: what is in there is theirs, and a chat they deleted to
+   * tidy their list is not a request to throw the work away.
+   */
+  itsFolder?: boolean;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -83,6 +92,11 @@ export async function trashChat({
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const work = workDir(chatId);
+        // Read before the records go: the name of the chat's own folder is
+        // in the settings that are about to be trashed with them.
+        const ownFolder = itsFolder
+          ? chatOwnFolder(chatDir(chatId))
+          : undefined;
         const nodeModulesPath = absolutePathJoin(work, "node_modules");
 
         if (await pathExists(nodeModulesPath)) {
@@ -112,6 +126,15 @@ export async function trashChat({
           await workspaceConfig.trashItem(work).catch((error: unknown) => {
             workspaceConfig.captureException(error);
           });
+        }
+        // Last, and only when asked: the person can put it back from the
+        // trash, and a failure here leaves files rather than losing them.
+        if (ownFolder !== undefined && (await pathExists(ownFolder))) {
+          await workspaceConfig
+            .trashItem(ownFolder)
+            .catch((error: unknown) => {
+              workspaceConfig.captureException(error);
+            });
         }
 
         return ok({ id });

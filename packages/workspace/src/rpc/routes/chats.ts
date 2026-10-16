@@ -268,11 +268,22 @@ const chatOfSessionRoute = base
   .handler(({ input }) => ({ id: chatOfSession(input.sessionId) ?? null }));
 
 /**
- * Deletes a chat with every task it started: their work stops, and the chat's
- * folder, which holds theirs, goes to the trash.
+ * Deletes a chat with every task it started: their work stops, and the
+ * records and work folder, which hold theirs, go to the trash.
+ *
+ * The chat's own folder under `Chats/` goes only when asked. What is in it
+ * is the person's: a transcript they can read and whatever the agent
+ * finished for them, and deleting a chat to tidy a list is not a request to
+ * throw that away.
  */
 const trashChatRoute = base
-  .input(z.object({ id: ChatIdSchema }))
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      /** Whether the chat's own folder goes with it; off unless asked. */
+      itsFolder: z.boolean().optional(),
+    }),
+  )
   .handler(async ({ context, errors, input }) => {
     const id = resolveChat(input.id);
     if (!id) {
@@ -280,6 +291,7 @@ const trashChatRoute = base
     }
     const result = await trashChat({
       id,
+      itsFolder: input.itsFolder,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,
     });

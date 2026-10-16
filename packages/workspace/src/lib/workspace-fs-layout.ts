@@ -304,8 +304,7 @@ export function buildWorkspaceFsLayout({
   // layout for a chat gets it without knowing to ask.
   const ownFolder =
     recordHostRoot === undefined ? undefined : chatOwnFolder(recordHostRoot);
-  const chatFolderHostRoot =
-    ownFolder === undefined ? undefined : AbsolutePathSchema.parse(ownFolder);
+  const chatFolderHostRoot = ownFolder;
   const mounts: WorkspaceFsMount[] = Object.values(folders ?? {}).map(
     (folder) => ({
       hostRoot: folder.path,

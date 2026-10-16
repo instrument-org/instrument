@@ -6,6 +6,7 @@ import { CHATS_FOLDER_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import {
   type AbsolutePath,
+  AbsolutePathSchema,
   type ChatDir,
   ChatDirSchema,
 } from "../schemas/paths";
@@ -196,11 +197,13 @@ export function storedChatFolderName(chatFolder: string): string | undefined {
  * `$INSTRUMENT_OUTPUT` and what the model is told about it cannot drift
  * apart after the folder follows a title.
  */
-export function chatOwnFolder(chatFolder: string): string | undefined {
+export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
   const name = storedChatFolderName(chatFolder);
   return name === undefined
     ? undefined
-    : path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME, name);
+    : AbsolutePathSchema.parse(
+        path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME, name),
+      );
 }
 
 export function storedChatSession(

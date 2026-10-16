@@ -14,9 +14,9 @@ import { type StandInService } from "../lib/connected-app";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
 
-const LANDLORD = "marcy@delgado-properties.example";
+export const LANDLORD = "marcy@delgado-properties.example";
 
-const MAILBOX: StandInService = {
+export const MAILBOX: StandInService = {
   about:
     "Mailbox is the user's email account. Mail sent here goes out from their address.",
   endpoints: [
@@ -125,7 +125,7 @@ async function callInputs({
  * The calls that requested `method` `pathname`, through `app request` or any
  * other way of reaching the stand-in's address.
  */
-async function callsTo(
+export async function callsTo(
   context: Context,
   method: string,
   pathname: string,

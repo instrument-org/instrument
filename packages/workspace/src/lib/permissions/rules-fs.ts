@@ -112,7 +112,7 @@ export function closedNote(reach: Reach, shown: string): string {
   }
   const rule = reach.rule;
   if (rule?.appData) {
-    return `${shown} is ${APP_NAME}'s own data, which no command reads or changes; don't look for another way in. Your work folder ($${FOLDER_VARIABLES.work}) and the files the person sent ($${FOLDER_VARIABLES.attachments}) stay open to you.`;
+    return `${shown} is ${APP_NAME}'s own data, which no command reads or changes; don't look for another way in. Your work folder ($${FOLDER_VARIABLES.work}) and this conversation's own folder ($${FOLDER_VARIABLES.output}) stay open to you, and a file the person sent is read where they keep it.`;
   }
   if (rule?.denied) {
     return `${shown}: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.`;

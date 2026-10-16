@@ -112,7 +112,6 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
-import { getChatAttachmentsDir } from "./chat-dir-utils";
 import { outputFolderPath } from "./chat/output-folder";
 import { foundManagedPython } from "./run-uv";
 import { getUvBinPath, nearestVenv, venvPython } from "./uv";
@@ -720,11 +719,6 @@ function folderVariables(
 ): Record<string, string> {
   return {
     [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
-    ...(layout.record && {
-      [FOLDER_VARIABLES.attachments]: shellPath(
-        getChatAttachmentsDir(layout.record.hostRoot),
-      ),
-    }),
     // The chat's own folder, so finished work lands beside the transcript
     // the person reads. A chat that has no folder yet, and the window,
     // which never has one, fall back to the Instrument folder.

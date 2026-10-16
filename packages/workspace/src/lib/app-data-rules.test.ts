@@ -485,7 +485,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           (error: unknown) => files.failure(error, resolved),
         );
         expect(typeof read !== "string" && read.error.message).toBe(
-          `${JSON.stringify(shellPath(target))} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and the files the person sent ($INSTRUMENT_ATTACHMENTS) stay open to you.`,
+          `${JSON.stringify(shellPath(target))} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and this conversation's own folder ($INSTRUMENT_OUTPUT) stay open to you, and a file the person sent is read where they keep it.`,
         );
       },
     );

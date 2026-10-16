@@ -186,6 +186,18 @@ it("keeps what was pasted into a draft by a path inside its own folder", () => {
   ]);
 });
 
+it("writes nothing for a box opened and left alone", () => {
+  const folder = createDraftsFolder(root);
+  folder.write({ [DRAFTS_KEY]: [draft("a", "   ")] });
+
+  expect(tree()).toEqual([]);
+
+  // And writes it the moment there is something in it to keep.
+  folder.write({ [DRAFTS_KEY]: [draft("a", "Plan the trip")] });
+
+  expect(tree()).toEqual([path.join(folderOf("a"), "DRAFT.md")]);
+});
+
 it("reads drafts oldest first and skips folders that are not drafts", () => {
   createDraftsFolder(root).write({
     [DRAFTS_KEY]: [

@@ -13,8 +13,6 @@
 export {
   type DraftAttached,
   type DraftFile,
-  attachedPath,
-  isDraftFileName,
   isEmptyDraft,
   parseDraftFile,
   renderDraftFile,
@@ -24,7 +22,6 @@ export {
   draftsFolderDir,
   ensureDraftFolder,
   findDraft,
-  readDraftFile,
   readDrafts,
   removeDraft,
   writeDraftFile,

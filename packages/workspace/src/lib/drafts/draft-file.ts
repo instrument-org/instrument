@@ -1,4 +1,3 @@
-import path from "node:path";
 import { parse as parseYaml } from "yaml";
 
 import { isRecord, splitFrontmatter } from "../skills";
@@ -171,11 +170,6 @@ export function renderDraftFile(draft: DraftFile): string {
  */
 export function isEmptyDraft(draft: DraftFile): boolean {
   return draft.words.trim() === "" && (draft.attached ?? []).length === 0;
-}
-
-/** The absolute path of something a draft was given, from the draft's folder. */
-export function attachedPath(dir: string, item: DraftAttached): string {
-  return path.isAbsolute(item.path) ? item.path : path.join(dir, item.path);
 }
 
 /**

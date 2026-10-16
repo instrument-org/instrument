@@ -5,6 +5,7 @@ import {
   type DraftOnDisk,
   draftsFolderDir,
   ensureDraftFolder,
+  isEmptyDraft,
   readDrafts,
   removeDraft,
   renderDraftFile,
@@ -113,7 +114,8 @@ export function createDraftsFolder(
      * Writes the drafts the window keeps: each one's file where it changed,
      * and every draft it no longer has taken away, with what was pasted into
      * it. A draft the folder has no file for yet gets one, in a folder named
-     * for the day it was started.
+     * for the day it was started, once there is something in it to keep: a
+     * box opened and left alone leaves nothing behind.
      */
     write(keys: Record<string, unknown>) {
       const value = keys[DRAFTS_KEY];
@@ -136,8 +138,12 @@ export function createDraftsFolder(
       }
       for (const record of drafts) {
         try {
+          const found = onDisk.get(record.id);
+          if (found === undefined && isEmptyDraft(fileOf(record, undefined))) {
+            continue;
+          }
           const where =
-            onDisk.get(record.id) ??
+            found ??
             ensureDraftFolder({
               draft: fileOf(record, undefined),
               rootDir,

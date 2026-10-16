@@ -28,9 +28,7 @@ const UNFINISHED_MARKER = ".move-unfinished";
 /**
  * The secret stores, by both their names: dev builds write plaintext, packaged
  * builds safeStorage ciphertext. With them the record of which apps are
- * connected, which means nothing without their credentials, and the ChatGPT
- * sign-in under the name it had before it was the ChatGPT account, which
- * nothing reads but is still a token.
+ * connected, which means nothing without their credentials.
  */
 const KEY_FILES = [
   "app-connections.json",
@@ -40,8 +38,6 @@ const KEY_FILES = [
   "app-oauth.json.enc",
   "chatgpt-account.json",
   "chatgpt-account.json.enc",
-  "chatgpt-plan.json",
-  "chatgpt-plan.json.enc",
   "providers.json",
   "providers.json.enc",
   "session-dev.json",

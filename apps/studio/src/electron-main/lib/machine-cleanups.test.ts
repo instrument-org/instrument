@@ -121,6 +121,110 @@ describe("the browser homes kept per chat", () => {
   });
 });
 
+describe("the files no build reads any more", () => {
+  const dataDir = () =>
+    path.join(defaultWorkspacePath(userDataDir), ".instrument");
+
+  /** An install whose migrations have all finished, with every dead file in it. */
+  function seedDead() {
+    writeWorkspaceIdentity(defaultWorkspacePath(userDataDir), {
+      color: "gray",
+      createdBy: { kind: "person" },
+      formatVersion: 1,
+      name: "Default",
+      settingsVersion: 2,
+    });
+    write(path.join(userDataDir, "machine-preferences.json"), "{}");
+    write(path.join(userDataDir, "machine-state.json"), "{}");
+    for (const name of [
+      "app-state.json",
+      "favorites.json",
+      "features.json",
+      "preferences.json",
+      "window-state.json",
+      "chatgpt-plan.json",
+      "chatgpt-plan.json.enc",
+      "instrument-install-4321.sh",
+    ]) {
+      write(path.join(userDataDir, name));
+    }
+    write(path.join(machineDir(), "keys", "chatgpt-plan.json.enc"));
+    write(path.join(dataDir(), "workspace.db"));
+    write(path.join(dataDir(), "migrations.json"));
+    // Live stores at the same level, which stay.
+    write(path.join(userDataDir, "notices.json"));
+    write(path.join(machineDir(), "keys", "providers.json.enc"));
+  }
+
+  it("removes them, and leaves the stores beside them", () => {
+    seedDead();
+
+    const done = clean();
+
+    expect(
+      fs
+        .readdirSync(userDataDir)
+        .filter((name) => name.endsWith(".json") || name.endsWith(".sh"))
+        .toSorted(),
+    ).toEqual([
+      "machine-preferences.json",
+      "machine-state.json",
+      "notices.json",
+    ]);
+    expect(tree(path.join(machineDir(), "keys"))).toEqual([
+      "providers.json.enc",
+    ]);
+    expect(tree(dataDir())).toEqual(["workspace.json"]);
+    expect(done).toContain("removed 11 file(s) nothing reads");
+  });
+
+  it("has nothing left to say on the boot after", () => {
+    seedDead();
+    clean();
+
+    expect(clean()).toEqual([]);
+  });
+
+  // They are the only copy of what they say until both migrations have read
+  // them, so a workspace partway through keeps them.
+  it("keeps the root settings while the workspace's migrations have not finished", () => {
+    seedDead();
+    writeWorkspaceIdentity(defaultWorkspacePath(userDataDir), {
+      ...readWorkspaceIdentity(defaultWorkspacePath(userDataDir)),
+      formatVersion: 0,
+    });
+
+    clean();
+
+    expect(fs.existsSync(path.join(userDataDir, "preferences.json"))).toBe(
+      true,
+    );
+    // What never belonged to one workspace's take-in still goes.
+    expect(fs.existsSync(path.join(userDataDir, "chatgpt-plan.json"))).toBe(
+      false,
+    );
+  });
+
+  it("leaves the root settings for another workspace, which never read them", () => {
+    seedDead();
+
+    cleanUpMachineData({
+      machineDir: workspaceMachineDirOf(userDataDir, "other"),
+      userDataDir,
+      workspace: {
+        id: "other",
+        isDefault: false,
+        path: path.join(userDataDir, "workspaces", "other"),
+        pinned: false,
+      },
+    });
+
+    expect(fs.existsSync(path.join(userDataDir, "preferences.json"))).toBe(
+      true,
+    );
+  });
+});
+
 describe("the feature flags kept in a file of their own", () => {
   const dataDir = () =>
     path.join(defaultWorkspacePath(userDataDir), ".instrument");

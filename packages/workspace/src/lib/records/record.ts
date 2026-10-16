@@ -160,9 +160,9 @@ const LogRecordSchema = z.discriminatedUnion("t", [
   z.object({
     t: z.literal("state"),
     ...envelope,
-    /** Which standing fact the session was last state. */
+    /** Which standing fact this record sets. */
     what: StateWhatSchema,
-    /** What it was state, as that fact's own module writes it; `null` clears it. */
+    /** The fact's value, as its own module writes it; `null` clears it. */
     value: z.unknown(),
   }),
 ]);

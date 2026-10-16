@@ -103,7 +103,7 @@ export function detectChatAppChanges({
 
 /**
  * What changed between two readings of the apps, as the events a chat is
- * state: an app gone is removed, one that lost its connection is
+ * told: an app gone is removed, one that lost its connection is
  * disconnected, one that gained it is connected. An app set up but not yet
  * connected is the conversation's own doing and says nothing.
  */

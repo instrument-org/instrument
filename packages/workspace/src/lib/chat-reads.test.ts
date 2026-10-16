@@ -23,7 +23,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 /**
  * What each read of a chat gives back, for a chat written the way the app
  * writes one: its history as the model is sent it, the transcript it is drawn
- * from, the standing facts its session was state, and the lines its own search
+ * from, the standing facts its session holds, and the lines its own search
  * reads.
  *
  * Dates are frozen except where a test moves the clock on purpose.
@@ -403,7 +403,7 @@ describe("the transcript a chat is drawn and told from", () => {
 describe("the standing facts a session was told", () => {
   const schema = z.array(z.object({ path: z.string() }));
 
-  it("reads back what the session was last state, and not an earlier one", async () => {
+  it("reads back what the session was last told, and not an earlier one", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
     await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);

@@ -34,7 +34,7 @@ import { type StateWhat } from "../record";
  * What comes back is what the store's reads gave, through the same schemas
  * and in the same order: every session, its messages by id, each message's
  * parts by id with the row each was read from, and what the session was
- * last state. Moved folders are not read back where a move took them, which
+ * last told. Moved folders are not read back where a move took them, which
  * the store did for display; the records keep the paths as they were
  * written.
  */
@@ -81,7 +81,7 @@ export type ChatDbRead =
   /** The store could not have read the chat either. */
   | { error: string; kind: "unreadable" };
 
-/** The key of each thing a session is state, as the store kept it. */
+/** The key of each standing fact a session holds, as the store kept it. */
 export const TOLD_KEYS: readonly (readonly [
   StateWhat,
   (session: StoreId.Session) => string,

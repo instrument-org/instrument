@@ -76,9 +76,24 @@ function dropAppIconFromDocumentTypes(context: AfterPackContext) {
     "-",
     plist,
   ]).trim();
-  const types: unknown = JSON.parse(
-    plutil(["-extract", "CFBundleDocumentTypes", "json", "-o", "-", plist]),
-  );
+  // A preview build claims no file types (`fileAssociations: []`), so its
+  // plist has no document types at all and `plutil` exits saying so. There
+  // is nothing to take an icon off.
+  let extracted: string;
+  try {
+    extracted = plutil([
+      "-extract",
+      "CFBundleDocumentTypes",
+      "json",
+      "-o",
+      "-",
+      plist,
+    ]);
+  } catch {
+    console.log("afterPack: no document types to take the app icon off");
+    return;
+  }
+  const types: unknown = JSON.parse(extracted);
   if (!appIcon || !Array.isArray(types)) {
     throw new Error(`Could not read the document types in ${plist}.`);
   }

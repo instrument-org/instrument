@@ -2,9 +2,9 @@
 
 Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md).
 
-F1's folder, renderer, launch sweep and Finder-rename adoption are built. F2 is built apart from the control for a chat with several replies waiting, and pasted files still landing in the record folder rather than the chat's. F3, F4, F5 and F6 are not started.
+F1 is built. A chat's folder is claimed when the chat is made, `CHAT.md` is written at the end of every turn, the folder follows the title at the two moments one changes, `$INSTRUMENT_OUTPUT` and `handoff-notes.md` are in it, what the person sent has moved into it, and deleting a chat can take it. What F1 still owes is the delete screen's checkbox in Studio and deleting a sync engine's conflict copy of `CHAT.md`.
 
-The one thing to read carefully: a chat folder is written only by the launch sweep. Nothing writes `CHAT.md` at the end of a turn, `renameChatFolder` has no caller outside its tests, `$INSTRUMENT_OUTPUT` still points at the workspace root, `handoff-notes.md` is still in the record folder, and the chat's folder is not mounted for the agent. Every line below describing those as working describes the intent.
+F2 is built apart from the control for a chat with several replies waiting. F3 is in progress. F4, F5 and F6 are not started.
 
 The Instrument folder becomes something a person can open in Finder, Spotlight or Obsidian: a folder per chat with its transcript as Markdown and what the agent made, their drafts, topics, memories, skills and apps as plain files. The app's records stay in the hidden `.instrument/`, which ends fully closed to the agent. Attachments stop being copies: what the person hands over from disk is opened to the chat where it lies.
 
@@ -194,7 +194,8 @@ After records phases 1 to 5, since everything here reads and writes the new reco
 | # | Phase | Done means |
 |---|---|---|
 | F1 | Chat folders: lifecycle, `CHAT.md` renderer and writer, output folder and handoff notes moved, folders for every existing chat | A converted clone of a real install has a folder and `CHAT.md` for every chat; renders are byte-identical across runs |
-| F1, still to build | The writer on the end of a turn and the rename once the title settles, which today only the launch sweep does; `$INSTRUMENT_OUTPUT` and `handoff-notes.md` moved into the chat's folder, which needs the folder mounted for the agent (`workspace-fs-layout.ts`) and the prompt's output folder pointed at it | A turn's own writes reach `CHAT.md` without a relaunch; the agent writes its notes and its finished work in the chat's folder |
+| F1, built since | The folder claimed when the chat is made rather than at the next launch; `CHAT.md` written at the end of every turn; the folder following the title at the two moments one changes, best effort; `$INSTRUMENT_OUTPUT` and `handoff-notes.md` in the chat's folder, which the layout now carries as a mount; what the person sent moved out of the record folder; the delete screen's option to take the folder too | Covered by tests in `chat-folders`, `trash-chat`, `workspace-fs-layout` and `follow-title` |
+| F1, still to build | The delete screen's checkbox in Studio, which the route and the trashing now support; a conflict copy of `CHAT.md` deleted on sight | A person deleting a chat can choose to keep or remove its folder |
 | F2 | Drafts: `DRAFT.md`, both sequences, several per chat, crash-safe Send, migration | Both sequences driven in the app, with a crash injected between each step of Send |
 | F2, still to build | The control over a chat's box saying how many other replies are waiting and swapping one in, which is the only way to reach a chat's older reply drafts; `Drafts/` reached by the agent, which is the workspace's top level and so waits for the folder the person picks | A chat with three replies waiting can be sent any of them |
 | F3 | Attachments by reference: file grants on all three systems, pasted files, stored shape, the copy and `$INSTRUMENT_ATTACHMENTS` removed, migration | The agent edits an attached file in place on macOS and Linux, and on Windows through the shell and file tools |

@@ -4,8 +4,8 @@ import { numberedName, safeName } from "./folder-name";
 
 describe("a title as a folder name", () => {
   it("keeps the words, the spaces and the capitals", () => {
-    expect(safeName("Quiet dishwashers under $900")).toBe(
-      "Quiet dishwashers under $900",
+    expect(safeName("Quiet dishwashers for a small kitchen")).toBe(
+      "Quiet dishwashers for a small kitchen",
     );
   });
 
@@ -18,6 +18,11 @@ describe("a title as a folder name", () => {
     ["a quote", 'He said "no"', "He said no"],
     ["angle brackets", "<draft>", "draft"],
     ["a pipe", "a | b", "a b"],
+    [
+      "a dollar sign, which the shell would expand",
+      "Quiet dishwashers under $900",
+      "Quiet dishwashers under 900",
+    ],
     ["a tab", "one\ttwo", "one two"],
     ["a newline", "one\ntwo", "one two"],
     ["a control character", "one\u0001two", "one two"],

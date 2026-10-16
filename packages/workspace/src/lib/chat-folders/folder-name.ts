@@ -16,9 +16,14 @@ import { UNTITLED_CHAT_TITLE } from "../../constants";
  * for.
  */
 
-/** What Windows refuses in a name, with the control characters. */
+/**
+ * What a name may not hold: the characters Windows refuses, the control
+ * characters, and `$`, which no system minds. The `$` is ours. A chat called
+ * "Quiet dishwashers under $900" would otherwise name a folder the shell
+ * expands, and the agent reaches that folder by running commands over it.
+ */
 // oxlint-disable-next-line no-control-regex -- the characters a name may not hold
-const ILLEGAL = /["*/:<>?\\|\u0000-\u001F]/g;
+const ILLEGAL = /["$*/:<>?\\|\u0000-\u001F]/g;
 
 /**
  * The device names Windows keeps, which it refuses as a name whatever

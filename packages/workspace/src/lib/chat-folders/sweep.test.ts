@@ -157,7 +157,7 @@ describe("every chat gets a folder", () => {
     });
     expect(swept.complete).toBe(true);
     expect(await folderNames()).toEqual([
-      "Quiet dishwashers under $900",
+      "Quiet dishwashers under 900",
       "Taxes 2026",
     ]);
     expect(
@@ -169,7 +169,7 @@ describe("every chat gets a folder", () => {
       "[Open this chat in Instrument](instrument://chat/2026-10-15-taxes)",
     );
     expect((await settingsOf(one.dir)).folder).toBe(
-      "Quiet dishwashers under $900",
+      "Quiet dishwashers under 900",
     );
     expect((await settingsOf(two.dir)).folder).toBe("Taxes 2026");
   });
@@ -396,8 +396,8 @@ describe("the folder a chat is in", () => {
       rootDir: root,
       title: "Quiet dishwashers under $900",
     });
-    expect(renamed.name).toBe("Quiet dishwashers under $900");
-    expect(await folderNames()).toEqual(["Quiet dishwashers under $900"]);
+    expect(renamed.name).toBe("Quiet dishwashers under 900");
+    expect(await folderNames()).toEqual(["Quiet dishwashers under 900"]);
     expect(
       await fs.readFile(path.join(renamed.path, CHAT_FILE_NAME), "utf8"),
     ).toBe("held");

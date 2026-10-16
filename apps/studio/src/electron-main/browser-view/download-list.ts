@@ -56,11 +56,17 @@ function update(id: string, patch: Partial<BrowserDownload>) {
 }
 
 /**
- * Puts a person's download on the list and follows it to the end. `savePath`
- * is null when no folder would take the file, which is a download that failed
- * before it began.
+ * Puts a person's download on the list and follows it to the end.
+ * `savePath` is where the file is being written, or null for a download with
+ * none yet: one the system is asking the person where to put (`asked`),
+ * whose path the list reads off the transfer once they have picked, and
+ * otherwise one that failed before it began because no folder took it.
  */
-export function trackDownload(item: DownloadItem, savePath: null | string) {
+export function trackDownload(
+  item: DownloadItem,
+  savePath: null | string,
+  { asked = false }: { asked?: boolean } = {},
+) {
   const id = crypto.randomUUID();
   const download: BrowserDownload = {
     filename: item.getFilename(),
@@ -68,7 +74,7 @@ export function trackDownload(item: DownloadItem, savePath: null | string) {
     path: savePath,
     receivedBytes: 0,
     startedAt: Date.now(),
-    state: savePath ? "progressing" : "failed",
+    state: savePath || asked ? "progressing" : "failed",
     totalBytes: item.getTotalBytes(),
     url: item.getURL(),
   };
@@ -76,12 +82,13 @@ export function trackDownload(item: DownloadItem, savePath: null | string) {
   const dropped = new Set(finished.slice(KEEP - 1).map((entry) => entry.id));
   downloads = [download, ...list().filter((entry) => !dropped.has(entry.id))];
   changed();
-  if (!savePath) {
+  if (!savePath && !asked) {
     return;
   }
   running.set(id, item);
   item.on("updated", (_event, state) => {
     update(id, {
+      path: item.getSavePath() || savePath,
       receivedBytes: item.getReceivedBytes(),
       state,
       totalBytes: item.getTotalBytes(),
@@ -91,6 +98,7 @@ export function trackDownload(item: DownloadItem, savePath: null | string) {
   item.once("done", (_event, state) => {
     running.delete(id);
     update(id, {
+      path: item.getSavePath() || savePath,
       receivedBytes: item.getReceivedBytes(),
       state:
         state === "completed"

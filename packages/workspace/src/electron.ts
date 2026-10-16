@@ -99,7 +99,11 @@ export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { settleWorkspaceDb } from "./lib/settle-workspace-db";
-export { BROWSER_FOLDER_NAMES, CHAT_DB_FILE_NAME } from "./constants";
+export {
+  BROWSER_FOLDER_NAMES,
+  CHAT_DB_FILE_NAME,
+  CHAT_FOLDER_NAMES,
+} from "./constants";
 export {
   type ChatConversion,
   convertWorkspaceChats,

@@ -1,6 +1,7 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
   BROWSER_FOLDER_NAMES,
+  CHAT_FOLDER_NAMES,
   entryExists,
   moveEntrySync,
 } from "@instrument-org/workspace/electron";
@@ -72,7 +73,36 @@ function steps(where: {
         takeInClaudeAccount(where, done);
       },
     ],
+    [
+      "remove the browser's own downloads folder",
+      (done) => {
+        removeDownloadsFallback(where.workspace, done);
+      },
+    ],
   ];
+}
+
+/**
+ * The `downloads` folder the in-app browser kept at the top of the
+ * Instrument folder when the person's own Downloads took no file. The person
+ * is asked where to put such a file now, so nothing writes here again.
+ *
+ * Removed only while it is empty. Anything in it is a file the person
+ * downloaded, which is theirs: the folder stays with those files in it, and
+ * goes on the launch after they have moved or deleted the last one.
+ */
+function removeDownloadsFallback(workspace: ResolvedWorkspace, done: string[]) {
+  const dir = path.join(workspace.path, CHAT_FOLDER_NAMES.downloads);
+  try {
+    if (fs.readdirSync(dir).length > 0) {
+      return;
+    }
+  } catch {
+    // Not there, or no reading it: nothing to remove either way.
+    return;
+  }
+  fs.rmdirSync(dir);
+  done.push(`removed ${dir}, which the browser no longer saves into`);
 }
 
 /**

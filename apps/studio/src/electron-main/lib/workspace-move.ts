@@ -328,9 +328,9 @@ const COPY_MARK_FILE = "move-copy-mark";
  * 3. The original, still in `<from>` after a copy, is renamed aside there
  *    (`.instrument.moved-<pid>-<time>`), a rename on its own volume, so no
  *    launch and no folder pick finds records in `<from>` again.
- * 4. The rest of `<from>`'s top level, the person's own (the browser's
- *    download fallback), moves in beside the records where its name is
- *    free; a file manager's records go.
+ * 4. The rest of `<from>`'s top level, the person's own (their chats,
+ *    drafts, topics, memories, skills and apps), moves in beside the records
+ *    where its name is free; a file manager's records go.
  * 5. `<from>` → target is recorded in `moved-paths.json`, so a path stored
  *    into the old folder is read back in the new one (`remapMovedPath`).
  * 6. Last, the original set aside is deleted, and `<from>` removed once

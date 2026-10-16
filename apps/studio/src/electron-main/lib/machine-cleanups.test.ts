@@ -121,6 +121,35 @@ describe("the browser homes kept per chat", () => {
   });
 });
 
+describe("the browser's own downloads folder", () => {
+  const dir = () => path.join(defaultWorkspacePath(userDataDir), "downloads");
+
+  it("removes it once it is empty", () => {
+    fs.mkdirSync(dir(), { recursive: true });
+
+    const done = clean();
+
+    expect(fs.existsSync(dir())).toBe(false);
+    expect(done).toContain(
+      `removed ${dir()}, which the browser no longer saves into`,
+    );
+  });
+
+  it("has nothing left to say on the boot after", () => {
+    fs.mkdirSync(dir(), { recursive: true });
+    clean();
+
+    expect(clean()).toEqual([]);
+  });
+
+  it("leaves the files the person downloaded into it", () => {
+    write(path.join(dir(), "report.pdf"), "pdf");
+
+    expect(clean()).toEqual([]);
+    expect(tree(dir())).toEqual(["report.pdf"]);
+  });
+});
+
 describe("the Claude sign-in at the top of this computer's data", () => {
   const atRoot = () => path.join(userDataDir, "claude-account");
   const inWorkspace = () => path.join(machineDir(), "claude-account");

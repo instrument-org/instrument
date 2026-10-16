@@ -679,7 +679,7 @@ function unsandboxedRun(
  * wc's output for one count of a file it read on stdin, as it prints it for
  * the file by name: the count, a space, the name.
  */
-export function withWcName(stdout: string, name: string): string {
+function withWcName(stdout: string, name: string): string {
   return /^\d+\n$/.test(stdout) ? `${stdout.slice(0, -1)} ${name}\n` : stdout;
 }
 

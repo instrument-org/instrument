@@ -29,8 +29,7 @@ Two consequences worth stating, because they settle most of the open questions o
 ---
 title: Quiet dishwashers under $900
 created: 2026-10-14 13:00
-topics:
-  - Kitchen
+topic: Kitchen
 ---
 
 [Open this chat in Instrument](instrument://chat/2026-10-14-quiet-dishwashers)
@@ -38,7 +37,7 @@ topics:
 ## Find a quiet dishwasher…
 ```
 
-`topics` is a list only while a chat can be under several. The file is a render, so the day that becomes one topic, it becomes `topic` with no migration to write.
+`topic` is singular. A chat is filed under one topic, settled 2026-10-16: the list it replaces was never used for more than one in practice, and carrying it cost a checkbox menu, an array in every record and a filter that had to think about overlap.
 
 `Drafts/<date>/DRAFT.md`, a source, with every key the app keeps for it:
 
@@ -101,7 +100,7 @@ Each one is a rename, and each stands alone: take any of them without the rest.
 
 The same question of each: would a person reading it know what every key means, and could they change one without breaking something they could not have known about.
 
-**`CHAT.md`** holds `title`, `created` and `topics`. All readable, none editable, because it is a render and the app rewrites it whole. `created` overlaps the folder's date and is kept for the time of day. Nothing else belongs in it: a chat's truth is its records under `.instrument/chats/<id>/`, and this file is that shown as Markdown, so there is no sidecar beside it and nothing here is read back.
+**`CHAT.md`** holds `title`, `created` and `topic`. All readable, none editable, because it is a render and the app rewrites it whole. `created` overlaps the folder's date and is kept for the time of day. Nothing else belongs in it: a chat's truth is its records under `.instrument/chats/<id>/`, and this file is that shown as Markdown, so there is no sidecar beside it and nothing here is read back.
 
 **`TOPIC.md`** holds `id`, `emoji`, `color`, `about`, `created`, and `retired` only when true. The middle three are what a person would change, and changing them is safe; setting `retired` by hand hides a topic, which is a fair thing to find out. `id` has to stay, for a reason drafts do not share: a chat's marks point at a topic by id, so a topic folder renamed in Finder keeps its chats, and without the id a rename empties the topic. Dropping `name` and moving the granted folders out to a permissions file are both right: the folder is the name, and a grant should not widen by editing a document.
 

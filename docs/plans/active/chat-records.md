@@ -69,7 +69,7 @@ Six fields, and nothing else:
 | `starred` | boolean | |
 | `archived` | boolean | |
 | `unread` | `"new"` or `"marked"`, absent when read | `"new"` clears when the person looks at the chat; `"marked"` is deliberate and does not. A status rather than a flag, since there will be other reasons a chat becomes unread |
-| `topics` | topic ids | The one opaque value in the file, so renaming a topic's folder does not empty it |
+| `topic` | a topic id | The one opaque value in the file, so renaming a topic's folder does not empty it. Singular: a chat is filed under one topic, settled 2026-10-16, replacing the list |
 | `model` | the whole model URI | |
 
 A field set to the value it already holds writes nothing, so the file grows only on real changes and keeps the moment each was first made. Nothing is ever rolled up: compaction means rewriting a file, and append-only with one writer is what makes merging safe. The history is cheap and gives previous titles, the models a chat has used, and an undo, for free.

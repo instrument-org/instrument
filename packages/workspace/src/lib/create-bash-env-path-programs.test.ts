@@ -73,20 +73,18 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
     });
   });
 
-  it("names the work, attachments and output folders to the shell and to every program it starts", async () => {
+  it("names the work and output folders to the shell and to every program it starts", async () => {
     await writeProgram(
       binDir,
       "folder-vars",
-      'printf "%s\\n" "$INSTRUMENT_WORK" "$INSTRUMENT_ATTACHMENTS" "$INSTRUMENT_OUTPUT"',
+      'printf "%s\\n" "$INSTRUMENT_WORK" "$INSTRUMENT_OUTPUT"',
     );
     const result = await run(
-      'echo "$INSTRUMENT_WORK"; echo "$INSTRUMENT_ATTACHMENTS"; echo "$INSTRUMENT_OUTPUT"; folder-vars',
+      'echo "$INSTRUMENT_WORK"; echo "$INSTRUMENT_OUTPUT"; folder-vars',
     );
-    const folders = [
-      chatRoot,
-      path.join(chatRoot, "attachments"),
-      outputFolderPath(),
-    ];
+    // No attachments variable: a file the person sends is read where they
+    // keep it, so there is no folder of copies to name.
+    const folders = [chatRoot, outputFolderPath()];
     expect(result.stdout.split("\n")).toEqual([...folders, ...folders, ""]);
   });
 

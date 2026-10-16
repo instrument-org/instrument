@@ -107,11 +107,16 @@ export function toolPart({
   createdAt: Date;
   id: StoreId.Part;
   message: StoreId.Message;
-  more?: { endedAt?: Date; output?: unknown; startedAt?: Date };
+  more?: {
+    endedAt?: Date;
+    output?: unknown;
+    preliminary?: boolean;
+    startedAt?: Date;
+  };
   session: StoreId.Session;
   state: "input-available" | "output-available";
 }): SessionMessagePart.Type {
-  const { output, ...dates } = more;
+  const { output, preliminary, ...dates } = more;
   return SessionMessagePart.coerce({
     input: { command: "ls" },
     metadata: {
@@ -122,6 +127,7 @@ export function toolPart({
       ...dates,
     },
     ...(output === undefined ? {} : { output }),
+    ...(preliminary === undefined ? {} : { preliminary }),
     state,
     toolCallId: `call-${id}`,
     type: "tool-bash",

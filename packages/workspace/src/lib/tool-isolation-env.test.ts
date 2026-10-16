@@ -53,9 +53,6 @@ describe("the runtime folder", () => {
     expect(inRuntime(nodeToolsEnvFor(runtimeDir))).toMatchInlineSnapshot(`
       {
         "PNPM_HOME": "<runtime>/caches/pnpm-home",
-        "XDG_CONFIG_HOME": "<runtime>/config",
-        "XDG_DATA_HOME": "<runtime>/caches/data",
-        "XDG_STATE_HOME": "<runtime>/caches/state",
         "npm_config_cache": "<runtime>/caches/npm",
         "npm_config_devdir": "<runtime>/caches/node-gyp",
         "npm_config_globalconfig": "<runtime>/config/npmrc-global",
@@ -109,9 +106,6 @@ describe("the runtime folder", () => {
         "UV_TOOL_BIN_DIR": "<runtime>/build/caches/uv-tools/bin",
         "UV_TOOL_DIR": "<runtime>/build/caches/uv-tools",
         "XDG_CACHE_HOME": "<runtime>/build/caches",
-        "XDG_CONFIG_HOME": "<runtime>/build/config",
-        "XDG_DATA_HOME": "<runtime>/build/caches/data",
-        "XDG_STATE_HOME": "<runtime>/build/caches/state",
         "npm_config_cache": "<runtime>/build/caches/npm",
         "npm_config_devdir": "<runtime>/build/caches/node-gyp",
         "npm_config_globalconfig": "<runtime>/build/config/npmrc-global",

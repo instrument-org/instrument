@@ -10,12 +10,15 @@ import { runtimeLayout } from "./runtime-dir";
 
 /**
  * The environment that pins pnpm, npm and node-gyp to the chats' caches and
- * config in `runtimeDir`, whatever the person's setup holds: their
- * `~/.npmrc` (a registry, `ignore-scripts`), `~/.config/pnpm/rc`,
- * `PNPM_HOME`, global store and caches are never read or written. The
- * config files are the app's own and empty. pnpm's settings for every install the agent makes,
- * wherever it makes it, are the `pnpm_config_*` variables here, which a
- * project's own `pnpm-workspace.yaml` can still change for that project.
+ * config in `runtimeDir`, whatever the person's setup holds: their `~/.npmrc`
+ * (a registry, `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global
+ * store and caches are never read or written. Each is pinned by name rather
+ * than by moving the folders a tool looks in, since every program on the PATH
+ * gets this environment and one that keeps its own settings under `~/.config`
+ * would have found an empty folder instead of the person's. The config files
+ * are the app's own and empty. pnpm's settings for every install the agent
+ * makes, wherever it makes it, are the `pnpm_config_*` variables here, which
+ * a project's own `pnpm-workspace.yaml` can still change for that project.
  */
 export function nodeToolsEnvFor(runtimeDir: string): Record<string, string> {
   const { caches, config } = runtimeLayout(runtimeDir);
@@ -49,9 +52,6 @@ function nodeToolsEnvIn(
   }
   return {
     PNPM_HOME: path.join(caches, "pnpm-home"),
-    XDG_CONFIG_HOME: config,
-    XDG_DATA_HOME: path.join(caches, "data"),
-    XDG_STATE_HOME: path.join(caches, "state"),
     // npm, node-gyp and anything else that reads npm's own settings.
     npm_config_cache: path.join(caches, "npm"),
     npm_config_devdir: path.join(caches, "node-gyp"),

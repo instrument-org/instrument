@@ -26,6 +26,12 @@ main_root=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
 [[ "$worktree_root" != "$main_root" ]] ||
   fail "run this from a linked worktree, not the primary checkout"
 
+# A worktree made with plain `git worktree add` has had no setup hook run.
+if [[ ! -d "$worktree_root/node_modules" ]]; then
+  echo "land: setting up $worktree_root first"
+  bash "$main_root/.claude/hooks/worktree-setup.sh" "$worktree_root" > /dev/null
+fi
+
 branch=$(git branch --show-current)
 [[ -n "$branch" ]] || fail "the worktree is on a detached HEAD; commit on a branch first"
 [[ "$(git -C "$main_root" branch --show-current)" == "main" ]] ||

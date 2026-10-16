@@ -85,7 +85,6 @@ describe("prepareLocalServer", () => {
           npm_config_userconfig: path.join(buildConfig, "npmrc"),
           pnpm_config_store_dir: path.join(buildCaches, "pnpm-store"),
           pnpm_config_userconfig: path.join(buildConfig, "npmrc"),
-          XDG_CONFIG_HOME: buildConfig,
         }),
       }),
     );

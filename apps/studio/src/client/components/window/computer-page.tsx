@@ -1696,63 +1696,73 @@ export function ComputerPage({
           the toolbar where it does not. In a tab of the window's own the
           folder's controls follow it in a section of the row's own, which
           with a file open beside the folder is as wide as the folder and
-          holds them all, behind the toggle that folds the folder away. */}
+          holds them all. The toggle that folds the folder away stands past
+          that section's edge, at the head of the file's own part of the
+          row, so it belongs to the file and the folder's name keeps the
+          room. */}
       {rowLead &&
         (toolsInRow
           ? createPortal(
-              <div
-                className={cn(
-                  "-ml-2 flex h-10 shrink-0 items-center gap-1 pl-2 transition-[width] [interpolate-size:allow-keywords]",
-                  EDGE_DIVIDER_CLASSNAME,
-                  BESIDE_MOTION_CLASSNAME,
-                  beside?.isResizing && "transition-none",
-                  isBesideOpen && beside.isFolderShown
-                    ? "pr-2 after:opacity-100"
-                    : "after:opacity-0",
-                )}
-                style={{
-                  width:
-                    isBesideOpen && beside.isFolderShown
-                      ? beside.width
-                      : "auto",
-                }}
-              >
+              <>
                 <div
                   className={cn(
-                    "flex h-10 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
+                    "-ml-2 flex h-10 shrink-0 items-center gap-1 pl-2 transition-[width] [interpolate-size:allow-keywords]",
                     EDGE_DIVIDER_CLASSNAME,
                     BESIDE_MOTION_CLASSNAME,
-                    !isBesideOpen && placesVisible && !isNarrow
-                      ? "after:opacity-100"
+                    beside?.isResizing && "transition-none",
+                    isBesideOpen && beside.isFolderShown
+                      ? "pr-2 after:opacity-100"
                       : "after:opacity-0",
                   )}
                   style={{
-                    // Less the section's own inset, so its edge is the places'.
                     width:
-                      !isBesideOpen && placesVisible && !isNarrow
-                        ? placesWidth - 8
+                      isBesideOpen && beside.isFolderShown
+                        ? beside.width
                         : "auto",
                   }}
                 >
-                  {isBesideOpen ? beside.toggle : placesToggle}
-                </div>
-                {isBesideOpen && beside.isFolderShown ? (
-                  <FolderNameMenu
-                    ancestors={besideAncestors}
-                    folder={besideFolder}
-                    onGo={besideTo}
-                    places={besidePlaces}
-                  />
-                ) : null}
-                <div
-                  className={cn(
-                    "flex min-w-0 items-center",
-                    isBesideOpen && "shrink-0",
-                    isBesideOpen && !beside.isFolderShown && "hidden",
+                  {isBesideOpen ? null : (
+                    <div
+                      className={cn(
+                        "flex h-10 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
+                        EDGE_DIVIDER_CLASSNAME,
+                        BESIDE_MOTION_CLASSNAME,
+                        placesVisible && !isNarrow
+                          ? "after:opacity-100"
+                          : "after:opacity-0",
+                      )}
+                      style={{
+                        // Less the section's own inset, so its edge is the places'.
+                        width:
+                          placesVisible && !isNarrow ? placesWidth - 8 : "auto",
+                      }}
+                    >
+                      {placesToggle}
+                    </div>
                   )}
-                  ref={setRowTools}
-                />
-              </div>,
+                  {isBesideOpen && beside.isFolderShown ? (
+                    <FolderNameMenu
+                      ancestors={besideAncestors}
+                      folder={besideFolder}
+                      onGo={besideTo}
+                      places={besidePlaces}
+                    />
+                  ) : null}
+                  <div
+                    className={cn(
+                      "flex min-w-0 items-center",
+                      isBesideOpen && "shrink-0",
+                      isBesideOpen && !beside.isFolderShown && "hidden",
+                    )}
+                    ref={setRowTools}
+                  />
+                </div>
+                {isBesideOpen ? (
+                  <div className="flex h-10 shrink-0 items-center pl-1">
+                    {beside.toggle}
+                  </div>
+                ) : null}
+              </>,
               rowLead,
             )
           : createPortal(placesToggle, rowLead))}

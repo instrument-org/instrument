@@ -288,6 +288,33 @@ export function draftTitle(words: string): string {
   );
 }
 
+/** The dot the rail's Chat entry wears while the window stands elsewhere. */
+export type RailChatMark = "unread" | "waiting" | "working";
+
+/**
+ * Which dot the rail's Chat entry wears for these chats: amber while any
+ * waits on the user, since a question outranks work, the working pulse
+ * while any works, and green while any has something not yet seen. A chat
+ * put away counts for none of it, as it is out of the inbox.
+ */
+export function railMarkOf(
+  chats: readonly {
+    archived: boolean;
+    state: Filterable["state"];
+    unread: boolean;
+    working: boolean;
+  }[],
+): RailChatMark | undefined {
+  const inbox = chats.filter((chat) => !chat.archived);
+  if (inbox.some((chat) => chat.state === "waiting")) {
+    return "waiting";
+  }
+  if (inbox.some((chat) => chat.working)) {
+    return "working";
+  }
+  return inbox.some((chat) => chat.unread) ? "unread" : undefined;
+}
+
 /** Chats by when the user last messaged them, newest first. */
 export function byLastUserMessage<T extends { lastUserMessageAt: number }>(
   chats: T[],

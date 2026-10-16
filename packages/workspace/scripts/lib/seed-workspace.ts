@@ -32,6 +32,7 @@ import { ChatWrites } from "../../src/lib/chat-writes";
 import {
   ChatRecords,
   installChatRecords,
+  writingChatRecords,
 } from "../../src/lib/records/chat-records";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
@@ -118,13 +119,20 @@ export async function seedWorkspace({
   setWorkspaceConfig(workspaceConfig);
   // The writer every write to a chat goes through. The app installs it as the
   // workspace starts; a script that writes chats without a workspace has to
-  // install one itself, or `ChatWrites` has no records to append to.
-  const records = new ChatRecords({
-    app: workspaceConfig.appVersion,
-    device: workspaceConfig.deviceId,
-    dirOf: chatDir,
-  });
-  installChatRecords(records);
+  // install one itself, or `ChatWrites` has no records to append to. One
+  // already in place is left alone and left running: a test that installed
+  // its own reads the chats back through it.
+  const borrowed = writingChatRecords();
+  const records =
+    borrowed ??
+    new ChatRecords({
+      app: workspaceConfig.appVersion,
+      device: workspaceConfig.deviceId,
+      dirOf: chatDir,
+    });
+  if (borrowed === undefined) {
+    installChatRecords(records);
+  }
 
   const seeded: SeededTask[] = [];
   // A 1.x task's folder is flat under `tasks/`, which the chat index is
@@ -182,9 +190,12 @@ export async function seedWorkspace({
   await writeSettings({ settings: fixture.settings, userDataDir });
 
   // Every append is flushed and the handles closed before the script ends, so
-  // the folder it leaves is one the app reads rather than one mid-write.
-  await records.dispose();
-  installChatRecords(undefined);
+  // the folder it leaves is one the app reads rather than one mid-write. One
+  // we borrowed is its owner's to close.
+  if (borrowed === undefined) {
+    await records.dispose();
+    installChatRecords(undefined);
+  }
 
   return seeded;
 }

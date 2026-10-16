@@ -12,6 +12,7 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
+| [Where the in-app agent fails](where-the-in-app-agent-fails.md): failure sources in real chats and eval runs | open, paths and layout-shift clicks fixed |
 | [Agent prompt surface](agent-prompt-surface-review.md) — what we measured across the system prompt and tool descriptions | open items |
 | [Agent tool surface](agent-tool-surface-review.md) — gaps against three reference harnesses | partly overtaken |
 | [Token cost per task](token-cost-per-task-baseline.md) — where price-weighted tokens go by source and billing type, and what would move them | open, baseline measured |
@@ -123,6 +124,8 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
+| [Root causes of three weeks of fixes](root-causes-of-three-weeks-of-fixes.md): 595 fixes sorted by the mechanism that caused them | open, measured 10-12 |
+| [Where coding agents lose time in this repo](where-coding-agents-lose-time-in-this-repo.md): 753 agent transcripts read for friction | open, two findings addressed |
 | [Test suites re-evaluate module graphs](test-suite-module-evaluation-cost.md) — where the time actually goes | all four fixes landed |
 | [TypeScript 7 (tsgo) dual package](typescript-7-native-preview-dual-package.md) | resolved |
 | [Why the spell checker is `typos`](spelling-check-cost-versus-signal.md) — and not cspell | resolved |

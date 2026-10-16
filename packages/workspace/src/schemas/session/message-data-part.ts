@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { EnvironmentChangeSchema } from "../environment";
 import { MountedFolder } from "../mounted-folder";
-import { RelativePathSchema } from "../paths";
+import { AbsolutePathSchema, RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 
 export namespace SessionMessageDataPart {
@@ -85,7 +85,11 @@ export namespace SessionMessageDataPart {
 
   const FileAttachmentDataPartSchema = z.object({
     filename: z.string(),
-    filePath: RelativePathSchema,
+    // A file the person attached is the file itself, at its own absolute path,
+    // so the agent reads and edits what they pointed at. A relative path is a
+    // copy in the record folder's `attachments/`, which is where pasted bytes
+    // land and where every attachment written before this lives.
+    filePath: z.union([AbsolutePathSchema, RelativePathSchema]),
     mimeType: z.string(),
     // Attachments written before this field existed have none, and it is a
     // cache-buster for the asset URL: 0 costs those files nothing, since they

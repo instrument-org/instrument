@@ -28,7 +28,6 @@ import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
-import { workDir } from "./work-dir";
 
 export async function newMessage({
   asks,
@@ -168,7 +167,6 @@ export async function newMessage({
       messageId,
       recordDir: chatDir(chatId),
       sessionId,
-      workDir: workDir(chatId),
     });
 
     if (uploadResult.isErr()) {

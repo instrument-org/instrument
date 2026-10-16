@@ -9,7 +9,6 @@ import {
   type RelativePath,
   RelativePathSchema,
   type ChatDir,
-  type WorkDir,
 } from "../schemas/paths";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -18,7 +17,6 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getMimeType } from "./get-mime-type";
-import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getChatAttachmentsDir } from "./chat-dir-utils";
@@ -28,11 +26,11 @@ interface PreparedUploadedFile {
   filename: string;
   filePath: AbsolutePath;
   input: FileUpload.Type;
-  // A source the chat's work folder already holds is attached where it lies,
-  // so there is nothing to write and `filePath` names the file itself.
-  isInChatFolder: boolean;
+  // A file the person attached by path is read where it lies, so there is
+  // nothing to write and `filePath` names the file itself.
+  inPlace: boolean;
   mimeType: string;
-  relativePath: RelativePath;
+  storedPath: AbsolutePath | RelativePath;
 }
 
 export async function writeUploadedAttachments({
@@ -40,16 +38,10 @@ export async function writeUploadedAttachments({
   messageId,
   recordDir,
   sessionId,
-  workDir,
 }: {
   files?: FileUpload.Type[];
-  /** The chat's record folder, whose `attachments/` the files land in. */
+  /** The chat's record folder, whose `attachments/` pasted bytes land in. */
   recordDir: ChatDir;
-  /**
-   * The chat's work folder: a file already in it is attached where it lies,
-   * by its path there.
-   */
-  workDir: WorkDir;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
@@ -60,38 +52,21 @@ export async function writeUploadedAttachments({
       const preparedFiles = yield* await prepareUploadedFiles({
         files,
         recordDir,
-        workDir,
       });
 
       for (const preparedFile of preparedFiles) {
-        if (!preparedFile.isInChatFolder) {
-          if ("path" in preparedFile.input) {
-            // A copy-on-write clone where the filesystem has them (APFS,
-            // Btrfs, XFS), so a file handed from one task to another takes
-            // no space until a side changes it; elsewhere a plain copy.
-            yield* ResultAsync.fromPromise(
-              fs.copyFile(
-                preparedFile.input.path,
-                preparedFile.filePath,
-                fs.constants.COPYFILE_FICLONE,
+        // Pasted bytes are all there is to write: a file attached by path is
+        // already on disk at `filePath`.
+        if (!preparedFile.inPlace && "content" in preparedFile.input) {
+          const buffer = Buffer.from(preparedFile.input.content, "base64");
+          yield* ResultAsync.fromPromise(
+            fs.writeFile(preparedFile.filePath, buffer),
+            (error) =>
+              new TypedError.FileSystem(
+                error instanceof Error ? error.message : "Unknown error",
+                { cause: error },
               ),
-              (error) =>
-                new TypedError.FileSystem(
-                  error instanceof Error ? error.message : "Unknown error",
-                  { cause: error },
-                ),
-            );
-          } else {
-            const buffer = Buffer.from(preparedFile.input.content, "base64");
-            yield* ResultAsync.fromPromise(
-              fs.writeFile(preparedFile.filePath, buffer),
-              (error) =>
-                new TypedError.FileSystem(
-                  error instanceof Error ? error.message : "Unknown error",
-                  { cause: error },
-                ),
-            );
-          }
+          );
         }
 
         const stats = yield* ResultAsync.fromPromise(
@@ -103,21 +78,9 @@ export async function writeUploadedAttachments({
             ),
         );
 
-        if (
-          !preparedFile.isInChatFolder &&
-          "path" in preparedFile.input &&
-          stats.size !== preparedFile.input.size
-        ) {
-          yield* err(
-            new TypedError.FileSystem(
-              `Uploaded file size changed during copy: ${preparedFile.input.filename}`,
-            ),
-          );
-        }
-
         fileInfos.push({
           filename: preparedFile.filename,
-          filePath: preparedFile.relativePath,
+          filePath: preparedFile.storedPath,
           mimeType: preparedFile.mimeType,
           modifiedAt: stats.mtimeMs,
           size: stats.size,
@@ -169,11 +132,9 @@ async function getUniqueFilename(
 function prepareUploadedFiles({
   files,
   recordDir,
-  workDir,
 }: {
   files: FileUpload.Type[];
   recordDir: ChatDir;
-  workDir: WorkDir;
 }) {
   return safeTry(async function* () {
     const inputDir = getChatAttachmentsDir(recordDir);
@@ -186,28 +147,22 @@ function prepareUploadedFiles({
     const reservedFilenames = new Set<string>();
 
     for (const file of files) {
+      // A file the person pointed at is attached where it lies, wherever that
+      // is. Copying it into `attachments/` would fork it: the agent would work
+      // on the copy while the original the user pointed at silently went
+      // stale, and a 2 GB video would be cloned to say so.
       if ("path" in file) {
         yield* await validatePathUpload({ file });
 
-        // A file the chat's work folder already holds is attached where it
-        // lies. Copying it into `attachments/` would fork it: the agent would
-        // work on the copy while the original the user pointed at silently
-        // went stale.
-        const inChatPath = chatAttachmentPath({
-          dir: workDir,
+        preparedFiles.push({
+          filename: file.filename,
           filePath: file.path,
+          input: file,
+          inPlace: true,
+          mimeType: file.mimeType,
+          storedPath: file.path,
         });
-        if (inChatPath) {
-          preparedFiles.push({
-            filename: file.filename,
-            filePath: file.path,
-            input: file,
-            isInChatFolder: true,
-            mimeType: file.mimeType,
-            relativePath: inChatPath,
-          });
-          continue;
-        }
+        continue;
       }
 
       const sanitized = sanitizeFilename(file.filename);
@@ -226,37 +181,14 @@ function prepareUploadedFiles({
         filename: uniqueFilename,
         filePath: absolutePathJoin(recordDir, relativePath),
         input: file,
-        isInChatFolder: false,
-        mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
-        relativePath,
+        inPlace: false,
+        mimeType: getMimeType(uniqueFilename),
+        storedPath: relativePath,
       });
     }
 
     return ok(preparedFiles);
   });
-}
-
-/**
- * The relative spelling of a path already inside the chat's work folder, or
- * undefined for one outside it.
- */
-function chatAttachmentPath({
-  dir,
-  filePath,
-}: {
-  dir: WorkDir;
-  filePath: AbsolutePath;
-}): RelativePath | undefined {
-  const relative = normalizePath(path.relative(dir, filePath));
-  if (
-    relative === "" ||
-    relative === ".." ||
-    relative.startsWith("../") ||
-    path.isAbsolute(relative)
-  ) {
-    return undefined;
-  }
-  return RelativePathSchema.parse(relative);
 }
 
 function validatePathUpload({ file }: { file: PathFileUpload }) {
@@ -290,7 +222,7 @@ function validatePathUpload({ file }: { file: PathFileUpload }) {
     if (sourceStats.size !== file.size) {
       yield* err(
         new TypedError.FileSystem(
-          `Uploaded file size changed before copy: ${file.filename}`,
+          `Uploaded file size changed since it was picked: ${file.filename}`,
         ),
       );
     }

@@ -416,6 +416,7 @@ function forgottenConnections(): AppConnectionStore {
     get: () => Promise.resolve(undefined),
     list: () => Promise.resolve({}),
     remove: () => Promise.resolve(),
+    set: () => Promise.resolve(),
   };
 }
 

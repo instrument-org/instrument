@@ -39,6 +39,7 @@ import { RG_DISK_PATH } from "./ripgrep";
 import { createDuCommand } from "./shell-commands/du";
 import { execShim } from "./shell-commands/exec-shim";
 import { withAppDataLeftOut } from "./shell-commands/rg";
+import { pathIsWithin } from "./path-is-within";
 import { workspaceLayout } from "./workspace-layout";
 import { raiseAsk } from "./chat/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
@@ -471,6 +472,41 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         expect(raiseAsk).not.toHaveBeenCalled();
       },
     );
+  });
+
+  // F4 asks for `.instrument/` closed to the agent with no exceptions. This
+  // is the list of exceptions, so the day both go the expectation is empty
+  // and nothing else has crept in beside them.
+  describe("what the rules still open inside the app's own data", () => {
+    const layout = layoutUnder(paths, {});
+
+    it("is the chat's own two things and nothing else", () => {
+      const dataDir = workspaceLayout(paths.workspace).dataDir;
+      const open = layout.rules.rules
+        .filter(
+          (rule) => rule.level !== "never" && pathIsWithin(rule.path, dataDir),
+        )
+        .map(
+          (rule) =>
+            `${path.relative(paths.workspace, rule.path)} (${rule.level})`,
+        )
+        .toSorted();
+
+      expect(open).toEqual([
+        // Read where a chat whose move into its own folder was refused
+        // still keeps what the person sent it.
+        path.join(".instrument", "chats", "2026-10-13-chat", "attachments") +
+          " (readOnly)",
+        // Written by the agent itself, at the end of a context it has run
+        // out of, with nobody there to answer a card.
+        path.join(
+          ".instrument",
+          "chats",
+          "2026-10-13-chat",
+          "handoff-notes.md",
+        ) + " (allow)",
+      ]);
+    });
   });
 
   describe("the file tools and the shell", () => {

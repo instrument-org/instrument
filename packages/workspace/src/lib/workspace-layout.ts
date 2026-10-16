@@ -30,8 +30,10 @@ export const WORKSPACE_DATA_ENTRIES = {
    */
   drafts: "drafts",
   /**
-   * One Markdown file per memory: what the agent keeps about the person
-   * across every chat.
+   * Where earlier builds kept the memories, one Markdown file each: what the
+   * agent keeps about the person across every chat. Memory is `Memory/` at
+   * the workspace's top level now, and this is only what the migration reads
+   * (`lib/memory/move.ts`).
    */
   memory: "memory",
   /**
@@ -57,15 +59,14 @@ export const WORKSPACE_DATA_ENTRIES = {
 /**
  * What in a workspace's `.instrument/` is the person's own to look at, each
  * as the names below it, `*` standing for any one: what they attached to a
- * chat, and their topics, skills, apps and memories. Everything else
- * there (a chat's database and settings, the workspace's own records, the
- * window's) is the app's, and so is a record folder of its own inside one of
- * these, which carries the same `.instrument` name.
+ * chat, and their topics, skills and apps. Everything else there (a chat's
+ * database and settings, the workspace's own records, the window's) is the
+ * app's, and so is a record folder of its own inside one of these, which
+ * carries the same `.instrument` name.
  */
 export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
   [WORKSPACE_DATA_ENTRIES.apps],
   [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
-  [WORKSPACE_DATA_ENTRIES.memory],
   [WORKSPACE_DATA_ENTRIES.skills],
   [WORKSPACE_DATA_ENTRIES.topics],
 ];

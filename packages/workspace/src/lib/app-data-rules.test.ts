@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MEMORY_FOLDER_NAME } from "../constants";
 import { MountedFolder } from "../schemas/mounted-folder";
 import {
   AbsolutePathSchema,
@@ -422,6 +423,21 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       (op) => {
         expect(
           reachOf(layout.rules, `${paths.workspace}/report.pdf`, op).level,
+        ).toBe("allow");
+      },
+    );
+
+    // The memories are at that top level too, so the agent reads and corrects
+    // them in the folder the person reads them in, with nothing granted.
+    it.runIf(shape.workspace !== undefined).each(["read", "write"] as const)(
+      "opens the memories at the workspace's top level to %s",
+      (op) => {
+        expect(
+          reachOf(
+            layout.rules,
+            path.join(paths.workspace, MEMORY_FOLDER_NAME, "no-stevia.md"),
+            op,
+          ).level,
         ).toBe("allow");
       },
     );

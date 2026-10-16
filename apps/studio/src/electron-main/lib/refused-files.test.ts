@@ -231,7 +231,12 @@ describe("isRecordPath", () => {
     ],
     ["a workspace skill", data("skills", "brief", "SKILL.md"), false],
     ["an app's setup", data("apps", "linear", "app.json"), false],
-    ["a memory", data("memory", "no-stevia.md"), false],
+    ["a memory in Memory", "/Users/sam/Instrument/Memory/no-stevia.md", false],
+    [
+      "what a build left in the folder memories were hidden in",
+      data("memory", "no-stevia.md"),
+      true,
+    ],
     ["what a migration set aside", data(".pre-chats", "x", "task.db"), true],
     ["a 1.x task's records", "/Users/sam/tasks/t/.instrument/task.db", true],
     [

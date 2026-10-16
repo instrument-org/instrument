@@ -29,6 +29,7 @@ import {
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
+  moveMemoriesToFolder,
   prepareBundledSkills,
   settleDrafts,
   moveChatPermissions,
@@ -124,6 +125,8 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // And the drafts move out to `Drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
   await settleWorkspaceDrafts(rootDir);
+  // The memories move out to `Memory/` too, before anything reads one.
+  await moveMemories(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -534,6 +537,43 @@ async function settleWorkspaceDrafts(rootDir: string) {
       logger.info(
         `Drafts: finished sending ${finished.finished.join(", ")}, whose messages were already written`,
       );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
+/**
+ * Move the memories an earlier build hid in the workspace's `.instrument/`
+ * out to `Memory/`, where the person can read and edit them. Runs for every
+ * workspace, since every build so far hid them wherever the workspace was
+ * kept. Idempotent, and a workspace that already holds `Memory/` is left
+ * alone; a failure must not block boot.
+ */
+async function moveMemories(rootDir: string) {
+  try {
+    const moved = await moveMemoriesToFolder(rootDir);
+    switch (moved.kind) {
+      case "already-there":
+        logger.info(
+          `Memory: ${moved.where} is already there, so nothing moved`,
+        );
+        break;
+      case "failed":
+        logger.warn(
+          `Memory: left the memories where they were and will try again next launch: ${moved.error}`,
+        );
+        break;
+      case "moved":
+        logger.info(
+          `Memory: moved ${moved.count} memory${moved.count === 1 ? "y" : "ies"} to ${moved.where}`,
+        );
+        break;
+      case "none":
+        break;
     }
   } catch (error) {
     captureServerException(

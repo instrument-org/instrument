@@ -79,6 +79,14 @@ export const DRAFTS_FOLDER_NAME = "Drafts";
 export const DRAFT_FILE_NAME = "DRAFT.md";
 
 /**
+ * Where the person's memories are, at the workspace's top level: one
+ * Markdown file per memory, which they read and edit in a file manager like
+ * any other file. One of the six folders a person opens, and the one with no
+ * file saying what it is: a memory is a file rather than a folder.
+ */
+export const MEMORY_FOLDER_NAME = "Memory";
+
+/**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between
  * the prompt that teaches it and the renderer that draws it, and a fence

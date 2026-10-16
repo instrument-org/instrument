@@ -7,14 +7,14 @@ import { z } from "zod";
 import { publisher } from "../../rpc/publisher";
 import { type AbsolutePath } from "../../schemas/paths";
 import { AbsolutePathSchema } from "../../schemas/paths";
+import { MEMORY_FOLDER_NAME } from "../../constants";
 import { isRecord, splitFrontmatter } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
-import { workspaceLayout } from "../workspace-layout";
 
 /**
  * What the conversation's agent keeps about the user across every chat: a
- * folder of Markdown files, one memory each, in the workspace's `.instrument/`
- * beside the apps and skills folders.
+ * folder of Markdown files, one memory each, `Memory/` at the workspace's
+ * top level, beside the chats and the drafts.
  *
  * Files rather than rows so the user can open the folder and read, edit, or
  * delete a memory with nothing but a file manager, and so a memory the agent
@@ -143,10 +143,10 @@ export function memoryDigests(memories: Memory[]): Record<string, string> {
   );
 }
 
-/** Where memory lives in this workspace. */
+/** Where memory lives in this workspace, `Memory/` at its top level. */
 export function memoryDir(): AbsolutePath {
   return AbsolutePathSchema.parse(
-    workspaceLayout(getWorkspaceConfig().rootDir).memoryDir,
+    path.join(getWorkspaceConfig().rootDir, MEMORY_FOLDER_NAME),
   );
 }
 

@@ -210,7 +210,7 @@ export const BashTool = setupTool({
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
-      loadedSkillDir: await lastLoadedSkillDir({ chatId, sessionId, signal }),
+      loadedSkillDir: await lastLoadedSkillDir({ chatId, sessionId }),
       role,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
@@ -348,7 +348,7 @@ export const BashTool = setupTool({
 
     const pageAfter = await browserFollowUp.take(signal);
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({ sessionId, signal, chatId })
+      ? await browserSkillToDeliver({ sessionId, chatId })
       : undefined;
 
     return ok({

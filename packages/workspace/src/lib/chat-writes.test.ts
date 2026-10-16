@@ -353,12 +353,15 @@ describe("a chat written through its records", () => {
     const { chatId, sessionId } = await startChat();
     const asked = userMessage(sessionId, "Carry on.");
     (await ChatWrites.saveMessageWithParts(asked, chatId))._unsafeUnwrap();
-    const session = listView(await records.service.read(chatId))[0];
+    const [session] = listView(await records.service.read(chatId));
+    if (!session) {
+      throw new Error("the chat it started has no session");
+    }
 
     (
       await ChatWrites.saveSession(
         {
-          ...session!,
+          ...session,
           rolledOverAfterMessageId: asked.id,
           rolledOverUnderUsableTokens: 120_000,
         },

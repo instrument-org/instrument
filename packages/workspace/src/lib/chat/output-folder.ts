@@ -58,9 +58,9 @@ export function finishedWorkFolder(ownFolder: string | undefined): string {
  * write into it goes to the Instrument folder or stays in the records
  * instead. See {@link finishedWorkFolder} for why.
  */
-export function chatFolderTheyOpen(
-  ownFolder: string | undefined,
-): string | undefined {
+export function chatFolderTheyOpen<Folder extends string>(
+  ownFolder: Folder | undefined,
+): Folder | undefined {
   return ownFolder !== undefined && pathIsWithin(ownFolder, outputFolderPath())
     ? ownFolder
     : undefined;

@@ -1,6 +1,6 @@
 # Plan: everything visible in the Instrument folder
 
-Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md). F1's folder, renderer and sweep are built; what F1 still owes is in its row of the phase table.
+Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md). F1's folder, renderer and sweep are built, and so is F2; what each still owes is in its row of the phase table.
 
 The Instrument folder becomes something a person can open in Finder, Spotlight or Obsidian: a folder per chat with its transcript as Markdown and what the agent made, their drafts, topics, memories, skills and apps as plain files. The app's records stay in the hidden `.instrument/`, which ends fully closed to the agent. Attachments stop being copies: what the person hands over from disk is opened to the chat where it lies.
 
@@ -94,7 +94,8 @@ Rules:
 - Every draft lives in `Drafts/`, new chats and replies alike, from any device. A chat may have several drafts, ready for queued messages later. A draft whose chat was deleted stays, so it can be salvaged.
 - A draft is its `id`, never its folder name. Folders are named by the date the draft was started (`2026-10-14`, then `2026-10-14 2`), because a name from its words would rename while typing. A draft made all at once (a tutorial draft, one the agent writes) may be named by its words.
 - Two `DRAFT*.md` files in one folder (two devices made the same date offline, or a sync conflict copy) are read as separate drafts; one with an id already seen is shown beside it, never dropped.
-- Crash-safe Send: the message records `fromDraft`. On launch, a draft whose id a message already names is finished (files moved, folder removed), not sent again.
+- Crash-safe Send: the message records `fromDraft`, on its metadata. A draft is pointed at its chat (`chat:`) before the message is written, since that message is in the chat's records and nothing could find it otherwise; a reply draft names its chat from its first autosave either way. On launch, a draft whose chat already holds a message naming it is finished (folder removed), and one whose chat does not is left to be sent again.
+- The front matter also holds `updated`, which is what puts the newest of a chat's drafts in its box, and `state`, where what the app knows about a draft besides the keys above is kept in one place rather than spread through the file.
 - A draft with no words and nothing pasted or attached is deleted.
 - The agent may read and write drafts as files.
 - Front matter is plain YAML, as `SKILL.md`'s is, and the body is the person's own words, kept exactly as they typed them.
@@ -106,7 +107,7 @@ Not built in F2, but the keys are settled now, so a phone writing a draft today 
 - `send: auto` means a computer running Instrument sends this draft as soon as it sees it. Without the field a draft is just a draft, and only the person sends it: a reply draft found at launch or arriving from another device goes into its chat's message box, ready to send, and is never sent on its own.
 - Where a chat has more than one reply draft, the newest fills the box and a small control above it says how many others there are and swaps one in. None is ever merged into another or dropped.
 - `sendOn: <device id>` names the one device that sends a `send: auto` draft, and such a draft always carries it: a phone names the computer the person picked. Nothing is inferred from which device wrote last, so two computers can never send one draft, and a draft whose computer is away simply waits, which the phone can say plainly.
-- The sending device appends the message, naming `fromDraft`, before it moves files or removes the draft folder, so the records are what "sent" means. Another device learns a draft was sent by finding the message that names it, which is also how a phone's own edit is reconciled when a send was already under way.
+- The sending device appends the message, naming `fromDraft`, before it removes the draft folder, so the records are what "sent" means. The message carries what was pasted with it, so there is nothing left to move once it is written; moving files after the append is what F3's `{pasted}` shape is for, since a path relative to the chat folder is what survives the move. Another device learns a draft was sent by finding the message that names it, which is also how a phone's own edit is reconciled when a send was already under way.
 - `.instrument/devices/<device id>.json` (`{name, platform, app, seenAt}`) is written only by the device it names, at launch, at quit, and at most every quarter of an hour while the app runs. It is there so a phone can say "Sends on Jeremy's MacBook Pro", and it never decides anything: a stale `seenAt` must not strand a draft, and a send happens when the named device next runs.
 
 ## Attachments by reference
@@ -134,7 +135,7 @@ Not built in F2, but the keys are settled now, so a phone writing a draft today 
 
 All after the records converter, each safe to run again, moving into a free name and never over a file:
 
-- `.instrument/drafts/<id>/` to `Drafts/<date>/DRAFT.md` (the old `draft.md` and `settings.json` merged into front matter; window pointers by id).
+- `.instrument/drafts/<id>/` to `Drafts/<date>/DRAFT.md` (the old `draft.md` and `settings.json` merged into front matter; window pointers were already by id, so nothing points at a folder). Every file the old folder held moves with the draft, named or not: the folder it is leaving is one nothing reads again.
 - `.instrument/topics/<Name>/` to `Topics/<Name>/TOPIC.md`; granted folders into `permissions.json`.
 - `.instrument/memory/`, `.instrument/skills/`, `.instrument/apps/<slug>/` (to `Apps/<name>/APP.md`) out to the top.
 - A folder per existing chat, with `CHAT.md`; its record-folder `attachments/` and `handoff-notes.md` move into it.
@@ -159,6 +160,7 @@ After records phases 1 to 5, since everything here reads and writes the new reco
 | F1 | Chat folders: lifecycle, `CHAT.md` renderer and writer, output folder and handoff notes moved, folders for every existing chat | A converted clone of a real install has a folder and `CHAT.md` for every chat; renders are byte-identical across runs |
 | F1, still to build | The writer on the end of a turn and the rename once the title settles, which today only the launch sweep does; `$INSTRUMENT_OUTPUT` and `handoff-notes.md` moved into the chat's folder, which needs the folder mounted for the agent (`workspace-fs-layout.ts`) and the prompt's output folder pointed at it | A turn's own writes reach `CHAT.md` without a relaunch; the agent writes its notes and its finished work in the chat's folder |
 | F2 | Drafts: `DRAFT.md`, both sequences, several per chat, crash-safe Send, migration | Both sequences driven in the app, with a crash injected between each step of Send |
+| F2, still to build | The control over a chat's box saying how many other replies are waiting and swapping one in, which is the only way to reach a chat's older reply drafts; `Drafts/` reached by the agent, which is the workspace's top level and so waits for the folder the person picks | A chat with three replies waiting can be sent any of them |
 | F3 | Attachments by reference: file grants on all three systems, pasted files, stored shape, the copy and `$INSTRUMENT_ATTACHMENTS` removed, migration | The agent edits an attached file in place on macOS and Linux, and on Windows through the shell and file tools |
 | F4 | `TOPIC.md`, `Memory/`, `Skills/`, `APP.md`, instructions by threshold, `.instrument` closed with no exceptions | A test asserts a chat reaches nothing inside `.instrument`; approvals survive the move |
 | F5 | Missing-folder notice | Deleting each key folder in Finder shows the notice, and dismissing it sticks |

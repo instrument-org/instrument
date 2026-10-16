@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { isRecord, splitFrontmatter } from "../skills";
 
@@ -31,6 +31,19 @@ export interface DraftAttached {
   size?: number;
 }
 
+/** The keys this build writes, and so the ones that are nobody else's. */
+const OWN_KEYS = new Set([
+  "attached",
+  "chat",
+  "created",
+  "id",
+  "send",
+  "sendOn",
+  "state",
+  "topic",
+  "updated",
+]);
+
 export interface DraftFile {
   /** What the draft was given, each by its path; see {@link DraftAttached}. */
   attached?: DraftAttached[];
@@ -39,6 +52,13 @@ export interface DraftFile {
   /** When the draft was started, which its folder is named for. */
   created: Date;
   id: string;
+  /**
+   * Front matter this build does not write, kept as it was found. A draft is
+   * a file two programs write: the phone, a newer build, or the person with
+   * an editor. Dropping a key on the way through would lose their work
+   * silently, so what comes in unrecognized goes back out.
+   */
+  others?: Record<string, unknown>;
   /**
    * `auto` means a computer running Instrument sends this draft as soon as it
    * sees it, and `sendOn` names the one computer that may. Reserved: no build
@@ -94,6 +114,9 @@ export function parseDraftFile(
   }
   const created = dateOf(front.created) ?? at;
   const updated = dateOf(front.updated);
+  const others = Object.fromEntries(
+    Object.entries(front).filter(([key]) => !OWN_KEYS.has(key)),
+  );
   return {
     ...(attachedOf(front.attached)
       ? { attached: attachedOf(front.attached) }
@@ -103,6 +126,7 @@ export function parseDraftFile(
       : {}),
     created,
     id,
+    ...(Object.keys(others).length > 0 ? { others } : {}),
     ...(front.send === "auto" ? { send: "auto" as const } : {}),
     ...(typeof front.sendOn === "string" && front.sendOn
       ? { sendOn: front.sendOn }
@@ -158,6 +182,12 @@ export function renderDraftFile(draft: DraftFile): string {
   }
   if (draft.state && Object.keys(draft.state).length > 0) {
     lines.push(`state: ${JSON.stringify(draft.state)}`);
+  }
+  // Last, and in a fixed order, so a key this build does not know keeps its
+  // value and its shape without moving the keys above it from one save to
+  // the next.
+  if (draft.others && Object.keys(draft.others).length > 0) {
+    lines.push(stringifyYaml(draft.others, { sortMapEntries: true }).trimEnd());
   }
   lines.push("---", "", `${draft.words}\n`);
   return lines.join("\n");

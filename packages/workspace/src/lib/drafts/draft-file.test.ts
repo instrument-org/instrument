@@ -39,6 +39,39 @@ describe("a draft's file", () => {
     `);
   });
 
+  it("keeps front matter it does not know, so another writer's key survives", () => {
+    const written = parseDraftFile(
+      [
+        "---",
+        'id: "01KFDRAFT0000000000000001"',
+        "created: 2026-10-14T18:22:04.000Z",
+        "voice: true",
+        "reminder:",
+        "  at: 2026-10-15T09:00:00.000Z",
+        "  every: weekday",
+        "---",
+        "",
+        "Find a quiet dishwasher.",
+        "",
+      ].join("\n"),
+      { at: AT },
+    );
+    expect(written?.others).toEqual({
+      reminder: { at: "2026-10-15T09:00:00.000Z", every: "weekday" },
+      voice: true,
+    });
+    // Back out whole, after the keys this build writes, with the nesting
+    // the other writer gave it.
+    expect(renderDraftFile({ ...draft(), others: written?.others })).toContain(
+      ["reminder:", "  at: 2026-10-15T09:00:00.000Z", "  every: weekday"].join(
+        "\n",
+      ),
+    );
+    expect(roundTrip({ ...draft(), others: written?.others })?.others).toEqual(
+      written?.others,
+    );
+  });
+
   it("names the chat a reply goes into, and the topic a new chat opens under", () => {
     expect(
       renderDraftFile(

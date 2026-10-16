@@ -159,8 +159,30 @@ export function writeDraftFile(file: string, draft: DraftFile): void {
     path.dirname(file),
     `.~${path.basename(file)}.${process.pid.toString()}.tmp`,
   );
-  fs.writeFileSync(temp, renderDraftFile(draft), "utf8");
+  fs.writeFileSync(temp, renderDraftFile(withOthersKept(file, draft)), "utf8");
   fs.renameSync(temp, file);
+}
+
+/**
+ * The draft with whatever front matter the file already held that this build
+ * does not write. The window hands over what it knows, which is this build's
+ * keys and no others, so the keeping is done here: every write goes through
+ * this one place, whoever asked for it, and a key the phone or a newer build
+ * left is still there afterwards. What the caller carries wins, so a key that
+ * becomes one of ours takes its new value.
+ */
+function withOthersKept(file: string, draft: DraftFile): DraftFile {
+  let text: string;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return draft;
+  }
+  const others = {
+    ...parseDraftFile(text, { at: draft.updated })?.others,
+    ...draft.others,
+  };
+  return Object.keys(others).length > 0 ? { ...draft, others } : draft;
 }
 
 /**

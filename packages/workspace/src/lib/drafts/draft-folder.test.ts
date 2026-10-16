@@ -44,6 +44,44 @@ function at({ file }: DraftOnDisk): string {
 }
 
 describe("the drafts folder", () => {
+  it("keeps a key another writer left, through a save that knows nothing about it", () => {
+    const file = path.join(rootDir, "Drafts", "2026-10-14", "DRAFT.md");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      [
+        "---",
+        'id: "d1"',
+        "created: 2026-10-14T18:22:04.000Z",
+        "voice: true",
+        "---",
+        "",
+        "Find a quiet dishwasher.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    // The window hands over this build's keys and no others, the way it
+    // would after the person typed another word.
+    writeDraftFile(
+      file,
+      draft({ words: "Find a quiet dishwasher under 900." }),
+    );
+
+    expect(fs.readFileSync(file, "utf8")).toMatchInlineSnapshot(`
+      "---
+      id: "d1"
+      created: 2026-10-14T18:22:04.000Z
+      updated: 2026-10-14T18:22:04.000Z
+      voice: true
+      ---
+
+      Find a quiet dishwasher under 900.
+      "
+    `);
+  });
+
   it("names a draft's folder for the day it was started", () => {
     expect(
       at(ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE })),

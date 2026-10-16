@@ -1,9 +1,12 @@
 import { constants } from "node:fs";
 import fs from "node:fs/promises";
+import path from "node:path";
 
+import { HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
+import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { handoffNotesPath } from "./chat-dir-utils";
-import { chatDir } from "./record-folders";
+import { chatDir, chatOwnFolder } from "./record-folders";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
 import { shellPath } from "./workspace-fs-layout";
 
@@ -23,7 +26,24 @@ import { shellPath } from "./workspace-fs-layout";
  * not a deliverable the user asked for, and they go wherever it goes.
  */
 export function agentHandoffNotesPath(chatId: ChatId): string {
-  return shellPath(handoffNotesPath(chatDir(chatId)));
+  return shellPath(notesPathFor(chatId));
+}
+
+/**
+ * Where a chat's handoff notes are: its own folder under `Chats/`, beside
+ * the transcript and what it made, and the record folder for a chat that
+ * has no folder yet.
+ *
+ * They moved out of the record folder because `.instrument/` closes to the
+ * agent entirely, and these are the one file in there it wrote. A person
+ * reading the folder meets them as what they are, the agent's own notes on
+ * the conversation, rather than as something hidden from them.
+ */
+function notesPathFor(chatId: ChatId): AbsolutePath {
+  const own = chatOwnFolder(chatDir(chatId));
+  return own === undefined
+    ? handoffNotesPath(chatDir(chatId))
+    : AbsolutePathSchema.parse(path.join(own, HANDOFF_NOTES_FILE_NAME));
 }
 
 /**
@@ -99,7 +119,7 @@ export async function readHandoffNotes(
 ): Promise<string | undefined> {
   try {
     const handle = await fs.open(
-      handoffNotesPath(chatDir(chatId)),
+      notesPathFor(chatId),
       // Windows has neither flag, and no sandbox for the agent's programs
       // either, so it reads the file as it finds it.
       constants.O_RDONLY |

@@ -193,12 +193,19 @@ describe("refreshPythonBaseIfDue", () => {
     writeState({ ...state, checkedAt: Date.now() - days * DAY_MS });
     const { checkedAt, failedAt } = readState();
     refreshPythonBaseIfDue();
-    await vi.waitFor(() => {
-      const next = readState();
-      expect(next.checkedAt !== checkedAt || next.failedAt !== failedAt).toBe(
-        true,
-      );
-    });
+    // The refresh writes the state file from a promise of its own, so the
+    // wait is on a real write landing. A second, which is what the default
+    // gives it, is not enough of one on a machine running the whole suite at
+    // once.
+    await vi.waitFor(
+      () => {
+        const next = readState();
+        expect(next.checkedAt !== checkedAt || next.failedAt !== failedAt).toBe(
+          true,
+        );
+      },
+      { timeout: 10_000 },
+    );
   }
 
   it("does nothing within a week of the last check", async () => {

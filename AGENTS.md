@@ -17,6 +17,8 @@ pnpm monorepo for the Instrument desktop app platform. The public website is htt
 
 Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs) are written in conversational plain language: full sentences, said the way you would say them out loud to a friend. Keep it short, and keep the grammar. Read the line aloud, and if no one would say it that way, rewrite it.
 
+These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few ("Send", not "Stop and send what you said"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
+
 What to avoid:
 
 - **Telegraphic sentences** that drop the subject or the small words to sound punchy: "Adds to what Instrument already knows." Say what does it: "Importing adds to what Instrument remembers."

@@ -131,6 +131,13 @@ export interface PromptInputRef {
    */
   restoreItems: (items: AttachedItem[]) => void;
   snapshot: () => PromptInputDraft;
+  /**
+   * Puts another draft in the box, words and attachments both, over whatever
+   * is in it: for a chat with several replies waiting, where picking one is
+   * itself the ask to replace what is there. {@link restore}, which keeps the
+   * user's own words, is the other half of that pair.
+   */
+  swapIn: (draft: PromptInputDraft) => void;
 }
 
 interface PromptInputProps {
@@ -563,6 +570,10 @@ export const PromptInput = ({
       items: attachedItems,
       prompt: promptEditorRef.current?.getValue() ?? "",
     }),
+    swapIn: (draft) => {
+      promptEditorRef.current?.setValue(draft.prompt);
+      setAttachedItems(draft.items);
+    },
   }));
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");

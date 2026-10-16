@@ -196,6 +196,18 @@ export function replyDraftOf(
 }
 
 /**
+ * A chat's replies waiting to be sent, the one in its box first and the rest
+ * newest first after it: what the control over the box counts and offers.
+ */
+export function replyDraftsOf(drafts: Draft[], chatId: ChatId): Draft[] {
+  const inTheBox = replyDraftOf(drafts, chatId);
+  const rest = drafts
+    .filter((draft) => draft.chatId === chatId && draft.id !== inTheBox?.id)
+    .toSorted((one, other) => other.updatedAt - one.updatedAt);
+  return inTheBox ? [inTheBox, ...rest] : rest;
+}
+
+/**
  * The drafts being sent, which are not deleted for having no words: the box
  * empties on submit, a beat before the send lands, and a send that fails
  * puts the words back into the draft they came from.
@@ -254,6 +266,56 @@ export function forgetChatDraftWords(chatId: ChatId) {
   draftWordsWrites.delete(`chat:${chatId}`);
   chatDraftWordsAtom.remove(chatId);
 }
+
+/**
+ * Puts one of a chat's waiting replies in its box. The box holds the newest
+ * of them, so the one picked is stamped now; the one leaving keeps the stamp
+ * it had, since stamped now as well it would be the newest again and go
+ * straight back in.
+ *
+ * Answers with the draft now in the box, because the composer has to be
+ * given its words and what was attached to it: the document in the box is
+ * the editor's own, and nothing here can write it.
+ */
+export const swapInReplyDraftAtom = atom(
+  null,
+  (
+    get,
+    set,
+    { chatId, draftId }: { chatId: ChatId; draftId: string },
+  ): Draft | undefined => {
+    const leaving = replyDraftOf(get(draftsAtom), chatId);
+    if (leaving?.id === draftId) {
+      return leaving;
+    }
+    // Read while the box is still the leaving draft's, and written to that
+    // draft below. The write that was pending for it is dropped here rather
+    // than left to the box's own setter further down: what must not happen
+    // is a write made against the old box landing a beat after the swap.
+    const words = get(chatDraftWordsAtom(chatId));
+    const key = `chat:${chatId}`;
+    clearTimeout(draftWordsWrites.get(key));
+    draftWordsWrites.delete(key);
+    set(draftsAtom, (current) =>
+      current.map((draft) => {
+        if (draft.id === draftId) {
+          return { ...draft, updatedAt: Date.now() };
+        }
+        return draft.id === leaving?.id && draft.words !== words
+          ? { ...draft, words }
+          : draft;
+      }),
+    );
+    const picked = get(draftsAtom).find((draft) => draft.id === draftId);
+    if (picked) {
+      // The box reads what was last typed in it before it reads the draft,
+      // so those words are replaced rather than left standing over the reply
+      // just swapped in.
+      set(chatDraftWordsAtom(chatId), picked.words);
+    }
+    return picked;
+  },
+);
 
 /** The drafts with the chat's reply as these words say it stands. */
 function keptReply(current: Draft[], chatId: ChatId, words: string): Draft[] {

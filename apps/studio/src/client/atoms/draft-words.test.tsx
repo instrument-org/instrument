@@ -11,6 +11,8 @@ import {
   forgetDraftWords,
   holdDraftWhileSending,
   replyDraftOf,
+  replyDraftsOf,
+  swapInReplyDraftAtom,
 } from "./window";
 
 const DRAFT: Draft = { createdAt: 0, id: "d1", updatedAt: 0, words: "kept" };
@@ -149,3 +151,76 @@ describe("the words in a chat's own box", () => {
     expect(store.get(chatDraftWordsAtom(CHAT))).toBe("two");
   });
 });
+
+describe("a chat with several replies waiting", () => {
+  const WAITING: Draft[] = [
+    { chatId: CHAT, createdAt: 1, id: "first", updatedAt: 1, words: "one" },
+    { chatId: CHAT, createdAt: 2, id: "second", updatedAt: 2, words: "two" },
+    { chatId: CHAT, createdAt: 3, id: "third", updatedAt: 3, words: "three" },
+    { createdAt: 4, id: "new-chat", updatedAt: 99, words: "elsewhere" },
+  ];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    forgetChatDraftWords(CHAT);
+    vi.useRealTimers();
+  });
+
+  it("lists its replies with the one in its box first", () => {
+    expect(replyDraftsOf(WAITING, CHAT).map((draft) => draft.id)).toEqual([
+      "third",
+      "second",
+      "first",
+    ]);
+  });
+
+  it("puts the reply picked in the box", () => {
+    const store = createStore();
+    store.set(draftsAtom, WAITING);
+
+    const picked = store.set(swapInReplyDraftAtom, {
+      chatId: CHAT,
+      draftId: "first",
+    });
+
+    expect(picked?.words).toBe("one");
+    expect(replyDraftOf(store.get(draftsAtom), CHAT)?.id).toBe("first");
+    expect(store.get(chatDraftWordsAtom(CHAT))).toBe("one");
+  });
+
+  it("keeps the words typed into the one leaving, where they belong", () => {
+    const store = createStore();
+    store.set(draftsAtom, WAITING);
+    // Typed a moment ago, so its write to the record is still pending.
+    store.set(chatDraftWordsAtom(CHAT), "three, and more");
+
+    store.set(swapInReplyDraftAtom, { chatId: CHAT, draftId: "first" });
+    vi.advanceTimersByTime(300);
+
+    expect(wordsOf(store.get(draftsAtom))).toEqual({
+      first: "one",
+      "new-chat": "elsewhere",
+      second: "two",
+      third: "three, and more",
+    });
+  });
+
+  it("is left as it is by picking the one already in the box", () => {
+    const store = createStore();
+    store.set(draftsAtom, WAITING);
+
+    const picked = store.set(swapInReplyDraftAtom, {
+      chatId: CHAT,
+      draftId: "third",
+    });
+
+    expect(picked?.id).toBe("third");
+    expect(store.get(draftsAtom)).toEqual(WAITING);
+  });
+});
+
+function wordsOf(drafts: Draft[]): Record<string, string> {
+  return Object.fromEntries(drafts.map((draft) => [draft.id, draft.words]));
+}

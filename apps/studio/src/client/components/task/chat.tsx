@@ -9,6 +9,7 @@ import {
   forgetChatDraftWords,
   holdDraftWhileSending,
   replyDraftOf,
+  swapInReplyDraftAtom,
 } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
@@ -31,7 +32,7 @@ import {
   type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   type ComponentProps,
   type ReactNode,
@@ -48,6 +49,7 @@ import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
 import { ModelChangeNote } from "../model-change-note";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
+import { RepliesWaiting } from "../replies-waiting";
 import { ReplyContext } from "../reply-context";
 import { ComposerReplyQuote } from "../reply-quote";
 import { TranscriptScrollContext } from "../transcript-scroll-context";
@@ -374,6 +376,27 @@ export function ChatConversation({
       );
     },
   });
+  const swapInReplyDraft = useSetAtom(swapInReplyDraftAtom);
+  /**
+   * Puts one of the chat's other waiting replies in the box: the draft
+   * becomes the newest, which is the one the box reads, and the box is given
+   * its words and what was attached to it.
+   */
+  const swapInReply = (draftId: string) => {
+    if (draftKey.scope !== "chat") {
+      return;
+    }
+    const picked = swapInReplyDraft({ chatId: draftKey.chatId, draftId });
+    if (!picked) {
+      return;
+    }
+    promptInputRef.current?.swapIn({
+      items: itemsOf(picked),
+      prompt: picked.words,
+    });
+    promptEditor?.focus();
+    promptEditor?.moveCaretToEnd();
+  };
   // What the chat's reply draft holds besides its words is drawn back into
   // the box as the chat opens: its words come from the draft on their own,
   // and what was pasted into it would otherwise be in the draft's folder
@@ -640,6 +663,12 @@ export function ChatConversation({
               as the composer it belongs to. */}
               {beforeComposer}
               <PermissionAsksFoot chatId={id} messages={shownMessages} />
+              {draftKey.scope === "chat" && (
+                <RepliesWaiting
+                  chatId={draftKey.chatId}
+                  onSwapIn={swapInReply}
+                />
+              )}
               {replyTo && (
                 <ComposerReplyQuote
                   onDismiss={() => {

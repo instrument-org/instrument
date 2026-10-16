@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -412,6 +413,35 @@ function reachTable(p: Paths) {
   ] as const;
 }
 
+/**
+ * Everything inside the workspace's `.instrument/` the agent can still reach,
+ * each as `<path under the workspace> (read|write)`. Every path there on disk
+ * is asked about, and every path a rule names there whether anything has
+ * written it yet or not, so a folder opened by a rule nobody listed is caught
+ * too.
+ */
+function reachedInsideAppData(rules: Rules, paths: Paths): string[] {
+  const dataDir = paths.data.dataDir;
+  const probes = new Set([
+    ...readdirSync(dataDir, { recursive: true }).map((entry) =>
+      path.join(dataDir, entry.toString()),
+    ),
+    ...rules.rules
+      .map((rule) => rule.path)
+      .filter((named) => pathIsWithin(named, dataDir)),
+  ]);
+  return [...probes]
+    .flatMap((probe) =>
+      (["read", "write"] as const)
+        .filter((op) => reachOf(rules, probe, op).level !== "never")
+        .map(
+          (op) =>
+            `${path.relative(paths.workspace, probe).split(path.sep).join("/")} (${op})`,
+        ),
+    )
+    .toSorted();
+}
+
 describe.each(SHAPES)("the app's data $name", (shape) => {
   const paths = homeShaped(shape.appFiles, shape.workspace);
   // Set as the cases are collected, since each builds its layout from the
@@ -507,6 +537,25 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         ) + " (allow)",
       ]);
     });
+
+    // The same two, as paths the agent asks for rather than as rules: the
+    // reach of everything written in there, under every rule the person
+    // could have, since nothing they allow around the app's data opens
+    // anything in it.
+    it.each(personRules(paths))(
+      "is the same two paths and no others under $name",
+      (person) => {
+        const chat = ".instrument/chats/2026-10-13-chat";
+        expect(
+          reachedInsideAppData(layoutUnder(paths, person).rules, paths),
+        ).toEqual([
+          `${chat}/attachments (read)`,
+          `${chat}/attachments/a.pdf (read)`,
+          `${chat}/handoff-notes.md (read)`,
+          `${chat}/handoff-notes.md (write)`,
+        ]);
+      },
+    );
   });
 
   describe("the file tools and the shell", () => {

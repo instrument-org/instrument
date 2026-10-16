@@ -6,10 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import {
-  getWorkspaceConfig,
-  setWorkspaceConfig,
-} from "../workspace-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { logFileName, marksFileName } from "../records/file-names";
 import { type LogRecord, type MarkRecord, recordLine } from "../records/record";
 import {
@@ -228,6 +225,23 @@ describe("every chat gets a folder", () => {
       (await fs.stat(path.join(chatsFolder(), "Dishwashers", CHAT_FILE_NAME)))
         .mtimeMs,
     ).toBe(written.mtimeMs);
+  });
+
+  it("deletes a sync engine's copy of a transcript it is not rewriting", async () => {
+    await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
+    await sweep();
+    const folder = path.join(chatsFolder(), "Dishwashers");
+    const file = path.join(folder, CHAT_FILE_NAME);
+    await fs.copyFile(file, path.join(folder, "CHAT 2.md"));
+    await fs.writeFile(path.join(folder, "CHAT-notes.md"), "Mine.\n");
+
+    const again = await sweep();
+
+    expect(again.counts["already-there"]).toBe(1);
+    expect((await fs.readdir(folder)).toSorted()).toEqual([
+      "CHAT-notes.md",
+      CHAT_FILE_NAME,
+    ]);
   });
 
   it("renders the same bytes on a second run", async () => {

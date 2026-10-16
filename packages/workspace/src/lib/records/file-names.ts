@@ -46,7 +46,7 @@ export type RecordFileName =
   | { copy?: string; device: DeviceId; kind: "marks" };
 
 /** What a sync engine adds to a name it keeps two versions under. */
-const COPY_PATTERN = [
+export const COPY_PATTERN = [
   " [0-9]+",
   " \\([^)]*\\)",
   "-[^.]+",

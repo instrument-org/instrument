@@ -1,4 +1,3 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parallel } from "radashi";
@@ -14,7 +13,9 @@ import { readChatRecord, updateChatRecord } from "../chat-record";
 import { chatFolderTheyOpen } from "../chat/output-folder";
 import { foldChatInFolder } from "../records/fold-folder";
 import { ensureChatFolder, writeChatFile } from "./chat-folder";
+import { chatLinkedInFile } from "./chat-link";
 import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
+import { deleteChatFileConflictCopies } from "./conflict-copies";
 
 /**
  * Gives every chat in a workspace its own folder and `CHAT.md`, from the
@@ -33,7 +34,8 @@ import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
  * back where they put it. {@link foldersToAdopt} says what has to hold first.
  *
  * Files the chats already made stay where they are. Nothing is moved into the
- * new folder here.
+ * new folder here, and nothing is deleted but a sync engine's copy of a
+ * transcript (conflict-copies.ts).
  */
 
 /** What one chat's folder came to. */
@@ -65,13 +67,6 @@ const CHATS_AT_ONCE = 8;
  * many.
  */
 const FOLDERS_AT_ONCE = 8;
-
-/** How much of a `CHAT.md` is read to find the chat it links to. */
-const LINK_HEAD_BYTES = 2048;
-
-/** The chat a `CHAT.md` names, in its front matter and then in its link. */
-const CHAT_KEY = /^chat:\s*"?([^"\n]+?)"?\s*$/m;
-const CHAT_LINK = new RegExp(`${APP_NAME_SLUG}://chat/([^)\\s]+)`);
 
 export async function sweepChatFolders({
   chatsDir,
@@ -221,6 +216,10 @@ async function sweepChatFolder({
       title: chatTitleOf(chat),
     });
     await moveAttachmentsIn(dir, folder.path);
+    // Before the transcript is compared, not after: a run that writes
+    // nothing is most of them, and a copy left beside the file we are not
+    // rewriting is exactly the one nothing else would ever notice.
+    await deleteChatFileConflictCopies({ folder: folder.path, id });
     if (
       record.settings?.folder === folder.name &&
       (await alreadyReads(folder.path, markdown))
@@ -298,7 +297,7 @@ async function foldersToAdopt({
     { limit: FOLDERS_AT_ONCE },
     unclaimed,
     async (name) => ({
-      id: await chatLinkedFrom(path.join(chats, name)),
+      id: await chatLinkedInFile(path.join(chats, name, CHAT_FILE_NAME)),
       name,
     }),
   );
@@ -314,38 +313,6 @@ async function foldersToAdopt({
       first !== undefined && rest.length === 0 ? [[id, first] as const] : [],
     ),
   );
-}
-
-/**
- * The chat a folder's `CHAT.md` links to, from the head of the file: the
- * front matter and the line under it, however the rest of the transcript
- * reads.
- */
-async function chatLinkedFrom(folder: string): Promise<ChatId | undefined> {
-  let head: string;
-  try {
-    const handle = await fs.open(path.join(folder, CHAT_FILE_NAME), "r");
-    try {
-      const read = await handle.read({
-        buffer: Buffer.alloc(LINK_HEAD_BYTES),
-        position: 0,
-      });
-      head = read.buffer.toString("utf8", 0, read.bytesRead);
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return undefined;
-  }
-  // The key first, since that is where the chat is named; the link after it
-  // for a file written before the key was, which is every folder the update
-  // made and any a person is holding from an older build.
-  const named = CHAT_KEY.exec(head)?.[1] ?? CHAT_LINK.exec(head)?.[1];
-  if (named === undefined) {
-    return undefined;
-  }
-  const id = ChatIdSchema.safeParse(named);
-  return id.success ? id.data : undefined;
 }
 
 /** Whether the folder's `CHAT.md` is already these bytes. */

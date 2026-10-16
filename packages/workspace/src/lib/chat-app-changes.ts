@@ -32,7 +32,7 @@ export async function currentChatApps(): Promise<ChatAppsBaseline> {
       app.slug,
       {
         connected: isConnected(connections[app.slug], app.manifestHash),
-        name: app.manifest.name,
+        name: app.name,
         ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
       },
     ]),

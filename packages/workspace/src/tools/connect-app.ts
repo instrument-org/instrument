@@ -3,8 +3,8 @@ import { ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { APP_FILE_NAME } from "../lib/apps/app-file";
 import { recordConnection } from "../lib/apps/connection";
-import { APP_GUIDE_FILE_NAME } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
 import {
@@ -33,7 +33,7 @@ export const ConnectApp = setupTool({
         "One sentence, addressed to the user, saying what connecting it lets you do for them: 'So I can read and write your Notion pages.'",
     }),
     slug: z.string().meta({
-      description: `The app to connect: its folder name in the apps folder, already written.`,
+      description: `The app to connect: the \`id\` in the ${APP_FILE_NAME} you have already written for it.`,
     }),
   }),
   name: "connect_app",
@@ -84,7 +84,7 @@ export const ConnectApp = setupTool({
         state: "failure" as const,
       });
     }
-    const { dir, manifest, slug } = loaded.value;
+    const { dir, manifest, name, slug } = loaded.value;
     // The test that runs once the user has acted fails on an API app's
     // unwritten guide, so a card asked for before it is written puts that
     // failure in front of the user, after their click, as something they
@@ -97,8 +97,8 @@ export const ConnectApp = setupTool({
       return ok({
         message:
           guide === null
-            ? `${shellPath(dir)}/${APP_GUIDE_FILE_NAME} is missing: what ${manifest.name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
-            : `${shellPath(dir)}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${manifest.name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+            ? `The guide in ${shellPath(dir)}/${APP_FILE_NAME} is missing: what ${name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
+            : `The guide in ${shellPath(dir)}/${APP_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
         slug,
         state: "failure" as const,
       });
@@ -136,7 +136,7 @@ export const ConnectApp = setupTool({
     }
     return ok({
       kind,
-      name: manifest.name,
+      name,
       ...(manifest.type === "mcp-local"
         ? { runs: describeLocalLaunch(manifest) }
         : {}),

@@ -17,7 +17,6 @@ vi.mock("execa");
 
 const manifest = AppManifestSchema.parse({
   auth: { kind: "none" },
-  name: "Drafts",
   package: "@agiletortoise/drafts-mcp-server",
   runtime: "node",
   type: "mcp-local",

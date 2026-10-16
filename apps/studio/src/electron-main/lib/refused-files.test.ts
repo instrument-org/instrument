@@ -231,7 +231,12 @@ describe("isRecordPath", () => {
       data("skills", "brief", "SKILL.md"),
       true,
     ],
-    ["an app's setup", data("apps", "linear", "app.json"), false],
+    ["an app in Apps", "/Users/sam/Instrument/Apps/Linear/APP.md", false],
+    [
+      "what a build left in the folder apps were hidden in",
+      data("apps", "linear", "app.json"),
+      true,
+    ],
     ["a memory in Memory", "/Users/sam/Instrument/Memory/no-stevia.md", false],
     [
       "what a build left in the folder memories were hidden in",

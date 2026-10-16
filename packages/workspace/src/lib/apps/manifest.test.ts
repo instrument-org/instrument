@@ -4,7 +4,6 @@ import { AppManifestSchema, isMcpManifest } from "./manifest";
 
 const local = {
   auth: { kind: "none" },
-  name: "Drafts",
   package: "@agiletortoise/drafts-mcp-server",
   runtime: "node",
   type: "mcp-local",
@@ -101,13 +100,11 @@ describe("a local MCP app's manifest", () => {
 describe("a web app's manifest", () => {
   it("takes a site and an optional sign-in page, and is not an MCP app", () => {
     const parsed = AppManifestSchema.parse({
-      name: "Zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
       url: "https://zoom.us",
     });
     expect(parsed).toEqual({
-      name: "Zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
       url: "https://zoom.us",
@@ -125,8 +122,7 @@ describe("a web app's manifest", () => {
     ],
   ])("refuses %s", (_what, fields) => {
     expect(
-      AppManifestSchema.safeParse({ name: "Zoom", type: "web", ...fields })
-        .success,
+      AppManifestSchema.safeParse({ type: "web", ...fields }).success,
     ).toBe(false);
   });
 });

@@ -16,6 +16,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
 import { recordAsk, recordQuestion } from "./asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -1439,16 +1440,20 @@ describe("liveChatList", () => {
     // No apps folder yet: nothing is known, so nothing is filtered.
     expect(first?.[0]?.holds.apps).toEqual(["linear"]);
 
-    fs.mkdirSync(path.join(appsDir, "drafts"), { recursive: true });
+    fs.mkdirSync(path.join(appsDir, "Drafts"), { recursive: true });
     fs.writeFileSync(
-      path.join(appsDir, "drafts", "app.json"),
-      JSON.stringify({
-        auth: { kind: "none" },
-        name: "Drafts",
-        package: "@agiletortoise/drafts-mcp-server",
-        runtime: "node",
-        type: "mcp-local",
-      }),
+      path.join(appsDir, "Drafts", APP_FILE_NAME),
+      [
+        "---",
+        "id: drafts",
+        "type: mcp-local",
+        "package: '@agiletortoise/drafts-mcp-server'",
+        "runtime: node",
+        "auth:",
+        "  kind: none",
+        "---",
+        "",
+      ].join("\n"),
     );
     publisher.publish("app.updated", null);
 

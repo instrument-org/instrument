@@ -23,9 +23,11 @@ import {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   type ChatRecordsSplit,
   closeAllAgentBrowserSessions,
+  convertAppsToAppFiles,
   type DeviceId,
   ensurePythonBase,
   giveChatsTheirFolders,
+  moveAppsToFolder,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
@@ -54,6 +56,7 @@ import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
+import { appConnectionStore } from "../stores/workspace/app-connections";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
@@ -134,10 +137,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
   await moveFolderOut("Topics", () => moveTopicsToFolder(rootDir));
-  // And once the topics are out, each one's two hidden files become the one
-  // `TOPIC.md` a person reads, which is its own step: the folder moves
-  // whatever is inside it, and a topic already converted is left alone.
+  await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
+  // And once the topics and the apps are out, each one's files become the one
+  // file a person reads, which is its own step: the folder moves whatever is
+  // inside it, and one already converted is left alone.
   await convertTopicFiles(rootDir);
+  await convertAppFiles(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -608,6 +613,34 @@ async function convertTopicFiles(rootDir: string) {
     for (const left of converted.left) {
       logger.warn(
         `Topics: left ${left.where} as it was, and the next launch tries again: ${left.reason}`,
+      );
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
+/**
+ * Turn each app's manifest and guide into the one `APP.md` a person reads and
+ * edits, in a folder named for the app. Runs after the folder itself is out,
+ * for every workspace rather than only one in the app's own data, and carries
+ * each connected app's approval onto the manifest as this build hashes it, so
+ * nothing is asked for again. Idempotent; a failure must not block boot.
+ */
+async function convertAppFiles(rootDir: string) {
+  try {
+    const converted = await convertAppsToAppFiles(rootDir, {
+      connections: appConnectionStore,
+    });
+    for (const line of converted.done) {
+      logger.info(`Apps: ${line}`);
+    }
+    for (const left of converted.left) {
+      logger.warn(
+        `Apps: left ${left.where} as it was, and the next launch tries again: ${left.reason}`,
       );
     }
   } catch (error) {

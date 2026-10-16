@@ -206,11 +206,13 @@ function loadedSkill(name: string): Assertion {
   };
 }
 
-function landedInAppFolder(slug: string, file: string): Assertion {
-  const text = `${file} is in ${slug}'s app folder`;
+function landedInAppFolder(name: string, file: string): Assertion {
+  const text = `${file} is in ${name}'s app folder`;
   return {
     check: () => {
-      const target = path.join(getWorkspaceConfig().appsDir, slug, file);
+      // The folder is the app's name, so that is what the file is looked for
+      // in rather than the slug its `id` carries.
+      const target = path.join(getWorkspaceConfig().appsDir, name, file);
       return fs.existsSync(target)
         ? pass(text, `${fs.statSync(target).size} bytes`)
         : fail(text, `nothing at ${target}`);
@@ -399,7 +401,7 @@ export const CHAT_EVALS = [
   defineEval({
     // A file bound for an app's folder, which the agent writes like any other.
     apps: [{ name: "Beacon", slug: "beacon" }],
-    assertions: [landedInAppFolder("beacon", "icon.png")],
+    assertions: [landedInAppFolder("Beacon", "icon.png")],
     kind: "chat",
     name: "chat-places-a-file-in-an-app-folder",
     prompt:

@@ -13,7 +13,7 @@ import path from "node:path";
 /**
  * Opens a file the app reads or writes as itself in a folder the agent's
  * programs can change: the chat's work folder (a background command's log)
- * or the workspace's apps folder (an app's manifest, guide and icon).
+ * or the workspace's apps folder (an app's own file and its icon).
  *
  * The app runs outside every sandbox, and a program the agent starts can
  * put a symlink at any name in those folders, the folder's own name

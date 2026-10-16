@@ -38,10 +38,9 @@ export function appSiteFor(
     // say what site the thing it reaches belongs to.
     return undefined;
   }
-  const endpoint = manifest.type === "api" ? manifest.baseUrl : manifest.url;
   let url: URL;
   try {
-    url = new URL(endpoint);
+    url = new URL(manifest.url);
   } catch {
     return undefined;
   }

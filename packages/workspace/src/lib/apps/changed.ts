@@ -26,12 +26,13 @@ export async function appChanged(
     return;
   }
   const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
-  const manifest = loaded.isOk() ? loaded.value.manifest : undefined;
+  const app = loaded.isOk() ? loaded.value : undefined;
+  const manifest = app?.manifest;
   publisher.publish("app.event", {
     ...(manifest?.account === undefined ? {} : { account: manifest.account }),
     ...(happened.detail === undefined ? {} : { detail: happened.detail }),
     event: happened.event,
-    name: manifest?.name ?? slug,
+    name: app?.name ?? slug,
     slug,
     // A web app is worked on its own site, which the chat is told.
     ...(manifest?.type === "web" ? { web: manifest.url } : {}),

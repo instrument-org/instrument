@@ -6,7 +6,6 @@ import { localLaunchConfig } from "./connection-config";
 function localManifest(fields: object) {
   const manifest = AppManifestSchema.parse({
     auth: { envVar: "API_TOKEN", kind: "env" },
-    name: "Drafts",
     package: "@agiletortoise/drafts-mcp-server",
     runtime: "node",
     type: "mcp-local",

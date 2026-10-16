@@ -95,6 +95,15 @@ export const MEMORY_FOLDER_NAME = "Memory";
 export const SKILLS_FOLDER_NAME = "Skills";
 
 /**
+ * Where the person's apps are, at the workspace's top level: a folder per
+ * app named for it, each with the `APP.md` that says what it is and what it
+ * is for. One of the six folders a person opens. Here rather than beside the
+ * file's own reader (`lib/apps/app-file.ts`, which re-exports it) because
+ * the workspace's layout names the folder and depends on nothing else.
+ */
+export const APPS_FOLDER_NAME = "Apps";
+
+/**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between
  * the prompt that teaches it and the renderer that draws it, and a fence

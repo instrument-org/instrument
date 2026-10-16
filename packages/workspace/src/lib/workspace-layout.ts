@@ -1,7 +1,7 @@
 import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
+import { APPS_FOLDER_NAME, CHAT_FOLDER_NAMES } from "../constants";
 
 // Depends on nothing of the workspace's but its names, so the app's main
 // process, which reads and writes some of these folders before the workspace
@@ -14,7 +14,12 @@ import { CHAT_FOLDER_NAMES } from "../constants";
  * before they moved in, which the layout sweep relies on.
  */
 export const WORKSPACE_DATA_ENTRIES = {
-  /** One folder per connected app: its setup, never its secrets. */
+  /**
+   * Where earlier builds kept the apps, a folder each named for the app's
+   * slug: its setup in `app.json` and what it is for in `guide.md`. An app is
+   * an `APP.md` in `Apps/` at the workspace's top level now, and this is only
+   * what the migration reads (`lib/apps-move.ts`).
+   */
   apps: "apps",
   /**
    * One record folder per chat, its tasks included: `chat.db`,
@@ -62,13 +67,12 @@ export const WORKSPACE_DATA_ENTRIES = {
 /**
  * What in a workspace's `.instrument/` is the person's own to look at, each
  * as the names below it, `*` standing for any one: what they attached to a
- * chat, and their apps. Everything else there (a chat's database and
- * settings, the workspace's own records, the window's) is the app's, and so
- * is a record folder of its own inside one of these, which carries the same
+ * chat. Everything else there (a chat's database and settings, the
+ * workspace's own records, the window's) is the app's, and so is a record
+ * folder of its own inside one of these, which carries the same
  * `.instrument` name.
  */
 export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
-  [WORKSPACE_DATA_ENTRIES.apps],
   [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
 ];
 
@@ -81,7 +85,13 @@ export function workspaceLayout(workspaceDir: string) {
   const dataDir = path.join(workspaceDir, PRIVATE_FOLDER_NAME);
   const entry = (name: string) => path.join(dataDir, name);
   return {
-    appsDir: entry(WORKSPACE_DATA_ENTRIES.apps),
+    /**
+     * The person's apps, at the workspace's top level rather than in here:
+     * a folder per app, each with the `APP.md` that says what it is. Builds
+     * before this kept them in `.instrument/apps/`, which only the
+     * migration names now (`lib/apps-move.ts`).
+     */
+    appsDir: path.join(workspaceDir, APPS_FOLDER_NAME),
     chatsDir: entry(WORKSPACE_DATA_ENTRIES.chats),
     /**
      * What the app keeps that travels with the workspace: `workspace.json`,

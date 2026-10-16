@@ -22,10 +22,9 @@ import {
   isConnected,
   readConnection,
 } from "../apps/connection";
+import { APP_FILE_NAME } from "../apps/app-file";
 import {
-  APP_GUIDE_FILE_NAME,
   APP_MANIFEST_EXAMPLE,
-  APP_MANIFEST_FILE_NAME,
   type AppManifest,
   AppManifestSchema,
   type AppSlug,
@@ -103,8 +102,11 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
   ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
-      Write <slug>/${APP_MANIFEST_FILE_NAME} in the apps folder, and a ${APP_GUIDE_FILE_NAME} when there is
-      none, from the directory's entry for the service when it has one. An
+      Write the app's ${APP_FILE_NAME} in the apps folder, from the directory's entry
+      for the service when it has one: the setup as front matter over the
+      guide. <slug> is the \`id\` in it, which every ${APP_COMMAND.name} subcommand names the
+      app by; --name names its folder, which is what the user sees and is
+      theirs to rename. An
       MCP app's guide is done as written; an API app's may leave prompts to
       answer with \`${APP_COMMAND.name} guide\`. An MCP app defaults to oauth (a one-click sign-in, no key);
       an API app to bearer, and needs --test, a cheap GET that proves the key.
@@ -123,8 +125,8 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       ${APP_NAME}'s browser, for one with no sign-in the card can open: the
       user signs in there (at --sign-in, when the login page is not the
       url), and a task works the site in a tab. Refuses to overwrite
-      an existing manifest without --force. You can also write the two files
-      yourself with your file tools.
+      an app that is already there without --force. You can also write the
+      file yourself with your file tools.
   ${APP_COMMAND.name} test <slug>
       The red/green loop: manifest, guide, key or sign-in, a scan for secrets in
       the folder, then the service for real. A pass connects the app; a failure
@@ -151,8 +153,9 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       request in a task hands back the app's guide instead; read it, then
       repeat. The body can come on stdin.
   ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
-      The app's ${APP_GUIDE_FILE_NAME}. With the whole file on stdin through a
-      quoted heredoc, write it instead: how an API app's prompts get answered.
+      The app's guide, the body of its ${APP_FILE_NAME}. With the whole guide on stdin
+      through a quoted heredoc, write it instead, leaving the setup above it
+      alone: how an API app's prompts get answered.
   ${APP_COMMAND.name} icon <slug> <file>
       Draw the app with this icon: a square SVG, or a square PNG of at least
       128px, in place of its site's or its Mac app's. For a service whose site
@@ -645,7 +648,7 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
       );
     }
     return ok(
-      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
+      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write the app's ${APP_FILE_NAME} yourself.\n`,
     );
   }
   // Every entry in full runs past what a command's output keeps, and what gets
@@ -679,7 +682,7 @@ async function runDisconnect(args: string[]) {
   const app = await requireApp(args[0], { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
-    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.slug}/ stays; connect_app asks the user again.\n`,
+    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.name}/ stays; connect_app asks the user again.\n`,
   );
 }
 
@@ -695,14 +698,14 @@ async function runGuide(
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
       left.length > 0
-        ? `Wrote ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
-        : `Wrote ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
+        ? `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
+        : `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
     );
   }
   const guide = await readAppGuide(app.dir);
   if (guide === null) {
     throw new Error(
-      `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}.`,
+      `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}.`,
     );
   }
   await markGuideRead(context.chatId, app.slug);
@@ -730,7 +733,7 @@ async function runIcon(args: string[], ctx: SubcommandShell) {
   await writeAppIcon(app.dir, bytes, checked.fileName);
   await appChanged(app.slug);
   return ok(
-    `${app.slug} is drawn with ${appsFolder()}/${app.slug}/${checked.fileName} now, everywhere it appears.\n`,
+    `${app.slug} is drawn with ${appsFolder()}/${app.name}/${checked.fileName} now, everywhere it appears.\n`,
   );
 }
 
@@ -750,15 +753,9 @@ async function runAccount(input: SubcommandInput) {
         : `${app.slug} names no account yet. Name it with \`${APP_COMMAND.name} account ${app.slug} '<account>'\` once you have seen which one it is.\n`,
     );
   }
-  const manifest = await setAppAccount(
-    getWorkspaceConfig().appsDir,
-    app.slug,
-    named,
-  );
+  await setAppAccount(getWorkspaceConfig().appsDir, app.slug, named);
   await appChanged(app.slug);
-  return ok(
-    `${app.slug} is ${manifest.name} (${named}) wherever it appears now.\n`,
-  );
+  return ok(`${app.slug} is ${app.name} (${named}) wherever it appears now.\n`);
 }
 
 async function runList() {
@@ -774,7 +771,7 @@ async function runList() {
   }
   const lines = apps.map(
     (app) =>
-      `${app.slug}  ${app.manifest.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
+      `${app.slug}  ${app.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
   );
   for (const entry of invalid) {
     lines.push(`${entry.slug}  broken manifest: ${entry.message}`);
@@ -879,28 +876,26 @@ async function runNew(input: SubcommandInput) {
   }
   const service = entry ? { service: entry.slug } : {};
   const candidate: unknown = web
-    ? { name, ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
+    ? { ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
     : local
       ? {
           ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
           auth,
           ...(macApp ? { macApp } : {}),
-          name,
           package: local,
           runtime,
           ...service,
           type: "mcp-local",
         }
       : mcp
-        ? { auth, name, ...service, type: "mcp", url: mcp }
+        ? { auth, ...service, type: "mcp", url: mcp }
         : {
             auth,
-            baseUrl: api,
             ...(Object.keys(headers).length > 0 ? { headers } : {}),
-            name,
             ...service,
             test: { path: test ?? "" },
             type: "api",
+            url: api,
           };
   if (api && !test) {
     throw new Error(
@@ -917,7 +912,7 @@ async function runNew(input: SubcommandInput) {
   const existing = await loadApp(appsDir, slug);
   if (existing.isOk() && !force) {
     throw new Error(
-      `${appsFolder()}/${slug}/${APP_MANIFEST_FILE_NAME} already exists. Edit it with your file tools, or pass --force to replace it.`,
+      `${appsFolder()}/${existing.value.name}/${APP_FILE_NAME} is already "${slug}". Edit it with your file tools, or pass --force to replace it.`,
     );
   }
   await refuseWhatCannotConnect(slug, name, manifest);
@@ -925,10 +920,11 @@ async function runNew(input: SubcommandInput) {
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
     existing.isOk() && existing.value.manifest.type !== manifest.type;
-  await writeAppFolder({
+  const dir = await writeAppFolder({
     appsDir,
     guide,
     manifest,
+    name,
     replacesGuide: reachChanged,
     slug,
   });
@@ -962,7 +958,7 @@ async function runNew(input: SubcommandInput) {
       ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`
       : "";
   return ok(
-    `Wrote ${appsFolder()}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
+    `Wrote ${shellPath(dir)}/${APP_FILE_NAME}, the setup over ${existing.isOk() && !reachChanged ? "the guide that was there" : "its guide"}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole guide back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
 }
 
@@ -1065,7 +1061,7 @@ async function runRequest(
     const guide = await readAppGuide(app.dir);
     if (guide === null) {
       throw new Error(
-        `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}: the endpoints and conventions a request needs.`,
+        `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
       );
     }
     await markGuideRead(context.chatId, app.slug);

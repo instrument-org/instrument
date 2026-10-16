@@ -464,10 +464,7 @@ describe("registerWorkspaceFolder", () => {
       recursive: true,
     });
     fs.writeFileSync(
-      path.join(
-        workspaceMachineDirOf(userDataDir, "old"),
-        "permissions.json",
-      ),
+      path.join(workspaceMachineDirOf(userDataDir, "old"), "permissions.json"),
       JSON.stringify({
         folders: [
           {

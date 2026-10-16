@@ -126,4 +126,3 @@ it("reads a file through its own reader as it loads", () => {
     read: true,
   });
 });
-

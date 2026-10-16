@@ -514,7 +514,11 @@ function makeMove({
       moveTheRest({ done, from, to });
       // 5. Stored paths written where they went.
       done.push(
-        ...rewriteStoredPaths({ machineDir, moves: [{ from, to }], rootDir: to }),
+        ...rewriteStoredPaths({
+          machineDir,
+          moves: [{ from, to }],
+          rootDir: to,
+        }),
       );
     }
     // 6. The original's records deleted, and the old folder once empty.

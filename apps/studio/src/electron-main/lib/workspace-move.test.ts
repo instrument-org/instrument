@@ -68,7 +68,10 @@ beforeEach(() => {
     recursive: true,
   });
   fs.writeFileSync(
-    path.join(workspaceMachineDirOf(userDataDir, "default"), "permissions.json"),
+    path.join(
+      workspaceMachineDirOf(userDataDir, "default"),
+      "permissions.json",
+    ),
     JSON.stringify({
       folders: [
         {

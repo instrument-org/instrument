@@ -100,7 +100,9 @@ export async function startRun(
   }
   const message = sent.value;
 
-  const session = (await ChatReads.session({ chatId: chatId, sessionId: sessionId }))._unsafeUnwrap();
+  const session = (
+    await ChatReads.session({ chatId: chatId, sessionId: sessionId })
+  )._unsafeUnwrap();
   (
     await ChatWrites.saveSession(
       { ...session, title: name, updatedAt: new Date() },

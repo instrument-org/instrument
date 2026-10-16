@@ -170,6 +170,8 @@ async function setupWorkspace() {
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(workspaceRoot),
   });
-  await fs.mkdir(path.join(workspaceRoot, SKILLS_FOLDER_NAME), { recursive: true });
+  await fs.mkdir(path.join(workspaceRoot, SKILLS_FOLDER_NAME), {
+    recursive: true,
+  });
   return workspaceRoot;
 }

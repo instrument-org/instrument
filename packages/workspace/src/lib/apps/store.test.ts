@@ -219,7 +219,7 @@ describe("an app's guide", () => {
         "  kind: bearer",
         "test:",
         "  path: /users/me",
-        "colour: aubergine",
+        "color: aubergine",
         "---",
         "",
         "What it was for.",
@@ -239,7 +239,7 @@ describe("an app's guide", () => {
         kind: bearer
       test:
         path: /users/me
-      colour: aubergine
+      color: aubergine
       ---
 
       What it is for now.

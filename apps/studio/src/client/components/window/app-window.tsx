@@ -306,6 +306,9 @@ function WindowShell({
   }, [activeHref, isChat, setChatGroup]);
 
   const compose = useCompose(rowWidth);
+  // The chats floating on screen, which show where they stand themselves, so
+  // the rail's Chat dot leaves them out.
+  const floatingChats = chatsOutOf(compose.placed);
   // A draft is written over the screen, never on it, and a draft with no
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.
@@ -835,7 +838,11 @@ function WindowShell({
             }
             rail={
               <AppRail
-                chatMark={railMarkOf(chats.data ?? [])}
+                chatMark={railMarkOf(
+                  (chats.data ?? []).filter(
+                    (chat) => !floatingChats.has(chat.id),
+                  ),
+                )}
                 onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {

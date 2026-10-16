@@ -29,6 +29,10 @@ import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { ChatWrites } from "../../src/lib/chat-writes";
+import {
+  ChatRecords,
+  installChatRecords,
+} from "../../src/lib/records/chat-records";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { updateChatRecord } from "../../src/lib/chat-record";
@@ -112,6 +116,15 @@ export async function seedWorkspace({
   // `chatDir()` and everything that writes a chat read the config from this
   // singleton rather than taking it as an argument.
   setWorkspaceConfig(workspaceConfig);
+  // The writer every write to a chat goes through. The app installs it as the
+  // workspace starts; a script that writes chats without a workspace has to
+  // install one itself, or `ChatWrites` has no records to append to.
+  const records = new ChatRecords({
+    app: workspaceConfig.appVersion,
+    device: workspaceConfig.deviceId,
+    dirOf: chatDir,
+  });
+  installChatRecords(records);
 
   const seeded: SeededTask[] = [];
   // A 1.x task's folder is flat under `tasks/`, which the chat index is
@@ -167,6 +180,11 @@ export async function seedWorkspace({
   }
 
   await writeSettings({ settings: fixture.settings, userDataDir });
+
+  // Every append is flushed and the handles closed before the script ends, so
+  // the folder it leaves is one the app reads rather than one mid-write.
+  await records.dispose();
+  installChatRecords(undefined);
 
   return seeded;
 }

@@ -22,30 +22,39 @@ import {
   refusedPathIn,
   bwrapArgs,
   bwrapAvailable,
+  launchNative,
   seatbeltAvailable,
   seatbeltProfile,
   wrapNativeCommand,
-} from "./native-sandbox";
-import { ChatIdSchema } from "../schemas/chat-id";
-import { StoreId } from "../schemas/store-id";
-import { inheritedEnv } from "./native-env";
-import { accountCanWrite } from "./permissions/account-can-write";
-import { raiseAsk } from "./chat/asks";
-import { type Rule } from "./permissions/rules";
-import { AbsolutePathSchema } from "../schemas/paths";
-import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+  type WrappedCommand,
+} from "./index";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
+import { inheritedEnv } from "../native-env";
+import { accountCanWrite } from "../permissions/account-can-write";
+import { raiseAsk } from "../chat/asks";
+import { type Rule } from "../permissions/rules";
+import { AbsolutePathSchema } from "../../schemas/paths";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
 // account change; whether it could is the system's answer, set per test.
-vi.mock("./permissions/account-can-write", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./permissions/account-can-write")>()),
+vi.mock("../permissions/account-can-write", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../permissions/account-can-write")
+  >()),
   accountCanWrite: vi.fn(() => true),
 }));
 
-vi.mock("./chat/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./chat/asks")>()),
+vi.mock("../chat/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../chat/asks")>()),
   raiseAsk: vi.fn(),
 }));
+
+/** The arguments a wrapped command spawns with, as every caller launches it. */
+function argsOf(spawned: WrappedCommand): string[] {
+  return launchNative(spawned, { env: {} }).args;
+}
 
 function reachOver(home: string, rules: Rule[]): NativeReach {
   return {
@@ -378,7 +387,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
   async function run(file: string, args: string[]) {
     const spawned = wrapNativeCommand(file, args, reach);
     expect(spawned.reach).toBeDefined();
-    return execa(spawned.file, spawned.args, { reject: false });
+    return execa(spawned.file, argsOf(spawned), { reject: false });
   }
 
   it.each([
@@ -454,7 +463,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     };
     const cat = (file: string) => {
       const spawned = wrapNativeCommand("/bin/cat", [file], withoutAsking);
-      return execa(spawned.file, spawned.args, { reject: false });
+      return execa(spawned.file, argsOf(spawned), { reject: false });
     };
     expect((await cat(path.join(home, ".hidden", "x"))).exitCode).toBe(0);
     expect((await cat(path.join(home, ".ssh", "id"))).exitCode).not.toBe(0);
@@ -472,7 +481,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
         ["-c", `echo x > ${target}`],
         withTemp,
       );
-      return execa(spawned.file, spawned.args, { reject: false });
+      return execa(spawned.file, argsOf(spawned), { reject: false });
     };
     const scratch = path.join(temp, `native-sandbox-scratch-${process.pid}`);
     expect((await write(scratch)).exitCode).toBe(0);
@@ -494,7 +503,9 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
         { level: "never", path: closedInside, source: "folder" },
       ]),
     );
-    const result = await execa(spawned.file, spawned.args, { reject: false });
+    const result = await execa(spawned.file, argsOf(spawned), {
+      reject: false,
+    });
     expect(result.exitCode).not.toBe(0);
     expect(existsSync(path.join(granted, "Moved"))).toBe(false);
   });
@@ -509,7 +520,9 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
       ["-c", `echo x > ${path.join(granted, file)}`],
       reach,
     );
-    const result = await execa(spawned.file, spawned.args, { reject: false });
+    const result = await execa(spawned.file, argsOf(spawned), {
+      reject: false,
+    });
     expect(result.exitCode).not.toBe(0);
   });
 
@@ -531,7 +544,9 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
       ["-c", `echo x > ${path.join(granted, ".git", "objects", "o")}`],
       reach,
     );
-    const result = await execa(spawned.file, spawned.args, { reject: false });
+    const result = await execa(spawned.file, argsOf(spawned), {
+      reject: false,
+    });
     expect(result.exitCode).toBe(0);
   });
 
@@ -588,7 +603,9 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     ],
   ])("%s", async (_name, script, exitCode) => {
     const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
-    const result = await execa(spawned.file, spawned.args, { reject: false });
+    const result = await execa(spawned.file, argsOf(spawned), {
+      reject: false,
+    });
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
   });
 });
@@ -905,7 +922,7 @@ describe("bwrapArgs over names that run code", () => {
 /** What `pnpm --filter @instrument-org/studio build:mac-helper` builds. */
 const SEATBELT_LAUNCHER = path.resolve(
   import.meta.dirname,
-  "../../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
+  "../../../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
 );
 
 describe.runIf(seatbeltAvailable())("the Seatbelt launcher", () => {
@@ -944,8 +961,10 @@ describe.runIf(seatbeltAvailable())("the Seatbelt launcher", () => {
         reach,
       );
       expect(allowed.file).toBe(SEATBELT_LAUNCHER);
-      expect(allowed.args[0]).toBe("run");
-      const read = await execa(allowed.file, allowed.args, { reject: false });
+      expect(argsOf(allowed)[0]).toBe("run");
+      const read = await execa(allowed.file, argsOf(allowed), {
+        reject: false,
+      });
       expect(read).toMatchObject({ exitCode: 0, stdout: "n" });
 
       const refused = wrapNativeCommand(
@@ -953,7 +972,7 @@ describe.runIf(seatbeltAvailable())("the Seatbelt launcher", () => {
         [path.join(closed, "key")],
         reach,
       );
-      const result = await execa(refused.file, refused.args, {
+      const result = await execa(refused.file, argsOf(refused), {
         reject: false,
       });
       expect(result.exitCode).toBe(1);
@@ -988,6 +1007,6 @@ describe.runIf(seatbeltAvailable())("the Seatbelt launcher", () => {
     const own = reachOver(path.join(home, launcher.length.toString()), []);
     const spawned = wrapNativeCommand("/bin/cat", ["x"], own);
     expect(spawned.file).toBe("/usr/bin/sandbox-exec");
-    expect(spawned.args[0]).toBe("-p");
+    expect(argsOf(spawned)[0]).toBe("-p");
   });
 });

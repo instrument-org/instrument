@@ -17,8 +17,8 @@ import {
   mxcRequest,
   type NativeReach,
   windowsCommandLine,
-} from "./native-sandbox";
-import { reachOf, type Rule } from "./permissions/rules";
+} from "./index";
+import { reachOf, type Rule } from "../permissions/rules";
 
 const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "mxc-policy-")));
 afterAll(() => rmSync(base, { force: true, recursive: true }));
@@ -437,11 +437,17 @@ describe("launchNative", () => {
     readonlyPaths: ["/"],
     readwritePaths: [],
   };
+  const reach = reachOver(base, []);
 
   it("leaves a command no MXC holds as it was wrapped", () => {
     expect(
       launchNative(
-        { args: ["-p", "x", "/bin/ls"], file: "/usr/bin/sandbox-exec" },
+        {
+          args: ["-p", "x", "/bin/ls"],
+          file: "/usr/bin/sandbox-exec",
+          kind: "sandboxed",
+          reach,
+        },
         { env: {} },
       ),
     ).toEqual({ args: ["-p", "x", "/bin/ls"], file: "/usr/bin/sandbox-exec" });
@@ -450,9 +456,11 @@ describe("launchNative", () => {
   it("hands the launcher the request with the working folder and environment", () => {
     const launch = launchNative(
       {
-        args: [],
+        argv: ["node", "a b"],
         file: "wxc-exec.exe",
-        mxc: { argv: ["node", "a b"], filesystem },
+        filesystem,
+        kind: "mxc",
+        reach,
       },
       {
         cwd: "/work",
@@ -475,7 +483,13 @@ describe("launchNative", () => {
 
   it("writes a request too long for a command line to the sandbox's folder", () => {
     const launch = launchNative(
-      { args: [], file: "wxc-exec.exe", mxc: { argv: ["node"], filesystem } },
+      {
+        argv: ["node"],
+        file: "wxc-exec.exe",
+        filesystem,
+        kind: "mxc",
+        reach,
+      },
       { cwd: "/work", env: { BIG: "x".repeat(40_000) } },
     );
     expect(launch.args[0]).toBe("--config");

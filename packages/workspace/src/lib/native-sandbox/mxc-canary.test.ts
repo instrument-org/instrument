@@ -6,7 +6,7 @@ import {
   nativeSandboxEnforced,
   type NativeReach,
   wrapNativeCommand,
-} from "./native-sandbox";
+} from "./index";
 
 /**
  * The canary against the real launcher, on Windows only, where
@@ -53,9 +53,9 @@ describe.runIf(process.platform === "win32" && exec)(
 
     it("holds native commands once the canary passed", () => {
       process.env.INSTRUMENT_MXC = "1";
-      expect(
-        wrapNativeCommand("cmd.exe", ["/c", "exit"], reach).mxc,
-      ).toBeDefined();
+      expect(wrapNativeCommand("cmd.exe", ["/c", "exit"], reach).kind).toBe(
+        "mxc",
+      );
       expect(nativeSandboxEnforced()).toBe(true);
     });
 
@@ -65,7 +65,11 @@ describe.runIf(process.platform === "win32" && exec)(
         process.env.INSTRUMENT_MXC = "1";
         process.env.INSTRUMENT_MXC_CANARY_FAULT = fault;
         const spawned = wrapNativeCommand("cmd.exe", ["/c", "exit"], reach);
-        expect(spawned).toEqual({ args: ["/c", "exit"], file: "cmd.exe" });
+        expect(spawned).toEqual({
+          args: ["/c", "exit"],
+          file: "cmd.exe",
+          kind: "unwrapped",
+        });
         expect(nativeSandboxEnforced()).toBe(false);
       },
     );

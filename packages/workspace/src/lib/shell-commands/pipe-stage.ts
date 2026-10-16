@@ -274,9 +274,8 @@ export function startPipeStage(
       stdio,
       windowsHide: true,
       // Under MXC the program's command line is in the launcher's request.
-      windowsVerbatimArguments: spawned.mxc
-        ? false
-        : options.windowsVerbatimArguments,
+      windowsVerbatimArguments:
+        spawned.kind === "mxc" ? false : options.windowsVerbatimArguments,
     });
   } finally {
     // The program holds its own copy of the read end now. Closing ours is

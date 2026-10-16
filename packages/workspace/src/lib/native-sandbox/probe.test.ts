@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type NativeReach } from "./native-sandbox";
+import { type NativeReach } from "./index";
 
 const execFileSync = vi.hoisted(() => vi.fn());
 
@@ -11,7 +11,7 @@ vi.mock("node:child_process", async (importOriginal) => ({
 
 // Each case reloads the module and so a fresh config holder; a config with
 // no Seatbelt launcher keeps every wrapped command on sandbox-exec.
-vi.mock("./workspace-config", () => ({
+vi.mock("../workspace-config", () => ({
   getWorkspaceConfig: () => ({}),
   hasWorkspaceConfig: () => true,
   setWorkspaceConfig: () => undefined,
@@ -44,7 +44,7 @@ describe("the sandbox probe on macOS", () => {
 
   it("refuses a command when the probe timed out, then probes again", async () => {
     const { NativeSandboxUnavailableError, wrapNativeCommand } =
-      await import("./native-sandbox");
+      await import("./index");
     execFileSync.mockImplementationOnce(() =>
       failure({ code: "ETIMEDOUT", signal: "SIGTERM", status: null }),
     );
@@ -61,7 +61,7 @@ describe("the sandbox probe on macOS", () => {
   });
 
   it("runs unwrapped where Seatbelt said it cannot nest, and asks once", async () => {
-    const { wrapNativeCommand } = await import("./native-sandbox");
+    const { wrapNativeCommand } = await import("./index");
     execFileSync.mockImplementation(() =>
       failure({
         status: 71,
@@ -71,13 +71,14 @@ describe("the sandbox probe on macOS", () => {
     expect(wrapNativeCommand("cat", ["x"], reach)).toEqual({
       args: ["x"],
       file: "cat",
+      kind: "unwrapped",
     });
     wrapNativeCommand("cat", ["x"], reach);
     expect(execFileSync).toHaveBeenCalledOnce();
   });
 
   it("says the sandbox is enforced while a probe has no answer", async () => {
-    const { nativeSandboxEnforced } = await import("./native-sandbox");
+    const { nativeSandboxEnforced } = await import("./index");
     execFileSync.mockImplementation(() =>
       failure({ code: "ETIMEDOUT", signal: "SIGTERM", status: null }),
     );

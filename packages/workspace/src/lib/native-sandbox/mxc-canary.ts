@@ -12,8 +12,8 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import { type Rules } from "./permissions/rules";
-import { getWorkspaceConfig } from "./workspace-config";
+import { type Rules } from "../permissions/rules";
+import { getWorkspaceConfig } from "../workspace-config";
 
 /**
  * Whether MXC holds on this machine, decided by running it rather than by

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { ChatDirSchema } from "../../schemas/paths";
 import {
   bwrapArgs,
+  launchNative,
   seatbeltAvailable,
   wrapNativeCommand,
 } from "../native-sandbox";
@@ -57,7 +58,8 @@ describe.runIf(seatbeltAvailable())("a chat's command on this Mac", () => {
       ["-c", `mkdir -p "${folder}" && echo x > "${folder}/planted"`],
       reach,
     );
-    const result = await execa(spawned.file, spawned.args, { reject: false });
+    const launch = launchNative(spawned, { env: {} });
+    const result = await execa(launch.file, launch.args, { reject: false });
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
   });
 });

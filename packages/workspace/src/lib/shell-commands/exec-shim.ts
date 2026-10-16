@@ -159,7 +159,7 @@ export async function execShim(
     env,
     // Under MXC the program's command line is in the launcher's request,
     // and the launcher's own arguments take Node's quoting.
-    ...(spawned.mxc ? { windowsVerbatimArguments: false } : {}),
+    ...(spawned.kind === "mxc" ? { windowsVerbatimArguments: false } : {}),
     extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,

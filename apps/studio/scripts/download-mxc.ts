@@ -1,7 +1,7 @@
 // Vendors MXC's Windows launcher (`wxc-exec.exe`, from Microsoft's MIT
 // `@microsoft/mxc-sdk`) into `resources/mxc/`, which ships in the
 // `app.asar.unpacked` tree beside uv. Native commands start through it on
-// Windows once its canary passed (packages/workspace/src/lib/mxc-canary.ts).
+// Windows once its canary passed (packages/workspace/src/lib/native-sandbox/mxc-canary.ts).
 // Only the launcher is kept: it runs on its own, and the SDK's Node bindings
 // are not used. Downloads the package from the npm registry, checks it
 // against the hash pinned here, and does nothing for a target other than

@@ -82,7 +82,7 @@ function createContext(): WorkspaceRPCContext {
 /** A chat with its session saved and one message from the user. */
 async function readableChat(named: string): Promise<ChatId> {
   const sessionId = StoreId.newSessionId();
-  const id = chatFor(sessionId, ChatIdSchema.parse(named));
+  const id = await chatFor(sessionId, ChatIdSchema.parse(named));
   opened.push(id);
   const saved = await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: named },
@@ -122,10 +122,12 @@ async function seedBrokenChats() {
   await readableChat("2026-10-01-fine");
   await readableChat("2026-10-01-bad-settings");
   fs.writeFileSync(recordFile("2026-10-01-bad-settings", "settings.json"), "{");
-  chatFor(StoreId.newSessionId(), ChatIdSchema.parse("2026-10-01-bad-db"));
+  // A chat whose settings name a session no record of its folder holds.
+  const lost = ChatIdSchema.parse("2026-10-01-no-record");
+  fs.mkdirSync(path.join(root, "chats", lost), { recursive: true });
   fs.writeFileSync(
-    recordFile("2026-10-01-bad-db", "chat.db"),
-    "not a database, just bytes long enough to be read as a header",
+    recordFile(lost, "settings.json"),
+    JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
   );
   fs.mkdirSync(path.join(root, "chats", "Not A Chat"));
   fs.mkdirSync(
@@ -159,16 +161,16 @@ describe("storage.invalidFolders", () => {
     ).toMatchInlineSnapshot(`
       [
         {
-          "at": "chats/2026-10-01-bad-db",
-          "kind": "chat",
-          "name": "2026-10-01-bad-db",
-          "reason": "Unreadable chat session (chat.db)",
-        },
-        {
           "at": "chats/2026-10-01-bad-settings",
           "kind": "chat",
           "name": "2026-10-01-bad-settings",
           "reason": "Missing or unreadable settings (settings.json)",
+        },
+        {
+          "at": "chats/2026-10-01-no-record",
+          "kind": "chat",
+          "name": "2026-10-01-no-record",
+          "reason": "No readable record of its chat session",
         },
         {
           "at": "chats/Not A Chat",
@@ -201,7 +203,7 @@ describe("storage.invalidFolders", () => {
 
   it("trashes an unreadable chat with its work folder, and forgets it", async () => {
     await seedBrokenChats();
-    const badDb = ChatIdSchema.parse("2026-10-01-bad-db");
+    const badDb = ChatIdSchema.parse("2026-10-01-no-record");
     expect(resolveChat(badDb) !== undefined).toBe(true);
     const work = path.join(root, "machine", "work", badDb);
     fs.mkdirSync(path.join(work, "work"), { recursive: true });

@@ -67,7 +67,7 @@ function bashCall(
 
 it("reads the step off a call still arriving, and off the written one once it settles", async () => {
   const sessionId = StoreId.newSessionId();
-  const chatId = chatFor(sessionId);
+  const chatId = await chatFor(sessionId);
   (await createSession({ chatId, sessionId }))._unsafeUnwrap();
   const ref = { chatId, sessionId };
   const replying: SessionMessage.Assistant = {
@@ -113,7 +113,7 @@ it("reads the step off a call still arriving, and off the written one once it se
 
 it("reads no step from a turn nothing is holding", async () => {
   const sessionId = StoreId.newSessionId();
-  const chatId = chatFor(sessionId);
+  const chatId = await chatFor(sessionId);
   (await createSession({ chatId, sessionId }))._unsafeUnwrap();
 
   expect(await latestStep({ chatId, sessionId })).toBeUndefined();

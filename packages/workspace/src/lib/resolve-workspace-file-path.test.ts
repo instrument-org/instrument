@@ -159,7 +159,7 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
       workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
       workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
     });
-    chatId = chatFor();
+    chatId = await chatFor();
     await fs.mkdir(path.join(chatDir(chatId), "attachments"));
     await fs.writeFile(
       path.join(chatDir(chatId), "attachments", "sent.png"),

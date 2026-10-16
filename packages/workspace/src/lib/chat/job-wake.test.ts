@@ -76,7 +76,7 @@ afterEach(async () => {
 
 /** A chat someone has written in, and its own session. */
 async function chat() {
-  const chatId = chatFor(StoreId.newSessionId());
+  const chatId = await chatFor(StoreId.newSessionId());
   const written = await updateChatSettings(chatId, {
     modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",

@@ -56,7 +56,7 @@ beforeEach(async () => {
     workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
     workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
   });
-  chatId = chatFor();
+  chatId = await chatFor();
   recordFolder = chatDir(chatId);
   await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
   await fs.writeFile(path.join(recordFolder, "chat.db"), "needle sentinel\n");

@@ -197,7 +197,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   });
 
   it("finds a chat made after the worker started", async () => {
-    const made = chatFor();
+    const made = await chatFor();
     const dir = workDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
@@ -210,7 +210,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   });
 
   it("runs in the record main resolved, without reading the index itself", async () => {
-    const made = chatFor();
+    const made = await chatFor();
     const dir = workDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
@@ -236,7 +236,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
 
     beforeAll(async () => {
-      recordChat = chatFor();
+      recordChat = await chatFor();
       record = chatDir(recordChat);
       await fs.writeFile(path.join(record, "chat.db"), "the conversation");
       await fs.mkdir(path.join(record, "attachments"), { recursive: true });

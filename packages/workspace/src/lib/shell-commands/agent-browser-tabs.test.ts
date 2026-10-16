@@ -146,7 +146,7 @@ beforeEach(async () => {
   });
   counter += 1;
   CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
-  chatFor(CHAT_SESSION, CHAT_ID);
+  await chatFor(CHAT_SESSION, CHAT_ID);
   TASK_SESSION = await chatTaskFor(CHAT_ID, { title: "Read the page" });
   live = new Set();
   asks = [];

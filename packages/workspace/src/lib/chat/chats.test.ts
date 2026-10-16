@@ -112,9 +112,9 @@ const freshChat = async () => {
   return chatId;
 };
 
-/** A task started in a chat: a session in that chat's store. */
-function fileTask(sessionId: StoreId.Session, title = "Grocery list") {
-  return chatTaskFor(chatFor(sessionId), { title });
+/** A task started in a chat: a session of that chat's. */
+async function fileTask(sessionId: StoreId.Session, title = "Grocery list") {
+  return chatTaskFor(await chatFor(sessionId), { title });
 }
 
 beforeEach(() => {
@@ -155,7 +155,7 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   };
   const saved = await ChatWrites.saveMessageWithParts(
     message,
-    chatFor(sessionId),
+    await chatFor(sessionId),
   );
   expect(saved.isOk()).toBe(true);
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -163,7 +163,7 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   try {
     await recordQuestion(
       {
-        chatId: chatFor(sessionId),
+        chatId: await chatFor(sessionId),
         messageId,
         partId: part.metadata.id,
         sessionId,
@@ -229,7 +229,7 @@ async function agentSays(
   };
   const saved = await ChatWrites.saveMessageWithParts(
     message,
-    chatFor(sessionId),
+    await chatFor(sessionId),
   );
   expect(saved.isOk()).toBe(true);
   return messageId;
@@ -251,7 +251,7 @@ async function noteSays(
       parts: [part(partMetadata({ messageId, sessionId }))],
       role: "user",
     },
-    chatFor(sessionId),
+    await chatFor(sessionId),
   );
   expect(saved.isOk()).toBe(true);
 }
@@ -266,10 +266,10 @@ function partMetadata(ids: {
 /** A chat: a chat's folder and its one session. */
 async function session(_chatId: ChatId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
-  chatFor(id);
+  const chatId = await chatFor(id, undefined, { createdAt: at(minute) });
   await ChatWrites.saveSession(
     { createdAt: at(minute), id, title, updatedAt: at(minute) },
-    chatFor(id),
+    chatId,
   );
   return id;
 }
@@ -318,7 +318,7 @@ async function userSays(
   };
   const saved = await ChatWrites.saveMessageWithParts(
     message,
-    chatFor(sessionId),
+    await chatFor(sessionId),
   );
   expect(saved.isOk()).toBe(true);
   return messageId;
@@ -355,7 +355,7 @@ describe("listChats", () => {
           },
         ],
       },
-      chatFor(sessionId),
+      await chatFor(sessionId),
     );
     expect(saved.isOk()).toBe(true);
     expect((await listChats())[0]?.lastUserMessageAt).toBe(at(1).getTime());
@@ -387,7 +387,7 @@ describe("listChats", () => {
           },
         ],
       },
-      chatFor(sessionId),
+      await chatFor(sessionId),
     );
     expect(asked.isOk()).toBe(true);
     expect((await listChats())[0]?.lastUserMessageAt).toBe(at(6).getTime());
@@ -498,7 +498,7 @@ describe("listChats", () => {
         ],
         role: "user",
       },
-      chatFor(sessionId),
+      await chatFor(sessionId),
     );
     expect(saved.isOk()).toBe(true);
 
@@ -519,7 +519,7 @@ describe("listChats", () => {
 
     const read = await ChatReads.transcript({
       sessionId,
-      chatId: chatFor(sessionId),
+      chatId: await chatFor(sessionId),
     });
     const reply = read
       ._unsafeUnwrap()
@@ -530,7 +530,7 @@ describe("listChats", () => {
     }
     await ChatWrites.savePart(
       { ...part, text: "Here is the new list." },
-      chatFor(sessionId),
+      await chatFor(sessionId),
     );
     const [rewritten] = await listChats();
     expect(rewritten?.latest?.text).toBe("Here is the new list.");
@@ -541,11 +541,11 @@ describe("listChats", () => {
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
 
-    await markChatUnread(chatFor(sessionId), { byUser: true });
+    await markChatUnread(await chatFor(sessionId), { byUser: true });
     const [marked] = await listChats();
     expect(marked).toMatchObject({ unread: true, unreadByUser: true });
 
-    await markChatRead(chatFor(sessionId));
+    await markChatRead(await chatFor(sessionId));
     const [read] = await listChats();
     expect(read).toMatchObject({ unread: false, unreadByUser: false });
   });
@@ -565,13 +565,19 @@ describe("listChats", () => {
     ];
     startChatUnreadOnSettle();
 
-    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    publisher.publish("session.done", {
+      id: await chatFor(sessionId),
+      sessionId,
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     const [working] = await listChats();
     expect(working?.unread).toBe(false);
 
     running.value = [];
-    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    publisher.publish("session.done", {
+      id: await chatFor(sessionId),
+      sessionId,
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     const [settled] = await listChats();
     expect(settled).toMatchObject({ unread: true, unreadByUser: false });
@@ -581,10 +587,13 @@ describe("listChats", () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
-    pendingWakes.value.add(chatFor(sessionId));
+    pendingWakes.value.add(await chatFor(sessionId));
     startChatUnreadOnSettle();
 
-    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    publisher.publish("session.done", {
+      id: await chatFor(sessionId),
+      sessionId,
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     pendingWakes.value.clear();
     const [waking] = await listChats();
@@ -595,10 +604,13 @@ describe("listChats", () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Build");
     await userSays(chatId, sessionId, "run the build and tell me", 1);
-    pendingJobWakes.value.add(chatFor(sessionId));
+    pendingJobWakes.value.add(await chatFor(sessionId));
     startChatUnreadOnSettle();
 
-    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    publisher.publish("session.done", {
+      id: await chatFor(sessionId),
+      sessionId,
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     pendingJobWakes.value.clear();
     const [waking] = await listChats();
@@ -610,8 +622,8 @@ describe("listChats", () => {
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
 
-    await markChatUnread(chatFor(sessionId), { byUser: true });
-    await markChatUnread(chatFor(sessionId), { byUser: false });
+    await markChatUnread(await chatFor(sessionId), { byUser: true });
+    await markChatUnread(await chatFor(sessionId), { byUser: false });
     const [chat] = await listChats();
     expect(chat).toMatchObject({ unread: true, unreadByUser: true });
   });
@@ -673,7 +685,7 @@ describe("listChats", () => {
           parts: [],
           role: "assistant",
         },
-        chatFor(sessionId),
+        await chatFor(sessionId),
       );
       expect(reply.isOk()).toBe(true);
 
@@ -688,7 +700,7 @@ describe("listChats", () => {
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list");
 
-    await setChatTopics(chatFor(sessionId), [home.id, "top_nothing"]);
+    await setChatTopics(await chatFor(sessionId), [home.id, "top_nothing"]);
 
     const [chat] = await listChats();
     expect(chat?.topics).toEqual([home.id]);
@@ -702,12 +714,12 @@ describe("listChats", () => {
     const [before] = await listChats();
     expect(before?.archived).toBe(false);
 
-    await archiveChat(chatFor(sessionId));
+    await archiveChat(await chatFor(sessionId));
     const [archived] = await listChats();
     expect(archived?.archived).toBe(true);
     expect(archived?.updatedAt).toBe(before?.updatedAt);
 
-    await unarchiveChat(chatFor(sessionId));
+    await unarchiveChat(await chatFor(sessionId));
     const [back] = await listChats();
     expect(back?.archived).toBe(false);
   });
@@ -720,12 +732,12 @@ describe("listChats", () => {
     const [before] = await listChats();
     expect(before?.starred).toBe(false);
 
-    await setChatStarred(chatFor(sessionId), true);
+    await setChatStarred(await chatFor(sessionId), true);
     const [starred] = await listChats();
     expect(starred?.starred).toBe(true);
     expect(starred?.updatedAt).toBe(before?.updatedAt);
 
-    await setChatStarred(chatFor(sessionId), false);
+    await setChatStarred(await chatFor(sessionId), false);
     const [back] = await listChats();
     expect(back?.starred).toBe(false);
   });
@@ -737,12 +749,12 @@ describe("listChats", () => {
     await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     const [before] = await listChats();
 
-    await renameChat(chatFor(sessionId), "Weekly shop");
+    await renameChat(await chatFor(sessionId), "Weekly shop");
     const [renamed] = await listChats();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);
     const stored = await ChatReads.session({
-      chatId: chatFor(sessionId),
+      chatId: await chatFor(sessionId),
       sessionId,
     });
     expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
@@ -864,7 +876,7 @@ describe("listChats", () => {
     await userSays(chatId, sessionId, "make me a grocery list", 1);
     await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
     await fileTask(sessionId);
-    pendingWakes.value = new Set([chatFor(sessionId)]);
+    pendingWakes.value = new Set([await chatFor(sessionId)]);
 
     const [chat] = await listChats();
 
@@ -900,7 +912,7 @@ describe("listChats", () => {
       });
       vi.setSystemTime(at(3));
       await recordAsk(
-        { chatId: chatFor(sessionId), sessionId },
+        { chatId: await chatFor(sessionId), sessionId },
         "folder",
         path.join(os.homedir(), "Pantry"),
       );
@@ -966,7 +978,7 @@ describe("listChats", () => {
       // not the user speaking past it.
       vi.setSystemTime(at(2).getTime() + 30_000);
       await recordAsk(
-        { chatId: chatFor(sessionId), sessionId },
+        { chatId: await chatFor(sessionId), sessionId },
         "folder",
         path.join(os.homedir(), "Pantry"),
       );
@@ -1004,7 +1016,7 @@ describe("listChats", () => {
     }));
 
     // Written, and on its way to the session.
-    pendingWakes.value = new Set([chatFor(sessionId)]);
+    pendingWakes.value = new Set([await chatFor(sessionId)]);
     const [woken] = await listChats();
     expect(woken?.state).toBe("working");
 
@@ -1029,7 +1041,7 @@ describe("listChats", () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Documents", 1);
     await userSays(chatId, sessionId, "what's in my Documents?", 1);
-    await markChatStopped(chatFor(sessionId), at(2));
+    await markChatStopped(await chatFor(sessionId), at(2));
 
     const [beforeStart] = await listChats();
     expect(beforeStart?.state).toBe("stopped");
@@ -1083,7 +1095,7 @@ describe("listChats", () => {
         ],
         role: "assistant",
       },
-      chatFor(sessionId),
+      await chatFor(sessionId),
     );
     expect(reply.isOk()).toBe(true);
     const [cutOff] = await listChats();
@@ -1313,7 +1325,7 @@ describe("liveChatList", () => {
     const { first, next, stop } = await open();
     expect(first?.map((chat) => chat.sessionId)).toEqual([kept, deleted]);
 
-    const gone = chatFor(deleted);
+    const gone = await chatFor(deleted);
     forgetChat(gone);
     recordRemoved(gone);
 
@@ -1331,7 +1343,7 @@ describe("liveChatList", () => {
     expect(first?.[0]?.state).toBe("working");
 
     alive.value = new Set();
-    recordChanged(chatFor(sessionId), "agent");
+    recordChanged(await chatFor(sessionId), "agent");
 
     expect((await next())?.[0]?.state).toBe("idle");
     stop();
@@ -1372,7 +1384,7 @@ describe("liveChatList", () => {
           ],
           role: "user",
         },
-        chatFor(sessionId),
+        await chatFor(sessionId),
       );
       expect(saved.isOk()).toBe(true);
 
@@ -1426,9 +1438,9 @@ describe("liveChatList", () => {
     await userSays(chatId, sessionId, "make me a grocery list", 1);
     const { next, stop } = await open();
 
-    await renameChat(chatFor(sessionId), "Weekly shop");
+    await renameChat(await chatFor(sessionId), "Weekly shop");
     expect((await next())?.[0]?.title).toBe("Weekly shop");
-    await setChatStarred(chatFor(sessionId), true);
+    await setChatStarred(await chatFor(sessionId), true);
     expect((await next())?.[0]?.starred).toBe(true);
     stop();
   });
@@ -1440,7 +1452,7 @@ describe("liveChatList", () => {
     const child = await fileTask(sessionId);
     const { next, stop } = await open();
 
-    recordChanged(chatFor(sessionId), "settings");
+    recordChanged(await chatFor(sessionId), "settings");
     expect(await next()).toBeUndefined();
 
     running.value = [
@@ -1452,7 +1464,7 @@ describe("liveChatList", () => {
         updatedAt: at(3).getTime(),
       },
     ];
-    recordChanged(chatFor(sessionId), "messages");
+    recordChanged(await chatFor(sessionId), "messages");
     expect((await next())?.[0]?.runningTasks).toEqual([
       { id: child, step: "Checking the pantry", title: "Grocery list" },
     ]);
@@ -1471,7 +1483,7 @@ describe("liveChatList", () => {
     alive.value = new Set([sessionId]);
 
     const messageId = StoreId.newMessageId();
-    const live = chatRecords().live(chatFor(sessionId), sessionId);
+    const live = chatRecords().live(await chatFor(sessionId), sessionId);
     live.setMessage({
       id: messageId,
       metadata: {

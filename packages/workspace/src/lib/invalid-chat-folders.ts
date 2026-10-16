@@ -24,8 +24,8 @@ interface InvalidChatFolder {
 
 const REASONS = {
   "no-session": "No chat session in its settings (settings.json)",
-  "unreadable-messages": "Unreadable messages (chat.db)",
-  "unreadable-session": "Unreadable chat session (chat.db)",
+  "unreadable-messages": "Unreadable messages",
+  "unreadable-session": "No readable record of its chat session",
   "unreadable-settings": "Missing or unreadable settings (settings.json)",
 } as const;
 
@@ -52,8 +52,8 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
       invalid.push({ name, reason: REASONS[stored.problem] });
       continue;
     }
-    // The store is reached through the index, which knows the chat by this
-    // session once it has read the folder.
+    // The records are reached through the index, which knows the chat by
+    // this session once it has read the folder.
     if (sessionOfChat(id.data) === stored.sessionId) {
       const problem = await chatReadProblem(id.data, stored.sessionId);
       if (problem) {

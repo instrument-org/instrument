@@ -65,7 +65,7 @@ async function startChat(): Promise<{
   sessionId: StoreId.Session;
 }> {
   const sessionId = StoreId.newSessionId();
-  const chatId = chatFor(sessionId);
+  const chatId = await chatFor(sessionId);
   (await createSession({ chatId, sessionId }))._unsafeUnwrap();
   return { chatId, sessionId };
 }

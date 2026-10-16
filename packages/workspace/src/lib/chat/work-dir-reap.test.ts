@@ -52,10 +52,10 @@ afterEach(async () => {
 });
 
 /** A chat whose work folder its first command made, holding `entries`. */
-function chatWith(entries: Record<string, string> = {}) {
+async function chatWith(entries: Record<string, string> = {}) {
   const sessionId = StoreId.newSessionId();
   sessions.push(sessionId);
-  const chatId = chatFor(sessionId);
+  const chatId = await chatFor(sessionId);
   const dir = workDir(chatId);
   fs.mkdirSync(dir, { recursive: true });
   for (const [name, text] of Object.entries(entries)) {
@@ -80,14 +80,14 @@ describe("reapWorkDir", () => {
       { ".DS_Store": "", "notes.md": "x" },
     ],
     ["a folder holding a folder", false, { "job/.keep": "" }],
-  ])("%s, removed: %s", (_name, removed, entries) => {
-    const { chatId, dir } = chatWith(entries);
+  ])("%s, removed: %s", async (_name, removed, entries) => {
+    const { chatId, dir } = await chatWith(entries);
     expect(reapWorkDir(chatId, workspaceRef)).toBe(removed);
     expect(fs.existsSync(dir)).toBe(!removed);
   });
 
-  it("keeps an empty folder while a session of the chat runs, a task's included", () => {
-    const { chatId, dir } = chatWith();
+  it("keeps an empty folder while a session of the chat runs, a task's included", async () => {
+    const { chatId, dir } = await chatWith();
     running.add(chatId);
     expect(reapWorkDir(chatId, workspaceRef)).toBe(false);
     expect(fs.existsSync(dir)).toBe(true);
@@ -96,7 +96,7 @@ describe("reapWorkDir", () => {
   });
 
   it("keeps an empty folder while a command the chat left running is still going", async () => {
-    const { chatId, dir, sessionId } = chatWith();
+    const { chatId, dir, sessionId } = await chatWith();
     let finish: (result: { exitCode: number; output: string }) => void = () =>
       undefined;
     const handle = startBackgroundRun({
@@ -118,25 +118,25 @@ describe("reapWorkDir", () => {
     await expect.poll(() => reapWorkDir(chatId, workspaceRef)).toBe(true);
   });
 
-  it("leaves a chat being trashed to the trash", () => {
-    const { chatId, dir } = chatWith();
+  it("leaves a chat being trashed to the trash", async () => {
+    const { chatId, dir } = await chatWith();
     trashing.push(chatId);
     expect(reapWorkDir(chatId, workspaceRef)).toBe(false);
     expect(fs.existsSync(dir)).toBe(true);
   });
 
-  it("does nothing for a chat whose folder is not there", () => {
-    const { chatId, dir } = chatWith();
+  it("does nothing for a chat whose folder is not there", async () => {
+    const { chatId, dir } = await chatWith();
     fs.rmdirSync(dir);
     expect(reapWorkDir(chatId, workspaceRef)).toBe(false);
   });
 });
 
 describe("reapWorkDirs", () => {
-  it("removes the empty folders a quit left and keeps the rest", () => {
-    const empty = chatWith();
-    const kept = chatWith({ "notes.md": "x" });
-    const busy = chatWith();
+  it("removes the empty folders a quit left and keeps the rest", async () => {
+    const empty = await chatWith();
+    const kept = await chatWith({ "notes.md": "x" });
+    const busy = await chatWith();
     running.add(busy.chatId);
     reapWorkDirs(workspaceRef);
     expect(fs.existsSync(empty.dir)).toBe(false);
@@ -147,14 +147,14 @@ describe("reapWorkDirs", () => {
 
 describe("startWorkDirReap", () => {
   it("removes the chat's empty work folder when its turn ends", async () => {
-    const { chatId, dir, sessionId } = chatWith();
+    const { chatId, dir, sessionId } = await chatWith();
     publisher.publish("session.done", { id: chatId, sessionId });
     await expect.poll(() => fs.existsSync(dir)).toBe(false);
   });
 
   it("keeps it when the turn ends with a task of the chat still at work", async () => {
-    const kept = chatWith();
-    const reaped = chatWith();
+    const kept = await chatWith();
+    const reaped = await chatWith();
     running.add(kept.chatId);
     publisher.publish("session.done", {
       id: kept.chatId,

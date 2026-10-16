@@ -249,7 +249,7 @@ describe("task stop, for what a task left running", () => {
   // chat's, to read or to stop.
   it("knows no task another chat started", async () => {
     const server = leave("node work/server.js");
-    const here = { ...context, chatId: chatFor() };
+    const here = { ...context, chatId: await chatFor() };
     await expect(runStop([CHILD_ID, "--all"], here)).rejects.toThrow(
       `no task "${CHILD_ID}" of yours. See \`task list\`.`,
     );

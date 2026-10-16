@@ -92,7 +92,7 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatSessionId = StoreId.newSessionId();
-  const chatId = chatFor(
+  const chatId = await chatFor(
     chatSessionId,
     ChatIdSchema.parse(`2026-10-06-files-${counter}`),
   );

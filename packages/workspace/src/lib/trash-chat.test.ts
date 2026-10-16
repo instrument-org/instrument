@@ -54,10 +54,10 @@ afterEach(async () => {
 
 describe("trashChat", () => {
   it("trashes the chat's record folder once, with the tasks in its store", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     await chatTaskFor(chat, { title: "First task" });
     await chatTaskFor(chat, { title: "Second task" });
-    const otherChat = chatFor(
+    const otherChat = await chatFor(
       undefined,
       ChatIdSchema.parse("2026-09-24-other"),
     );
@@ -80,14 +80,14 @@ describe("trashChat", () => {
   });
 
   it("trashes the chat's work folder too, without the packages it can rebuild", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     const work = workDir(chat);
     await fs.mkdir(path.join(work, "work"), { recursive: true });
     await fs.writeFile(path.join(work, "work", "report.md"), "made");
     await fs.mkdir(path.join(work, "node_modules", "left-pad"), {
       recursive: true,
     });
-    const otherChat = chatFor(
+    const otherChat = await chatFor(
       undefined,
       ChatIdSchema.parse("2026-09-24-other"),
     );
@@ -123,7 +123,7 @@ describe("trashChat", () => {
   });
 
   it("removes the chat when its work folder will not go, and reports it", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     const work = workDir(chat);
     await fs.mkdir(path.join(work, "work"), { recursive: true });
     const reported: unknown[] = [];
@@ -154,7 +154,7 @@ describe("trashChat", () => {
   });
 
   it("lets the chat start sessions again when trashing it fails", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     const sent: string[] = [];
     setWorkspaceConfig({
       ...getWorkspaceConfig(),

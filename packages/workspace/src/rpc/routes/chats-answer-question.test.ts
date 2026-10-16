@@ -63,7 +63,7 @@ beforeEach(() => {
 
 /** A chat someone has written in, whose agent asked a question with `choose`. */
 async function chatAsking() {
-  const chatId = chatFor(StoreId.newSessionId());
+  const chatId = await chatFor(StoreId.newSessionId());
   const written = await updateChatSettings(chatId, {
     modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",

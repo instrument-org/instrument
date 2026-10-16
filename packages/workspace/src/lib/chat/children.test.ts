@@ -35,8 +35,8 @@ afterEach(async () => {
 
 describe("listChildTasks", () => {
   it("gives a chat the sessions it started, and the window none", async () => {
-    const one = chatFor();
-    const two = chatFor();
+    const one = await chatFor();
+    const two = await chatFor();
     const first = await chatTaskFor(one, { title: "First" });
     const second = await chatTaskFor(two, { title: "Second" });
 
@@ -52,7 +52,7 @@ describe("listChildTasks", () => {
   });
 
   it("knows nothing of a tasks folder an earlier version left in a chat, and makes nothing in it", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     const kept = await chatTaskFor(chat);
     const left = path.join(
       rootDir,
@@ -78,7 +78,7 @@ describe("listChildTasks", () => {
 
 describe("addChildTask", () => {
   it("hands out t1, t2, … in the order the chat starts them, never twice", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     const at = new Date();
     const started = await Promise.all(
       ["First", "Second", "Third"].map((title) =>
@@ -91,7 +91,7 @@ describe("addChildTask", () => {
     );
     expect(started.map((task) => task.handle)).toEqual(["t1", "t2", "t3"]);
     // Another chat counts from its own first.
-    const other = chatFor();
+    const other = await chatFor();
     await chatTaskFor(other);
     expect((await listChildTasks(other)).map((task) => task.handle)).toEqual([
       "t1",
@@ -108,7 +108,7 @@ describe("addChildTask", () => {
 describe("sessionRole", () => {
   it("tells the chat's own session from a task's", async () => {
     const sessionId = StoreId.newSessionId();
-    const chat = chatFor(sessionId);
+    const chat = await chatFor(sessionId);
     const task = await chatTaskFor(chat);
 
     expect(sessionRole(chat, sessionId)).toBe("chat");

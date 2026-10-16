@@ -26,7 +26,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 // A chat, and a record that is not one. The chat is a folder under a
 // workspace root of this file's own.
 let chatId = ChatIdSchema.parse("2026-09-26-conversation");
-beforeAll(() => {
+beforeAll(async () => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(
@@ -39,7 +39,7 @@ beforeAll(() => {
       fs.mkdtempSync(path.join(os.tmpdir(), "chat-routes-")),
     ),
   });
-  chatId = chatFor(StoreId.newSessionId(), chatId);
+  chatId = await chatFor(StoreId.newSessionId(), chatId);
 });
 const otherChatId = ChatIdSchema.parse("chat-other");
 
@@ -65,7 +65,7 @@ describe("chats.tasks", () => {
     setWorkspaceActorRef({
       getSnapshot: () => ({ context: { sessionRefsByChatId: new Map() } }),
     } as never);
-    const pantry = chatFor(StoreId.newSessionId());
+    const pantry = await chatFor(StoreId.newSessionId());
     const task = await chatTaskFor(pantry, { title: "Count the jars" });
     await recordAsk(
       { chatId: pantry, sessionId: task },

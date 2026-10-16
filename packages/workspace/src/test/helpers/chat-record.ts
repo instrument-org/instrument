@@ -7,21 +7,25 @@ import {
   forgetChatFolders,
   chatIdTaken,
 } from "../../lib/record-folders";
+import { writingChatRecords } from "../../lib/records/chat-records";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 
 /**
- * The chat a session is, made in the current chats folder the first time
- * it is asked for: a folder under `chats/` whose settings name the session,
- * which is all the index needs to find it. For tests that need a chat to exist
- * without the grants and the rest that `ensureChat` brings.
+ * The chat a session is, made in the current chats folder the first time it
+ * is asked for: a folder under `chats/` whose settings name the session, and
+ * the session's own log started in it, which is what a chat the app made has.
+ * For tests that need a chat to exist without the grants and the rest that
+ * `ensureChat` brings.
  */
-export function chatFor(
+export async function chatFor(
   sessionId: StoreId.Session = StoreId.newSessionId(),
   /** The chat's folder name, where a test wants one of its own. */
   named?: ChatId,
-): ChatId {
+  /** When its session began, for a test that dates what it writes. */
+  { createdAt = new Date() }: { createdAt?: Date } = {},
+): Promise<ChatId> {
   const existing = chatOfSession(sessionId);
   if (existing) {
     return existing;
@@ -45,5 +49,7 @@ export function chatFor(
     }),
   );
   forgetChatFolders();
+  // Its own session's log, which every write into the chat is appended to.
+  await writingChatRecords()?.startSession(id, { createdAt, id: sessionId });
   return id;
 }

@@ -86,7 +86,7 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(StoreId.newSessionId(), CHAT_ID);
+  await chatFor(StoreId.newSessionId(), CHAT_ID);
   await updateChatSettings(CHAT_ID, {
     modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",

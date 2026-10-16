@@ -8,6 +8,7 @@ import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../schemas/paths";
+import { type ChatId } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { ChatWrites } from "./chat-writes";
@@ -48,7 +49,7 @@ afterEach(() => {
 /** A readable chat, with its session saved. */
 async function chat() {
   const sessionId = StoreId.newSessionId();
-  const id = chatFor(sessionId);
+  const id = await chatFor(sessionId);
   const saved = await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: "Chat" },
     id,
@@ -58,11 +59,7 @@ async function chat() {
 }
 
 /** A folder in a chat's leftover `tasks/`, with these settings when there are any. */
-function leftoverTask(
-  chatId: ReturnType<typeof chatFor>,
-  name: string,
-  settings?: string,
-) {
+function leftoverTask(chatId: ChatId, name: string, settings?: string) {
   const dir = path.join(chatDir(chatId), "tasks", name);
   fs.mkdirSync(path.join(dir, ".instrument"), { recursive: true });
   if (settings !== undefined) {

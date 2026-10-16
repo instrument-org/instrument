@@ -11,7 +11,12 @@ import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { cardLine, openAsksOf } from "./asks";
 import { ChatReads } from "../chat-reads";
-import { type Derived, indexedByRecords, kept, unkept } from "../workspace-index";
+import {
+  type Derived,
+  indexedByRecords,
+  kept,
+  unkept,
+} from "../workspace-index";
 import { latestStep, ownMessages, type SessionRef } from "./activity";
 import { lastAssistantTextIn } from "./latest-session";
 

@@ -65,8 +65,8 @@ beforeAll(async () => {
     workFoldersDir: AbsolutePathSchema.parse(path.join(machine, "work")),
     workspaceMachineDir: AbsolutePathSchema.parse(machine),
   });
-  chatId = chatFor(sessionId);
-  other = chatFor();
+  chatId = await chatFor(sessionId);
+  other = await chatFor();
   work = workDir(chatId);
   docs = path.join(root, "Docs");
 

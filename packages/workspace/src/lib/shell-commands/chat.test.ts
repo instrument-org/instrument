@@ -58,7 +58,7 @@ const freshChat = async () => {
 /** A chat: its record and session, the user's opening message, and one reply. */
 async function chat(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
-  const chatId = chatFor(sessionId);
+  const chatId = await chatFor(sessionId);
   await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title, updatedAt: new Date() },
     chatId,
@@ -202,7 +202,7 @@ describe("chat read", () => {
         title: "Weather page",
         updatedAt: new Date(),
       },
-      chatFor(sessionId, ChatIdSchema.parse(`${id}-2`)),
+      await chatFor(sessionId, ChatIdSchema.parse(`${id}-2`)),
     );
 
     const result = await run("read", id);
@@ -272,7 +272,7 @@ describe("chat tag", () => {
 
     expect(result.stdout).toBe('Filed "Groceries" under #Home.\n');
     const session = await ChatReads.session({
-      chatId: chatFor(sessionId),
+      chatId: await chatFor(sessionId),
       sessionId,
     });
     expect(session._unsafeUnwrap().topics).toEqual([home.id]);

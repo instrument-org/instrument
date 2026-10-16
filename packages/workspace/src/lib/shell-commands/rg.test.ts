@@ -263,7 +263,7 @@ describe("rg command in a chat", () => {
       workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
       workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
     });
-    const made = chatFor();
+    const made = await chatFor();
     const recordFolder = chatDir(made);
     const work = workDir(made);
     await fs.mkdir(path.join(work, "work"), { recursive: true });

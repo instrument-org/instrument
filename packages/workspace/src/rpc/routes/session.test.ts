@@ -117,7 +117,7 @@ function wokenSince(before: number) {
 
 /** A chat someone has written in, with one task. */
 async function chatWithTask() {
-  const chatId = chatFor(StoreId.newSessionId());
+  const chatId = await chatFor(StoreId.newSessionId());
   const written = await updateChatSettings(chatId, {
     modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",

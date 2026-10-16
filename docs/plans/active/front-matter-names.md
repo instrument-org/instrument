@@ -48,12 +48,15 @@ created: 2026-10-14 18:22:04
 updated: 2026-10-14 18:25:11
 chat: 2026-10-14-quiet-dishwashers
 topic: Kitchen
+model: openai/gpt-6.1-sol?provider=chatgpt-account
 context:
   - dishwasher.png
   - /Users/sam/Documents/Kitchen plans
   - instrument://chat/2026-10-14-quiet-dishwashers
 ---
 ```
+
+`model` is the model the draft will run on when it is sent, which is a choice made while composing and so belongs with the words rather than with the chat. At Send it becomes the chat's `model`, in `settings.<device>.jsonl`. It is the one key a reply draft written on a phone needs that a chat already has.
 
 `context` is everything that goes with the message: a file, a folder, or a chat written as the link `CHAT.md` already uses. The app fills it once, when the draft is made, from the chips it would have shown. After that it is a list, and taking a chip off takes its line out of the file. Nothing is re-derived on open, so no key has to record a no: a no is a line that is not there.
 

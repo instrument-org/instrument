@@ -41,10 +41,9 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 <workspace>/.instrument/chats/<chat id>/        travels with the workspace
   <session id>.<device id>.jsonl                one per session per device
   <session id>.<device id>.2.jsonl              after this device read newer records from another device's log, or recovery refused the first
-  marks.<device id>.jsonl                       the person's marks, from this device
+  settings.<device id>.jsonl                    every per-chat value, from this device
   blobs/sha256-<hex>.<ext>                       written once through a temp name
   attachments/                                  as today, until instrument-folder.md moves it out
-  settings.json                                 as today
   handoff-notes.md                              as today, until instrument-folder.md moves it out
 
 <machine>/workspaces-data/<local id>/           this computer only
@@ -54,7 +53,32 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 <machine>/machine-state.json                    adds deviceId and hardwareId
 ```
 
-The folder holds no SQLite, no lock file and no file anyone rewrites in place. `settings.json` and `handoff-notes.md` keep their single-writer rules from today and are outside this format.
+The folder holds no SQLite, no lock file and no file anyone rewrites in place.
+
+## The chat's own settings
+
+`settings.json` is the one file in the synced folder that every computer writes. It is read, changed and written whole, and the queue that serializes that only reaches one process on one machine. Two machines changing a chat at once is last-writer-wins, the sync engine makes `settings 2.json`, and nothing reads it: one machine's change is gone without a trace. It is the only place the format's own rule, one writer per file, is broken.
+
+It is replaced by `settings.<device id>.jsonl`, which is the marks file renamed and widened, since what that file already held was never only marks: a title and a list of topics are not marks in the starred sense. One writer, append only, merged newest-wins per field with the larger device id breaking a tie. Its lines read `{"t":"set","seq":…,"at":…,"field":…,"value":…,"session":…,"device":…}`.
+
+Six fields, and nothing else:
+
+| Field | Value | |
+|---|---|---|
+| `title` | `{ text, auto }` | `auto` is true while the app may still rename it: it is the app's heuristics that change, not who typed it |
+| `starred` | boolean | |
+| `archived` | boolean | |
+| `unread` | `"new"` or `"marked"`, absent when read | `"new"` clears when the person looks at the chat; `"marked"` is deliberate and does not. A status rather than a flag, since there will be other reasons a chat becomes unread |
+| `topics` | topic ids | The one opaque value in the file, so renaming a topic's folder does not empty it |
+| `model` | the whole model URI | |
+
+A field set to the value it already holds writes nothing, so the file grows only on real changes and keeps the moment each was first made. Nothing is ever rolled up: compaction means rewriting a file, and append-only with one writer is what makes merging safe. The history is cheap and gives previous titles, the models a chat has used, and an undo, for free.
+
+`stoppedAt` goes. Nothing live writes it: a stop is a `stopped` record in the session log, which carries `by: app | chat | user` and sits in order with the conversation, where a fact about a turn belongs. The only writer of the mark is the converter, carrying the old store's column across, and it can write the record instead.
+
+The model is stored whole, `openai/gpt-6.1-sol?provider=chatgpt-account&providerConfigId=01M4RQ…`, and matched loosely on read: the exact configuration if this computer has it, otherwise any configuration of that provider, otherwise the workspace default. Storing less would break the person who has two accounts with one provider, and requiring an exact match would break every second computer, since the configuration id names a row that is this machine's.
+
+What leaves `settings.json` and does not come here: `chatSessionId`, `createdAt`, `createdWithAppVersion` and `lastActivityAt` are all derivable from the records and were only ever there to be read without opening SQLite. `state.browserTabs` and `folder` are this computer's and move to the machine folder beside `permissions.json`. `reasoningEffort` is in the schema, in none of the 688 files on disk, and surfaced nowhere; it goes.
 
 ## The device id
 

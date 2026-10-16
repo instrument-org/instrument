@@ -173,8 +173,9 @@ function updatedNotice({
  * the app makes itself. It only says so: nothing is restored or recreated, and
  * the next thing the app writes there makes the folder again.
  *
- * Its id carries the names, so a second folder going missing is a notice of
- * its own rather than one the person already dismissed.
+ * Its id carries when as well as which, like the update notice, so a folder
+ * that goes again after the person dismissed the last one is a notice of its
+ * own. Without the stamp, dismissing it once silenced that folder for good.
  */
 function missingFoldersNotice({
   at,
@@ -184,13 +185,16 @@ function missingFoldersNotice({
   return {
     body:
       names.length > 1
-        ? `Instrument put ${listed} in your Instrument folder, and they aren't there now. Nothing is lost, and it will make them again next time it saves something.`
-        : `Instrument put ${listed} in your Instrument folder, and it isn't there now. Nothing is lost, and it will make it again next time it saves something.`,
-    id: `missing-folders-${[...names].toSorted().join("-")}`,
+        ? `Your ${listed} folders aren't in your Instrument folder any more. Nothing is lost, and Instrument makes them again the next time it saves a chat.`
+        : `Your ${listed} folder isn't in your Instrument folder any more. Nothing is lost, and Instrument makes it again the next time it saves a chat.`,
+    id: `missing-folders-${[...names].toSorted().join("-")}-${at}`,
     kind: "announcement",
     publishedAt: new Date(at).toISOString(),
     severity: "info",
-    title: names.length > 1 ? "Some folders are gone" : `${listed} is gone`,
+    title:
+      names.length > 1
+        ? "Some of your folders are gone"
+        : `Your ${listed} folder is gone`,
   };
 }
 

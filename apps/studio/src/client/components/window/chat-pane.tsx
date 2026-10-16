@@ -343,7 +343,7 @@ function emptyLineFor(
   // column is empty, and saying "Press New" instead would be wrong.
   const folder = folderBehind(filters.place, missingFolders);
   if (folder) {
-    return `Your ${folder} folder isn't where Instrument put it. Nothing is lost.`;
+    return `Your ${folder} folder isn't there any more. Nothing is lost.`;
   }
   if (filters.place === "drafts") {
     return "No drafts yet.";

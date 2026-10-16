@@ -9,7 +9,7 @@ import {
 } from "@/electron-main/lib/mac-native";
 import {
   missingKeyFolders,
-  recordKeyFolders,
+  recordFoldersThere,
   watchKeyFolders,
 } from "@/electron-main/lib/missing-key-folders";
 import { noteMissingFolders } from "@/electron-main/lib/notices";
@@ -58,7 +58,6 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
-import fsSync from "node:fs";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
@@ -457,23 +456,22 @@ function takeInMovedPaths(rootDir: string) {
  * before this existed.
  */
 function watchTopLevelFolders(rootDir: string) {
+  const report = (missing: string[]) => {
+    noteMissingFolders(rootDir, missing);
+  };
   try {
-    const here = fsSync
-      .readdirSync(rootDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-    recordKeyFolders(rootDir, here);
-    const report = (missing: string[]) => {
-      noteMissingFolders(rootDir, missing);
-    };
-    void missingKeyFolders(rootDir).then(report, (error: unknown) => {
-      logger.warn("Could not check the workspace's folders", error);
-    });
     stopWatchingFolders?.();
     stopWatchingFolders = watchKeyFolders(rootDir, report);
   } catch (error) {
     logger.warn("Could not watch the workspace's folders", error);
   }
+  // The same record-then-read the watch does, once at the launch, which is
+  // the backstop for a folder that went while the app was closed.
+  void recordFoldersThere(rootDir)
+    .then(() => missingKeyFolders(rootDir))
+    .then(report, (error: unknown) => {
+      logger.warn("Could not check the workspace's folders", error);
+    });
 }
 
 /** The watch on the top level of the workspace open now, dropped when another opens. */

@@ -58,7 +58,7 @@ export function DeleteChatDialog({
             </div>
             {tasks.length === 0 ? (
               <div className="mt-1 text-xs text-muted-foreground">
-                No tasks were started in this chat.
+                This chat didn't start any tasks.
               </div>
             ) : (
               <>

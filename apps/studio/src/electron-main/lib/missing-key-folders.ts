@@ -96,16 +96,22 @@ export function watchKeyFolders(
 
   const check = () => {
     timer = undefined;
-    void missingKeyFolders(root).then(
-      (missing) => {
-        if (!stopped) {
-          onChange(missing);
-        }
-      },
-      (error: unknown) => {
-        logger.error("Failed to check the workspace's folders", error);
-      },
-    );
+    // What is there now is recorded before what is missing is read, so a
+    // folder the app made after the launch is one this watch expects from the
+    // moment it appears. Without it, a person who starts their first chat and
+    // deletes `Chats/` in the same session hears nothing until they relaunch.
+    void recordFoldersThere(root)
+      .then(() => missingKeyFolders(root))
+      .then(
+        (missing) => {
+          if (!stopped) {
+            onChange(missing);
+          }
+        },
+        (error: unknown) => {
+          logger.error("Failed to check the workspace's folders", error);
+        },
+      );
   };
 
   let watcher: fs.FSWatcher | undefined;
@@ -129,6 +135,19 @@ export function watchKeyFolders(
     }
     watcher?.close();
   };
+}
+
+/**
+ * Records the folders of the six that `root` has now, so what the app made
+ * since the launch is expected from here on. Reads the listing once rather
+ * than statting each name, since the watch fires for every save.
+ */
+export async function recordFoldersThere(root: string): Promise<void> {
+  const entries = await fsp.readdir(root, { withFileTypes: true });
+  recordKeyFolders(
+    root,
+    entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name),
+  );
 }
 
 /** How long a burst of events is collected for before the folders are checked. */

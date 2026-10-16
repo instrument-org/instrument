@@ -169,6 +169,33 @@ describe("missing key folders", () => {
     stop();
   });
 
+  it("expects a folder the app made after the launch, without one", async () => {
+    const { folders } = await load();
+    // A fresh workspace: nothing was recorded at the launch, because nothing
+    // was there yet.
+    const seen: string[][] = [];
+    const watch = fakeWatch();
+    const stop = folders.watchKeyFolders(
+      root,
+      (missing) => {
+        seen.push([...missing]);
+      },
+      { watch: watch.watch },
+    );
+
+    // The app makes it, which the watch hears.
+    fs.mkdirSync(path.join(root, "Chats"));
+    watch.fire();
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]).toEqual([]);
+
+    // And the person deletes it in the same session.
+    fs.rmSync(path.join(root, "Chats"), { recursive: true });
+    watch.fire();
+    await vi.waitFor(() => expect(seen).toContainEqual(["Chats"]));
+    stop();
+  });
+
   it("checks once for a burst of events, which one gesture sends", async () => {
     const { folders } = await load();
     fs.mkdirSync(path.join(root, "Drafts"));
@@ -251,11 +278,11 @@ describe("the notice for a folder that is gone", () => {
     expect(shown).toHaveLength(1);
     expect({ body: shown[0]?.body, title: shown[0]?.title })
       .toMatchInlineSnapshot(`
-      {
-        "body": "Instrument put Chats in your Instrument folder, and it isn't there now. Nothing is lost, and it will make it again next time it saves something.",
-        "title": "Chats is gone",
-      }
-    `);
+        {
+          "body": "Your Chats folder isn't in your Instrument folder any more. Nothing is lost, and Instrument makes it again the next time it saves a chat.",
+          "title": "Your Chats folder is gone",
+        }
+      `);
   });
 
   it("lists several in one notice", async () => {
@@ -265,22 +292,37 @@ describe("the notice for a folder that is gone", () => {
     const shown = notices.listNotices();
     expect({ body: shown[0]?.body, title: shown[0]?.title })
       .toMatchInlineSnapshot(`
-      {
-        "body": "Instrument put Chats, Drafts and Topics in your Instrument folder, and they aren't there now. Nothing is lost, and it will make them again next time it saves something.",
-        "title": "Some folders are gone",
-      }
-    `);
+        {
+          "body": "Your Chats, Drafts and Topics folders aren't in your Instrument folder any more. Nothing is lost, and Instrument makes them again the next time it saves a chat.",
+          "title": "Some of your folders are gone",
+        }
+      `);
   });
 
-  it("stays dismissed when the same folders are noted again", async () => {
+  it("stays dismissed while the same folders are still gone", async () => {
     const { notices } = await load();
     notices.noteMissingFolders(root, ["Chats"]);
     const shown = notices.listNotices();
     notices.dismissNotice(shown[0]?.id ?? "");
 
+    // The same record written again is the same notice, so a watch that fires
+    // on every save does not bring back one the person dismissed.
     notices.noteMissingFolders(root, ["Chats"]);
 
     expect(notices.listNotices()).toEqual([]);
+  });
+
+  it("says so again when the folder goes a second time", async () => {
+    const { notices } = await load();
+    notices.noteMissingFolders(root, ["Chats"]);
+    notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+    // Back, then gone again: a different moment, so a notice of its own
+    // rather than the one that was dismissed.
+    notices.noteMissingFolders(root, []);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    notices.noteMissingFolders(root, ["Chats"]);
+
+    expect(notices.listNotices()).toHaveLength(1);
   });
 
   it("is a new notice when another folder goes", async () => {

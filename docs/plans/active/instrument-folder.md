@@ -2,9 +2,9 @@
 
 Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md).
 
-F1 is built. A chat's folder is claimed when the chat is made, `CHAT.md` is written at the end of every turn, the folder follows the title at the two moments one changes, `$INSTRUMENT_OUTPUT` and `handoff-notes.md` are in it, what the person sent has moved into it, and deleting a chat can take it. What F1 still owes is the delete screen's checkbox in Studio and deleting a sync engine's conflict copy of `CHAT.md`.
+F1 is built, down to the delete screen's box and a sync engine's conflict copy of `CHAT.md` deleted on sight. F2 is built apart from `Drafts/` being a folder the agent reaches, which waits for every workspace to be a folder the person picked. F3 is built: an attachment is opened where it lies on all three systems, the copy and `$INSTRUMENT_ATTACHMENTS` are gone, and the migration moves what old chats hold. F4 is built apart from two paths still open inside `.instrument`, which the same wait closes; a test pins that set so it can only shrink deliberately. F5 and F6 are the two phases left.
 
-F2 is built apart from the control for a chat with several replies waiting. F3 is in progress. F4, F5 and F6 are not started.
+The rehearsal over a real 1.x install passes whole, and Windows and Linux each migrated their own workspace at a first launch. What is still owed per phase is in the table at [Phases](#phases), which is the list to read rather than this paragraph.
 
 The Instrument folder becomes something a person can open in Finder, Spotlight or Obsidian: a folder per chat with its transcript as Markdown and what the agent made, their drafts, topics, memories, skills and apps as plain files. The app's records stay in the hidden `.instrument/`, which ends fully closed to the agent. Attachments stop being copies: what the person hands over from disk is opened to the chat where it lies.
 

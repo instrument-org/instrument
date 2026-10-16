@@ -161,8 +161,19 @@ export namespace SessionMessage {
     environment: EnvironmentSchema.optional(),
     realRole: z.enum(["system", "user", "assistant"]),
   });
+  const UserMetadataSchema = BaseMetadataSchema.extend({
+    /**
+     * The draft this message was sent from, by its id. What makes a send
+     * crash-safe: the draft's folder is taken away after the message is
+     * written, so a launch that finds a message naming a draft still on disk
+     * finishes that send rather than sending it again.
+     *
+     * Absent on a message sent from no draft: a task's, a retry, a line a
+     * card asked for.
+     */
+    fromDraft: z.string().optional(),
+  });
   const SystemMetadataSchema = BaseMetadataSchema;
-  const UserMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({
     // What a past turn ran on, kept for display. A record this build cannot
     // parse (a provider since renamed or removed) reads as unknown rather

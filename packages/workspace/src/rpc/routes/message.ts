@@ -61,6 +61,12 @@ const create = base
       asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
+      /**
+       * The draft this message was sent from, by its id, recorded on the
+       * message: what tells the next launch the draft was sent, so a send
+       * interrupted partway through is finished rather than sent again.
+       */
+      fromDraft: z.string().optional(),
       id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
@@ -81,6 +87,7 @@ const create = base
         asks,
         files,
         folders,
+        fromDraft,
         id,
         modelURI,
         prompt,
@@ -132,6 +139,7 @@ const create = base
           asks,
           files,
           folders,
+          ...(fromDraft ? { fromDraft } : {}),
           modelURI,
           prompt,
           replyTo,

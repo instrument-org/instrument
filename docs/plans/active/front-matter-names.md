@@ -38,24 +38,23 @@ topics:
 
 ```yaml
 ---
-id: 01KFDRAFT0000000000000001
 created: 2026-10-14T18:22:04.000Z
 updated: 2026-10-14T18:25:11.000Z
 chat: 2026-10-14-quiet-dishwashers
 topic: Kitchen
 attached:
-  - kind: file
-    path: dishwasher.png
-    name: dishwasher.png
-    mediaType: image/png
-    size: 184320
-openedOn:
+  - dishwasher.png
   - /Users/sam/Documents/Kitchen plans
-openedOver: 2026-10-14-quiet-dishwashers
-leftOut:
-  - screen
-topicPickedBy: person
 ---
+```
+
+Every one of those is optional, which is the test the format is held to: a person can write a draft by hand, in any editor, and the app picks it up.
+
+```markdown
+---
+topic: Kitchen
+---
+Remind me to call the plumber about the leak
 ```
 
 A memory:
@@ -75,9 +74,9 @@ Each one is a rename, and each stands alone: take any of them without the rest.
 2. **A chat's own title in `CHAT.md`.** It has none today, so a Markdown viewer's properties panel and the file thumbnail both label a chat with nothing, while a dev-only transcript labels itself. It also means the title survives the person moving the folder. Default: do it.
 3. **A memory's `from`.** `from: "Roofer call"` reads as a sender in a product where `to:` is a message recipient, and the `chat:` under it holds a *session* id, which is the only place in any visible file where `chat` means something other than a chat. Both become one key: `chat: Roofer call`, the title. The session id is read by nothing but the grouping in Settings, which the title and the date already do. Default: do it.
 4. **A draft's `topic`.** `topic: "top_01K8…"` today, in the one file another client has to author, naming a ULID that appears on no surface anywhere. It becomes the topic's name, which is what its folder is called and therefore what identifies it. Default: do it.
-5. **A draft's `state` blob.** One line of JSON holding `chosen`, `included`, `leftOut` and `topicSource`, documented as holding "nothing a reader would have to decode". Its four keys move to the top level with names: `openedOn` (files and folders the person opened the draft on), `openedOver` (the thing on screen it was opened over), `leftOut` (chips the person took off), `topicPickedBy: person | app`. Note that `chosen` and `topicSource: "chosen"` are in there meaning two different things. Default: do it.
-6. **What `openedOver` stores.** Today it can be `{group, tabId}`, a pointer into one window's tab list, which is the only thing in the file another client could not write and the reason a second file looked necessary. It becomes what the thing is: a chat by its id, a file or folder by its path, an app by its name. The window re-finds its own tab from that. Default: do it, and the second file is then not needed anywhere.
-7. **`sendOn`.** Reads as a date; it holds the one device allowed to send the draft. Becomes `sendFrom`. Nothing sends yet, so this is the format only. Default: do it.
+5. **A draft's `state` blob, and all four keys in it.** One line of JSON holding `chosen`, `included`, `leftOut` and `topicSource`, documented as holding "nothing a reader would have to decode", in which `chosen` and `topicSource: "chosen"` mean two different things. None of the four survives the scrutiny below: `chosen` is attachments by another name, `included` is stale by the next day and is what the window knows at Send, `leftOut` exists only because context is applied rather than offered, and `topicSource` is answered by whether `topic` is written at all. Default: do it, and no second file is needed anywhere.
+6. **Attachments.** Five fields each today (`path`, `kind`, `name`, `mediaType`, `size`), of which four are read off the file itself and nothing computes with. One path each: relative is inside the draft's folder, absolute is anywhere. The message record keeps all five, because a record keeps what was true and a draft points at what is there. Default: do it.
+7. **A draft's `id`, and sending.** A ULID is a timestamp with noise after it, so `id` and `created` carry the same fact, and the one job only an id did (telling two conflict copies apart inside one folder) `created` does to the millisecond in something a person can read. `send` and `sendOn` are read by nothing and nothing sends yet. All three go. Default: do it.
 8. **Keeping what another client wrote.** A draft's parser lifts only the keys it knows and its writer emits only the keys it knows, so a round trip through the app deletes anything the phone added; saving a memory rewrites the file from three fields and drops the rest. Message documents already do this correctly, rewriting the one line that changed. Default: do it, both of them, since a format two clients write is the whole point.
 9. **The transcript export.** `taskName` holds a *chat's* title, next to a `sessionTitle` holding a different title, in a product where a task is a specific other thing. `taskName` becomes `chat`, `sessionTitle` becomes `title`, `sessionCreatedAt` becomes `created`, `currentAppVersion` becomes `app`, `taskCreatedWithAppVersion` becomes `startedWithApp`. Dev-only, read by nothing. Default: do it.
 10. **The record header's `title`.** It means "the title a task was started with", while a mark record with `field: "title"` means the chat's title now. Becomes `startedAs`. Default: do it.
@@ -86,10 +85,21 @@ Each one is a rename, and each stands alone: take any of them without the rest.
 13. **Planned `APP.md`.** `baseUrl` for one kind of app and `url` for the other two becomes `url` throughout; `name` goes, since the folder is the name, the way the planned `TOPIC.md` already does it. And every manifest variant is a strict object today, so once it is front matter, one note key a person adds makes the app fail to load, uniquely among every file here. Unknown keys stay out of the approval hash instead. Default: do all three.
 14. **The two splitters.** `splitFrontmatter` and `splitFrontMatter`, one capital letter apart, with different grammars: one accepts `...` as a closing fence and tolerates trailing whitespace, the other does not. Drafts and memories use one, the editor and the thumbnailer the other. Default: one of them, the looser grammar, used everywhere.
 
+## The other files in capitals
+
+The same question of each: would a person reading it know what every key means, and could they change one without breaking something they could not have known about.
+
+**`CHAT.md`** holds `title`, `created` and `topics`. All readable, none editable, because it is a render and the app rewrites it whole. `created` overlaps the folder's date and is kept for the time of day.
+
+**`TOPIC.md`** holds `id`, `emoji`, `color`, `about`, `created`, and `retired` only when true. The middle three are what a person would change, and changing them is safe; setting `retired` by hand hides a topic, which is a fair thing to find out. `id` has to stay, for a reason drafts do not share: a chat's marks point at a topic by id, so a topic folder renamed in Finder keeps its chats, and without the id a rename empties the topic. Dropping `name` and moving the granted folders out to a permissions file are both right: the folder is the name, and a grant should not widen by editing a document.
+
+**`APP.md`** can hold the whole manifest in the open. No credential ever appears in one: `auth` names how a stored credential is attached to a request, the value lives in the credential store keyed by the app's slug, and the headers are documented as non-secret. It is also the file where editing by hand is most useful, since fixing a broken local server means changing `package`, `args` or `runtime`. Three fixes first: `baseUrl` becomes `url`, `name` goes, and the schema stops refusing unknown keys.
+
+**`SKILL.md`** is not ours to name. Skills come from the registry and from third-party folders, so renaming `description` or `name` would orphan every skill written against the format. The only decision is the allow-list.
+
 ## Left alone, on purpose
 
 - **A draft's `chat` stays an id.** It is what a reply is sent into, and a title is neither unique nor stable. The id is readable anyway (`2026-10-14-quiet-dishwashers`), so nothing is lost.
-- **A draft's `id` keeps its bare ULID**, with no `drf_` prefix. Prefixes elsewhere are not worth changing a value another client already writes.
 - **The record logs keep every key they have**, including `app`, which nothing reads: a log you are reading because something went wrong is exactly where you want to know which build wrote it. Their names are not a product surface.
 - **`CHAT.md` stays a render.** An edit to it does not last, and that is the point: it is the chat shown as a file, not the chat.
 - **Message documents keep `message`, `kind`, `to`, `subject`, `via`.** They are already the best-named and the only ones that round-trip.

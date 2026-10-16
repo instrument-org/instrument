@@ -230,10 +230,11 @@ export function missingFolderNames(): string[] {
 
 /** `Chats`, `Chats and Drafts`, `Chats, Drafts and Topics`. */
 function formatList(names: readonly string[]): string {
-  if (names.length <= 1) {
+  const last = names.at(-1);
+  if (names.length <= 1 || last === undefined) {
     return names[0] ?? "";
   }
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${names.slice(0, -1).join(", ")} and ${last}`;
 }
 
 /**

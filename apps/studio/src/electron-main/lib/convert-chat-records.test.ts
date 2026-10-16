@@ -103,10 +103,21 @@ const conversionThatSays: typeof convertWorkspaceChats = (dir) => {
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
       const where = path.join(dir, entry.name);
-      const outcome: ChatConversion = said.get(entry.name) ?? {
+      const converted: ChatConversion = {
+        converted: {
+          blobBytes: 0,
+          blobs: 0,
+          leftBehind: {},
+          logBytes: 0,
+          messages: 1,
+          parts: 1,
+          sessions: 1,
+          swept: 0,
+        },
         kind: "converted",
         store: storeOf(where),
       };
+      const outcome = said.get(entry.name) ?? converted;
       return { ...outcome, dir: where };
     });
   const counts = {

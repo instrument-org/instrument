@@ -103,6 +103,8 @@ export {
   BROWSER_FOLDER_NAMES,
   CHAT_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
+  KEY_FOLDER_NAMES,
+  type KeyFolderName,
 } from "./constants";
 export {
   type ChatConversion,

@@ -7,7 +7,7 @@ import { getMachineState } from "@/electron-main/stores/machine/state";
 import {
   type KeyFolderName,
   KEY_FOLDER_NAMES,
-} from "@instrument-org/workspace/client";
+} from "@instrument-org/workspace/electron";
 
 /**
  * Which of the six folders a person opens have gone from a workspace's top

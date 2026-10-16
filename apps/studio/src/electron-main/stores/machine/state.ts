@@ -2,7 +2,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { noteUpdate } from "@/electron-main/lib/notices";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { KEY_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { KEY_FOLDER_NAMES } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import Store from "electron-store";
 import semver from "semver";

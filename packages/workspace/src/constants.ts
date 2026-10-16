@@ -79,6 +79,23 @@ export const DRAFTS_FOLDER_NAME = "Drafts";
 export const DRAFT_FILE_NAME = "DRAFT.md";
 
 /**
+ * Where the person's topics are, at the workspace's top level: a folder per
+ * topic named for it, each with the `TOPIC.md` that says what it is. One of
+ * the six folders a person opens. Here rather than beside the file's own
+ * reader (`lib/chat/topic-file.ts`, which re-exports it) because the note
+ * naming the file to the model is drawn in the app too, and depends on
+ * nothing else.
+ */
+export const TOPICS_FOLDER_NAME = "Topics";
+/**
+ * A topic in its folder, its front matter over the standing instructions
+ * every chat under it is read with. Capitalized like the one file that says
+ * what a folder is in each of the six: a folder in `Topics/` without it is
+ * not a topic's.
+ */
+export const TOPIC_FILE_NAME = "TOPIC.md";
+
+/**
  * Where the person's memories are, at the workspace's top level: one
  * Markdown file per memory, which they read and edit in a file manager like
  * any other file. One of the six folders a person opens, and the one with no

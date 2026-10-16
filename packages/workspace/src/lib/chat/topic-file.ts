@@ -19,19 +19,8 @@ import { isRecord, splitFrontmatter } from "../skills";
  * folder renamed in a file manager would empty the topic.
  */
 
-/**
- * Where the person's topics are, at the workspace's top level: a folder per
- * topic named for it, each with the `TOPIC.md` that says what it is. One of
- * the six folders a person opens.
- */
-export const TOPICS_FOLDER_NAME = "Topics";
-
-/**
- * A topic in its folder. Capitalized like the one file that says what a
- * folder is in each of the six: a folder in `Topics/` without it is not a
- * topic's.
- */
-export const TOPIC_FILE_NAME = "TOPIC.md";
+/** Where the person's topics are, and the one file that says a folder is one. */
+export { TOPIC_FILE_NAME, TOPICS_FOLDER_NAME } from "../../constants";
 
 /** A folder of the user's that work under a topic uses, by its path on disk. */
 export const TopicFolderSchema = z.object({ path: z.string() });

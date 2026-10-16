@@ -1,8 +1,7 @@
+import { TOPIC_FILE_NAME, TOPICS_FOLDER_NAME } from "../constants";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { instructionsInContext } from "./instructions-in-context";
 import { systemNote } from "./system-note";
-
-/** How much of a topic's instructions the agent is given, the same budget a 1.x project had. */
-const TOPIC_INSTRUCTIONS_MAX = 20_000;
 
 /**
  * Tells the agent which topics this chat is filed under: each one's name,
@@ -27,7 +26,10 @@ export function chatTopicsModelNote(
     })
     .join(", ");
   const standing = data.topics.flatMap((topic) => {
-    const instructions = topicInstructions(topic.instructions);
+    const instructions = instructionsInContext({
+      file: `${TOPICS_FOLDER_NAME}/${topic.name}/${TOPIC_FILE_NAME}`,
+      instructions: topic.instructions,
+    });
     return [
       ...(instructions
         ? [
@@ -44,22 +46,4 @@ export function chatTopicsModelNote(
   return systemNote`
     This chat is filed under the ${data.topics.length === 1 ? "topic" : "topics"} ${named}. Topics are tags the user puts on chats to find them by; read the chat through them.${standing.length > 0 ? `\n\n${standing.join("\n\n")}` : ""}
   `;
-}
-
-/**
- * A topic's instructions as the agent is given them: trimmed, and cut on a
- * paragraph break past the budget, saying so.
- */
-function topicInstructions(instructions: string | undefined) {
-  const trimmed = instructions?.trim();
-  if (!trimmed) {
-    return;
-  }
-  if (trimmed.length <= TOPIC_INSTRUCTIONS_MAX) {
-    return trimmed;
-  }
-  const within = trimmed.slice(0, TOPIC_INSTRUCTIONS_MAX);
-  const lastBreak = within.lastIndexOf("\n\n");
-  const kept = lastBreak > 0 ? within.slice(0, lastBreak) : within.trimEnd();
-  return `${kept}\n\n[Cut off here: the rest of these instructions is too long to include.]`;
 }

@@ -34,7 +34,7 @@ describe("chatTopicsModelNote", () => {
     `);
   });
 
-  it("cuts long instructions on a paragraph break, saying so", () => {
+  it("cuts long instructions on a paragraph break, naming the topic's own file", () => {
     const note = chatTopicsModelNote({
       topics: [
         {
@@ -45,7 +45,7 @@ describe("chatTopicsModelNote", () => {
     });
     expect(note).not.toContain("ZZZ");
     expect(note).toContain(
-      "[Cut off here: the rest of these instructions is too long to include.]",
+      "[Cut off here: the rest is in Topics/Long/TOPIC.md.]",
     );
   });
 });

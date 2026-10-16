@@ -3,7 +3,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parallel } from "radashi";
 
-import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
+import {
+  CHAT_FILE_NAME,
+  CHAT_FOLDER_NAMES,
+  CHATS_FOLDER_NAME,
+} from "../../constants";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type ChatDir, ChatDirSchema } from "../../schemas/paths";
 import { readChatRecord, updateChatRecord } from "../chat-record";
@@ -109,6 +113,41 @@ export async function sweepChatFolders({
 }
 
 /**
+ * Moves what the person sent a chat out of its record folder and into the
+ * folder they can see, once, at the launch that gives the chat its folder.
+ *
+ * Nothing stored has to be rewritten for this. An attachment's path is kept
+ * relative, as `attachments/<name>`, so moving the folder the prefix refers
+ * to is the whole migration: the records keep saying what they said.
+ *
+ * Idempotent, and it never merges: a chat whose folder already holds
+ * `attachments/` is left alone, so a second run cannot overwrite a file the
+ * person put there themselves.
+ */
+async function moveAttachmentsIn(
+  recordDir: ChatDir,
+  folderPath: string,
+): Promise<void> {
+  const from = path.join(recordDir, CHAT_FOLDER_NAMES.attachments);
+  const to = path.join(folderPath, CHAT_FOLDER_NAMES.attachments);
+  try {
+    if ((await fs.readdir(from)).length === 0) {
+      return;
+    }
+  } catch {
+    // Nothing sent to this chat, which is most of them.
+    return;
+  }
+  try {
+    await fs.rename(from, to);
+  } catch {
+    // Already there, or the move crosses a volume, or something holds it.
+    // The files stay where they are and still resolve, since the chat's
+    // record folder is where an attachment was always read from before.
+  }
+}
+
+/**
  * Gives one chat its folder and `CHAT.md`, as the launch sweep does for
  * every chat, for a caller that already knows which chat moved.
  *
@@ -170,6 +209,7 @@ async function sweepChatFolder({
       rootDir,
       title: chatTitleOf(chat),
     });
+    await moveAttachmentsIn(dir, folder.path);
     if (
       record.settings?.folder === folder.name &&
       (await alreadyReads(folder.path, markdown))

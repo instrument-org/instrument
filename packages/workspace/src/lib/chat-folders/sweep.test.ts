@@ -312,6 +312,47 @@ describe("a gesture in a file manager", () => {
     expect(await writeChatFolder(once)).toEqual({ kind: "already-there" });
   });
 
+  it("brings what the person sent out of the record folder and into theirs", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await fs.mkdir(path.join(dir, "attachments"), { recursive: true });
+    await fs.writeFile(path.join(dir, "attachments", "spec.pdf"), "a pdf");
+
+    await sweep();
+
+    await expect(
+      fs.readFile(
+        path.join(chatsFolder(), "Dishwashers", "attachments", "spec.pdf"),
+        "utf8",
+      ),
+    ).resolves.toBe("a pdf");
+    // Gone from where it was, so there is one copy rather than two.
+    await expect(fs.readdir(path.join(dir, "attachments"))).rejects.toThrow();
+  });
+
+  it("leaves an attachments folder the person already made alone", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    const theirs = path.join(chatsFolder(), "Dishwashers", "attachments");
+    await fs.mkdir(theirs, { recursive: true });
+    await fs.writeFile(path.join(theirs, "mine.txt"), "the person's own");
+    await fs.mkdir(path.join(dir, "attachments"), { recursive: true });
+    await fs.writeFile(path.join(dir, "attachments", "spec.pdf"), "a pdf");
+
+    await sweep();
+
+    // Never merged over: a second run cannot overwrite what they put there.
+    await expect(
+      fs.readFile(path.join(theirs, "mine.txt"), "utf8"),
+    ).resolves.toBe("the person's own");
+    await expect(
+      fs.readFile(path.join(dir, "attachments", "spec.pdf"), "utf8"),
+    ).resolves.toBe("a pdf");
+  });
+
   it("opens no transcript at all where nothing was renamed", async () => {
     await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
     await writeChat("2026-10-15-taxes", { title: "Taxes" });

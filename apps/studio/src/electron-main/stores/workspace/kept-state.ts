@@ -15,7 +15,6 @@ import {
   readMovedPaths,
   remapMovedPath,
 } from "@instrument-org/workspace/electron";
-import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -185,10 +184,11 @@ function getStore() {
     (file) =>
       file === "bookmarks" ? workspaceDataDir() : workspaceWindowDir(),
     {
-      drafts: createDraftsFolder(
-        workspaceLayout(getWorkspaceFolder()).draftsDir,
-        remap,
-      ),
+      // The workspace folder, not the drafts folder: `createDraftsFolder`
+      // names `Drafts/` inside what it is given, the way boot's own move
+      // does. `layout.draftsDir` is where builds before this one kept them,
+      // under `.instrument/`, which the move empties.
+      drafts: createDraftsFolder(getWorkspaceFolder(), remap),
     },
     { layout: (keys) => remapFolderAddresses(keys, remap) },
   );

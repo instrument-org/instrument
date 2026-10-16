@@ -13,6 +13,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { atom, type SetStateAction } from "jotai";
 import { atomFamily } from "jotai/utils";
+import { ulid } from "ulid";
 
 import { keptAtom } from "@/client/lib/kept-state";
 import { DRAFTS_KEY } from "@/shared/kept-state";
@@ -68,6 +69,12 @@ export type DraftAttachment =
 export interface Draft {
   /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
   attached?: DraftAttachment[];
+  /**
+   * The chat a reply is for. A chat may have several, ready to be sent one
+   * after another, and the newest is the one in its box. Absent on a draft
+   * that opens a chat of its own, which is what tells the two apart.
+   */
+  chatId?: ChatId;
   /**
    * Files and folders the person opened the draft on by name, from a menu or
    * a button over them: held for the chat whatever the window moves on to,
@@ -167,6 +174,113 @@ export function forgetDraftWords(draftId: string) {
   clearTimeout(draftWordsWrites.get(draftId));
   draftWordsWrites.delete(draftId);
   draftWordsAtom.remove(draftId);
+}
+
+/**
+ * The reply a chat's box holds, which is a draft of its own in Drafts: the
+ * newest of the chat's, since a chat may have several waiting.
+ */
+export function replyDraftOf(
+  drafts: Draft[],
+  chatId: ChatId,
+): Draft | undefined {
+  return drafts
+    .filter((draft) => draft.chatId === chatId)
+    .reduce<Draft | undefined>(
+      (newest, draft) =>
+        newest === undefined || draft.updatedAt >= newest.updatedAt
+          ? draft
+          : newest,
+      undefined,
+    );
+}
+
+/**
+ * The drafts being sent, which are not deleted for having no words: the box
+ * empties on submit, a beat before the send lands, and a send that fails
+ * puts the words back into the draft they came from.
+ */
+const draftsBeingSent = new Set<string>();
+
+/**
+ * Holds a draft through a send: its pending write is dropped, so the empty
+ * box never reaches its record, and it is not deleted for being empty.
+ * Answers with what to call when the send has settled.
+ */
+export function holdDraftWhileSending(draftId: string): () => void {
+  clearTimeout(draftWordsWrites.get(draftId));
+  draftWordsWrites.delete(draftId);
+  draftsBeingSent.add(draftId);
+  return () => {
+    draftsBeingSent.delete(draftId);
+  };
+}
+
+/**
+ * The words in a chat's own box: a draft of the chat's in Drafts, like the
+ * draft a new chat is written in, so a reply left half-typed is on disk
+ * where the person can find it, survives a relaunch, and can be read on
+ * another device.
+ *
+ * Nothing is written while someone is typing: the draft is made when the
+ * typing settles, and the id is minted then, so no draft is ever written
+ * under an id a sent one had. A box emptied by hand takes its draft with it,
+ * unless something was pasted or attached into it.
+ */
+export const chatDraftWordsAtom = atomFamily((chatId: ChatId) => {
+  const typed = atom<null | string>(null);
+  const words = atom(
+    (get) => get(typed) ?? replyDraftOf(get(draftsAtom), chatId)?.words ?? "",
+    (get, set, update: SetStateAction<string>) => {
+      const next = typeof update === "function" ? update(get(words)) : update;
+      set(typed, next);
+      const key = `chat:${chatId}`;
+      clearTimeout(draftWordsWrites.get(key));
+      draftWordsWrites.set(
+        key,
+        setTimeout(() => {
+          draftWordsWrites.delete(key);
+          set(draftsAtom, (current) => keptReply(current, chatId, next));
+        }, DRAFT_WORDS_SETTLE_MS),
+      );
+    },
+  );
+  return words;
+});
+
+/** Lets go of a chat's box, for a reply sent: its next words start a new draft. */
+export function forgetChatDraftWords(chatId: ChatId) {
+  clearTimeout(draftWordsWrites.get(`chat:${chatId}`));
+  draftWordsWrites.delete(`chat:${chatId}`);
+  chatDraftWordsAtom.remove(chatId);
+}
+
+/** The drafts with the chat's reply as these words say it stands. */
+function keptReply(current: Draft[], chatId: ChatId, words: string): Draft[] {
+  const draft = replyDraftOf(current, chatId);
+  if (!draft) {
+    if (words.trim() === "") {
+      return current;
+    }
+    const now = Date.now();
+    return [
+      ...current,
+      { chatId, createdAt: now, id: ulid(), updatedAt: now, words },
+    ];
+  }
+  if (draft.words === words) {
+    return current;
+  }
+  if (
+    words.trim() === "" &&
+    (draft.attached ?? []).length === 0 &&
+    !draftsBeingSent.has(draft.id)
+  ) {
+    return current.filter((entry) => entry.id !== draft.id);
+  }
+  return current.map((entry) =>
+    entry.id === draft.id ? { ...entry, updatedAt: Date.now(), words } : entry,
+  );
 }
 
 /**

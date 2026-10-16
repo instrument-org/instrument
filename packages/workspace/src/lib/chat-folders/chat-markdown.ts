@@ -15,6 +15,7 @@ import {
 } from "../chat/call-label";
 import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
+import { localStamp } from "../local-stamp";
 import { sessionOf } from "../records/session-of";
 
 /**
@@ -135,7 +136,7 @@ export function renderChatMarkdown({
     return undefined;
   }
   const blocks: string[] = [
-    frontMatter(id, own, topicNames),
+    frontMatter(own, timeZone, topicNames),
     `[Open this chat in ${APP_NAME}](${APP_NAME_SLUG}://chat/${id})`,
   ];
   const work = workLines(chat, own.id);
@@ -197,30 +198,35 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
 }
 
 /**
- * The file's front matter: which chat this is, when it began, and the topics
- * it is filed under. Nothing lists its files, its pages or its apps, which
- * the folder beside it and the app already say.
+ * The file's front matter: what the chat is called, when it began, and the
+ * topic it is filed under. Nothing lists its files, its pages or its apps,
+ * which the folder beside it and the app already say.
  *
- * The chat's own id is a key rather than only the link under it, so what ties
- * a folder to a chat is something to read and something to parse, not a
- * hyperlink that has to be picked apart.
+ * The chat's own id is the link in the first line of the body rather than a
+ * key, so it is something to click as well as what ties a folder back to a
+ * chat. Which also says what this file is: a render the app rewrites whole,
+ * with no `id` of its own, where a draft or a topic carries one because the
+ * app has to find it again after the person moves it.
+ *
+ * `title` is here so a Markdown viewer's properties panel and the file's
+ * thumbnail name the conversation, and so the name survives the person
+ * moving the folder. `topic` is singular: a chat is filed under one.
  */
 function frontMatter(
-  id: ChatId,
   own: FoldedSession,
+  timeZone: string,
   topicNames: ReadonlyMap<string, string> | undefined,
 ): string {
-  const topics = (own.marks.topics?.value ?? []).flatMap((topicId) => {
+  const [topic] = (own.marks.topics?.value ?? []).flatMap((topicId) => {
     const name = topicNames?.get(topicId);
     return name === undefined ? [] : [name];
   });
+  const title = sessionOf(own).title;
   return [
     "---",
-    `chat: ${yamlScalar(id)}`,
-    `started: ${own.createdAt.toISOString()}`,
-    ...(topics.length > 0
-      ? ["topics:", ...topics.map((name) => `  - ${yamlScalar(name)}`)]
-      : []),
+    ...(title === undefined ? [] : [`title: ${yamlScalar(title)}`]),
+    `created: ${localStamp(own.createdAt, timeZone)}`,
+    ...(topic === undefined ? [] : [`topic: ${yamlScalar(topic)}`]),
     "---",
   ].join("\n");
 }

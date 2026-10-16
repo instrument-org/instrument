@@ -1,6 +1,7 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 
+import { localStamp } from "../local-stamp";
 import { isRecord, splitFrontmatter } from "../skills";
 
 /**
@@ -183,7 +184,7 @@ export function renderTopicFile(topic: TopicFile): string {
   if (topic.about !== undefined) {
     front.about = topic.about;
   }
-  front.created = stamp(topic.created);
+  front.created = localStamp(topic.created);
   // Only when true: a topic in the menus says so by having no such line.
   if (topic.retired === true) {
     front.retired = true;
@@ -204,16 +205,6 @@ export function renderTopicFile(topic: TopicFile): string {
   const block = stringifyYaml(front, { lineWidth: 0 }).trimEnd();
   const instructions = topic.instructions?.trim() ?? "";
   return `---\n${block}\n---\n${instructions ? `\n${instructions}\n` : ""}`;
-}
-
-/**
- * When something happened as a person reads it: local time, no `T`, no `Z`,
- * no milliseconds, so the number matches the clock they were looking at.
- */
-function stamp(at: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const day = `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
-  return `${day} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 }
 
 function dateOf(value: unknown): Date | undefined {

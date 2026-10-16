@@ -221,10 +221,9 @@ function wholeChat() {
 it("renders a chat whole", () => {
   expect(render(wholeChat())).toMatchInlineSnapshot(`
     "---
-    chat: records-test
-    started: 2026-10-14T12:00:00.000Z
-    topics:
-      - Kitchen
+    title: "Quiet dishwashers under $900"
+    created: 2026-10-14 08:00:00
+    topic: Kitchen
     ---
 
     [Open this chat in Instrument](instrument://chat/records-test)

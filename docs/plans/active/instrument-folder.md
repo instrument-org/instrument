@@ -71,7 +71,7 @@ What a person sees in the app and what they find on disk are meant to be the sam
 
 ## One topic per chat
 
-Settled 2026-10-16: a chat is filed under one topic, not several. The plural was never used for more than one in practice, and it is carried in 46 places across the two packages: an array on the session row and in the mark, a checkbox menu in two chat menus, a `data-chatTopics` part, a filter that has to reason about overlap, and the front matter of `CHAT.md`.
+Settled 2026-10-16: a chat is filed under one topic, not several. The plural was never used for more than one in practice, and it is carried in 46 places across the two packages: an array on the session row and in the mark, a checkbox menu in two chat menus, a `data-topics` part, a filter that has to reason about overlap, and the front matter of `CHAT.md`.
 
 Singular removes all of that rather than renaming it. The migration is one step, since a chat with several topics keeps the first and the rest are dropped; nothing on disk needs rewriting until the chat's next change, because the mark is newest-wins per field.
 

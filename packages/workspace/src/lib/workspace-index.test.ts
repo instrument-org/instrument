@@ -8,14 +8,10 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import {
-  disposeSessionsStoreStorage,
-  getSessionsStoreStorage,
-} from "./session-store-storage";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { closeWorkspaceDb } from "./workspace-db";
-import { indexedByStore, kept, unkept } from "./workspace-index";
+import { indexedByRecords, kept, unkept } from "./workspace-index";
 
 const SESSION = StoreId.newSessionId();
 
@@ -35,24 +31,35 @@ beforeEach(async () => {
     workspaceDbFile: AbsolutePathSchema.parse(databaseFile),
   });
   await fs.mkdir(chatDir(chatId), { recursive: true });
-  // A store on disk, which is what a row stands for.
-  const opened = await getSessionsStoreStorage(chatId);
-  opened._unsafeUnwrap();
+  // A record on disk, which is what a row stands for.
+  await fs.writeFile(
+    path.join(chatDir(chatId), `${SESSION}.dev_AAAAAAAA.jsonl`),
+    '{"t":"session","seq":1}\n',
+  );
 });
 
 afterEach(async () => {
   closeWorkspaceDb();
-  await disposeSessionsStoreStorage(chatId);
   await fs.rm(root, { force: true, recursive: true });
 });
+
+/** Appends to the chat's log, which is what a row's stamp stands for. */
+async function append() {
+  const log = path.join(chatDir(chatId), `${SESSION}.dev_AAAAAAAA.jsonl`);
+  const at = await fs.stat(log);
+  await fs.appendFile(log, '{"t":"message","seq":2}\n');
+  // A stamp is the file's size and modification time, and a test can append
+  // inside one millisecond of writing it.
+  await fs.utimes(log, at.atime, new Date(at.mtimeMs + 1000));
+}
 
 /** A fresh cache over the same index, as the next launch has: nothing in memory. */
 function nextLaunch() {
   closeWorkspaceDb();
-  return indexedByStore<{ said: string }>("task_standings");
+  return indexedByRecords<{ said: string }>("task_standings");
 }
 
-describe("indexedByStore", () => {
+describe("indexedByRecords", () => {
   it("serves a value from the index on the next launch without deriving it", async () => {
     let derived = 0;
     const derive = () => {
@@ -69,7 +76,7 @@ describe("indexedByStore", () => {
     expect(derived).toBe(1);
   });
 
-  it("derives again once the store has been written", async () => {
+  it("derives again once a record has been appended", async () => {
     let derived = 0;
     const derive = () => {
       derived += 1;
@@ -77,9 +84,7 @@ describe("indexedByStore", () => {
     };
     await nextLaunch()(chatId, SESSION, derive);
 
-    const opened = await getSessionsStoreStorage(chatId);
-    const written = await opened._unsafeUnwrap().setItemRaw("note", "changed");
-    written._unsafeUnwrap();
+    await append();
 
     expect(await nextLaunch()(chatId, SESSION, derive)).toEqual({
       said: "read 2",
@@ -151,9 +156,7 @@ describe("indexedByStore", () => {
       return Promise.resolve(kept({ said: `read ${derived}` }));
     };
     await nextLaunch()(chatId, SESSION, derive);
-    const opened = await getSessionsStoreStorage(chatId);
-    const written = await opened._unsafeUnwrap().setItemRaw("note", "changed");
-    written._unsafeUnwrap();
+    await append();
     closeWorkspaceDb();
 
     const { DatabaseSync } = await import("node:sqlite");

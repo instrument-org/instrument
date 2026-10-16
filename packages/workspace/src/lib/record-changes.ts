@@ -3,6 +3,7 @@ import { AsyncIteratorClass } from "@orpc/server";
 import { publisher } from "../rpc/publisher";
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
+import { bumpChatGeneration } from "./chat-generation";
 import { StorageKey } from "./storage-key";
 
 /**
@@ -42,11 +43,15 @@ export interface RecordChanged {
   };
 }
 
-/** Says that something about a record moved. */
+/**
+ * Says that something about a record moved, and counts it, so what a reader
+ * derived from the chat is derived again (`chat-generation.ts`).
+ */
 export function recordChanged(
   id: ChatId,
   kind: Exclude<RecordChange, "removed">,
 ): void {
+  bumpChatGeneration(id);
   publisher.publish("record.changed", { id, kind });
 }
 
@@ -58,6 +63,7 @@ export function recordMessageChanged(
   id: ChatId,
   message: NonNullable<RecordChanged["message"]>,
 ): void {
+  bumpChatGeneration(id, message.sessionId);
   publisher.publish("record.changed", { id, kind: "messages", message });
 }
 

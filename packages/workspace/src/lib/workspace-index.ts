@@ -1,11 +1,11 @@
 import fs from "node:fs";
+import path from "node:path";
 import superjson from "superjson";
 
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
-import { cacheByStoreGeneration } from "./store-generation";
+import { cacheByChatGeneration } from "./chat-generation";
 import { STORE_MIGRATION_COUNT } from "./store-migrations";
-import { sessionStorePath } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { versionMatches, workspaceTables } from "./workspace-db";
@@ -60,8 +60,8 @@ export function unkept<Value>(value: Value): Derived<Value> {
  * The index only ever speeds a read up: a row it cannot read or write is
  * derived as though it were absent.
  */
-export function indexedByStore<Value>(table: IndexTable) {
-  const memory = cacheByStoreGeneration<Derived<Value>>(
+export function indexedByRecords<Value>(table: IndexTable) {
+  const memory = cacheByChatGeneration<Derived<Value>>(
     (derived) => derived.keep,
   );
   const read =
@@ -71,12 +71,9 @@ export function indexedByStore<Value>(table: IndexTable) {
       compute: () => Promise<Derived<Value>>,
     ) =>
     async (): Promise<Derived<Value>> => {
-      // Taken before the value is computed: a write that lands meanwhile
-      // leaves a stamp older than the store, which only costs a recompute.
-      const stamp = await stampOf([
-        sessionStorePath(chatDir(chatId)),
-        `${sessionStorePath(chatDir(chatId))}-wal`,
-      ]);
+      // Taken before the value is computed: an append that lands meanwhile
+      // leaves a stamp older than the records, which only costs a recompute.
+      const stamp = await recordsStamp(chatDir(chatId));
       if (stamp !== undefined) {
         const row = guarded(() => indexTables()?.read.get(table)?.get(key));
         if (row?.stamp === stamp && typeof row.value === "string") {
@@ -185,22 +182,26 @@ function guarded<T>(operation: () => T): T | undefined {
 }
 
 /**
- * The sizes and modification times of a value's files, as one string; a
- * missing file stamps as missing. Undefined when the first, the store itself,
- * is not there, since there is then nothing for a row to stand for.
+ * The chat's records as one string a read can compare: every log and marks
+ * file in its folder, with its size and modification time. Undefined for a
+ * chat with no record file at all, since there is then nothing for a row to
+ * stand for.
  */
-async function stampOf(files: string[]): Promise<string | undefined> {
-  const stats = await Promise.allSettled(
-    files.map((file) => fs.promises.stat(file)),
-  );
-  if (stats[0]?.status !== "fulfilled") {
+async function recordsStamp(dir: string): Promise<string | undefined> {
+  const names = await fs.promises.readdir(dir).catch(() => undefined);
+  const records = names?.filter((name) => name.endsWith(".jsonl")).toSorted();
+  if (!records || records.length === 0) {
     return undefined;
   }
-  return stats
-    .map((stat) =>
-      stat.status === "fulfilled"
-        ? `${stat.value.size}:${stat.value.mtimeMs}`
-        : "-",
-    )
+  const stats = await Promise.allSettled(
+    records.map((name) => fs.promises.stat(path.join(dir, name))),
+  );
+  return records
+    .map((name, index) => {
+      const stat = stats[index];
+      return stat?.status === "fulfilled"
+        ? `${name}:${stat.value.size}:${stat.value.mtimeMs}`
+        : `${name}:-`;
+    })
     .join("|");
 }

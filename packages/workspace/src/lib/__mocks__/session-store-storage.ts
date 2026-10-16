@@ -4,12 +4,9 @@ import memoryDriver from "unstorage/drivers/memory";
 import { beforeEach } from "vitest";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { bumpEveryChatGeneration } from "../chat-generation";
 import { recordStoreWrite } from "../record-changes";
-import {
-  bumpEveryStoreGeneration,
-  bumpStoreGeneration,
-} from "../store-generation";
-import { type WrappedStorage, wrapStorage } from "../wrap-storage";
+import { wrapStorage } from "../wrap-storage";
 
 const mockStorage = createStorage({
   driver: memoryDriver(),
@@ -17,49 +14,43 @@ const mockStorage = createStorage({
 
 const wrappedMockStorage = wrapStorage(mockStorage);
 
-/**
- * The shared storage, counting each write against the task it was made for
- * and saying what it changed, as the real one does.
- */
+/** The shared storage, saying what each write changed, as the real one does. */
 export function getSessionsStoreStorage(chatId: ChatId) {
-  const counted: WrappedStorage = {
+  return ok({
     ...wrappedMockStorage,
-    batch: (writes, options) => {
-      for (const write of writes) {
-        bumpStoreGeneration(chatId, write.key);
-      }
-      return wrappedMockStorage.batch(writes, options).andTee(() => {
+    batch: (
+      writes: Parameters<typeof wrappedMockStorage.batch>[0],
+      options?: Parameters<typeof wrappedMockStorage.batch>[1],
+    ) =>
+      wrappedMockStorage.batch(writes, options).andTee(() => {
         for (const write of writes) {
-          bumpStoreGeneration(chatId, write.key);
           recordStoreWrite(chatId, write.key, { removed: "remove" in write });
         }
-      });
-    },
-    removeItem: (key, options) => {
-      bumpStoreGeneration(chatId, key);
-      return wrappedMockStorage.removeItem(key, options).andTee(() => {
-        bumpStoreGeneration(chatId, key);
+      }),
+    removeItem: (
+      key: string,
+      options?: Parameters<typeof wrappedMockStorage.removeItem>[1],
+    ) =>
+      wrappedMockStorage.removeItem(key, options).andTee(() => {
         recordStoreWrite(chatId, key, { removed: true });
-      });
-    },
-    setItemRaw: (key, value, options) => {
-      bumpStoreGeneration(chatId, key);
-      return wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
-        bumpStoreGeneration(chatId, key);
+      }),
+    setItemRaw: (
+      key: string,
+      value: string,
+      options?: Parameters<typeof wrappedMockStorage.setItemRaw>[2],
+    ) =>
+      wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
         recordStoreWrite(chatId, key, { removed: false });
-      });
-    },
-  };
-  return ok(counted);
+      }),
+  });
 }
 
-/** Nothing to close: every task shares the one in-memory storage. */
-export function disposeSessionsStoreStorage(chatId: ChatId) {
-  bumpStoreGeneration(chatId);
+/** Nothing to close: every chat shares the one in-memory storage. */
+export function disposeSessionsStoreStorage(_chatId: ChatId) {
   return okAsync(undefined);
 }
 
 beforeEach(async () => {
   await mockStorage.clear();
-  bumpEveryStoreGeneration();
+  bumpEveryChatGeneration();
 });

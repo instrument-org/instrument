@@ -10,7 +10,6 @@ import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
 import { recordStoreWrite } from "./record-changes";
-import { bumpStoreGeneration } from "./store-generation";
 import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
@@ -73,7 +72,6 @@ let sweepTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Closes a chat's database as a process ending would: the next open migrates and sweeps again. */
 export function disposeSessionsStoreStorage(id: ChatId) {
-  bumpStoreGeneration(id);
   HANDLES.delete(id);
   const entry = STORES.get(id);
   if (entry?.phase === "disposing") {
@@ -238,19 +236,10 @@ function handleFor(chatId: ChatId): WrappedStorage {
     written: readonly { key: string; removed: boolean }[],
     operation: (open: OpenStore) => ResultAsync<T, TypedError.Storage>,
   ): ResultAsync<T, TypedError.Storage> => {
-    const bump = () => {
-      for (const { key } of written) {
-        bumpStoreGeneration(chatId, key);
-      }
-    };
     const run = (open: OpenStore) => {
-      // Counted before the write lands as well as after, so a reader that
-      // overlaps the write sees a change either way.
-      bump();
       const settle = () => {
         open.inFlight -= 1;
         open.lastUsed = Date.now();
-        bump();
         if (open.inFlight === 0) {
           open.onIdle?.();
         }

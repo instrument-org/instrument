@@ -18,7 +18,7 @@ import { pathsNamedInMessage } from "../paths-named-in-message";
 import { cardLine, openAsks } from "./asks";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
-import { indexedByStore, kept, unkept } from "../workspace-index";
+import { indexedByRecords, kept, unkept } from "../workspace-index";
 import {
   type ChatActivity,
   chatActivity,
@@ -362,7 +362,7 @@ export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
  * The hosts a task's session has visited, held until its session is
  * written: the browser records a visit there and announces nothing.
  */
-const filedHosts = indexedByStore<string[]>("task_hosts");
+const filedHosts = indexedByRecords<string[]>("task_hosts");
 
 /**
  * What a chat's row is made from that its own store holds: its session
@@ -564,7 +564,7 @@ async function chatFor(
 }
 
 /** Each chat's digest, kept until its own session changes. */
-const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
+const chatDigests = indexedByRecords<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
 function chatDigest(

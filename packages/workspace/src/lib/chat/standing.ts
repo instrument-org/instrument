@@ -11,7 +11,7 @@ import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { cardLine, openAsksOf } from "./asks";
 import { ChatReads } from "../chat-reads";
-import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
+import { type Derived, indexedByRecords, kept, unkept } from "../workspace-index";
 import { latestStep, ownMessages, type SessionRef } from "./activity";
 import { lastAssistantTextIn } from "./latest-session";
 
@@ -23,7 +23,7 @@ const LINE_MAX = 90;
  * holds until something writes there. The list asks for every task it shows
  * each time it is read, and this is a whole transcript or more per task.
  */
-const settledStanding = indexedByStore<TaskStanding>("task_standings");
+const settledStanding = indexedByRecords<TaskStanding>("task_standings");
 
 /**
  * How a turn ended when it ended without words: whether a model error ended

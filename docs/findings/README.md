@@ -127,6 +127,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Root causes of three weeks of fixes](root-causes-of-three-weeks-of-fixes.md): 595 fixes sorted by the mechanism that caused them | open, measured 10-12 |
 | [Where coding agents lose time in this repo](where-coding-agents-lose-time-in-this-repo.md): 753 agent transcripts read for friction | open, two findings addressed |
 | [Test suites re-evaluate module graphs](test-suite-module-evaluation-cost.md) — where the time actually goes | all four fixes landed |
+| [The full gate flakes on a busy machine](the-full-gate-flakes-on-a-busy-machine.md) — a different test each run | open, not worth fixing in the suites |
 | [TypeScript 7 (tsgo) dual package](typescript-7-native-preview-dual-package.md) | resolved |
 | [Why the spell checker is `typos`](spelling-check-cost-versus-signal.md) — and not cspell | resolved |
 | [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | fixed |

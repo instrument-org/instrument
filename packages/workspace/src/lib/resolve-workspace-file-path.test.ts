@@ -9,6 +9,7 @@ import {
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { workspaceLayout } from "./workspace-layout";
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -94,7 +95,7 @@ describe("resolveWorkspaceFilePath", () => {
       rootDir: WorkspaceDirSchema.parse(root),
     });
     const skillFile = path.join(
-      workspaceLayout(root).skillsDir,
+      path.join(root, SKILLS_FOLDER_NAME),
       "csv-table",
       "SKILL.md",
     );

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
@@ -17,7 +18,6 @@ import {
 } from "./skill-environments";
 import { venvPython, venvSitePackages } from "./uv";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { workspaceLayout } from "./workspace-layout";
 
 vi.mock(import("./run-uv"));
 vi.mock(import("./run-pnpm"));
@@ -46,7 +46,7 @@ function shippedSkill(name: string, files: Record<string, string>) {
 /** A skill in the workspace's own `.instrument/skills/`, which any chat can change. */
 function workspaceSkill(name: string, files: Record<string, string>) {
   const dir = path.join(
-    workspaceLayout(path.join(root.path, "workspace")).skillsDir,
+    path.join(path.join(root.path, "workspace"), SKILLS_FOLDER_NAME),
     name,
   );
   write(path.join(dir, "SKILL.md"), `---\nname: ${name}\n---\n`);
@@ -384,7 +384,7 @@ describe("trustedSkillFolder", () => {
       "one of the workspace's skills",
       () =>
         path.join(
-          workspaceLayout(path.join(root.path, "workspace")).skillsDir,
+          path.join(path.join(root.path, "workspace"), SKILLS_FOLDER_NAME),
           "mine",
         ),
     ],

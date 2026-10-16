@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { workspaceLayout } from "./workspace-layout";
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { publisher } from "../rpc/publisher";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -33,7 +33,7 @@ describe("workspace skill watcher", () => {
     const nextEvent = events.next();
     const stop = await startWatchingWorkspaceSkills();
     try {
-      const skillDir = path.join(workspaceLayout(root).skillsDir, "review");
+      const skillDir = path.join(root, SKILLS_FOLDER_NAME, "review");
       await fs.mkdir(path.join(skillDir, "scripts"), { recursive: true });
       await expect(
         writeUntilPublished(
@@ -60,7 +60,7 @@ describe("workspace skill watcher", () => {
       await stopFirst();
       await expect(
         writeUntilPublished(
-          path.join(workspaceLayout(root).skillsDir, "kept.md"),
+          path.join(root, SKILLS_FOLDER_NAME, "kept.md"),
           nextEvent,
         ),
       ).resolves.toMatchObject({ done: false });
@@ -85,7 +85,7 @@ describe("workspace skill watcher", () => {
       await stopStale();
       await expect(
         writeUntilPublished(
-          path.join(workspaceLayout(root).skillsDir, "fresh.md"),
+          path.join(root, SKILLS_FOLDER_NAME, "fresh.md"),
           nextEvent,
         ),
       ).resolves.toMatchObject({ done: false });
@@ -97,7 +97,7 @@ describe("workspace skill watcher", () => {
 
   it("ignores generated dependency trees", async () => {
     root = await setupWorkspace();
-    const { skillsDir } = workspaceLayout(root);
+    const skillsDir = path.join(root, SKILLS_FOLDER_NAME);
     const watchedSkillsDir = await fs.realpath(skillsDir);
     const generatedDir = path.join(
       skillsDir,
@@ -170,6 +170,6 @@ async function setupWorkspace() {
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(workspaceRoot),
   });
-  await fs.mkdir(workspaceLayout(workspaceRoot).skillsDir, { recursive: true });
+  await fs.mkdir(path.join(workspaceRoot, SKILLS_FOLDER_NAME), { recursive: true });
   return workspaceRoot;
 }

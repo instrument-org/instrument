@@ -87,6 +87,14 @@ export const DRAFT_FILE_NAME = "DRAFT.md";
 export const MEMORY_FOLDER_NAME = "Memory";
 
 /**
+ * The workspace's own skills, at its top level: a folder per skill, each
+ * with the `SKILL.md` that says what it is. One of the six folders a person
+ * opens, and the only one the agent writes into as part of its work, since
+ * a chat can leave a skill behind for the chats after it.
+ */
+export const SKILLS_FOLDER_NAME = "Skills";
+
+/**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between
  * the prompt that teaches it and the renderer that draws it, and a fence

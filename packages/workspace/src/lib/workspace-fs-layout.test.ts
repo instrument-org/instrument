@@ -7,6 +7,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceLayout } from "./workspace-layout";
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { MountedFolder } from "../schemas/mounted-folder";
 import {
   AbsolutePathSchema,
@@ -473,7 +474,7 @@ describe("buildBashFs skills mount", () => {
       path.join(os.tmpdir(), `${APP_NAME_SLUG}-skills-fs-test-`),
     );
     await fs.mkdir(path.join(tmpDir, "task"));
-    await fs.mkdir(path.join(workspaceLayout(tmpDir).skillsDir, "existing"), {
+    await fs.mkdir(path.join(tmpDir, SKILLS_FOLDER_NAME, "existing"), {
       recursive: true,
     });
     createMockChatConfig(ChatIdSchema.parse("skills-mount-test"));
@@ -514,7 +515,7 @@ describe("buildBashFs skills mount", () => {
     expect(result.exitCode).toBe(0);
     await expect(
       fs.readFile(
-        path.join(workspaceLayout(tmpDir).skillsDir, "made-up", "SKILL.md"),
+        path.join(tmpDir, SKILLS_FOLDER_NAME, "made-up", "SKILL.md"),
         "utf8",
       ),
     ).resolves.toBe("body\n");
@@ -540,7 +541,7 @@ describe("buildBashFs skills mount", () => {
   });
 
   it("provisions the mount when the workspace has no skills dir yet", async () => {
-    await fs.rm(workspaceLayout(tmpDir).skillsDir, {
+    await fs.rm(path.join(tmpDir, SKILLS_FOLDER_NAME), {
       force: true,
       recursive: true,
     });
@@ -555,7 +556,7 @@ describe("buildBashFs skills mount", () => {
     expect(written.exitCode).toBe(0);
     await expect(
       fs.readFile(
-        path.join(workspaceLayout(tmpDir).skillsDir, "first", "SKILL.md"),
+        path.join(tmpDir, SKILLS_FOLDER_NAME, "first", "SKILL.md"),
         "utf8",
       ),
     ).resolves.toBe("body\n");

@@ -1,10 +1,12 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
+import path from "node:path";
+
+import { SKILLS_FOLDER_NAME } from "../constants";
 
 import { type WorkspaceDir } from "../schemas/paths";
 import { pathIsWithin } from "./path-is-within";
 import { type SkillInfo } from "./skills";
-import { workspaceLayout } from "./workspace-layout";
 
 export const SKILL_ORIGINS = [
   "external",
@@ -42,8 +44,13 @@ export function getSkillProvenance(
   };
 }
 
-/** Canonical path of the workspace skills directory. */
+/**
+ * Canonical path of the workspace skills directory, which is the boundary
+ * that decides whether a skill is the person's to edit. It has to name the
+ * same folder the skills are loaded from, or every skill in the workspace
+ * reads as someone else's and the app offers no way to change it.
+ */
 export async function getWritableSkillsRoot(rootDir: WorkspaceDir) {
-  const root = workspaceLayout(rootDir).skillsDir;
+  const root = path.join(rootDir, SKILLS_FOLDER_NAME);
   return fs.realpath(root).catch(() => root);
 }

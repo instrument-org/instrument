@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { workspaceLayout } from "../lib/workspace-layout";
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { REGISTRY_FOLDER_NAMES } from "../constants";
 import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { runtimeLayout } from "../lib/runtime-dir";
@@ -516,13 +516,11 @@ describe("LoadSkill", () => {
   });
 
   it("marks a skill in the writable /skills mount as editable", async () => {
-    // A skill in the workspace's own skills dir, which mounts writable at
-    // /skills, unlike the registry the other tests use.
+    // A skill in the workspace's own skills folder, at the top level where
+    // the person can edit it, which mounts writable at /skills, unlike the
+    // registry the other tests use.
     const workspaceRoot = path.join(tmpDir, "workspace");
-    const skillDir = path.join(
-      workspaceLayout(workspaceRoot).skillsDir,
-      "mine",
-    );
+    const skillDir = path.join(workspaceRoot, SKILLS_FOLDER_NAME, "mine");
     await fs.mkdir(skillDir, { recursive: true });
     await fs.writeFile(
       path.join(skillDir, "SKILL.md"),

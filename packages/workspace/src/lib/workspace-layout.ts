@@ -67,7 +67,6 @@ export const WORKSPACE_DATA_ENTRIES = {
 export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
   [WORKSPACE_DATA_ENTRIES.apps],
   [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
-  [WORKSPACE_DATA_ENTRIES.skills],
   [WORKSPACE_DATA_ENTRIES.topics],
 ];
 

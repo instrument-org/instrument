@@ -13,7 +13,7 @@ import {
   vi,
 } from "vitest";
 
-import { workspaceLayout } from "../workspace-layout";
+import { SKILLS_FOLDER_NAME } from "../../constants";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import {
   createMockChatConfigForDir,
@@ -44,7 +44,7 @@ const mockCtx = createCommandContext({
 const run = (...args: string[]) =>
   createValidateSkillCommand().execute(args, mockCtx);
 
-const { skillsDir } = workspaceLayout(rootDir);
+const skillsDir = path.join(rootDir, SKILLS_FOLDER_NAME);
 // The skills folder as the agent's shell names it, which differs on Windows.
 const skillsPath = shellPath(skillsDir);
 

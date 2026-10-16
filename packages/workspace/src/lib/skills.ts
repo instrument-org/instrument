@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml, YAMLParseError } from "yaml";
 
-import { REGISTRY_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES, SKILLS_FOLDER_NAME } from "../constants";
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -14,7 +14,6 @@ import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 import { runtimeLayout } from "./runtime-dir";
-import { workspaceLayout } from "./workspace-layout";
 
 export const FILE_LIST_LIMIT = 50;
 
@@ -313,7 +312,7 @@ export function getSkillSources(
     fromHome("opencode", "opencode", ".config", "opencode", "skills"),
     fromHome("windsurf", "windsurf", ".codeium", "windsurf", "skills"),
     {
-      dir: AbsolutePathSchema.parse(workspaceLayout(rootDir).skillsDir),
+      dir: AbsolutePathSchema.parse(path.join(rootDir, SKILLS_FOLDER_NAME)),
       id: "workspace",
       source: "workspace",
     },

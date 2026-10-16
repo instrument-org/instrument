@@ -142,6 +142,7 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     `${workspace}/.instrument/workspace.json`,
     `${workspace}/.instrument/preferences.json`,
     `${data.skillsDir}/mine/SKILL.md`,
+    `${workspace}/Skills/mine/SKILL.md`,
     `${data.appsDir}/linear/app.json`,
     `${workspaceMachine}/keys/x`,
     `${workspaceMachine}/browser/Cookies`,
@@ -348,8 +349,14 @@ function reachTable(p: Paths) {
     [
       "the workspace's skills",
       "write",
-      `${p.data.skillsDir}/mine/SKILL.md`,
+      `${p.workspace}/Skills/mine/SKILL.md`,
       "allow",
+    ],
+    [
+      "where an older build hid the skills",
+      "write",
+      `${p.data.skillsDir}/mine/SKILL.md`,
+      "never",
     ],
     [
       "the workspace's apps",

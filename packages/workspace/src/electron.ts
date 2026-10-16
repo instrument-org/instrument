@@ -108,6 +108,8 @@ export {
 export { giveChatsTheirFolders } from "./lib/chat-folders/boot";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
+export { type FolderMoved } from "./lib/move-out-of-data-dir";
+export { moveSkillsToFolder, type SkillsMoved } from "./lib/skills-move";
 export { type ChatFoldersSwept } from "./lib/chat-folders/sweep";
 export { chatRecords } from "./lib/records/chat-records";
 export {

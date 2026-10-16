@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { workspaceLayout } from "./workspace-layout";
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { deleteSkill } from "./delete-skill";
 
@@ -22,7 +22,7 @@ describe("deleteSkill", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "delete-skill-"));
     temporaryDirs.push(root);
     const workspace = path.join(root, "workspace");
-    const skillDir = path.join(workspaceLayout(workspace).skillsDir, "review");
+    const skillDir = path.join(workspace, SKILLS_FOLDER_NAME, "review");
     await writeSkill(skillDir, "Workspace");
 
     const result = await deleteSkill(

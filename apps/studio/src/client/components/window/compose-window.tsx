@@ -27,7 +27,7 @@ import {
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { useDraftStaging } from "@/client/components/draft-staging";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type FileUpload } from "@instrument-org/workspace/client";
@@ -40,7 +40,6 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
-import { isEqual } from "radashi";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 
@@ -95,18 +94,6 @@ const WORDS_MAX_HEIGHT = 400;
 const COMPOSE_HEIGHT = 640;
 
 const NO_TITLES = new Map<never, never>();
-
-/** What of an item in the composer is kept with the draft: its path, for one that has a place on disk. */
-function attachmentOf(item: AttachedItem): DraftAttachment[] {
-  if (item.type === "folder") {
-    return [{ kind: "folder", path: item.path }];
-  }
-  if (!("path" in item)) {
-    return [];
-  }
-  const { mimeType, name, path, size } = item;
-  return [{ kind: "file", mimeType, name, path, size }];
-}
 
 /** A kept attachment back in the composer, drawn by its icon until it is given again. */
 function itemOf(attachment: DraftAttachment): AttachedItem {
@@ -309,61 +296,13 @@ export function ComposeWindow({
 
   const inputRef = useRef<PromptInputRef>(null);
 
-  // What the box holds is kept with the draft by path. Bytes with no file
-  // behind them (a pasted image, long pasted words) are written to the
-  // draft's own folder as they arrive and kept by that path once written.
-  const staged = useRef(new Map<string, DraftAttachment | null>());
-  const latestItems = useRef<AttachedItem[]>([]);
-  const keepAttached = (items: AttachedItem[]) => {
-    latestItems.current = items;
-    const kept = items.flatMap((item) => {
-      if (item.type === "file" && "content" in item) {
-        const written = staged.current.get(item.id);
-        return written ? [written] : [];
-      }
-      return attachmentOf(item);
-    });
-    onChange((current) => {
-      if (isEqual(current.attached ?? [], kept)) {
-        return current;
-      }
-      const { attached: _was, ...rest } = current;
-      return kept.length > 0 ? { ...rest, attached: kept } : rest;
-    });
-  };
-  const keepItems = (items: AttachedItem[]) => {
-    for (const item of items) {
-      if (
-        item.type !== "file" ||
-        !("content" in item) ||
-        staged.current.has(item.id)
-      ) {
-        continue;
-      }
-      staged.current.set(item.id, null);
-      void rpcClient.drafts.stage
-        .call({
-          content: item.content,
-          draftId: draft.id,
-          itemId: item.id,
-          name: item.name,
-        })
-        .then(({ path, size }) => {
-          staged.current.set(item.id, {
-            kind: "file",
-            mimeType: item.mimeType,
-            name: item.name,
-            path,
-            size,
-          });
-          keepAttached(latestItems.current);
-        })
-        .catch(() => {
-          staged.current.delete(item.id);
-        });
-    }
-    keepAttached(items);
-  };
+  // What the box holds besides its words, kept with the draft.
+  const { asStaged, keepItems } = useDraftStaging({
+    draftFor: () => draft.id,
+    onChange: (_draftId, update) => {
+      onChange(update);
+    },
+  });
   // Layout rather than passive effects: on the way in the box's handle is
   // set by then and on the way out it is still there, which a passive
   // cleanup would find already gone.
@@ -728,7 +667,7 @@ export function ComposeWindow({
                   modelURI={modelURI}
                   onModelChange={onModelChange}
                   onSubmit={(send) => {
-                    onStart(send);
+                    onStart(asStaged(send));
                   }}
                   placeholder="What do you need?"
                   ref={inputRef}

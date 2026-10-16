@@ -35,6 +35,7 @@ export async function newMessage({
   files,
   folders,
   fromChat,
+  fromDraft,
   intent,
   modelURI,
   prompt,
@@ -54,6 +55,8 @@ export async function newMessage({
    * from-chat part.
    */
   fromChat?: SessionMessageDataPart.FromChatDataPart;
+  /** The draft this was sent from, by its id; see the message's metadata. */
+  fromDraft?: string;
   intent?: string;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
@@ -324,7 +327,11 @@ export async function newMessage({
 
   const message: SessionMessage.UserWithParts = {
     id: messageId,
-    metadata: { createdAt, sessionId },
+    metadata: {
+      createdAt,
+      ...(fromDraft ? { fromDraft } : {}),
+      sessionId,
+    },
     parts,
     role: "user",
   };

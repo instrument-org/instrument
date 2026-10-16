@@ -1,169 +1,107 @@
 import { DRAFTS_KEY } from "@/shared/kept-state";
+import {
+  type DraftAttached,
+  type DraftFile,
+  type DraftOnDisk,
+  draftsFolderDir,
+  ensureDraftFolder,
+  isEmptyDraft,
+  readDrafts,
+  removeDraft,
+  renderDraftFile,
+  writeDraftFile,
+} from "@instrument-org/workspace/drafts";
 import fs from "node:fs";
 import path from "node:path";
 
 import { logger } from "../../lib/electron-logger";
 
-/** What a draft's words are kept in, inside its folder. */
-const WORDS_FILE_NAME = "draft.md";
-
 /** How long a burst of changes on disk is gathered before the folder is read again. */
 const WATCH_SETTLE_MS = 150;
 
-/** A draft id, used as its folder's name. */
+/** A draft id, as the window makes one. */
 const DRAFT_ID = /^[\w-]+$/;
 
 /** A draft as the window keeps it: any object with an id and words. */
 type DraftRecord = Record<string, unknown> & { id: string; words: string };
 
-/** A draft as its folder holds it: its words, and the rest of its record. */
-interface DraftFiles {
-  record: string;
-  words: string;
-}
-
-export function draftDirOf(root: string, draftId: string) {
-  return path.join(root, draftId);
-}
-
-function recordPathOf(dir: string) {
-  return path.join(dir, ".instrument", "settings.json");
-}
-
 /**
- * The window's drafts as a folder per draft in the workspace's drafts folder
- * (`workspaceLayout`), where the person can find them: the words in `draft.md`, what was pasted in with no
- * file behind it beside them, and the rest of the record in the folder's
- * `.instrument/settings.json`. A path to a file in the draft's own folder is
- * kept relative to it. Deleting the folder deletes the draft.
+ * The window's drafts as the folder a person opens holds them:
+ * `Drafts/<date>/DRAFT.md` per draft, with what was pasted into it beside the
+ * draft. A draft can be found, read, edited and deleted in a file manager,
+ * and a change made there reaches the windows.
  *
- * Holds the one kept key {@link DRAFTS_KEY} for the kept-state store. Remembers
- * what it last wrote or read for each draft, so a keystroke rewrites only the
- * draft it changed, and a change on disk is told apart from its own writes.
- * An attachment's absolute path is read through `whereNow`, which names
- * where a migration moved a file a draft attached before it ran.
+ * Holds the one kept key {@link DRAFTS_KEY} for the kept-state store. The
+ * format and the folder are the workspace's
+ * (`@instrument-org/workspace/drafts`), because a launch reads and writes
+ * them before the workspace is up; what is here is the translation between a
+ * draft on disk and the record a window keeps.
+ *
+ * Remembers what it last wrote or read for each draft, so a keystroke
+ * rewrites only the draft it changed, and a change on disk is told apart from
+ * its own writes. An attachment's absolute path is read through `whereNow`,
+ * which names where a migration moved a file a draft attached before it ran.
  */
 export function createDraftsFolder(
-  root: string,
+  rootDir: string,
   whereNow: (file: string) => string = (file) => file,
 ) {
-  const known = new Map<string, DraftFiles>();
+  /** By draft id: the bytes last written or read for it, and where they are. */
+  const known = new Map<string, { file: string; text: string }>();
 
-  const readDisk = (): Map<string, DraftFiles> => {
-    const found = new Map<string, DraftFiles>();
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true });
-    } catch {
-      return found;
+  const remember = (found: DraftOnDisk[]) => {
+    known.clear();
+    for (const entry of found) {
+      known.set(entry.draft.id, {
+        file: entry.file,
+        text: renderDraftFile(entry.draft),
+      });
     }
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !DRAFT_ID.test(entry.name)) {
-        continue;
-      }
-      const dir = draftDirOf(root, entry.name);
-      let record: string;
-      try {
-        record = fs.readFileSync(recordPathOf(dir), "utf8");
-      } catch {
-        // A folder with no record is not a draft (yet): one being made, or
-        // something else the person put here.
-        continue;
-      }
-      let words = "";
-      try {
-        words = fs.readFileSync(path.join(dir, WORDS_FILE_NAME), "utf8");
-      } catch {
-        // Words gone from the folder are a draft with no words.
-      }
-      found.set(entry.name, { record, words });
-    }
-    return found;
   };
 
-  const draftOf = (id: string, files: DraftFiles): DraftRecord | undefined => {
-    let record: unknown;
-    try {
-      record = JSON.parse(files.record);
-    } catch {
-      logger.warn(`Ignoring draft ${id}: its settings are not JSON`);
-      return undefined;
-    }
-    if (
-      record === null ||
-      typeof record !== "object" ||
-      Array.isArray(record)
-    ) {
-      return undefined;
-    }
-    return {
-      ...withPaths(record, (file) =>
-        path.isAbsolute(file)
-          ? whereNow(file)
-          : path.join(draftDirOf(root, id), file),
-      ),
-      id,
-      words: files.words,
-    };
-  };
-
-  const filesOf = (draft: DraftRecord): DraftFiles => {
-    const { id, words, ...rest } = draft;
-    const dir = draftDirOf(root, id);
-    const record = withPaths(rest, (file) =>
-      path.dirname(file) === dir ? path.basename(file) : file,
-    );
-    return { record: `${JSON.stringify(record, null, 2)}\n`, words };
-  };
-
-  const draftsIn = (files: Map<string, DraftFiles>): DraftRecord[] =>
-    [...files]
-      .flatMap(([id, draft]) => draftOf(id, draft) ?? [])
-      .toSorted((a, b) => createdAtOf(a) - createdAtOf(b));
+  const recordsOf = (found: DraftOnDisk[]): DraftRecord[] =>
+    found.map((entry) => recordOf(entry, whereNow));
 
   return {
     /** Every draft in the folder, oldest first, as the kept key's value. */
     read(): Record<string, unknown> {
-      const disk = readDisk();
-      known.clear();
-      for (const [id, files] of disk) {
-        known.set(id, files);
-      }
-      return { [DRAFTS_KEY]: draftsIn(disk) };
+      const disk = readDrafts(rootDir);
+      remember(disk);
+      return { [DRAFTS_KEY]: recordsOf(disk) };
     },
 
     /**
      * Brings what the window kept and what is on disk together after the
-     * folder changed under the app: a draft whose files changed is taken from
-     * disk, one whose folder went is dropped, and the rest are left as the
-     * window has them. Undefined when nothing changed but the app's own writes.
+     * folder changed under the app: a draft whose file changed is taken from
+     * disk, one whose file went is dropped, and the rest are left as the
+     * window has them. Undefined when nothing changed but the app's own
+     * writes.
      */
     reconcile(current: Record<string, unknown>) {
-      const disk = readDisk();
-      const changed = new Set<string>();
-      for (const [id, files] of disk) {
-        const was = known.get(id);
-        if (was?.record !== files.record || was.words !== files.words) {
-          changed.add(id);
-        }
-      }
-      const removed = [...known.keys()].filter((id) => !disk.has(id));
+      const disk = readDrafts(rootDir);
+      const changed = new Set(
+        disk
+          .filter(
+            (entry) =>
+              known.get(entry.draft.id)?.text !== renderDraftFile(entry.draft),
+          )
+          .map((entry) => entry.draft.id),
+      );
+      const onDisk = new Set(disk.map((entry) => entry.draft.id));
+      const removed = [...known.keys()].filter((id) => !onDisk.has(id));
       if (changed.size === 0 && removed.length === 0) {
         return undefined;
       }
-      known.clear();
-      for (const [id, files] of disk) {
-        known.set(id, files);
-      }
+      remember(disk);
       const fromDisk = new Map(
-        draftsIn(disk).map((draft) => [draft.id, draft]),
+        recordsOf(disk).map((draft) => [draft.id, draft]),
       );
       const kept = draftsOf(current[DRAFTS_KEY]).flatMap((draft) => {
-        const onDisk = fromDisk.get(draft.id);
-        if (onDisk === undefined) {
+        const found = fromDisk.get(draft.id);
+        if (found === undefined) {
           return [];
         }
-        return [changed.has(draft.id) ? onDisk : draft];
+        return [changed.has(draft.id) ? found : draft];
       });
       const keptIds = new Set(kept.map((draft) => draft.id));
       const added = [...fromDisk.values()].filter(
@@ -173,9 +111,11 @@ export function createDraftsFolder(
     },
 
     /**
-     * Writes the drafts the window keeps: each one's files where they
-     * changed, and the folder of each it no longer has removed, with
-     * everything in it.
+     * Writes the drafts the window keeps: each one's file where it changed,
+     * and every draft it no longer has taken away, with what was pasted into
+     * it. A draft the folder has no file for yet gets one, in a folder named
+     * for the day it was started, once there is something in it to keep: a
+     * box opened and left alone leaves nothing behind.
      */
     write(keys: Record<string, unknown>) {
       const value = keys[DRAFTS_KEY];
@@ -184,32 +124,50 @@ export function createDraftsFolder(
       }
       const drafts = draftsOf(value);
       const ids = new Set(drafts.map((draft) => draft.id));
-      for (const id of known.keys()) {
+      // Read once: this runs every few hundred milliseconds while somebody
+      // is typing, and a read per draft would be a listing per draft.
+      const onDisk = new Map(
+        readDrafts(rootDir).map((entry) => [entry.draft.id, entry]),
+      );
+      for (const [id, entry] of onDisk) {
         if (!ids.has(id)) {
-          fs.rmSync(draftDirOf(root, id), { force: true, recursive: true });
+          removeDraft(entry);
           known.delete(id);
+          onDisk.delete(id);
         }
       }
-      for (const draft of drafts) {
-        const files = filesOf(draft);
-        const was = known.get(draft.id);
-        const dir = draftDirOf(root, draft.id);
-        if (was?.words !== files.words) {
-          writeAtomic(path.join(dir, WORDS_FILE_NAME), files.words);
+      for (const record of drafts) {
+        try {
+          const found = onDisk.get(record.id);
+          if (found === undefined && isEmptyDraft(fileOf(record, undefined))) {
+            continue;
+          }
+          const where =
+            found ??
+            ensureDraftFolder({
+              draft: fileOf(record, undefined),
+              rootDir,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            });
+          const draft = fileOf(record, where.dir);
+          const text = renderDraftFile(draft);
+          if (known.get(record.id)?.text !== text) {
+            writeDraftFile(where.file, draft);
+          }
+          known.set(record.id, { file: where.file, text });
+        } catch (error) {
+          logger.error(`Could not write draft ${record.id}`, error);
         }
-        if (was?.record !== files.record) {
-          writeAtomic(recordPathOf(dir), files.record);
-        }
-        known.set(draft.id, files);
       }
     },
 
     /**
-     * Calls back when the folder changes, its contents or a draft's files,
-     * gathered over a beat. The app's own writes call back too; `reconcile`
-     * is what tells them apart.
+     * Calls back when the drafts folder changes, its contents or a draft's
+     * file, gathered over a beat. The app's own writes call back too;
+     * `reconcile` is what tells them apart.
      */
     watch(onChange: () => void): () => void {
+      const root = draftsFolderDir(rootDir);
       let watcher: fs.FSWatcher | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
@@ -234,6 +192,20 @@ export function createDraftsFolder(
 }
 
 /**
+ * The folder a draft's files go in, made if it is not there: where something
+ * pasted into a draft is written, which happens before the draft itself has
+ * been saved.
+ */
+export function draftDirOf(rootDir: string, draftId: string): string {
+  const now = new Date();
+  return ensureDraftFolder({
+    draft: { created: now, id: draftId, updated: now, words: "" },
+    rootDir,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }).dir;
+}
+
+/**
  * A new name for a file going into a folder, beside the ones already there:
  * the name itself when it is free, otherwise numbered the way Finder numbers
  * a copy (`image 2.png`).
@@ -252,7 +224,112 @@ export function freeNameIn(dir: string, name: string): string {
   }
 }
 
-/** Every draft in a kept value that names itself: an id fit for a folder, and words. */
+/**
+ * The draft the window has, as the file holds one: the keys the file names,
+ * and the rest of the record under `state`. A path inside the draft's own
+ * folder is kept relative to it, so the folder travels; `dir` is that folder,
+ * which is unknown the first time a draft is written and does not matter
+ * then, because the folder it names is the one about to be made.
+ */
+function fileOf(record: DraftRecord, dir: string | undefined): DraftFile {
+  const {
+    attached,
+    chatId,
+    createdAt,
+    id,
+    send,
+    sendOn,
+    topicId,
+    updatedAt,
+    words,
+    ...state
+  } = record;
+  const created =
+    typeof createdAt === "number" ? new Date(createdAt) : new Date();
+  const items = attachedOf(attached, dir);
+  return {
+    ...(items ? { attached: items } : {}),
+    ...(typeof chatId === "string" && chatId ? { chat: chatId } : {}),
+    created,
+    id,
+    ...(send === "auto" ? { send: "auto" as const } : {}),
+    ...(typeof sendOn === "string" && sendOn ? { sendOn } : {}),
+    ...(Object.keys(state).length > 0 ? { state } : {}),
+    ...(typeof topicId === "string" && topicId ? { topic: topicId } : {}),
+    updated: typeof updatedAt === "number" ? new Date(updatedAt) : created,
+    words,
+  };
+}
+
+/**
+ * A draft as the window keeps it: what the file holds, with every path it
+ * names absolute, since the window shows and sends files by path, and the
+ * keys the window's own record uses.
+ */
+function recordOf(
+  { dir, draft }: DraftOnDisk,
+  whereNow: (file: string) => string,
+): DraftRecord {
+  const attached = (draft.attached ?? []).map((item) => ({
+    kind: item.kind,
+    ...(item.mediaType === undefined ? {} : { mimeType: item.mediaType }),
+    ...(item.name === undefined ? {} : { name: item.name }),
+    path: path.isAbsolute(item.path)
+      ? whereNow(item.path)
+      : path.join(dir, item.path),
+    ...(item.size === undefined ? {} : { size: item.size }),
+  }));
+  return {
+    ...draft.state,
+    ...(attached.length > 0 ? { attached } : {}),
+    ...(draft.chat === undefined ? {} : { chatId: draft.chat }),
+    createdAt: draft.created.getTime(),
+    id: draft.id,
+    ...(draft.send === undefined ? {} : { send: draft.send }),
+    ...(draft.sendOn === undefined ? {} : { sendOn: draft.sendOn }),
+    ...(draft.topic === undefined ? {} : { topicId: draft.topic }),
+    updatedAt: draft.updated.getTime(),
+    words: draft.words,
+  };
+}
+
+function attachedOf(
+  value: unknown,
+  dir: string | undefined,
+): DraftAttached[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const items = value.flatMap((entry: unknown) => {
+    if (
+      entry === null ||
+      typeof entry !== "object" ||
+      !("path" in entry) ||
+      typeof entry.path !== "string"
+    ) {
+      return [];
+    }
+    const kind = "kind" in entry && entry.kind === "folder" ? "folder" : "file";
+    const name = "name" in entry ? entry.name : undefined;
+    const mimeType = "mimeType" in entry ? entry.mimeType : undefined;
+    const size = "size" in entry ? entry.size : undefined;
+    return [
+      {
+        kind: kind as DraftAttached["kind"],
+        ...(typeof mimeType === "string" ? { mediaType: mimeType } : {}),
+        ...(typeof name === "string" ? { name } : {}),
+        path:
+          dir !== undefined && path.dirname(entry.path) === dir
+            ? path.basename(entry.path)
+            : entry.path,
+        ...(typeof size === "number" ? { size } : {}),
+      },
+    ];
+  });
+  return items.length > 0 ? items : undefined;
+}
+
+/** Every draft in a kept value that names itself: an id the window made, and words. */
 function draftsOf(value: unknown): DraftRecord[] {
   if (!Array.isArray(value)) {
     return [];
@@ -273,42 +350,4 @@ function draftsOf(value: unknown): DraftRecord[] {
       { ...Object.fromEntries(Object.entries(entry)), id: entry.id, words },
     ];
   });
-}
-
-function createdAtOf(draft: DraftRecord): number {
-  return typeof draft.createdAt === "number" ? draft.createdAt : 0;
-}
-
-/** A record with each attachment's path passed through `map`. */
-function withPaths(
-  record: object,
-  map: (file: string) => string,
-): Record<string, unknown> {
-  const entries = Object.fromEntries(Object.entries(record));
-  if (!Array.isArray(entries.attached)) {
-    return entries;
-  }
-  return {
-    ...entries,
-    attached: entries.attached.map((item: unknown) =>
-      item !== null &&
-      typeof item === "object" &&
-      "path" in item &&
-      typeof item.path === "string"
-        ? { ...item, path: map(item.path) }
-        : item,
-    ),
-  };
-}
-
-/** Writes a file whole through a sibling, so a crash mid-write leaves the old one. */
-function writeAtomic(file: string, content: string) {
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const temporary = `${file}.${process.pid.toString()}.tmp`;
-    fs.writeFileSync(temporary, content);
-    fs.renameSync(temporary, file);
-  } catch (error) {
-    logger.error(`Could not write ${file}`, error);
-  }
 }

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { syncDirectory } from "../records/sync-directory";
-import { numberedName, safeName } from "./folder-name";
+import { claimFolderNamed, safeName } from "./folder-name";
 
 /**
  * A chat's own folder, the one a person opens: `Chats/<title>/`, holding its
@@ -127,29 +127,12 @@ export async function writeChatFile(
   await fs.rename(temp, path.join(folder, CHAT_FILE_NAME));
 }
 
-/**
- * Makes a folder under a free name from `title` and answers with it. The name
- * is taken by the act of making the folder: a candidate another folder
- * already holds fails, and the next number is tried.
- */
-async function claimFolder(
+/** Makes the chat's folder under a free name from `title` and answers with it. */
+function claimFolder(
   chats: string,
   title: string | undefined,
 ): Promise<ChatFolder> {
-  await fs.mkdir(chats, { recursive: true });
-  const base = safeName(title);
-  for (let suffix = 1; ; suffix += 1) {
-    const name = suffix === 1 ? base : numberedName(base, suffix);
-    const made = path.join(chats, name);
-    try {
-      await fs.mkdir(made);
-      return { name, path: made };
-    } catch (error) {
-      if (!isTakenError(error)) {
-        throw error;
-      }
-    }
-  }
+  return claimFolderNamed(chats, safeName(title));
 }
 
 async function isDir(entry: string): Promise<boolean> {
@@ -158,15 +141,6 @@ async function isDir(entry: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/** Whether making the folder failed because something is already there. */
-function isTakenError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "EEXIST" || error.code === "ENOTEMPTY")
-  );
 }
 
 function isMissing(error: unknown): boolean {

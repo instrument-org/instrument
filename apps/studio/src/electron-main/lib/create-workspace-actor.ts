@@ -30,6 +30,7 @@ import {
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
+  settleDrafts,
   moveChatPermissions,
   renameChatDatabases,
   setBashWorkerFactory,
@@ -119,6 +120,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // Once every chat is on its records, each gets the folder a person opens,
   // written from them.
   await writeChatFolders(rootDir);
+  // And the drafts move out to `Drafts/`, where a send the app was
+  // interrupted partway through is finished from the records just converted.
+  await settleWorkspaceDrafts(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -498,6 +502,35 @@ async function writeChatFolders(rootDir: string) {
       if (chat.kind === "failed") {
         logger.warn(`Chat folders: ${chat.id} has none: ${chat.error}`);
       }
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
+/**
+ * Move the drafts an earlier build hid in the workspace's `.instrument/` out
+ * to `Drafts/`, and finish any send the app was interrupted partway through:
+ * a draft whose chat already holds the message naming it was sent, and only
+ * its folder was left behind. Runs after the converter, so that message can
+ * be read. Idempotent; a failure must not block boot.
+ */
+async function settleWorkspaceDrafts(rootDir: string) {
+  try {
+    const { finished, moved } = await settleDrafts(rootDir);
+    for (const step of moved.done) {
+      logger.info(`Drafts: ${step}`);
+    }
+    for (const { reason, where } of moved.left) {
+      logger.warn(`Drafts: left ${where} where it is: ${reason}`);
+    }
+    if (finished.finished.length > 0) {
+      logger.info(
+        `Drafts: finished sending ${finished.finished.join(", ")}, whose messages were already written`,
+      );
     }
   } catch (error) {
     captureServerException(

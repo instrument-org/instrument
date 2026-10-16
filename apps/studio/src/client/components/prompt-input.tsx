@@ -123,6 +123,13 @@ export interface PromptInputRef {
   /** Opens the folder chooser, the way the plus menu's "Work in a local folder" does. */
   pickFolder: () => void;
   restore: (draft: PromptInputDraft) => void;
+  /**
+   * Draws back what a draft holds besides its words, for a box whose words
+   * come from somewhere of their own: a chat's, which reads its reply from
+   * the draft. Only into a box holding none, so nothing the user has given
+   * it since is replaced.
+   */
+  restoreItems: (items: AttachedItem[]) => void;
   snapshot: () => PromptInputDraft;
 }
 
@@ -545,6 +552,12 @@ export const PromptInput = ({
       }
       promptEditorRef.current?.setValue(draft.prompt);
       setAttachedItems(draft.items);
+    },
+    restoreItems: (items) => {
+      if (attachedItems.length > 0) {
+        return;
+      }
+      setAttachedItems(items);
     },
     snapshot: () => ({
       items: attachedItems,

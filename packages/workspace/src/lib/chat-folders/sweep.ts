@@ -6,8 +6,7 @@ import { CHAT_FILE_NAME } from "../../constants";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatDirSchema } from "../../schemas/paths";
 import { readChatRecord, updateChatRecord } from "../chat-record";
-import { parseRecordFileName } from "../records/file-names";
-import { foldChat } from "../records/fold";
+import { foldChatInFolder } from "../records/fold-folder";
 import { ensureChatFolder, writeChatFile } from "./chat-folder";
 import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
 
@@ -98,7 +97,7 @@ async function sweepChatFolder({
 }): Promise<ChatFolderSweep> {
   try {
     const dir = ChatDirSchema.parse(path.join(chatsDir, id));
-    const chat = foldChat(await recordFiles(dir));
+    const chat = await foldChatInFolder(dir);
     const markdown = renderChatMarkdown({ chat, id, timeZone, topicNames });
     if (markdown === undefined) {
       return { kind: "no-conversation" };
@@ -158,19 +157,4 @@ async function chatIdsIn(chatsDir: string): Promise<ChatId[]> {
     const id = ChatIdSchema.safeParse(entry.name);
     return id.success ? [id.data] : [];
   });
-}
-
-/** A chat's logs and marks files, with their bytes, for a fold of its own. */
-async function recordFiles(
-  dir: string,
-): Promise<{ bytes: Uint8Array; name: string }[]> {
-  const names = (await fs.readdir(dir))
-    .filter((name) => parseRecordFileName(name) !== undefined)
-    .toSorted();
-  return Promise.all(
-    names.map(async (name) => ({
-      bytes: await fs.readFile(path.join(dir, name)),
-      name,
-    })),
-  );
 }

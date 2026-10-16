@@ -49,7 +49,6 @@ const ChatDenialSchema = z.object({
   target: z.string().min(1),
 });
 
-export type ChatDenial = z.output<typeof ChatDenialSchema>;
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole settings file, whose `state` key it is meant to ignore rather than

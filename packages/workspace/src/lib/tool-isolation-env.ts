@@ -87,11 +87,6 @@ function nodeToolsEnvIn(
   };
 }
 
-/** Where uv keeps the Pythons it installs, in `uvDataDir`. */
-export function uvPythonInstallDir(uvDataDir: string): string {
-  return path.join(uvDataDir, "python");
-}
-
 /**
  * How many days old a package must be before an install takes it, as
  * pnpm's `minimumReleaseAge` holds npm packages.

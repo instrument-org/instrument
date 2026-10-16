@@ -302,8 +302,7 @@ export function contextTokensView(
   return inputTokensIn(messagesOf(read, sessionId, {}));
 }
 
-/** The same count, read from messages already in hand. */
-export function inputTokensIn(messages: SessionMessage.Type[]): number {
+function inputTokensIn(messages: SessionMessage.Type[]): number {
   const reported = messages.findLast(
     (message) =>
       message.role === "assistant" &&
@@ -320,8 +319,7 @@ export function searchView(read: ChatRead, sessionId: StoreId.Session): Said[] {
   return saidIn(historyOf(read.chat, sessionId));
 }
 
-/** The same words, read from a transcript already in hand. */
-export function saidIn(messages: SessionMessage.WithParts[]): Said[] {
+function saidIn(messages: SessionMessage.WithParts[]): Said[] {
   return messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") {
       return [];

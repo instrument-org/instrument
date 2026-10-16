@@ -1,6 +1,7 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { type AppPlace } from "@/client/atoms/window";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { type RailChatMark } from "@/client/components/window/chats";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import {
   Avatar,
@@ -36,14 +37,17 @@ export const APP_RAIL_WIDTH = 76;
  * as the way to Settings. The one the window stands in sits in a soft well
  * around the whole entry, mark and word together. Narrow enough to be
  * chrome rather than a column: a mark, a word, and nothing wider than
- * either.
+ * either. Away from Chat, Chat wears a dot for where the chats stand.
  */
 export function AppRail({
+  chatMark,
   onChoose,
   onHoverChat,
   onNew,
   place,
 }: {
+  /** The dot Chat wears while the window stands in another place. */
+  chatMark?: RailChatMark;
   /** A place asked for: in the tab up, or in a tab of its own for a middle or modified click or the menu's ask. */
   onChoose: (place: AppPlace, options: { newTab: boolean }) => void;
   /** The pointer come onto Chat or gone from it, for the inbox to peek out while it is nowhere on screen. */
@@ -90,6 +94,9 @@ export function AppRail({
               place={entry.id}
               weight={place === entry.id ? "fill" : "regular"}
             />
+            {entry.id === "chat" && place !== "chat" && chatMark && (
+              <ChatMarkDot mark={chatMark} />
+            )}
           </RailEntry>
         ))}
       </div>
@@ -170,11 +177,30 @@ function RailEntry({
       }}
       type="button"
     >
-      <span className="grid h-6 place-items-center">{children}</span>
+      <span className="relative grid h-6 place-items-center">{children}</span>
       <span className={cn("text-[11px] leading-4", isOn && "font-medium")}>
         {label}
       </span>
     </button>
+  );
+}
+
+/**
+ * The dot on Chat's corner, ringed in the rail's ground so it reads clear of
+ * the mark: amber and still while a chat waits on the user, pulsing green
+ * while one works, and still green while one has something not yet seen.
+ */
+function ChatMarkDot({ mark }: { mark: RailChatMark }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "absolute -top-0.5 -right-1 size-2.5 rounded-full ring-2 ring-ground",
+        mark === "waiting" ? "bg-warning-500" : "bg-brand-500",
+        mark === "working" && "motion-safe:animate-pulse",
+      )}
+      data-chat-mark={mark}
+    />
   );
 }
 

@@ -14,6 +14,7 @@ import {
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
+  railMarkOf,
   topicSearch,
   widenToSearch,
   wordRanges,
@@ -525,5 +526,47 @@ describe("a command menu search's ask of the topics", () => {
     ["topic topic", true, "topic"],
   ])("%j asks: %j, by the name %j", (words, isAsked, name) => {
     expect(topicSearch(words)).toEqual({ isAsked, name });
+  });
+});
+
+describe("the rail's Chat dot", () => {
+  const at = (
+    overrides: Partial<{
+      archived: boolean;
+      state: Filterable["state"];
+      unread: boolean;
+      working: boolean;
+    }> = {},
+  ) => ({
+    archived: false,
+    state: "idle" as const,
+    unread: false,
+    working: false,
+    ...overrides,
+  });
+
+  it.each<[string, ReturnType<typeof at>[], ReturnType<typeof railMarkOf>]>([
+    ["no chats", [], undefined],
+    ["every chat seen and at rest", [at(), at()], undefined],
+    ["one unread", [at(), at({ unread: true })], "unread"],
+    [
+      "one working",
+      [at({ unread: true }), at({ state: "working", working: true })],
+      "working",
+    ],
+    // A card can wait on the user while a task of the chat works.
+    ["a task working under a settled chat", [at({ working: true })], "working"],
+    [
+      "one waiting beside one working",
+      [at({ state: "working", working: true }), at({ state: "waiting" })],
+      "waiting",
+    ],
+    [
+      "only put away chats",
+      [at({ archived: true, state: "waiting", unread: true, working: true })],
+      undefined,
+    ],
+  ])("%s: %j", (_label, chats, mark) => {
+    expect(railMarkOf(chats)).toBe(mark);
   });
 });

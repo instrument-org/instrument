@@ -80,7 +80,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { NO_FILTERS } from "./chats";
+import { NO_FILTERS, railMarkOf } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -835,6 +835,7 @@ function WindowShell({
             }
             rail={
               <AppRail
+                chatMark={railMarkOf(chats.data ?? [])}
                 onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {

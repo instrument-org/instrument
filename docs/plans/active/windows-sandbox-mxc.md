@@ -47,7 +47,7 @@ Through the agent's shell (`bash.exec` in a chat, phase 1 as built, uutils for t
 | `node -e 0` | 53 ms | 147 ms | 94 ms |
 | `sort words.txt \| uniq -c \| sort -rn \| head -3` | 47 ms | 211 ms | 164 ms |
 
-Building the policy from a chat's rules takes about 50 ms (realpaths of every rule's folder and the walk for names that run code), kept for a second per reach so a pipeline's stages share one. The rest is the launcher's start and a request of about 45 paths. Both are phase 2 work: a policy kept until the rules or the walked folders change, and fewer paths per request.
+Building the policy from a chat's rules takes about 50 ms (realpaths of every rule's folder and the walk for names that run code); a policy is reused until the rules change or a path it read does, which a stat of each tells (about 0.6 ms against 12 ms to build on an M5 Max). The rest is the launcher's start and a request of about 45 paths; fewer paths per request is phase 2 work.
 
 ## Approach
 
@@ -79,7 +79,7 @@ The command line is capped at 32,767 characters; the request is base64 of a few 
 - One entry per path; at an equal path the higher rank wins, as `ruleRank` orders.
 - Each closed folder above an open entry goes in `enumeratePaths`, so a program can `lstat` its way down to what it may read; a readable folder never does, since MXC would narrow it to looking.
 - A rule's path that is missing is left out unless it sits in a folder that can be changed, where it could be made; a path with no drive, or whose folder is missing, is left out since MXC would refuse the whole request. The reach's own read-write folders are made first, as bubblewrap makes them.
-- The policy is kept for a second per reach, so a pipeline's stages share one; a name that runs code made since is held from the next one built.
+- The policy is reused until the rules change or a path it read does, so a name that runs code made by one command is held from the next.
 
 If a generated policy disagrees with what `reachOf` says of a path, that is a generator bug; the rules themselves are owned elsewhere and are not changed for MXC. The unit tests assert the lists for representative rule sets and that, for every listed path, the list it lands in matches `reachOf`'s answer for read and write.
 

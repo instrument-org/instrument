@@ -1,7 +1,7 @@
-import { type Dirent, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import { DANGEROUS_NAMES } from "../permissions/places";
+import { type Disk, liveDisk } from "./disk";
 
 /** How far the search for names that run code goes into one folder. */
 export interface WalkLimits {
@@ -46,18 +46,13 @@ export function namesThatRunCode(
     limits: WalkLimits;
     stops: ReadonlySet<string>;
   },
+  disk: Disk = liveDisk,
 ): FoundName[] {
   const found: FoundName[] = [];
   const queue = [{ depth: 1, folder: root }];
   let listed = 0;
   for (const next of queue) {
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(next.folder, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
+    for (const entry of disk.list(next.folder) ?? []) {
       if (listed++ >= limits.entries) {
         return found;
       }
@@ -84,7 +79,7 @@ export function namesThatRunCode(
         if (rest.length === 0) {
           named = true;
           found.push({ kind: "name", path: entryPath });
-        } else if (existsSync(path.join(next.folder, name))) {
+        } else if (disk.exists(path.join(next.folder, name))) {
           found.push({ kind: "name", path: path.join(next.folder, name) });
         }
       }
@@ -101,12 +96,9 @@ export function namesThatRunCode(
   return found;
 }
 
-export function dotEntriesIn(folder: string): string[] {
-  try {
-    return readdirSync(folder)
-      .filter((name) => name.startsWith("."))
-      .map((name) => path.join(folder, name));
-  } catch {
-    return [];
-  }
+export function dotEntriesIn(folder: string, disk: Disk = liveDisk): string[] {
+  return (disk.list(folder) ?? [])
+    .map((entry) => entry.name)
+    .filter((name) => name.startsWith("."))
+    .map((name) => path.join(folder, name));
 }

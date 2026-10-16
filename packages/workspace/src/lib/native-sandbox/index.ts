@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { getWorkspaceConfig } from "../workspace-config";
 import { bwrapCommand, bwrapState } from "./bwrap";
-import { type MxcCommand, mxcLaunch, mxcState, recentMxcPolicy } from "./mxc";
+import { type MxcCommand, mxcLaunch, mxcPolicyFor, mxcState } from "./mxc";
 import { currentReach, type NativeReach } from "./reach";
 import { seatbeltCommand, seatbeltState } from "./seatbelt";
 
@@ -98,7 +98,7 @@ export function wrapNativeCommand(
     return {
       argv: [file, ...args],
       file: mxcExec,
-      filesystem: recentMxcPolicy(reach),
+      filesystem: mxcPolicyFor(reach),
       kind: "mxc",
       reach,
     };

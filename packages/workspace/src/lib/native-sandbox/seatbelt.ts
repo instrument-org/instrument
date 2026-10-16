@@ -18,7 +18,6 @@ const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
  */
 const DEVICES = "/dev";
 
-
 /**
  * A Seatbelt profile from the rules. Allow-by-default keeps every system
  * directory, device and service a binary expects where it was; then, ordered
@@ -201,7 +200,7 @@ export function seatbeltProfile(
   // stays where it is: renamed, its hooks would be outside the name that
   // closes them, and could be written and moved back. Nor can such a name be
   // hard linked to elsewhere, where writing the link would change it.
-  const ownFolders = reach.readWrite.flatMap(spellings);
+  const ownFolders = reach.readWrite.flatMap((own) => spellings(own));
   const notOwn = ownFolders
     .map((own) => `(require-not (subpath ${sbplString(own)}))`)
     .join(" ");
@@ -264,7 +263,6 @@ export function seatbeltState(): ProbeResult {
 export function seatbeltAvailable(): boolean {
   return seatbeltState() === "works";
 }
-
 
 /**
  * A program the app runs for itself, outside the rules, with only the
@@ -342,7 +340,6 @@ function compiledProfile(helper: string, profile: string): string | undefined {
   }
   return compiled.get(profile);
 }
-
 
 /**
  * `file` run under the reach's profile: through the app's launcher with the

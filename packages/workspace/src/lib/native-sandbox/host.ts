@@ -47,10 +47,13 @@ export function resolveReal(target: string): string {
  * Seatbelt checks both the link it opens through and what it lands on, so a
  * rule names the two.
  */
-export function spellings(target: string): string[] {
+export function spellings(
+  target: string,
+  real: (target: string) => string = resolveReal,
+): string[] {
   const written = path.resolve(target);
-  const real = resolveReal(target);
-  return real === written ? [written] : [written, real];
+  const resolved = real(target);
+  return resolved === written ? [written] : [written, resolved];
 }
 
 export function canWrite(target: string): boolean {

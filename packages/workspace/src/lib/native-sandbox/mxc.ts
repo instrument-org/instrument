@@ -5,7 +5,14 @@ import path from "node:path";
 import { hostPathWithin } from "../host-path";
 import { levelWithoutAsking, ruleRank } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
-import { appEnv, resolveReal, spellings } from "./host";
+import {
+  type Disk,
+  type DiskProof,
+  liveDisk,
+  proofHolds,
+  recordingDisk,
+} from "./disk";
+import { appEnv, spellings } from "./host";
 import { type MxcLaunch, mxcVerdict, sandboxStateDir } from "./mxc-canary";
 import { type ProbeResult } from "./probe";
 import { type NativeReach } from "./reach";
@@ -58,26 +65,85 @@ export function mxcCanaryLaunch(exec: string): MxcLaunch {
   };
 }
 
+/** What a policy is built from besides the reach. */
+interface PolicyInputs {
+  /** The app's own install, which `node`, `git` and `rg` run from. */
+  appFolders: readonly string[];
+  /** The app's folders no command may read or change. */
+  closed: readonly string[];
+  /** The system drive's root, readable where no rule says otherwise. */
+  root: string;
+  walk: WalkLimits;
+}
+
+function policyInputs(given: Partial<PolicyInputs>): PolicyInputs {
+  return {
+    appFolders: given.appFolders ?? mxcAppFolders(),
+    closed: given.closed ?? [sandboxStateDir()],
+    root: given.root ?? `${appEnv.SystemDrive ?? "C:"}\\`,
+    walk: given.walk ?? WALK_LIMITS,
+  };
+}
+
 /**
- * A reach's MXC policy, kept for a moment: building it reads every rule's
- * folder and searches the allowed ones for names that run code, about
- * 50 ms on Windows, and a pipeline's stages start together. A name made
- * since is held from the next policy built, a second later at most, as a
- * name not there yet stays open to being made under bubblewrap until the
- * next command.
+ * Policies built, by the reach and inputs they were built from, each with
+ * the proof that the disk still answers as it did. Building one reads every
+ * rule's folder and searches the allowed ones for names that run code,
+ * about 50 ms on Windows, where checking the proof stats the paths those
+ * answers came from. A `.git` made in an allowed folder changes the listed
+ * folder holding it, so the next command builds a policy that holds its
+ * hooks.
  */
-const mxcPolicies = new WeakMap<
-  NativeReach,
-  { at: number; filesystem: MxcFilesystemPolicy }
+const policies = new Map<
+  string,
+  { filesystem: MxcFilesystemPolicy; proof: DiskProof }
 >();
-const MXC_POLICY_KEPT_MS = 1000;
-export function recentMxcPolicy(reach: NativeReach): MxcFilesystemPolicy {
-  const kept = mxcPolicies.get(reach);
-  if (kept && Date.now() - kept.at < MXC_POLICY_KEPT_MS) {
+/** Policies kept; past this, the longest unused goes. */
+const POLICIES_KEPT = 32;
+
+/** The reach's MXC policy: the one built before, while its proof holds. */
+export function mxcPolicyFor(
+  reach: NativeReach,
+  {
+    disk = liveDisk,
+    now = Date.now(),
+    ...given
+  }: Partial<PolicyInputs> & {
+    disk?: Disk;
+    /** When the build starts, which every stamp must be settled before. */
+    now?: number;
+  } = {},
+): MxcFilesystemPolicy {
+  const inputs = policyInputs(given);
+  const { home, rules, withoutAsking } = reach.rules;
+  const key = JSON.stringify([
+    reach.readOnly,
+    reach.readWrite,
+    home,
+    rules,
+    withoutAsking,
+    inputs,
+  ]);
+  const kept = policies.get(key);
+  policies.delete(key);
+  if (kept && proofHolds(kept.proof)) {
+    // Back at the end, as the most recently used.
+    policies.set(key, kept);
     return kept.filesystem;
   }
-  const filesystem = mxcFilesystemPolicy(reach);
-  mxcPolicies.set(reach, { at: Date.now(), filesystem });
+  const recording = recordingDisk(disk, now);
+  const filesystem = mxcFilesystemPolicy(reach, {
+    ...inputs,
+    disk: recording.disk,
+  });
+  const proof = recording.proof();
+  if (proof) {
+    const oldest = policies.keys().next();
+    if (policies.size >= POLICIES_KEPT && !oldest.done) {
+      policies.delete(oldest.value);
+    }
+    policies.set(key, { filesystem, proof });
+  }
   return filesystem;
 }
 
@@ -107,22 +173,17 @@ export interface MxcFilesystemPolicy {
  */
 export function mxcFilesystemPolicy(
   reach: NativeReach,
-  {
-    appFolders = mxcAppFolders(),
-    closed = [sandboxStateDir()],
-    root = `${appEnv.SystemDrive ?? "C:"}\\`,
-    walk = WALK_LIMITS,
-  }: {
-    /** The app's own install, which `node`, `git` and `rg` run from. */
-    appFolders?: readonly string[];
-    /** The app's folders no command may read or change. */
-    closed?: readonly string[];
-    /** The system drive's root, readable where no rule says otherwise. */
-    root?: string;
-    walk?: WalkLimits;
-  } = {},
+  { disk = liveDisk, ...given }: Partial<PolicyInputs> & { disk?: Disk } = {},
 ): MxcFilesystemPolicy {
+  const { appFolders, closed, root, walk } = policyInputs(given);
   const { home, rules, withoutAsking } = reach.rules;
+  // The app's own folders are made before they are granted, as bubblewrap
+  // makes them, so a first run can write one the app makes later; and
+  // before anything is read, so the policy is built from the disk as it is
+  // after. One that cannot be made is granted if its folder is there.
+  for (const folder of reach.readWrite) {
+    disk.makeFolder(folder);
+  }
   type Access = "deny" | "read" | "write";
   const entries = new Map<
     string,
@@ -140,11 +201,11 @@ export function mxcFilesystemPolicy(
     if (
       (process.platform === "win32" &&
         !/^(?:[A-Za-z]:[\\/]|[\\/]{2})/.test(target)) ||
-      (!existsSync(target) && !existsSync(path.dirname(target)))
+      (!disk.exists(target) && !disk.exists(path.dirname(target)))
     ) {
       return;
     }
-    for (const spelled of spellings(target)) {
+    for (const spelled of spellings(target, disk.real)) {
       const key = fold(spelled);
       const held = entries.get(key);
       if (!held || rank >= held.rank) {
@@ -159,7 +220,7 @@ export function mxcFilesystemPolicy(
     const access: Access =
       level === "allow" ? "write" : level === "readOnly" ? "read" : "deny";
     for (const target of rule.dotEntries
-      ? dotEntriesIn(rule.path)
+      ? dotEntriesIn(rule.path, disk)
       : [rule.path]) {
       add(target, access, ruleRank(rule));
     }
@@ -168,23 +229,14 @@ export function mxcFilesystemPolicy(
     add(folder, "read", 3);
   }
   for (const folder of reach.readWrite) {
-    // The app's own folders are made before they are granted, as bubblewrap
-    // makes them, so a first run can write one the app makes later.
-    try {
-      mkdirSync(folder, { recursive: true });
-    } catch {
-      // Left as it is, and granted if its folder is there.
-    }
     add(folder, "write", 3);
   }
   // MXC has no patterns, so the names that run code already in an allowed
   // folder are found as bubblewrap finds them and closed to changes by name.
-  const own = reach.readWrite.map(resolveReal);
+  const own = reach.readWrite.map(disk.real);
   const stops = new Set([
     ...own,
-    ...rules.flatMap((rule) =>
-      rule.dotEntries ? [] : [resolveReal(rule.path)],
-    ),
+    ...rules.flatMap((rule) => (rule.dotEntries ? [] : [disk.real(rule.path)])),
   ]);
   for (const rule of rules) {
     if (
@@ -193,15 +245,15 @@ export function mxcFilesystemPolicy(
     ) {
       continue;
     }
-    const searched = resolveReal(rule.path);
+    const searched = disk.real(rule.path);
     if (own.some((folder) => hostPathWithin(folder, searched) !== null)) {
       continue;
     }
-    for (const { kind, path: named } of namesThatRunCode(searched, {
-      dotEntriesOnly: rule.dotEntries ?? false,
-      limits: walk,
-      stops,
-    })) {
+    for (const { kind, path: named } of namesThatRunCode(
+      searched,
+      { dotEntriesOnly: rule.dotEntries ?? false, limits: walk, stops },
+      disk,
+    )) {
       if (kind === "name") {
         add(named, "read", 4);
       } else if (kind === "repo") {
@@ -231,7 +283,7 @@ export function mxcFilesystemPolicy(
   for (const [key, entry] of entries) {
     if (
       entry.rank < 3 &&
-      !existsSync(entry.path) &&
+      !disk.exists(entry.path) &&
       accessAt(path.dirname(entry.path)) !== "write"
     ) {
       entries.delete(key);

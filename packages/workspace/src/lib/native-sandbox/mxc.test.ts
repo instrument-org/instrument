@@ -1,15 +1,19 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { afterAll, describe, expect, it } from "vitest";
 
+import { type Disk, liveDisk } from "./disk";
+import { mxcPolicyFor } from "./mxc";
 import { judgeCanary } from "./mxc-canary";
 import {
   launchNative,
@@ -569,5 +573,121 @@ describe("judgeCanary", () => {
 
   it("fails on output that is not the canary's", () => {
     expect(judgeCanary("STATUS_DLL_INIT_FAILED", expected).kind).toBe("fails");
+  });
+});
+
+describe("mxcPolicyFor", () => {
+  /** Long after every folder here changed, so each stamp is settled. */
+  const later = () => Date.now() + 60_000;
+
+  /** The live disk, counting the folders it lists. */
+  function countingDisk() {
+    const counted = { lists: 0 };
+    const disk: Disk = {
+      ...liveDisk,
+      list: (folder) => {
+        counted.lists += 1;
+        return liveDisk.list(folder);
+      },
+    };
+    return { counted, disk };
+  }
+
+  /** A home with a projects folder the rules allow, and a chat folder. */
+  function projects(...folders: string[]) {
+    const at = home("Projects/app", ...folders.map((f) => `Projects/${f}`));
+    const reach = reachOver(
+      at,
+      [{ level: "allow", path: path.join(at, "Projects"), source: "folder" }],
+      { readWrite: [path.join(at, "chat")] },
+    );
+    return { at, reach };
+  }
+
+  const inputs = { appFolders: [], closed: [], root: ROOT };
+
+  it("gives a second command the policy the first one built", () => {
+    const { reach } = projects();
+    const { counted, disk } = countingDisk();
+    const first = mxcPolicyFor(reach, { ...inputs, disk, now: later() });
+    const listed = counted.lists;
+    expect(listed).toBeGreaterThan(0);
+    expect(mxcPolicyFor(reach, { ...inputs, disk, now: later() })).toBe(first);
+    expect(counted.lists).toBe(listed);
+  });
+
+  it.each([
+    [".git", ".git/hooks"],
+    [".vscode", ".vscode"],
+    ["deep/.git", "deep/.git/hooks"],
+  ])("builds again once %s is made in an allowed folder", (made, held) => {
+    const { at, reach } = projects("app/deep");
+    const first = mxcPolicyFor(reach, { ...inputs, now: later() });
+    const target = path.join(at, "Projects", "app", held);
+    expect(first.readonlyPaths).not.toContain(target);
+    mkdirSync(path.join(at, "Projects", "app", made), { recursive: true });
+    const next = mxcPolicyFor(reach, { ...inputs, now: later() });
+    expect(next).not.toBe(first);
+    expect(next.readonlyPaths).toContain(target);
+  });
+
+  it("builds again once a name of two parts is made in its folder", () => {
+    const { at, reach } = projects("app/.claude");
+    const settings = path.join(
+      at,
+      "Projects",
+      "app",
+      ".claude",
+      "settings.json",
+    );
+    expect(
+      mxcPolicyFor(reach, { ...inputs, now: later() }).readonlyPaths,
+    ).not.toContain(settings);
+    writeFileSync(settings, "{}");
+    expect(
+      mxcPolicyFor(reach, { ...inputs, now: later() }).readonlyPaths,
+    ).toContain(settings);
+  });
+
+  it("builds again for changed rules", () => {
+    const { at, reach } = projects("secret");
+    const first = mxcPolicyFor(reach, { ...inputs, now: later() });
+    const secret = path.join(at, "Projects", "secret");
+    expect(first.deniedPaths).not.toContain(secret);
+    const closed = {
+      ...reach,
+      rules: {
+        ...reach.rules,
+        rules: [
+          ...reach.rules.rules,
+          { level: "never", path: secret, source: "folder" } satisfies Rule,
+        ],
+      },
+    };
+    expect(
+      mxcPolicyFor(closed, { ...inputs, now: later() }).deniedPaths,
+    ).toContain(secret);
+    // The first rules' policy is still the one they built.
+    expect(mxcPolicyFor(reach, { ...inputs, now: later() })).toBe(first);
+  });
+
+  it("makes the chat's folder again once it is gone", () => {
+    const { at, reach } = projects();
+    const chat = path.join(at, "chat");
+    mxcPolicyFor(reach, { ...inputs, now: later() });
+    rmSync(chat, { force: true, recursive: true });
+    expect(
+      mxcPolicyFor(reach, { ...inputs, now: later() }).readwritePaths,
+    ).toContain(chat);
+    expect(existsSync(chat)).toBe(true);
+  });
+
+  it("builds again while a folder it read has just changed", () => {
+    const { reach } = projects();
+    const { counted, disk } = countingDisk();
+    mxcPolicyFor(reach, { ...inputs, disk, now: Date.now() });
+    const listed = counted.lists;
+    mxcPolicyFor(reach, { ...inputs, disk, now: Date.now() });
+    expect(counted.lists).toBe(listed * 2);
   });
 });

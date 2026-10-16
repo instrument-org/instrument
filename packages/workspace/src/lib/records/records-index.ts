@@ -26,6 +26,7 @@ import {
   type MarkField,
   type MarkRecord,
   parseLogLine,
+  RECORD_FORMAT,
   parseMarkLine,
   type SessionHeader,
 } from "./record";
@@ -61,8 +62,19 @@ import { TAIL_BYTES, tailHash } from "./record-writer";
  * what it held before, and the next pass asks again.
  */
 
-/** The shape of the tables below. Any change to a table, or to what a row means, bumps it, and every chat is folded again. */
-const RECORDS_INDEX_VERSION = 1;
+/**
+ * The shape of the tables below. Any change to a table, or to what a row
+ * means, bumps `INDEX_SHAPE` and every chat is folded again.
+ *
+ * The record format is part of it, because a row keeps record lines whose
+ * meaning is `record.ts`'s: a header line stored under one format stops
+ * parsing under the next, and a log whose header will not parse has its
+ * offset advanced past records it then discards, which takes the chat out of
+ * the index with nothing to put back. So the format carries the version with
+ * it, and nobody has to remember that bumping one means bumping the other.
+ */
+const INDEX_SHAPE = 1;
+const RECORDS_INDEX_VERSION = INDEX_SHAPE * 1000 + RECORD_FORMAT;
 
 const TABLES = ["files", "messages", "sessions", "chats"];
 

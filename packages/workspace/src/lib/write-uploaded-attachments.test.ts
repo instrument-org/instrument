@@ -3,10 +3,17 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
+
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
-import { type ChatDir, ChatDirSchema } from "../schemas/paths";
+import {
+  type ChatDir,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the record is concerned";
@@ -14,6 +21,11 @@ const CONTENT = "a photo, as far as the record is concerned";
 let root: string;
 let recordDir: ChatDir;
 let outsideDir: string;
+const held = getWorkspaceConfig();
+
+afterEach(() => {
+  setWorkspaceConfig(held);
+});
 
 beforeEach(async () => {
   root = await fs.mkdtemp(
@@ -114,8 +126,37 @@ describe("writeUploadedAttachments", () => {
   });
 
   // Pasted bytes have no file behind them, so they are written into the
-  // record folder and named relative to it.
-  it("writes pasted bytes into the record folder's attachments", async () => {
+  // chat's own folder, where the person can open what they sent.
+  it("writes pasted bytes into the chat's own folder", async () => {
+    const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
+    await fs.mkdir(folder, { recursive: true });
+    await fs.writeFile(
+      path.join(recordDir, SETTINGS_FILE_NAME),
+      JSON.stringify({ folder: "Quiet dishwashers" }),
+    );
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    });
+
+    const [attached] = await attach([pastedFile("photo.jpg")]);
+
+    // Stored the same way wherever they land, so what resolves them is
+    // which folder holds them.
+    expect(attached?.filePath).toBe(
+      `${CHAT_FOLDER_NAMES.attachments}/photo.jpg`,
+    );
+    await expect(
+      fs.readFile(
+        path.join(folder, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+        "utf8",
+      ),
+    ).resolves.toBe(CONTENT);
+    await expect(attachmentsIn(recordDir)).rejects.toThrow();
+  });
+
+  // A chat from before the folders, or one whose folder could not be made.
+  it("writes pasted bytes into the record folder for a chat with no folder", async () => {
     const [attached] = await attach([pastedFile("photo.jpg")]);
 
     expect(attached?.filePath).toBe(

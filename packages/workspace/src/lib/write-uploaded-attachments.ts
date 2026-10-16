@@ -17,9 +17,9 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getMimeType } from "./get-mime-type";
+import { chatOwnFolder } from "./record-folders";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
-import { getChatAttachmentsDir } from "./chat-dir-utils";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -40,7 +40,7 @@ export async function writeUploadedAttachments({
   sessionId,
 }: {
   files?: FileUpload.Type[];
-  /** The chat's record folder, whose `attachments/` pasted bytes land in. */
+  /** The chat whose folder pasted bytes land in, named by its record folder. */
   recordDir: ChatDir;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
@@ -137,7 +137,14 @@ function prepareUploadedFiles({
   recordDir: ChatDir;
 }) {
   return safeTry(async function* () {
-    const inputDir = getChatAttachmentsDir(recordDir);
+    // Into the chat's own folder under `Chats/`, beside the transcript the
+    // person reads, so what they sent is theirs to open rather than
+    // something in the records. A chat with no folder keeps them in its
+    // record folder, where every build before this one wrote them; the
+    // stored path is `attachments/<name>` either way, so what resolves it
+    // is which folder holds them and nothing stored has to change.
+    const sentTo = chatOwnFolder(recordDir) ?? recordDir;
+    const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -179,7 +186,7 @@ function prepareUploadedFiles({
 
       preparedFiles.push({
         filename: uniqueFilename,
-        filePath: absolutePathJoin(recordDir, relativePath),
+        filePath: absolutePathJoin(sentTo, relativePath),
         input: file,
         inPlace: false,
         mimeType: getMimeType(uniqueFilename),

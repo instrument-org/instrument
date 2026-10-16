@@ -9,7 +9,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
 import { ChatReads } from "./chat-reads";
-import { getChatAttachmentsDir } from "./chat-dir-utils";
+import { chatAttachmentsDir } from "./chat-dir-utils";
 import {
   applyContextRollover,
   contextRolloverBoundaryInForce,
@@ -288,7 +288,7 @@ export async function prepareModelMessages({
     portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
     {
-      attachmentsDir: shellPath(getChatAttachmentsDir(chatDir(chatId))),
+      attachmentsDir: shellPath(chatAttachmentsDir(chatDir(chatId))),
       shellPath,
     },
   );

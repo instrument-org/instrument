@@ -2,6 +2,7 @@ import {
   SETTINGS_FILE_NAME,
   WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
+import fs from "node:fs";
 
 import {
   CHAT_DB_FILE_NAME,
@@ -15,6 +16,7 @@ import {
   type WorkDir,
 } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
+import { chatOwnFolder } from "./record-folders";
 import { workspaceMachineDir } from "./workspace-machine-dir";
 
 /** The in-app browser's Chromium profile, on this computer's side of the workspace. */
@@ -55,11 +57,32 @@ export function getScreenshotsDir(dir: WorkDir): AbsolutePath {
 }
 
 /**
- * What the person sent the chat, in its record folder: files are read there
- * in place, and the agent may read them but never change them.
+ * What the person sent the chat, in its record folder: where every build
+ * before this one kept it, and where a chat whose folder it could not be
+ * moved to keeps it still. Named by the migration and by
+ * {@link chatAttachmentsDir}; everything else wants that one.
  */
 export function getChatAttachmentsDir(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
+}
+
+/**
+ * What the person sent the chat, wherever it is: `attachments/` in the
+ * chat's own folder under `Chats/`, which is where the launch that gave the
+ * chat its folder moved it and where pasted bytes are written now, and its
+ * record folder for a chat that has no folder or whose move was refused.
+ *
+ * Whichever one is there wins, rather than whichever one should be: the
+ * move is best effort, so a chat can still be reading its files out of the
+ * record folder on this computer while another has them in its own folder.
+ */
+export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
+  const own = chatOwnFolder(dir);
+  if (own === undefined) {
+    return getChatAttachmentsDir(dir);
+  }
+  const inFolder = absolutePathJoin(own, CHAT_FOLDER_NAMES.attachments);
+  return fs.existsSync(inFolder) ? inFolder : getChatAttachmentsDir(dir);
 }
 
 /** A chat's settings and where the person left off, in its record folder. */

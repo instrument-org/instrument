@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createHistoryStore } from "../browser-view/history-store";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   checkMoveTarget,
@@ -318,6 +319,73 @@ describe("finishPendingMove", () => {
         workspace: again.workspace,
       }),
     ).toEqual({ done: [], workspace: again.workspace });
+  });
+
+  const windowDir = () =>
+    path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.window);
+  const historyFile = () =>
+    path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.browser, "history.db");
+
+  it("writes the window's tabs, a draft's attachment and the recent files where the folder went", () => {
+    const inside = path.join(workspace.path, "downloads");
+    // A Files tab the window was left on.
+    fs.mkdirSync(windowDir(), { recursive: true });
+    fs.writeFileSync(
+      path.join(windowDir(), "layout.json"),
+      JSON.stringify({
+        "window-tabs.v9": {
+          tabs: [{ href: `/files?path=&root=${encodeURIComponent(inside)}` }],
+        },
+      }),
+    );
+    // A draft carrying a file from the folder.
+    fs.mkdirSync(path.join(workspace.path, "Drafts", "2026-10-16"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspace.path, "Drafts", "2026-10-16", "DRAFT.md"),
+      [
+        "---",
+        'id: "d1"',
+        "created: 2026-10-16T00:00:00.000Z",
+        "updated: 2026-10-16T00:00:00.000Z",
+        "attached:",
+        `  - path: ${JSON.stringify(path.join(inside, "a.zip"))}`,
+        "    kind: file",
+        "---",
+        "",
+        "Have a look at this.\n",
+      ].join("\n"),
+    );
+    // And a file they opened lately.
+    const history = createHistoryStore(historyFile());
+    history.addFileOpen({
+      at: 1,
+      path: path.join(inside, "a.zip"),
+      via: "tab",
+    });
+    history.close();
+    requestWorkspaceMove({ target: picked, userDataDir, workspace });
+
+    finish();
+
+    const moved = path.join(picked, "downloads");
+    // The tab reopens on the folder where it is now.
+    expect(
+      fs.readFileSync(path.join(windowDir(), "layout.json"), "utf8"),
+    ).toContain(encodeURIComponent(moved));
+    // The draft still names the file it was given.
+    expect(
+      fs.readFileSync(
+        path.join(picked, "Drafts", "2026-10-16", "DRAFT.md"),
+        "utf8",
+      ),
+    ).toContain(JSON.stringify(path.join(moved, "a.zip")));
+    // And the recents row still opens it.
+    const after = createHistoryStore(historyFile());
+    const recents = after.openedFiles(10).map((file) => file.path);
+    after.close();
+    expect(recents).toEqual([path.join(moved, "a.zip")]);
   });
 
   it("tidies the old folder after a launch that stopped once the entry moved", () => {

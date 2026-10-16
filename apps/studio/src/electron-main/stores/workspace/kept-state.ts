@@ -53,7 +53,7 @@ export function createKeptStateStore(
   const dirty = new Set<KeptFile>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const pathOf = (file: KeptFile) => path.join(dirOf(file), `${file}.json`);
+  const pathOf = (file: KeptFile) => path.join(dirOf(file), keptFileName(file));
 
   const loaded = () => {
     if (files) {
@@ -80,14 +80,8 @@ export function createKeptStateStore(
         continue;
       }
       const target = pathOf(file);
-      const temporary = `${target}.${process.pid}.tmp`;
       try {
-        fs.mkdirSync(dirOf(file), { recursive: true });
-        fs.writeFileSync(
-          temporary,
-          `${JSON.stringify(loaded().get(file) ?? {}, null, 2)}\n`,
-        );
-        fs.renameSync(temporary, target);
+        writeObject(target, loaded().get(file) ?? {});
       } catch (error) {
         logger.error(`Could not write kept state to ${target}`, error);
       }
@@ -143,6 +137,109 @@ export function createKeptStateStore(
       };
     },
   };
+}
+
+/** What a kept file is called in the folder it lives in. */
+function keptFileName(file: KeptFile): string {
+  return `${file}.json`;
+}
+
+/**
+ * A kept file written whole, replaced by rename so a crash mid-write leaves
+ * the old file rather than half of the new one.
+ */
+function writeObject(target: string, keys: Record<string, unknown>) {
+  const temporary = `${target}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(temporary, `${JSON.stringify(keys, null, 2)}\n`);
+  fs.renameSync(temporary, target);
+}
+
+/** The query keys of a Files address that name a folder or a file by its path. */
+const FILES_ADDRESS_PATHS = new Set(["file", "root", "tree"]);
+
+/**
+ * Writes every Files address in where the person left off (a tab's, and a
+ * step of its history: `/files?root=<path>`) naming its folder or its file
+ * where a move took it (`where`), so a tab left in the workspace's own folder
+ * opens where that folder is now. Written once, by the move that made it,
+ * into the file a window reads as it loads, which is why it names the folder
+ * the window state is kept in rather than reading the open workspace's.
+ *
+ * Safe to run again: an address already naming where its folder is is left
+ * alone. A file that cannot be read or written is left for the next launch,
+ * and nothing here throws.
+ */
+export function rewriteFolderAddresses(
+  windowDir: string,
+  where: (hostPath: string) => string,
+): string[] {
+  const file = path.join(windowDir, keptFileName("layout"));
+  let rewritten = 0;
+  const visit = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      if (!value.startsWith("/files?")) {
+        return value;
+      }
+      const moved = movedFilesAddress(value, where);
+      if (moved !== value) {
+        rewritten += 1;
+      }
+      return moved;
+    }
+    if (Array.isArray(value)) {
+      return value.map(visit);
+    }
+    if (value !== null && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [key, visit(entry)]),
+      );
+    }
+    return value;
+  };
+  const keys = Object.fromEntries(
+    Object.entries(readObject(file)).map(([key, value]) => [key, visit(value)]),
+  );
+  if (rewritten === 0) {
+    return [];
+  }
+  try {
+    writeObject(file, keys);
+  } catch (error) {
+    return [`left ${file} as it is (${String(error)})`];
+  }
+  return [
+    `wrote ${rewritten.toString()} address(es) where they went in ${file}`,
+  ];
+}
+
+function movedFilesAddress(
+  address: string,
+  where: (hostPath: string) => string,
+): string {
+  const at = address.indexOf("?");
+  const query = address
+    .slice(at + 1)
+    .split("&")
+    .map((pair) => {
+      const equals = pair.indexOf("=");
+      const key = pair.slice(0, equals);
+      if (equals === -1 || !FILES_ADDRESS_PATHS.has(key)) {
+        return pair;
+      }
+      let hostPath: string;
+      try {
+        hostPath = decodeURIComponent(pair.slice(equals + 1));
+      } catch {
+        return pair;
+      }
+      if (!path.isAbsolute(hostPath)) {
+        return pair;
+      }
+      const moved = where(hostPath);
+      return moved === hostPath ? pair : `${key}=${encodeURIComponent(moved)}`;
+    });
+  return `${address.slice(0, at)}?${query.join("&")}`;
 }
 
 /** A file's object, or an empty one for a file that is missing or not an object of JSON. */

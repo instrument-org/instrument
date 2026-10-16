@@ -161,6 +161,7 @@ export {
   type PathMove,
   rewriteStoredPaths,
   settleMovedPaths,
+  type StoredPathRewrite,
 } from "./lib/rewrite-stored-paths";
 export {
   instrumentFolderInDocuments,

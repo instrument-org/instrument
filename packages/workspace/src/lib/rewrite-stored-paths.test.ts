@@ -203,6 +203,117 @@ describe("a topic's granted folders", () => {
   });
 });
 
+describe("a draft's attachments", () => {
+  const draftFile = () => at("Drafts", "2026-10-16", "DRAFT.md");
+
+  function writeDraft(...attached: string[]) {
+    write(
+      draftFile(),
+      [
+        "---",
+        'id: "d1"',
+        "created: 2026-10-16T00:00:00.000Z",
+        "updated: 2026-10-16T09:00:00.000Z",
+        "attached:",
+        ...attached.flatMap((item) => [
+          `  - path: ${JSON.stringify(item)}`,
+          "    kind: file",
+        ]),
+        "---",
+        "",
+        "Have a look at this.\n",
+      ].join("\n"),
+    );
+  }
+
+  it("writes an attached file where its folder went", () => {
+    const now = path.join(machine.path, "work", "c", "notes", "report.md");
+    fs.mkdirSync(path.dirname(now), { recursive: true });
+    write(now, "report");
+    writeDraft(at("chats", "c", "notes", "report.md"), "pasted-image.png");
+
+    const done = rewrite();
+
+    const written = fs.readFileSync(draftFile(), "utf8");
+    expect(written).toContain(`- path: ${JSON.stringify(now)}`);
+    // What was pasted into the draft is beside it, so its path is the
+    // draft folder's and no move holds it.
+    expect(written).toContain('- path: "pasted-image.png"');
+    // The person's words and when the draft last changed are untouched, so
+    // the rewrite does not move it to the front of its chat's box.
+    expect(written).toContain("Have a look at this.");
+    expect(written).toContain("updated: 2026-10-16T09:00:00.000Z");
+    expect(done).toEqual([`wrote 1 path(s) where they went in ${draftFile()}`]);
+  });
+
+  it("writes nothing on the run after, since the paths are where they say", () => {
+    const now = path.join(machine.path, "work", "c", "notes", "report.md");
+    fs.mkdirSync(path.dirname(now), { recursive: true });
+    write(now, "report");
+    writeDraft(at("chats", "c", "notes", "report.md"));
+    rewrite();
+    const written = fs.readFileSync(draftFile(), "utf8");
+
+    expect(rewrite()).toEqual([]);
+    expect(fs.readFileSync(draftFile(), "utf8")).toBe(written);
+  });
+
+  it("leaves a file of the person's own that no move holds", () => {
+    const outside = path.join(machine.path, "Deals", "offer.pdf");
+    fs.mkdirSync(path.dirname(outside), { recursive: true });
+    write(outside, "pdf");
+    writeDraft(outside);
+
+    expect(rewrite()).toEqual([]);
+    expect(fs.readFileSync(draftFile(), "utf8")).toContain(
+      `- path: ${JSON.stringify(outside)}`,
+    );
+  });
+});
+
+describe("what the caller brings", () => {
+  it("hands each one where a path is now, and keeps what it says", () => {
+    const now = path.join(machine.path, "work", "c", "notes");
+    fs.mkdirSync(now, { recursive: true });
+
+    const done = rewriteStoredPaths({
+      also: [
+        ({ where }) => [`a tab opens on ${where(at("chats", "c", "notes"))}`],
+        ({ moves }) => moves.map((one) => `a recent file moved to ${one.to}`),
+      ],
+      machineDir: machine.path,
+      moves: [move()],
+      rootDir: workspace.path,
+    });
+
+    expect(done).toEqual([
+      `a tab opens on ${now}`,
+      `a recent file moved to ${path.join(machine.path, "work")}`,
+    ]);
+  });
+
+  it("carries on past one that throws, and says which", () => {
+    const done = rewriteStoredPaths({
+      also: [
+        () => {
+          throw new Error("no history here");
+        },
+        () => ["the window's tabs are where they went"],
+      ],
+      machineDir: machine.path,
+      moves: [move()],
+      rootDir: workspace.path,
+    });
+
+    expect(done).toMatchInlineSnapshot(`
+      [
+        "left one of the app's own stores as it is (Error: no history here)",
+        "the window's tabs are where they went",
+      ]
+    `);
+  });
+});
+
 describe("the record of moves an earlier build kept", () => {
   const movedPathsFile = () => path.join(machine.path, "moved-paths.json");
 

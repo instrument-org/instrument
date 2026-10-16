@@ -12,6 +12,11 @@ import {
   TOPIC_FILE_NAME,
   TOPICS_FOLDER_NAME,
 } from "./chat/topic-file";
+import {
+  type DraftOnDisk,
+  readDrafts,
+  writeDraftFile,
+} from "./drafts/draft-folder";
 import { hostPathWithin } from "./host-path";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
 import { WORKSPACE_DATA_ENTRIES, workspaceLayout } from "./workspace-layout";
@@ -25,6 +30,17 @@ export interface PathMove {
   from: string;
   to: string;
 }
+
+/**
+ * A rewrite the caller brings, for a path the app keeps somewhere this does
+ * not open: where the person left off in a window, and the files they opened
+ * lately. Handed the moves and where a path is after them, it answers what it
+ * did in the same words as the rest, and reports rather than throws.
+ */
+export type StoredPathRewrite = (moved: {
+  moves: readonly PathMove[];
+  where: (hostPath: string) => string;
+}) => string[];
 
 /**
  * How many moves one path is followed through: a folder moved twice (a
@@ -45,6 +61,10 @@ const MAX_MOVES_FOLLOWED = 4;
  *   and files opened to one chat, and the folders they said not now to.
  * - A topic's granted folders, in its `TOPIC.md` or, for a workspace whose
  *   topics have not come out of `.instrument/` yet, its settings.
+ * - A file or folder attached to a draft, in its `DRAFT.md`.
+ * - Whatever the caller brings in `also`, for what it keeps in a store this
+ *   does not open: the Files tabs a window is left on, and the person's
+ *   recent files.
  *
  * Safe to run again, and safe to run with moves an earlier launch already
  * wrote: a path is rewritten only when what it names is gone and the place
@@ -53,10 +73,12 @@ const MAX_MOVES_FOLLOWED = 4;
  * here throws.
  */
 export function rewriteStoredPaths({
+  also = [],
   machineDir,
   moves,
   rootDir,
 }: {
+  also?: readonly StoredPathRewrite[];
   machineDir: string;
   moves: readonly PathMove[];
   rootDir: string;
@@ -69,6 +91,16 @@ export function rewriteStoredPaths({
   rewritePermissions({ done, machineDir, where });
   for (const file of topicFilesIn(rootDir)) {
     rewriteTopicFolders({ done, file, where });
+  }
+  for (const entry of readDrafts(rootDir)) {
+    rewriteDraftAttachments({ done, entry, where });
+  }
+  for (const rewrite of also) {
+    try {
+      done.push(...rewrite({ moves, where }));
+    } catch (error) {
+      done.push(`left one of the app's own stores as it is (${String(error)})`);
+    }
   }
   return done;
 }
@@ -83,9 +115,11 @@ export function rewriteStoredPaths({
  * finds no record does nothing.
  */
 export function settleMovedPaths({
+  also,
   machineDir,
   rootDir,
 }: {
+  also?: readonly StoredPathRewrite[];
   machineDir: string;
   rootDir: string;
 }): string[] {
@@ -106,7 +140,7 @@ export function settleMovedPaths({
           : [],
       )
     : [];
-  const done = rewriteStoredPaths({ machineDir, moves, rootDir });
+  const done = rewriteStoredPaths({ also, machineDir, moves, rootDir });
   fs.rmSync(file, { force: true });
   return [...done, `took in and removed ${file}`];
 }
@@ -279,6 +313,48 @@ function rewriteTopicFile({
     return;
   }
   done.push(`wrote ${rewritten.toString()} path(s) where they went in ${file}`);
+}
+
+/**
+ * One draft's attached files and folders where those are now, so a draft
+ * carrying a file from the workspace's own folder still sends that file after
+ * the folder moves. The front matter the build does not write is kept, and
+ * `updated` stays as the file had it, so the rewrite does not move a draft to
+ * the front of its chat's box.
+ */
+function rewriteDraftAttachments({
+  done,
+  entry,
+  where,
+}: {
+  done: string[];
+  entry: DraftOnDisk;
+  where: (hostPath: string) => string;
+}) {
+  const attached = entry.draft.attached;
+  if (!attached) {
+    return;
+  }
+  // Only an absolute path names something outside the draft: what was pasted
+  // in is beside the draft, named relative to its folder, and travels with it.
+  const moved = attached.map((item) =>
+    path.isAbsolute(item.path) ? { ...item, path: where(item.path) } : item,
+  );
+  const rewritten = moved.filter(
+    (item, index) => item.path !== attached[index]?.path,
+  ).length;
+  if (rewritten === 0) {
+    return;
+  }
+  try {
+    writeDraftFile(entry.file, { ...entry.draft, attached: moved });
+  } catch (error) {
+    done.push(`left ${entry.file} as it is (${String(error)})`);
+    return;
+  }
+  done.push(
+    `wrote ${rewritten.toString()} path(s) where they went in ${entry.file}`,
+  );
 }
 
 /**

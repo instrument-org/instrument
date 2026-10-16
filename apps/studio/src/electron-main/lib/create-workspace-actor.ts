@@ -78,6 +78,7 @@ import {
   workspaceMachineDir,
 } from "./get-workspace-folder";
 import { workspaceDbFileOf, workspaceLayoutMarks } from "./workspaces";
+import { storedPathRewrites } from "./workspace-move";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -424,13 +425,16 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
  * failure must not block boot.
  */
 /**
- * The moves an earlier build kept in `moved-paths.json`, written into the
- * folder rules and the topics that hold those paths, once. Never blocks the
- * launch: a file that cannot be read takes nothing in and goes.
+ * The moves an earlier build kept in `moved-paths.json`, written into
+ * everything holding those paths, once: the folder rules, the topics, the
+ * drafts, the Files tabs the window is left on and the person's recent files.
+ * Never blocks the launch: a file that cannot be read takes nothing in and
+ * goes.
  */
 function takeInMovedPaths(rootDir: string) {
   try {
     for (const step of settleMovedPaths({
+      also: storedPathRewrites(workspaceMachineDir()),
       machineDir: workspaceMachineDir(),
       rootDir,
     })) {

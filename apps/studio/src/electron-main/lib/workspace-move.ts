@@ -15,6 +15,7 @@ import {
   removeIfEmptySync,
   setAsideSync,
   startupPaths,
+  type StoredPathRewrite,
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
@@ -24,6 +25,8 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
+import { rewriteRecentFiles } from "../browser-view/history-store";
+import { rewriteFolderAddresses } from "../stores/workspace/kept-state";
 import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
@@ -307,6 +310,28 @@ export function requestWorkspaceMove({
 const COPY_MARK_FILE = "move-copy-mark";
 
 /**
+ * What the app brings to `rewriteStoredPaths` for the paths it keeps in
+ * stores of its own: the Files tabs a window is left on, and the files the
+ * person opened lately. Both live in the machine folder named here rather
+ * than the open workspace's, since a launch settles the paths of a workspace
+ * it is not running, and both are rewritten before anything opens them.
+ */
+export function storedPathRewrites(machineDir: string): StoredPathRewrite[] {
+  return [
+    ({ where }) =>
+      rewriteFolderAddresses(
+        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.window),
+        where,
+      ),
+    ({ moves }) =>
+      rewriteRecentFiles(
+        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.browser),
+        moves,
+      ),
+  ];
+}
+
+/**
  * Make the move the registry entry records, before any store opens, and
  * answer the workspace where it now is.
  *
@@ -333,7 +358,8 @@ const COPY_MARK_FILE = "move-copy-mark";
  *    where its name is free; a file manager's records go.
  * 5. Every path the app stored into `<from>` is written in the new folder
  *    (`rewriteStoredPaths`): the folder rules, a chat's grants, a topic's
- *    folders.
+ *    folders, a draft's attachments, the Files tabs a window is left on and
+ *    the person's recent files.
  * 6. Last, the original set aside is deleted, and `<from>` removed once
  *    empty. A delete that fails part-way (a file another program holds
  *    open on Windows, a locked file) costs nothing, since nothing opens the
@@ -515,6 +541,7 @@ function makeMove({
       // 5. Stored paths written where they went.
       done.push(
         ...rewriteStoredPaths({
+          also: storedPathRewrites(machineDir),
           machineDir,
           moves: [{ from, to }],
           rootDir: to,

@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createKeptStateStore } from "./kept-state";
+import { createKeptStateStore, rewriteFolderAddresses } from "./kept-state";
 
 let dir: string;
 
@@ -124,5 +124,77 @@ it("reads a file through its own reader as it loads", () => {
   expect(store.snapshot().layout).toEqual({
     "app-tabs.v2": { tabs: ["a"] },
     read: true,
+  });
+});
+
+describe("the Files addresses a window is left on", () => {
+  /** Where the person left off: a tab per Files address, and one on a chat. */
+  function writeLayout() {
+    fs.writeFileSync(
+      path.join(dir, "layout.json"),
+      JSON.stringify({
+        "window-tabs.v9": {
+          tabs: [
+            {
+              href: `/files?path=&root=${encodeURIComponent("/data/workspace/Chats/Quiet dishwashers")}`,
+            },
+            {
+              href: `/files?file=${encodeURIComponent("/data/workspace/report.pdf")}&path=&root=~`,
+            },
+            { href: "/files?path=Documents%2F&root=~" },
+            { href: "/chats/c1" },
+          ],
+        },
+        "zoom.v1": 1,
+      }),
+    );
+  }
+
+  const moved = (hostPath: string) =>
+    hostPath.replace("/data/workspace", "/Users/sam/Documents/Instrument");
+
+  it("names each address's folder and file where a move took them", () => {
+    writeLayout();
+
+    const done = rewriteFolderAddresses(dir, moved);
+
+    expect(createKeptStateStore(() => dir).snapshot().layout)
+      .toMatchInlineSnapshot(`
+        {
+          "window-tabs.v9": {
+            "tabs": [
+              {
+                "href": "/files?path=&root=%2FUsers%2Fsam%2FDocuments%2FInstrument%2FChats%2FQuiet%20dishwashers",
+              },
+              {
+                "href": "/files?file=%2FUsers%2Fsam%2FDocuments%2FInstrument%2Freport.pdf&path=&root=~",
+              },
+              {
+                "href": "/files?path=Documents%2F&root=~",
+              },
+              {
+                "href": "/chats/c1",
+              },
+            ],
+          },
+          "zoom.v1": 1,
+        }
+      `);
+    expect(done).toEqual([
+      `wrote 2 address(es) where they went in ${path.join(dir, "layout.json")}`,
+    ]);
+  });
+
+  it("writes nothing on the run after, and nothing where there is no file", () => {
+    expect(rewriteFolderAddresses(dir, moved)).toEqual([]);
+    expect(fs.existsSync(path.join(dir, "layout.json"))).toBe(false);
+    writeLayout();
+    rewriteFolderAddresses(dir, moved);
+    const written = fs.readFileSync(path.join(dir, "layout.json"), "utf8");
+
+    expect(rewriteFolderAddresses(dir, moved)).toEqual([]);
+    expect(fs.readFileSync(path.join(dir, "layout.json"), "utf8")).toBe(
+      written,
+    );
   });
 });

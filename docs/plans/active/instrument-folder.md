@@ -157,7 +157,7 @@ Not built in F2, but the keys are settled now, so a phone writing a draft today 
 ## Topics, memory, skills, apps
 
 - `TOPIC.md` replaces `instructions.md` plus a hidden `settings.json`. The folder name is the topic's name; renaming the folder renames the topic, and chats keep their tags by id.
-- `Memory/` is today's `.instrument/memory/` moved; no index file.
+- `Memory/` is today's `.instrument/memory/` moved; no index file. Built: `lib/memory/move.ts` moves it once at launch and never merges into a `Memory/` that is already there.
 - `Skills/` is today's `.instrument/skills/` moved; the agent reads and writes it as today.
 - `APP.md` replaces `app.json` plus `guide.md`. The agent edits it directly; `app` keeps its validation commands (`app test` and the request and connect checks). An app's approval hash covers the manifest in the front matter, parsed, not the file's bytes, so editing the guide or instructions never disconnects it and today's approvals carry over. A web app's account-specific URL stays in the connection record on this computer.
 - How instructions reach the context: today a topic's instructions are inlined in the chat's topics note up to 20,000 characters and cut on a paragraph break past that, with a note saying so (`lib/chat-topics-model-text.ts`); nothing points at a file, since the file was hidden. An API app's guide is handed to the first request in a task, and an MCP app's is not handed at all (`lib/apps/store.ts`). To build: the cut note names the visible file (`Topics/<Name>/TOPIC.md`) so the agent can read the rest, and an app's instructions section reaches the context by the same rule as a topic's when the app is connected to the chat.
@@ -173,7 +173,7 @@ All after the records converter, each safe to run again, moving into a free name
 
 - `.instrument/drafts/<id>/` to `Drafts/<date>/DRAFT.md` (the old `draft.md` and `settings.json` merged into front matter; window pointers were already by id, so nothing points at a folder). Every file the old folder held moves with the draft, named or not: the folder it is leaving is one nothing reads again.
 - `.instrument/topics/<Name>/` to `Topics/<Name>/TOPIC.md`; granted folders into `permissions.json`.
-- `.instrument/memory/`, `.instrument/skills/`, `.instrument/apps/<slug>/` (to `Apps/<name>/APP.md`) out to the top.
+- `.instrument/skills/` and `.instrument/apps/<slug>/` (to `Apps/<name>/APP.md`) out to the top. `.instrument/memory/` is done.
 - A folder per existing chat, with `CHAT.md`; its record-folder `attachments/` and `handoff-notes.md` move into it.
 - A top-level folder with one of the six names that Instrument did not make is used as is; nothing in it is moved or renamed.
 

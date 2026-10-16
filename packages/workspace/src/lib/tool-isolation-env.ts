@@ -26,9 +26,6 @@ export function nodeToolsEnvFor(dir: string): Record<string, string> {
   }
   return {
     PNPM_HOME: path.join(dir, "pnpm-home"),
-    XDG_CONFIG_HOME: path.join(dir, "config"),
-    XDG_DATA_HOME: path.join(dir, "data"),
-    XDG_STATE_HOME: path.join(dir, "state"),
     // npm, node-gyp and anything else that reads npm's own settings.
     npm_config_cache: path.join(dir, "npm-cache"),
     npm_config_devdir: path.join(dir, "node-gyp"),

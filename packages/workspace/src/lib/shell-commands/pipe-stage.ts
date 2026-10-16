@@ -99,6 +99,8 @@ export interface StageOptions {
   stdinHandoff?: string;
   /** An open file for fd 0, which the program reads as its stdin. */
   stdinFd?: number;
+  /** The environment is `env` alone, with nothing of the app's own. */
+  ownEnvOnly?: true;
   unsandboxed?: true;
   walks?: true;
   windowsVerbatimArguments?: boolean;
@@ -264,7 +266,10 @@ export function startPipeStage(
   ];
   let child: ChildProcess;
   try {
-    const env = { ...inheritedEnv(process.env, spawned.reach), ...options.env };
+    const env = {
+      ...(options.ownEnvOnly ? {} : inheritedEnv(process.env, spawned.reach)),
+      ...options.env,
+    };
     const launch = launchNative(spawned, {
       cwd: options.cwd,
       env,

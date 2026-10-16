@@ -112,6 +112,11 @@ export async function execShim(
      */
     unsandboxed?: true;
     /**
+     * The environment is `env` alone, with nothing of the app's own: for a
+     * program run outside the sandbox on an environment built for it.
+     */
+    ownEnvOnly?: true;
+    /**
      * A walk, whose paths were checked before it ran: a folder the sandbox
      * refuses on the way is skipped quietly, with no card and no note.
      */
@@ -119,8 +124,14 @@ export async function execShim(
   },
 ) {
   const sink = currentShellOutputSink();
-  const { cancelSignal, onMessage, unsandboxed, walks, ...subprocessOptions } =
-    options;
+  const {
+    cancelSignal,
+    onMessage,
+    ownEnvOnly,
+    unsandboxed,
+    walks,
+    ...subprocessOptions
+  } = options;
   let spawned: ReturnType<typeof wrapNativeCommand>;
   try {
     spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
@@ -142,7 +153,7 @@ export async function execShim(
   // Only what a program needs of the app's own environment, so a key or
   // token set for the app never reaches a script the agent runs.
   const env = {
-    ...inheritedEnv(process.env, spawned.reach),
+    ...(ownEnvOnly ? {} : inheritedEnv(process.env, spawned.reach)),
     ...subprocessOptions.env,
   };
   const launch = launchNative(spawned, {

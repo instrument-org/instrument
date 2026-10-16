@@ -130,11 +130,9 @@ export async function trashChat({
         // Last, and only when asked: the person can put it back from the
         // trash, and a failure here leaves files rather than losing them.
         if (ownFolder !== undefined && (await pathExists(ownFolder))) {
-          await workspaceConfig
-            .trashItem(ownFolder)
-            .catch((error: unknown) => {
-              workspaceConfig.captureException(error);
-            });
+          await workspaceConfig.trashItem(ownFolder).catch((error: unknown) => {
+            workspaceConfig.captureException(error);
+          });
         }
 
         return ok({ id });

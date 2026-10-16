@@ -174,6 +174,36 @@ const states = [
     }),
   },
   {
+    title: "File beside its folder",
+    note: "Double-clicking a file in List or Grid opens it beside its folder, which narrows to a column in the places' spot, and the row splits at the folder's edge.",
+    body: appWindow({
+      on: "files",
+      bar: winBar({ tabs: [{ file: "comparison" }] }),
+      body: fileBeside({
+        folder: "Help desk pricing against competitors",
+        rows: [
+          ["folder", "attachments", "9:40 AM"],
+          ["md", "CHAT.md", "10:12 AM"],
+          ["csv", "competitor-prices.csv", "9:52 AM"],
+          ["html", "pricing-comparison.html", "9:58 AM"],
+          ["md", "pricing-page-faq.md", "10:06 AM"],
+        ],
+        pick: 3,
+      }),
+    }),
+  },
+  {
+    title: "Chat in the dark theme",
+    note: "The window takes the dark theme from `dark`, which flips every token the kit draws with.",
+    body: appWindow({
+      dark: true,
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
+      body:
+        inboxCol({ on: 0 }) +
+        thread({ working: "Reading plans on zendesk.com" }),
+    }),
+  },
+  {
     title: "Floating chat expanded",
     note: "Expand grows the floating chat into one large card over the dimmed window, with the chat's own head and only minimize, collapse and × at its right.",
     body: appWindow({

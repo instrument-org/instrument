@@ -91,7 +91,7 @@ const tabTitle = (t) =>
 
 // ---- window --------------------------------------------------------------------
 
-const GROUND = "bg-[#e7e5e4]";
+const GROUND = "bg-[light-dark(#e7e5e4,#0f0f0e)]";
 const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
 
 /** A window tab in the bar. `t` is a tab ({site} | {file} | {folder} | {newtab}) or {chats: true, title}. */
@@ -161,8 +161,9 @@ const appWindow = ({
   over = "",
   railMark = {},
   user = false,
+  dark = false,
 } = {}) => `
-  <div class="relative flex h-full flex-col overflow-hidden ${GROUND} text-foreground [color-scheme:light]">
+  <div class="relative flex h-full flex-col overflow-hidden ${GROUND} text-foreground ${dark ? "[color-scheme:dark]" : "[color-scheme:light]"}">
     ${bar}
     <div class="flex min-h-0 flex-1">
       ${rail(on, { mark: railMark, user })}
@@ -245,7 +246,7 @@ const inboxHead = ({ place = "" } = {}) => {
   return `
   <div class="flex items-center gap-2 px-2 py-3">
     <span class="flex h-9 shrink-0 items-center gap-1.5 rounded-full pr-2.5 ${place ? "pl-3" : "pl-3.5"} text-[15px] font-semibold ${tone}">${place ? `<i class="ph ${icon} text-[16px]"></i>` : ""}${label}<i class="ph ph-caret-down text-[14px] opacity-50"></i></span>
-    <div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-gradient-to-b from-white to-[#fafaf9] pl-3 text-[13px] text-muted-foreground shadow-sm"><i class="ph ph-magnifying-glass text-[14px]"></i>${place ? `Search ${label}` : "Search"}</div>
+    <div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-[light-dark(#ffffff,#262624)] pl-3 text-[13px] text-muted-foreground shadow-sm"><i class="ph ph-magnifying-glass text-[14px]"></i>${place ? `Search ${label}` : "Search"}</div>
   </div>`;
 };
 
@@ -379,7 +380,7 @@ const turnMeta = ({
   `<div class="flex items-center justify-center gap-1.5 pb-1 text-[12px] text-muted-foreground"><span>${when}</span><span>·</span>${brand(mark, "size-3.5 opacity-70")}<span>${model}</span></div>`;
 
 const you = (text) =>
-  `<div class="flex justify-end"><div class="max-w-[80%] rounded-2xl rounded-tr-md bg-[#bcdcd2] px-3.5 py-2 text-sm text-foreground">${text}</div></div>`;
+  `<div class="flex justify-end"><div class="max-w-[80%] rounded-2xl rounded-tr-md bg-[light-dark(#bcdcd2,#1f4a41)] px-3.5 py-2 text-sm text-foreground">${text}</div></div>`;
 const agent = (text) =>
   `<div class="max-w-[85%] rounded-2xl rounded-tl-md bg-card px-3.5 py-2 text-sm leading-[1.5]">${text}</div>`;
 
@@ -403,7 +404,7 @@ const workLine = (
 const plusButton = `<span class="grid size-7 shrink-0 place-items-center rounded-full bg-gray-100"><i class="ph ph-plus text-[16px] text-foreground/60"></i></span>`;
 
 const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
-  <div class="flex items-center gap-2 rounded-[22px] bg-white p-1.5 shadow-sm">
+  <div class="flex items-center gap-2 rounded-[22px] bg-[light-dark(#ffffff,#262624)] p-1.5 shadow-sm">
     ${plusButton}
     <span class="flex-1 truncate text-[13px] ${text ? "" : "text-gray-400"}">${text || ph}</span>
     <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>
@@ -830,6 +831,68 @@ const filesRow = ({
   </div>`;
 };
 
+/**
+ * A file open beside its folder in Files, as main draws it (measured 2026-10-16): the
+ * folder narrowed to a 300px column in its own layout (`view` "list": Name and Modified
+ * over striped rows; "icons": two columns of pictures with names under them), the
+ * picked file filled in the brand color; the row split at the column's edge, the
+ * sidebar toggle, the folder's name as a menu, the view and sort menus and search over
+ * the folder, and the file's omnibar (its mark and path, the open-in pill), Ask, more
+ * and × over the file. `rows` are [kind, name, modified]; `pick` the open file's index;
+ * `file` a FILES key or a tab for the body; `crumbs` the path the omnibar names. `w` is
+ * the folder column's width, `folded` hides it.
+ */
+const fileBeside = ({
+  folder = "work",
+  rows = [],
+  pick = 0,
+  view = "list",
+  file = "comparison",
+  crumbs,
+  w = 300,
+  folded = false,
+  close = true,
+  body,
+} = {}) => {
+  const f = FILES[file] ? { file } : file;
+  const kind = f.file ? FILES[f.file].kind : "html";
+  const path = crumbs ?? [folder, tabTitle(f)];
+  const ico = (i) =>
+    `<span class="flex h-7 shrink-0 items-center gap-0.5 rounded-lg px-1.5 text-muted-foreground ring-1 ring-border"><i class="ph ${i} text-[15px]"></i><i class="ph ph-caret-down text-[9px]"></i></span>`;
+  const list = rows
+    .map(
+      ([k, n, d], i) =>
+        `<div class="mx-1 grid h-6 grid-cols-[1fr_70px] items-center rounded-md px-2 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span><span class="${i === pick ? "" : "text-muted-foreground"}">${d || ""}</span></div>`,
+    )
+    .join("");
+  const grid = `<div class="grid grid-cols-2 gap-x-2 gap-y-3 p-3">${rows
+    .map(
+      ([k, n], i) =>
+        `<div class="flex flex-col items-center gap-1.5 text-center"><span class="grid h-16 w-14 place-items-center ${k === "folder" ? "" : "rounded-sm bg-white shadow-xs ring-1 ring-border"} ${i === pick ? "outline-4 outline-foreground/10" : ""}">${k === "folder" ? `<i class="ph ph-folder text-[52px] text-[#4a9ff5]"></i>` : fileMark(k, "text-[20px]")}</span><span class="line-clamp-2 max-w-full rounded px-1 text-[12px] leading-4 break-all ${i === pick ? "bg-brand-600 text-white" : ""}">${n}</span></div>`,
+    )
+    .join("")}</div>`;
+  return `
+  <div class="flex min-w-0 flex-1 flex-col">
+    <div class="flex h-10 shrink-0 items-center border-b border-border">
+      ${
+        folded
+          ? `<div class="flex h-full items-center px-1.5"><span class="grid size-7 place-items-center text-muted-foreground"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>`
+          : `<div class="flex h-full shrink-0 items-center gap-1 border-r border-border px-1.5" style="width:${w}px"><span class="grid size-7 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-sidebar-simple text-[16px]"></i></span><span class="flex h-7 min-w-0 items-center gap-1 rounded-md px-1 text-[13px] font-medium">${fileMark("folder", "text-[15px]")}<span class="truncate">${folder}</span><i class="ph ph-caret-down text-[9px] text-muted-foreground"></i></span><span class="flex-1"></span>${ico(view === "icons" ? "ph-squares-four" : "ph-rows")}${ico("ph-arrows-down-up")}<span class="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground ring-1 ring-border"><i class="ph ph-magnifying-glass text-[14px]"></i></span></div>`
+      }
+      <div class="flex min-w-0 flex-1 items-center gap-1 px-1.5">
+        <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card pr-1 pl-2.5 text-[12px]">${fileMark(kind)}${path.map((c, i) => `<span class="${i === path.length - 1 ? "shrink-0 text-foreground" : "min-w-0 truncate text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right shrink-0 text-[9px] text-muted-foreground/60"></i>`)}<span class="flex-1"></span>${openIn(kind)}</div>
+        <span class="flex h-7 shrink-0 items-center gap-1.5 px-1.5 text-[12px] font-medium text-foreground/80">${brand("instrumentglyph", "size-4")}Ask</span>
+        <span class="grid size-7 place-items-center text-muted-foreground"><i class="ph ph-dots-three-vertical text-[16px]"></i></span>
+        ${close ? `<span class="grid size-7 place-items-center text-muted-foreground"><i class="ph ph-x text-[16px]"></i></span>` : ""}
+      </div>
+    </div>
+    <div class="flex min-h-0 flex-1">
+      ${folded ? "" : `<div class="shrink-0 overflow-hidden border-r border-border bg-foreground/[0.015] text-[13px]" style="width:${w}px">${view === "icons" ? grid : `<div class="grid h-7 grid-cols-[1fr_70px] items-center border-b border-border px-3 text-[12px] text-muted-foreground"><span class="pl-4">Name <i class="ph ph-caret-up text-[9px]"></i></span><span>Modified</span></div>${list}`}</div>`}
+      <div class="relative min-w-0 flex-1 overflow-hidden">${body ?? page(f)}</div>
+    </div>
+  </div>`;
+};
+
 /** Files filling the card: its top row, then `side` (finderSidebar, fileTree, or nothing), then `head` over `body`. */
 const filesPlace = ({
   top = filesTop(),
@@ -1062,7 +1125,7 @@ const replyBoxOpen = ({
   text = "",
   ph = "Talk to Instrument",
 } = {}) => `
-  <div class="flex flex-col gap-1.5 rounded-[22px] bg-white p-1.5 shadow-sm">
+  <div class="flex flex-col gap-1.5 rounded-[22px] bg-[light-dark(#ffffff,#262624)] p-1.5 shadow-sm">
     ${extras ? `<div class="flex items-center gap-1.5 px-0.5">${extras}</div>` : ""}
     <div class="flex items-center gap-2">
       ${plusButton}

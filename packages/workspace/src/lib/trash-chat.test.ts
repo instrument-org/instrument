@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor } from "../test/helpers/chat-task";
+import { ChatReads } from "./chat-reads";
 import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
-import { Store } from "./store";
 import { trashChat } from "./trash-chat";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -74,7 +74,9 @@ describe("trashChat", () => {
     expect(trashed).toEqual([path.join("chats", chat)]);
     expect(resolveChat(chat)).toBeUndefined();
     await expect(fs.access(chatDir(otherChat))).resolves.toBeUndefined();
-    expect((await Store.getSession(other, otherChat)).isOk()).toBe(true);
+    expect(
+      (await ChatReads.session({ chatId: otherChat, sessionId: other })).isOk(),
+    ).toBe(true);
   });
 
   it("trashes the chat's work folder too, without the packages it can rebuild", async () => {

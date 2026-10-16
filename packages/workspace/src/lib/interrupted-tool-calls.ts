@@ -37,10 +37,10 @@ const MessageRoleSchema = z.object({ role: z.string() });
  * what follows it can only be user messages it never answered. Cheap on the
  * open path as a result: a key listing, then a message or two per session.
  *
- * Reads through the schemas the store itself uses. What it writes mirrors the
+ * Reads through the schemas the store itself used. What it writes mirrors the
  * record `saveStoppedToolCallPart` writes for a stopped call, which cannot be
- * called from here: it reads through `Store`, which opens the database this
- * sweep is part of opening.
+ * called from here: that one writes records, and this sweeps a `chat.db` on
+ * its way through the converter.
  */
 export function sweepInterruptedToolCalls({
   signal,

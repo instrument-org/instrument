@@ -14,17 +14,34 @@ import {
   getSessionsStoreStorage,
 } from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
-import { Store } from "../../store";
 import { at, messageId, partId, sessionId } from "../test-records";
 
 /**
- * Chats written through today's store, for the converter's tests: each
- * `chat.db` made by the store's own writes and closed again, as a chat is
- * when the app quits.
+ * Chats in a `chat.db`, for the converter's tests: each one written as the
+ * store wrote it, key by key, and closed again, as a chat was when an older
+ * build quit. This is the only writer of that shape left; everything else
+ * writes records.
  */
 
 export const CHAT_SESSION = sessionId(1);
 export const TASK_SESSION = sessionId(2);
+
+/** The chat's own session row of `writeEveryKindChat`, for a test that writes it again. */
+export const EVERY_KIND_SESSION: Session.Type = {
+  archivedAt: at(30),
+  createdAt: at(0),
+  id: CHAT_SESSION,
+  rolledOverAfterMessageId: messageId(5),
+  rolledOverUnderUsableTokens: 120_000,
+  starredAt: at(20),
+  stoppedAt: at(50),
+  title: "Plans for the trip",
+  titleSettledAt: at(10),
+  topics: ["travel", "family"],
+  unreadAt: at(40),
+  unreadByUser: true,
+  updatedAt: at(100),
+};
 
 /** Bytes standing in for an image and a PDF a tool read. */
 const IMAGE = Buffer.from("an image's bytes");
@@ -46,7 +63,7 @@ export async function saveSession(
   chat: ChatId,
   session: Session.Type,
 ): Promise<void> {
-  (await Store.saveSession(session, chat))._unsafeUnwrap();
+  await tell(chat, StorageKey.session(session.id), session);
 }
 
 /** Saves a message with its parts, each part given as the store keeps it. */
@@ -55,12 +72,16 @@ export async function saveMessage(
   message: Record<string, unknown>,
   parts: SessionMessagePart.Type[] = [],
 ): Promise<void> {
-  (
-    await Store.saveMessageWithParts(
-      { ...SessionMessage.Schema.parse(message), parts },
+  const saved = SessionMessage.Schema.parse(message);
+  const session = saved.metadata.sessionId;
+  await tell(chat, StorageKey.message(session, saved.id), saved);
+  for (const held of parts) {
+    await tell(
       chat,
-    )
-  )._unsafeUnwrap();
+      StorageKey.part(session, held.metadata.messageId, held.metadata.id),
+      held,
+    );
+  }
 }
 
 /** A part numbered `n`, as the store reads one back. */
@@ -167,21 +188,7 @@ function text(session: StoreId.Session, n: number, words: string) {
 export function writeEveryKindChat(dir: string): Promise<ChatId> {
   return writeChat(dir, async (chat) => {
     const s = CHAT_SESSION;
-    await saveSession(chat, {
-      archivedAt: at(30),
-      createdAt: at(0),
-      id: s,
-      rolledOverAfterMessageId: messageId(5),
-      rolledOverUnderUsableTokens: 120_000,
-      starredAt: at(20),
-      stoppedAt: at(50),
-      title: "Plans for the trip",
-      titleSettledAt: at(10),
-      topics: ["travel", "family"],
-      unreadAt: at(40),
-      unreadByUser: true,
-      updatedAt: at(100),
-    });
+    await saveSession(chat, EVERY_KIND_SESSION);
     await saveSession(chat, {
       createdAt: at(60),
       forkedAtMessageId: messageId(3),

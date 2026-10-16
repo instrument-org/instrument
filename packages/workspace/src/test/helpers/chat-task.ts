@@ -1,6 +1,7 @@
+import { ChatWrites } from "../../lib/chat-writes";
 import { addChildTask } from "../../lib/chat/children";
 import { sessionOfChat } from "../../lib/record-folders";
-import { Store } from "../../lib/store";
+import { chatRecords } from "../../lib/records/chat-records";
 import { type ChatId } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
@@ -15,8 +16,11 @@ export async function writtenIn(chatId: ChatId) {
     throw new Error(`${chatId} is not a chat.`);
   }
   const createdAt = new Date();
+  // The message goes into the chat's own session, which a chat made for a
+  // test alone does not have yet.
+  await chatRecords().startSession(chatId, { createdAt, id: sessionId });
   const messageId = StoreId.newMessageId();
-  const written = await Store.saveMessageWithParts(
+  const written = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: { createdAt, sessionId },

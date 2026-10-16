@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChatWrites } from "../../lib/chat-writes";
 import { listChats } from "../../lib/chat/chats";
 import {
   forgetChatFolders,
@@ -11,7 +12,6 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { disposeSessionsStoreStorage } from "../../lib/session-store-storage";
-import { Store } from "../../lib/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -84,13 +84,13 @@ async function readableChat(named: string): Promise<ChatId> {
   const sessionId = StoreId.newSessionId();
   const id = chatFor(sessionId, ChatIdSchema.parse(named));
   opened.push(id);
-  const saved = await Store.saveSession(
+  const saved = await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: named },
     id,
   );
   expect(saved.isOk()).toBe(true);
   const messageId = StoreId.newMessageId();
-  const said = await Store.saveMessageWithParts(
+  const said = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: { createdAt: new Date(), sessionId },

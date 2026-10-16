@@ -14,9 +14,10 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { prepareModelMessages } from "./prepare-model-messages";
 import { SESSION_CONTEXT_VERSION } from "./session-baseline";
-import { Store } from "./store";
 import { chatDir } from "./record-folders";
 import { shellPath } from "./workspace-fs-layout";
 
@@ -234,7 +235,7 @@ describe("prepareModelMessages", () => {
 
   /** Store a message, failing the test loudly if the store refuses it. */
   async function save(message: SessionMessage.WithParts) {
-    const result = await Store.saveMessageWithParts(message, chatId);
+    const result = await ChatWrites.saveMessageWithParts(message, chatId);
     result._unsafeUnwrap();
   }
 
@@ -274,7 +275,7 @@ describe("prepareModelMessages", () => {
           .map((part) => (part.type === "text" ? part.text : ""))
           .join(""),
     };
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       { createdAt: new Date(), id: sessionId, title: "Test session" },
       chatId,
     );
@@ -526,7 +527,7 @@ describe("prepareModelMessages", () => {
       expect(JSON.stringify(messages)).not.toContain(
         "The rebuilt instructions.",
       );
-      const storedResult = await Store.getMessagesWithParts({
+      const storedResult = await ChatReads.transcript({
         sessionId,
         chatId,
       });
@@ -592,7 +593,7 @@ describe("prepareModelMessages", () => {
       );
       // Replaced, not added to: the superseded baseline left in the store would
       // be sent alongside the new one for the rest of the session.
-      const storedResult = await Store.getMessagesWithParts({
+      const storedResult = await ChatReads.transcript({
         sessionId,
         chatId,
       });
@@ -651,7 +652,7 @@ describe("prepareModelMessages", () => {
       const forkedAt = userMessage("Look into it in the background.");
       await save(forkedAt);
       sessionId = StoreId.newSessionId();
-      await Store.saveSession(
+      await ChatWrites.saveSession(
         {
           createdAt: new Date(),
           forkedAtMessageId: forkedAt.id,
@@ -673,7 +674,7 @@ describe("prepareModelMessages", () => {
       expect(JSON.stringify(messages)).not.toContain(
         "The prompt the previous build wrote.",
       );
-      const chatOwn = await Store.getMessagesWithParts({
+      const chatOwn = await ChatReads.transcript({
         chatId,
         inherited: false,
         sessionId: chatSessionId,
@@ -776,7 +777,7 @@ describe("prepareModelMessages", () => {
       const forkedAt = userMessage("Look into it in the background.");
       await save(forkedAt);
       sessionId = StoreId.newSessionId();
-      await Store.saveSession(
+      await ChatWrites.saveSession(
         {
           createdAt: new Date(),
           forkedAtMessageId: forkedAt.id,
@@ -850,12 +851,12 @@ describe("prepareModelMessages", () => {
     });
 
     async function storedBoundary() {
-      const result = await Store.getSession(sessionId, chatId);
+      const result = await ChatReads.session({ chatId, sessionId });
       return result._unsafeUnwrap().rolledOverAfterMessageId;
     }
 
     async function storedRolloverParts() {
-      const result = await Store.getMessagesWithParts({ sessionId, chatId });
+      const result = await ChatReads.transcript({ sessionId, chatId });
       return result
         ._unsafeUnwrap()
         .flatMap((message) => message.parts)
@@ -908,7 +909,7 @@ describe("prepareModelMessages", () => {
 
         // A second session identical but for the number the provider reported.
         sessionId = StoreId.newSessionId();
-        await Store.saveSession(
+        await ChatWrites.saveSession(
           { createdAt: new Date(), id: sessionId, title: "Test session" },
           chatId,
         );
@@ -957,7 +958,7 @@ describe("prepareModelMessages", () => {
 
         await prepare(smallWindowModel);
 
-        const stored = await Store.getMessagesWithParts({ sessionId, chatId });
+        const stored = await ChatReads.transcript({ sessionId, chatId });
         expect(JSON.stringify(stored._unsafeUnwrap())).not.toContain(
           "<context-budget>",
         );
@@ -985,7 +986,7 @@ describe("prepareModelMessages", () => {
 
       it("records the boundary on the newest message once it can reclaim", async () => {
         await fillPast(4);
-        const before = await Store.getMessagesWithParts({ sessionId, chatId });
+        const before = await ChatReads.transcript({ sessionId, chatId });
         const newestId = before._unsafeUnwrap().at(-1)?.id;
 
         await prepare(smallWindowModel);
@@ -1011,7 +1012,7 @@ describe("prepareModelMessages", () => {
         // Context messages are written by the first assembly, so what this
         // compares is the conversation, which a rollover must leave alone.
         async function conversationIds() {
-          const result = await Store.getMessagesWithParts({
+          const result = await ChatReads.transcript({
             sessionId,
             chatId,
           });
@@ -1138,7 +1139,7 @@ describe("prepareModelMessages", () => {
       }
 
       async function storedModelChangeParts() {
-        const result = await Store.getMessagesWithParts({ sessionId, chatId });
+        const result = await ChatReads.transcript({ sessionId, chatId });
         return result
           ._unsafeUnwrap()
           .flatMap((message) => message.parts)

@@ -6,13 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { type ChatId } from "../../../schemas/chat-id";
-import { type Session } from "../../../schemas/session";
+import { SessionMessage } from "../../../schemas/session/message";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { withTempDir } from "../../../test/helpers/temp-dir";
 import { disposeSessionsStoreStorage } from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
-import { Store } from "../../store";
-import { StoreRecords } from "../../store-records";
 import { blobPath } from "../blobs";
 import { ChatRecords, installChatRecords } from "../chat-records";
 import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
@@ -31,8 +29,10 @@ import {
   userMessage,
 } from "../test-records";
 import { convertChat, convertWorkspaceChats } from "./convert-chat";
+import { readChatDb } from "./read-chat-db";
 import {
   CHAT_SESSION,
+  EVERY_KIND_SESSION,
   INTERRUPTED,
   OLDER_SESSION,
   part,
@@ -181,15 +181,14 @@ async function recordFiles(dir: string): Promise<Record<string, string>> {
 }
 
 /**
- * Writes to the chat's store with the records in place beside it that the
- * app keeps, in the chat's own folder and from this device: what a build
- * with no conversion in front of it leaves in a chat it reads. `write` is
- * handed the session row the store holds, as the app reads one.
+ * Writes records into the chat's own folder, from this device, beside the
+ * `chat.db` already there: the folder a conversion cut off partway leaves,
+ * and the folder a build that wrote records beside the store left.
  */
-async function asTheAppReadsIt(
+async function alongsideTheStore(
   dir: string,
   chat: ChatId,
-  write: (session: Session.Type) => Promise<void>,
+  write: (records: ChatRecords) => Promise<void>,
 ): Promise<void> {
   const records = new ChatRecords({
     app: "0.0.0-test",
@@ -199,16 +198,10 @@ async function asTheAppReadsIt(
   });
   installChatRecords(records);
   try {
-    const session = (
-      await Store.getSession(CHAT_SESSION, chat)
-    )._unsafeUnwrap();
-    if (!session) {
-      throw new Error(`${chat} has no session ${CHAT_SESSION}`);
-    }
-    await write(session);
+    await write(records);
   } finally {
-    await StoreRecords.settle();
     installChatRecords(undefined);
+    await records.dispose();
     await disposeSessionsStoreStorage(chat);
   }
 }
@@ -253,26 +246,30 @@ async function recordKinds(file: string): Promise<string[]> {
 
 describe("convertChat", () => {
   it("converts every kind of record, which reads back as the store reads it", async () => {
+    // Frozen, so the call left waiting is finished at the same moment by the
+    // read below and by the conversion, and the two compare exactly.
+    vi.useFakeTimers({ now: at(500), toFake: ["Date"] });
     const dir = chatPath("every-kind");
     const chat = await writeEveryKindChat(dir);
-    const stored = new Map(
-      await Promise.all(
-        [CHAT_SESSION, TASK_SESSION].map(
-          async (id) =>
-            [
-              id,
-              (
-                await Store.getMessagesWithParts({
-                  chatId: chat,
-                  inherited: false,
-                  sessionId: id,
-                })
-              )._unsafeUnwrap(),
-            ] as const,
-        ),
-      ),
-    );
     await disposeSessionsStoreStorage(chat);
+    // What the store held, through the reader the conversion itself uses:
+    // each session's own messages with their parts.
+    const read = await readChatDb(
+      path.join(dir, "chat.db"),
+      path.join(root.path, "read-back"),
+    );
+    if (read.kind !== "read") {
+      throw new Error(`chat.db is unreadable: ${read.error}`);
+    }
+    const stored = new Map(
+      read.sessions.map((session) => [
+        session.session.id,
+        session.messages.map(({ message, parts }) => ({
+          ...message,
+          parts: parts.map((held) => held.part),
+        })),
+      ]),
+    );
     const db = await fs.readFile(path.join(dir, "chat.db"));
 
     const result = await convertChat(dir, OPTIONS);
@@ -289,7 +286,7 @@ describe("convertChat", () => {
         "messages": 8,
         "parts": 22,
         "sessions": 2,
-        "swept": 0,
+        "swept": 1,
       }
     `);
     expect(await fs.readFile(path.join(dir, "chat.db"))).toEqual(db);
@@ -880,7 +877,9 @@ describe("convertChat", () => {
     const chat = await writeEveryKindChat(dir);
     // Saving the row is all the app has to do to the chat: the records take
     // its header and the marks it carries, and none of its history.
-    await asTheAppReadsIt(dir, chat, (session) => saveSession(chat, session));
+    await alongsideTheStore(dir, chat, (records) =>
+      records.saveSession(chat, EVERY_KIND_SESSION),
+    );
     expect(await listing(dir)).toEqual([
       "chat.db",
       marksFileName(DEVICE_A),
@@ -905,7 +904,9 @@ describe("convertChat", () => {
 
     const dir = chatPath("torn");
     const chat = await writeEveryKindChat(dir);
-    await asTheAppReadsIt(dir, chat, (session) => saveSession(chat, session));
+    await alongsideTheStore(dir, chat, (records) =>
+      records.saveSession(chat, EVERY_KIND_SESSION),
+    );
     // What a crash mid-append leaves: a line with no newline after it. Every
     // reader of these files leaves those bytes for the next read.
     const marks = path.join(dir, marksFileName(DEVICE_A));
@@ -920,11 +921,13 @@ describe("convertChat", () => {
   it("keeps a chat whose records hold turns a build took before it ran", async () => {
     const dir = chatPath("half-written");
     const chat = await writeEveryKindChat(dir);
-    await asTheAppReadsIt(dir, chat, async (session) => {
-      await saveSession(chat, session);
-      await saveMessage(
+    await alongsideTheStore(dir, chat, async (records) => {
+      await records.saveSession(chat, EVERY_KIND_SESSION);
+      await records.appendMessage(
         chat,
-        userMessage(CHAT_SESSION, messageId(99), at(200)),
+        SessionMessage.Schema.parse(
+          userMessage(CHAT_SESSION, messageId(99), at(200)),
+        ),
       );
     });
     const before = await contents(dir);

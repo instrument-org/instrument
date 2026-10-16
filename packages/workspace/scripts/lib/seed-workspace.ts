@@ -1,7 +1,7 @@
 // Builds a workspace on disk from a committed fixture description.
 //
 // Everything here goes through the workspace's own libraries -- `initializeChat`
-// for the directory, `Store` for the conversation -- rather than writing task
+// for the directory, `ChatWrites` for the conversation -- rather than writing task
 // files directly. That is deliberate and load-bearing: task storage is moving
 // (see docs/plans/completed/user-chosen-working-folder.md and
 // conversation-storage.md), and a seeder that lays out `tasks/<id>/.instrument`
@@ -28,7 +28,7 @@ import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
-import { Store } from "../../src/lib/store";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { updateChatRecord } from "../../src/lib/chat-record";
@@ -109,7 +109,7 @@ export async function seedWorkspace({
     rootDir,
     tasksDir,
   });
-  // `chatDir()` and everything under `Store` read the config from this
+  // `chatDir()` and everything that writes a chat read the config from this
   // singleton rather than taking it as an argument.
   setWorkspaceConfig(workspaceConfig);
 
@@ -353,9 +353,9 @@ async function seedTask({
       });
     }
 
-    yield* Store.saveSession(chatSession, id);
+    yield* ChatWrites.saveSession(chatSession, id);
     for (const message of rebased.messages) {
-      yield* Store.saveMessageWithParts(message, id);
+      yield* ChatWrites.saveMessageWithParts(message, id);
     }
 
     return ok(undefined);
@@ -423,7 +423,7 @@ async function seedChatTask({
   await addChildTask(chatId, rebased.session);
   const result = await safeTry(async function* () {
     for (const message of rebased.messages) {
-      yield* Store.saveMessageWithParts(message, chatId);
+      yield* ChatWrites.saveMessageWithParts(message, chatId);
     }
     return ok(undefined);
   });

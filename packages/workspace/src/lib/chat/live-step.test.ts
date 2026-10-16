@@ -10,10 +10,10 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 import { withTestRecords } from "../../test/helpers/with-test-records";
+import { ChatWrites } from "../chat-writes";
 import { createSession } from "../create-session";
 import { forgetChatFolders } from "../record-folders";
 import { liveView } from "../records/views";
-import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { latestStep } from "./activity";
 
@@ -81,7 +81,7 @@ it("reads the step off a call still arriving, and off the written one once it se
     },
     role: "assistant",
   };
-  (await Store.saveMessage(replying, chatId))._unsafeUnwrap();
+  (await ChatWrites.saveMessage(replying, chatId))._unsafeUnwrap();
   const partId = StoreId.newPartId();
   const arriving = bashCall(
     replying,
@@ -103,7 +103,7 @@ it("reads the step off a call still arriving, and off the written one once it se
     "input-available",
     partId,
   );
-  (await Store.savePart(settled, chatId))._unsafeUnwrap();
+  (await ChatWrites.savePart(settled, chatId))._unsafeUnwrap();
 
   // The record stands for it now, so the turn no longer holds it.
   const read = await records.service.read(chatId);

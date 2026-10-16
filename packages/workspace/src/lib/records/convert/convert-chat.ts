@@ -57,10 +57,9 @@ import {
  * What the folder holds already decides whether the chat converts at all
  * (`recordsThere`). Records from another device are never written over. This
  * device's own are read: a log holding only its header, and marks, say no
- * more than the session rows they came from, which is what the writer beside
- * the store (`lib/store-records.ts`) leaves when the app reads a chat before
- * this has run. Those are removed and written again from `chat.db`, so the
- * chat ends up as a first conversion would have left it. Records holding
+ * more than the session rows they came from, which is what a conversion cut
+ * off partway leaves. Those are removed and written again from `chat.db`, so
+ * the chat ends up as a first conversion would have left it. Records holding
  * messages, parts or a retraction are a history of their own, and the
  * comparison with `chat.db` says whether they are a conversion that already
  * ran or turns a build took before one did.

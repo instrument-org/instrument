@@ -4,17 +4,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Session } from "../schemas/session";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { TypedError } from "./errors";
-import { Store } from "./store";
 import { updateSessionTitle } from "./update-session-title";
 import { getWorkspaceConfig } from "./workspace-config";
 
-vi.mock("./store", () => ({
-  Store: { getSession: vi.fn(), saveSession: vi.fn() },
-}));
+vi.mock("./chat-reads", () => ({ ChatReads: { session: vi.fn() } }));
+vi.mock("./chat-writes", () => ({ ChatWrites: { saveSession: vi.fn() } }));
 
-const mockGetSession = vi.mocked(Store.getSession);
-const mockSaveSession = vi.mocked(Store.saveSession);
+const mockGetSession = vi.mocked(ChatReads.session);
+const mockSaveSession = vi.mocked(ChatWrites.saveSession);
 
 const chatId = createMockChatConfigForDir("/tmp/instrument-test-task");
 const sessionId = StoreId.newSessionId();

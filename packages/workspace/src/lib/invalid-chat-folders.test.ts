@@ -10,12 +10,12 @@ import {
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
+import { ChatWrites } from "./chat-writes";
 import {
   listInvalidChatFolders,
   trashInvalidChatFolder,
 } from "./invalid-chat-folders";
 import { chatDir, forgetChatFolders } from "./record-folders";
-import { Store } from "./store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 vi.mock(import("./session-store-storage"));
@@ -49,7 +49,7 @@ afterEach(() => {
 async function chat() {
   const sessionId = StoreId.newSessionId();
   const id = chatFor(sessionId);
-  const saved = await Store.saveSession(
+  const saved = await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: "Chat" },
     id,
   );

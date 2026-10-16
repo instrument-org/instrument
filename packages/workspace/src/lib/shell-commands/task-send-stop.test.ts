@@ -12,7 +12,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { updateChatSettings } from "../chat-settings";
 import { listChildTasks } from "../chat/children";
 import { openAsks, recordAsk } from "../chat/asks";
@@ -205,7 +205,7 @@ describe("task send", () => {
     working.value = () => false;
     await send([]);
     const own = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         inherited: false,
         sessionId: CHILD_ID,
         chatId: CHAT_ID,

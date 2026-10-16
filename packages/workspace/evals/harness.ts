@@ -36,7 +36,7 @@ import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/asks";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
@@ -837,10 +837,10 @@ export async function runEvals(
         if (known) {
           return known;
         }
-        const stored = await Store.getMessages({
-          messageIds: [messageId],
-          sessionId: partSessionId,
+        const stored = await ChatReads.transcript({
           chatId: id,
+          only: new Set([messageId]),
+          sessionId: partSessionId,
         });
         const role = stored.isOk() ? stored.value[0]?.role : undefined;
         if (role) {
@@ -912,10 +912,10 @@ export async function runEvals(
               part.text.trim() !== ""
             ) {
               const seenAt = Date.now();
-              const stored = await Store.getMessages({
-                messageIds: [part.metadata.messageId],
-                sessionId: part.metadata.sessionId,
+              const stored = await ChatReads.transcript({
                 chatId: id,
+                only: new Set([part.metadata.messageId]),
+                sessionId: part.metadata.sessionId,
               });
               const role = stored.isOk() ? stored.value[0]?.role : undefined;
               if (role === undefined || role === "assistant") {
@@ -1420,7 +1420,7 @@ export async function sessionsFor(
 ): Promise<Session.WithMessagesAndParts[]> {
   const ids = sessionId
     ? [sessionId]
-    : (await Store.getSessions(chatId)).map((list) =>
+    : (await ChatReads.sessions({ chatId })).map((list) =>
         list.map((session) => session.id),
       );
   if (!Array.isArray(ids) && ids.isErr()) {
@@ -1428,11 +1428,12 @@ export async function sessionsFor(
   }
   const sessions: Session.WithMessagesAndParts[] = [];
   for (const id of Array.isArray(ids) ? ids : ids.value) {
-    const session = await Store.getSession(id, chatId);
-    const messages = await Store.getMessagesWithParts({
+    const session = await ChatReads.session({ chatId, sessionId: id });
+    const messages = await ChatReads.transcript({
+      bytes: true,
+      chatId,
       inherited: false,
       sessionId: id,
-      chatId,
     });
     if (session.isOk() && messages.isOk()) {
       sessions.push({ ...session.value, messages: messages.value });

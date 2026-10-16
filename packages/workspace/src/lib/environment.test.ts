@@ -5,6 +5,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatWrites } from "./chat-writes";
 import {
   currentEnvironment,
   detectEnvironmentChange,
@@ -12,7 +13,6 @@ import {
   lastToldEnvironment,
 } from "./environment";
 import { environmentChangeModelNote } from "./environment-model-text";
-import { Store } from "./store";
 
 vi.mock(import("./session-store-storage"));
 
@@ -161,21 +161,26 @@ describe("environmentChangeModelNote", () => {
 });
 
 describe("detectEnvironmentChange", () => {
+  let chats = 0;
+
   /**
    * Stores what `history` returns for the computer this test runs on, then
-   * asks what the next message should note.
+   * asks what the next message should note. In a chat of its own, so the
+   * session holds the history this case wrote and no other's.
    */
   async function detect(
     history: (here: Environment) => SessionMessage.WithParts[],
   ) {
-    const chatId = createMockChatConfig(ChatIdSchema.parse("mock"));
-    await Store.saveSession(
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse(`environment-${++chats}`),
+    );
+    await ChatWrites.saveSession(
       { createdAt: new Date(), id: sessionId, title: "Test session" },
       chatId,
     );
     const here = currentEnvironment();
     for (const message of history(here)) {
-      await Store.saveMessageWithParts(message, chatId);
+      await ChatWrites.saveMessageWithParts(message, chatId);
     }
     const result = await detectEnvironmentChange({
       chatId,

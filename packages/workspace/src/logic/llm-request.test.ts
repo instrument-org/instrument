@@ -22,6 +22,8 @@ import {
   waitFor,
 } from "xstate";
 
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { TypedError } from "../lib/errors";
 import { isToolPart } from "../lib/is-tool-part";
 import { type ChatRead } from "../lib/records/chat-records";
@@ -30,14 +32,12 @@ import { liveView } from "../lib/records/views";
 import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/session-baseline";
-import { Store } from "../lib/store";
-import { StoreRecords } from "../lib/store-records";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withRecordsInPlace } from "../test/helpers/with-test-records";
@@ -54,8 +54,20 @@ vi.mock(import("../lib/turn-note"), async (importOriginal) => {
   return { ...original, turnNoteFor: vi.fn(original.turnNoteFor) };
 });
 
+/** A message's parts, written one after another. */
+async function saveParts(
+  parts: SessionMessagePart.Type[],
+  chatId: ChatId,
+): Promise<void> {
+  for (const part of parts) {
+    (await ChatWrites.savePart(part, chatId))._unsafeUnwrap();
+  }
+}
+
 describe("llmRequestLogic", () => {
   const sessionId = StoreId.newSessionId();
+  /** Numbers each case's chat. */
+  let chats = 0;
   const mockUsage = {
     inputTokens: {
       cacheRead: 1,
@@ -115,6 +127,7 @@ describe("llmRequestLogic", () => {
     prompts = [];
   });
 
+
   async function createTestMachine({
     beforeStream,
     catalog,
@@ -170,12 +183,15 @@ describe("llmRequestLogic", () => {
         provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
-    const taskConfig = createMockChatConfig(ChatIdSchema.parse(`mock`), {
+    // A chat of this case's own: every case writes into the same session, and
+    // a chat's records are read back whole, so a shared chat would hand a case
+    // the one before it as well.
+    const taskConfig = createMockChatConfig(ChatIdSchema.parse(`mock-${++chats}`), {
       aiSDKModel: mockLanguageModel,
       catalog,
       model,
     });
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       {
         createdAt: mockDate,
         id: sessionId,
@@ -252,10 +268,10 @@ describe("llmRequestLogic", () => {
     const actor = createActor(machine);
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    const sessionResult = await Store.getSessionWithMessagesAndParts(
-      sessionId,
+    const sessionResult = await ChatReads.sessionWithMessages({
       chatId,
-    );
+      sessionId,
+    });
     return sessionResult._unsafeUnwrap();
   }
 
@@ -1409,10 +1425,10 @@ describe("llmRequestLogic", () => {
       actor = createActor(testMachine.machine);
       actor.start();
       await waitFor(actor, (state) => state.status === "done");
-      const sessionResult = await Store.getSessionWithMessagesAndParts(
+      const sessionResult = await ChatReads.sessionWithMessages({
+        chatId: testMachine.chatId,
         sessionId,
-        testMachine.chatId,
-      );
+      });
       const messages = sessionResult._unsafeUnwrap().messages;
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
@@ -1609,7 +1625,7 @@ describe("llmRequestLogic", () => {
         chunks: [],
       });
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: userMessageId,
           metadata: {
@@ -1620,7 +1636,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -1637,7 +1653,7 @@ describe("llmRequestLogic", () => {
         testMachine.chatId,
       );
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: assistantMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -1686,7 +1702,7 @@ describe("llmRequestLogic", () => {
 
     it("handles one tool call", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.savePart(
+      await ChatWrites.savePart(
         SessionMessagePart.coerce(readFilePart),
         testMachine.chatId,
       );
@@ -1762,7 +1778,7 @@ describe("llmRequestLogic", () => {
 
     it("handles two tool calls", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.saveParts(
+      await saveParts(
         [
           readFilePart,
           {
@@ -1880,7 +1896,7 @@ describe("llmRequestLogic", () => {
 
     it("handles tool call with diagnostics reminder", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.saveParts(
+      await saveParts(
         [
           {
             input: {
@@ -1974,7 +1990,7 @@ describe("llmRequestLogic", () => {
 
     it("handles tool call errors", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.saveParts(
+      await saveParts(
         [
           {
             errorText:
@@ -2064,7 +2080,7 @@ describe("llmRequestLogic", () => {
         provider: "anthropic",
       });
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: userMessageId,
           metadata: {
@@ -2075,7 +2091,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -2092,7 +2108,7 @@ describe("llmRequestLogic", () => {
         testMachine.chatId,
       );
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: assistantMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -2102,7 +2118,7 @@ describe("llmRequestLogic", () => {
       );
 
       const secondMessageId = StoreId.newMessageId();
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: secondMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -2110,7 +2126,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -2127,7 +2143,7 @@ describe("llmRequestLogic", () => {
         testMachine.chatId,
       );
       const thirdMessageId = StoreId.newMessageId();
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: thirdMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -2135,7 +2151,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -2290,7 +2306,7 @@ describe("llmRequestLogic", () => {
       const staleMessageId = StoreId.newMessageId();
       const oldText = "You are an assistant from two hours ago.";
 
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: staleMessageId,
           metadata: {
@@ -2709,7 +2725,7 @@ describe("llmRequestLogic", () => {
 
     it("coalesces text delta saves", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
+      const savePartSpy = vi.spyOn(ChatWrites, "savePart");
       const deltaTexts = Array.from(
         { length: 200 },
         (_, index) => `word-${index} `,
@@ -2740,7 +2756,7 @@ describe("llmRequestLogic", () => {
 
     it("coalesces reasoning delta saves", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
+      const savePartSpy = vi.spyOn(ChatWrites, "savePart");
       const deltaTexts = Array.from(
         { length: 200 },
         (_, index) => `thought-${index} `,
@@ -2774,7 +2790,7 @@ describe("llmRequestLogic", () => {
 
     it("writes through when enough unsaved text accumulates", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
+      const savePartSpy = vi.spyOn(ChatWrites, "savePart");
       const deltaTexts = Array.from({ length: 100 }, () => "x".repeat(100));
       const { messages } = await createAndRunTestMachine({
         chunks: [
@@ -2800,7 +2816,7 @@ describe("llmRequestLogic", () => {
 
     it("coalesces tool input delta saves", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
+      const savePartSpy = vi.spyOn(ChatWrites, "savePart");
       const input = JSON.stringify({ filePath: `${"a".repeat(1000)}.txt` });
       const deltas = Array.from(
         { length: Math.ceil(input.length / 5) },
@@ -2942,21 +2958,15 @@ describe("llmRequestLogic", () => {
       });
       const deltaTexts = ["first ", "second ", "third"];
       const fullText = deltaTexts.join("");
-      const savePart = Store.savePart;
+      const savePart = ChatWrites.savePart;
       let rejectedWrite = false;
-      vi.spyOn(Store, "savePart").mockImplementation(
-        (part, chatId, options) => {
-          if (
-            !rejectedWrite &&
-            part.type === "text" &&
-            part.text === fullText
-          ) {
-            rejectedWrite = true;
-            return errAsync(new TypedError.Storage("Write failed"));
-          }
-          return savePart(part, chatId, options);
-        },
-      );
+      vi.spyOn(ChatWrites, "savePart").mockImplementation((part, chatId) => {
+        if (!rejectedWrite && part.type === "text" && part.text === fullText) {
+          rejectedWrite = true;
+          return errAsync(new TypedError.Storage("Write failed"));
+        }
+        return savePart(part, chatId);
+      });
 
       const { messages } = await createAndRunTestMachine({
         chunks: [
@@ -2984,10 +2994,10 @@ describe("llmRequestLogic", () => {
         nowMs += 1000;
         return nowMs;
       });
-      const savePart = Store.savePart;
+      const savePart = ChatWrites.savePart;
       const savePartSpy = vi
-        .spyOn(Store, "savePart")
-        .mockImplementation((part, chatId, options) =>
+        .spyOn(ChatWrites, "savePart")
+        .mockImplementation((part, chatId) =>
           part.type === "text"
             ? errAsync(
                 new TypedError.Storage("unable to open database file", {
@@ -2997,7 +3007,7 @@ describe("llmRequestLogic", () => {
                   ),
                 }),
               )
-            : savePart(part, chatId, options),
+            : savePart(part, chatId),
         );
       const testMachine = await createTestMachine({
         chunks: [
@@ -3067,10 +3077,10 @@ describe("llmRequestLogic", () => {
       // The aborted request keeps running detached from the machine, so poll
       // until its flush lands in the store.
       await vi.waitFor(async () => {
-        const sessionResult = await Store.getSessionWithMessagesAndParts(
+        const sessionResult = await ChatReads.sessionWithMessages({
+          chatId: testMachine.chatId,
           sessionId,
-          testMachine.chatId,
-        );
+        });
         const assistant = sessionResult
           ._unsafeUnwrap()
           .messages.findLast((message) => message.role === "assistant");
@@ -3124,7 +3134,7 @@ describe("llmRequestLogic", () => {
   it("sends the turn note as transient", async () => {
     const testMachine = await createTestMachine({ chunks: [] });
     const messageId = StoreId.newMessageId();
-    await Store.saveMessage(
+    await ChatWrites.saveMessage(
       {
         id: messageId,
         metadata: { createdAt: mockDate, sessionId },
@@ -3132,7 +3142,7 @@ describe("llmRequestLogic", () => {
       },
       testMachine.chatId,
     );
-    await Store.saveParts(
+    await saveParts(
       [
         {
           metadata: {
@@ -3179,7 +3189,6 @@ describe("llmRequestLogic", () => {
       command: "cat list.md",
     });
     await withRecordsInPlace(async (records, dir) => {
-      const chatId = ChatIdSchema.parse("mock");
       const held: Promise<ChatRead>[] = [];
       const testMachine = await createTestMachine({
         chunks: [
@@ -3203,16 +3212,15 @@ describe("llmRequestLogic", () => {
         // Read as each chunk arrives, so what the turn held along the way is
         // what is checked, not only where it ended.
         onChunkReceived: () => {
-          held.push(records.read(chatId));
+          held.push(records.read(testMachine.chatId));
         },
       });
 
       await runTestMachine(testMachine);
       // The turn has ended, so it holds nothing.
-      expect((await records.read(chatId)).live.size).toBe(0);
-      // Every append the store queued, landed: a read of the file is a read
+      expect((await records.read(testMachine.chatId)).live.size).toBe(0);
+      // Every append the turn queued, landed: a read of the file is a read
       // of the whole turn.
-      await StoreRecords.close(chatId);
 
       const arriving = (await Promise.all(held)).flatMap((read) =>
         liveView(read, sessionId).flatMap((message) => message.parts),

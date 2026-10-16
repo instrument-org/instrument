@@ -10,8 +10,9 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { createTopic } from "../chat/topics";
-import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createChatCommand } from "./chat";
 
@@ -58,7 +59,7 @@ const freshChat = async () => {
 async function chat(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
   const chatId = chatFor(sessionId);
-  await Store.saveSession(
+  await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title, updatedAt: new Date() },
     chatId,
   );
@@ -80,7 +81,7 @@ async function chat(title: string, ask: string, reply?: string) {
     ],
     role: "user",
   };
-  await Store.saveMessageWithParts(user, chatId);
+  await ChatWrites.saveMessageWithParts(user, chatId);
   if (reply) {
     const replyId = StoreId.newMessageId();
     const assistant: SessionMessage.AssistantWithParts = {
@@ -107,7 +108,7 @@ async function chat(title: string, ask: string, reply?: string) {
       ],
       role: "assistant",
     };
-    await Store.saveMessageWithParts(assistant, chatId);
+    await ChatWrites.saveMessageWithParts(assistant, chatId);
   }
   return { chatId, sessionId };
 }
@@ -194,7 +195,7 @@ describe("chat read", () => {
     await freshChat();
     const id = (await chat("Weather page", "make me a weather page")).chatId;
     const sessionId = StoreId.newSessionId();
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       {
         createdAt: new Date(),
         id: sessionId,
@@ -270,7 +271,10 @@ describe("chat tag", () => {
     const result = await run("tag", chatId, "Home");
 
     expect(result.stdout).toBe('Filed "Groceries" under #Home.\n');
-    const session = await Store.getSession(sessionId, chatFor(sessionId));
+    const session = await ChatReads.session({
+      chatId: chatFor(sessionId),
+      sessionId,
+    });
     expect(session._unsafeUnwrap().topics).toEqual([home.id]);
   });
 });

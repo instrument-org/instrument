@@ -6,7 +6,7 @@ import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { SessionMessage } from "../src/schemas/session/message";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
 import { workDir } from "../src/lib/work-dir";
 import { chatModelURI } from "../src/lib/chat-settings";
@@ -286,10 +286,10 @@ export async function generateReport({
     // any other -- so counting them together reported six cases working exactly
     // as designed as six provider failures, and the only way to tell was to open
     // the stored errors by hand.
-    const sessionWithParts = await Store.getSessionWithMessagesAndParts(
-      rootSession.id,
+    const sessionWithParts = await ChatReads.sessionWithMessages({
       chatId,
-    );
+      sessionId: rootSession.id,
+    });
     const messageErrors = sessionWithParts.isOk()
       ? sessionWithParts.value.messages.flatMap((message) =>
           message.role === "assistant" && message.metadata.error
@@ -520,7 +520,7 @@ async function runSessionOf(
     process.stderr.write(`Warning: ${chatId} has no session, skipping.\n`);
     return undefined;
   }
-  const said = await Store.getMessagesWithParts({ chatId, sessionId: own });
+  const said = await ChatReads.transcript({ chatId, sessionId: own });
   const typed =
     said.isOk() &&
     said.value.some(
@@ -531,7 +531,7 @@ async function runSessionOf(
         ),
     );
   const id = typed ? own : ((await listChildTasks(chatId))[0]?.id ?? own);
-  const session = await Store.getSession(id, chatId);
+  const session = await ChatReads.session({ chatId: chatId, sessionId: id });
   return { id, title: session.isOk() ? session.value.title : chatId };
 }
 

@@ -4,7 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { Store } from "../store";
+import { ChatWrites } from "../chat-writes";
 import { renderSteps, sessionSteps, trajectorySince } from "./steps";
 
 vi.mock(import("../session-store-storage"));
@@ -104,7 +104,7 @@ function assistant(
 
 async function seed() {
   const sessionId = StoreId.newSessionId();
-  await Store.saveSession(
+  await ChatWrites.saveSession(
     { createdAt: at(0), id: sessionId, title: "task" },
     chatId,
   );
@@ -160,7 +160,7 @@ async function seed() {
       said("Copying the repository first, then reading the range.", at(52)),
     ]),
   ]) {
-    await Store.saveMessageWithParts(message, chatId);
+    await ChatWrites.saveMessageWithParts(message, chatId);
   }
   return sessionId;
 }

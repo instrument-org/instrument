@@ -12,8 +12,10 @@ import {
   recordAsk,
   recordQuestion,
 } from "../../lib/chat/asks";
+import { ChatReads } from "../../lib/chat-reads";
+import { ChatWrites } from "../../lib/chat-writes";
+import { ensureChatSession } from "../../lib/create-session";
 import { sessionOfChat } from "../../lib/record-folders";
-import { Store } from "../../lib/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -74,9 +76,10 @@ async function chatAsking() {
   if (!sessionId) {
     throw new Error("expected the chat's session");
   }
+  (await ensureChatSession(chatId))._unsafeUnwrap();
   const messageId = StoreId.newMessageId();
   const partId = StoreId.newPartId();
-  const saved = await Store.saveMessageWithParts(
+  const saved = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: {
@@ -127,8 +130,16 @@ it("closes the question, writes the answer onto the call, and wakes the chat wit
   );
 
   expect(await openAsks(chatId)).toEqual([]);
-  const part = await Store.getPart(sessionId, messageId, partId, chatId);
-  expect(part._unsafeUnwrap()).toMatchObject({
+  const transcript = await ChatReads.transcript({
+    chatId,
+    only: new Set([messageId]),
+    sessionId,
+  });
+  const part = transcript
+    ._unsafeUnwrap()
+    .flatMap((message) => message.parts)
+    .find((each) => each.metadata.id === partId);
+  expect(part).toMatchObject({
     output: { answer: { selectedChoice: "Tea" }, asked: true },
   });
   expect(

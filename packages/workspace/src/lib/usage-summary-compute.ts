@@ -5,7 +5,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { isToolPart } from "./is-tool-part";
 
 // Pure usage-summary computation over already-loaded messages, kept free of the
-// server-only Store so the client can compute the same numbers from messages it
+// server-only reads so the client can compute the same numbers from messages it
 // already holds (see usage-summary.ts for the DB-loading variant).
 
 export const UsageSummarySchema = z.object({

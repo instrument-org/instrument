@@ -5,18 +5,20 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { type SessionMessage } from "../schemas/session/message";
-import { type SessionMessagePart } from "../schemas/session/message-part";
+import { SessionMessage } from "../schemas/session/message";
+import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../constants";
 import { isToolPart } from "./is-tool-part";
+import { getParsedStorageItem } from "./get-parsed-storage-item";
 import {
   disposeSessionsStoreStorage,
   getSessionsStoreStorage,
 } from "./session-store-storage";
-import { Store } from "./store";
+import { setParsedStorageItem } from "./set-parsed-storage-item";
+import { StorageKey } from "./storage-key";
 import { chatDir } from "./record-folders";
 
 const id = ChatIdSchema.parse("interrupted-tool-calls-test");
@@ -62,19 +64,56 @@ async function endProcess() {
 }
 
 async function readParts(message: SessionMessage.Type) {
-  return unwrap(
-    await Store.getParts(message.metadata.sessionId, message.id, chatId),
+  const storage = unwrap(await getSessionsStoreStorage(chatId));
+  const keys = unwrap(
+    await storage.getKeys(
+      StorageKey.parts(message.metadata.sessionId, message.id),
+    ),
+  );
+  return Promise.all(
+    keys.map(async (key) =>
+      (
+        await getParsedStorageItem(
+          key,
+          SessionMessagePart.CoercedSchema,
+          storage,
+        )
+      )._unsafeUnwrap(),
+    ),
   );
 }
 
-/** Writes a message and its parts the way a run does, in one open. */
+/**
+ * Writes a message and its parts the way the store wrote them, in one open:
+ * the sweep runs over a `chat.db` an older build left, which is the only
+ * shape it has ever had to read.
+ */
 async function seed(
   message: SessionMessage.Type,
   parts: SessionMessagePart.Type[],
 ) {
-  unwrap(await Store.saveMessage(message, chatId));
+  const storage = unwrap(await getSessionsStoreStorage(chatId));
+  (
+    await setParsedStorageItem(
+      StorageKey.message(message.metadata.sessionId, message.id),
+      message,
+      SessionMessage.Schema,
+      storage,
+    )
+  )._unsafeUnwrap();
   for (const part of parts) {
-    unwrap(await Store.savePart(part, chatId, { publish: false }));
+    (
+      await setParsedStorageItem(
+        StorageKey.part(
+          part.metadata.sessionId,
+          part.metadata.messageId,
+          part.metadata.id,
+        ),
+        part,
+        SessionMessagePart.CoercedSchema,
+        storage,
+      )
+    )._unsafeUnwrap();
   }
 }
 

@@ -1,4 +1,4 @@
-import { ok } from "neverthrow";
+import { okAsync } from "neverthrow";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,9 +22,9 @@ vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
   sessionOfChat: () => StoreId.newSessionId(),
 }));
-vi.mock(import("../store"), () => ({
-  Store: {
-    getSession: () => Promise.resolve(ok({ topics: world.tagged } as never)),
+vi.mock(import("../chat-reads"), () => ({
+  ChatReads: {
+    session: () => okAsync({ topics: world.tagged } as never),
   } as never,
 }));
 vi.mock(import("./topics"), () => ({

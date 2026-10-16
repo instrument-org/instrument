@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { workspaceLayout } from "../../src/lib/workspace-layout";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
-import { Store } from "../../src/lib/store";
+import { ChatReads } from "../../src/lib/chat-reads";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
 import { folderReach } from "../../src/lib/chat/folder-reach";
 import { getChatSettings } from "../../src/lib/chat-settings";
@@ -44,19 +44,19 @@ function at<T>(items: readonly T[], index: number): T {
 async function readSeededSession(seeded: SeededTask) {
   if (seeded.chat !== undefined) {
     const sessionId = StoreId.SessionSchema.parse(seeded.id);
-    const loaded = await Store.getSessionWithMessagesAndParts(
+    const loaded = await ChatReads.sessionWithMessages({
+      chatId: seeded.chat,
       sessionId,
-      seeded.chat,
-    );
+    });
     return { session: loaded._unsafeUnwrap(), sessionIds: [sessionId] };
   }
   const chatId = ChatIdSchema.parse(seeded.id);
-  const sessions = await Store.getSessions(chatId);
+  const sessions = await ChatReads.sessions({ chatId });
   const sessionIds = sessions._unsafeUnwrap().map((session) => session.id);
-  const loaded = await Store.getSessionWithMessagesAndParts(
-    at(sessionIds, 0),
+  const loaded = await ChatReads.sessionWithMessages({
     chatId,
-  );
+    sessionId: at(sessionIds, 0),
+  });
   return { session: loaded._unsafeUnwrap(), sessionIds };
 }
 

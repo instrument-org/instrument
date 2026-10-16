@@ -7,8 +7,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { renameChat } from "../../lib/chat/chats";
 import { grantFolder } from "../../lib/chat/grants";
 import { recordAsk } from "../../lib/chat/asks";
+import { ChatWrites } from "../../lib/chat-writes";
 import { sessionOfChat } from "../../lib/record-folders";
-import { Store } from "../../lib/store";
 import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";
 import {
   getWorkspaceConfig,
@@ -126,7 +126,7 @@ describe("chats.live.info", () => {
       throw new Error("The chat has no session");
     }
     const now = new Date();
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       { createdAt: now, id: sessionId, title: "Untitled", updatedAt: now },
       chatId,
     );

@@ -36,7 +36,7 @@ import superjson from "superjson";
 import { TASKS_DIR_NAME } from "../src/constants";
 import { listChildTasks } from "../src/lib/chat/children";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import {
   AbsolutePathSchema,
@@ -170,11 +170,14 @@ async function readSession(
   preferred?: string,
   { inherited = true }: { inherited?: boolean } = {},
 ): Promise<Session.WithMessagesAndParts> {
-  const sessionIdsResult = await Store.getStoreId(chatId);
+  const sessionIdsResult = await ChatReads.sessions({
+    chatId,
+    includeChildSessions: true,
+  });
   if (sessionIdsResult.isErr()) {
     throw sessionIdsResult.error;
   }
-  const sessionIds = sessionIdsResult.value;
+  const sessionIds = sessionIdsResult.value.map((session) => session.id);
 
   if (sessionIds.length === 0) {
     throw new Error(`${chatId} has no sessions`);
@@ -193,11 +196,12 @@ async function readSession(
     );
   }
 
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr()) {
     throw session.error;
   }
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
+    bytes: true,
     chatId,
     inherited,
     sessionId,

@@ -4,9 +4,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { getChatSettings } from "../src/lib/chat-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { ChatDirSchema } from "../src/schemas/paths";
@@ -53,12 +53,13 @@ setWorkspaceConfig(
 );
 const chatId = id;
 
-const sessionsResult = await Store.getSessions(chatId, {
+const sessionsResult = await ChatReads.sessions({
+  chatId,
   includeChildSessions: true,
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(dir, CHAT_DB_FILE_NAME)}: ${sessionsResult.error.message}`,
+    `Failed to read the sessions of ${dir}: ${sessionsResult.error.message}`,
   );
 }
 

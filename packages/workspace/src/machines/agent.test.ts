@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
 
 import { instrumentAgent } from "../agents/instrument";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { isToolPart } from "../lib/is-tool-part";
-import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -179,10 +180,19 @@ describe("agentMachine", () => {
     };
   }
 
+  /** A session of the chat's, which a message of a run's goes into. */
+  async function startedSession(): Promise<StoreId.Session> {
+    const id = StoreId.newSessionId();
+    (
+      await ChatWrites.saveSession({ createdAt, id, title: "Run" }, chatId)
+    )._unsafeUnwrap();
+    return id;
+  }
+
   async function readToolParts(runSessionId: StoreId.Session) {
-    const messagesResult = await Store.getMessagesWithParts({
-      sessionId: runSessionId,
+    const messagesResult = await ChatReads.transcript({
       chatId,
+      sessionId: runSessionId,
     });
     return messagesResult
       ._unsafeUnwrap()
@@ -195,7 +205,7 @@ describe("agentMachine", () => {
   }
 
   it("runs consecutive read-only calls together and a write on its own", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
       runSessionId,
@@ -267,7 +277,7 @@ describe("agentMachine", () => {
       name: "more read-only calls than run at once",
     },
   ])("runs every one of $name", async ({ calls }) => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
       runSessionId,
@@ -323,7 +333,7 @@ describe("agentMachine", () => {
   });
 
   it("finalizes queued sibling tool calls when the turn is stopped mid-queue", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -352,7 +362,7 @@ describe("agentMachine", () => {
             },
           }),
           llmRequestLogic: fromPromise(async () => {
-            const savedResult = await Store.saveMessageWithParts(
+            const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
               chatId,
             );
@@ -404,7 +414,7 @@ describe("agentMachine", () => {
   // decides which one can be cut off: `onFinish` sees the run as it ended,
   // with the queued calls still dangling.
   it("persists what the turn produced before sweeping its dangling parts", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -430,7 +440,7 @@ describe("agentMachine", () => {
             },
           }),
           llmRequestLogic: fromPromise(async () => {
-            const savedResult = await Store.saveMessageWithParts(
+            const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
               chatId,
             );
@@ -468,7 +478,7 @@ describe("agentMachine", () => {
   });
 
   it("finalizes saved parts when the turn is stopped during input streaming", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -506,7 +516,7 @@ describe("agentMachine", () => {
           // context array, because the machine leaves LLMStreaming before the
           // invoke's onDone runs.
           llmRequestLogic: fromPromise(async () => {
-            const savedResult = await Store.saveMessageWithParts(
+            const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: savedParts },
               chatId,
             );
@@ -552,7 +562,7 @@ describe("agentMachine", () => {
   });
 
   it("reads nothing back when a completed turn leaves the queues empty", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -572,15 +582,14 @@ describe("agentMachine", () => {
         type: "text",
       },
     ];
-    const getMessagesWithParts = vi.spyOn(Store, "getMessagesWithParts");
-    const getMessageIds = vi.spyOn(Store, "getMessageIds");
-    const getParts = vi.spyOn(Store, "getParts");
+    const messageIds = vi.spyOn(ChatReads, "messageIds");
+    const transcript = vi.spyOn(ChatReads, "transcript");
 
     const actor = createActor(
       agentMachine.provide({
         actors: {
           llmRequestLogic: fromPromise(async () => {
-            const runResult = await Store.saveMessageWithParts(
+            const runResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: runParts },
               chatId,
             );
@@ -599,13 +608,12 @@ describe("agentMachine", () => {
     await waitFor(actor, (state) => state.matches("Done"));
 
     // Nothing this turn produced can be unresolved, so finishing costs no read.
-    expect(getMessagesWithParts).not.toHaveBeenCalled();
-    expect(getMessageIds).not.toHaveBeenCalled();
-    expect(getParts).not.toHaveBeenCalled();
+    expect(messageIds).not.toHaveBeenCalled();
+    expect(transcript).not.toHaveBeenCalled();
   });
 
   it("leaves finished and prior-run parts alone on a turn that ends without a stop", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     // A dangling part on a message from before this run: outside what the run
     // owns, so finishing must not rewrite it.
     const earlierMessage = createAssistantMessage(
@@ -649,12 +657,12 @@ describe("agentMachine", () => {
       agentMachine.provide({
         actors: {
           llmRequestLogic: fromPromise(async () => {
-            const earlierResult = await Store.saveMessageWithParts(
+            const earlierResult = await ChatWrites.saveMessageWithParts(
               { ...earlierMessage, parts: earlierParts },
               chatId,
             );
             earlierResult._unsafeUnwrap();
-            const runResult = await Store.saveMessageWithParts(
+            const runResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: runParts },
               chatId,
             );

@@ -20,8 +20,9 @@ import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
 import { taskStanding } from "../../lib/chat/standing";
 import { startChatWake } from "../../lib/chat/wake";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
+import { ChatReads } from "../../lib/chat-reads";
+import { ChatWrites } from "../../lib/chat-writes";
 import { sessionOfChat } from "../../lib/record-folders";
-import { Store } from "../../lib/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -94,7 +95,7 @@ afterEach(async () => {
 
 /** The task events of the notes written into `chatId`'s own session. */
 async function notesIn(chatId: ChatId) {
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
     chatId,
     sessionId: sessionOfChat(chatId) ?? StoreId.newSessionId(),
   });
@@ -166,7 +167,7 @@ function running(
 async function said(chatId: ChatId, sessionId: StoreId.Session, text: string) {
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
-  const written = await Store.saveMessageWithParts(
+  const written = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: {
@@ -464,11 +465,11 @@ describe("session.stop", () => {
       const { chatId, own } = await chatWithTask();
       const messageId = StoreId.newMessageId();
       const createdAt = new Date();
-      await Store.saveSession(
+      await ChatWrites.saveSession(
         { createdAt, id: own, title: "Documents" },
         chatId,
       );
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: { createdAt, sessionId: own },

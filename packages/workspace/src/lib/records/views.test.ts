@@ -9,7 +9,6 @@ import { type StoreId } from "../../schemas/store-id";
 import { withTestRecords } from "../../test/helpers/with-test-records";
 import { type ToolName } from "../../tools/types";
 import { isToolPart } from "../is-tool-part";
-import { Store } from "../store";
 import { type ChatRecords } from "./chat-records";
 import {
   assistantMessage,
@@ -230,49 +229,6 @@ const TASK_MESSAGES: SessionMessage.WithParts[] = [
   },
 ];
 
-/** The fixture, written the way today's store writes it. */
-async function throughStore() {
-  await Store.saveSession(
-    {
-      createdAt: at(0),
-      id: chatSession,
-      rolledOverAfterMessageId: messageId(6),
-      rolledOverUnderUsableTokens: 1000,
-      starredAt: NOW,
-      title: "Quarterly numbers",
-      titleSettledAt: NOW,
-      unreadAt: NOW,
-      updatedAt: NOW,
-    },
-    CHAT,
-  );
-  for (const message of CHAT_MESSAGES) {
-    const parts =
-      message.id === messageId(9)
-        ? [...message.parts, STREAMING]
-        : message.parts;
-    (
-      await Store.saveMessageWithParts({ ...message, parts }, CHAT)
-    )._unsafeUnwrap();
-  }
-  await Store.saveSession(
-    {
-      createdAt: at(10),
-      forkedAtMessageId: messageId(3),
-      handle: "t1",
-      id: taskSession,
-      parentId: chatSession,
-      stoppedBy: "chat",
-      title: "Regions",
-      updatedAt: NOW,
-    },
-    CHAT,
-  );
-  for (const message of TASK_MESSAGES) {
-    (await Store.saveMessageWithParts(message, CHAT))._unsafeUnwrap();
-  }
-}
-
 /** The same fixture, written as records. */
 async function throughRecords(service: ChatRecords) {
   await service.startSession(CHAT, { createdAt: at(0), id: chatSession });
@@ -305,12 +261,6 @@ async function throughRecords(service: ChatRecords) {
   return service.read(CHAT);
 }
 
-async function storeTranscript(session: StoreId.Session) {
-  return (
-    await Store.getMessagesWithParts({ chatId: CHAT, sessionId: session })
-  )._unsafeUnwrap();
-}
-
 function withoutStreaming(messages: SessionMessage.WithParts[]) {
   return messages.map((message) => ({
     ...message,
@@ -328,42 +278,64 @@ function partTypes(messages: SessionMessage.WithParts[]) {
 }
 
 describe("views", () => {
-  it("give what today's store reads give for a chat with a task and a rollover", async () => {
-    await throughStore();
+  it("give a chat with a task and a rollover as it was written", async () => {
     const read = await throughRecords(records.service);
-    const storeChat = await storeTranscript(chatSession);
-    const storeTask = await storeTranscript(taskSession);
-    // The task reads the chat's first three messages, then its own.
-    expect([storeChat.length, storeTask.length]).toEqual([7, 5]);
-    const storeImage = storeChat[2]?.parts[3];
-    expect(
-      storeImage && isToolPart(storeImage) && storeImage.output,
-    ).toMatchObject({ base64Data: PNG });
-
-    expect(listView(read)).toEqual(
-      (
-        await Store.getSessions(CHAT, { includeChildSessions: true })
-      )._unsafeUnwrap(),
+    const streaming = CHAT_MESSAGES.map((message) =>
+      message.id === messageId(9)
+        ? { ...message, parts: [...message.parts, STREAMING] }
+        : message,
     );
-    expect(
-      mergeViews(
-        conversationView(read, chatSession),
-        await stepsView(read, chatSession),
-        liveView(read, chatSession),
-      ),
-    ).toEqual(storeChat);
+
+    expect(listView(read)).toMatchObject([
+      {
+        id: chatSession,
+        rolledOverAfterMessageId: messageId(6),
+        rolledOverUnderUsableTokens: 1000,
+        starredAt: NOW,
+        title: "Quarterly numbers",
+        titleSettledAt: NOW,
+        unreadAt: NOW,
+      },
+      {
+        forkedAtMessageId: messageId(3),
+        handle: "t1",
+        id: taskSession,
+        parentId: chatSession,
+        stoppedBy: "chat",
+        title: "Regions",
+      },
+    ]);
+
+    const chat = mergeViews(
+      conversationView(read, chatSession),
+      await stepsView(read, chatSession),
+      liveView(read, chatSession),
+    );
+    expect(chat).toEqual(streaming);
+    // The bytes a call returned come back from the blob that holds them.
+    const image = chat[2]?.parts[3];
+    expect(image && isToolPart(image) && image.output).toMatchObject({
+      base64Data: PNG,
+    });
+
+    // A task reads the chat's messages up to the fork, then its own.
     expect(
       mergeViews(
         conversationView(read, taskSession),
         await stepsView(read, taskSession),
         liveView(read, taskSession),
       ),
-    ).toEqual(storeTask);
-    // A model with room for what the rollover dropped is sent all of it.
+    ).toEqual([...CHAT_MESSAGES.slice(0, 3), ...TASK_MESSAGES]);
+
+    // A model with room for what the rollover dropped is sent all of it, and
+    // never the part still arriving.
     expect(await modelHistoryView(read, chatSession, { usable: 2000 })).toEqual(
-      withoutStreaming(storeChat),
+      CHAT_MESSAGES,
     );
-    expect(await modelHistoryView(read, taskSession)).toEqual(storeTask);
+    expect(await modelHistoryView(read, taskSession)).toEqual([
+      ...CHAT_MESSAGES.slice(0, 3),
+      ...TASK_MESSAGES,
+    ]);
   });
 
   it("split a transcript into what the chat view draws and the steps behind it", async () => {

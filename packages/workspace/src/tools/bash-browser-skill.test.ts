@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { ChatWrites } from "../lib/chat-writes";
 import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
-import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -69,9 +69,9 @@ describe("bash attaches the agent-browser skill", () => {
       },
       role: "assistant",
     };
-    (await Store.saveMessage(message, chatId))._unsafeUnwrap();
+    (await ChatWrites.saveMessage(message, chatId))._unsafeUnwrap();
     (
-      await Store.savePart(
+      await ChatWrites.savePart(
         {
           input: { command: output.command, yieldMs: 30_000 },
           metadata: {
@@ -87,7 +87,6 @@ describe("bash attaches the agent-browser skill", () => {
           type: "tool-bash",
         },
         chatId,
-        { publish: false },
       )
     )._unsafeUnwrap();
     return message;
@@ -95,7 +94,7 @@ describe("bash attaches the agent-browser skill", () => {
 
   async function saveSession(rolledOverAfterMessageId?: StoreId.Message) {
     (
-      await Store.saveSession(
+      await ChatWrites.saveSession(
         {
           createdAt,
           id: sessionId,
@@ -124,6 +123,7 @@ describe("bash attaches the agent-browser skill", () => {
   });
 
   it("attaches it again once a rollover drops the turn that carried it", async () => {
+    await saveSession();
     const earlier = await record(await bash("echo earlier"));
     const carried = await record(await bash("agent-browser --help"));
     await saveSession(earlier.id);

@@ -19,7 +19,7 @@ import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { workDir } from "../../src/lib/work-dir";
-import { Store } from "../../src/lib/store";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { shellPath } from "../../src/lib/workspace-fs-layout";
 import { type Session } from "../../src/schemas/session";
 import { StoreId } from "../../src/schemas/store-id";
@@ -361,7 +361,7 @@ async function saveSeeded(
           parts,
           role: "assistant" as const,
         };
-  (await Store.saveMessageWithParts(message, chatId))._unsafeUnwrap();
+  (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
 }
 
 /** The lease, the summary so far, and yesterday's chat that made it. */

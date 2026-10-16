@@ -16,12 +16,13 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { withRecordsInPlace } from "../../test/helpers/with-test-records";
+import { chatRecords } from "../records/chat-records";
 import { recordAsk, recordQuestion } from "./asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { forgetChat, sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
@@ -152,7 +153,10 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
     parts: [part],
     role: "assistant",
   };
-  const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
+  const saved = await ChatWrites.saveMessageWithParts(
+    message,
+    chatFor(sessionId),
+  );
   expect(saved.isOk()).toBe(true);
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(at(5));
@@ -223,7 +227,10 @@ async function agentSays(
     ],
     role: "assistant",
   };
-  const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
+  const saved = await ChatWrites.saveMessageWithParts(
+    message,
+    chatFor(sessionId),
+  );
   expect(saved.isOk()).toBe(true);
   return messageId;
 }
@@ -237,7 +244,7 @@ async function noteSays(
   ) => SessionMessage.UserWithParts["parts"][number],
 ) {
   const messageId = StoreId.newMessageId();
-  const saved = await Store.saveMessageWithParts(
+  const saved = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: { createdAt: at(minute), sessionId },
@@ -260,7 +267,7 @@ function partMetadata(ids: {
 async function session(_chatId: ChatId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
   chatFor(id);
-  await Store.saveSession(
+  await ChatWrites.saveSession(
     { createdAt: at(minute), id, title, updatedAt: at(minute) },
     chatFor(id),
   );
@@ -309,7 +316,10 @@ async function userSays(
     parts,
     role: "user",
   };
-  const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
+  const saved = await ChatWrites.saveMessageWithParts(
+    message,
+    chatFor(sessionId),
+  );
   expect(saved.isOk()).toBe(true);
   return messageId;
 }
@@ -324,7 +334,7 @@ describe("listChats", () => {
     expect((await listChats())[0]?.lastUserMessageAt).toBe(at(1).getTime());
 
     const messageId = StoreId.newMessageId();
-    const saved = await Store.saveMessageWithParts(
+    const saved = await ChatWrites.saveMessageWithParts(
       {
         id: messageId,
         role: "user",
@@ -356,7 +366,7 @@ describe("listChats", () => {
     expect((await listChats())[0]?.lastUserMessageAt).toBe(at(5).getTime());
 
     const asksId = StoreId.newMessageId();
-    const asked = await Store.saveMessageWithParts(
+    const asked = await ChatWrites.saveMessageWithParts(
       {
         id: asksId,
         role: "user",
@@ -466,7 +476,7 @@ describe("listChats", () => {
     const sessionId = await session(chatId, "Make page 1 red");
     const messageId = StoreId.newMessageId();
     const file = { name: "digest.docx", path: "/Users/me/digest.docx" };
-    const saved = await Store.saveMessageWithParts(
+    const saved = await ChatWrites.saveMessageWithParts(
       {
         id: messageId,
         metadata: { createdAt: at(1), sessionId },
@@ -507,7 +517,7 @@ describe("listChats", () => {
     const [replied] = await listChats();
     expect(replied?.latest?.text).toBe("Here is the list.");
 
-    const read = await Store.getMessagesWithParts({
+    const read = await ChatReads.transcript({
       sessionId,
       chatId: chatFor(sessionId),
     });
@@ -518,7 +528,7 @@ describe("listChats", () => {
     if (!part) {
       throw new Error("no reply text");
     }
-    await Store.savePart(
+    await ChatWrites.savePart(
       { ...part, text: "Here is the new list." },
       chatFor(sessionId),
     );
@@ -644,7 +654,7 @@ describe("listChats", () => {
       const sessionId = await session(chatId, "Documents", 1);
       await userSays(chatId, sessionId, "what's in my Documents?", 1);
       const replyId = StoreId.newMessageId();
-      const reply = await Store.saveMessageWithParts(
+      const reply = await ChatWrites.saveMessageWithParts(
         {
           id: replyId,
           metadata: {
@@ -731,7 +741,10 @@ describe("listChats", () => {
     const [renamed] = await listChats();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);
-    const stored = await Store.getSession(sessionId, chatFor(sessionId));
+    const stored = await ChatReads.session({
+      chatId: chatFor(sessionId),
+      sessionId,
+    });
     expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
   });
 
@@ -1049,7 +1062,7 @@ describe("listChats", () => {
     // A reply cut off with no Stop of the person's behind it is not theirs.
     alive.value = new Set();
     const replyId = StoreId.newMessageId();
-    const reply = await Store.saveMessageWithParts(
+    const reply = await ChatWrites.saveMessageWithParts(
       {
         id: replyId,
         metadata: {
@@ -1335,7 +1348,7 @@ describe("liveChatList", () => {
       await userSays(chatId, sessionId, "make me a grocery list", 1);
       await agentSays(chatId, sessionId, "A task is on it.", { minute: 2 });
       const noteId = StoreId.newMessageId();
-      const saved = await Store.saveMessageWithParts(
+      const saved = await ChatWrites.saveMessageWithParts(
         {
           id: noteId,
           metadata: { createdAt: at(3), sessionId },
@@ -1457,41 +1470,43 @@ describe("liveChatList", () => {
     });
     alive.value = new Set([sessionId]);
 
-    await withRecordsInPlace(async (records) => {
-      const messageId = StoreId.newMessageId();
-      const live = records.live(chatFor(sessionId), sessionId);
-      live.setMessage({
-        id: messageId,
+    const messageId = StoreId.newMessageId();
+    const live = chatRecords().live(chatFor(sessionId), sessionId);
+    live.setMessage({
+      id: messageId,
+      metadata: {
+        createdAt: at(3),
+        finishReason: "unknown",
+        modelId: "glm-5.3-flash",
+        providerId: "openai-compatible",
+        sessionId,
+      },
+      role: "assistant",
+    });
+    live.setPart(
+      SessionMessagePart.coerce({
+        input: { activity: "Reading the list", command: "cat li" },
         metadata: {
           createdAt: at(3),
-          finishReason: "unknown",
-          modelId: "glm-5.3-flash",
-          providerId: "openai-compatible",
+          id: StoreId.newPartId(),
+          messageId,
           sessionId,
         },
-        role: "assistant",
-      });
-      live.setPart(
-        SessionMessagePart.coerce({
-          input: { activity: "Reading the list", command: "cat li" },
-          metadata: {
-            createdAt: at(3),
-            id: StoreId.newPartId(),
-            messageId,
-            sessionId,
-          },
-          state: "input-streaming",
-          toolCallId: "call-1",
-          type: "tool-bash",
-        }),
-      );
+        state: "input-streaming",
+        toolCallId: "call-1",
+        type: "tool-bash",
+      }),
+    );
 
+    try {
       const [chat] = await listChats();
 
       expect(chat?.latest).toMatchObject({
         kind: "step",
         text: "Reading the list",
       });
-    });
+    } finally {
+      await live.clear();
+    }
   });
 });

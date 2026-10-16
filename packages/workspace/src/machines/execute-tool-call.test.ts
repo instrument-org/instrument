@@ -3,7 +3,8 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createActor, waitFor } from "xstate";
 
-import { Store } from "../lib/store";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -47,11 +48,17 @@ describe("executeToolCallMachine", () => {
   const taskConfig = createMockChatConfig(ChatIdSchema.parse("test"), {
     model,
   });
-  const sessionId = StoreId.newSessionId();
-  const messageId = StoreId.newMessageId();
+  // A session of each case's own: the chat's records are folded in memory for
+  // the whole file, so a session two cases shared would carry the first
+  // case's calls into the second.
+  let sessionId = StoreId.newSessionId();
+  let messageId = StoreId.newMessageId();
   const mockDate = new Date("2025-01-01T00:00:00.000Z");
 
   beforeEach(async () => {
+    sessionId = StoreId.newSessionId();
+    messageId = StoreId.newMessageId();
+
     // Pin performance.now so the bash tool's `durationMs` is deterministic in
     // snapshots. Returning a constant means `end - start === 0`.
     vi.spyOn(performance, "now").mockReturnValue(0);
@@ -101,7 +108,7 @@ describe("executeToolCallMachine", () => {
       },
     });
 
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       {
         createdAt: mockDate,
         id: sessionId,
@@ -110,7 +117,7 @@ describe("executeToolCallMachine", () => {
       taskConfig,
     );
 
-    await Store.saveMessage(
+    await ChatWrites.saveMessage(
       {
         id: messageId,
         metadata: {
@@ -151,10 +158,10 @@ describe("executeToolCallMachine", () => {
   async function runTestMachine(actor: ReturnType<typeof createTestActor>) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    const sessionResult = await Store.getSessionWithMessagesAndParts(
+    const sessionResult = await ChatReads.sessionWithMessages({
+      chatId: taskConfig,
       sessionId,
-      taskConfig,
-    );
+    });
     return sessionResult._unsafeUnwrap();
   }
 
@@ -183,16 +190,16 @@ describe("executeToolCallMachine", () => {
   describe("with successful shell command", () => {
     it("should execute shell command successfully", async () => {
       const part = createShellCommandPart("pnpm install");
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
 
       // Verify the part was updated with output
-      const updatedSession = await Store.getSessionWithMessagesAndParts(
+      const updatedSession = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
         .flatMap((m) => m.parts)
@@ -239,16 +246,16 @@ describe("executeToolCallMachine", () => {
   describe("with shell command that throws", () => {
     it("should handle shell command errors", async () => {
       const part = createShellCommandPart("pnpm throw-error");
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
 
       // Verify the part was updated with error
-      const updatedSession = await Store.getSessionWithMessagesAndParts(
+      const updatedSession = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
         .flatMap((m) => m.parts)
@@ -295,16 +302,16 @@ describe("executeToolCallMachine", () => {
   describe("with hanging shell command", () => {
     it("should handle hanging shell command", async () => {
       const part = createShellCommandPart("pnpm hang-command", 10); // Very short timeout to trigger cancellation
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
 
       // Verify the part was updated with cancellation
-      const updatedSession = await Store.getSessionWithMessagesAndParts(
+      const updatedSession = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
         .flatMap((m) => m.parts)
@@ -366,16 +373,16 @@ describe("executeToolCallMachine", () => {
         type: "tool-read_file",
       };
 
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
 
       // Verify the part was updated with output
-      const updatedSession = await Store.getSessionWithMessagesAndParts(
+      const updatedSession = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
         .flatMap((m) => m.parts)
@@ -448,16 +455,16 @@ describe("executeToolCallMachine", () => {
         type: "tool-read_file",
       };
 
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       const actor = createTestActor({ part });
       await runTestMachine(actor);
 
       // Verify the part was updated with "not found" output (not error)
-      const updatedSession = await Store.getSessionWithMessagesAndParts(
+      const updatedSession = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       const session = updatedSession._unsafeUnwrap();
       const updatedPart = session.messages
         .flatMap((m) => m.parts)
@@ -499,13 +506,13 @@ describe("executeToolCallMachine", () => {
   describe("with pnpm dev and start", () => {
     async function runShellCommand(command: string) {
       const requestPart = createShellCommandPart(command);
-      await Store.savePart(requestPart, taskConfig);
+      await ChatWrites.savePart(requestPart, taskConfig);
       const actor = createTestActor({ part: requestPart });
       await runTestMachine(actor);
-      const sessionResult = await Store.getSessionWithMessagesAndParts(
+      const sessionResult = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       const session = sessionResult._unsafeUnwrap();
       const part = session.messages
         .flatMap((m) => m.parts)
@@ -542,10 +549,10 @@ describe("executeToolCallMachine", () => {
   // the stop is a result the model and the reader both lose.
   describe("saveStoppedToolCallPart", () => {
     async function readStoredPart(partId: StoreId.Part) {
-      const session = await Store.getSessionWithMessagesAndParts(
+      const session = await ChatReads.sessionWithMessages({
+        chatId: taskConfig,
         sessionId,
-        taskConfig,
-      );
+      });
       return session
         ._unsafeUnwrap()
         .messages.flatMap((message) => message.parts)
@@ -554,7 +561,7 @@ describe("executeToolCallMachine", () => {
 
     it("finalizes a call that never produced output", async () => {
       const part = createShellCommandPart("sleep 30");
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       await saveStoppedToolCallPart({
         part,
@@ -573,7 +580,7 @@ describe("executeToolCallMachine", () => {
     // The person reads the same words either way; the model is told which.
     it("keeps that the chat's `task stop` was what stopped a call", async () => {
       const part = createShellCommandPart("sleep 30");
-      await Store.savePart(part, taskConfig);
+      await ChatWrites.savePart(part, taskConfig);
 
       await saveStoppedToolCallPart({
         part,
@@ -607,7 +614,7 @@ describe("executeToolCallMachine", () => {
         preliminary: false,
         state: "output-available",
       } as SessionMessagePart.ToolPart;
-      await Store.savePart(answered, taskConfig);
+      await ChatWrites.savePart(answered, taskConfig);
 
       // The stale input-available snapshot a scan would still be holding.
       await saveStoppedToolCallPart({

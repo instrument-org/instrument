@@ -5,7 +5,8 @@ import { ensureChat } from "../../src/lib/chat/chat-records";
 import { addChildTask } from "../../src/lib/chat/children";
 import { renameChat } from "../../src/lib/chat/chats";
 import { newMessage } from "../../src/lib/new-message";
-import { Store } from "../../src/lib/store";
+import { ChatReads } from "../../src/lib/chat-reads";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { updateChatSettings } from "../../src/lib/chat-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
@@ -99,9 +100,9 @@ export async function startRun(
   }
   const message = sent.value;
 
-  const session = (await Store.getSession(sessionId, chatId))._unsafeUnwrap();
+  const session = (await ChatReads.session({ chatId: chatId, sessionId: sessionId }))._unsafeUnwrap();
   (
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       { ...session, title: name, updatedAt: new Date() },
       chatId,
     )

@@ -8,8 +8,9 @@ import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { recordMovedPaths } from "./moved-paths";
-import { Store } from "./store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 vi.mock(import("./session-store-storage"));
@@ -39,11 +40,11 @@ it("reads a folder a message sent back where a move took it", async () => {
   ]);
   const sessionId = StoreId.newSessionId();
   const messageId = StoreId.newMessageId();
-  await Store.saveSession(
+  await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: "Sent folders" },
     chatId,
   );
-  await Store.saveMessageWithParts(
+  await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: { createdAt: new Date(), sessionId },
@@ -71,7 +72,7 @@ it("reads a folder a message sent back where a move took it", async () => {
   );
 
   const [message] = (
-    await Store.getMessagesWithParts({ chatId, sessionId })
+    await ChatReads.transcript({ chatId, sessionId })
   )._unsafeUnwrap();
   const [part] = message?.parts ?? [];
 

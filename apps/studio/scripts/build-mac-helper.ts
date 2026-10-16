@@ -92,7 +92,7 @@ if (target !== "darwin" || process.platform !== "darwin") {
     { stdio: "inherit" },
   );
   // The Seatbelt launcher every native command starts through
-  // (native-sandbox.ts in the workspace package).
+  // (native-sandbox/seatbelt.ts in the workspace package).
   execFileSync(
     "clang",
     [

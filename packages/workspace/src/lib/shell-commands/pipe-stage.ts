@@ -16,12 +16,17 @@ import { PassThrough, type Readable } from "node:stream";
 
 import { inheritedEnv } from "../native-env";
 import {
+  launchNative,
   NativeSandboxUnavailableError,
   wrapNativeCommand,
 } from "../native-sandbox";
 import { watchSubprocessTree } from "../subprocess-tree";
 import { execShim, withShimNotes } from "./exec-shim";
-import { collectAndForward, currentShellOutputSink } from "./output-sink";
+import {
+  collectAndForward,
+  currentShellOutputSink,
+  decodeForDisplay,
+} from "./output-sink";
 
 /**
  * Native pipeline stages joined by OS pipes.
@@ -57,7 +62,10 @@ export interface StageResult {
   isMaxBuffer: boolean;
   shortMessage?: string;
   stderr: string;
+  /** stdout decoded as UTF-8, for reading what the program said. */
   stdout: string;
+  /** stdout exactly as the program wrote it. */
+  stdoutBytes: Buffer;
 }
 
 export interface StageHandoff {
@@ -89,6 +97,10 @@ export interface StageOptions {
   offerHandoff: boolean;
   /** The previous stage's handoff token, taken as fd 0. */
   stdinHandoff?: string;
+  /** An open file for fd 0, which the program reads as its stdin. */
+  stdinFd?: number;
+  /** The environment is `env` alone, with nothing of the app's own. */
+  ownEnvOnly?: true;
   unsandboxed?: true;
   walks?: true;
   windowsVerbatimArguments?: boolean;
@@ -213,6 +225,7 @@ export function startPipeStage(
       isMaxBuffer: false,
       stderr: `${error.message}\n`,
       stdout: "",
+      stdoutBytes: Buffer.alloc(0),
     });
   }
   const sink = currentShellOutputSink();
@@ -244,21 +257,34 @@ export function startPipeStage(
   // through this process instead, still as a stream with backpressure.
   const relay = upstream !== undefined && process.platform === "win32";
   const stdio: StdioOptions = [
-    relay ? "pipe" : (upstream ?? (options.input ? "pipe" : "ignore")),
+    relay
+      ? "pipe"
+      : (upstream ?? (options.input ? "pipe" : (options.stdinFd ?? "ignore"))),
     "pipe",
     "pipe",
     ...(options.onMessage ? (["ipc"] as const) : []),
   ];
   let child: ChildProcess;
   try {
-    child = spawn(spawned.file, spawned.args, {
+    const env = {
+      ...(options.ownEnvOnly ? {} : inheritedEnv(process.env, spawned.reach)),
+      ...options.env,
+    };
+    const launch = launchNative(spawned, {
+      cwd: options.cwd,
+      env,
+      windowsVerbatimArguments: options.windowsVerbatimArguments,
+    });
+    child = spawn(launch.file, launch.args, {
       cwd: options.cwd,
       // A background run's kill signals the process group the child leads.
       detached: sink !== undefined && process.platform !== "win32",
-      env: { ...inheritedEnv(process.env, spawned.reach), ...options.env },
+      env,
       stdio,
       windowsHide: true,
-      windowsVerbatimArguments: options.windowsVerbatimArguments,
+      // Under MXC the program's command line is in the launcher's request.
+      windowsVerbatimArguments:
+        spawned.kind === "mxc" ? false : options.windowsVerbatimArguments,
     });
   } finally {
     // The program holds its own copy of the read end now. Closing ours is
@@ -324,7 +350,7 @@ export function startPipeStage(
       live?.end();
     }
   };
-  const stderr = collect(child.stderr, live, endLive);
+  const stderr = collect(child.stderr, live, endLive).then(decodeForDisplay);
   let isMaxBuffer = false;
   const collectStdout = () =>
     collect(child.stdout, live, endLive, options.maxStdout, () => {
@@ -340,8 +366,13 @@ export function startPipeStage(
     });
     child.on("close", (code, signal) => resolve(shellStatus(code, signal)));
   });
-  const finish = async (stdout: Promise<string>): Promise<StageResult> => {
-    const [status, written, out] = await Promise.all([exited, stderr, stdout]);
+  const finish = async (stdout: Promise<Buffer>): Promise<StageResult> => {
+    const [status, written, outBytes] = await Promise.all([
+      exited,
+      stderr,
+      stdout,
+    ]);
+    const out = outBytes.toString("utf8");
     await streamed;
     // A producer whose reader stopped early ends as it would on POSIX: the
     // status of SIGPIPE, and none of its complaint about the closed pipe.
@@ -370,6 +401,7 @@ export function startPipeStage(
       shortMessage: spawnError?.message,
       stderr: noted.stderr,
       stdout: isMaxBuffer ? "" : out,
+      stdoutBytes: isMaxBuffer ? Buffer.alloc(0) : outBytes,
     };
   };
   if (!handsOn || !child.stdout) {
@@ -394,7 +426,7 @@ export function startPipeStage(
         if (untaken) {
           absorbThenClose(stdout);
         }
-        return finish(Promise.resolve(""));
+        return finish(Promise.resolve(Buffer.alloc(0)));
       })();
       return settled;
     },
@@ -403,9 +435,9 @@ export function startPipeStage(
 }
 
 /**
- * Read a stream to the end as UTF-8, as execa decodes output, copying each
- * chunk to `live` when a background run is watching. Past `max` bytes it
- * calls `onMax` and keeps nothing more.
+ * Read a stream's bytes to the end, copying each chunk to `live` when a
+ * background run is watching. Past `max` bytes it calls `onMax` and keeps
+ * nothing more.
  */
 function collect(
   stream: Readable | null,
@@ -413,17 +445,17 @@ function collect(
   onEnd: () => void,
   max = Number.POSITIVE_INFINITY,
   onMax?: () => void,
-): Promise<string> {
+): Promise<Buffer> {
   if (!stream) {
     onEnd();
-    return Promise.resolve("");
+    return Promise.resolve(Buffer.alloc(0));
   }
   const chunks: Buffer[] = [];
   let size = 0;
   return new Promise((resolve) => {
     const done = () => {
       onEnd();
-      resolve(Buffer.concat(chunks).toString("utf8"));
+      resolve(Buffer.concat(chunks));
     };
     stream.on("data", (chunk: Buffer) => {
       if (size > max) {
@@ -469,8 +501,15 @@ export async function runNative(
   report: (result: StageResult) => ExecResult | Promise<ExecResult>,
 ): Promise<ExecResult> {
   const piped = ctx.offerPipeHandoff === true || ctx.stdinHandoff !== undefined;
-  if (!piped || !pipeHandoffsSupported()) {
-    const { maxBuffer, maxStdout: _maxStdout, ...shimOptions } = options;
+  // An open file for fd 0 is a spawn's own stdio, which execa does not take;
+  // a stage takes it the same way, piped or not.
+  if (options.stdinFd === undefined && (!piped || !pipeHandoffsSupported())) {
+    const {
+      maxBuffer,
+      maxStdout: _maxStdout,
+      stdinFd: _stdinFd,
+      ...shimOptions
+    } = options;
     const result = await execShim(file, args, {
       ...shimOptions,
       ...(maxBuffer ? { maxBuffer } : {}),
@@ -481,7 +520,7 @@ export async function runNative(
     ...options,
     input: "input" in options ? options.input : undefined,
     maxStdout: options.maxBuffer?.stdout ?? options.maxStdout,
-    offerHandoff: ctx.offerPipeHandoff === true,
+    offerHandoff: ctx.offerPipeHandoff === true && pipeHandoffsSupported(),
     stdinHandoff: ctx.stdinHandoff,
   });
   if (!("token" in stage)) {

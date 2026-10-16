@@ -13,7 +13,7 @@ import {
 import { venvPython } from "../uv";
 import { pythonToRun } from "../venv";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext } from "./utils";
 
@@ -135,6 +135,7 @@ async function runNativePython(
       ...mapStreams(shimOutput(result, name), (text) =>
         filterShellOutput(text),
       ),
+      ...binaryStdout(result),
     }),
   );
 }

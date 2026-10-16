@@ -1,7 +1,13 @@
 import { type LanguageModelV4Message } from "@ai-sdk/provider";
 import { describe, expect, it } from "vitest";
 
-import { branchOf, continuationOf, splitPrompt } from "./language-model";
+import {
+  branchOf,
+  continuationOf,
+  planStep,
+  splitPrompt,
+} from "./continuation";
+import { type ResumeRecord } from "./resume-record";
 
 const system: LanguageModelV4Message = {
   content: "You are Pebble.",
@@ -219,5 +225,124 @@ describe("branchOf", () => {
     expect(
       branch(after(chat), [...chat, reply("a"), user("the assignment")]),
     ).toBeUndefined();
+  });
+});
+
+describe("planStep", () => {
+  const chat = [system, user("one")];
+  const answered = [...chat, reply("a"), user("two")];
+  const record = (
+    prompt: LanguageModelV4Message[],
+    fields: Partial<ResumeRecord> = {},
+  ): ResumeRecord => ({
+    ...after(prompt),
+    claudeSessionId: "transcript",
+    ...fields,
+  });
+  const none = () => Promise.resolve(undefined);
+  const refuse = () => Promise.reject(new Error("read too far"));
+
+  it("continues the live process without reading a record", async () => {
+    const live = after(chat);
+    await expect(
+      planStep(
+        { live, parentRecord: refuse, record: refuse },
+        splitPrompt(answered),
+      ),
+    ).resolves.toEqual({
+      continuation: { kind: "turn", messages: [user("two")] },
+      kind: "live",
+      session: live,
+    });
+  });
+
+  it("starts cold, with the reason, when the live process cannot continue", async () => {
+    const plan = await planStep(
+      {
+        live: after([system, user("edited")]),
+        parentRecord: refuse,
+        record: refuse,
+      },
+      splitPrompt(answered),
+    );
+    expect(plan).toMatchObject({
+      kind: "cold",
+      restart: expect.stringContaining("changed"),
+    });
+  });
+
+  it("resumes the session's transcript without reading its parent's", async () => {
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: refuse,
+          record: () => Promise.resolve(record(chat)),
+        },
+        splitPrompt(answered),
+      ),
+    ).resolves.toEqual({
+      claudeSessionId: "transcript",
+      kind: "resume",
+      messages: [user("two")],
+    });
+  });
+
+  it("starts cold when the transcript it would resume waited on tool results", async () => {
+    const calling = [...chat, callsTool("t1"), toolResult("t1")];
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: refuse,
+          record: () =>
+            Promise.resolve(record(chat, { awaitingToolCallIds: ["t1"] })),
+        },
+        splitPrompt(calling),
+      ),
+    ).resolves.toEqual({
+      kind: "cold",
+      restart: "its process ended while waiting on tool results",
+    });
+  });
+
+  it("forks the parent's transcript where it branched off", async () => {
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: () =>
+            Promise.resolve(
+              record(chat, { claudeSessionId: "chat", forkPoint: "entry" }),
+            ),
+          record: none,
+        },
+        splitPrompt([...chat, user("the assignment")]),
+      ),
+    ).resolves.toEqual({
+      at: "entry",
+      from: "chat",
+      kind: "fork",
+      messages: [user("the assignment")],
+    });
+  });
+
+  it.each([
+    ["has no fork point", record(chat)],
+    [
+      "saw other messages",
+      record([system, user("other")], { forkPoint: "entry" }),
+    ],
+  ])("starts cold, without a reason, when the parent %s", async (_, parent) => {
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: () => Promise.resolve(parent),
+          record: none,
+        },
+        splitPrompt([...chat, user("the assignment")]),
+      ),
+    ).resolves.toEqual({ kind: "cold" });
   });
 });

@@ -31,9 +31,9 @@ async function answer(result: { exitCode: number; stderr?: string }) {
   const { execa } = await import("execa");
   vi.mocked(execa).mockResolvedValueOnce({
     all: "",
-    stderr: "",
-    stdout: "\n",
+    stdout: Buffer.from("\n"),
     ...result,
+    stderr: Buffer.from(result.stderr ?? ""),
   } as never);
   return () => vi.mocked(execa).mock.calls[0]?.[1] ?? [];
 }

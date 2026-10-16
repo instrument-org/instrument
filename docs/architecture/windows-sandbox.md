@@ -1,18 +1,18 @@
 # The sandbox on Windows
 
-What holds the agent to Settings › Permissions on Windows, what does not yet, and what closes the gap.
+What holds the agent to Settings › Permissions on Windows, what MXC adds when it is on, and what it still leaves open.
 
-## What holds today
+## What holds everywhere
 
 The agent's own tools follow the Permissions rules on every platform: the shell's builtins (`cat`, `ls`, `cp`, and the rest) and the file tools check each path against the rules before they touch it, refuse what is Not allowed, and ask before a folder marked Ask first. `rg` is the real ripgrep binary, which nothing sandboxes on Windows: the paths it is given are checked against the rules and its walk leaves the app's own data out, but it reads what the person can. The shell spells a Windows path the POSIX way, `D:\Photos` as `/d/Photos`, and converts it back at the edge for native commands and for anything shown to the person.
 
-## The gap
+## Native programs
 
-A native program the agent runs (`python`, `node`, `uv`, `pnpm`, `git`, `ffmpeg`) runs with the person's own access. On macOS a Seatbelt profile built from the rules wraps each one, and on Linux bubblewrap does; on Windows nothing does yet. So a script the agent writes can read or change any file the person can, whatever the list says. The arguments it is given are checked, but what its code opens on its own is not.
+A native program the agent runs (`python`, `node`, `uv`, `pnpm`, `git`, `ffmpeg`, uutils, anything on the PATH) is held by the operating system on macOS (Seatbelt) and Linux (bubblewrap), from the same rules. On Windows that is Microsoft's MXC (`@microsoft/mxc-sdk`), and only when the app runs with `INSTRUMENT_MXC=1`; without it, native programs run with the person's own access, so a script can read or change any file the person can, and Settings › Permissions says so in plain words, with a link to this page.
 
-Settings › Permissions says so on Windows, in plain words, with a link to this page.
+### How MXC holds a program
 
-## What closes it
+`wrapNativeCommand` (`lib/native-sandbox/index.ts`) returns MXC's launcher, `wxc-exec.exe`, which Studio ships alone in `resources/mxc/` (`scripts/download-mxc.ts`, pinned by hash; it is signed by Microsoft and needs nothing else from the package). `launchNative` then builds the request once the working folder and environment are known, since the container inherits neither from the launcher, and every caller spawns through it.
 
 Microsoft's MXC (`@microsoft/mxc-sdk`, AppContainer-based) is the candidate. It is deny-by-default, so the rules become a list of the folders a program may reach: the user's tool folders, the chat's work folder, and the folders granted. It needs Windows 11 24H2 or later. It needs no administrator step for the mode we would use: `wxc-host-prep`'s `prepare-system-drive` grants AppContainer SIDs, which is a different tier, and a run from an unelevated token reports `needsDaclAugmentation: false`.
 
@@ -45,3 +45,4 @@ So Windows 11 at a build still to be pinned runs native programs under MXC, gene
 - [agent-sandbox.md](agent-sandbox.md): how every layer applies the rules.
 - [The agent works at real paths](../decisions/2026-10-11-the-agent-works-at-real-paths.md): the decision behind the rules and the native sandbox.
 - `scripts/sandbox-bakeoff/`: the probe that measures each platform's sandbox against real workloads.
+- Measuring anything that runs a program on Windows takes the interactive session, as the test host's scheduled tasks run: over a bare SSH command, every program importing USER32 fails whatever the policy says.

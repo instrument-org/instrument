@@ -7,6 +7,7 @@ import { filterShellOutput } from "./filter-shell-output";
 import { inheritedEnv } from "./native-env";
 import { chatNativeReach } from "./chat-native-reach";
 import {
+  launchNative,
   NativeSandboxUnavailableError,
   withInstallerClosed,
   wrapNativeCommand,
@@ -82,14 +83,16 @@ export async function runUvCommand({
     }
     throw error;
   }
-  const result = await execa(spawned.file, spawned.args, {
+  const env = {
+    ...inheritedEnv(process.env, spawned.reach),
+    ...(lockfilePinned ? pinnedEnv : { ...pinnedEnv, UV_EXCLUDE_NEWER }),
+  };
+  const launch = launchNative(spawned, { cwd, env });
+  const result = await execa(launch.file, launch.args, {
     all: true,
     cancelSignal: signal,
     cwd,
-    env: {
-      ...inheritedEnv(process.env, spawned.reach),
-      ...(lockfilePinned ? pinnedEnv : { ...pinnedEnv, UV_EXCLUDE_NEWER }),
-    },
+    env,
     extendEnv: false,
     reject: false,
     ...(stdin === undefined ? { stdin: "ignore" } : { input: stdin }),

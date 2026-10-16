@@ -1,38 +1,64 @@
-import { type Command, defineCommand } from "just-bash";
+import {
+  type Command,
+  type CommandContext,
+  defineCommand,
+  getCommandNames,
+} from "just-bash";
 import { execFileSync } from "node:child_process";
-import { existsSync, linkSync, mkdirSync, rmSync, statSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { inheritedEnv } from "../native-env";
 import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
+  hostPathOf,
   otherFolders,
   outsideFolderRefusal,
   resolveHostPath,
   shellPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
+import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
+import { classifyUnsandboxed, type TierBFixup } from "./unsandboxed-uutils";
+import { unsandboxedEnv } from "./unsandboxed-uutils-env";
+import { uutilsBinaryReviewed } from "./unsandboxed-uutils-integrity";
+import { openOperandForStdin } from "./unsandboxed-uutils-operand";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 /** The bundled uutils binaries, by their base name. */
 type UutilsBinary = "coreutils" | "diffutils" | "find" | "grep" | "xargs";
 
 /**
- * A GNU text command the bundled uutils answer, every time it runs on the
- * platforms it lists. Which commands are here is a fixed table rather than a
- * decision made per call, so a command answers the same way in a loop as on
- * its own.
+ * A GNU text command the bundled uutils or the computer's own program
+ * answer, every time it runs on the platforms it lists. Which commands are
+ * here is a fixed table rather than a decision made per call, so a command
+ * answers the same way in a loop as on its own.
  */
 interface NativeTextRoute {
-  binary: UutilsBinary;
+  binary: UutilsBinary | "system";
+  /**
+   * For `system`, where the computer keeps the program on each platform,
+   * first match winning. A computer without it leaves the name to the
+   * builtin.
+   */
+  system?: Partial<Record<NodeJS.Platform, () => string[]>>;
   name: string;
-  /** Where the uutils program answers it; elsewhere the builtin keeps it. */
+  /** Where the program answers it; elsewhere the builtin keeps it. */
   platforms?: NodeJS.Platform[];
   /** Operands it writes rather than reads (`sort -o out`, `dd of=out`). */
   writes?: (args: string[]) => string[];
@@ -44,13 +70,22 @@ interface NativeTextRoute {
   /** Walks the folders it is given, which the sandbox may refuse on the way. */
   walks?: (args: string[]) => boolean;
   /**
-   * Arguments the uutils program accepts but does not honor, which send the
-   * call to the builtin; `args` is how the generated table names them.
+   * Arguments the program accepts but does not honor, which send the call
+   * to the builtin; `args` is how the generated table names them.
    */
   builtinFor?: { args: string; matches: (args: string[]) => boolean };
+  /** Arguments that make it write data to stdout (an archive) rather than text. */
+  writesData?: (args: string[]) => boolean;
+  /** The arguments as the program gets them, when they differ. */
+  programArgs?: (args: string[]) => string[];
+  /** Variables the program runs with besides the shell's own. */
+  env?: Record<string, string>;
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
+
+/** Where a Linux distribution keeps a system program. */
+const linuxBin = (name: string) => [`/usr/bin/${name}`, `/bin/${name}`];
 
 /** The value of `-o FILE`, `-oFILE` or `--output=FILE`. */
 function sortOutput(args: string[]): string[] {
@@ -160,7 +195,72 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   },
   // uutils builds `stat` for Unix only.
   { binary: "coreutils", name: "stat", platforms: UNIX },
+  // just-bash has no command by these names, so without uutils they fall to
+  // the computer's PATH: the BSD ones on macOS, and on Windows usually none.
+  // Only commands that print are here; the ones that change the system
+  // (`shred`, `chown`, `mknod`, `kill`, ...) are left to the PATH.
+  { binary: "coreutils", name: "arch" },
+  { binary: "coreutils", name: "b2sum" },
+  { binary: "coreutils", name: "base32" },
+  { binary: "coreutils", name: "basenc" },
+  { binary: "coreutils", name: "cksum" },
+  { binary: "coreutils", name: "df" },
+  { binary: "coreutils", name: "factor" },
+  { binary: "coreutils", name: "fmt" },
+  // uutils builds `id` for Unix only.
+  { binary: "coreutils", name: "id", platforms: UNIX },
+  { binary: "coreutils", name: "nproc" },
+  { binary: "coreutils", name: "pr" },
+  { binary: "coreutils", name: "sha224sum" },
+  { binary: "coreutils", name: "sha384sum" },
+  { binary: "coreutils", name: "sha512sum" },
+  { binary: "coreutils", name: "tsort" },
+  { binary: "coreutils", name: "uname" },
   { binary: "diffutils", name: "cmp" },
+  // The computer's own diff (BSD on macOS, GNU on Linux) answers 9 of the
+  // corpus's 11 diff cases on macOS, where the builtin answers 5 and uutils
+  // diffutils 3. Windows has none, so the builtin keeps it there.
+  {
+    binary: "system",
+    name: "diff",
+    platforms: UNIX,
+    system: { darwin: () => ["/usr/bin/diff"], linux: () => linuxBin("diff") },
+  },
+  // The computer's own file reads the magic numbers, where the builtin goes
+  // by a few signatures and the extension: it calls random bytes UTF-8 text
+  // and UTF-8 text ASCII, and names no image size or page count.
+  {
+    binary: "system",
+    name: "file",
+    platforms: UNIX,
+    system: { darwin: () => ["/usr/bin/file"], linux: () => linuxBin("file") },
+  },
+  // The builtin tar builds the whole archive in memory, refuses a file over
+  // the shell's 256 MB read cap, and has no xz without a native module, and
+  // every platform carries a tar that streams: bsdtar on macOS and in
+  // Windows' System32 (since Windows 10), GNU tar on Linux. Windows' is
+  // named by its full path, so another tar earlier on the PATH never runs.
+  {
+    binary: "system",
+    // Keeps bsdtar on macOS from adding a `._` file of metadata beside each
+    // file it archives.
+    env: { COPYFILE_DISABLE: "1" },
+    name: "tar",
+    programArgs: tarProgramArgs,
+    system: {
+      darwin: () => ["/usr/bin/tar"],
+      linux: () => linuxBin("tar"),
+      win32: () => [
+        nodePath.win32.join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "tar.exe",
+        ),
+      ],
+    },
+    writes: tarWrites,
+    writesData: tarWritesStdout,
+  },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
   { binary: "grep", name: "grep", walks: grepWalks },
@@ -365,13 +465,14 @@ export function quietRefusedFolders(stderr: string): string {
   return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed\n`;
 }
 
-/** Each archive a route's binary comes from. */
-const BINARY_PROJECTS: Record<UutilsBinary, string> = {
-  coreutils: "coreutils",
-  diffutils: "diffutils",
-  find: "findutils",
-  grep: "grep",
-  xargs: "findutils",
+/** Where each route's program comes from, as the generated table says it. */
+const BINARY_PROJECTS: Record<NativeTextRoute["binary"], string> = {
+  coreutils: "uutils coreutils",
+  diffutils: "uutils diffutils",
+  find: "uutils findutils",
+  grep: "uutils grep",
+  system: "system",
+  xargs: "uutils findutils",
 };
 
 /**
@@ -380,13 +481,21 @@ const BINARY_PROJECTS: Record<UutilsBinary, string> = {
  * held equal to this file by native-text-doc.test.ts.
  */
 export function nativeTextRoutesTable(): string {
+  const builtins = new Set(getCommandNames());
+  // Where the route does not answer, the builtin does, or else the PATH.
   const cell = (route: NativeTextRoute, platform: NodeJS.Platform) =>
-    (route.platforms?.includes(platform) ?? true) ? "uutils" : "builtin";
+    (route.platforms?.includes(platform) ?? true)
+      ? route.binary === "system"
+        ? "system"
+        : "uutils"
+      : builtins.has(route.name)
+        ? "builtin"
+        : "PATH";
   const rows = NATIVE_TEXT_ROUTES.toSorted((a, b) =>
     a.name.localeCompare(b.name),
   ).map(
     (route) =>
-      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | uutils ${BINARY_PROJECTS[route.binary]} | ${route.builtinFor?.args ?? ""} |`,
+      `| \`${route.name}\` | ${cell(route, "darwin")} | ${cell(route, "linux")} | ${cell(route, "win32")} | ${BINARY_PROJECTS[route.binary]} | ${route.builtinFor?.args ?? ""} |`,
   );
   return [
     "| Command | macOS | Linux | Windows | From | Builtin with |",
@@ -396,7 +505,7 @@ export function nativeTextRoutesTable(): string {
 }
 
 /** The bundled program for a route, when this build carries it. */
-export function uutilsProgram(binary: UutilsBinary): string | undefined {
+function uutilsProgram(binary: UutilsBinary): string | undefined {
   const dir = getWorkspaceConfig().uutilsDir;
   if (dir === undefined) {
     return undefined;
@@ -408,12 +517,22 @@ export function uutilsProgram(binary: UutilsBinary): string | undefined {
   return existsSync(file) ? file : undefined;
 }
 
+/**
+ * The program a route runs here: the bundled uutils one, or the computer's
+ * own, when this build and this computer carry it.
+ */
+export function routeProgram(route: NativeTextRoute): string | undefined {
+  return route.binary === "system"
+    ? route.system?.[process.platform]?.().find((file) => existsSync(file))
+    : uutilsProgram(route.binary);
+}
+
 /** The routes this platform and build answer natively. */
 export function nativeTextRoutes(): NativeTextRoute[] {
   return NATIVE_TEXT_ROUTES.filter(
     (route) =>
       (route.platforms?.includes(process.platform) ?? true) &&
-      uutilsProgram(route.binary) !== undefined,
+      routeProgram(route) !== undefined,
   );
 }
 
@@ -436,6 +555,7 @@ function operandRefusal(
     (folder) => folder.shellRoot,
   );
   const written = new Set(route.writes?.(args) ?? []);
+  const hostCwd = hostPathOf(resolvePath("."));
   let operandsOnly = false;
   for (const arg of [...args, ...written]) {
     const isOperand = written.has(arg) || operandsOnly || !arg.startsWith("-");
@@ -444,7 +564,10 @@ function operandRefusal(
       continue;
     }
     const op = written.has(arg) ? "write" : "read";
-    const resolved = resolvePath(arg);
+    // An operand spelled the way this computer spells a path names the same
+    // file as its shell spelling, and meets the same rules.
+    const resolved =
+      shellPathOfHostSpelling(arg, { hostCwd }) ?? resolvePath(arg);
     const refusal = roots.some((root) => isAtOrUnder(root, resolved))
       ? mountedRefusal(layout, resolved, op)
       : outsideFolderRefusal(layout, resolved, op);
@@ -476,6 +599,69 @@ function mountedRefusal(
   });
 }
 
+/** How a call runs outside the native sandbox, when it may. */
+interface UnsandboxedRun {
+  args: string[];
+  /** The file the call named, open, for the program's stdin (tier B). */
+  fd?: number;
+  fixup?: TierBFixup;
+  operand?: string;
+}
+
+/**
+ * Whether this call of a bundled uutils program runs outside the native
+ * sandbox, and with what: a call the reviewed rules allow
+ * (`unsandboxed-uutils.ts`), of a binary that is the one they were
+ * reviewed against, where the app asks for it. A tier B call also needs its
+ * file to pass the shell's checks, and stdin free for it: a stage reading
+ * the previous one's pipe keeps it, and wc, whose output gains the file's
+ * name here, does not hand its stdout straight to the next program.
+ */
+function unsandboxedRun(
+  route: NativeTextRoute,
+  args: string[],
+  program: string,
+  ctx: Pick<CommandContext, "offerPipeHandoff" | "stdinHandoff">,
+  layout: WorkspaceFsLayout,
+  resolvePath: (arg: string) => string,
+): UnsandboxedRun | undefined {
+  if (
+    (route.binary !== "coreutils" && route.binary !== "grep") ||
+    getWorkspaceConfig().uutilsOutsideSandbox !== true
+  ) {
+    return undefined;
+  }
+  const tier = classifyUnsandboxed(route.name, args);
+  if (tier.tier === "sandbox" || !uutilsBinaryReviewed(program)) {
+    return undefined;
+  }
+  if (tier.tier === "A") {
+    return { args };
+  }
+  if (
+    ctx.stdinHandoff !== undefined ||
+    (tier.fixup === "wcAppendName" && ctx.offerPipeHandoff === true)
+  ) {
+    return undefined;
+  }
+  const fd = openOperandForStdin({
+    layout,
+    operand: tier.operand,
+    resolvePath,
+  });
+  return fd === undefined
+    ? undefined
+    : { args: tier.argv, fd, fixup: tier.fixup, operand: tier.operand };
+}
+
+/**
+ * wc's output for one count of a file it read on stdin, as it prints it for
+ * the file by name: the count, a space, the name.
+ */
+function withWcName(stdout: string, name: string): string {
+  return /^\d+\n$/.test(stdout) ? `${stdout.slice(0, -1)} ${name}\n` : stdout;
+}
+
 /**
  * The shell command for one route: the bundled uutils program in a native
  * sandbox, with the same working directory, environment, stdin and
@@ -487,7 +673,7 @@ export function createNativeTextCommand(
 ): Command {
   const command = defineCommand(route.name, async (args, ctx) => {
     const walks = route.walks?.(args) ?? false;
-    const program = uutilsProgram(route.binary);
+    const program = routeProgram(route);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
       return ctx.origCommand
         ? await ctx.origCommand(args)
@@ -505,74 +691,114 @@ export function createNativeTextCommand(
     if (refusal) {
       return { exitCode: 2, stderr: `${refusal}\n`, stdout: "" };
     }
+    const outside = unsandboxedRun(
+      route,
+      args,
+      program,
+      ctx,
+      layout,
+      resolvePath,
+    );
     // Nothing inside a chat's folder is masked on this layout, so a find
     // needs no pruning: what the app keeps closed is the workspace's own
     // folder, which no mount reaches.
-    const programArgs = args;
-    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    const programArgs = outside
+      ? outside.args
+      : (route.programArgs?.(args) ?? args);
+    const context = resolveCommandContext(chatId, ctx);
+    const { hostCwd } = context;
+    const env = outside
+      ? unsandboxedEnv({ ...inheritedEnv(), ...context.env })
+      : { ...context.env, ...route.env };
     const stdin = subprocessStdin(ctx.stdin);
+    // The name wc prints for the file, as the program would have been given
+    // it.
+    const wcName =
+      outside?.fixup === "wcAppendName" && outside.operand !== undefined
+        ? hostPathArgs([outside.operand])[0]
+        : undefined;
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";
     const argv = [
       ...(multicall ? [route.name] : []),
       ...hostPathArgs(programArgs),
     ];
-    const windows = process.platform === "win32";
-    return runNative(
-      ctx,
-      program,
-      // uutils on Windows expands `*`, `?` and `[...]` in any argument that
-      // reached it unquoted, and Node quotes only those holding a space:
-      // `cut -d '*'` would get file names. Every argument goes quoted.
-      windows ? argv.map((arg) => quoteWindowsArgument(arg)) : argv,
-      {
-        cancelSignal: ctx.signal,
-        cwd: hostCwd,
-        env: !windows
-          ? env
-          : route.name === "xargs"
-            ? xargsEnv(env)
-            : route.binary === "find" || route.binary === "grep"
-              ? pathSeparatorEnv(env)
-              : env,
-        ...(windows ? { windowsVerbatimArguments: true } : {}),
-        // A walk was checked where it starts; a folder it passes that the
-        // sandbox refuses is skipped without a card, as the shell's own
-        // walks skip one.
-        ...(walks ? { walks: true as const } : {}),
-        // `sort` with no file reads stdin, so an empty pipe has to reach it
-        // as one, and no pipe as nothing to read.
-        ...((stdin ?? ctx.stdinConnected)
-          ? { input: stdin ?? Buffer.alloc(0) }
-          : { stdin: "ignore" as const }),
-      },
-      (result) => {
-        // Text tools print data rather than progress, so there is no
-        // carriage return redraw to collapse; what they print is still
-        // filtered for credentials like any native output.
-        const streams = mapStreams(shimOutput(result, route.name), (text) =>
-          filterShellOutput(text),
-        );
-        return {
-          exitCode: result.exitCode ?? 1,
-          stderr:
-            route.name === "find"
-              ? quietRefusedFolders(streams.stderr)
-              : streams.stderr,
-          stdout:
-            route.printsPaths && process.platform === "win32"
-              ? streams.stdout.replaceAll("\\", "/")
-              : streams.stdout,
-        };
-      },
-    );
+    // A system program takes Node's own quoting; uutils needs its own.
+    const windows = process.platform === "win32" && route.binary !== "system";
+    try {
+      return await runNative(
+        ctx,
+        program,
+        // uutils on Windows expands `*`, `?` and `[...]` in any argument that
+        // reached it unquoted, and Node quotes only those holding a space:
+        // `cut -d '*'` would get file names. Every argument goes quoted.
+        windows ? argv.map((arg) => quoteWindowsArgument(arg)) : argv,
+        {
+          cancelSignal: ctx.signal,
+          cwd: hostCwd,
+          env:
+            outside || !windows
+              ? env
+              : route.name === "xargs"
+                ? xargsEnv(env)
+                : route.binary === "find" || route.binary === "grep"
+                  ? pathSeparatorEnv(env)
+                  : env,
+          ...(windows ? { windowsVerbatimArguments: true } : {}),
+          // A walk was checked where it starts; a folder it passes that the
+          // sandbox refuses is skipped without a card, as the shell's own
+          // walks skip one.
+          ...(walks ? { walks: true as const } : {}),
+          ...(outside
+            ? { ownEnvOnly: true as const, unsandboxed: true as const }
+            : {}),
+          // `sort` with no file reads stdin, so an empty pipe has to reach it
+          // as one, and no pipe as nothing to read. A tier B call reads its
+          // file there instead.
+          ...(outside?.fd !== undefined
+            ? { stdin: "ignore" as const, stdinFd: outside.fd }
+            : (stdin ?? ctx.stdinConnected)
+              ? { input: stdin ?? Buffer.alloc(0) }
+              : { stdin: "ignore" as const }),
+        },
+        (result) => {
+          // Text tools print data rather than progress, so there is no
+          // carriage return redraw to collapse; what they print is still
+          // filtered for credentials like any native output.
+          const named =
+            wcName === undefined || result.exitCode !== 0
+              ? result
+              : { ...result, stdout: withWcName(result.stdout, wcName) };
+          const streams = mapStreams(shimOutput(named, route.name), (text) =>
+            filterShellOutput(text),
+          );
+          return {
+            exitCode: result.exitCode ?? 1,
+            stderr:
+              route.name === "find"
+                ? quietRefusedFolders(streams.stderr)
+                : streams.stderr,
+            stdout:
+              route.printsPaths && process.platform === "win32"
+                ? streams.stdout.replaceAll("\\", "/")
+                : streams.stdout,
+            ...binaryStdout(result, { data: route.writesData?.(args) }),
+          };
+        },
+      );
+    } finally {
+      // The program holds its own copy once it started.
+      if (outside?.fd !== undefined) {
+        closeSync(outside.fd);
+      }
+    }
   });
   return {
     ...command,
     // A program takes the previous native stage's stdout as its fd 0; the
     // arguments it hands to the builtin read the bytes instead.
     acceptsPipeHandoff: (args: string[]) =>
-      uutilsProgram(route.binary) !== undefined &&
+      routeProgram(route) !== undefined &&
       route.builtinFor?.matches(args) !== true,
   };
 }

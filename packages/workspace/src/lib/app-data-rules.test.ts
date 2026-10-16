@@ -31,6 +31,7 @@ import {
   seatbeltAvailable,
   seatbeltProfile,
   withNativeReach,
+  launchNative,
   wrapNativeCommand,
 } from "./native-sandbox";
 import { RG_DISK_PATH } from "./ripgrep";
@@ -613,9 +614,13 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
     ])("%s", async (_name, script, exitCode) => {
       const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
-      const result = await execa(spawned.file, spawned.args, {
-        reject: false,
-      });
+      const result = await execa(
+        spawned.file,
+        launchNative(spawned, { env: {} }).args,
+        {
+          reject: false,
+        },
+      );
       expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
     });
 
@@ -731,9 +736,13 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
     ])("%s", async (_name, script, exitCode) => {
       const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
-      const result = await execa(spawned.file, spawned.args, {
-        reject: false,
-      });
+      const result = await execa(
+        spawned.file,
+        launchNative(spawned, { env: {} }).args,
+        {
+          reject: false,
+        },
+      );
       expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
     });
   });
@@ -842,10 +851,14 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           ["--no-config", "--path-separator=/", ...searched.args],
           nativeReachFor(layout.rules, layout),
         );
-        const listed = await execa(spawned.file, spawned.args, {
-          cwd,
-          reject: false,
-        });
+        const listed = await execa(
+          spawned.file,
+          launchNative(spawned, { env: {} }).args,
+          {
+            cwd,
+            reject: false,
+          },
+        );
         expect(listed.stderr).toBe("");
         expect(listed.exitCode).toBe(0);
         const walked = new Set(
@@ -1027,9 +1040,13 @@ describe("the app's own data in a temp folder, which a link leads to", () => {
         [path.join(spelled, "secret")],
         { readOnly: [], readWrite: [], rules },
       );
-      const result = await execa(spawned.file, spawned.args, {
-        reject: false,
-      });
+      const result = await execa(
+        spawned.file,
+        launchNative(spawned, { env: {} }).args,
+        {
+          reject: false,
+        },
+      );
       expect(result.exitCode).not.toBe(0);
     },
   );

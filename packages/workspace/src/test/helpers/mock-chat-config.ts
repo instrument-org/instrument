@@ -37,6 +37,7 @@ import {
 } from "../../schemas/web-search";
 import { type BrowserConfig, type WorkspaceConfig } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
+import { mxcTestConfig } from "./mxc-test-config";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
 import { newDeviceId } from "../../lib/records/device-id";
@@ -153,6 +154,7 @@ export function createMockChatConfig(
     workFoldersDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.work),
     machineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
     workspaceMachineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
+    ...mxcTestConfig(),
   };
 
   // Register this model's provider config and mirror production, where the

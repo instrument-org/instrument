@@ -34,6 +34,7 @@ export async function openMarkdownEditor(markdown: string) {
     onAsk: vi.fn(),
     onExternalChange: vi.fn(),
     onFrontMatter: vi.fn(),
+    onOpenLink: vi.fn(),
     onStatus: vi.fn(),
     renderFence: () => null,
     resolveSrc: (src) => src,

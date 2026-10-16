@@ -508,9 +508,15 @@ it.skipIf(!live)(
         });
         prompt.push(assistant);
         if (report.error || report.finish !== "tool-calls") {
+          // The turn's words across its steps, since a model can answer
+          // part of a question before the tool call and the rest after it.
           return {
             ...report,
             path: reports.slice(first).flatMap((r) => r.path),
+            text: reports
+              .slice(first)
+              .map((r) => r.text)
+              .join("\n"),
           };
         }
         between?.(index);

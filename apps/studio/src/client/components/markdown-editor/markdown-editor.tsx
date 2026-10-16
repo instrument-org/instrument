@@ -15,6 +15,7 @@ import { useAskMarks } from "@/client/components/window/ask-marks";
 import { WindowContext } from "@/client/components/window/context";
 import { linesLabel } from "@/client/components/window/staged-asks";
 import { useAskCard } from "@/client/components/window/use-ask-card";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
@@ -256,6 +257,9 @@ function LiveDocument({
   const { mark } = useAskMarks(hostPath, session);
   const askRef = useRef({ begin, mark });
   askRef.current = { begin, mark };
+  const gesturesFor = useGesturesFor();
+  const gesturesRef = useRef(gesturesFor);
+  gesturesRef.current = gesturesFor;
 
   usePullOnDiskChange(hostPath, session);
 
@@ -306,6 +310,10 @@ function LiveDocument({
       },
       onExternalChange: (change) => {
         noteChange(change);
+      },
+      onOpenLink: (target, newTab) => {
+        const gestures = gesturesRef.current(target);
+        (newTab ? gestures.separate : gestures.primary)?.run();
       },
       onFrontMatter: (next) => {
         setFm(next);

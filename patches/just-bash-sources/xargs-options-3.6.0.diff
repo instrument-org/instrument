@@ -1,0 +1,574 @@
+diff --git a/packages/just-bash/src/commands/xargs/xargs.option-forms.test.ts b/packages/just-bash/src/commands/xargs/xargs.option-forms.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/just-bash/src/commands/xargs/xargs.option-forms.test.ts
+@@ -0,0 +1,118 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "../../Bash.js";
++
++async function run(script: string) {
++  const { stdout, stderr, exitCode } = await new Bash().exec(script);
++  return { stdout, stderr, exitCode };
++}
++
++describe("xargs option forms", () => {
++  it.each([
++    ["-n1", "printf 'a b c\\n' | xargs -n1 echo", "a\nb\nc\n"],
++    ["-n 1", "printf 'a b c\\n' | xargs -n 1 echo", "a\nb\nc\n"],
++    ["-P4 -n1", "printf 'a\\nb\\n' | xargs -P4 -n1 echo", "a\nb\n"],
++    ["-P 4 -n 1", "printf 'a\\nb\\n' | xargs -P 4 -n 1 echo", "a\nb\n"],
++    ["-I{}", "printf 'a\\nb\\n' | xargs -I{} echo {}x", "ax\nbx\n"],
++    ["-I {}", "printf 'a\\nb\\n' | xargs -I {} echo {}x", "ax\nbx\n"],
++    ["-P2 -I{}", "printf 'a\\nb\\n' | xargs -P2 -I{} echo {}x", "ax\nbx\n"],
++    ["-d,", "printf 'a b,c' | xargs -d, -n1 echo", "a b\nc\n"],
++    ["-d ,", "printf 'a b,c' | xargs -d , -n1 echo", "a b\nc\n"],
++    ["-L1", "printf 'a b\\nc\\n' | xargs -L1 echo", "a b\nc\n"],
++    ["-L 2", "printf 'a\\nb\\nc\\n' | xargs -L 2 echo", "a b\nc\n"],
++    ["-s12", "printf 'aa bb cc\\n' | xargs -s12 echo", "aa bb\ncc\n"],
++    ["-s 12", "printf 'aa bb cc\\n' | xargs -s 12 echo", "aa bb\ncc\n"],
++    ["-Estop", "printf 'a stop b\\n' | xargs -Estop echo", "a\n"],
++    ["-E stop", "printf 'a\\nstop\\nb\\n' | xargs -E stop echo", "a\n"],
++    ["-0P2 -n1", "printf 'a b\\0c\\0' | xargs -0P2 -n1 echo", "a b\nc\n"],
++    ["-0 -P2 -n1", "printf 'a\\0b\\0' | xargs -0 -P2 -n1 echo", "a\nb\n"],
++    ["-rn1 empty", "printf '' | xargs -rn1 echo x", ""],
++    [
++      "--max-procs=2 --max-args=1",
++      "printf 'a b\\n' | xargs --max-procs=2 --max-args=1 echo",
++      "a\nb\n",
++    ],
++    [
++      "--max-procs 2 --max-args 1",
++      "printf 'a b\\n' | xargs --max-procs 2 --max-args 1 echo",
++      "a\nb\n",
++    ],
++    ["--replace", "printf 'a\\n' | xargs --replace echo {}x", "ax\n"],
++    ["--replace=%", "printf 'a\\n' | xargs --replace=% echo %x", "ax\n"],
++    ["-i", "printf 'a\\n' | xargs -i echo {}x", "ax\n"],
++    ["--max-lines", "printf 'a b\\nc\\n' | xargs --max-lines echo", "a b\nc\n"],
++    [
++      "--null --delimiter",
++      "printf 'a,b' | xargs --delimiter=, --null -n1 echo",
++      "a,b\n",
++    ],
++    ["-- ends options", "printf 'a\\n' | xargs -- echo -n1", "-n1 a\n"],
++  ])("%s", async (_name, script, stdout) => {
++    expect(await run(script)).toEqual({ stdout, stderr: "", exitCode: 0 });
++  });
++
++  it("reads flags and a value combined in one argument", async () => {
++    expect(await run("printf 'a b\\n' | xargs -trn1 echo")).toEqual({
++      stdout: "a\nb\n",
++      stderr: "echo a\necho b\n",
++      exitCode: 0,
++    });
++  });
++
++  it("takes -I input a whole line at a time", async () => {
++    expect(
++      await run("printf 'a b\\n  c d\\n' | xargs -I{} echo '[{}]'"),
++    ).toEqual({ stdout: "[a b]\n[c d]\n", stderr: "", exitCode: 0 });
++  });
++
++  it("continues a line that ends in a blank for -L", async () => {
++    expect(await run("printf 'a \\nb\\nc\\n' | xargs -L1 echo")).toEqual({
++      stdout: "a b\nc\n",
++      stderr: "",
++      exitCode: 0,
++    });
++  });
++
++  it("lets the last of -n and -L win", async () => {
++    expect(await run("printf 'a b\\nc\\n' | xargs -n1 -L1 echo")).toEqual({
++      stdout: "a b\nc\n",
++      stderr: "",
++      exitCode: 0,
++    });
++  });
++
++  it("leaves option-like words after the command alone", async () => {
++    expect(await run("printf 'a\\n' | xargs echo -n1")).toEqual({
++      stdout: "-n1 a\n",
++      stderr: "",
++      exitCode: 0,
++    });
++  });
++
++  it.each([
++    ["xargs -n0 echo", "xargs: invalid number for -n: '0'\n"],
++    ["xargs -nX echo", "xargs: invalid number for -n: 'X'\n"],
++    ["xargs -Pfoo echo", "xargs: invalid number for -P: 'foo'\n"],
++    ["xargs -L0 echo", "xargs: invalid number for -L: '0'\n"],
++    ["xargs -s x echo", "xargs: invalid number for -s: 'x'\n"],
++    ["xargs -n", "xargs: option requires an argument -- 'n'\n"],
++    ["xargs -0P", "xargs: option requires an argument -- 'P'\n"],
++    ["xargs --max-procs", "xargs: option '--max-procs' requires an argument\n"],
++    [
++      "xargs --null=1 echo",
++      "xargs: option '--null' doesn't allow an argument\n",
++    ],
++    ["xargs -z echo", "xargs: invalid option -- 'z'\n"],
++    ["xargs -0z echo", "xargs: invalid option -- 'z'\n"],
++    ["xargs --bogus echo", "xargs: unrecognized option '--bogus'\n"],
++    [
++      "xargs -s 6 echo",
++      "xargs: argument line too long for -s: cannot fit one argument\n",
++    ],
++  ])("rejects %s", async (script, stderr) => {
++    expect(await run(`printf 'abc\\n' | ${script}`)).toEqual({
++      stdout: "",
++      stderr,
++      exitCode: 1,
++    });
++  });
++});
+diff --git a/packages/just-bash/src/commands/xargs/xargs.ts b/packages/just-bash/src/commands/xargs/xargs.ts
+--- a/packages/just-bash/src/commands/xargs/xargs.ts
++++ b/packages/just-bash/src/commands/xargs/xargs.ts
+@@ -16,17 +16,134 @@ const xargsHelp = {
+   summary: "build and execute command lines from standard input",
+   usage: "xargs [OPTION]... [COMMAND [INITIAL-ARGS]]",
+   options: [
+-    "-I REPLACE   replace occurrences of REPLACE with input",
++    "-I REPLACE   replace occurrences of REPLACE with input; one line per command",
+     "-d DELIM     use DELIM as input delimiter (e.g., -d '\\n' for newline)",
++    "-E EOF       stop reading input at a line holding only EOF",
++    "-L NUM       use at most NUM nonblank input lines per command line",
+     "-n NUM       use at most NUM arguments per command line",
+     "-P NUM       run at most NUM processes at a time",
++    "-s NUM       limit command lines to NUM bytes",
+     "-0, --null   items are separated by null, not whitespace",
+     "-t, --verbose  print commands before executing",
+     "-r, --no-run-if-empty  do not run command if input is empty",
+     "    --help   display this help and exit",
++    "A value may follow its option directly (-n1, -I{}, -0P4).",
+   ],
+ };
+ 
++/** Short options that take a value: the rest of the argument, or the next one. */
++const VALUE_OPTIONS = "EILPdns";
++/** Short options whose value is optional, and only ever the rest of the argument. */
++const OPTIONAL_VALUE_OPTIONS = "eil";
++const FLAG_OPTIONS = "0rt";
++
++/** Long options, by the short option each one spells. */
++const LONG_OPTIONS: Record<
++  string,
++  { short: string; value: "none" | "optional" | "required" }
++> = {
++  "--delimiter": { short: "d", value: "required" },
++  "--eof": { short: "e", value: "optional" },
++  "--max-args": { short: "n", value: "required" },
++  "--max-chars": { short: "s", value: "required" },
++  "--max-lines": { short: "l", value: "optional" },
++  "--max-procs": { short: "P", value: "required" },
++  "--no-run-if-empty": { short: "r", value: "none" },
++  "--null": { short: "0", value: "none" },
++  "--replace": { short: "i", value: "optional" },
++  "--verbose": { short: "t", value: "none" },
++};
++
++/**
++ * Read xargs' options the way GNU getopt does: short flags combine (`-0rt`),
++ * an option that takes a value takes the rest of its argument or else the next
++ * argument (`-n1`, `-n 1`, `-0P4`), a long option takes `=VALUE` or the next
++ * argument, and the first argument that is not an option starts the command.
++ */
++function parseOptions(
++  args: string[],
++):
++  | { options: [string, string | undefined][]; commandStart: number }
++  | { error: ExecResult } {
++  const options: [string, string | undefined][] = [];
++  let i = 0;
++  for (; i < args.length; i++) {
++    const arg = args[i];
++    if (arg === "--") {
++      i++;
++      break;
++    }
++    if (!arg.startsWith("-") || arg === "-") break;
++    if (arg.startsWith("--")) {
++      const equals = arg.indexOf("=");
++      const name = equals === -1 ? arg : arg.slice(0, equals);
++      const inline = equals === -1 ? undefined : arg.slice(equals + 1);
++      const long = LONG_OPTIONS[name];
++      if (!long) return { error: unknownOption("xargs", name) };
++      if (long.value === "none" && inline !== undefined) {
++        return {
++          error: {
++            stdout: "",
++            stderr: `xargs: option '${name}' doesn't allow an argument\n`,
++            exitCode: 1,
++          },
++        };
++      }
++      if (long.value === "required" && inline === undefined) {
++        if (i + 1 >= args.length) {
++          return {
++            error: {
++              stdout: "",
++              stderr: `xargs: option '${name}' requires an argument\n`,
++              exitCode: 1,
++            },
++          };
++        }
++        options.push([long.short, args[++i]]);
++      } else {
++        options.push([long.short, inline]);
++      }
++      continue;
++    }
++    for (let at = 1; at < arg.length; at++) {
++      const option = arg[at];
++      const rest = arg.slice(at + 1);
++      if (FLAG_OPTIONS.includes(option)) {
++        options.push([option, undefined]);
++      } else if (OPTIONAL_VALUE_OPTIONS.includes(option)) {
++        options.push([option, rest === "" ? undefined : rest]);
++        break;
++      } else if (VALUE_OPTIONS.includes(option)) {
++        if (rest !== "") {
++          options.push([option, rest]);
++        } else if (i + 1 < args.length) {
++          options.push([option, args[++i]]);
++        } else {
++          return {
++            error: {
++              stdout: "",
++              stderr: `xargs: option requires an argument -- '${option}'\n`,
++              exitCode: 1,
++            },
++          };
++        }
++        break;
++      } else {
++        return { error: unknownOption("xargs", `-${option}`) };
++      }
++    }
++  }
++  return { options, commandStart: i };
++}
++
++/** A count option's value, or null when it is not a whole number of at least `min`. */
++function parseCount(value: string, min: number): number | null {
++  const parsed = Number(value);
++  return /^\d+$/.test(value) && Number.isSafeInteger(parsed) && parsed >= min
++    ? parsed
++    : null;
++}
++
+ function splitExactBounded(
+   input: string,
+   delimiter: string,
+@@ -75,6 +192,43 @@ function splitWhitespaceBounded(input: string, maxItems: number): string[] {
+   return items;
+ }
+ 
++/**
++ * Split input into its logical lines, each holding its blank-separated items.
++ * A line ending in a blank goes on into the next, and a blank line holds
++ * nothing. With `wholeLines` (`-I`), each line is one item, its leading blanks
++ * dropped, as GNU reads input for a replace string.
++ */
++function splitLinesBounded(
++  input: string,
++  maxItems: number,
++  wholeLines: boolean,
++): string[][] {
++  const lines: string[][] = [];
++  let itemCount = 0;
++  let continued: string[] | null = null;
++  for (const line of input.split("\n")) {
++    const items = wholeLines
++      ? [line.replace(/^[ \t]+/, "")].filter((item) => item.length > 0)
++      : splitWhitespaceBounded(line, maxItems - itemCount);
++    itemCount += items.length;
++    if (itemCount > maxItems) {
++      throw new ExecutionLimitError(
++        `xargs: array element limit exceeded (${maxItems})`,
++        "array_elements",
++      );
++    }
++    if (items.length === 0) continue;
++    if (continued) {
++      continued.push(...items);
++    } else {
++      continued = items;
++      lines.push(items);
++    }
++    if (wholeLines || !/[ \t]$/.test(line)) continued = null;
++  }
++  return lines;
++}
++
+ export const xargsCommand: RuntimeCommand = {
+   name: "xargs",
+ 
+@@ -89,87 +243,64 @@ export const xargsCommand: RuntimeCommand = {
+     let replaceStr: string | null = null;
+     let delimiter: string | null = null;
+     let maxArgs: number | null = null;
++    let maxLines: number | null = null;
++    let maxChars: number | null = null;
+     let maxProcs: number | null = null;
++    let eofStr: string | null = null;
+     let nullSeparator = false;
+     let verbose = false;
+     let noRunIfEmpty = false;
+-    let commandStart = 0;
+ 
+-    // Parse xargs options
+-    for (let i = 0; i < args.length; i++) {
+-      const arg = args[i];
+-      if (arg === "-I" && i + 1 < args.length) {
+-        replaceStr = args[++i];
+-        commandStart = i + 1;
+-      } else if (arg === "-d" && i + 1 < args.length) {
++    const parsed = parseOptions(args);
++    if ("error" in parsed) return parsed.error;
++    for (const [option, value] of parsed.options) {
++      if (option === "I" || option === "i") {
++        replaceStr = value ?? "{}";
++      } else if (option === "d") {
+         // Parse delimiter - handle escape sequences like \n, \t
+-        const delimArg = args[++i];
+-        delimiter = delimArg
++        delimiter = (value ?? "")
+           .replace(/\\n/g, "\n")
+           .replace(/\\t/g, "\t")
+           .replace(/\\r/g, "\r")
+           .replace(/\\0/g, "\0")
+           .replace(/\\\\/g, "\\");
+-        commandStart = i + 1;
+-      } else if (arg === "-n" && i + 1 < args.length) {
+-        const value = args[++i];
+-        const parsedNumber = Number(value);
+-        if (
+-          !/^\d+$/.test(value) ||
+-          !Number.isSafeInteger(parsedNumber) ||
+-          parsedNumber < 1
+-        ) {
+-          return {
+-            stdout: "",
+-            stderr: `xargs: invalid number for -n: '${value}'\n`,
+-            exitCode: 1,
+-          };
+-        }
+-        maxArgs = parsedNumber;
+-        commandStart = i + 1;
+-      } else if (arg === "-P" && i + 1 < args.length) {
+-        const value = args[++i];
+-        const parsedNumber = Number(value);
+-        if (!/^\d+$/.test(value) || !Number.isSafeInteger(parsedNumber)) {
++      } else if (option === "E" || option === "e") {
++        eofStr = value ? value : null;
++      } else if (option === "0") {
++        nullSeparator = true;
++      } else if (option === "t") {
++        verbose = true;
++      } else if (option === "r") {
++        noRunIfEmpty = true;
++      } else {
++        // -n, -L, -l, -s and -P take a count; -l alone means one line
++        const text = value ?? "1";
++        const count = parseCount(text, option === "P" ? 0 : 1);
++        if (count === null) {
++          const flag = option === "l" ? "L" : option;
+           return {
+             stdout: "",
+-            stderr: `xargs: invalid number for -P: '${value}'\n`,
++            stderr: `xargs: invalid number for -${flag}: '${text}'\n`,
+             exitCode: 1,
+           };
+         }
+-        maxProcs = parsedNumber;
+-        commandStart = i + 1;
+-      } else if (arg === "-0" || arg === "--null") {
+-        nullSeparator = true;
+-        commandStart = i + 1;
+-      } else if (arg === "-t" || arg === "--verbose") {
+-        verbose = true;
+-        commandStart = i + 1;
+-      } else if (arg === "-r" || arg === "--no-run-if-empty") {
+-        noRunIfEmpty = true;
+-        commandStart = i + 1;
+-      } else if (arg.startsWith("--")) {
+-        return unknownOption("xargs", arg);
+-      } else if (arg.startsWith("-") && arg.length > 1) {
+-        // Check for unknown short options (only boolean flags allowed in combined form)
+-        for (const c of arg.slice(1)) {
+-          if (!"0tr".includes(c)) {
+-            return unknownOption("xargs", `-${c}`);
+-          }
++        if (option === "n") {
++          // -n and -L each replace the other, the last one given winning
++          maxArgs = count;
++          maxLines = null;
++        } else if (option === "L" || option === "l") {
++          maxLines = count;
++          maxArgs = null;
++        } else if (option === "s") {
++          maxChars = count;
++        } else {
++          maxProcs = count;
+         }
+-        // Handle combined short options
+-        if (arg.includes("0")) nullSeparator = true;
+-        if (arg.includes("t")) verbose = true;
+-        if (arg.includes("r")) noRunIfEmpty = true;
+-        commandStart = i + 1;
+-      } else if (!arg.startsWith("-")) {
+-        commandStart = i;
+-        break;
+       }
+     }
+ 
+     // Get command and initial args
+-    const command = args.slice(commandStart);
++    const command = args.slice(parsed.commandStart);
+     if (command.length === 0) {
+       command.push("echo");
+     }
+@@ -198,15 +329,21 @@ export const xargsCommand: RuntimeCommand = {
+         "array_elements",
+       );
+     }
+-    let items: string[];
++    // Each input line with its items. With -0 or -d every item is a line of
++    // its own, as GNU counts them for -L.
++    let lines: string[][];
+     if (nullSeparator) {
+-      items = splitExactBounded(stdinText, "\0", maxArrayElements);
++      lines = splitExactBounded(stdinText, "\0", maxArrayElements).map(
++        (item) => [item],
++      );
+     } else if (delimiter !== null) {
+       // Custom delimiter - split on exact string
+       // Strip trailing newline from input before splitting (echo adds trailing newlines)
+       const input = stdinText.replace(/\n$/, "");
+       try {
+-        items = splitExactBounded(input, delimiter, maxArrayElements);
++        lines = splitExactBounded(input, delimiter, maxArrayElements).map(
++          (item) => [item],
++        );
+       } catch (error) {
+         if (error instanceof ExecutionLimitError) throw error;
+         return {
+@@ -216,9 +353,23 @@ export const xargsCommand: RuntimeCommand = {
+         };
+       }
+     } else {
+-      // Default: split on whitespace and trim
+-      items = splitWhitespaceBounded(stdinText, maxArrayElements);
++      // Default: split on whitespace, or with -I into whole lines
++      lines = splitLinesBounded(
++        stdinText,
++        maxArrayElements,
++        replaceStr !== null,
++      );
++      if (eofStr !== null) {
++        // The logical end of input: nothing from the EOF item on is read
++        const eof = eofStr;
++        const end = lines.findIndex((line) => line.includes(eof));
++        if (end !== -1) {
++          const kept = lines[end].slice(0, lines[end].indexOf(eof));
++          lines = [...lines.slice(0, end), ...(kept.length ? [kept] : [])];
++        }
++      }
+     }
++    const items = lines.flat();
+ 
+     if (items.length === 0) {
+       if (noRunIfEmpty) {
+@@ -399,28 +550,65 @@ export const xargsCommand: RuntimeCommand = {
+         command.map((c) => replaceBounded(c, item)),
+       );
+       await runCommands(cmdArgsList);
+-    } else if (maxArgs !== null) {
+-      // -n mode: batch items
+-      const cmdArgsList: string[][] = [];
+-      const batchCount = Math.ceil(items.length / maxArgs);
+-      if (batchCount > Math.min(maxArrayElements, maxIterations)) {
+-        throw new ExecutionLimitError(
+-          `xargs: iteration limit exceeded (${maxIterations})`,
+-          "iterations",
+-        );
++    } else if (maxArgs !== null || maxLines !== null || maxChars !== null) {
++      // -n, -L and -s mode: batch items. A command line takes at most
++      // maxArgs items, maxLines whole input lines, and maxChars bytes,
++      // counting each argument with the NUL that ends it as GNU does.
++      const batches: string[][] = [];
++      const commandChars = command.reduce(
++        (total, c) => total + utf8ByteLength(c) + 1,
++        0,
++      );
++      let batch: string[] = [];
++      let batchChars = commandChars;
++      let batchLines = 0;
++      const flush = () => {
++        if (batch.length > 0) batches.push(batch);
++        if (batches.length > Math.min(maxArrayElements, maxIterations)) {
++          throw new ExecutionLimitError(
++            `xargs: iteration limit exceeded (${maxIterations})`,
++            "iterations",
++          );
++        }
++        batch = [];
++        batchChars = commandChars;
++        batchLines = 0;
++      };
++      for (const line of lines) {
++        for (const item of line) {
++          const itemChars = utf8ByteLength(item) + 1;
++          if (maxChars !== null && commandChars + itemChars > maxChars) {
++            return {
++              stdout: "",
++              stderr:
++                "xargs: argument line too long for -s: cannot fit one argument\n",
++              exitCode: 1,
++            };
++          }
++          if (
++            batch.length > 0 &&
++            ((maxArgs !== null && batch.length >= maxArgs) ||
++              (maxChars !== null && batchChars + itemChars > maxChars))
++          ) {
++            flush();
++          }
++          batch.push(item);
++          batchChars += itemChars;
++        }
++        if (maxLines !== null && ++batchLines >= maxLines) flush();
+       }
+-      const prospectiveElements = items.length + batchCount * command.length;
++      flush();
++      const prospectiveElements =
++        items.length + batches.length * command.length;
+       if (prospectiveElements > maxArrayElements) {
+         throw new ExecutionLimitError(
+           `xargs: array element limit exceeded (${maxArrayElements})`,
+           "array_elements",
+         );
+       }
+-      for (let i = 0; i < items.length; i += maxArgs) {
+-        const batch = items.slice(i, i + maxArgs);
+-        cmdArgsList.push([...command, ...batch]);
+-      }
+-      await runCommands(cmdArgsList);
++      await runCommands(
++        batches.map((batchItems) => [...command, ...batchItems]),
++      );
+     } else {
+       // Default: all items on one line
+       const cmdArgs = [...command, ...items];
+@@ -447,6 +635,10 @@ export const flagsForFuzzing: CommandFuzzInfo = {
+     { flag: "-I", type: "value", valueHint: "string" },
+     { flag: "-d", type: "value", valueHint: "delimiter" },
+     { flag: "-n", type: "value", valueHint: "number" },
++    { flag: "-L", type: "value", valueHint: "number" },
++    { flag: "-s", type: "value", valueHint: "number" },
++    { flag: "-P", type: "value", valueHint: "number" },
++    { flag: "-E", type: "value", valueHint: "string" },
+     { flag: "-0", type: "boolean" },
+     { flag: "-t", type: "boolean" },
+     { flag: "-r", type: "boolean" },

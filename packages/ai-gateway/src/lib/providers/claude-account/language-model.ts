@@ -1,5 +1,4 @@
 import {
-  APICallError,
   type LanguageModelV4,
   type LanguageModelV4CallOptions,
   type LanguageModelV4Content,
@@ -7,25 +6,13 @@ import {
   type LanguageModelV4FunctionTool,
   type LanguageModelV4Message,
   type LanguageModelV4StreamPart,
-  type LanguageModelV4ToolResultPart,
-  type LanguageModelV4Usage,
 } from "@ai-sdk/provider";
-import {
-  type EffortLevel,
-  type SDKAssistantMessageError,
-  type SDKRateLimitInfo,
-} from "@anthropic-ai/claude-agent-sdk";
+import { type EffortLevel } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
-import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
-import {
-  coldStartContent,
-  replayFrames,
-  splitSystemPrompt,
-  toolResultToMCP,
-  turnContent,
-} from "./prompt";
+import { planStep, splitPrompt, type StepStart } from "./continuation";
+import { coldStartContent, replayFrames, splitSystemPrompt } from "./prompt";
 import {
   readResumeRecord,
   removeResumeRecord,
@@ -33,13 +20,16 @@ import {
 } from "./resume-record";
 import {
   ClaudeCodeSession,
-  type TranscriptStart,
   type SessionShape,
   sessionShapeKey,
   TOOL_PREFIX,
+  type TranscriptStart,
 } from "./session";
-
-const CLAUDE_ACCOUNT_PROVIDER_ID = "claude-account";
+import {
+  CLAUDE_ACCOUNT_PROVIDER_ID,
+  emptyUsage,
+  pumpStep,
+} from "./step-stream";
 
 /**
  * The live CLI processes, keyed by our session id and the request's shape. A
@@ -88,163 +78,6 @@ export function createClaudeAccountLanguageModel({
   };
 }
 
-type Continuation =
-  | {
-      kind: "tool-results";
-      results: LanguageModelV4ToolResultPart[];
-      /**
-       * Messages that came in after the results, as a task finishing does
-       * when the step before handed work off: read in the same turn, once
-       * the results are in.
-       */
-      followedBy: LanguageModelV4Message[];
-    }
-  | { kind: "turn"; messages: LanguageModelV4Message[] };
-
-/** Why a request cannot continue the running process, for the log. */
-type Restart = { kind: "restart"; reason: string };
-
-/**
- * A message the workspace says for one request and keeps nowhere, such as a
- * notice of how much context is left. It is sent with the turn it rides on,
- * and never counts toward what a process has seen, since the next request
- * leaves it out or says it differently.
- */
-function isTransient(message: LanguageModelV4Message) {
-  return message.providerOptions?.instrument?.transient === true;
-}
-
-/**
- * A request's messages split into the ones a process keeps, with their
- * fingerprints, and the transient ones that ride along with a turn.
- */
-export function splitPrompt(prompt: LanguageModelV4Message[]) {
-  const kept = prompt.filter((message) => !isTransient(message));
-  return {
-    kept,
-    keptPrints: kept.map(fingerprintOf),
-    transient: prompt.filter(isTransient),
-  };
-}
-
-/**
- * What one message is, for telling whether a process has already seen it.
- * Provider options are left out at every depth: our loop moves its cache
- * breakpoints onto the newest messages each step, on the message or on its
- * last part, and a message that lost one is still the message the process saw.
- */
-function fingerprintOf(message: LanguageModelV4Message) {
-  return createHash("sha256")
-    .update(
-      JSON.stringify(message, (key, value: unknown) =>
-        key === "providerOptions" ? undefined : value,
-      ),
-    )
-    .digest("hex");
-}
-
-/**
- * How a request follows from what a Claude Code session saw, or why it does
- * not and the session has to start over from our transcript. It follows
- * when every message the session saw opens the request unchanged, then the
- * reply it gave, then either the results of the tools that reply called
- * (and anything said since) or a new turn.
- */
-export function continuationOf(
-  session: { awaitingToolCallIds: string[]; seen: string[] },
-  kept: LanguageModelV4Message[],
-  keptPrints: string[],
-  transient: LanguageModelV4Message[],
-): Continuation | Restart {
-  const restart = (reason: string): Restart => ({ kind: "restart", reason });
-  const { seen } = session;
-  if (seen.length === 0) {
-    return restart("the process saw no messages");
-  }
-  if (kept.length <= seen.length) {
-    return restart(
-      `the request has ${kept.length} messages, the process saw ${seen.length}`,
-    );
-  }
-  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
-  if (changed !== -1) {
-    return restart(
-      `message ${changed} of ${seen.length} (${kept[changed]?.role ?? "missing"}) changed since the process saw it`,
-    );
-  }
-  const [reply, ...unseen] = kept.slice(seen.length);
-  if (reply?.role !== "assistant") {
-    return restart(
-      `message ${seen.length} is ${reply?.role ?? "missing"}, not the reply`,
-    );
-  }
-  const roles = unseen.map((message) => message.role).join(", ") || "none";
-  if (session.awaitingToolCallIds.length > 0) {
-    const [results, ...followedBy] = unseen;
-    if (
-      results?.role !== "tool" ||
-      !followedBy.every(
-        (message) => message.role === "user" || message.role === "system",
-      )
-    ) {
-      return restart(
-        `awaiting ${session.awaitingToolCallIds.length} tool results, the reply is followed by ${roles}`,
-      );
-    }
-    const parts = results.content.filter(
-      (part): part is LanguageModelV4ToolResultPart =>
-        part.type === "tool-result",
-    );
-    const answered = new Set(parts.map((part) => part.toolCallId));
-    const missing = session.awaitingToolCallIds.filter(
-      (id) => !answered.has(id),
-    );
-    return missing.length === 0
-      ? {
-          kind: "tool-results",
-          results: parts,
-          followedBy:
-            followedBy.length > 0 ? [...followedBy, ...transient] : [],
-        }
-      : restart(
-          `results answer ${parts.length} calls and leave ${missing.length} of ${session.awaitingToolCallIds.length} unanswered`,
-        );
-  }
-  return unseen.length > 0 &&
-    unseen.every(
-      (message) => message.role === "user" || message.role === "system",
-    )
-    ? { kind: "turn", messages: [...unseen, ...transient] }
-    : restart(`no tool results awaited, the reply is followed by ${roles}`);
-}
-
-/**
- * The new messages a branch of a session starts with, when it carries on
- * from exactly the input of the session's last step, as a task's first
- * request carries on from the chat step that started it: everything the
- * session saw, unchanged, then only user or system messages.
- */
-export function branchOf(
-  parent: { seen: string[] },
-  kept: LanguageModelV4Message[],
-  keptPrints: string[],
-  transient: LanguageModelV4Message[],
-): LanguageModelV4Message[] | undefined {
-  const { seen } = parent;
-  if (seen.length === 0 || kept.length <= seen.length) {
-    return undefined;
-  }
-  if (seen.some((print, index) => keptPrints[index] !== print)) {
-    return undefined;
-  }
-  const added = kept.slice(seen.length);
-  return added.every(
-    (message) => message.role === "user" || message.role === "system",
-  )
-    ? [...added, ...transient]
-    : undefined;
-}
-
 function streamStep({
   configDir,
   executablePath,
@@ -279,173 +112,100 @@ function streamStep({
       running?.close();
     },
     start: async (controller) => {
-      const shapeKey = sessionShapeKey(shape);
+      const shapeHash = createHash("sha256")
+        .update(sessionShapeKey(shape))
+        .digest("hex");
       // A request with no tools is a one-off (a title, a summary), and so is
       // one that arrives while its session's process is mid-step. Each gets
-      // a process of its own that ends with it.
-      const shapeHash = createHash("sha256").update(shapeKey).digest("hex");
+      // a process of its own that ends with it, and keeps no transcript.
       const slot =
         key === undefined || shape.tools.length === 0
           ? undefined
           : `${key}:${shapeHash}`;
       const existing = slot === undefined ? undefined : sessions.get(slot);
-      const ephemeral = slot === undefined || existing?.busy === true;
-      const { kept, keptPrints, transient } = splitPrompt(options.prompt);
+      const persistent = existing?.busy === true ? undefined : slot;
+      const prompt = splitPrompt(options.prompt);
       const onAbort = () => {
         running?.close();
       };
       options.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
-      let session: ClaudeCodeSession | undefined;
       try {
-        const start = (claudeSessionId: string, begin: TranscriptStart) => {
-          const created = new ClaudeCodeSession(
-            slot ?? randomUUID(),
-            shape,
-            () => {
-              if (sessions.get(created.key) === created) {
-                sessions.delete(created.key);
-              }
-            },
-            ephemeral ? undefined : { claudeSessionId, start: begin },
-          );
-          if (!ephemeral) {
-            sessions.set(created.key, created);
-          }
-          return created;
-        };
-
+        controller.enqueue({ type: "stream-start", warnings: [] });
         // A live process for this slot, or else the transcript its last one
         // left, resumed where it stopped, or else for a task's first step,
         // its chat's transcript forked where the task branched off.
-        let continuation: Continuation | Restart | undefined;
-        let resumable:
-          | { claudeSessionId: string; start: TranscriptStart }
-          | undefined;
-        if (!ephemeral && existing) {
-          session = existing;
-          continuation = continuationOf(existing, kept, keptPrints, transient);
-        } else if (!ephemeral && slot !== undefined) {
-          const record = await readResumeRecord(configDir, slot);
-          if (record) {
-            continuation = continuationOf(record, kept, keptPrints, transient);
-            // The calls it waited on died with its process, and a resumed
-            // one has no way to take their results.
-            if (continuation.kind === "tool-results") {
-              continuation = {
-                kind: "restart",
-                reason: "its process ended while waiting on tool results",
-              };
-            }
-            resumable = {
-              claudeSessionId: record.claudeSessionId,
-              start: { kind: "resume" },
-            };
-          } else if (parentKey !== undefined) {
-            const parent = await readResumeRecord(
-              configDir,
-              `${parentKey}:${shapeHash}`,
-            );
-            const branch =
-              parent && branchOf(parent, kept, keptPrints, transient);
-            if (parent?.forkPoint !== undefined && branch !== undefined) {
-              continuation = { kind: "turn", messages: branch };
-              resumable = {
-                claudeSessionId: randomUUID(),
-                start: {
-                  at: parent.forkPoint,
-                  from: parent.claudeSessionId,
-                  kind: "fork",
-                },
-              };
-            }
-          }
-        }
-        if (slot !== undefined && !ephemeral) {
-          await removeResumeRecord(configDir, slot);
+        const plan = await planStep(
+          {
+            live: persistent === undefined ? undefined : existing,
+            parentRecord: () =>
+              persistent === undefined || parentKey === undefined
+                ? Promise.resolve(undefined)
+                : readResumeRecord(configDir, `${parentKey}:${shapeHash}`),
+            record: () =>
+              persistent === undefined
+                ? Promise.resolve(undefined)
+                : readResumeRecord(configDir, persistent),
+          },
+          prompt,
+        );
+        if (persistent !== undefined) {
+          await removeResumeRecord(configDir, persistent);
         }
 
-        if (continuation === undefined || continuation.kind === "restart") {
-          session?.close();
-          if (key !== undefined && !ephemeral) {
-            closeOtherIdleSlots(key, slot);
+        if (plan.kind === "cold" && persistent !== undefined) {
+          // What the live process saw is not what this request continues.
+          existing?.close();
+          if (key !== undefined) {
+            closeOtherIdleSlots(key, persistent);
           }
-          session = start(randomUUID(), { kind: "new" });
-          const how = await coldStart(session, rest);
-          if (continuation?.kind === "restart") {
-            // What the session saw is not what this request continues, so it
-            // starts over from our transcript.
-            console.warn(
-              `[claude-account] session ${slot ?? "one-off"} restarted from a ${how} replay: ${continuation.reason}`,
-            );
-          } else if (slot !== undefined && rest.length > 1) {
-            console.info(
-              `[claude-account] session ${slot} started from a ${how} replay of ${rest.length} messages`,
-            );
-          }
-        } else {
-          if (session === undefined) {
-            if (resumable === undefined) {
-              throw new Error("A continuation needs a session to continue.");
-            }
-            session = start(resumable.claudeSessionId, resumable.start);
-            console.info(
-              resumable.start.kind === "fork"
-                ? `[claude-account] session ${session.key} forked its parent's Claude Code transcript`
-                : `[claude-account] session ${session.key} resumed its Claude Code transcript`,
-            );
-          }
+        }
+        const session = startOn(plan, persistent, slot, shape);
+        running = session;
+        session.beginStep(prompt.keptPrints);
+        try {
           // Before the step starts, so it runs on the model now asked for.
-          if (session.modelId !== modelId) {
-            await session.setModel(modelId);
-            session.modelId = modelId;
-          }
-          session.forkPoint = undefined;
-          if (continuation.kind === "tool-results") {
-            if (continuation.followedBy.length > 0) {
-              session.send(turnContent(continuation.followedBy), "next");
-            }
-            for (const part of continuation.results) {
-              session.resolveToolCall(
-                part.toolCallId,
-                toolResultToMCP(part.output),
+          await session.useModel(modelId);
+          if (plan.kind === "cold") {
+            const how = await coldStart(session, rest);
+            if (plan.restart !== undefined) {
+              // What the session saw is not what this request continues, so
+              // it starts over from our transcript.
+              console.warn(
+                `[claude-account] session ${slot ?? "one-off"} restarted from a ${how} replay: ${plan.restart}`,
+              );
+            } else if (slot !== undefined && rest.length > 1) {
+              console.info(
+                `[claude-account] session ${slot} started from a ${how} replay of ${rest.length} messages`,
               );
             }
           } else {
-            session.send(turnContent(continuation.messages));
+            await session.continueWith(
+              plan.kind === "live"
+                ? plan.continuation
+                : { kind: "turn", messages: plan.messages },
+            );
           }
-        }
-        running = session;
-
-        session.busy = true;
-        session.awaitingToolCallIds = [];
-        session.seen = keptPrints;
-        session.touch();
-
-        const stepSession = session;
-        try {
-          controller.enqueue({ type: "stream-start", warnings: [] });
-          await pumpStep(stepSession, controller);
+          await pumpStep(session, controller);
         } finally {
-          stepSession.busy = false;
-          stepSession.touch();
+          session.endStep();
         }
-        if (slot !== undefined && stepSession.transcript) {
-          await writeResumeRecord(configDir, slot, {
-            awaitingToolCallIds: stepSession.awaitingToolCallIds,
-            claudeSessionId: stepSession.transcript.claudeSessionId,
-            forkPoint: stepSession.forkPoint,
-            seen: stepSession.seen,
+        if (persistent !== undefined && session.transcript) {
+          await writeResumeRecord(configDir, persistent, {
+            awaitingToolCallIds: session.awaitingToolCallIds,
+            claudeSessionId: session.transcript.claudeSessionId,
+            forkPoint: session.forkPoint,
+            seen: session.seen,
           });
         }
-        if (ephemeral) {
+        if (persistent === undefined) {
           // Nothing continues a one-off, so a tool call it ended on would
           // only hold its process open.
-          stepSession.close();
+          session.close();
         }
         controller.close();
       } catch (error) {
-        session?.close();
+        running?.close();
         controller.enqueue({ error, type: "error" });
         controller.close();
       } finally {
@@ -453,6 +213,60 @@ function streamStep({
       }
     },
   });
+}
+
+/**
+ * The process a step starts on: the live one, or a new one on the transcript
+ * the plan names, or on a new transcript for a cold start. A one-off's keeps
+ * no transcript, and is not among the live processes.
+ */
+function startOn(
+  plan: StepStart<ClaudeCodeSession>,
+  persistent: string | undefined,
+  slot: string | undefined,
+  shape: SessionShape,
+) {
+  const open = (
+    start: TranscriptStart,
+    claudeSessionId: string = randomUUID(),
+  ) => {
+    const created = new ClaudeCodeSession(
+      slot ?? randomUUID(),
+      shape,
+      () => {
+        if (sessions.get(created.key) === created) {
+          sessions.delete(created.key);
+        }
+      },
+      persistent === undefined ? undefined : { claudeSessionId, start },
+    );
+    if (persistent !== undefined) {
+      sessions.set(created.key, created);
+    }
+    return created;
+  };
+  switch (plan.kind) {
+    case "live": {
+      return plan.session;
+    }
+    case "resume": {
+      const session = open({ kind: "resume" }, plan.claudeSessionId);
+      console.info(
+        `[claude-account] session ${session.key} resumed its Claude Code transcript`,
+      );
+      return session;
+    }
+    case "fork": {
+      const session = open({ at: plan.at, from: plan.from, kind: "fork" });
+      console.info(
+        `[claude-account] session ${session.key} forked its parent's Claude Code transcript`,
+      );
+      return session;
+    }
+    case "cold": {
+      return open({ kind: "new" });
+    }
+  }
 }
 
 /**
@@ -498,387 +312,6 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
   }
 }
 
-/** What one step reads from and leaves on the process it runs in. */
-export type StepSession = Pick<
-  ClaudeCodeSession,
-  | "awaitingToolCallIds"
-  | "builtInTools"
-  | "forkPoint"
-  | "messages"
-  | "rateLimit"
-  | "stderr"
->;
-
-/** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
-export async function pumpStep(
-  session: StepSession,
-  controller: ReadableStreamDefaultController<LanguageModelV4StreamPart>,
-) {
-  const blocks = new Map<
-    number,
-    {
-      id: string;
-      input: string;
-      kind: "reasoning" | "text" | "tool";
-      /** A redacted thinking block's opaque data. */
-      redactedData?: string;
-      /** A thinking block's signature, which lets it go back to Claude. */
-      signature?: string;
-      started: boolean;
-      toolName: string;
-    }
-  >();
-  const toolCallIds: string[] = [];
-  let messageId: string = randomUUID();
-  let messageModel: string | undefined;
-  let stopReason: string | null = null;
-  // Counted per API message, from its start and its closing delta, and summed
-  // across the messages one step can span (a built-in search runs several).
-  let stepUsage: AnthropicUsage = {};
-  let messageUsage: AnthropicUsage = {};
-  let rateLimit = session.rateLimit;
-  // Until the reply starts, each user-side entry Claude Code reports (a tool
-  // result we answered, a message we sent) is the step's input so far.
-  let replying = false;
-
-  const finish = (finishReason: LanguageModelV4FinishReason) => {
-    controller.enqueue({
-      finishReason,
-      providerMetadata: rateLimit
-        ? {
-            [CLAUDE_ACCOUNT_PROVIDER_ID]: {
-              // The plan's usage, for a surface that shows it later.
-              rateLimit: {
-                rateLimitType: rateLimit.rateLimitType ?? null,
-                resetsAt: rateLimit.resetsAt ?? null,
-                status: rateLimit.status,
-                utilization: rateLimit.utilization ?? null,
-              },
-            },
-          }
-        : undefined,
-      type: "finish",
-      usage: usageOf(stepUsage),
-    });
-  };
-
-  while (true) {
-    const next = await session.messages.next();
-    if (next.done) {
-      throw planError("unknown", `Claude Code exited.\n${session.stderr}`);
-    }
-    const message = next.value;
-    switch (message.type) {
-      case "assistant": {
-        replying = true;
-        if (message.error && message.error !== "max_output_tokens") {
-          throw planError(
-            message.error,
-            assistantErrorText(message),
-            rateLimit,
-          );
-        }
-        break;
-      }
-      case "user": {
-        if (!replying && message.uuid) {
-          session.forkPoint = message.uuid;
-        }
-        for (const source of webSearchSources(message.tool_use_result)) {
-          controller.enqueue({
-            id: randomUUID(),
-            sourceType: "url",
-            title: source.title,
-            type: "source",
-            url: source.url,
-          });
-        }
-        break;
-      }
-      case "rate_limit_event": {
-        rateLimit = message.rate_limit_info;
-        session.rateLimit = rateLimit;
-        break;
-      }
-      case "result": {
-        if (message.subtype !== "success" || message.is_error) {
-          throw planError(
-            "unknown",
-            message.subtype === "success"
-              ? message.result
-              : message.errors.join("\n") || message.subtype,
-            rateLimit,
-          );
-        }
-        finish(finishReasonOf(stopReason));
-        return;
-      }
-      case "stream_event": {
-        replying = true;
-        // Output from a subagent the CLI ran itself, which ours never ask for.
-        if (message.parent_tool_use_id !== null) {
-          break;
-        }
-        const event = message.event;
-        switch (event.type) {
-          case "message_start": {
-            messageId = event.message.id;
-            messageModel = event.message.model;
-            messageUsage = event.message.usage;
-            controller.enqueue({
-              id: messageId,
-              modelId: event.message.model,
-              type: "response-metadata",
-            });
-            break;
-          }
-          case "content_block_start": {
-            const block = event.content_block;
-            const id = `${messageId}-${event.index}`;
-            if (block.type === "text") {
-              blocks.set(event.index, {
-                id,
-                input: "",
-                kind: "text",
-                started: true,
-                toolName: "",
-              });
-              controller.enqueue({ id, type: "text-start" });
-            } else if (block.type === "thinking") {
-              // Opened at its first text: the CLI streams a thinking block
-              // whose text it leaves out, which would be an empty part.
-              blocks.set(event.index, {
-                id,
-                input: "",
-                kind: "reasoning",
-                started: false,
-                toolName: "",
-              });
-            } else if (block.type === "redacted_thinking") {
-              blocks.set(event.index, {
-                id,
-                input: "",
-                kind: "reasoning",
-                redactedData: block.data,
-                started: false,
-                toolName: "",
-              });
-            } else if (
-              block.type === "tool_use" &&
-              session.builtInTools.has(block.name)
-            ) {
-              // Claude Code runs this one itself and carries on; the step
-              // goes on past it, and its results arrive as sources.
-              break;
-            } else if (block.type === "tool_use") {
-              // Our prompts name a tool as we do (`bash`), and the CLI lists it
-              // under its MCP prefix, so a call can come either way; the
-              // session aliases the bare name to the same tool. A name that is
-              // neither goes to our loop as called, which answers it as an
-              // unknown tool.
-              const toolName = block.name.startsWith(TOOL_PREFIX)
-                ? block.name.slice(TOOL_PREFIX.length)
-                : block.name;
-              blocks.set(event.index, {
-                id: block.id,
-                input: "",
-                kind: "tool",
-                started: true,
-                toolName,
-              });
-              controller.enqueue({
-                id: block.id,
-                toolName,
-                type: "tool-input-start",
-              });
-            }
-            break;
-          }
-          case "content_block_delta": {
-            const block = blocks.get(event.index);
-            if (!block) {
-              break;
-            }
-            const delta = event.delta;
-            if (delta.type === "text_delta") {
-              controller.enqueue({
-                delta: delta.text,
-                id: block.id,
-                type: "text-delta",
-              });
-            } else if (delta.type === "thinking_delta" && delta.thinking) {
-              if (!block.started) {
-                block.started = true;
-                controller.enqueue({ id: block.id, type: "reasoning-start" });
-              }
-              controller.enqueue({
-                delta: delta.thinking,
-                id: block.id,
-                type: "reasoning-delta",
-              });
-            } else if (delta.type === "signature_delta") {
-              block.signature = (block.signature ?? "") + delta.signature;
-            } else if (delta.type === "input_json_delta") {
-              block.input += delta.partial_json;
-              controller.enqueue({
-                delta: delta.partial_json,
-                id: block.id,
-                type: "tool-input-delta",
-              });
-            }
-            break;
-          }
-          case "content_block_stop": {
-            const block = blocks.get(event.index);
-            if (!block) {
-              break;
-            }
-            blocks.delete(event.index);
-            if (block.kind === "text") {
-              controller.enqueue({ id: block.id, type: "text-end" });
-            } else if (block.kind === "reasoning") {
-              // Kept with the part, so a replay can hand Claude its own
-              // reasoning back: a signed block from this model, or a
-              // redacted one.
-              const signed =
-                block.signature !== undefined ||
-                block.redactedData !== undefined;
-              if (!block.started && signed) {
-                controller.enqueue({ id: block.id, type: "reasoning-start" });
-              }
-              if (block.started || signed) {
-                controller.enqueue({
-                  id: block.id,
-                  providerMetadata: signed
-                    ? {
-                        [CLAUDE_ACCOUNT_PROVIDER_ID]: {
-                          ...(messageModel && { model: messageModel }),
-                          ...(block.redactedData !== undefined && {
-                            redactedData: block.redactedData,
-                          }),
-                          ...(block.signature !== undefined && {
-                            signature: block.signature,
-                          }),
-                        },
-                      }
-                    : undefined,
-                  type: "reasoning-end",
-                });
-              }
-            } else {
-              controller.enqueue({ id: block.id, type: "tool-input-end" });
-              controller.enqueue({
-                input: block.input || "{}",
-                toolCallId: block.id,
-                toolName: block.toolName,
-                type: "tool-call",
-              });
-              toolCallIds.push(block.id);
-            }
-            break;
-          }
-          case "message_delta": {
-            stopReason = event.delta.stop_reason;
-            messageUsage = mergeUsage(messageUsage, event.usage);
-            break;
-          }
-          case "message_stop": {
-            stepUsage = addUsage(stepUsage, messageUsage);
-            messageUsage = {};
-            if (stopReason === "tool_use" && toolCallIds.length > 0) {
-              session.awaitingToolCallIds = toolCallIds;
-              finish({ raw: stopReason, unified: "tool-calls" });
-              return;
-            }
-            break;
-          }
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-}
-
-function finishReasonOf(
-  stopReason: string | null,
-): LanguageModelV4FinishReason {
-  switch (stopReason) {
-    case "end_turn":
-    case "stop_sequence": {
-      return { raw: stopReason, unified: "stop" };
-    }
-    case "max_tokens": {
-      return { raw: stopReason, unified: "length" };
-    }
-    case "refusal": {
-      return { raw: stopReason, unified: "content-filter" };
-    }
-    default: {
-      return { raw: stopReason ?? undefined, unified: "other" };
-    }
-  }
-}
-
-interface AnthropicUsage {
-  cache_creation_input_tokens?: number | null;
-  cache_read_input_tokens?: number | null;
-  input_tokens?: number | null;
-  output_tokens?: number | null;
-}
-
-const USAGE_FIELDS = [
-  "cache_creation_input_tokens",
-  "cache_read_input_tokens",
-  "input_tokens",
-  "output_tokens",
-] as const;
-
-/** A message's usage as its closing delta reports it, keeping what the delta leaves out. */
-function mergeUsage(
-  start: AnthropicUsage,
-  delta: AnthropicUsage,
-): AnthropicUsage {
-  const merged = { ...start };
-  for (const field of USAGE_FIELDS) {
-    merged[field] = delta[field] ?? start[field];
-  }
-  return merged;
-}
-
-function addUsage(a: AnthropicUsage, b: AnthropicUsage): AnthropicUsage {
-  const sum: AnthropicUsage = {};
-  for (const field of USAGE_FIELDS) {
-    sum[field] = (a[field] ?? 0) + (b[field] ?? 0);
-  }
-  return sum;
-}
-
-function usageOf(usage: AnthropicUsage): LanguageModelV4Usage {
-  const noCache = usage.input_tokens ?? 0;
-  const cacheRead = usage.cache_read_input_tokens ?? 0;
-  const cacheWrite = usage.cache_creation_input_tokens ?? 0;
-  return {
-    inputTokens: {
-      cacheRead,
-      cacheWrite,
-      noCache,
-      total: noCache + cacheRead + cacheWrite,
-    },
-    outputTokens: {
-      reasoning: undefined,
-      text: undefined,
-      total: usage.output_tokens ?? undefined,
-    },
-  };
-}
-
-function emptyUsage(): LanguageModelV4Usage {
-  return usageOf({});
-}
-
 const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
 /**
@@ -891,29 +324,6 @@ function builtInToolsOf(options: LanguageModelV4CallOptions) {
   return Array.isArray(asked)
     ? asked.filter((tool): tool is string => typeof tool === "string")
     : [];
-}
-
-/** What a WebSearch run by Claude Code reports, as its tool result. */
-const WebSearchOutputSchema = z.object({
-  results: z.array(
-    z.union([
-      z.object({
-        content: z.array(z.object({ title: z.string(), url: z.string() })),
-      }),
-      z.string(),
-    ]),
-  ),
-});
-
-/** The pages a WebSearch Claude Code ran turned up, or none for any other result. */
-function webSearchSources(result: unknown) {
-  const parsed = WebSearchOutputSchema.safeParse(result);
-  if (!parsed.success) {
-    return [];
-  }
-  return parsed.data.results.flatMap((entry) =>
-    typeof entry === "string" ? [] : entry.content,
-  );
 }
 
 /**
@@ -943,66 +353,6 @@ function parentKeyOf(options: LanguageModelV4CallOptions) {
 function effortOf(options: LanguageModelV4CallOptions) {
   const asked = options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.effort;
   return EFFORTS.find((effort) => effort === asked);
-}
-
-function assistantErrorText(message: { message: { content: unknown[] } }) {
-  return message.message.content
-    .flatMap((block) =>
-      typeof block === "object" &&
-      block !== null &&
-      "text" in block &&
-      typeof block.text === "string"
-        ? [block.text]
-        : [],
-    )
-    .join("\n");
-}
-
-/**
- * A failure in the shape our error classification reads: a status and an
- * Anthropic `error.type`, plus our own code for a spent plan allowance, which
- * waiting a moment does not fix.
- */
-function planError(
-  kind: SDKAssistantMessageError | "unknown",
-  message: string,
-  rateLimit?: SDKRateLimitInfo,
-) {
-  const [statusCode, type, isRetryable] = ((): [number, string, boolean] => {
-    switch (kind) {
-      case "authentication_failed":
-      case "oauth_org_not_allowed":
-      case "account_on_hold":
-      case "verification_required":
-      case "billing_error":
-      case "cloud_credential_error": {
-        return [401, "authentication_error", false];
-      }
-      case "rate_limit": {
-        return rateLimit?.status === "rejected"
-          ? [429, "claude_account_usage_limit_exceeded", false]
-          : [429, "rate_limit_error", true];
-      }
-      case "overloaded": {
-        return [529, "overloaded_error", true];
-      }
-      case "invalid_request":
-      case "model_not_found": {
-        return [400, "invalid_request_error", false];
-      }
-      default: {
-        return [500, "api_error", false];
-      }
-    }
-  })();
-  return new APICallError({
-    isRetryable,
-    message: message || kind,
-    requestBodyValues: {},
-    responseBody: JSON.stringify({ error: { message, type } }),
-    statusCode,
-    url: "claude-account://",
-  });
 }
 
 /** One whole step from `doStream`, for callers that do not stream. */

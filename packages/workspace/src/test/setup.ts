@@ -9,6 +9,7 @@ import path from "node:path";
 import { afterAll, beforeAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
+import { mxcTestConfig } from "./helpers/mxc-test-config";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -83,6 +84,7 @@ setWorkspaceConfig({
   workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
   machineDir: AbsolutePathSchema.parse(machineDir),
   workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
+  ...mxcTestConfig(),
 });
 
 // A chat is written through its records, so every test has them, in its own

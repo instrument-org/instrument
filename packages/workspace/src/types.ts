@@ -288,6 +288,10 @@ export interface WorkspaceConfig {
   // `grep`) that answer the shell's GNU text commands natively; absent, those
   // commands stay the shell's own.
   uutilsDir?: AbsolutePath;
+  // Whether a uutils call the reviewed rules allow runs outside the native
+  // sandbox (`shell-commands/unsandboxed-uutils.ts`). Off, every call runs
+  // sandboxed, which is what a test gets unless it asks.
+  uutilsOutsideSandbox?: boolean;
   // The bundled Mac helper behind the `calendar` and `contacts` commands and
   // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
@@ -295,6 +299,9 @@ export interface WorkspaceConfig {
   // through on macOS, applying a profile compiled once per set of rules;
   // absent, they start through sandbox-exec.
   seatbeltHelperPath?: AbsolutePath;
+  // MXC's launcher (`wxc-exec.exe`) native commands start through on Windows
+  // once its canary passed; absent off Windows and where it is not shipped.
+  mxcExecPath?: AbsolutePath;
   // Where the system keeps the person's own folders, which is not always under
   // the home folder by its English name: Windows moves Desktop and Documents
   // into OneDrive, and Linux names them in the desktop's language.

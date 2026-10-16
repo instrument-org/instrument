@@ -30,7 +30,7 @@ Commit **`b4d92b82a`**: `studio: flush pending tab-state write on renderer teard
 
 ## Migration plan (difficulty: closer to simple than terrible)
 
-~80% is mechanical import renames that `tsgo` will police. ~20% needs a decision or a per-site semantics check. Estimate: focused half-day to a day, parallelizable per package.
+~80% is mechanical import renames that `tsc` will police. ~20% needs a decision or a per-site semantics check. Estimate: focused half-day to a day, parallelizable per package.
 
 ### Footprint (radashi imports, 121 files as of 2026-10-02)
 
@@ -60,7 +60,7 @@ Swap to es-toolkit `debounce` and re-verify each because cancel/flush semantics 
 ### Suggested sequencing
 
 1. Add `es-toolkit`; keep `radashi` installed through the transition. Settle the two Bucket-2 decisions (`dedent` dep, `parallel` helper) up front.
-2. Migrate package-by-package (`@instrument-org/workspace` is dedent-heavy and mostly mechanical; `@instrument-org/studio` has the debounce + misc). Run `tsgo` + tests after each package.
+2. Migrate package-by-package (`@instrument-org/workspace` is dedent-heavy and mostly mechanical; `@instrument-org/studio` has the debounce + misc). Run `check:types` + tests after each package.
 3. Do the 7 debounce sites by hand.
 4. Remove `radashi`, run full checks.
 

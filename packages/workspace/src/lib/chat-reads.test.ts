@@ -386,13 +386,17 @@ describe("the transcript a chat is drawn and told from", () => {
       parts: [{ state: "streaming", text: "Partial" }],
     });
 
-    // Once the turn has let go of it, the written reply stands alone.
-    records.service.live(chatId, sessionId).clear();
+    // The turn ending writes what it was holding, so the words the reply had
+    // reached are what the transcript shows from then on.
+    await records.service.live(chatId, sessionId).clear();
     expect(
       (await ChatReads.transcript({ chatId, sessionId }))
         ._unsafeUnwrap()
         .at(-1),
-    ).toMatchObject({ id: replying.id, parts: [] });
+    ).toMatchObject({
+      id: replying.id,
+      parts: [{ state: "done", text: "Partial" }],
+    });
   });
 });
 

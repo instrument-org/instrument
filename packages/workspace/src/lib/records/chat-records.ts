@@ -92,8 +92,12 @@ export interface LiveTurn {
 
 /** A session's running turn, as its writer holds it. */
 export interface Live {
-  /** Drops what the turn held, once it has ended. */
-  clear(): void;
+  /**
+   * Ends the turn, writing whatever it still holds as cut off: the words a
+   * reply had reached, and a call whose input never finished arriving, as
+   * interrupted. A turn that settled everything has nothing to write here.
+   */
+  clear(): Promise<void>;
   /** Takes a part out of the turn's memory, for one appended another way. */
   forget(partId: StoreId.Part): void;
   setMessage(message: SessionMessage.Type): void;
@@ -629,14 +633,26 @@ export class ChatRecords {
       }
     };
     return {
-      clear: () => {
+      clear: async () => {
         const state = this.#live.get(chatId)?.get(sessionId);
         if (!state) {
           return;
         }
+        const held = [...state.parts.values()];
         drop();
         for (const id of messagesOfTurn(state)) {
           this.#liveChanged(chatId, sessionId, id);
+        }
+        // Whatever arrived and never settled is written as the turn left it,
+        // so a reply cut off mid-word is still a reply the person can read.
+        const cutOff = held.flatMap((part) => {
+          const written = asCutOff(part, this.#now());
+          return written ? [written] : [];
+        });
+        for (const part of cutOff) {
+          await this.#with(chatId, (chat) =>
+            this.#part(chat, part, isCommitPart(part)),
+          );
         }
         this.#trim();
       },
@@ -1389,6 +1405,40 @@ function marksBetween(was: Marked, now: Session.Type): MarkChange[] {
     changes.push({ field: "stoppedAt", value: now.stoppedAt });
   }
   return changes;
+}
+
+/**
+ * A part the turn still held when it ended, as the records keep it: the words
+ * or thinking a reply had reached, done where it stopped, and a call whose
+ * input never finished arriving, as interrupted. A preliminary output is
+ * nothing on its own, so it is left behind with the call it was standing in
+ * for, which the sweep on the next open finishes.
+ */
+function asCutOff(
+  part: SessionMessagePart.Type,
+  now: Date,
+): SessionMessagePart.Type | undefined {
+  if (isToolPart(part)) {
+    return part.state === "input-streaming"
+      ? SessionMessagePart.coerce({
+          ...part,
+          errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+          metadata: { ...part.metadata, endedAt: now },
+          state: "output-error",
+        })
+      : undefined;
+  }
+  if (part.type !== "text" && part.type !== "reasoning") {
+    return part;
+  }
+  return part.text.trimEnd() === ""
+    ? undefined
+    : {
+        ...part,
+        metadata: { ...part.metadata, endedAt: now },
+        state: "done",
+        text: part.text.trimEnd(),
+      };
 }
 
 /** The parts of a folded session by id, built once per folded session. */

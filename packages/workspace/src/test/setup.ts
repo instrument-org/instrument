@@ -6,11 +6,9 @@ import { noopModelCache } from "@instrument-org/ai-gateway/model-cache";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll } from "vitest";
+import { afterAll, beforeAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
-import { ChatRecords, installChatRecords } from "../lib/records/chat-records";
-import { chatDir } from "../lib/record-folders";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -92,17 +90,31 @@ setWorkspaceConfig({
 // opens. `chatDir` is read per write, so a test that points the config at
 // another folder is followed there. Nothing is synced: nothing here has to
 // survive a power cut.
-const testRecords = new ChatRecords({
-  app: "0.0.0-test",
-  device: newDeviceId(),
-  dirOf: chatDir,
-  fsync: false,
+// Imported in a hook rather than at the top of this file: the records reach
+// `store-id` for the ids they read, and anything this setup imports is loaded
+// before a test file's `vi.mock(import("ulid"))` is registered, which would
+// leave every snapshot of an id unmocked.
+let testRecords: import("../lib/records/chat-records").ChatRecords | undefined;
+
+beforeAll(async () => {
+  const [{ ChatRecords, installChatRecords }, { chatDir }] = await Promise.all([
+    import("../lib/records/chat-records"),
+    import("../lib/record-folders"),
+  ]);
+  testRecords = new ChatRecords({
+    app: "0.0.0-test",
+    device: newDeviceId(),
+    dirOf: chatDir,
+    fsync: false,
+  });
+  installChatRecords(testRecords);
 });
-installChatRecords(testRecords);
 
 afterAll(async () => {
+  const { installChatRecords } = await import("../lib/records/chat-records");
   installChatRecords(undefined);
-  await testRecords.dispose();
+  await testRecords?.dispose();
+  testRecords = undefined;
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

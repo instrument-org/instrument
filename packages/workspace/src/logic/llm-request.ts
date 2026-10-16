@@ -298,7 +298,7 @@ export const llmRequestLogic = fromPromise<
 
   if (isSignalAborted()) {
     saveAbortMessage();
-    live?.clear();
+    await live?.clear();
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
@@ -997,10 +997,11 @@ export const llmRequestLogic = fromPromise<
 
   // Remove abort listener since we've completed
   signal.removeEventListener("abort", abortListener);
-  // The turn is over, so what it was holding goes. Every part that settled
-  // is in the records, since each write here was waited for; a part that
-  // never settled is lost with the turn, as a reply cut off is.
-  live?.clear();
+  // The turn is over, so what it was holding is written: every part that
+  // settled is in the records already, since each write here was waited for,
+  // and whatever was still arriving is written as the turn left it, which is
+  // how a reply cut off mid-word is still a reply the person can read.
+  await live?.clear();
 
   return { message: assistantMessage, parts: await getCurrentParts() };
 });

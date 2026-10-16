@@ -189,6 +189,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
     }
+    case "data-outputLimit": {
+      return `<data-outputLimit continuations="${part.data.continuations}" />`;
+    }
     case "data-reply": {
       return `<data-reply>${part.data.text}</data-reply>`;
     }

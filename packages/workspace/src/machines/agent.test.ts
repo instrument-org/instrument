@@ -12,7 +12,7 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import { agentMachine } from "./agent";
+import { agentMachine, type ShouldContinueResult } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
 
 vi.mock(import("../lib/session-store-storage"));
@@ -39,6 +39,8 @@ describe("agentMachine", () => {
     },
     role: "assistant",
   };
+
+  const noParts: SessionMessagePart.Type[] = [];
 
   const parts: SessionMessagePart.Type[] = [
     {
@@ -75,7 +77,10 @@ describe("agentMachine", () => {
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       {
@@ -237,7 +242,10 @@ describe("agentMachine", () => {
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       {
@@ -312,7 +320,10 @@ describe("agentMachine", () => {
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       {
@@ -371,7 +382,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -454,7 +468,10 @@ describe("agentMachine", () => {
             );
           }),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -529,7 +546,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -598,7 +618,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -671,7 +694,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -694,5 +720,81 @@ describe("agentMachine", () => {
         },
       ]
     `);
+  });
+
+  it("records how many replies the output limit cut off when it ends the turn", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    let recorded: number | undefined;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({
+              message: createAssistantMessage(
+                StoreId.newMessageId(),
+                runSessionId,
+              ),
+              parts: noParts,
+            }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          saveOutputLimitMessage: fromPromise(({ input }) => {
+            recorded = input.continuations;
+            return Promise.resolve();
+          }),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 1 }),
+          ),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(recorded).toBe(1);
+  });
+
+  it("ends the turn with nothing written when the output limit was not why", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    let saved = false;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({
+              message: createAssistantMessage(
+                StoreId.newMessageId(),
+                runSessionId,
+              ),
+              parts: noParts,
+            }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          saveOutputLimitMessage: fromPromise(() => {
+            saved = true;
+            return Promise.resolve();
+          }),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(saved).toBe(false);
   });
 });

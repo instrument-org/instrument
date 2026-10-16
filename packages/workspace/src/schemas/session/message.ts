@@ -32,6 +32,7 @@ import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
 import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { outputLimitModelNote } from "../../lib/output-limit-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
@@ -370,6 +371,9 @@ export namespace SessionMessage {
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
     let pendingMaxStepsNote: string | undefined;
+    // A run that kept running out of room to write is recorded the same way,
+    // and carried forward for the same reason.
+    let pendingOutputLimitNote: string | undefined;
     // Skills the agent wrote are recorded the same way, on the assistant
     // message of the turn that wrote them. Several turns can run before the
     // user speaks again, so these accumulate rather than replace: each skill is
@@ -388,6 +392,17 @@ export namespace SessionMessage {
       );
       if (maxStepsPart) {
         pendingMaxStepsNote = maxStepsModelNote(maxStepsPart.data);
+      }
+
+      const outputLimitPart = message.parts.find(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & {
+          type: "data-outputLimit";
+        } => part.type === "data-outputLimit",
+      );
+      if (outputLimitPart) {
+        pendingOutputLimitNote = outputLimitModelNote(outputLimitPart.data);
       }
 
       const skillChangesPart = message.parts.find(
@@ -736,6 +751,11 @@ export namespace SessionMessage {
         if (pendingMaxStepsNote) {
           injectedParts.push({ text: pendingMaxStepsNote, type: "text" });
           pendingMaxStepsNote = undefined;
+        }
+
+        if (pendingOutputLimitNote) {
+          injectedParts.push({ text: pendingOutputLimitNote, type: "text" });
+          pendingOutputLimitNote = undefined;
         }
 
         const skillChangesNote = skillChangesModelNote({

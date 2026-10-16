@@ -12,7 +12,7 @@ export namespace SessionMessageDataPart {
    *
    * - **Event**: something that happened on this turn -- `asks`,
    *   `attachments`, `contextRollover`, `fromChat`, `intent`, `jobEvent`,
-   *   `maxSteps`, `reply`,
+   *   `maxSteps`, `outputLimit`, `reply`,
    *   `skillChanges`, and `skillMentions`. A repeat is impossible by
    *   construction; nothing to guard.
    * - **Diff**: what changed since last time -- `environmentChange`,
@@ -53,6 +53,7 @@ export namespace SessionMessageDataPart {
     "memory",
     "messageGap",
     "modelChange",
+    "outputLimit",
     "reply",
     "taskEvent",
     "chatContext",
@@ -345,6 +346,18 @@ export namespace SessionMessageDataPart {
   });
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
+
+  /**
+   * A turn that ran out of room to write, as many times in a row as it was
+   * given. `continuations` is how many replies the turn spent before it
+   * stopped, so the note the next turn carries can say the model was cut off
+   * again rather than once.
+   */
+  const OutputLimitDataPartSchema = z.object({
+    continuations: z.number(),
+  });
+
+  export type OutputLimitDataPart = z.output<typeof OutputLimitDataPartSchema>;
 
   /**
    * Tasks a chat created that finished a turn since it last heard.
@@ -1000,6 +1013,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
+    [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,

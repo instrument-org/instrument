@@ -7,6 +7,7 @@ import {
   jobEventModelNote,
   maxStepsModelNote,
   messageGapModelNote,
+  outputLimitModelNote,
   type SessionMessagePart,
   viewContextModelNote,
 } from "@instrument-org/workspace/client";
@@ -87,6 +88,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
+  // The max-steps treatment, for now: a developer's peek at the note the next
+  // turn carries. What a reader of a chat gets is the reply stopping mid-word,
+  // which is not enough; the card that says so is still to design.
+  "data-outputLimit": "dev",
   // Drawn by the chat stream over the user's bubble, not in the part's place
   // under it.
   "data-reply": "hidden",
@@ -345,6 +350,16 @@ export function renderDataPart({
     }
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-outputLimit": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={outputLimitModelNote(part.data)}
+        />
+      );
     }
     case "data-skillChanges": {
       return (

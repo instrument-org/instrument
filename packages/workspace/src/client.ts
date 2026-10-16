@@ -20,6 +20,7 @@ export { isToolPart } from "./lib/is-tool-part";
 export { askTargetName } from "./lib/permissions/ask-target";
 export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
+export { outputLimitModelNote } from "./lib/output-limit-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";

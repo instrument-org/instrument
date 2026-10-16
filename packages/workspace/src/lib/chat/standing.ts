@@ -184,6 +184,11 @@ async function endingIn(
     }
     return { failed: false, line: "Stopped at its step limit" };
   }
+  // Not a failure either: the model wrote until it ran out of room, as many
+  // times as it was given, and what it wrote is in the transcript.
+  if (last?.metadata.finishReason === "length") {
+    return { failed: false, line: "Cut off at the output limit" };
+  }
   const error = last?.metadata.error;
   if (error && error.kind !== "aborted") {
     return { failed: true, line: describeMessageError(error).summary };

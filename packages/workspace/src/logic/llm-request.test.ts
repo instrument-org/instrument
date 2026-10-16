@@ -158,6 +158,7 @@ describe("llmRequestLogic", () => {
     beforeStream,
     catalog,
     chunks,
+    finishReason = "stop",
     getMessages = () => Promise.resolve(mockMessages),
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
@@ -165,6 +166,7 @@ describe("llmRequestLogic", () => {
     beforeStream?: () => Promise<void>;
     catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV4StreamPart[];
+    finishReason?: "length" | "stop";
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
@@ -180,7 +182,7 @@ describe("llmRequestLogic", () => {
             chunks: [
               ...chunks,
               {
-                finishReason: { raw: "stop", unified: "stop" },
+                finishReason: { raw: finishReason, unified: finishReason },
                 logprobs: undefined,
                 type: "finish",
                 usage: {
@@ -860,6 +862,67 @@ describe("llmRequestLogic", () => {
     `);
   });
 
+  it("tells the model a call was cut off rather than that its input was invalid", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        {
+          id: "1",
+          toolName: "read_file",
+          type: "tool-input-start",
+        },
+        {
+          input: '{"filePath": "./lease',
+          toolCallId: "1",
+          toolName: "read_file",
+          type: "tool-call",
+        },
+      ],
+      finishReason: "length",
+    });
+    const toolParts = messages
+      .flatMap((message) => ("parts" in message ? message.parts : []))
+      .filter(isToolPart)
+      .map((part) => ({ errorText: part.errorText, state: part.state }));
+    expect(toolParts).toMatchInlineSnapshot(`
+      [
+        {
+          "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+          "state": "output-error",
+        },
+      ]
+    `);
+  });
+
+  it("settles a call the output limit stopped mid-input, rather than leaving it arriving", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        {
+          id: "1",
+          toolName: "read_file",
+          type: "tool-input-start",
+        },
+        {
+          delta: '{"filePath": "./le',
+          id: "1",
+          type: "tool-input-delta",
+        },
+      ],
+      finishReason: "length",
+    });
+    const toolParts = messages
+      .flatMap((message) => ("parts" in message ? message.parts : []))
+      .filter(isToolPart)
+      .map((part) => ({ errorText: part.errorText, state: part.state }));
+    expect(toolParts).toMatchInlineSnapshot(`
+      [
+        {
+          "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+          "state": "output-error",
+        },
+      ]
+    `);
+  });
+
   it("should handle incorrect input key name for tool call without start part", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
@@ -897,7 +960,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZE8888888888888888",
+          "id": "msg_00000000ZG8888888888888888",
           "metadata": {
             "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
@@ -907,8 +970,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZE8888888888888889",
-                "messageId": "msg_00000000ZE8888888888888888",
+                "id": "prt_00000000ZG8888888888888889",
+                "messageId": "msg_00000000ZG8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -932,8 +995,8 @@ describe("llmRequestLogic", () => {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
                 "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZE888888888888888A",
-                "messageId": "msg_00000000ZE8888888888888888",
+                "id": "prt_00000000ZG888888888888888A",
+                "messageId": "msg_00000000ZG8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "output-error",
@@ -983,7 +1046,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZF8888888888888888",
+          "id": "msg_00000000ZH8888888888888888",
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
@@ -993,8 +1056,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZF8888888888888889",
-                "messageId": "msg_00000000ZF8888888888888888",
+                "id": "prt_00000000ZH8888888888888889",
+                "messageId": "msg_00000000ZH8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1005,8 +1068,8 @@ describe("llmRequestLogic", () => {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
                 "endedAt": 2013-08-31T12:00:14.000Z,
-                "id": "prt_00000000ZF888888888888888A",
-                "messageId": "msg_00000000ZF8888888888888888",
+                "id": "prt_00000000ZH888888888888888A",
+                "messageId": "msg_00000000ZH8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "output-error",
@@ -1062,7 +1125,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZG8888888888888888",
+          "id": "msg_00000000ZJ8888888888888888",
           "metadata": {
             "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
@@ -1072,8 +1135,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZG8888888888888889",
-                "messageId": "msg_00000000ZG8888888888888888",
+                "id": "prt_00000000ZJ8888888888888889",
+                "messageId": "msg_00000000ZJ8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1087,8 +1150,8 @@ describe("llmRequestLogic", () => {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
                 "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZG888888888888888A",
-                "messageId": "msg_00000000ZG8888888888888888",
+                "id": "prt_00000000ZJ888888888888888A",
+                "messageId": "msg_00000000ZJ8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "output-error",
@@ -1144,7 +1207,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZH8888888888888888",
+          "id": "msg_00000000ZK8888888888888888",
           "metadata": {
             "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
@@ -1154,8 +1217,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZH8888888888888889",
-                "messageId": "msg_00000000ZH8888888888888888",
+                "id": "prt_00000000ZK8888888888888889",
+                "messageId": "msg_00000000ZK8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1169,8 +1232,8 @@ describe("llmRequestLogic", () => {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
                 "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZH888888888888888A",
-                "messageId": "msg_00000000ZH8888888888888888",
+                "id": "prt_00000000ZK888888888888888A",
+                "messageId": "msg_00000000ZK8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "output-error",
@@ -1221,7 +1284,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZJ8888888888888888",
+          "id": "msg_00000000ZM8888888888888888",
           "metadata": {
             "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
@@ -1231,8 +1294,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZJ8888888888888889",
-                "messageId": "msg_00000000ZJ8888888888888888",
+                "id": "prt_00000000ZM8888888888888889",
+                "messageId": "msg_00000000ZM8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1246,8 +1309,8 @@ describe("llmRequestLogic", () => {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
                 "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZJ888888888888888A",
-                "messageId": "msg_00000000ZJ8888888888888888",
+                "id": "prt_00000000ZM888888888888888A",
+                "messageId": "msg_00000000ZM8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "output-error",
@@ -1314,7 +1377,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZK8888888888888888",
+          "id": "msg_00000000ZN8888888888888888",
           "metadata": {
             "completionTokensPerSecond": 1.6666666666666667,
             "finishReason": "stop",
@@ -1324,8 +1387,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZK8888888888888889",
-                "messageId": "msg_00000000ZK8888888888888888",
+                "id": "prt_00000000ZN8888888888888889",
+                "messageId": "msg_00000000ZN8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1343,8 +1406,8 @@ describe("llmRequestLogic", () => {
               },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
-                "id": "prt_00000000ZK888888888888888A",
-                "messageId": "msg_00000000ZK8888888888888888",
+                "id": "prt_00000000ZN888888888888888A",
+                "messageId": "msg_00000000ZN8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "input-available",
@@ -1401,7 +1464,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZM8888888888888888",
+            "id": "msg_00000000ZP8888888888888888",
             "metadata": {
               "error": {
                 "classification": "transient",
@@ -1418,8 +1481,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZM8888888888888889",
-                  "messageId": "msg_00000000ZM8888888888888888",
+                  "id": "prt_00000000ZP8888888888888889",
+                  "messageId": "msg_00000000ZP8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -1476,7 +1539,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZN8888888888888888",
+            "id": "msg_00000000ZQ8888888888888888",
             "metadata": {
               "error": {
                 "kind": "aborted",
@@ -1490,8 +1553,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZN8888888888888889",
-                  "messageId": "msg_00000000ZN8888888888888888",
+                  "id": "prt_00000000ZQ8888888888888889",
+                  "messageId": "msg_00000000ZQ8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -1544,7 +1607,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZP8888888888888888",
+            "id": "msg_00000000ZR8888888888888888",
             "metadata": {
               "error": {
                 "classification": "unknown",
@@ -1558,8 +1621,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZP8888888888888889",
-                  "messageId": "msg_00000000ZP8888888888888888",
+                  "id": "prt_00000000ZR8888888888888889",
+                  "messageId": "msg_00000000ZR8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -2368,7 +2431,7 @@ describe("llmRequestLogic", () => {
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
           {
-            "id": "msg_00000000ZV8888888888888889",
+            "id": "msg_00000000ZX8888888888888889",
             "metadata": {
               "agentName": "main",
               "contextVersion": "current",
@@ -2380,8 +2443,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T10:00:00.000Z,
-                  "id": "prt_00000000ZV888888888888888A",
-                  "messageId": "msg_00000000ZV8888888888888889",
+                  "id": "prt_00000000ZX888888888888888A",
+                  "messageId": "msg_00000000ZX8888888888888889",
                   "sessionId": "ses_00000000018888888888888888",
                 },
                 "text": "You are an assistant from two hours ago.",
@@ -2391,7 +2454,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZV888888888888888B",
+            "id": "msg_00000000ZX888888888888888B",
             "metadata": {
               "completionTokensPerSecond": 1.4285714285714286,
               "finishReason": "stop",
@@ -2401,8 +2464,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:12.000Z,
-                  "id": "prt_00000000ZV888888888888888C",
-                  "messageId": "msg_00000000ZV888888888888888B",
+                  "id": "prt_00000000ZX888888888888888C",
+                  "messageId": "msg_00000000ZX888888888888888B",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -2412,8 +2475,8 @@ describe("llmRequestLogic", () => {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:15.000Z,
                   "endedAt": 2013-08-31T12:00:16.000Z,
-                  "id": "prt_00000000ZV888888888888888D",
-                  "messageId": "msg_00000000ZV888888888888888B",
+                  "id": "prt_00000000ZX888888888888888D",
+                  "messageId": "msg_00000000ZX888888888888888B",
                   "sessionId": "ses_00000000018888888888888888",
                 },
                 "state": "done",
@@ -2497,7 +2560,7 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZV888888888888888H",
+          "id": "msg_00000000ZX888888888888888H",
           "metadata": {
             "completionTokensPerSecond": 1,
             "finishReason": "stop",
@@ -2507,8 +2570,8 @@ describe("llmRequestLogic", () => {
             {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZV888888888888888J",
-                "messageId": "msg_00000000ZV888888888888888H",
+                "id": "prt_00000000ZX888888888888888J",
+                "messageId": "msg_00000000ZX888888888888888H",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -2518,8 +2581,8 @@ describe("llmRequestLogic", () => {
               "metadata": {
                 "createdAt": 2013-08-31T12:00:10.000Z,
                 "endedAt": 2013-08-31T12:00:11.000Z,
-                "id": "prt_00000000ZV888888888888888K",
-                "messageId": "msg_00000000ZV888888888888888H",
+                "id": "prt_00000000ZX888888888888888K",
+                "messageId": "msg_00000000ZX888888888888888H",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "done",
@@ -2532,8 +2595,8 @@ describe("llmRequestLogic", () => {
               },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:13.000Z,
-                "id": "prt_00000000ZV888888888888888M",
-                "messageId": "msg_00000000ZV888888888888888H",
+                "id": "prt_00000000ZX888888888888888M",
+                "messageId": "msg_00000000ZX888888888888888H",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "input-available",

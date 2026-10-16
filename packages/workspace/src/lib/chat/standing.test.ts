@@ -455,6 +455,41 @@ describe("taskStanding", () => {
     });
   });
 
+  it("does not call a task that ran out of room to write a failure", async () => {
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
+    await ChatWrites.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          (ids) => ({
+            data: { continuations: 1 },
+            metadata: partMetadata(ids),
+            type: "data-outputLimit",
+          }),
+        ],
+        {
+          finishReason: "length",
+          modelId: "synthetic",
+          providerId: "system",
+          synthetic: true,
+        },
+      ),
+      chatId,
+    );
+
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      chatId,
+    });
+
+    expect(standing).toEqual({
+      kind: "done",
+      line: "Cut off at the output limit",
+    });
+  });
+
   it("says the step while it runs", async () => {
     const chatId = freshChat();
     const sessionId = await withSession(chatId);

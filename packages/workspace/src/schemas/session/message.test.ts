@@ -1142,6 +1142,103 @@ describe("SessionMessage.toModelMessages", () => {
       ]
     `);
   });
+
+  it("carries the output limit onto the next user turn", async () => {
+    const { sessionId } = baseMetadata();
+
+    function reply(
+      part: (metadata: {
+        createdAt: Date;
+        id: StoreId.Part;
+        messageId: StoreId.Message;
+        sessionId: StoreId.Session;
+      }) => SessionMessage.WithParts["parts"][number],
+    ): SessionMessage.WithParts {
+      const id = StoreId.newMessageId();
+      return {
+        id,
+        metadata: {
+          aiGatewayModel: undefined,
+          createdAt: mockDate,
+          finishReason: "length",
+          modelId: "synthetic",
+          providerId: "system",
+          sessionId,
+          synthetic: true,
+        },
+        parts: [
+          part({
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId: id,
+            sessionId,
+          }),
+        ],
+        role: "assistant",
+      };
+    }
+
+    const asked = StoreId.newMessageId();
+    const messages: SessionMessage.WithParts[] = [
+      reply((metadata) => ({
+        data: { continuations: 1 },
+        metadata,
+        type: "data-outputLimit",
+      })),
+      {
+        id: asked,
+        metadata: { createdAt: mockDate, sessionId },
+        parts: [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId: asked,
+              sessionId,
+            },
+            state: "done",
+            text: "Carry on.",
+            type: "text",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Carry on.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      The previous run was cut off at the output limit 2 times in a row and stopped there, not because the task was finished. What was written is above. Pick up from where it stops, and write the rest in several short replies rather than one long one.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
 });
 
 // A provider renamed or removed since a turn ran left that turn's model record

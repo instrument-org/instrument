@@ -23,6 +23,10 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import {
+  MAX_OUTPUT_LIMIT_REPLIES,
+  outputLimitRun,
+} from "../lib/output-limit-run";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
 import { type SessionMessage } from "../schemas/session/message";
@@ -35,6 +39,16 @@ import {
   saveStoppedToolCallPart,
   type StopReason,
 } from "./execute-tool-call";
+
+/**
+ * Whether the turn goes on, and how many replies it has already spent
+ * continuing one the output limit cut off, which is what the message that ends
+ * such a turn records.
+ */
+export type ShouldContinueResult = {
+  continue: boolean;
+  outputLimitContinuations: number;
+};
 
 export type AgentParentEvent =
   | {
@@ -257,6 +271,57 @@ export const agentMachine = setup({
       }
     }),
 
+    saveOutputLimitMessage: fromPromise<
+      void,
+      {
+        continuations: number;
+        sessionId: StoreId.Session;
+        chatId: ChatId;
+      }
+    >(async ({ input }) => {
+      const now = getCurrentDate();
+      const messageId = StoreId.newMessageId();
+
+      const result = await ChatWrites.saveMessageWithParts(
+        {
+          id: messageId,
+          metadata: {
+            createdAt: now,
+            finishReason: "length",
+            modelId: SYNTHETIC_MODEL_ID,
+            providerId: "system",
+            sessionId: input.sessionId,
+            synthetic: true,
+          },
+          // The same shape as the max-steps stop, and for the same reason: the
+          // reply above is the model's own words and this is not, so it is a
+          // hidden data part the transcript draws as a card, and the model
+          // reads it as a system note on the next user turn (see
+          // `outputLimitModelNote`).
+          parts: [
+            {
+              data: { continuations: input.continuations },
+              metadata: {
+                createdAt: now,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: input.sessionId,
+              },
+              type: "data-outputLimit",
+            },
+          ],
+          role: "assistant",
+        },
+        input.chatId,
+      );
+
+      if (result.isErr()) {
+        throw new Error(
+          `Failed to save output limit message: ${JSON.stringify(result.error)}`,
+        );
+      }
+    }),
+
     /**
      * Writes the messages that arrived mid-turn into the transcript, in the
      * order they came, and answers with their ids. The request that follows
@@ -288,8 +353,17 @@ export const agentMachine = setup({
       return ids;
     }),
 
+    /**
+     * Whether the turn goes on, and if it stops, whether it stopped because
+     * the model kept running out of room to write.
+     *
+     * A reply cut off at the output limit is text with no tool call, which the
+     * agent's own answer reads as a turn that finished, so the run of `length`
+     * finishes is counted here and overrides it: the turn carries on until the
+     * reply is whole or the bound is reached.
+     */
     shouldContinue: fromPromise<
-      boolean,
+      ShouldContinueResult,
       {
         agent: AnyAgent;
         sessionId: StoreId.Session;
@@ -307,9 +381,20 @@ export const agentMachine = setup({
         );
       }
 
-      return input.agent.shouldContinue({
-        messages: messageResults.value,
-      });
+      const run = outputLimitRun(messageResults.value);
+      if (run >= MAX_OUTPUT_LIMIT_REPLIES) {
+        return { continue: false, outputLimitContinuations: run - 1 };
+      }
+      if (run > 0) {
+        return { continue: true, outputLimitContinuations: run - 1 };
+      }
+
+      return {
+        continue: await input.agent.shouldContinue({
+          messages: messageResults.value,
+        }),
+        outputLimitContinuations: 0,
+      };
     }),
   },
 
@@ -329,6 +414,8 @@ export const agentMachine = setup({
       maxAttemptCount: number;
       maxStepCount: number;
       model: AIGatewayModel.Type;
+      /** Replies the turn spent continuing one the output limit cut off, when that is why it stopped. */
+      outputLimitContinuations: number;
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
       /** The request in flight went past its chunk timeout, which lets it go; cleared as each starts. */
@@ -376,6 +463,7 @@ export const agentMachine = setup({
     maxAttemptCount: 3,
     maxStepCount: input.maxStepCount || 1,
     model: input.model,
+    outputLimitContinuations: 0,
     parentMessageId: input.parentMessageId,
     parentRef: input.parentRef,
     requestTimedOut: false,
@@ -675,9 +763,19 @@ export const agentMachine = setup({
         onDone: [
           {
             guard: ({ event: { output } }) => {
-              return output;
+              return output.continue;
             },
             target: "MaybeStartingLLMRequest",
+          },
+          {
+            actions: assign({
+              outputLimitContinuations: ({ event: { output } }) =>
+                output.outputLimitContinuations,
+            }),
+            guard: ({ event: { output } }) => {
+              return output.outputLimitContinuations > 0;
+            },
+            target: "SavingOutputLimitMessage",
           },
           { target: "Finishing" },
         ],
@@ -758,6 +856,19 @@ export const agentMachine = setup({
         onDone: "Finishing",
         onError: { actions: "assignEventError", target: "Finishing" },
         src: "saveMaxStepsMessage",
+      },
+    },
+
+    SavingOutputLimitMessage: {
+      invoke: {
+        input: ({ context }) => ({
+          continuations: context.outputLimitContinuations,
+          sessionId: context.sessionId,
+          chatId: context.chatId,
+        }),
+        onDone: "Finishing",
+        onError: { actions: "assignEventError", target: "Finishing" },
+        src: "saveOutputLimitMessage",
       },
     },
 

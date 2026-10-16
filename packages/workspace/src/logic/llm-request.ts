@@ -971,9 +971,12 @@ export const llmRequestLogic = fromPromise<
 
   // Remove abort listener since we've completed
   signal.removeEventListener("abort", abortListener);
+  const ranOutOfRoom = assistantMessage.metadata.finishReason === "length";
   // The fragments that arrived since the last parse, so a call the turn is
   // about to let go of carries everything the model typed rather than
-  // whatever the cadence last read.
+  // whatever the cadence last read. A call the output limit stopped in the
+  // middle of is settled here rather than left arriving: nothing is coming,
+  // and a result is what the next step reads.
   for (const [id, call] of Object.entries(toolCalls)) {
     if (call.state !== "input-streaming") {
       continue;
@@ -981,7 +984,32 @@ export const llmRequestLogic = fromPromise<
     const { value: typed } = await parsePartialJson(
       toolCallInputText[id] ?? "",
     );
-    await writes.savePart({ ...call, input: typed as never });
+    await writes.savePart(
+      ranOutOfRoom
+        ? {
+            ...call,
+            errorText: CUT_OFF_CALL_TEXT,
+            input: typed as never,
+            metadata: { ...call.metadata, endedAt: getCurrentDate() },
+            state: "output-error",
+          }
+        : { ...call, input: typed as never },
+    );
+  }
+  if (ranOutOfRoom) {
+    // A call the output limit cut off part way through its arguments reaches
+    // the provider as malformed JSON, and the SDK's own message for that says
+    // the input was invalid. The next step reads that as its own mistake and
+    // rewrites arguments that were right. Say what happened instead.
+    for (const part of await getCurrentParts()) {
+      if (
+        isToolPart(part) &&
+        part.state === "output-error" &&
+        invalidToolCallErrors.has(part.toolCallId)
+      ) {
+        await writes.savePart({ ...part, errorText: CUT_OFF_CALL_TEXT });
+      }
+    }
   }
   // The turn is over, so what it was holding is written: every part that
   // settled is in the records already, since each write here was waited for,
@@ -1017,6 +1045,10 @@ export const llmRequestLogic = fromPromise<
 
   return { message: assistantMessage, parts };
 });
+
+/** What a tool call stopped part way through by the output limit answers with. */
+const CUT_OFF_CALL_TEXT =
+  "The output limit cut this call off before its input was complete, so it did not run. Call it again.";
 
 /**
  * An error's message with every cause it embeds reduced to that cause's own

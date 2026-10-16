@@ -52,6 +52,33 @@ const PROMISED_NOTE = systemNote`
 `;
 
 /**
+ * What a step is sent with when the model ran out of room to write: its reply
+ * stops mid-word, and the step that follows is the rest of it. The note says
+ * so, because a model handed its own unfinished text with nothing else will
+ * either start over or answer as though it had finished.
+ */
+const LENGTH_NOTE = systemNote`
+  Your last reply was cut off at the output limit, mid-word. Carry on from exactly where it stops, without repeating what is already there and without starting over. Write less at a time.
+`;
+
+/**
+ * Whether the next step carries on a reply the output limit cut off: the
+ * turn's latest message is a step of the agent's that the model stopped
+ * writing because it ran out of room.
+ */
+export function cutOffAtOutputLimit(
+  messages: SessionMessage.WithParts[],
+): boolean {
+  const last = messages.at(-1);
+  return (
+    last?.role === "assistant" &&
+    last.metadata.error === undefined &&
+    !last.metadata.synthetic &&
+    last.metadata.finishReason === "length"
+  );
+}
+
+/**
  * Whether the next step continues the agent's own reply: the turn's latest
  * message is a step of the agent's that finished with text and no tool call.
  */
@@ -72,8 +99,13 @@ export function continuesOwnReply(
 
 /**
  * The note a session's next step carries, read from its stored transcript:
- * `PROMISED_NOTE` on a step that continues the agent's own reply,
- * `TURN_NOTE` on the first step of a chat's typed turn, otherwise none.
+ * `LENGTH_NOTE` on a step that carries on a reply the output limit cut off,
+ * `PROMISED_NOTE` on a step that continues the agent's own reply, `TURN_NOTE`
+ * on the first step of a chat's typed turn, otherwise none.
+ *
+ * `LENGTH_NOTE` is asked for first because a reply cut off mid-sentence is
+ * text with no tool call, which `continuesOwnReply` also matches: without this
+ * order a cut-off reply would be told it promised work it never started.
  */
 export async function turnNoteFor({
   sessionId,
@@ -85,6 +117,9 @@ export async function turnNoteFor({
   const messages = await ChatReads.modelHistory({ chatId, sessionId });
   if (messages.isErr()) {
     return undefined;
+  }
+  if (cutOffAtOutputLimit(messages.value)) {
+    return LENGTH_NOTE;
   }
   if (continuesOwnReply(messages.value)) {
     return PROMISED_NOTE;

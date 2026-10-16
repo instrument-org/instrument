@@ -64,7 +64,16 @@ What the Windows pass has shown so far, against the branch in the host's own che
 - The launch migrations ran over its 13 chats: converted in 234ms, the stores set aside, the workspace at format version 2, 13 folders written in 91ms, numbered where four chats shared a name. `.instrument` is not hidden, as decided.
 - Renaming the chat in the app renames the folder, between turns, with the transcript still in it.
 - `$INSTRUMENT_OUTPUT` is spelled for the shell with its drive letter and points at the chat's own folder. Writing into it is refused: [the chat folder the agent cannot write to](../../findings/the-chat-folder-the-agent-cannot-write-to.md).
-- A turn on a paid model cannot run there yet: the host's OpenRouter key is out of credits, and the free model its list starts with is rate-limited upstream. The steps that need a live agent are waiting on that.
+All eight steps pass there, on Auto. What the live turns showed that nothing else could:
+
+- What the person pasted landed in the chat's own folder and the agent was **refused** it: "is Instrument's own data, which no command reads or changes", and it told the person it could not read the file they had just sent. A workspace the app keeps in its own data is inside the folder the rules close to every command, so the refusal is flat, with no card. What they send now stays in the record folder on such a workspace, as finished work and the handoff notes already did, and the agent reads it.
+- Before that fix, a turn asked for a file in the conversation's folder wrote a relative path instead, which landed in the work folder, and the reply named that path. No error anywhere: the folder it was told to use is one it cannot write.
+- A title that sanitizes to a Windows device name is handled (`NUL` becomes `NUL_`), and one full of characters Windows forbids (`Q: what now? <draft> | "quoted" * and CON`) becomes `Q what now draft quoted and CON`.
+- A background job ticking into the work folder ran straight through a rename of its chat: the folder followed, the job kept writing, nothing crashed.
+- Deleting a chat left its folder and `CHAT.md` where they were; deleting another with its folder took only that one.
+- A folder renamed in Explorer is adopted at the next launch, with no second folder made.
+
+Getting a live turn there needed two things that had nothing to do with the branch. The dev build's API was `http://localhost:49100`, where nothing listens on a test host, so there was no account to sign in to and no Auto in its model list; the installed beta beside it was signed in, which is per user-data folder and says nothing about the dev build's. With the API pointed at the real one, `auth.signInSocial` completed with no clicks at all, since the host's browser already had a Google session.
 
 Linux, against a packaged preview of the branch with a copy of that machine's own pre-2.0 workspace in its data folder:
 

@@ -28,6 +28,12 @@ Meanwhile `output`, the one place that starts at Allowed, is `~/Documents/Instru
 
 A model follows the writable path. Both turns driven on Windows wrote their file into `Documents/Instrument/` and said so plainly: "Writing a three-line poem about snow to snow.md in the Instrument folder."
 
+## It is a refusal, not a question
+
+The place that gates the app's own data is not the one that asks. A workspace the app keeps in its own data is inside the folder every rule marks as the app's (`appData`), which is closed to every command whatever the person's rules say, with no card to allow it. Driving a real chat is what showed it: the pasted CSV went into the chat's own folder, `read_file` came back "is Instrument's own data, which no command reads or changes", and the agent told the person it could not read the file they had just sent it.
+
+So this is not only about where finished work goes. Everything under such a workspace is closed to the agent: what the person pastes, the handoff notes, anything the agent is told to write for them. All three keep to the record folder there, which the rules open, and move into the chat's own folder on a workspace the person picked.
+
 ## What was done
 
 `$INSTRUMENT_OUTPUT` is the chat's own folder when that folder is inside the person's Instrument folder, and the Instrument folder itself otherwise (`finishedWorkFolder`). A workspace the person picked makes the first true for every chat in it, so the chat's own folder wins there with no further change; any other workspace keeps the folder they will actually open.

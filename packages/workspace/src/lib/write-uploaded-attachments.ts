@@ -17,6 +17,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getMimeType } from "./get-mime-type";
+import { chatFolderTheyOpen } from "./chat/output-folder";
 import { chatOwnFolder } from "./record-folders";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
@@ -139,11 +140,16 @@ function prepareUploadedFiles({
   return safeTry(async function* () {
     // Into the chat's own folder under `Chats/`, beside the transcript the
     // person reads, so what they sent is theirs to open rather than
-    // something in the records. A chat with no folder keeps them in its
-    // record folder, where every build before this one wrote them; the
+    // something in the records.
+    //
+    // Unless that folder is not one they open: a workspace kept in the
+    // app's own data is inside the folder the rules close to every command,
+    // so a file written there is refused outright, with no card to allow
+    // it, and the agent cannot read what the person just sent it. Those
+    // keep it in the record folder, which the rules open for reading. The
     // stored path is `attachments/<name>` either way, so what resolves it
     // is which folder holds them and nothing stored has to change.
-    const sentTo = chatOwnFolder(recordDir) ?? recordDir;
+    const sentTo = chatFolderTheyOpen(chatOwnFolder(recordDir)) ?? recordDir;
     const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),

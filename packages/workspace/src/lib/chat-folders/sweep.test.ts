@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../workspace-config";
 import { logFileName, marksFileName } from "../records/file-names";
 import { type LogRecord, type MarkRecord, recordLine } from "../records/record";
 import {
@@ -35,12 +40,23 @@ const ZONE = "America/New_York";
 
 let root: string;
 
+const heldConfig = getWorkspaceConfig();
+
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "chat-folders-"));
+  // A workspace the person picked, which is what makes its top level
+  // theirs: what they sent moves into the chat's folder only where the
+  // agent may read it there.
+  setWorkspaceConfig({
+    ...heldConfig,
+    outputDir: AbsolutePathSchema.parse(root),
+    rootDir: WorkspaceDirSchema.parse(root),
+  });
 });
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  setWorkspaceConfig(heldConfig);
   await fs.rm(root, { force: true, recursive: true });
 });
 

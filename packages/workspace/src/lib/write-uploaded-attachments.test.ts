@@ -8,6 +8,7 @@ import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
 import {
+  AbsolutePathSchema,
   type ChatDir,
   ChatDirSchema,
   WorkspaceDirSchema,
@@ -134,8 +135,11 @@ describe("writeUploadedAttachments", () => {
       path.join(recordDir, SETTINGS_FILE_NAME),
       JSON.stringify({ folder: "Quiet dishwashers" }),
     );
+    // A workspace the person picked, so its top level is theirs and the
+    // chat's folder is somewhere the agent may read what they sent.
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
+      outputDir: AbsolutePathSchema.parse(path.join(root, "workspace")),
       rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
     });
 
@@ -153,6 +157,30 @@ describe("writeUploadedAttachments", () => {
       ),
     ).resolves.toBe(CONTENT);
     await expect(attachmentsIn(recordDir)).rejects.toThrow();
+  });
+
+  // Every workspace the app keeps in its own data: the folder under
+  // `Chats/` is inside what the rules close to every command, so a file
+  // written there is refused rather than read.
+  it("writes pasted bytes into the record folder for a workspace in the app's own data", async () => {
+    const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
+    await fs.mkdir(folder, { recursive: true });
+    await fs.writeFile(
+      path.join(recordDir, SETTINGS_FILE_NAME),
+      JSON.stringify({ folder: "Quiet dishwashers" }),
+    );
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    });
+
+    const [attached] = await attach([pastedFile("photo.jpg")]);
+
+    expect(attached?.filePath).toBe(
+      `${CHAT_FOLDER_NAMES.attachments}/photo.jpg`,
+    );
+    await expect(attachmentsIn(recordDir)).resolves.toEqual(["photo.jpg"]);
+    await expect(attachmentsIn(folder)).rejects.toThrow();
   });
 
   // A chat from before the folders, or one whose folder could not be made.

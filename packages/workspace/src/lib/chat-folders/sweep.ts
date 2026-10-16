@@ -11,6 +11,7 @@ import {
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type ChatDir, ChatDirSchema } from "../../schemas/paths";
 import { readChatRecord, updateChatRecord } from "../chat-record";
+import { chatFolderTheyOpen } from "../chat/output-folder";
 import { foldChatInFolder } from "../records/fold-folder";
 import { ensureChatFolder, writeChatFile } from "./chat-folder";
 import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
@@ -117,6 +118,12 @@ export async function sweepChatFolders({
  * folder they can see, at the launch that gives the chat its folder and at
  * any later launch where the move was refused.
  *
+ * Only into a folder the person opens. A workspace kept in the app's own
+ * data sits inside the folder the rules close to every command, so moving
+ * what the person sent there would leave the agent refused the file they
+ * just sent it, with no card to allow it; those keep it in the record
+ * folder, which the rules open for reading.
+ *
  * Nothing stored has to be rewritten for this. An attachment's path is kept
  * relative, as `attachments/<name>`, so moving the folder the prefix refers
  * to is the whole migration: the records keep saying what they said.
@@ -129,6 +136,9 @@ async function moveAttachmentsIn(
   recordDir: ChatDir,
   folderPath: string,
 ): Promise<void> {
+  if (chatFolderTheyOpen(folderPath) === undefined) {
+    return;
+  }
   const from = path.join(recordDir, CHAT_FOLDER_NAMES.attachments);
   const to = path.join(folderPath, CHAT_FOLDER_NAMES.attachments);
   try {

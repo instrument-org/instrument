@@ -137,38 +137,47 @@ function rewritePermissions({
     rewritten += 1;
     return { ...held, [key]: to };
   };
+  /** One chat's grants and the folders it said no to, where those are now. */
+  const movedChat = (chat: unknown): unknown => {
+    if (!isRecord(chat)) {
+      return chat;
+    }
+    return {
+      ...chat,
+      ...(Array.isArray(chat.denials)
+        ? {
+            denials: chat.denials.map((denial: unknown) =>
+              isRecord(denial) && denial.kind === "folder"
+                ? movedPath(denial, "target")
+                : denial,
+            ),
+          }
+        : {}),
+      ...(Array.isArray(chat.grants)
+        ? {
+            grants: chat.grants.map((grant: unknown) =>
+              movedPath(grant, "path"),
+            ),
+          }
+        : {}),
+    };
+  };
   try {
     updateJsonRecordSync(file, (held) => {
       const next = {
         ...(Array.isArray(held.folders)
-          ? { folders: held.folders.map((rule) => movedPath(rule, "path")) }
+          ? {
+              folders: held.folders.map((rule: unknown) =>
+                movedPath(rule, "path"),
+              ),
+            }
           : {}),
         ...(isRecord(held.chats)
           ? {
               chats: Object.fromEntries(
                 Object.entries(held.chats).map(([chatId, chat]) => [
                   chatId,
-                  isRecord(chat)
-                    ? {
-                        ...chat,
-                        ...(Array.isArray(chat.grants)
-                          ? {
-                              grants: chat.grants.map((grant) =>
-                                movedPath(grant, "path"),
-                              ),
-                            }
-                          : {}),
-                        ...(Array.isArray(chat.denials)
-                          ? {
-                              denials: chat.denials.map((denial) =>
-                                isRecord(denial) && denial.kind === "folder"
-                                  ? movedPath(denial, "target")
-                                  : denial,
-                              ),
-                            }
-                          : {}),
-                      }
-                    : chat,
+                  movedChat(chat),
                 ]),
               ),
             }

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -26,8 +26,9 @@ import { sweepChatFolders } from "./sweep";
 /**
  * The sweep is what gives a workspace that was converted at the update a
  * folder for every chat it already had, so what is under test is that every
- * chat gets one, that running it again writes nothing, and that a folder the
- * person moved or deleted is not followed.
+ * chat gets one, that running it again writes nothing, that a chat follows
+ * the folder a person renamed, and that it follows nothing it would have to
+ * guess at.
  */
 
 const ZONE = "America/New_York";
@@ -39,6 +40,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await fs.rm(root, { force: true, recursive: true });
 });
 
@@ -107,6 +109,36 @@ async function settingsOf(dir: string) {
   return JSON.parse(
     await fs.readFile(path.join(dir, "settings.json"), "utf8"),
   ) as Record<string, unknown>;
+}
+
+/** Renames a folder under `Chats/`, the way a person does in a file manager. */
+function renameFolder(from: string, to: string) {
+  return fs.rename(
+    path.join(chatsFolder(), from),
+    path.join(chatsFolder(), to),
+  );
+}
+
+/** Copies one, the way a sync engine leaves a conflict or a backup a restore. */
+function copyFolder(from: string, to: string) {
+  return fs.cp(path.join(chatsFolder(), from), path.join(chatsFolder(), to), {
+    recursive: true,
+  });
+}
+
+/**
+ * Watches for the transcripts a run opens looking for the chat a folder
+ * names, and answers with the folder each was in. A chat's own transcript is
+ * read whole to compare it, so an `open` of one is the look inside a folder
+ * no chat claims and nothing else.
+ */
+function transcriptsOpened() {
+  const open = vi.spyOn(fs, "open");
+  return () =>
+    open.mock.calls
+      .map(([file]) => String(file))
+      .filter((file) => file.endsWith(CHAT_FILE_NAME))
+      .map((file) => path.basename(path.dirname(file)));
 }
 
 describe("every chat gets a folder", () => {
@@ -206,17 +238,117 @@ describe("a gesture in a file manager", () => {
     expect((await settingsOf(dir)).folder).toBe("Dishwashers");
   });
 
-  it("does not follow a folder the person renamed", async () => {
+  it("follows a folder the person renamed", async () => {
     const { dir } = await writeChat("2026-10-14-dishwashers", {
       title: "Dishwashers",
     });
     await sweep();
-    await fs.rename(
-      path.join(chatsFolder(), "Dishwashers"),
-      path.join(chatsFolder(), "My own notes"),
+    await renameFolder("Dishwashers", "My own notes");
+    const opened = transcriptsOpened();
+    const again = await sweep();
+    expect(again.counts.written).toBe(1);
+    expect(await folderNames()).toEqual(["My own notes"]);
+    expect((await settingsOf(dir)).folder).toBe("My own notes");
+    expect(
+      await fs.readFile(
+        path.join(chatsFolder(), "My own notes", CHAT_FILE_NAME),
+        "utf8",
+      ),
+    ).toContain(
+      "[Open this chat in Instrument](instrument://chat/2026-10-14-dishwashers)",
     );
+    // The one folder no chat claims, and no other.
+    expect(opened()).toMatchInlineSnapshot(`
+      [
+        "My own notes",
+      ]
+    `);
+  });
+
+  it("opens no transcript at all where nothing was renamed", async () => {
+    await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
+    await writeChat("2026-10-15-taxes", { title: "Taxes" });
+    await sweep();
+    const opened = transcriptsOpened();
+    await sweep();
+    expect(opened()).toEqual([]);
+  });
+
+  it("leaves a copy alone while the chat's own folder is there", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    await copyFolder("Dishwashers", "Dishwashers, my copy");
+    const opened = transcriptsOpened();
+    const again = await sweep();
+    expect(again.counts["already-there"]).toBe(1);
+    expect(await folderNames()).toEqual([
+      "Dishwashers",
+      "Dishwashers, my copy",
+    ]);
+    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+    expect(opened()).toEqual([]);
+  });
+
+  it("follows neither of two folders naming the same chat", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    await renameFolder("Dishwashers", "My own notes");
+    await copyFolder("My own notes", "My own notes (conflict)");
+    await sweep();
+    expect(await folderNames()).toEqual([
+      "Dishwashers",
+      "My own notes",
+      "My own notes (conflict)",
+    ]);
+    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+  });
+
+  it.each([
+    [
+      "holds no transcript",
+      (folder: string) => fs.rm(path.join(folder, CHAT_FILE_NAME)),
+    ],
+    [
+      "holds a transcript with no link in it",
+      (folder: string) =>
+        fs.writeFile(
+          path.join(folder, CHAT_FILE_NAME),
+          "My own notes about dishwashers.\n",
+        ),
+    ],
+  ])("makes a fresh folder where the renamed one %s", async (_what, change) => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    await renameFolder("Dishwashers", "My own notes");
+    await change(path.join(chatsFolder(), "My own notes"));
     await sweep();
     expect(await folderNames()).toEqual(["Dishwashers", "My own notes"]);
+    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+  });
+
+  it("leaves a folder naming a chat this workspace does not have", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    await fs.rm(path.join(chatsFolder(), "Dishwashers"), { recursive: true });
+    const elsewhere = path.join(chatsFolder(), "From another computer");
+    await fs.mkdir(elsewhere, { recursive: true });
+    await fs.writeFile(
+      path.join(elsewhere, CHAT_FILE_NAME),
+      "[Open this chat in Instrument](instrument://chat/2026-01-01-elsewhere)\n",
+    );
+    await sweep();
+    expect(await folderNames()).toEqual([
+      "Dishwashers",
+      "From another computer",
+    ]);
     expect((await settingsOf(dir)).folder).toBe("Dishwashers");
   });
 });

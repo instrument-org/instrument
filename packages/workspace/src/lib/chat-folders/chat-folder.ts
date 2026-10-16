@@ -14,9 +14,14 @@ import { claimFolderNamed, safeName } from "./folder-name";
  * The app's hold on the folder is a name in the chat's record settings and
  * nothing else, which is what makes a gesture in a file manager safe:
  *
- * - A renamed or moved folder is not followed. The chat's next change makes a
+ * - The folder is found by the name the settings give it. Nothing here opens
+ *   a folder to decide which chat it belongs to.
+ * - A deleted or moved folder comes back: the chat's next change makes a
  *   fresh one by its current title, and the one the person moved is theirs.
- * - A deleted folder comes back the same way.
+ * - A rename in place is followed by the launch sweep alone, which writes the
+ *   name the person gave the folder into the settings where one folder under
+ *   `Chats/` that no chat claims links to the chat and the folder its
+ *   settings named is gone (sweep.ts).
  * - Nothing here reads the folder back as a record, so an edit to `CHAT.md`
  *   does not last: the next turn writes the file again whole.
  *

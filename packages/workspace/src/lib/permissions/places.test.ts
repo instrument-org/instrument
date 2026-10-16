@@ -38,6 +38,11 @@ describe("what runs code later stays closed with folders open unasked", () => {
     ".config/fish/functions/ls.fish",
     ".config/systemd/user/x.service",
     ".config/environment.d/x.conf",
+    // Windows' own, which sit under Documents where a card can open the
+    // folder around them.
+    "Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+    "Documents/WindowsPowerShell/profile.ps1",
+    "OneDrive/Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
   ])("~/%s", (place) => {
     expect(reachOf(rules, `${home}/${place}`, "write").level).toBe("never");
   });

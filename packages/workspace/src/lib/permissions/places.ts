@@ -145,6 +145,17 @@ const STARTUP_PLACES = [
   ".config/systemd/user",
   ".config/environment.d",
   "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup",
+  // What PowerShell reads when a session starts, which is Windows' answer to
+  // `.zshrc` and sits under Documents, a place a card can open: without these
+  // a person who allows Documents has allowed a file that runs at their next
+  // prompt. Both editions, since a machine can have either.
+  "Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+  "Documents/PowerShell/profile.ps1",
+  "Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1",
+  "Documents/WindowsPowerShell/profile.ps1",
+  // OneDrive moves Documents under it, so the same files live here too.
+  "OneDrive/Documents/PowerShell",
+  "OneDrive/Documents/WindowsPowerShell",
 ];
 
 /** The startup places as paths in `home`. */

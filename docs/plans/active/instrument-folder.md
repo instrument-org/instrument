@@ -1,6 +1,10 @@
 # Plan: everything visible in the Instrument folder
 
-Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md). F1's folder, renderer and sweep are built, and so is F2; what each still owes is in its row of the phase table.
+Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md).
+
+F1's folder, renderer, launch sweep and Finder-rename adoption are built. F2 is built apart from the control for a chat with several replies waiting, and pasted files still landing in the record folder rather than the chat's. F3, F4, F5 and F6 are not started.
+
+The one thing to read carefully: a chat folder is written only by the launch sweep. Nothing writes `CHAT.md` at the end of a turn, `renameChatFolder` has no caller outside its tests, `$INSTRUMENT_OUTPUT` still points at the workspace root, `handoff-notes.md` is still in the record folder, and the chat's folder is not mounted for the agent. Every line below describing those as working describes the intent.
 
 The Instrument folder becomes something a person can open in Finder, Spotlight or Obsidian: a folder per chat with its transcript as Markdown and what the agent made, their drafts, topics, memories, skills and apps as plain files. The app's records stay in the hidden `.instrument/`, which ends fully closed to the agent. Attachments stop being copies: what the person hands over from disk is opened to the chat where it lies.
 

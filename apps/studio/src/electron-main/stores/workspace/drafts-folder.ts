@@ -39,13 +39,9 @@ type DraftRecord = Record<string, unknown> & { id: string; words: string };
  *
  * Remembers what it last wrote or read for each draft, so a keystroke
  * rewrites only the draft it changed, and a change on disk is told apart from
- * its own writes. An attachment's absolute path is read through `whereNow`,
- * which names where a migration moved a file a draft attached before it ran.
+ * its own writes.
  */
-export function createDraftsFolder(
-  rootDir: string,
-  whereNow: (file: string) => string = (file) => file,
-) {
+export function createDraftsFolder(rootDir: string) {
   /** By draft id: the bytes last written or read for it, and where they are. */
   const known = new Map<string, { file: string; text: string }>();
 
@@ -60,7 +56,7 @@ export function createDraftsFolder(
   };
 
   const recordsOf = (found: DraftOnDisk[]): DraftRecord[] =>
-    found.map((entry) => recordOf(entry, whereNow));
+    found.map((entry) => recordOf(entry));
 
   return {
     /** Every draft in the folder, oldest first, as the kept key's value. */
@@ -266,17 +262,12 @@ function fileOf(record: DraftRecord, dir: string | undefined): DraftFile {
  * names absolute, since the window shows and sends files by path, and the
  * keys the window's own record uses.
  */
-function recordOf(
-  { dir, draft }: DraftOnDisk,
-  whereNow: (file: string) => string,
-): DraftRecord {
+function recordOf({ dir, draft }: DraftOnDisk): DraftRecord {
   const attached = (draft.attached ?? []).map((item) => ({
     kind: item.kind,
     ...(item.mediaType === undefined ? {} : { mimeType: item.mediaType }),
     ...(item.name === undefined ? {} : { name: item.name }),
-    path: path.isAbsolute(item.path)
-      ? whereNow(item.path)
-      : path.join(dir, item.path),
+    path: path.isAbsolute(item.path) ? item.path : path.join(dir, item.path),
     ...(item.size === undefined ? {} : { size: item.size }),
   }));
   return {

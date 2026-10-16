@@ -156,10 +156,10 @@ export {
   setAsideSync,
 } from "./lib/move-entry";
 export {
-  readMovedPaths,
-  recordMovedPaths,
-  remapMovedPath,
-} from "./lib/moved-paths";
+  type PathMove,
+  rewriteStoredPaths,
+  settleMovedPaths,
+} from "./lib/rewrite-stored-paths";
 export {
   instrumentFolderInDocuments,
   outputFolderPath,

@@ -6,28 +6,21 @@ import {
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { getCurrentDate } from "../get-current-date";
-import { remapMovedPath } from "../moved-paths";
 
 /**
- * The folders granted in a chat, oldest first, each where it is now: a grant
- * stored before a migration moved its folder is read back where it went
- * (`remapMovedPath`).
+ * The folders granted in a chat, oldest first.
  *
  * Kept on this computer rather than in the chat, since every one of them
  * names a folder here; see `chats` in the permission settings.
  */
 export async function chatGrants(chatId: ChatId): Promise<ChatGrant[]> {
   const held = await readChatPermissions(chatId);
-  return held.grants.map((grant) => ({
-    ...grant,
-    path: AbsolutePathSchema.parse(remapMovedPath(grant.path)),
-  }));
+  return held.grants;
 }
 
 /**
- * Grants a chat a folder, read and write. A path already granted, as stored
- * or where it is now, keeps the grant it has, so a folder sent again keeps
- * its access.
+ * Grants a chat a folder, read and write. A path already granted keeps the
+ * grant it has, so a folder sent again keeps its access.
  */
 export async function grantFolder({
   chatId,
@@ -84,7 +77,7 @@ async function addGrant(
   return { ...granted, path: wanted };
 }
 
-/** Takes a folder's grant away from a chat, by its path as stored or as it is now. */
+/** Takes a folder's grant away from a chat, by its path. */
 export async function revokeGrant({
   chatId,
   path,
@@ -99,7 +92,7 @@ export async function revokeGrant({
   }));
 }
 
-/** Whether a stored grant is of a folder, by the path it has or the one it moved to. */
+/** Whether a stored grant is of a folder, by the path it has. */
 function isGrantOf(grant: ChatGrant, folder: string): boolean {
-  return grant.path === folder || remapMovedPath(grant.path) === folder;
+  return grant.path === folder;
 }

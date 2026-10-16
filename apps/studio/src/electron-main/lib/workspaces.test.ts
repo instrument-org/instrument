@@ -1,4 +1,3 @@
-import { readMovedPaths } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -457,9 +456,28 @@ describe("registerWorkspaceFolder", () => {
     expect(readRegistry(userDataDir).active).toBeUndefined();
   });
 
-  it("points a workspace whose folder is gone at where it was found, recording the move", () => {
+  it("points a workspace whose folder is gone at where it was found, and writes its stored paths there", () => {
     const gone = path.join(userDataDir, "elsewhere", "Old");
     const found = path.join(userDataDir, "elsewhere", "Found");
+    fs.mkdirSync(path.join(found, "Notes"), { recursive: true });
+    fs.mkdirSync(workspaceMachineDirOf(userDataDir, "old"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(
+        workspaceMachineDirOf(userDataDir, "old"),
+        "permissions.json",
+      ),
+      JSON.stringify({
+        folders: [
+          {
+            addedAt: "2026-10-01T00:00:00.000Z",
+            level: "allow",
+            path: path.join(gone, "Notes"),
+          },
+        ],
+      }),
+    );
     updateRegistry(userDataDir, (registry) => ({
       ...registry,
       workspaces: [
@@ -476,9 +494,19 @@ describe("registerWorkspaceFolder", () => {
       readRegistry(userDataDir).workspaces.find((entry) => entry.id === "old")
         ?.path,
     ).toBe(found);
-    expect(readMovedPaths(workspaceMachineDirOf(userDataDir, "old"))).toEqual([
-      { from: gone, to: found },
-    ]);
+    // Every path the app stored into the folder that is gone now says where
+    // the folder it was found at is (`rewriteStoredPaths`).
+    expect(
+      JSON.parse(
+        fs.readFileSync(
+          path.join(
+            workspaceMachineDirOf(userDataDir, "old"),
+            "permissions.json",
+          ),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({ folders: [{ path: path.join(found, "Notes") }] });
   });
 });
 

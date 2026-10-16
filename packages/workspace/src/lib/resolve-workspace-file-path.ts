@@ -9,14 +9,12 @@ import {
   type WorkspaceFilePath,
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
-import { remapMovedPath } from "./moved-paths";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import { sessionLayout } from "./session-layout";
 import { nameVariants } from "./tool-fs";
 import {
-  hostPathOf,
   resolveReadOnlyHostPath,
   shellPath,
   type WorkspaceFsLayout,
@@ -79,10 +77,9 @@ export async function resolveWorkspaceFilePaths({
  * A path kept before a migration moved what held it is read where it went:
  * a chat's files and its records were once one folder, so a relative path
  * under `attachments/` the work folder does not hold is the file the person
- * sent, in the record folder; an absolute path is followed through the moves
- * the migrations recorded (`remapMovedPath`); and an earlier build's
- * `/tasks/<task>/...` is in the work folder's `tasks/`, where those folders
- * went. A name macOS spells another way than the one kept is found too.
+ * sent, in the record folder, and an earlier build's `/tasks/<task>/...` is
+ * in the work folder's `tasks/`, where those folders went. A name macOS
+ * spells another way than the one kept is found too.
  */
 function storedPathOnDisk(
   layout: WorkspaceFsLayout,
@@ -109,16 +106,14 @@ function absoluteOnDisk(
   spelled: string,
 ): AbsolutePath | null {
   const asTyped = resolveReadOnlyHostPath(layout, spelled);
-  const hostSpelled = hostPathOf(spelled);
-  const remapped =
-    (asTyped === null ? inOldTaskFolder(layout, spelled) : undefined) ??
-    remapMovedPath(hostSpelled);
-  if (remapped === hostSpelled) {
+  const inTasks =
+    asTyped === null ? inOldTaskFolder(layout, spelled) : undefined;
+  if (inTasks === undefined) {
     return asTyped;
   }
   // Where it went, when the chat may read it there; otherwise what the
   // path it named says, rather than one it never wrote.
-  return resolveReadOnlyHostPath(layout, shellPath(remapped)) ?? asTyped;
+  return resolveReadOnlyHostPath(layout, shellPath(inTasks)) ?? asTyped;
 }
 
 function relativeOnDisk(

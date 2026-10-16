@@ -31,7 +31,7 @@ import {
   moveEntrySync,
   removeIfEmptySync,
 } from "./move-entry";
-import { recordMovedPaths } from "./moved-paths";
+import { rewriteStoredPaths } from "./rewrite-stored-paths";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
 import { STORE_TABLE } from "./store-table";
 import { workspaceLayout } from "./workspace-layout";
@@ -399,9 +399,6 @@ function setAsideLegacyProjectsDir({
   const names = fs
     .readdirSync(legacyDir)
     .filter((name) => !isProjectFolder(path.join(legacyDir, name)));
-  if (names.length > 0) {
-    recordMovedPaths(machineDir, [{ from: legacyDir, to: asideDir }]);
-  }
   for (const name of names) {
     const from = path.join(legacyDir, name);
     let to = path.join(asideDir, name);
@@ -419,6 +416,15 @@ function setAsideLegacyProjectsDir({
     }
   }
   removeIfEmptySync(legacyDir);
+  if (names.length > 0) {
+    move.done.push(
+      ...rewriteStoredPaths({
+        machineDir,
+        moves: [{ from: legacyDir, to: asideDir }],
+        rootDir,
+      }),
+    );
+  }
   return move;
 }
 

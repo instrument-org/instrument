@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import { workspaceLayout } from "./workspace-layout";
 import { AbsolutePathSchema, RelativePathSchema } from "../schemas/paths";
-import { readMovedPaths } from "./moved-paths";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import { splitChatRecords } from "./split-chat-records";
 import { withTempDir } from "../test/helpers/temp-dir";
@@ -170,17 +169,6 @@ describe("splitChatRecords", () => {
         "downloads/a.pdf",
       ]
     `);
-
-    expect(readMovedPaths(machine.path)).toEqual([
-      {
-        from: workspaceLayout(workspace.path).chatsDir,
-        to: path.join(machine.path, "work"),
-      },
-      {
-        from: path.join(workspace.path, ".instrument", "window"),
-        to: path.join(machine.path, "work", "window"),
-      },
-    ]);
   });
 
   it("drops the copies of the app's own skills, leaving the agent's to move", () => {

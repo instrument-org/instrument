@@ -15,7 +15,6 @@ import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 import { grantFolder } from "./chat/grants";
-import { recordMovedPaths } from "./moved-paths";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 import { shellPath } from "./workspace-fs-layout";
@@ -182,12 +181,6 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
       path.join(workDir(chatId), "tasks", "t-build", "output", "report.md"),
       "a task's",
     );
-    recordMovedPaths(machineDir, [
-      {
-        from: workspaceLayout(rootDir).chatsDir,
-        to: path.join(machineDir, "work"),
-      },
-    ]);
   });
 
   afterEach(async () => {
@@ -207,9 +200,11 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
       (): null | string => path.join(workDir(chatId), "work", "report.md"),
     ],
     [
+      // Nothing follows it: the app wrote the paths it stored where the work
+      // went, and a path in the records is the chat's words, not the app's.
       "the agent's work, by its path before it moved",
       (): string => shellPath(path.join(chatDir(chatId), "work", "report.md")),
-      (): null | string => path.join(workDir(chatId), "work", "report.md"),
+      (): null | string => null,
     ],
     [
       "the chat's settings",

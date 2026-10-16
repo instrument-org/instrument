@@ -38,6 +38,7 @@ import {
   convertTopicsToTopicFiles,
   prepareBundledSkills,
   settleDrafts,
+  settleMovedPaths,
   moveChatPermissions,
   renameChatDatabases,
   setBashWorkerFactory,
@@ -137,6 +138,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // inside it, and one already converted is left alone.
   await convertTopicFiles(rootDir);
   await convertAppFiles(rootDir);
+  // Once every folder is where this build keeps it, the record of moves an
+  // earlier build kept is written into the files holding those paths and
+  // goes: a stored path says where its folder is rather than being looked up
+  // on every read.
+  takeInMovedPaths(rootDir);
   // Then every chat gets the folder a person opens, written from its
   // records. After the topics, because a transcript names the topic its chat
   // is filed under: written first, every chat filed under one would be
@@ -405,6 +411,27 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
  * before the workspace opens it. Every workspace, wherever it is kept; a
  * failure must not block boot.
  */
+/**
+ * The moves an earlier build kept in `moved-paths.json`, written into the
+ * folder rules and the topics that hold those paths, once. Never blocks the
+ * launch: a file that cannot be read takes nothing in and goes.
+ */
+function takeInMovedPaths(rootDir: string) {
+  try {
+    for (const step of settleMovedPaths({
+      machineDir: workspaceMachineDir(),
+      rootDir,
+    })) {
+      logger.info(`Stored paths: ${step}`);
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
 function settleDatabase(rootDir: string) {
   try {
     const settled = settleWorkspaceDb({

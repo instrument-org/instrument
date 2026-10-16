@@ -6,7 +6,6 @@ import { z } from "zod";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { validateFolderName } from "../project-folder-name";
 import { getWorkspaceConfig } from "../workspace-config";
-import { remapMovedPath } from "../moved-paths";
 import {
   parseTopicFile,
   renderTopicFile,
@@ -274,8 +273,7 @@ function nameKey(name: string): string {
 /**
  * One topic by its folder, or nothing for a folder whose `TOPIC.md` is not
  * there or names no topic. The name is the folder's, so a folder renamed in a
- * file manager is a topic renamed. Its folders are read where they are now,
- * for one stored before a migration moved it (`remapMovedPath`).
+ * file manager is a topic renamed.
  */
 function readTopicFolder(folderPath: string): Topic | undefined {
   const file = path.join(folderPath, TOPIC_FILE_NAME);
@@ -292,17 +290,7 @@ function readTopicFolder(folderPath: string): Topic | undefined {
   if (!topic) {
     return undefined;
   }
-  return {
-    ...topic,
-    ...(topic.folders
-      ? {
-          folders: topic.folders.map((folder) => ({
-            path: remapMovedPath(folder.path),
-          })),
-        }
-      : {}),
-    name: path.basename(folderPath),
-  };
+  return { ...topic, name: path.basename(folderPath) };
 }
 
 /** Where every topic's folder is, under a workspace root. */

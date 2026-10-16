@@ -10,7 +10,7 @@ import {
   mergeEntrySync,
   placeEntrySync,
   placePaths,
-  recordMovedPaths,
+  rewriteStoredPaths,
   removeEntrySync,
   removeIfEmptySync,
   setAsideSync,
@@ -331,8 +331,9 @@ const COPY_MARK_FILE = "move-copy-mark";
  * 4. The rest of `<from>`'s top level, the person's own (their chats,
  *    drafts, topics, memories, skills and apps), moves in beside the records
  *    where its name is free; a file manager's records go.
- * 5. `<from>` → target is recorded in `moved-paths.json`, so a path stored
- *    into the old folder is read back in the new one (`remapMovedPath`).
+ * 5. Every path the app stored into `<from>` is written in the new folder
+ *    (`rewriteStoredPaths`): the folder rules, a chat's grants, a topic's
+ *    folders.
  * 6. Last, the original set aside is deleted, and `<from>` removed once
  *    empty. A delete that fails part-way (a file another program holds
  *    open on Windows, a locked file) costs nothing, since nothing opens the
@@ -511,8 +512,10 @@ function makeMove({
       }
       // 4. The rest of the old folder.
       moveTheRest({ done, from, to });
-      // 5. Stored paths read back where they went.
-      recordMovedPaths(machineDir, [{ from, to }]);
+      // 5. Stored paths written where they went.
+      done.push(
+        ...rewriteStoredPaths({ machineDir, moves: [{ from, to }], rootDir: to }),
+      );
     }
     // 6. The original's records deleted, and the old folder once empty.
     const left = asidesOf(fromData).filter((aside) => {

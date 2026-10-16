@@ -1,8 +1,5 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import {
-  readMovedPaths,
-  WORKSPACE_LAYOUT_VERSION,
-} from "@instrument-org/workspace/electron";
+import { WORKSPACE_LAYOUT_VERSION } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import childProcess, { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -67,6 +64,21 @@ beforeEach(() => {
   fs.mkdirSync(path.join(workspace.path, "downloads"));
   fs.writeFileSync(path.join(workspace.path, "downloads", "a.zip"), "zip");
   fs.writeFileSync(path.join(workspace.path, ".DS_Store"), "");
+  fs.mkdirSync(workspaceMachineDirOf(userDataDir, "default"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(workspaceMachineDirOf(userDataDir, "default"), "permissions.json"),
+    JSON.stringify({
+      folders: [
+        {
+          addedAt: "2026-10-01T00:00:00.000Z",
+          level: "allow",
+          path: path.join(workspace.path, "downloads"),
+        },
+      ],
+    }),
+  );
   picked = path.join(root, "Documents", "Instrument");
   fs.mkdirSync(picked, { recursive: true });
   fs.writeFileSync(path.join(picked, "report.pdf"), "pdf");
@@ -287,7 +299,12 @@ describe("finishPendingMove", () => {
     const [entry] = readRegistry(userDataDir).workspaces;
     expect(entry).toMatchObject({ id: "default", path: picked });
     expect(entry?.pendingMove).toBeUndefined();
-    expect(readMovedPaths(machineDir())).toEqual([{ from, to: picked }]);
+    // Every path the app stored into the old folder now says where it is.
+    expect(
+      JSON.parse(
+        fs.readFileSync(path.join(machineDir(), "permissions.json"), "utf8"),
+      ),
+    ).toMatchObject({ folders: [{ path: path.join(picked, "downloads") }] });
     // The next launch opens it there, and has nothing to move.
     const again = resolveWorkspace({ pin: undefined, userDataDir });
     expect(again.workspace.path).toBe(picked);
@@ -748,11 +765,11 @@ describe("finishPendingMove", () => {
       {
         fault: () => {
           failWhen("renameSync", (_from, to) =>
-            to.endsWith("moved-paths.json"),
+            to.endsWith("permissions.json"),
           );
         },
         launches: 1,
-        name: "the moved paths cannot be recorded",
+        name: "the stored paths cannot be written",
         volumes: "across",
       },
       {

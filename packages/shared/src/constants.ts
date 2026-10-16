@@ -162,8 +162,10 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
   keys: "keys",
   /**
-   * Where migrations moved this computer's paths from and to, so a path
-   * stored before one is read back where it went (`remapMovedPath`).
+   * Where migrations moved this computer's paths from and to, which every
+   * read of a stored path went through. A migration writes the paths it
+   * moved into the files holding them now (`rewriteStoredPaths`), so this is
+   * only what the launch takes in and removes (`settleMovedPaths`).
    */
   movedPaths: "moved-paths.json",
   /**

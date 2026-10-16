@@ -8,7 +8,7 @@ import {
   moveEntrySync,
   removeIfEmptySync,
 } from "./move-entry";
-import { recordMovedPaths } from "./moved-paths";
+import { rewriteStoredPaths } from "./rewrite-stored-paths";
 import { WORKSPACE_DATA_ENTRIES, workspaceLayout } from "./workspace-layout";
 
 /**
@@ -47,10 +47,9 @@ export interface AppFoldersMove {
  * is already there has its entries moved into it one by one, and an entry
  * still taken is left where it was. An entry that fails, or whose place is
  * taken, is left in place and counted (`failed`), so the sweep is not marked
- * done and the next one tries it again. Records each move first (`recordMovedPaths`), so a path
- * stored before into one of these folders (a draft's attachments, a chat's
- * grants, a file a reply named, the recent files) is found where it went.
- * Synchronous, with no store open.
+ * done and the next one tries it again. Writes a path the app stored into
+ * one of these folders (a chat's grants, a topic's folders) where that
+ * folder went (`rewriteStoredPaths`). Synchronous, with no store open.
  */
 export function moveAppFoldersIntoDataDir({
   machineDir,
@@ -77,10 +76,6 @@ export function moveAppFoldersIntoDataDir({
     return move;
   }
 
-  recordMovedPaths(
-    machineDir,
-    waiting.map(({ from, to }) => ({ from, to })),
-  );
   for (const { from, name, to } of waiting) {
     if (!entryExists(to)) {
       try {
@@ -127,5 +122,12 @@ export function moveAppFoldersIntoDataDir({
       `moved ${moved.toString()} entr${moved === 1 ? "y" : "ies"} of ${name}/ into ${to}`,
     );
   }
+  move.done.push(
+    ...rewriteStoredPaths({
+      machineDir,
+      moves: waiting.map(({ from, to }) => ({ from, to })),
+      rootDir,
+    }),
+  );
   return move;
 }

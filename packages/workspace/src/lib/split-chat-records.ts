@@ -20,7 +20,7 @@ import {
   removeEntrySync,
   removeIfEmptySync,
 } from "./move-entry";
-import { recordMovedPaths } from "./moved-paths";
+import { rewriteStoredPaths } from "./rewrite-stored-paths";
 import { workspaceLayout } from "./workspace-layout";
 
 // The names earlier builds used, spelled out rather than built from the
@@ -92,8 +92,9 @@ export interface ChatRecordsSplit {
  * so a chat whose database could not move stays listed nowhere rather than
  * opening an empty one. Anything that fails, or whose place is taken, is
  * left in place and counted (`failed`), so the sweep is not marked done and
- * the next one tries it again. Records where the work went (`recordMovedPaths`), so a path stored
- * before is found where it went. Synchronous, with no store open.
+ * the next one tries it again. Writes a path the app stored into the old
+ * folder where the work went (`rewriteStoredPaths`). Synchronous, with no
+ * store open.
  *
  * A link anywhere in an old chat folder is acted on as a link, never
  * through: it moves with the work as a link, and one in place of what is
@@ -115,11 +116,6 @@ export function splitChatRecords({
   const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
   const windowRecordDir = layout.windowDir;
   const windowWorkDir = path.join(workFoldersDir, "window");
-
-  recordMovedPaths(machineDir, [
-    { from: chatsDir, to: workFoldersDir },
-    { from: windowRecordDir, to: windowWorkDir },
-  ]);
 
   if (entryExists(chatsDir) && !isDirectorySync(chatsDir)) {
     split.done.push(`left ${chatsDir}: it is a link`);
@@ -154,6 +150,16 @@ export function splitChatRecords({
       split,
     });
   }
+  split.done.push(
+    ...rewriteStoredPaths({
+      machineDir,
+      moves: [
+        { from: chatsDir, to: workFoldersDir },
+        { from: windowRecordDir, to: windowWorkDir },
+      ],
+      rootDir,
+    }),
+  );
   return split;
 }
 

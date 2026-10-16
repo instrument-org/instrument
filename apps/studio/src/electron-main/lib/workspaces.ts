@@ -2,7 +2,7 @@ import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
   isDirectorySync,
   type LayoutMarkStore,
-  recordMovedPaths,
+  rewriteStoredPaths,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { execFileSync } from "node:child_process";
@@ -341,8 +341,8 @@ export function resolveWorkspace({
  * that already holds one: the entry naming that folder, else the entry of
  * the same workspace whose folder is gone (moved by hand, or found again
  * after macOS stopped the app reading it), which keeps its local id and with
- * it its machine folder, its old folder recorded as moved so paths stored
- * in it are read back here, else a new entry. Undefined when `dir` holds no
+ * it its machine folder, and every path the app stored into its old folder
+ * written here, else a new entry. Undefined when `dir` holds no
  * workspace, or only a link to one. Opening it is the caller's: `active` is
  * left as it is.
  */
@@ -390,9 +390,11 @@ export function registerWorkspaceFolder({
   }
   const move = moves.at(-1);
   if (move) {
-    recordMovedPaths(workspaceMachineDirOf(userDataDir, move.id), [
-      { from: move.from, to: path.resolve(dir) },
-    ]);
+    rewriteStoredPaths({
+      machineDir: workspaceMachineDirOf(userDataDir, move.id),
+      moves: [{ from: move.from, to: path.resolve(dir) }],
+      rootDir: path.resolve(dir),
+    });
   }
   return { id };
 }

@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import { withTempDir } from "../test/helpers/temp-dir";
 import { moveAppFoldersIntoDataDir } from "./move-app-folders";
-import { readMovedPaths, remapMovedPath } from "./moved-paths";
 
 const workspace = withTempDir("move-app-folders-workspace");
 const machine = withTempDir("move-app-folders-machine");
@@ -107,7 +106,6 @@ describe("moveAppFoldersIntoDataDir", () => {
 
     expect(result.done).toEqual([`left ${at("memory")}: it is not a folder`]);
     expect(fs.readFileSync(at("memory"), "utf8")).toBe("not a folder");
-    expect(readMovedPaths(machine.path)).toEqual([]);
   });
 
   it("never merges into a link in its place in .instrument/, or moves one at the top", () => {
@@ -136,32 +134,44 @@ describe("moveAppFoldersIntoDataDir", () => {
     expect(fs.lstatSync(at("topics")).isSymbolicLink()).toBe(true);
   });
 
-  it("does nothing on a second run, and records nothing where nothing moved", () => {
+  it("does nothing on a second run", () => {
     write(at("chats", "c", "chat.db"));
     move();
-    const moves = readMovedPaths(machine.path);
 
     expect(move()).toEqual({ done: [], failed: 0 });
-    expect(readMovedPaths(machine.path)).toEqual(moves);
   });
 
-  it("records each move, so a path stored before is read where it went", () => {
+  it("writes a chat's grant where the folder holding it went", () => {
     write(at("chats", "c", "attachments", "a.png"));
-    write(at("skills", "brief", "SKILL.md"));
-    write(at("topics", "Home", "instructions.md"));
+    write(
+      path.join(machine.path, "permissions.json"),
+      JSON.stringify({
+        chats: {
+          c: {
+            grants: [
+              {
+                grantedAt: "2026-10-01T00:00:00.000Z",
+                path: at("chats", "c", "attachments"),
+                source: "attached",
+              },
+            ],
+          },
+        },
+      }),
+    );
 
     move();
 
-    expect(readMovedPaths(machine.path)).toEqual([
-      { from: at("chats"), to: at(".instrument", "chats") },
-      { from: at("skills"), to: at(".instrument", "skills") },
-      { from: at("topics"), to: at(".instrument", "topics") },
-    ]);
     expect(
-      remapMovedPath(
-        at("chats", "c", "attachments", "a.png"),
-        readMovedPaths(machine.path),
+      JSON.parse(
+        fs.readFileSync(path.join(machine.path, "permissions.json"), "utf8"),
       ),
-    ).toBe(at(".instrument", "chats", "c", "attachments", "a.png"));
+    ).toMatchObject({
+      chats: {
+        c: {
+          grants: [{ path: at(".instrument", "chats", "c", "attachments") }],
+        },
+      },
+    });
   });
 });

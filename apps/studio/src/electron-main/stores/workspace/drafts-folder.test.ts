@@ -47,54 +47,6 @@ function folderOf(id: string): string {
   return path.relative(root, draftDirOf(root, id));
 }
 
-it("reads an attachment's absolute path through where a migration moved it", () => {
-  const moved = "/Users/me/Old/chats/c/work/report.md";
-  createDraftsFolder(root).write({
-    [DRAFTS_KEY]: [
-      draft("a", "Check this", {
-        attached: [
-          {
-            kind: "file",
-            mimeType: "text/markdown",
-            name: "report.md",
-            path: moved,
-            size: 3,
-          },
-          { kind: "folder", path: "/Users/me/Trips" },
-        ],
-      }),
-    ],
-  });
-
-  const read = createDraftsFolder(root, (file) =>
-    file === moved ? "/Users/me/Machine/work/c/work/report.md" : file,
-  ).read();
-
-  expect(read[DRAFTS_KEY]).toMatchInlineSnapshot(`
-    [
-      {
-        "attached": [
-          {
-            "kind": "file",
-            "mimeType": "text/markdown",
-            "name": "report.md",
-            "path": "/Users/me/Machine/work/c/work/report.md",
-            "size": 3,
-          },
-          {
-            "kind": "folder",
-            "path": "/Users/me/Trips",
-          },
-        ],
-        "createdAt": 1791979200000,
-        "id": "a",
-        "updatedAt": 1791979200000,
-        "words": "Check this",
-      },
-    ]
-  `);
-});
-
 it("writes a draft to a folder named for the day it was started", () => {
   const folder = createDraftsFolder(root);
   folder.read();

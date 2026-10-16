@@ -1,7 +1,6 @@
 import {
   getWorkspaceFolder,
   workspaceDataDir,
-  workspaceMachineDir,
   workspaceWindowDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import {
@@ -11,10 +10,6 @@ import {
   type KeptFile,
   type KeptSnapshot,
 } from "@/shared/kept-state";
-import {
-  readMovedPaths,
-  remapMovedPath,
-} from "@instrument-org/workspace/electron";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -178,8 +173,6 @@ let STORE: null | ReturnType<typeof createKeptStateStore> = null;
  * whose screens and paths they are measured against.
  */
 function getStore() {
-  const remap = (hostPath: string) =>
-    remapMovedPath(hostPath, readMovedPaths(workspaceMachineDir()));
   STORE ??= createKeptStateStore(
     (file) =>
       file === "bookmarks" ? workspaceDataDir() : workspaceWindowDir(),
@@ -188,75 +181,10 @@ function getStore() {
       // names `Drafts/` inside what it is given, the way boot's own move
       // does. `layout.draftsDir` is where builds before this one kept them,
       // under `.instrument/`, which the move empties.
-      drafts: createDraftsFolder(getWorkspaceFolder(), remap),
+      drafts: createDraftsFolder(getWorkspaceFolder()),
     },
-    { layout: (keys) => remapFolderAddresses(keys, remap) },
   );
   return STORE;
-}
-
-/** The query keys of a Files address that name a folder or a file by its path. */
-const FILES_ADDRESS_PATHS = new Set(["file", "root", "tree"]);
-
-/**
- * Where the person left off, with every Files address in it (a tab's,
- * a step of its history: `/files?root=<path>`) naming its folder or file
- * where a move took it (`remap`), so a tab left in the workspace's own
- * folder before the workspace moved opens where it is now. Read as it is
- * loaded; written back as the windows next change it.
- */
-export function remapFolderAddresses(
-  keys: Record<string, unknown>,
-  remap: (hostPath: string) => string,
-): Record<string, unknown> {
-  const visit = (value: unknown): unknown => {
-    if (typeof value === "string") {
-      return value.startsWith("/files?")
-        ? remapFilesAddress(value, remap)
-        : value;
-    }
-    if (Array.isArray(value)) {
-      return value.map(visit);
-    }
-    if (value !== null && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, entry]) => [key, visit(entry)]),
-      );
-    }
-    return value;
-  };
-  return Object.fromEntries(
-    Object.entries(keys).map(([key, value]) => [key, visit(value)]),
-  );
-}
-
-function remapFilesAddress(
-  address: string,
-  remap: (hostPath: string) => string,
-): string {
-  const at = address.indexOf("?");
-  const query = address
-    .slice(at + 1)
-    .split("&")
-    .map((pair) => {
-      const equals = pair.indexOf("=");
-      const key = pair.slice(0, equals);
-      if (equals === -1 || !FILES_ADDRESS_PATHS.has(key)) {
-        return pair;
-      }
-      let hostPath: string;
-      try {
-        hostPath = decodeURIComponent(pair.slice(equals + 1));
-      } catch {
-        return pair;
-      }
-      if (!path.isAbsolute(hostPath)) {
-        return pair;
-      }
-      const moved = remap(hostPath);
-      return moved === hostPath ? pair : `${key}=${encodeURIComponent(moved)}`;
-    });
-  return `${address.slice(0, at)}?${query.join("&")}`;
 }
 
 /** One kept value, for the main process's own use of what a window keeps. */

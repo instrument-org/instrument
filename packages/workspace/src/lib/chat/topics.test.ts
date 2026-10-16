@@ -5,7 +5,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { recordMovedPaths } from "../moved-paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   createTopic,
@@ -180,33 +179,6 @@ describe("topic folders", () => {
       seen: ["phone"],
       sortsAfter: "Home",
     });
-  });
-
-  it("reads a folder stored before a migration moved it where it is now", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "topic-folders-"));
-    const machineDir = path.join(root, "machine");
-    setWorkspaceConfig({
-      ...getWorkspaceConfig(),
-      workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
-    });
-    const before = path.join(root, "workspace", "chats", "c", "notes");
-    const now = path.join(machineDir, "work", "c", "notes");
-    const made = await createTopic({ name: "Notes" });
-    await updateTopic(made.id, {
-      folders: [{ path: before }, { path: "/Users/someone/Deals" }],
-    });
-    await fs.mkdir(now, { recursive: true });
-    recordMovedPaths(machineDir, [
-      {
-        from: path.join(root, "workspace", "chats"),
-        to: path.join(machineDir, "work"),
-      },
-    ]);
-
-    expect((await topicByName("Notes"))?.folders).toEqual([
-      { path: now },
-      { path: "/Users/someone/Deals" },
-    ]);
   });
 
   it("renames the folder with the topic, and a folder renamed by hand renames the topic", async () => {

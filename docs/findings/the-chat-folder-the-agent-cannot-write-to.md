@@ -1,6 +1,6 @@
 # The chat folder the agent cannot write to
 
-**Status:** open, and the one thing between the visible-folder work and a person seeing it work. Found 2026-10-16 by driving a real chat on the Windows test host.
+**Status:** settled. Found 2026-10-16 by driving a real chat on the Windows test host, and fixed the same day by sending finished work to the chat's own folder only where that folder is one the person opens.
 
 The agent's shell knows where a chat's own folder is and cannot write a byte into it, on any platform, as long as the workspace sits in the app's own data. Which is where every install's workspace sits today.
 
@@ -28,11 +28,13 @@ Meanwhile `output`, the one place that starts at Allowed, is `~/Documents/Instru
 
 A model follows the writable path. Both turns driven on Windows wrote their file into `Documents/Instrument/` and said so plainly: "Writing a three-line poem about snow to snow.md in the Instrument folder."
 
-## What fixes it
+## What was done
 
-The workspace's visible folders have to be the output place: `Chats/`, `Drafts/`, `Topics/`, `Memory/`, `Skills/`, `Apps/` at the workspace's top level, allowed by default the way `~/Documents/Instrument` is today, with `.instrument/` closed to the agent with no exceptions. Those are two halves of one change, and the second one is F4 in the Instrument-folder plan: without it, allowing the workspace root would hand the agent the records.
+`$INSTRUMENT_OUTPUT` is the chat's own folder when that folder is inside the person's Instrument folder, and the Instrument folder itself otherwise (`finishedWorkFolder`). A workspace the person picked makes the first true for every chat in it, so the chat's own folder wins there with no further change; any other workspace keeps the folder they will actually open.
 
-Once the workspace is the folder the person picked, the two folders are one and the question disappears on its own, which is why nothing caught this earlier: the end state has no app-data workspace in it.
+The other way round was to make the workspace's own top level the allowed place, so the chat's folder works wherever the workspace is. That was rejected: on an app-data workspace, the folder the agent would then write to is one the person never opens, so the work would be as good as gone, and allowing the workspace root before `.instrument/` is closed to the agent would hand it the records.
+
+Nothing caught this earlier because the end state has no app-data workspace in it. Once the workspace is always a folder the person picked, the condition is always true and could be dropped.
 
 ## What is not the problem
 

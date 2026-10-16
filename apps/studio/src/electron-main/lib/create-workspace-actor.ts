@@ -146,11 +146,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // inside it, and one already converted is left alone.
   await convertTopicFiles(rootDir);
   await convertAppFiles(rootDir);
-  // Once every folder is where this build keeps it, the record of moves an
-  // earlier build kept is written into the files holding those paths and
-  // goes: a stored path says where its folder is rather than being looked up
-  // on every read.
-  takeInMovedPaths(rootDir);
   // Then every chat gets the folder a person opens, written from its
   // records. After the topics, because a transcript names the topic its chat
   // is filed under: written first, every chat filed under one would be
@@ -160,6 +155,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // And the drafts move out to `Drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
   await settleWorkspaceDrafts(rootDir);
+  // Once every folder is where this build keeps it, the drafts included, the
+  // record of moves an earlier build kept is written into the files holding
+  // those paths and goes: a stored path says where its folder is rather than
+  // being looked up on every read.
+  takeInMovedPaths(rootDir);
   // Every folder of the six that is there now is one the app made, so it is
   // recorded as one to expect, and the check runs once before the watch does.
   // After the sweeps, so a workspace that just gained its folders records them

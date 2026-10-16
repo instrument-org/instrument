@@ -94,7 +94,7 @@ export function readDrafts(rootDir: string): DraftOnDisk[] {
 }
 
 /** One draft by its file, or nothing where the file is gone or names no draft. */
-export function readDraftFile(file: string): DraftFile | undefined {
+function readDraftFile(file: string): DraftFile | undefined {
   try {
     return parseDraftFile(fs.readFileSync(file, "utf8"), {
       at: fs.statSync(file).mtime,

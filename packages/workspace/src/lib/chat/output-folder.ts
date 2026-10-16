@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { pathIsWithin } from "../path-is-within";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "../workspace-config";
 
 /** Creates the output folder if it is not there yet, answering whether it made it now. */
@@ -33,4 +34,23 @@ export function outputFolderPath(): string {
     (hasWorkspaceConfig() ? getWorkspaceConfig().outputDir : undefined) ??
     instrumentFolderInDocuments()
   );
+}
+
+/**
+ * Where a chat's finished work goes: its own folder under `Chats/`, when
+ * that folder is inside the person's Instrument folder, and otherwise the
+ * Instrument folder itself.
+ *
+ * A workspace kept in the app's own data is the reason for the condition.
+ * Its `Chats/` is somewhere the person never opens, and the app's data is a
+ * place the rules ask about rather than allow, so a chat's folder there is
+ * neither where they would look for their work nor somewhere the agent may
+ * write. Once the workspace is a folder they picked, every chat's folder is
+ * inside it and wins on its own.
+ */
+export function finishedWorkFolder(ownFolder: string | undefined): string {
+  const output = outputFolderPath();
+  return ownFolder !== undefined && pathIsWithin(ownFolder, output)
+    ? ownFolder
+    : output;
 }

@@ -112,7 +112,7 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
-import { outputFolderPath } from "./chat/output-folder";
+import { finishedWorkFolder } from "./chat/output-folder";
 import { foundManagedPython } from "./run-uv";
 import { getUvBinPath, nearestVenv, venvPython } from "./uv";
 import { workDir } from "./work-dir";
@@ -720,10 +720,12 @@ function folderVariables(
   return {
     [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
     // The chat's own folder, so finished work lands beside the transcript
-    // the person reads. A chat that has no folder yet, and the window,
-    // which never has one, fall back to the Instrument folder.
-    [FOLDER_VARIABLES.output]:
-      layout.folder?.shellRoot ?? shellPath(outputFolderPath()),
+    // the person reads. A chat with no folder yet, the window, which never
+    // has one, and a workspace whose folders the person does not open fall
+    // back to the Instrument folder (see `finishedWorkFolder`).
+    [FOLDER_VARIABLES.output]: shellPath(
+      finishedWorkFolder(layout.folder?.hostRoot),
+    ),
     ...(loadedSkillDir !== undefined && {
       [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
     }),

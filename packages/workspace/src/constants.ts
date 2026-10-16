@@ -2,12 +2,21 @@ export const REGISTRY_FOLDER_NAMES = {
   skills: "skills",
 } as const;
 
-export const CHAT_FOLDER_NAMES = {
-  // agent-browser's home for one chat, under the workspace's machine folder
+/**
+ * What the browsers keep in the workspace's machine folder, under `browser/`:
+ * one of each for the workspace rather than one per chat, since neither holds
+ * anything a chat put there.
+ */
+export const BROWSER_FOLDER_NAMES = {
+  // agent-browser's `$HOME`: its managed config and the provider plugin
   // (getAgentBrowserHomeDir).
-  agentBrowserHome: "agent-browser-home",
+  agentHome: "agent-browser-home",
+  // The in-app browser's Chromium profile (getBrowserSessionDir).
+  session: "browser-session",
+} as const;
+
+export const CHAT_FOLDER_NAMES = {
   attachments: "attachments",
-  browserSession: "browser-session",
   downloads: "downloads",
   screenshots: "screenshots",
   // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the chat's folder so tempfile spill

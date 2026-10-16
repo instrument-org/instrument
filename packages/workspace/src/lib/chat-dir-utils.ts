@@ -5,11 +5,11 @@ import {
 import fs from "node:fs";
 
 import {
+  BROWSER_FOLDER_NAMES,
   CHAT_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
   HANDOFF_NOTES_FILE_NAME,
 } from "../constants";
-import { type ChatId } from "../schemas/chat-id";
 import {
   type AbsolutePath,
   type ChatDir,
@@ -24,22 +24,26 @@ export function getBrowserSessionDir(): AbsolutePath {
   return absolutePathJoin(
     workspaceMachineDir(),
     WORKSPACE_MACHINE_ENTRIES.browser,
-    CHAT_FOLDER_NAMES.browserSession,
+    BROWSER_FOLDER_NAMES.session,
   );
 }
 
 /**
- * `agent-browser`'s home for one chat: the managed config and provider
- * plugin it runs with, and anything it keeps under `$HOME`. On this
- * computer's side of the workspace and out of the agent's reach, since the
- * plugin is code `agent-browser` runs outside every sandbox.
+ * `agent-browser`'s home: the managed config and provider plugin it runs
+ * with, and anything it keeps under `$HOME`. On this computer's side of the
+ * workspace and out of the agent's reach, since the plugin is code
+ * `agent-browser` runs outside every sandbox.
+ *
+ * One for the workspace rather than one per chat. Every chat's held the same
+ * empty `config.json` and the same plugin script, written again on each
+ * invocation, so a chat could learn nothing from another's; what a chat
+ * keeps apart is its session, which names the daemon.
  */
-export function getAgentBrowserHomeDir(id: ChatId): AbsolutePath {
+export function getAgentBrowserHomeDir(): AbsolutePath {
   return absolutePathJoin(
     workspaceMachineDir(),
     WORKSPACE_MACHINE_ENTRIES.browser,
-    CHAT_FOLDER_NAMES.agentBrowserHome,
-    id,
+    BROWSER_FOLDER_NAMES.agentHome,
   );
 }
 

@@ -813,9 +813,9 @@ export function createAgentBrowserCommand({
 
     // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
-    // download path); this is a per-chat sink for anything that falls back
+    // download path); this is the sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
-    const homeDir = getAgentBrowserHomeDir(chatId);
+    const homeDir = getAgentBrowserHomeDir();
     const configPath = path.join(homeDir, "config.json");
 
     const commandArgs: string[] = [];
@@ -916,7 +916,7 @@ export function createAgentBrowserCommand({
       // packaged builds that is the Electron binary, which this var makes
       // behave as plain node. Inert for the Rust CLI and for Chrome.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // A per-chat sink instead of the host home.
+      // The workspace's own sink instead of the host home.
       HOME: homeDir,
     };
 

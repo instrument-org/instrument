@@ -938,12 +938,7 @@ describe("agent-browser routing", () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
     expect(env.HOME).toBe(
-      path.join(
-        MOCK_WORKSPACE_DIRS.machine,
-        "browser",
-        "agent-browser-home",
-        "routing",
-      ),
+      path.join(MOCK_WORKSPACE_DIRS.machine, "browser", "agent-browser-home"),
     );
   });
 

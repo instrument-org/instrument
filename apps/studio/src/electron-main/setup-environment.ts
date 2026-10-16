@@ -22,6 +22,7 @@ import {
   migrateMachineSettings,
   migrateWorkspaceSettings,
 } from "./lib/settings-migration";
+import { cleanUpMachineData } from "./lib/machine-cleanups";
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import { finishPendingMove, hideAppFolder } from "./lib/workspace-move";
@@ -154,6 +155,13 @@ function openWorkspace() {
   const moved = moveMachineData({ userDataDir, workspace });
   for (const step of moved.done) {
     logger.info(`Machine data: ${step}`);
+  }
+  for (const step of cleanUpMachineData({
+    machineDir: moved.machineDir,
+    userDataDir,
+    workspace,
+  })) {
+    logger.info(`Machine cleanup: ${step}`);
   }
   setResolvedWorkspace({ ...workspace, machineDir: moved.machineDir });
   if (createdOutsideAppData) {

@@ -1,13 +1,13 @@
 import { type LanguageModelV4Message } from "@ai-sdk/provider";
-import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it } from "vitest";
 
 import {
   branchOf,
   continuationOf,
-  endTurnOnResults,
+  planStep,
   splitPrompt,
-} from "./language-model";
+} from "./continuation";
+import { type ResumeRecord } from "./resume-record";
 
 const system: LanguageModelV4Message = {
   content: "You are Pebble.",
@@ -228,42 +228,121 @@ describe("branchOf", () => {
   });
 });
 
-describe("endTurnOnResults", () => {
-  /** A session whose CLI reports `messages`, ending its turn on the results. */
-  function session(messages: Partial<SDKMessage>[]) {
-    const queue = [...messages];
-    return {
-      endTurnAfterTools: true,
-      messages: {
-        next: () => {
-          const value = queue.shift();
-          return Promise.resolve(
-            value === undefined
-              ? { done: true as const, value: undefined }
-              : // Only the fields the reader looks at.
-                { done: false as const, value: value as SDKMessage },
-          );
-        },
-      },
-      rateLimit: undefined,
-      stderr: "",
-    };
-  }
+describe("planStep", () => {
+  const chat = [system, user("one")];
+  const answered = [...chat, reply("a"), user("two")];
+  const record = (
+    prompt: LanguageModelV4Message[],
+    fields: Partial<ResumeRecord> = {},
+  ): ResumeRecord => ({
+    ...after(prompt),
+    claudeSessionId: "transcript",
+    ...fields,
+  });
+  const none = () => Promise.resolve(undefined);
+  const refuse = () => Promise.reject(new Error("read too far"));
 
-  it("returns once the turn ends on the results, and stops ending turns there", async () => {
-    const ending = session([
-      { type: "user" },
-      { is_error: false, subtype: "success", type: "result" },
-    ]);
-    await endTurnOnResults(ending);
-    expect(ending.endTurnAfterTools).toBe(false);
+  it("continues the live process without reading a record", async () => {
+    const live = after(chat);
+    await expect(
+      planStep(
+        { live, parentRecord: refuse, record: refuse },
+        splitPrompt(answered),
+      ),
+    ).resolves.toEqual({
+      continuation: { kind: "turn", messages: [user("two")] },
+      kind: "live",
+      session: live,
+    });
   });
 
-  it("fails the step when the model is asked about the results first", async () => {
-    const replying = session([{ type: "user" }, { type: "stream_event" }]);
-    await expect(endTurnOnResults(replying)).rejects.toThrow(
-      /before the message that came after them/,
+  it("starts cold, with the reason, when the live process cannot continue", async () => {
+    const plan = await planStep(
+      {
+        live: after([system, user("edited")]),
+        parentRecord: refuse,
+        record: refuse,
+      },
+      splitPrompt(answered),
     );
-    expect(replying.endTurnAfterTools).toBe(false);
+    expect(plan).toMatchObject({
+      kind: "cold",
+      restart: expect.stringContaining("changed"),
+    });
+  });
+
+  it("resumes the session's transcript without reading its parent's", async () => {
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: refuse,
+          record: () => Promise.resolve(record(chat)),
+        },
+        splitPrompt(answered),
+      ),
+    ).resolves.toEqual({
+      claudeSessionId: "transcript",
+      kind: "resume",
+      messages: [user("two")],
+    });
+  });
+
+  it("starts cold when the transcript it would resume waited on tool results", async () => {
+    const calling = [...chat, callsTool("t1"), toolResult("t1")];
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: refuse,
+          record: () =>
+            Promise.resolve(record(chat, { awaitingToolCallIds: ["t1"] })),
+        },
+        splitPrompt(calling),
+      ),
+    ).resolves.toEqual({
+      kind: "cold",
+      restart: "its process ended while waiting on tool results",
+    });
+  });
+
+  it("forks the parent's transcript where it branched off", async () => {
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: () =>
+            Promise.resolve(
+              record(chat, { claudeSessionId: "chat", forkPoint: "entry" }),
+            ),
+          record: none,
+        },
+        splitPrompt([...chat, user("the assignment")]),
+      ),
+    ).resolves.toEqual({
+      at: "entry",
+      from: "chat",
+      kind: "fork",
+      messages: [user("the assignment")],
+    });
+  });
+
+  it.each([
+    ["has no fork point", record(chat)],
+    [
+      "saw other messages",
+      record([system, user("other")], { forkPoint: "entry" }),
+    ],
+  ])("starts cold, without a reason, when the parent %s", async (_, parent) => {
+    await expect(
+      planStep(
+        {
+          live: undefined,
+          parentRecord: () => Promise.resolve(parent),
+          record: none,
+        },
+        splitPrompt([...chat, user("the assignment")]),
+      ),
+    ).resolves.toEqual({ kind: "cold" });
   });
 });

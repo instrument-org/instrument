@@ -61,7 +61,7 @@ Indexes on `started_at` and on each filterable column paired with `started_at` k
 | Package | Existing code touched | New code |
 |---|---|---|
 | `workspace` | `logic/server/index.ts` registers the telemetry integration and opens the store. Call sites pass a purpose: `logic/llm-request.ts`, `lib/generate-title-from-user-message.ts`, `lib/web-search.ts`, `lib/generate-images.ts`, `lib/decision-model.ts` and the decision RPC route | The store (schema, insert, filtered page, totals, CSV), the telemetry integration, and an RPC route over the store |
-| `ai-gateway` | `lib/providers/claude-account/language-model.ts` passes `thinking_tokens` through as reasoning | |
+| `ai-gateway` | `lib/providers/claude-account/step-stream.ts` passes `thinking_tokens` through as reasoning | |
 | `studio` | `atoms/settings-modal.ts` gains `"AI usage"` in `SettingsTab`; the modal's nav and the settings search index gain the entry; decision callers pass their purpose | The section: virtualized table, filter chips, detail page |
 
 Untouched: the provider proxy, `chat.db` and its schema, how messages are saved, the agent machines, model list fetches (not model requests).
@@ -82,7 +82,7 @@ Untouched: the provider proxy, `chat.db` and its schema, how messages are saved,
 ## Known gaps
 
 - **Escape in the filter menu closes Settings** rather than the menu.
-- **The Claude account's reasoning tokens** are present in its stream (`output_tokens_details.thinking_tokens`) but `language-model.ts` passes reasoning as undefined, so its rows show none.
+- **The Claude account's reasoning tokens** are present in its stream (`output_tokens_details.thinking_tokens`) but `step-stream.ts` passes reasoning as undefined, so its rows show none.
 - **Export names chats by id**, since the CSV is written without the chat titles the page looks up.
 - **Paging is by offset.** Fine at the sizes above; keyset paging is the change if a deep scroll ever measures slow.
 

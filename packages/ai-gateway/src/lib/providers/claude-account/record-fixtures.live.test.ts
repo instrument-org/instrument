@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
 
-import { pumpStep, type StepSession } from "./language-model";
+import { pumpStep, type StepSession } from "./step-stream";
 import { ClaudeCodeSession } from "./session";
 import { type RecordedStep, scrubMessage } from "./step-fixtures";
 

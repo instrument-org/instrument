@@ -7,6 +7,7 @@ Nothing here carries a status or a date. If a statement stops being true, correc
 ## Index
 
 - [system-overview.md](system-overview.md) — the top-level map: packages and layering, chats, tasks, and the app window, main-vs-renderer topology, on-disk layout, and how an agent turn flows end to end. **Start here.**
+- [chat-records.md](chat-records.md) — a chat as a folder of append-only logs: the files and who writes them, the one door in and the one door out, what a part still arriving is, the index over them, and the way in from a `chat.db`.
 - [ai-gateway.md](ai-gateway.md) — model access: the mounted provider-proxy Hono app, plus the model discovery and identity library that workspace and studio consume.
 - [auth-callback-server.md](auth-callback-server.md) — loopback callback ownership, canonical paths, and assembled-router tests.
 - [agent-sandbox.md](agent-sandbox.md) — how agent tools are held to the Permissions rules: path-scoped file I/O, the just-bash filesystem, the agent-browser allowlist, and the real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux.

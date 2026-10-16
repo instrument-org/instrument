@@ -123,9 +123,12 @@ describe("python", () => {
 
     await command.execute(["-c", "import matplotlib"], mockCtx);
 
-    const [, , options] = vi.mocked(execa).mock.lastCall ?? [];
-    expect((options as { env: Record<string, string> }).env.PYTHONPATH).toBe(
-      undefined,
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        env: expect.not.objectContaining({ PYTHONPATH: expect.anything() }),
+      }),
     );
   });
 

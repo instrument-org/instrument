@@ -99,9 +99,9 @@ describe("runAppScript", () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
-      stderr: "",
-      stdout: "",
+      stdout: Buffer.from(""),
       ...result,
+      stderr: Buffer.from(result.stderr ?? ""),
     } as never);
     return execa;
   }
@@ -229,7 +229,7 @@ describe("the app gate", () => {
       vi.mocked(execa).mockResolvedValueOnce({
         all: "",
         exitCode: 0,
-        stdout: "",
+        stdout: Buffer.from(""),
       } as never);
       const chatId = createMockChatConfig(
         ChatIdSchema.parse(`app-gate-granted-${target.length}`),

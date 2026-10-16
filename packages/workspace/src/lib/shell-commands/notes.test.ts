@@ -35,8 +35,8 @@ async function answer(stdout = "") {
   vi.mocked(execa).mockResolvedValueOnce({
     all: stdout,
     exitCode: 0,
-    stderr: "",
-    stdout: `${stdout}\n`,
+    stderr: Buffer.from(""),
+    stdout: Buffer.from(`${stdout}\n`),
   } as never);
   return () => vi.mocked(execa).mock.calls[0]?.[1] ?? [];
 }
@@ -199,9 +199,10 @@ describe("notes' answers", () => {
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 1,
-      stderr:
+      stderr: Buffer.from(
         "1:2: execution error: An error of type 9014 has occurred. (9014)\n",
-      stdout: "",
+      ),
+      stdout: Buffer.from(""),
     } as never);
     expect((await command.execute(["read", NOTE_ID], ctx())).stderr).toBe(
       "notes: that note is locked, so only the person can open it, in Notes.\n",

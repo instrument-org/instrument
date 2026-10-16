@@ -176,6 +176,19 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     });
   });
 
+  it.each([
+    ["factor 12", "12: 2 2 3\n"],
+    ["printf 'a b\\nb c\\n' | tsort", "a\nb\nc\n"],
+    ["printf 'one two three\\n' | fmt -w 8", "one two\nthree\n"],
+    ["echo hi | base32", "NBUQU===\n"],
+    ["sha512sum a.txt | cut -c1-16", "bcdb03f1145159cc\n"],
+  ])(
+    "answers %s with GNU's flags, which just-bash has no command for",
+    async (command, stdout) => {
+      expect(await run(command)).toMatchObject({ exitCode: 0, stdout });
+    },
+  );
+
   it("answers grep -H, which the builtin refuses", async () => {
     const result = await run("grep -H one a.txt");
     expect(result.stdout).toBe("a.txt:one\n");
@@ -224,6 +237,22 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     expect(performance.now() - started).toBeLessThan(1500);
   });
 
+  // The builtin xargs answers every -P call, so it has to read the attached
+  // and combined option forms models write, which the patch's xargs part adds.
+  it.each([
+    ["printf 'a\\nb\\n' | xargs -P4 -n1 echo", "a\nb\n"],
+    ["printf 'a\\nb\\n' | xargs -P2 -I{} echo {}x", "ax\nbx\n"],
+    ["printf 'a b\\0c\\0' | xargs -0 -P2 -n1 echo", "a b\nc\n"],
+    ["printf 'a b\\0c\\0' | xargs -0P2 -n1 echo", "a b\nc\n"],
+    ["printf 'a b\\nc\\n' | xargs --max-procs=2 -L1 echo", "a b\nc\n"],
+  ])("reads xargs' option forms under -P: %s", async (command, stdout) => {
+    const result = await run(command);
+    expect({ stdout: result.stdout, stderr: result.stderr }).toEqual({
+      stdout,
+      stderr: "",
+    });
+  });
+
   it("reads an empty pipe as empty rather than waiting", async () => {
     const result = await run("true | sort | wc -l");
     expect(result.stdout.trim()).toBe("0");
@@ -237,5 +266,36 @@ describe("without the bundled uutils", () => {
     const result = await run("sort -g nums.txt");
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("invalid option");
+  });
+});
+
+describe.skipIf(!existsSync("/usr/bin/diff"))("with the system's diff", () => {
+  it("answers diff -y, which the builtin lacks", async () => {
+    const result = await run("diff -y -W 20 a.txt b.txt");
+    expect(result.exitCode).toBe(1);
+    // BSD and GNU diff pad the columns differently.
+    expect(result.stdout).toMatch(/^one\s+one\ntwo\s+\|\s+2\n$/);
+  });
+});
+
+describe.skipIf(!existsSync("/usr/bin/tar"))("with the system's tar", () => {
+  it("makes and opens a gzipped archive", async () => {
+    const result = await run(
+      [
+        "mkdir -p pack && cp a.txt pack",
+        "tar czf pack.tgz pack && tar tzf pack.tgz | sort",
+        "mkdir -p out && tar -C out -xzf pack.tgz && cat out/pack/a.txt",
+        "tar czf - a.txt | tar tzf -",
+      ].join("\n"),
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "pack/
+      pack/a.txt
+      one
+      two
+      a.txt
+      "
+    `);
   });
 });

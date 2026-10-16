@@ -1,9 +1,52 @@
+import { decodeBytesToUtf8Leniently, unsafeBytesFromLatin1 } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { type Readable } from "node:stream";
-import { StringDecoder } from "node:string_decoder";
 
 import { BoundedText } from "../bounded-text";
 import { utf8Prefix } from "../utf8-byte-slice";
+
+/**
+ * A program's output as the shell shows it: UTF-8 decoded, with each byte
+ * outside a UTF-8 sequence as the Latin-1 character of its value, the way
+ * just-bash decodes a statement's byte output. Diagnostics and the live view
+ * of a background run use it, so both read what the final output reads.
+ */
+export function decodeForDisplay(bytes: Uint8Array): string {
+  return decodeBytesToUtf8Leniently(
+    unsafeBytesFromLatin1(Buffer.from(bytes).toString("latin1")),
+  );
+}
+
+/**
+ * `decodeForDisplay` over a stream of chunks. A sequence the chunk's last
+ * lead byte starts and the chunk cuts short is held for the next one; no
+ * sequence spans a lead byte, so the text matches decoding the whole stream
+ * at once.
+ */
+class DisplayDecoder {
+  private pending: Uint8Array = new Uint8Array(0);
+
+  write(chunk: Uint8Array): string {
+    const data = Buffer.concat([this.pending, chunk]);
+    let split = data.length;
+    for (let i = data.length - 1; i >= Math.max(0, data.length - 3); i--) {
+      const byte = data[i] ?? 0;
+      if (byte >= 0xc0) {
+        const length = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : 2;
+        split = i + length > data.length ? i : data.length;
+        break;
+      }
+    }
+    this.pending = data.subarray(split);
+    return decodeForDisplay(data.subarray(0, split));
+  }
+
+  end(): string {
+    const rest = decodeForDisplay(this.pending);
+    this.pending = new Uint8Array(0);
+    return rest;
+  }
+}
 
 /**
  * Receives a native subprocess's merged output while it is still running.
@@ -57,14 +100,14 @@ export function collectAndForward(
       headBytes: RETAIN_HEAD_BYTES,
       tailBytes: RETAIN_TAIL_BYTES,
     });
-    const decoder = new StringDecoder("utf8");
+    const decoder = new DisplayDecoder();
     let partialLine = "";
 
     for await (const chunk of all) {
       const text =
         typeof chunk === "string"
           ? chunk
-          : Buffer.isBuffer(chunk)
+          : chunk instanceof Uint8Array
             ? decoder.write(chunk)
             : String(chunk);
       await collectText(text);

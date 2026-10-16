@@ -1,6 +1,7 @@
 import { runtimeLayout } from "@instrument-org/workspace/electron";
 import { rgPath } from "@vscode/ripgrep";
 import { app } from "electron";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -33,6 +34,16 @@ export function getUvBinPath(): string {
 // scripts/download-uutils.ts) and deep-signed beside uv.
 export function getUutilsDir(): string {
   return getResourcePath("uutils");
+}
+
+// MXC's launcher is vendored into `resources/mxc/` on Windows (see
+// scripts/download-mxc.ts); undefined elsewhere or where it is missing.
+export function getMxcExecPath(): string | undefined {
+  if (process.platform !== "win32") {
+    return undefined;
+  }
+  const exec = getResourcePath("mxc", "wxc-exec.exe");
+  return existsSync(exec) ? exec : undefined;
 }
 
 // Added to PATH so that child processes (the users's apps) can access the binaries

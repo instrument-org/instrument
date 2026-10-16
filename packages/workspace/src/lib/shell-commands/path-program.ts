@@ -14,7 +14,12 @@ import { nodeToolsEnv } from "../tool-isolation";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { hostPathOf, shellPath } from "../workspace-fs-layout";
-import { collapseProgress, mapStreams, shimOutput } from "./exec-shim";
+import {
+  binaryStdout,
+  collapseProgress,
+  mapStreams,
+  shimOutput,
+} from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
@@ -235,6 +240,7 @@ function createPathProgramCommand(
         ...mapStreams(shimOutput(result, name), (text) =>
           filterShellOutput(collapseProgress(text)),
         ),
+        ...binaryStdout(result),
       }),
     );
   });

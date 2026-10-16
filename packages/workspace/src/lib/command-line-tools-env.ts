@@ -10,7 +10,7 @@ import fs from "node:fs";
 // exits 1.
 //
 // Every command the agent runs is under a native sandbox profile that closes
-// that service (native-sandbox.ts), so a stub there prints that no install
+// that service (native-sandbox/seatbelt.ts), so a stub there prints that no install
 // could be requested and exits, whatever its environment, and the shell adds
 // {@link commandLineToolsNote}. What runs outside the sandbox and may reach a
 // stub is a local MCP server, which gets {@link commandLineToolsEnv}: the

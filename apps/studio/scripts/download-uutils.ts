@@ -49,32 +49,68 @@ const BINARIES = ["coreutils", "diffutils", "find", "grep", "xargs"];
 
 /**
  * Each target's archive and its sha256 as published. Linux takes musl builds,
- * which run on any distribution.
+ * which run on any distribution. `binaries` are the sha256s of the binaries
+ * the agent's shell may run outside the OS sandbox: the workspace's
+ * unsandboxed-uutils rules were reviewed against them, and check each binary
+ * by them before it runs that way. A test there holds the two equal.
  */
-const ARCHIVES: Record<Target, { asset: string; sha256: string }> = {
+const ARCHIVES: Record<
+  Target,
+  { asset: string; binaries: Record<string, string>; sha256: string }
+> = {
   "darwin-arm64": {
     asset: "uutils-aarch64-apple-darwin.tar.gz",
     sha256: "32097a0ba9c21af3b9da4de6a36f22278893f42cd0212c537596e72734dac08d",
+    binaries: {
+      coreutils:
+        "14b6e2df87094f7e8e1044d31bae70e232d9bb4a9abd6eadb8bcb236f0808594",
+      grep: "1deb0d7185f5d0fc045e408cae914bf9e33b0e83418a88bc2863f76219b7a28d",
+    },
   },
   "darwin-x64": {
     asset: "uutils-x86_64-apple-darwin.tar.gz",
     sha256: "0d79cd8ac74fb842a77beeb99b54080bc6dc3488d23fe199c96be91a7e8b92ba",
+    binaries: {
+      coreutils:
+        "11e57c189c8762efcb434d94fa1be4b2559f37d9d5d36fdba99a1745192eae4b",
+      grep: "4599ebb8a63c1504ce9957bcdb7d1d6a46f21e5950be3604916a636f23005fbc",
+    },
   },
   "linux-arm64": {
     asset: "uutils-aarch64-unknown-linux-musl.tar.gz",
     sha256: "93e26ee03055e9ed291b739a606a733a68f29b2e1d0a12d9df445d244b2dc9d5",
+    binaries: {
+      coreutils:
+        "b46e3148cd36a8191f029d1dd28d52d85de7d4b55fc4378a031e5387f3a510ee",
+      grep: "3692cc5da8565f9df971bffea1b3511187b0575af396cc8cf7c6411f30dcb6e1",
+    },
   },
   "linux-x64": {
     asset: "uutils-x86_64-unknown-linux-musl.tar.gz",
     sha256: "a98be7c295283bf443891daa7cd88149b66f3cdc544eb46e67a90c7633f3b295",
+    binaries: {
+      coreutils:
+        "46eb370af3f8d28880827e9b9f6f38904d495d6c151509d6f7ed56cd67352840",
+      grep: "3ea6e8a36171f6083d916e7aaebb9dfb66e218d09abf00567d9eb9f7746982ca",
+    },
   },
   "win32-arm64": {
     asset: "uutils-aarch64-pc-windows-msvc.zip",
     sha256: "a60497f6e9e78cbba3479a676c54df59d12d8dfc4027515990d82aa4fa307a4b",
+    binaries: {
+      coreutils:
+        "ee5071e05303e4f78adc098190da32b82f5128f59bb1b22f620bb264c54d4dc8",
+      grep: "9c51786ef7cbf192f1d33c0343c9dccec0fa63288832672a18970904804e27f5",
+    },
   },
   "win32-x64": {
     asset: "uutils-x86_64-pc-windows-msvc.zip",
     sha256: "77812ad386bbe9175a9f9da6e529c3c86ee5ee110f005361426a0f1bc21727d5",
+    binaries: {
+      coreutils:
+        "3510f3cca330adc1a5e37687678960de73d861366dd28843493d81c43eed3c65",
+      grep: "5278dc3486436c7999277f1945c643fcacddc6cb7f24a07d8f98c115705a22eb",
+    },
   },
 };
 
@@ -133,7 +169,11 @@ function sha256(buffer: Buffer): string {
 }
 
 async function vendor(
-  { asset, sha256: expected }: { asset: string; sha256: string },
+  {
+    asset,
+    binaries,
+    sha256: expected,
+  }: { asset: string; binaries: Record<string, string>; sha256: string },
   platform: NodePlatform,
 ) {
   const url = `https://github.com/instrument-org/uutils-build/releases/download/${RELEASE}/${asset}`;
@@ -154,6 +194,13 @@ async function vendor(
       const found = findFile(extractDir, fileName);
       if (!found) {
         throw new Error(`Could not find ${fileName} in ${asset}`);
+      }
+      const pinned = binaries[binary];
+      const actualBinary = sha256(readFileSync(found));
+      if (pinned !== undefined && actualBinary !== pinned) {
+        throw new Error(
+          `Checksum mismatch for ${fileName} in ${asset}: expected ${pinned}, got ${actualBinary}`,
+        );
       }
       const dest = path.join(RESOURCES_UUTILS_DIR, fileName);
       copyFileSync(found, dest);

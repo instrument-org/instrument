@@ -15,7 +15,7 @@ import {
 } from "../skill-environments";
 import { getUvBinPath, nearestVenv, withPythonVersionNote } from "../uv";
 import { venvToInstallInto } from "../venv";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
@@ -198,6 +198,7 @@ export async function runUv({
       ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
         withPythonVersionNote(filterShellOutput(text)),
       ),
+      ...binaryStdout(result),
     }),
   );
 }

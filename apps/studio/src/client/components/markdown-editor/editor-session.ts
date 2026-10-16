@@ -14,6 +14,7 @@ import {
   flushOnLeave,
   type SaveStatus,
 } from "@/client/lib/live-file";
+import { type OpenTarget } from "@/client/lib/open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { splitFrontMatter } from "@/shared/front-matter";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -29,8 +30,8 @@ import {
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import {
   clearTextInCurrentBlockCommand,
+  wrapInBlockquoteCommand,
   htmlSchema,
-  imageSchema,
 } from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
@@ -43,6 +44,11 @@ import {
 import { $prose, $remark, $view } from "@milkdown/kit/utils";
 
 import { installBlockHandle } from "./block-handle";
+import {
+  calloutsPlugin,
+  keepCalloutMarkers,
+  NEW_CALLOUT_MARKER,
+} from "./callouts";
 import { installBlockMenu } from "./block-menu";
 import {
   codeBlockInfo,
@@ -60,7 +66,14 @@ import {
 } from "./doc-sync";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
-import { imageFilesOf, imageUploader, insertImages } from "./images";
+import {
+  fileUploader,
+  imageTags,
+  imageView,
+  imageWidth,
+  insertFiles,
+} from "./images";
+import { linksPlugin } from "./links";
 import { fitSelectionToolbar, fitSlashMenu } from "./toolbar-fit";
 
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
@@ -72,6 +85,8 @@ export interface EditorSessionOptions {
   onAsk: (selection: AskSelection) => void;
   onExternalChange: (change: ExternalChange) => void;
   onFrontMatter: (fm: string) => void;
+  /** Opens what a followed link names; `newTab` asks for a tab of its own. */
+  onOpenLink: (target: OpenTarget, newTab: boolean) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
   /** Draws a fence Studio shows as something other than code; the element is filled in by the caller. */
   renderFence: (language: string, content: string) => null | string;
@@ -424,46 +439,21 @@ export async function createEditorSession(options: EditorSessionOptions) {
       }),
   );
 
-  /** An image in the file: its own picture, resolved against the file's folder. */
-  const renderImage: NodeViewConstructor = (node) => {
-    const img = document.createElement("img");
-    img.className = "md-image";
-    const render = (n: PMNode) => {
-      const src = options.resolveSrc(String(n.attrs.src ?? ""));
-      if (img.getAttribute("src") !== src) {
-        img.src = src;
-      }
-      img.alt = String(n.attrs.alt ?? "");
-      img.title = String(n.attrs.title ?? "");
-    };
-    render(node);
-    return {
-      dom: img,
-      ignoreMutation: () => true,
-      update(n) {
-        if (n.type !== node.type) {
-          return false;
-        }
-        render(n);
-        return true;
-      },
-    };
-  };
-  const imageView = $view(imageSchema.node, () => renderImage);
+  const images = imageView(options.resolveSrc);
 
-  /** The folder a picture given to the file is put in and linked from: the file's own. */
+  /** The folder a file given to the file is put in and linked from: the file's own. */
   const folder = options.hostPath.replace(/[^/\\]*$/, "");
 
-  /** The slash menu's Image: the system's picker, then the pictures go in as a drop would put them. */
-  const pickImages = () => {
+  /** The slash menu's Image and File: the system's picker, then the files go in as a drop would put them. */
+  const pickFiles = (accept: string) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = accept;
     input.multiple = true;
     input.addEventListener("change", () => {
-      const files = imageFilesOf(input.files);
+      const files = [...(input.files ?? [])];
       if (files.length > 0) {
-        void insertImages(view(), folder, files);
+        void insertFiles(view(), folder, files);
       }
     });
     input.click();
@@ -485,6 +475,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     });
   const htmlView = $view(htmlSchema.node, () => renderHtml);
   const htmlContainerPlugin = $prose(() => htmlStructurePlugin());
+  const links = linksPlugin({ folder, open: options.onOpenLink, root });
 
   /**
    * The places staged asks point at, tinted, each with its number at its
@@ -642,12 +633,38 @@ export async function createEditorSession(options: EditorSessionOptions) {
         // Close to the text, so the handle fits in the document's gutter.
         blockHandle: { getOffset: () => 4 },
         buildMenu: (builder) => {
-          builder.getGroup("advanced").addItem("image", {
+          const advanced = builder.getGroup("advanced");
+          advanced.addItem("image", {
             icon: icon("image", 16),
             label: "Image",
             onRun: (ctx) => {
               ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
-              pickImages();
+              pickFiles("image/*");
+            },
+          });
+          builder.getGroup("text").addItem("callout", {
+            icon: icon("info", 16),
+            label: "Callout",
+            onRun: (ctx) => {
+              const commands = ctx.get(commandsCtx);
+              commands.call(clearTextInCurrentBlockCommand.key);
+              commands.call(wrapInBlockquoteCommand.key);
+              const v = view();
+              const { hardbreak } = v.state.schema.nodes;
+              v.dispatch(
+                v.state.tr.insert(v.state.selection.from, [
+                  v.state.schema.text(NEW_CALLOUT_MARKER),
+                  ...(hardbreak ? [hardbreak.create({ isInline: true })] : []),
+                ]),
+              );
+            },
+          });
+          advanced.addItem("file", {
+            icon: icon("paperclip", 16),
+            label: "File",
+            onRun: (ctx) => {
+              ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+              pickFiles("");
             },
           });
         },
@@ -732,17 +749,18 @@ export async function createEditorSession(options: EditorSessionOptions) {
   editor.editor.config((ctx) => {
     ctx.set("remarkMath", { singleDollarTextMath: false });
   });
-  // A picture pasted or dropped in is put beside the file and linked by its
-  // relative path; Crepe's own uploader links it as a `blob:` address, which
-  // is gone once the page reloads.
+  // A file pasted or dropped in is put beside the file and linked by its
+  // relative path; Crepe's own uploader links a picture as a `blob:` address,
+  // which is gone once the page reloads, and drops anything else.
   editor.editor.config((ctx) => {
     ctx.update(uploadConfig.key, (prev) => ({
       ...prev,
-      uploader: imageUploader(folder),
+      uploader: fileUploader(folder),
       uploadWidgetFactory: (pos, spec) =>
         Decoration.widget(pos, document.createElement("span"), spec),
     }));
   });
+  editor.editor.config(keepCalloutMarkers);
   // Serialized lists and rules use `-`, the marker most Markdown in the wild (and the agent) writes.
   editor.editor.config((ctx) => {
     ctx.update(remarkStringifyOptionsCtx, (prev) => ({
@@ -755,10 +773,14 @@ export async function createEditorSession(options: EditorSessionOptions) {
     .use(imageTitleFix)
     .use(codeBlockInfo)
     .use(sessionPlugin)
-    .use(imageView)
+    .use(imageTags)
+    .use(imageWidth)
+    .use(images)
     .use(htmlView)
     .use(htmlContainerPlugin)
     .use(nearCaretPlugin)
+    .use(links)
+    .use(calloutsPlugin)
     .use(askMarksPlugin);
   await editor.create();
   editor.editor.action((ctx) => {

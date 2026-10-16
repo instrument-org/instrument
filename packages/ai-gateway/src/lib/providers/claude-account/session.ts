@@ -15,9 +15,14 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import {
+  endTurnOnResults,
+  historyFrameTaken,
+  type MessageSource,
+} from "./cli-messages";
+import { type Continuation } from "./continuation";
 import { claudeCodeEnvironment } from "./environment";
-import { type ReplayFrame } from "./prompt";
-import { OLDEST_CLAUDE_CODE, runsClaudeCode } from "./release";
+import { type ReplayFrame, toolResultToMCP, turnContent } from "./prompt";
 import { SESSION_CWD } from "./resume-record";
 
 /** The MCP server name our tools are served under, and so their prefix. */
@@ -26,6 +31,13 @@ export const TOOL_PREFIX = `mcp__${SERVER_NAME}__`;
 
 /** The meta key the CLI stamps each MCP call with, naming its tool_use block. */
 const TOOL_USE_ID_META = "claudecode/toolUseId";
+
+/**
+ * What the model reads where a turn ends on tool results, as Claude Code
+ * notes it inside each result: `hook stopped continuation: <this>`. The
+ * message it promises comes right after the results, in the same user turn.
+ */
+const END_TURN_REASON = "A new message follows these results.";
 
 /** A session nobody has asked for in this long is closed, ending its process. */
 const IDLE_MS = 30 * 60 * 1000;
@@ -56,7 +68,7 @@ export interface SessionShape {
  * step. Our loop still runs every tool: a call the model makes is answered
  * over MCP only when our next request arrives carrying its result.
  */
-export class ClaudeCodeSession {
+export class ClaudeCodeSession implements MessageSource {
   /** Tool calls from the last step, waiting on our loop to run them. */
   awaitingToolCallIds: string[] = [];
   busy = false;
@@ -72,6 +84,12 @@ export class ClaudeCodeSession {
    */
   seen: string[] = [];
   private closed = false;
+  /**
+   * Whether Claude Code ends its turn once the tool calls it waits on are
+   * answered, instead of asking the model about their results. Set while a
+   * message that came in after those results waits to go in as the next turn.
+   */
+  private endTurnAfterTools = false;
   private idleTimer: NodeJS.Timeout | undefined;
   private readonly input = new Pushable<SDKUserMessage | AssistantFrame>();
   private readonly query: Query;
@@ -108,6 +126,20 @@ export class ClaudeCodeSession {
         cwd: SESSION_CWD,
         effort: shape.effort,
         env,
+        hooks: {
+          PostToolUse: [
+            {
+              hooks: [
+                () =>
+                  Promise.resolve(
+                    this.endTurnAfterTools
+                      ? { continue: false, stopReason: END_TURN_REASON }
+                      : {},
+                  ),
+              ],
+            },
+          ],
+        },
         includePartialMessages: true,
         mcpServers: {
           [SERVER_NAME]: {
@@ -118,6 +150,11 @@ export class ClaudeCodeSession {
         },
         model: shape.modelId,
         pathToClaudeCodeExecutable: shape.executablePath,
+        // Every tool the session may call is in `allowedTools`, and nothing
+        // answers a permission prompt, so anything else is refused outright.
+        // Left out, the CLI picks its own default, which can be `auto`: a
+        // classifier model judging each call on the user's account.
+        permissionMode: "dontAsk",
         // Ours is the record, but the CLI's own transcript, kept in the
         // config folder Instrument signs it in through, is what lets a later
         // request resume this session with its tool calls and images intact
@@ -173,17 +210,63 @@ export class ClaudeCodeSession {
     this.onClose();
   }
 
+  /**
+   * Starts a step on `seen`, our messages it answers. Until `endStep`, a
+   * request for this session gets a process of its own instead.
+   */
+  beginStep(seen: string[]) {
+    this.busy = true;
+    this.awaitingToolCallIds = [];
+    this.forkPoint = undefined;
+    this.seen = seen;
+    this.touch();
+  }
+
+  endStep() {
+    this.busy = false;
+    this.touch();
+  }
+
+  /** Switches the process to `modelId`, before a step that asks for it. */
+  async useModel(modelId: string) {
+    if (this.modelId !== modelId) {
+      await this.query.setModel(modelId);
+      this.modelId = modelId;
+    }
+  }
+
+  /** Carries this process on from what it saw, with what the request adds. */
+  async continueWith(continuation: Continuation) {
+    if (continuation.kind === "turn") {
+      this.send(turnContent(continuation.messages));
+      return;
+    }
+    // A message sent while Claude Code waits on our tools would be folded
+    // into the last result's own text, where a model can take it for
+    // something the tool returned. So the turn ends on the results, and the
+    // message goes in after them as a turn of its own, which reaches the
+    // model beside them, as the user's.
+    const { followedBy, results } = continuation;
+    this.endTurnAfterTools = followedBy.length > 0;
+    try {
+      for (const part of results) {
+        this.resolveToolCall(part.toolCallId, toolResultToMCP(part.output));
+      }
+      if (followedBy.length > 0) {
+        await endTurnOnResults(this);
+        this.send(turnContent(followedBy));
+      }
+    } finally {
+      this.endTurnAfterTools = false;
+    }
+  }
+
   /** Answer a tool call the CLI made, whether or not its MCP call has arrived yet. */
   resolveToolCall(toolCallId: string, result: CallToolResult) {
     this.deferred(toolCallId).resolve(result);
   }
 
-  /**
-   * @param priority `next` for a message sent while the process waits on our
-   * tools: Claude Code reads it once those calls are answered, in the same
-   * turn, rather than as a turn of its own after this one ends.
-   */
-  send(content: ContentBlockParam[], priority?: "next") {
+  send(content: ContentBlockParam[]) {
     const uuid = randomUUID();
     this.input.push({
       // Our words go to the model as written: no `@path` reading a file
@@ -192,7 +275,6 @@ export class ClaudeCodeSession {
       client_composed: true,
       message: { content, role: "user" },
       parent_tool_use_id: null,
-      ...(priority && { priority }),
       type: "user",
       uuid,
     });
@@ -233,37 +315,7 @@ export class ClaudeCodeSession {
         type: "user",
         uuid: randomUUID(),
       });
-      await this.acknowledged();
-    }
-  }
-
-  /** Waits for Claude Code to take a frame that asked for no turn. */
-  private async acknowledged() {
-    while (true) {
-      const next = await this.messages.next();
-      if (next.done) {
-        throw new Error(
-          `Claude Code exited during the replay.\n${this.stderr}`,
-        );
-      }
-      // An older build takes the frames out of order, which would hand the
-      // model a scrambled conversation; failing the step says why instead.
-      if (
-        next.value.type === "system" &&
-        next.value.subtype === "init" &&
-        !runsClaudeCode(next.value.claude_code_version)
-      ) {
-        throw new Error(
-          `Claude Code ${next.value.claude_code_version} is older than ${OLDEST_CLAUDE_CODE}, the oldest that takes a replayed conversation in order.`,
-        );
-      }
-      if (next.value.type !== "result") {
-        continue;
-      }
-      if (next.value.num_turns !== 0 || next.value.is_error) {
-        throw new Error("Claude Code ran a turn on a frame of history.");
-      }
-      return;
+      await historyFrameTaken(this);
     }
   }
 
@@ -288,10 +340,6 @@ export class ClaudeCodeSession {
 
   supportedModels() {
     return this.query.supportedModels();
-  }
-
-  setModel(modelId: string) {
-    return this.query.setModel(modelId);
   }
 
   touch() {

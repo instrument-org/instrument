@@ -40,6 +40,8 @@ wel = "wel"
 ba = "ba"
 # tasklist's output-format switch, `/FO CSV`.
 FO = "FO"
+# xargs' `-P` with its count attached, written `-PN`.
+PN = "PN"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.

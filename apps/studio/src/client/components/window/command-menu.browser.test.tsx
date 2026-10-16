@@ -77,7 +77,7 @@ describe("the row Return runs after a paste", () => {
     await userEvent.fill(field, "/Users/sam/Documents");
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent("sam/Documents");
+      .toMatchTextContent("sam/Documents");
 
     // A row picked by a key stays picked while the words stay.
     await userEvent.fill(field, "");
@@ -85,12 +85,12 @@ describe("the row Return runs after a paste", () => {
     await userEvent.keyboard("{ArrowDown}");
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent("Files");
+      .toMatchTextContent("Files");
 
     await userEvent.fill(field, "example.org");
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent("example.org");
+      .toMatchTextContent("example.org");
     await userEvent.keyboard("{Enter}");
     expect(opened.page).toHaveBeenLastCalledWith("https://example.org/");
   });

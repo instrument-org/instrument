@@ -23,6 +23,7 @@ export const WORKER_CONFIG_KEYS = [
   "workspaceMachineDir",
   "macHelperBinPath",
   "seatbeltHelperPath",
+  "mxcExecPath",
   "nativeSandbox",
   "nodeExecEnv",
   // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
@@ -35,6 +36,7 @@ export const WORKER_CONFIG_KEYS = [
   "legacyTasksDir",
   "tempFolders",
   "uutilsDir",
+  "uutilsOutsideSandbox",
   "uvBinPath",
   // Where each chat's work folder is, which the shell starts in.
   "workFoldersDir",

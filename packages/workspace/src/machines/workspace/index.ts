@@ -286,8 +286,10 @@ export const workspaceMachine = setup({
       trashItem: (path: AbsolutePath) => Promise<void>;
       uvBinPath: string;
       uutilsDir?: string;
+      uutilsOutsideSandbox?: boolean;
       macHelperBinPath?: string;
       seatbeltHelperPath?: string;
+      mxcExecPath?: string;
       knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
     },
@@ -353,9 +355,13 @@ export const workspaceMachine = setup({
       ...(input.seatbeltHelperPath && {
         seatbeltHelperPath: AbsolutePathSchema.parse(input.seatbeltHelperPath),
       }),
+      ...(input.mxcExecPath && {
+        mxcExecPath: AbsolutePathSchema.parse(input.mxcExecPath),
+      }),
       ...(input.uutilsDir && {
         uutilsDir: AbsolutePathSchema.parse(input.uutilsDir),
       }),
+      ...(input.uutilsOutsideSandbox && { uutilsOutsideSandbox: true }),
       webSearch: input.webSearch,
     };
     // Publish the single per-process config so code can read it via

@@ -43,8 +43,9 @@ const CHECKED_IN_LICENSES_DIR = path.join(STUDIO_DIR, "licenses");
 const FFMPEG_PACKAGE_VERSION = "7.1.0-rc.1";
 const FFMPEG_RELEASE_TAG = "b7.1.0-rc.1";
 const FFMPEG_UPSTREAM_TAG = "n7.1";
-const GIT_TAG = "v2.47.1";
-const MINGIT_TAG = "v2.47.1.windows.2";
+const DUGITE_NATIVE_TAG = "v2.53.0-4";
+const GIT_TAG = "v2.53.0";
+const MINGIT_TAG = "v2.53.0.windows.4";
 const VSCODE_RIPGREP_VERSION = "1.18.0";
 const RIPGREP_TAG = "15.0.0";
 
@@ -89,7 +90,7 @@ function packageVersion(dir: string) {
   return version;
 }
 
-/** The git tag dugite downloads its native build from, e.g. `v2.47.1`. */
+/** The dugite-native release dugite downloads its git build from, e.g. `v2.53.0-4`. */
 function dugiteGitTag(dugiteDir: string) {
   const embedded = readFileSync(
     path.join(dugiteDir, "script", "embedded-git.json"),
@@ -132,10 +133,10 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     license: () => "GPL-2.0-only",
     name: "Git",
     origin: { from: "studio", package: "dugite" },
-    pin: { installed: dugiteGitTag, version: GIT_TAG },
+    pin: { installed: dugiteGitTag, version: DUGITE_NATIVE_TAG },
     ships: ["node_modules/dugite/git/"],
     source: (platform) => [
-      `Build recipe: dugite-native ${GIT_TAG}, https://github.com/desktop/dugite-native/tree/${GIT_TAG}`,
+      `Build recipe: dugite-native ${DUGITE_NATIVE_TAG}, https://github.com/desktop/dugite-native/tree/${DUGITE_NATIVE_TAG}`,
       platform === "win32"
         ? `Windows build: Git for Windows MinGit ${MINGIT_TAG}, https://github.com/git-for-windows/git/releases/tag/${MINGIT_TAG}`
         : `Git source: https://github.com/git/git/tree/${GIT_TAG}`,

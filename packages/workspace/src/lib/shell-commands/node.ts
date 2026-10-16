@@ -13,7 +13,7 @@ import {
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
 import { APP_COMMAND } from "./app-command";
-import { mapStreams, shimOutput } from "./exec-shim";
+import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import {
   firstString,
@@ -78,6 +78,7 @@ async function execNode(
       ...mapStreams(shimOutput(result, NODE_COMMAND.name), (text) =>
         filterShellOutput(text),
       ),
+      ...binaryStdout(result),
     }),
   );
 }

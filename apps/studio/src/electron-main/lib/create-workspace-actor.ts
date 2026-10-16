@@ -71,6 +71,7 @@ import { quitExitCode } from "./relaunch";
 import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
 import { windowsDriveNames } from "./windows-drives";
 import {
+  getMxcExecPath,
   getPNPMBinPath,
   getUutilsDir,
   getUvBinPath,
@@ -149,6 +150,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
       macHelperBinPath: macHelperBinPath(),
       seatbeltHelperPath: seatbeltHelperPath(),
+      mxcExecPath: getMxcExecPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // This computer's folder, and in it the workspace's: where the
@@ -189,6 +191,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
       uutilsDir: getUutilsDir(),
+      uutilsOutsideSandbox: true,
       webSearch: searchWeb,
     },
   });

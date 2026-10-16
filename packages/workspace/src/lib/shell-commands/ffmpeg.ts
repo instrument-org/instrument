@@ -6,6 +6,7 @@ import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
+  binaryStdout,
   collapseProgress,
   execShim,
   mapStreams,
@@ -62,6 +63,7 @@ export function createFfmpegCommand(
     return {
       exitCode: result.exitCode ?? 1,
       ...streams,
+      ...binaryStdout(result),
     };
   });
 }

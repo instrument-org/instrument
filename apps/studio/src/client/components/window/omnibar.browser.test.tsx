@@ -76,7 +76,7 @@ describe("a path the field found nothing at", () => {
     await userEvent.fill(field, "/nowhere/x");
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent("/nowhere/x");
+      .toMatchTextContent("/nowhere/x");
     await expect.element(notice).not.toBeInTheDocument();
   });
 });
@@ -93,7 +93,7 @@ describe("words the field searches the web for", () => {
 
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent(new RegExp(`^Search the web for “${words}”$`));
+      .toMatchTextContent(new RegExp(`^Search the web for “${words}”$`));
   });
 
   it("is offered after a path with nothing at it", async () => {
@@ -103,7 +103,7 @@ describe("words the field searches the web for", () => {
 
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent(/^Search the web for “\/nowhere\/x”$/);
+      .toMatchTextContent(/^Search the web for “\/nowhere\/x”$/);
   });
 });
 
@@ -146,6 +146,6 @@ describe("a folder's names a whole path reaches", () => {
 
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toHaveTextContent(row);
+      .toMatchTextContent(row);
   });
 });

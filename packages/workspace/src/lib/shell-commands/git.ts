@@ -12,7 +12,12 @@ import {
   shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { collapseProgress, mapStreams, shimOutput } from "./exec-shim";
+import {
+  binaryStdout,
+  collapseProgress,
+  mapStreams,
+  shimOutput,
+} from "./exec-shim";
 import { runNative, stdinFor } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext } from "./utils";
 
@@ -264,6 +269,7 @@ export function createGitCommand({
         ...mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
           filterShellOutput(collapseProgress(text)),
         ),
+        ...binaryStdout(result),
       }),
     );
   });

@@ -50,8 +50,8 @@ async function answer(stdout = "") {
   vi.mocked(execa).mockResolvedValueOnce({
     all: stdout,
     exitCode: 0,
-    stderr: "",
-    stdout: `${stdout}\n`,
+    stderr: Buffer.from(""),
+    stdout: Buffer.from(`${stdout}\n`),
   } as never);
   return () => {
     const [file, args] = vi.mocked(execa).mock.calls[0] ?? [];
@@ -307,9 +307,10 @@ describe("mail's answers", () => {
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 1,
-      stderr:
+      stderr: Buffer.from(
         "1:2: execution error: An error of type 9003 has occurred. (9003)\n",
-      stdout: "",
+      ),
+      stdout: Buffer.from(""),
     } as never);
     expect(
       (

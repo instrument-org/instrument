@@ -53,7 +53,10 @@ const monorepoPackages = ["workspace", "shared", "ai-gateway"];
 
 async function getMonorepoDeps(packageName: string) {
   const pkg = await readPackage({
-    cwd: path.join(process.cwd(), `../../packages/${packageName}`),
+    cwd: path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      `../../packages/${packageName}`,
+    ),
   });
   return Object.keys(pkg.dependencies ?? {}).filter(
     (dep) => !dep.startsWith(monorepoNamespace),

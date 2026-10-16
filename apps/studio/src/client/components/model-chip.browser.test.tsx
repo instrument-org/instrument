@@ -36,7 +36,9 @@ it("names the model that answered without dropping the one that was asked for", 
   );
 
   await expect.element(page.getByText("Fable 5")).toBeVisible();
-  await expect.element(page.getByText("Opus 5")).toBeVisible();
+  await expect
+    .element(page.getByText("Opus 5", { exact: false }))
+    .toBeVisible();
   expect(page.getByText("Fable 5").element()).toHaveStyle({
     textDecorationLine: "line-through",
   });

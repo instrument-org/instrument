@@ -1,7 +1,7 @@
 import { type LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
-import { pumpStep, type StepSession } from "./language-model";
+import { pumpStep, type StepSession } from "./step-stream";
 
 /**
  * One step as Claude Code sent it, reduced to what the stream mapping reads.

@@ -31,17 +31,16 @@ catalog:
   "@types/node": 24.13.1
   "@types/react": ^19.3.0
   "@types/react-dom": ^19.3.0
-  "@typescript/native-preview": 7.0.0-dev.20260702.3
-  "@vitejs/plugin-react": ^6.0.5
-  ai: ^7.0.116
-  better-auth: ^1.7.6
-  hono: ^4.13.9
+  "@vitejs/plugin-react": ^6.1.2
+  ai: ^7.0.134
+  better-auth: ^1.7.7
+  hono: ^4.13.13
   react: ^19.3.0
   react-dom: ^19.3.0
-  typescript: 5.9.2
+  typescript: 7.0.2
   typescript-result: ^3.5.2
-  vite: ^8.3.1
-  vitest: ^4.1.11
+  vite: ^8.3.4
+  vitest: ^5.0.3
   zod: ^4.6.5
 
 ignoredOptionalDependencies:
@@ -119,7 +118,7 @@ overrides:
   "@electron/rebuild>node-abi": 4.35.0
   # Collapse jiti to a single version so vite (which has jiti as an optional
   # peer) resolves to one peer-variant. Two jiti versions otherwise spawn two
-  # vite variants, making Plugin types "unrelated" and breaking tsgo on
+  # vite variants, making Plugin types "unrelated" and breaking the type check on
   # electron.vite.config.ts.
   jiti: 2.7.0
   # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown
@@ -128,6 +127,10 @@ overrides:
   # better-auth merges options with defu; 6.1.4 lets a __proto__ key in the
   # defaults pollute the prototype.
   defu: ^6.1.7
+  # neverthrow 8.2.0 lists rollup's Linux x64 binary as an optional dependency
+  # by mistake (supermacro/neverthrow#602), so a Linux x64 install put a build
+  # tool's native module in the packaged app. Rollup keeps its own.
+  "neverthrow>@rollup/rollup-linux-x64-gnu": "-"
 
 patchedDependencies:
   "@milkdown/plugin-block@7.22.2": patches/@milkdown__plugin-block@7.22.2.patch

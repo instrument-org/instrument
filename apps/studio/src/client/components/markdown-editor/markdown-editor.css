@@ -82,10 +82,56 @@
 
 /* Images: the file's own pictures, the column's width at most. */
 .md-editor .md-image {
+  position: relative;
   display: inline-block;
   max-width: 100%;
-  border-radius: 6px;
   vertical-align: bottom;
+}
+.md-editor .md-image > img {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+}
+/* The corner a picture is resized from (images.ts), shown while the
+   pointer is over the picture or it is selected. */
+.md-editor .md-image-handle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--background);
+  border-radius: 999px;
+  background: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 25%, transparent);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-editor
+  .md-image:is(:hover, .ProseMirror-selectednode, .md-image-resizing)
+  > .md-image-handle {
+  opacity: 1;
+}
+.md-editor .md-image.ProseMirror-selectednode > img,
+.md-editor .md-image.md-image-resizing > img {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* A picture that did not load: which file it was looking for, in place of the picture. */
+.md-editor .md-image-missing {
+  display: none;
+}
+.md-editor .md-image.md-image-broken > :is(img, .md-image-handle) {
+  display: none;
+}
+.md-editor .md-image.md-image-broken > .md-image-missing {
+  display: inline-block;
+  padding: 0.5em 0.85em;
+  border: 1px dashed color-mix(in srgb, var(--destructive) 60%, transparent);
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-size: 0.875em;
 }
 .md-editor .ProseMirror p:has(> .md-image:only-child) {
   margin-block: 1.25em;
@@ -562,6 +608,19 @@ textarea.md-input {
   text-underline-offset: 2px;
   font-weight: 500;
 }
+/* A link to a file that is not there (links.ts): a wavy red underline, as a misspelling gets. */
+.md-editor .milkdown .ProseMirror a:has(> .md-link-broken) {
+  text-decoration: none;
+}
+.md-editor .milkdown .ProseMirror .md-link-broken {
+  text-decoration: underline wavy;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--destructive) 70%,
+    transparent
+  );
+  text-underline-offset: 3px;
+}
 /* Inline code as Typography draws it in Studio: weight and backticks. */
 .md-editor .milkdown .ProseMirror :not(pre) > code {
   font-family: var(--font-mono);
@@ -675,6 +734,68 @@ textarea.md-input {
 }
 .md-editor .milkdown .ProseMirror blockquote > * + * {
   margin-top: 0.75em;
+}
+
+/* GitHub's callouts (callouts.ts): a quote tinted in its kind's color, the
+   kind's icon and name in place of its `[!NOTE]` marker. */
+.md-editor {
+  --callout-note: #0969da;
+  --callout-tip: #1a7f37;
+  --callout-important: #8250df;
+  --callout-warning: #9a6700;
+  --callout-caution: #cf222e;
+}
+.dark .md-editor {
+  --callout-note: #4493f8;
+  --callout-tip: #3fb950;
+  --callout-important: #ab7df8;
+  --callout-warning: #d29922;
+  --callout-caution: #f85149;
+}
+.md-editor .milkdown .ProseMirror blockquote.md-callout {
+  --callout: var(--callout-note);
+  padding: 0.6em 1em 0.6em 1.1em;
+  border-left-color: var(--callout);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--callout) 7%, transparent);
+  color: var(--prose-body);
+  font-weight: 400;
+}
+.md-editor .milkdown .ProseMirror blockquote.md-callout[data-callout="tip"] {
+  --callout: var(--callout-tip);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  blockquote.md-callout[data-callout="important"] {
+  --callout: var(--callout-important);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  blockquote.md-callout[data-callout="warning"] {
+  --callout: var(--callout-warning);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  blockquote.md-callout[data-callout="caution"] {
+  --callout: var(--callout-caution);
+}
+.md-editor .md-callout-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: var(--callout);
+  font-weight: 600;
+  user-select: none;
+}
+.md-editor .md-callout-hidden {
+  display: none;
+}
+.md-editor .md-callout-marker {
+  color: var(--callout);
+  font-weight: 600;
 }
 
 /* Divider: a break between parts, with the same room on both sides whatever

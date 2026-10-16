@@ -4,19 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
-import { createDraftsFolder } from "./drafts-folder";
+import { createDraftsFolder, draftDirOf } from "./drafts-folder";
 
 let root: string;
 
 beforeEach(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "drafts-folder-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "kept-drafts-"));
 });
 
 afterEach(() => {
   fs.rmSync(root, { force: true, recursive: true });
 });
 
-/** Every file under the root, by its path there. */
+/** Every file under the workspace, by its path there. */
 function tree(): string[] {
   return fs
     .readdirSync(root, { recursive: true, withFileTypes: true })
@@ -27,13 +27,25 @@ function tree(): string[] {
     .toSorted();
 }
 
+/**
+ * The one day the tests' drafts were started on, which names their folders.
+ * Midday UTC, so the day is the same wherever the machine running the tests
+ * is: the folder is named in the writing computer's own zone.
+ */
+const DAY = Date.parse("2026-10-14T12:00:00.000Z");
+
 const draft = (id: string, words: string, extra: object = {}) => ({
-  createdAt: 1,
+  createdAt: DAY,
   id,
-  updatedAt: 1,
+  updatedAt: DAY,
   words,
   ...extra,
 });
+
+/** Where the draft with this id is, as a path under the workspace. */
+function folderOf(id: string): string {
+  return path.relative(root, draftDirOf(root, id));
+}
 
 it("reads an attachment's absolute path through where a migration moved it", () => {
   const moved = "/Users/me/Old/chats/c/work/report.md";
@@ -74,16 +86,16 @@ it("reads an attachment's absolute path through where a migration moved it", () 
             "path": "/Users/me/Trips",
           },
         ],
-        "createdAt": 1,
+        "createdAt": 1791979200000,
         "id": "a",
-        "updatedAt": 1,
+        "updatedAt": 1791979200000,
         "words": "Check this",
       },
     ]
   `);
 });
 
-it("writes a folder per draft, words in draft.md and the rest in its settings", () => {
+it("writes a draft to a folder named for the day it was started", () => {
   const folder = createDraftsFolder(root);
   folder.read();
   folder.write({
@@ -94,7 +106,7 @@ it("writes a folder per draft, words in draft.md and the rest in its settings", 
             kind: "file",
             mimeType: "image/png",
             name: "image.png",
-            path: path.join(root, "a", "image.png"),
+            path: path.join(root, "Drafts", "2026-10-14", "image.png"),
             size: 3,
           },
           { kind: "folder", path: "/Users/me/Trips" },
@@ -106,96 +118,123 @@ it("writes a folder per draft, words in draft.md and the rest in its settings", 
 
   expect(tree()).toMatchInlineSnapshot(`
     [
-      "a/.instrument/settings.json",
-      "a/draft.md",
+      "Drafts/2026-10-14/DRAFT.md",
     ]
   `);
-  expect(fs.readFileSync(path.join(root, "a/draft.md"), "utf8")).toBe(
-    "Plan the trip",
-  );
-  expect(
-    JSON.parse(
-      fs.readFileSync(path.join(root, "a/.instrument/settings.json"), "utf8"),
-    ),
-  ).toMatchInlineSnapshot(`
-    {
-      "attached": [
-        {
-          "kind": "file",
-          "mimeType": "image/png",
-          "name": "image.png",
-          "path": "image.png",
-          "size": 3,
-        },
-        {
-          "kind": "folder",
-          "path": "/Users/me/Trips",
-        },
-      ],
-      "createdAt": 1,
-      "topicId": "travel",
-      "updatedAt": 1,
-    }
-  `);
-  expect(createDraftsFolder(root).read()).toEqual({
+  expect(fs.readFileSync(path.join(root, "Drafts/2026-10-14/DRAFT.md"), "utf8"))
+    .toMatchInlineSnapshot(`
+      "---
+      id: "a"
+      created: 2026-10-14T12:00:00.000Z
+      updated: 2026-10-14T12:00:00.000Z
+      topic: "travel"
+      attached:
+        - path: "image.png"
+          kind: file
+          name: "image.png"
+          mediaType: "image/png"
+          size: 3
+        - path: "/Users/me/Trips"
+          kind: folder
+      ---
+
+      Plan the trip
+      "
+    `);
+});
+
+it("reads back every draft it wrote, with the paths it was given", () => {
+  const kept = [
+    draft("a", "Plan the trip", {
+      attached: [{ kind: "folder", path: "/Users/me/Trips" }],
+      topicId: "travel",
+    }),
+    draft("b", "A reply", { chatId: "2026-10-14-a-chat" }),
+  ];
+  createDraftsFolder(root).write({ [DRAFTS_KEY]: kept });
+
+  expect(createDraftsFolder(root).read()).toEqual({ [DRAFTS_KEY]: kept });
+});
+
+it("keeps what was pasted into a draft by a path inside its own folder", () => {
+  const folder = createDraftsFolder(root);
+  const dir = draftDirOf(root, "a");
+  fs.writeFileSync(path.join(dir, "image.png"), "png");
+  folder.write({
     [DRAFTS_KEY]: [
-      draft("a", "Plan the trip", {
+      draft("a", "Look", {
         attached: [
           {
             kind: "file",
             mimeType: "image/png",
             name: "image.png",
-            path: path.join(root, "a", "image.png"),
+            path: path.join(dir, "image.png"),
             size: 3,
           },
-          { kind: "folder", path: "/Users/me/Trips" },
         ],
-        topicId: "travel",
       }),
     ],
   });
+
+  // Relative in the file, so the folder can be carried anywhere.
+  expect(fs.readFileSync(path.join(dir, "DRAFT.md"), "utf8")).toContain(
+    'path: "image.png"',
+  );
+  // And absolute again when the window reads it.
+  expect(createDraftsFolder(root).read()[DRAFTS_KEY]).toMatchObject([
+    { attached: [{ path: path.join(dir, "image.png") }] },
+  ]);
 });
 
 it("reads drafts oldest first and skips folders that are not drafts", () => {
-  const folder = createDraftsFolder(root);
-  folder.write({
+  createDraftsFolder(root).write({
     [DRAFTS_KEY]: [
-      draft("newer", "two", { createdAt: 2 }),
-      draft("older", "one", { createdAt: 1 }),
+      draft("newer", "two", { createdAt: DAY + 2 }),
+      draft("older", "one", { createdAt: DAY + 1 }),
     ],
   });
-  fs.mkdirSync(path.join(root, "stray"));
-  fs.writeFileSync(path.join(root, "notes.md"), "mine");
+  fs.mkdirSync(path.join(root, "Drafts", "stray"));
+  fs.writeFileSync(path.join(root, "Drafts", "notes.md"), "mine");
 
   expect(createDraftsFolder(root).read()).toEqual({
     [DRAFTS_KEY]: [
-      draft("older", "one", { createdAt: 1 }),
-      draft("newer", "two", { createdAt: 2 }),
+      draft("older", "one", { createdAt: DAY + 1 }),
+      draft("newer", "two", { createdAt: DAY + 2 }),
     ],
   });
 });
 
-it("removes the folder of a draft no longer kept, with what was pasted into it", () => {
+it("takes away the draft no longer kept, with what was pasted into it", () => {
   const folder = createDraftsFolder(root);
   folder.write({ [DRAFTS_KEY]: [draft("a", "one"), draft("b", "two")] });
-  fs.writeFileSync(path.join(root, "a/image.png"), "png");
+  const gone = folderOf("a");
+  fs.writeFileSync(path.join(root, gone, "image.png"), "png");
+  folder.write({
+    [DRAFTS_KEY]: [
+      draft("a", "one", {
+        attached: [{ kind: "file", path: path.join(root, gone, "image.png") }],
+      }),
+      draft("b", "two"),
+    ],
+  });
 
   folder.write({ [DRAFTS_KEY]: [draft("b", "two")] });
 
-  expect(tree()).toEqual(["b/.instrument/settings.json", "b/draft.md"]);
+  expect(tree()).toEqual([path.join(folderOf("b"), "DRAFT.md")]);
 });
 
-it("rewrites only the files of the draft that changed", () => {
+it("rewrites only the draft that changed", () => {
   const folder = createDraftsFolder(root);
   folder.write({ [DRAFTS_KEY]: [draft("a", "one"), draft("b", "two")] });
-  fs.rmSync(path.join(root, "b/draft.md"));
+  const b = path.join(root, folderOf("b"), "DRAFT.md");
+  fs.rmSync(b);
 
   folder.write({ [DRAFTS_KEY]: [draft("a", "one more"), draft("b", "two")] });
 
-  expect(fs.existsSync(path.join(root, "b/draft.md"))).toBe(false);
-  expect(fs.readFileSync(path.join(root, "a/draft.md"), "utf8")).toBe(
-    "one more",
-  );
+  expect(fs.existsSync(b)).toBe(false);
+  expect(
+    fs.readFileSync(path.join(root, folderOf("a"), "DRAFT.md"), "utf8"),
+  ).toContain("one more");
 });
 
 it("leaves a value that is not a list of drafts unwritten", () => {
@@ -204,7 +243,7 @@ it("leaves a value that is not a list of drafts unwritten", () => {
 
   folder.write({ [DRAFTS_KEY]: "nonsense" });
 
-  expect(tree()).toEqual(["a/.instrument/settings.json", "a/draft.md"]);
+  expect(tree()).toEqual([path.join(folderOf("a"), "DRAFT.md")]);
 });
 
 it("reconciles changes made on disk and ignores its own writes", () => {
@@ -214,27 +253,35 @@ it("reconciles changes made on disk and ignores its own writes", () => {
   folder.write({ [DRAFTS_KEY]: kept });
   expect(folder.reconcile({ [DRAFTS_KEY]: kept })).toBeUndefined();
 
-  fs.writeFileSync(path.join(root, "a/draft.md"), "edited elsewhere");
-  fs.rmSync(path.join(root, "b"), { recursive: true });
+  const edited = path.join(root, folderOf("a"), "DRAFT.md");
+  fs.writeFileSync(
+    edited,
+    fs.readFileSync(edited, "utf8").replace("one", "edited elsewhere"),
+  );
+  fs.rmSync(path.join(root, folderOf("b")), { recursive: true });
   const typed = draft("c", "typed, not yet written");
 
   expect(folder.reconcile({ [DRAFTS_KEY]: [kept[0], kept[1], typed] })).toEqual(
-    {
-      [DRAFTS_KEY]: [draft("a", "edited elsewhere"), typed],
-    },
+    { [DRAFTS_KEY]: [draft("a", "edited elsewhere"), typed] },
   );
 });
 
 it("takes in a draft folder copied in from elsewhere", () => {
   const folder = createDraftsFolder(root);
   folder.read();
-  fs.mkdirSync(path.join(root, "new/.instrument"), { recursive: true });
+  const dir = path.join(root, "Drafts", "2026-10-15");
+  fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
-    path.join(root, "new/.instrument/settings.json"),
-    JSON.stringify({ createdAt: 5, updatedAt: 5 }),
+    path.join(dir, "DRAFT.md"),
+    '---\nid: "new"\ncreated: 2026-10-15T12:00:00.000Z\nupdated: 2026-10-15T12:00:00.000Z\n---\n\nFrom my phone.\n',
   );
 
   expect(folder.reconcile({ [DRAFTS_KEY]: [] })).toEqual({
-    [DRAFTS_KEY]: [draft("new", "", { createdAt: 5, updatedAt: 5 })],
+    [DRAFTS_KEY]: [
+      draft("new", "From my phone.", {
+        createdAt: Date.parse("2026-10-15T12:00:00.000Z"),
+        updatedAt: Date.parse("2026-10-15T12:00:00.000Z"),
+      }),
+    ],
   });
 });

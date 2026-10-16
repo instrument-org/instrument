@@ -1,13 +1,13 @@
 import { DRAFTS_KEY } from "@/shared/kept-state";
+import {
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
+} from "@instrument-org/shared";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  createDraftsFolder,
-  draftDirOf,
-  freeNameIn,
-} from "../stores/workspace/drafts-folder";
+import { freeNameIn } from "../stores/workspace/drafts-folder";
 
 import {
   hasWorkspaceIdentity,
@@ -229,12 +229,11 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
         stagedItems.add(file.itemDir);
       }
     }
-    const folder = createDraftsFolder(root);
-    const read = folder.read()[DRAFTS_KEY];
-    const onDisk: unknown[] = Array.isArray(read) ? read : [];
     const present = new Set(
-      onDisk.flatMap((draft) =>
-        isObject(draft) && typeof draft.id === "string" ? [draft.id] : [],
+      (fs.existsSync(root) ? fs.readdirSync(root) : []).filter((name) =>
+        fs.existsSync(
+          path.join(root, name, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
+        ),
       ),
     );
     const moved = kept.flatMap((draft: unknown) => {
@@ -245,7 +244,7 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
       ) {
         return [];
       }
-      const dir = draftDirOf(root, draft.id);
+      const dir = path.join(root, draft.id);
       const staged = new Set(
         stagedFilesOf(root, draft).map((file) => file.path),
       );
@@ -270,9 +269,9 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
         : undefined;
       return [{ ...draft, ...(attached ? { attached } : {}) }];
     });
-    folder.write({
-      [DRAFTS_KEY]: [...onDisk, ...moved],
-    });
+    for (const draft of moved) {
+      writeDraftToFolder(root, draft);
+    }
     done.push(`moved ${moved.length.toString()} drafts into their folders`);
   }
   for (const itemDir of stagedItems) {
@@ -281,6 +280,32 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
   }
   fs.rmSync(keptFile, { force: true });
   fs.rmSync(path.join(settingsDir, "history.json"), { force: true });
+}
+
+/**
+ * One draft in a folder of its own under the drafts folder, in the shape the
+ * build after the beta read: its words in `draft.md` and the rest of its
+ * record in its own `.instrument/settings.json`. The drafts move again from
+ * there, out to `Drafts/` at the workspace's top level
+ * (`lib/drafts/migrate.ts`), which is why this writes the old shape rather
+ * than today's: a workspace two shapes behind takes one hop at a time, and
+ * each hop is a migration that can be run again.
+ */
+function writeDraftToFolder(root: string, draft: Record<string, unknown>) {
+  const { id, words, ...record } = draft;
+  if (typeof id !== "string") {
+    return;
+  }
+  const dir = path.join(root, id);
+  fs.mkdirSync(path.join(dir, PRIVATE_FOLDER_NAME), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "draft.md"),
+    typeof words === "string" ? words : "",
+  );
+  writeJsonAtomic(
+    path.join(dir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
+    record,
+  );
 }
 
 /**
@@ -298,7 +323,7 @@ function stagedFilesOf(
   ) {
     return [];
   }
-  const draftDir = draftDirOf(root, draft.id);
+  const draftDir = path.join(root, draft.id);
   return draft.attached.flatMap((item: unknown) => {
     if (!isObject(item) || typeof item.path !== "string") {
       return [];

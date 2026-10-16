@@ -5,6 +5,7 @@ import path from "node:path";
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { pythonBaseDir } from "../python-base";
 import {
   environmentBinDir,
   pythonLayerEnv,
@@ -99,6 +100,18 @@ async function runNativePython(
     return { exitCode: 1, stderr: interpreter.error.output, stdout: "" };
   }
 
+  // The base packages every chat is pointed at. A virtualenv is given them by
+  // a `.pth` written inside it (`linkPythonBase`), and the managed Python run
+  // bare has no site-packages of its own to put one in, so the folder goes on
+  // `PYTHONPATH` instead: the same set by the other door, so a chat's first
+  // `python -c "import matplotlib"` works before anything has run `pip`.
+  const base =
+    skill.venv === undefined && interpreter.venv === undefined
+      ? pythonBaseDir()
+      : undefined;
+  const pythonPath =
+    [base, env.PYTHONPATH].filter(Boolean).join(path.delimiter) || undefined;
+
   return runNative(
     ctx,
     interpreter.python,
@@ -122,7 +135,10 @@ async function runNativePython(
           : interpreter.venv
             ? {}
             : { PYTHONNOUSERSITE: "1" }),
-        ...(skill.layer && pythonLayerEnv(skill.layer, env.PYTHONPATH)),
+        ...(pythonPath === undefined ? {} : { PYTHONPATH: pythonPath }),
+        // Last, and handed what `PYTHONPATH` now holds, so a skill's layer
+        // goes in front of the base set rather than over it.
+        ...(skill.layer && pythonLayerEnv(skill.layer, pythonPath)),
       },
       // Buffer, not the latin1-packed string: execa UTF-8 encodes string
       // input, which would double-encode every non-ASCII byte.

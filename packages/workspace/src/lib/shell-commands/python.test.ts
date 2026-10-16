@@ -17,6 +17,7 @@ import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
 vi.mock(import("../venv"), () => ({ pythonToRun: vi.fn() }));
+vi.mock(import("../python-base"), () => ({ pythonBaseDir: vi.fn() }));
 vi.mock(import("../skill-environments"), () => ({
   environmentBinDir: (venv: string) => path.join(venv, "bin"),
   pythonLayerEnv: (layer: string, pythonPath: string | undefined) => ({
@@ -45,6 +46,8 @@ describe("python", () => {
   beforeEach(async () => {
     const { pythonToRun } = await import("../venv");
     const { skillPythonToRun } = await import("../skill-environments");
+    const { pythonBaseDir } = await import("../python-base");
+    vi.mocked(pythonBaseDir).mockReturnValue(undefined);
     vi.mocked(skillPythonToRun).mockResolvedValue({});
     vi.mocked(pythonToRun).mockResolvedValue({
       python: "/work/.venv/bin/python",
@@ -76,6 +79,53 @@ describe("python", () => {
       expect.objectContaining({
         env: expect.objectContaining({ PYTHONNOUSERSITE: "1" }),
       }),
+    );
+  });
+
+  it("points the bare interpreter at the base packages, which no venv holds the link to", async () => {
+    const { execa } = await import("execa");
+    const { pythonToRun } = await import("../venv");
+    const { pythonBaseDir } = await import("../python-base");
+    // A fresh chat: nothing has run `pip`, so there is no virtualenv for
+    // `linkPythonBase` to have written a `.pth` into.
+    vi.mocked(pythonBaseDir).mockReturnValue("/runtime/python-base/abc");
+    vi.mocked(pythonToRun).mockResolvedValueOnce({
+      python: "/runtime/python/bin/python3.12",
+      venv: undefined,
+    });
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "import matplotlib"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PYTHONNOUSERSITE: "1",
+          PYTHONPATH: "/runtime/python-base/abc",
+        }),
+      }),
+    );
+  });
+
+  it("leaves the base packages to the venv's own link when there is one", async () => {
+    const { execa } = await import("execa");
+    const { pythonBaseDir } = await import("../python-base");
+    vi.mocked(pythonBaseDir).mockReturnValue("/runtime/python-base/abc");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "import matplotlib"], mockCtx);
+
+    const [, , options] = vi.mocked(execa).mock.lastCall ?? [];
+    expect((options as { env: Record<string, string> }).env.PYTHONPATH).toBe(
+      undefined,
     );
   });
 

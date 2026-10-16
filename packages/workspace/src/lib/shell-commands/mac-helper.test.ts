@@ -65,7 +65,10 @@ const COMMANDS = {
 
 async function helperAnswers() {
   const { execa } = await import("execa");
-  vi.mocked(execa).mockResolvedValueOnce({ all: "[]", exitCode: 0 } as never);
+  // Every call, not the next one: a run where something else spawns first
+  // should fail on the call count below rather than on an exit code of 1
+  // from the default mock's undefined answer.
+  vi.mocked(execa).mockResolvedValue({ all: "[]", exitCode: 0 } as never);
   return vi.mocked(execa);
 }
 

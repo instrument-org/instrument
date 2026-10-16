@@ -1,6 +1,6 @@
 # Testing the Instrument folder
 
-Status: proposed. Nothing here has been run. Written 2026-10-16, after F1 landed and F3 and F4 began.
+Status: under way. The migration rehearsal is built and has run on this machine's two real workspaces; the Windows pass is part-way. Written 2026-10-16, after F1 landed and F3 and F4 began.
 
 What changed is where a person's data lives and what moves it there. The unit tests cover the pieces; they cannot cover a real install's data, a second computer, or an agent actually using a folder. This is what to do before any of it reaches a build.
 
@@ -25,6 +25,22 @@ What to assert, in this order, because the first failure makes the rest meaningl
 
 Run it against a copy of the real dev workspace (688 chats) and against a seeded fixture, so a failure can be told apart from a quirk of one install.
 
+Built, as `apps/studio/src/electron-main/lib/migration-rehearsal.test.ts`: skipped unless `REHEARSE_WORKSPACE` names a workspace, which it clones and runs the launch steps over.
+
+```
+REHEARSE_WORKSPACE="$HOME/Library/Application Support/Instrument/workspace" \
+  pnpm --filter @instrument-org/studio exec vitest run \
+  src/electron-main/lib/migration-rehearsal.test.ts
+```
+
+What it found on the 1.x install here (393 chats, 157,437 files, two and a half minutes):
+
+- Everything above holds but the last one. Nothing lost, one folder per chat, a `CHAT.md` in each naming its chat, every store set aside, the hidden folders out, each topic down to one `TOPIC.md`.
+- 77 transcripts gain a `topics:` line on the second run, because the chat folders are written before the topics come out of `.instrument/`, so the first pass has no topic names. The order at the call site is the fix.
+- The three folders stop at an empty folder of their own name, which is what a real workspace has: ten skills stayed hidden under an empty `Skills/`. Fixed in the shared move.
+
+Three of the assertions had to be written against what the migration is actually for, which is worth knowing before writing the next one: a work folder deliberately leaves `node_modules`, `.venv` and `.tmp` behind, 1.x staged a copy of the app's own skills inside every task, and a 1.x task's store is folded into the chat's records rather than set aside on its own.
+
 ## 2. One chained session per operating system
 
 The same walkthrough on each of the three, in one sitting each, rather than a matrix of isolated cases. A case that needs its own setup does not get run.
@@ -41,6 +57,13 @@ Mac Studio, then Windows (`cubetop`), then Linux (`ubuntu-vm`). Each step leaves
 8. Delete a chat, leaving the folder. Then delete another, taking the folder. The first one's files are still there.
 
 Windows earns the most attention: it is the platform where the rename genuinely fails, where paths are spelled differently for the shell, and where the 260-character limit bites.
+
+What the Windows pass has shown so far, against the branch in the host's own checkout:
+
+- The launch migrations ran over its 13 chats: converted in 234ms, the stores set aside, the workspace at format version 2, 13 folders written in 91ms, numbered where four chats shared a name. `.instrument` is not hidden, as decided.
+- Renaming the chat in the app renames the folder, between turns, with the transcript still in it.
+- `$INSTRUMENT_OUTPUT` is spelled for the shell with its drive letter and points at the chat's own folder. Writing into it is refused: [the chat folder the agent cannot write to](../../findings/the-chat-folder-the-agent-cannot-write-to.md).
+- A turn on a paid model cannot run there yet: the host's OpenRouter key is out of credits, and the free model its list starts with is rate-limited upstream. The steps that need a live agent are waiting on that.
 
 ## 3. Two computers, which nothing has tested
 

@@ -12,7 +12,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ChatReads } from "./chat-reads";
-import { outputFolderPath } from "./chat/output-folder";
+import { finishedWorkFolder } from "./chat/output-folder";
 import { chatDir, chatOwnFolder } from "./record-folders";
 import { getCurrentDate } from "./get-current-date";
 import { getSystemInfo } from "./get-system-info";
@@ -24,10 +24,11 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 /**
  * The computer this process runs on, as a session's model is told it.
  *
- * The output folder is the chat's own, so what the model reads matches the
- * `$INSTRUMENT_OUTPUT` its shell is given; a change to it between turns is
- * told as any other move of a folder is. Without a chat, as for the window,
- * it is the Instrument folder.
+ * The output folder is worked out exactly as `$INSTRUMENT_OUTPUT` is
+ * (`finishedWorkFolder`), so what the model reads and what its shell holds
+ * are the same folder; a change to it between turns is told as any other
+ * move of a folder is. Without a chat, as for the window, it is the
+ * Instrument folder.
  */
 export function currentEnvironment(chatId?: ChatId): Environment {
   return {
@@ -35,8 +36,9 @@ export function currentEnvironment(chatId?: ChatId): Environment {
     computer: getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
     outputFolder: shellPath(
-      (chatId === undefined ? undefined : chatOwnFolder(chatDir(chatId))) ??
-        outputFolderPath(),
+      finishedWorkFolder(
+        chatId === undefined ? undefined : chatOwnFolder(chatDir(chatId)),
+      ),
     ),
     platform: process.platform,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,

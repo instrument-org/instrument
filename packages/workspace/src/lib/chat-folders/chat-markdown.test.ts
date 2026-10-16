@@ -221,6 +221,7 @@ function wholeChat() {
 it("renders a chat whole", () => {
   expect(render(wholeChat())).toMatchInlineSnapshot(`
     "---
+    chat: records-test
     started: 2026-10-14T12:00:00.000Z
     topics:
       - Kitchen

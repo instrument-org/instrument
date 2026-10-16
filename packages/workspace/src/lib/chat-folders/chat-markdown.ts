@@ -135,7 +135,7 @@ export function renderChatMarkdown({
     return undefined;
   }
   const blocks: string[] = [
-    frontMatter(own, topicNames),
+    frontMatter(id, own, topicNames),
     `[Open this chat in ${APP_NAME}](${APP_NAME_SLUG}://chat/${id})`,
   ];
   const work = workLines(chat, own.id);
@@ -197,11 +197,16 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
 }
 
 /**
- * The file's front matter: when the chat began, and the topics it is filed
- * under. Nothing lists its files, its pages or its apps, which the folder
- * beside it and the app already say.
+ * The file's front matter: which chat this is, when it began, and the topics
+ * it is filed under. Nothing lists its files, its pages or its apps, which
+ * the folder beside it and the app already say.
+ *
+ * The chat's own id is a key rather than only the link under it, so what ties
+ * a folder to a chat is something to read and something to parse, not a
+ * hyperlink that has to be picked apart.
  */
 function frontMatter(
+  id: ChatId,
   own: FoldedSession,
   topicNames: ReadonlyMap<string, string> | undefined,
 ): string {
@@ -211,6 +216,7 @@ function frontMatter(
   });
   return [
     "---",
+    `chat: ${yamlScalar(id)}`,
     `started: ${own.createdAt.toISOString()}`,
     ...(topics.length > 0
       ? ["topics:", ...topics.map((name) => `  - ${yamlScalar(name)}`)]

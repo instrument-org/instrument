@@ -265,6 +265,24 @@ describe("a gesture in a file manager", () => {
     `);
   });
 
+  it("follows a folder whose transcript names its chat in the link alone", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    await renameFolder("Dishwashers", "My own notes");
+    // A folder written before the front matter named the chat, which is
+    // every one the update made.
+    const file = path.join(chatsFolder(), "My own notes", CHAT_FILE_NAME);
+    const held = await fs.readFile(file, "utf8");
+    await fs.writeFile(file, held.replace(/^chat: .*\n/m, ""), "utf8");
+
+    await sweep();
+
+    expect(await folderNames()).toEqual(["My own notes"]);
+    expect((await settingsOf(dir)).folder).toBe("My own notes");
+  });
+
   it("opens no transcript at all where nothing was renamed", async () => {
     await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
     await writeChat("2026-10-15-taxes", { title: "Taxes" });

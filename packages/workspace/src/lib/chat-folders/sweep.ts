@@ -64,7 +64,8 @@ const FOLDERS_AT_ONCE = 8;
 /** How much of a `CHAT.md` is read to find the chat it links to. */
 const LINK_HEAD_BYTES = 2048;
 
-/** The link to a chat, as `CHAT.md` writes it under the front matter. */
+/** The chat a `CHAT.md` names, in its front matter and then in its link. */
+const CHAT_KEY = /^chat:\s*"?([^"\n]+?)"?\s*$/m;
 const CHAT_LINK = new RegExp(`${APP_NAME_SLUG}://chat/([^)\\s]+)`);
 
 export async function sweepChatFolders({
@@ -253,11 +254,14 @@ async function chatLinkedFrom(folder: string): Promise<ChatId | undefined> {
   } catch {
     return undefined;
   }
-  const linked = CHAT_LINK.exec(head)?.[1];
-  if (linked === undefined) {
+  // The key first, since that is where the chat is named; the link after it
+  // for a file written before the key was, which is every folder the update
+  // made and any a person is holding from an older build.
+  const named = CHAT_KEY.exec(head)?.[1] ?? CHAT_LINK.exec(head)?.[1];
+  if (named === undefined) {
     return undefined;
   }
-  const id = ChatIdSchema.safeParse(linked);
+  const id = ChatIdSchema.safeParse(named);
   return id.success ? id.data : undefined;
 }
 

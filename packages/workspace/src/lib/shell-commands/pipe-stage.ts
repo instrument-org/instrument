@@ -97,6 +97,8 @@ export interface StageOptions {
   offerHandoff: boolean;
   /** The previous stage's handoff token, taken as fd 0. */
   stdinHandoff?: string;
+  /** An open file for fd 0, which the program reads as its stdin. */
+  stdinFd?: number;
   unsandboxed?: true;
   walks?: true;
   windowsVerbatimArguments?: boolean;
@@ -253,7 +255,9 @@ export function startPipeStage(
   // through this process instead, still as a stream with backpressure.
   const relay = upstream !== undefined && process.platform === "win32";
   const stdio: StdioOptions = [
-    relay ? "pipe" : (upstream ?? (options.input ? "pipe" : "ignore")),
+    relay
+      ? "pipe"
+      : (upstream ?? (options.input ? "pipe" : (options.stdinFd ?? "ignore"))),
     "pipe",
     "pipe",
     ...(options.onMessage ? (["ipc"] as const) : []),
@@ -492,8 +496,15 @@ export async function runNative(
   report: (result: StageResult) => ExecResult | Promise<ExecResult>,
 ): Promise<ExecResult> {
   const piped = ctx.offerPipeHandoff === true || ctx.stdinHandoff !== undefined;
-  if (!piped || !pipeHandoffsSupported()) {
-    const { maxBuffer, maxStdout: _maxStdout, ...shimOptions } = options;
+  // An open file for fd 0 is a spawn's own stdio, which execa does not take;
+  // a stage takes it the same way, piped or not.
+  if (options.stdinFd === undefined && (!piped || !pipeHandoffsSupported())) {
+    const {
+      maxBuffer,
+      maxStdout: _maxStdout,
+      stdinFd: _stdinFd,
+      ...shimOptions
+    } = options;
     const result = await execShim(file, args, {
       ...shimOptions,
       ...(maxBuffer ? { maxBuffer } : {}),
@@ -504,7 +515,7 @@ export async function runNative(
     ...options,
     input: "input" in options ? options.input : undefined,
     maxStdout: options.maxBuffer?.stdout ?? options.maxStdout,
-    offerHandoff: ctx.offerPipeHandoff === true,
+    offerHandoff: ctx.offerPipeHandoff === true && pipeHandoffsSupported(),
     stdinHandoff: ctx.stdinHandoff,
   });
   if (!("token" in stage)) {

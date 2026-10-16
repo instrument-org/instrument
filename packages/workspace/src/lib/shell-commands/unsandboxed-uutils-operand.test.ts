@@ -1,0 +1,139 @@
+import { execFileSync } from "node:child_process";
+import {
+  closeSync,
+  linkSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+
+import { CHAT_FOLDER_NAMES } from "../../constants";
+import { ChatDirSchema } from "../../schemas/paths";
+import { buildWorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
+import {
+  openOperandForStdin,
+  shellSpellingOf,
+} from "./unsandboxed-uutils-operand";
+
+const base = realpathSync(
+  mkdtempSync(path.join(os.tmpdir(), "uutils-operand-")),
+);
+const chat = path.join(base, "chat");
+const outside = path.join(base, "outside");
+for (const dir of [
+  chat,
+  outside,
+  path.join(chat, CHAT_FOLDER_NAMES.private),
+  path.join(chat, "closed"),
+  path.join(chat, "asks"),
+]) {
+  mkdirSync(dir, { recursive: true });
+}
+writeFileSync(path.join(chat, "a.txt"), "one\ntwo\n");
+writeFileSync(path.join(chat, "two-names.txt"), "x\n");
+linkSync(path.join(chat, "two-names.txt"), path.join(chat, "second-name.txt"));
+writeFileSync(path.join(outside, "secret.txt"), "secret\n");
+writeFileSync(path.join(chat, CHAT_FOLDER_NAMES.private, "s.txt"), "s\n");
+writeFileSync(path.join(chat, "closed", "c.txt"), "c\n");
+writeFileSync(path.join(chat, "asks", "q.txt"), "q\n");
+symlinkSync(path.join(outside, "secret.txt"), path.join(chat, "out-link"));
+symlinkSync(path.join(chat, "a.txt"), path.join(chat, "in-link"));
+if (process.platform !== "win32") {
+  execFileSync("mkfifo", [path.join(chat, "fifo")]);
+}
+afterAll(() => rmSync(base, { force: true, recursive: true }));
+
+const layout = buildWorkspaceFsLayout({
+  chatHostRoot: ChatDirSchema.parse(chat),
+  rules: {
+    home: os.homedir(),
+    rules: [
+      { level: "never", path: path.join(chat, "closed"), source: "folder" },
+      { level: "ask", path: path.join(chat, "asks"), source: "folder" },
+    ],
+    withoutAsking: false,
+  },
+});
+
+function open(operand: string) {
+  const fd = openOperandForStdin({
+    layout,
+    operand,
+    resolvePath: (spelled) => path.posix.resolve(shellPath(chat), spelled),
+  });
+  if (fd === undefined) {
+    return undefined;
+  }
+  try {
+    return readFileSync(fd, "utf8");
+  } finally {
+    closeSync(fd);
+  }
+}
+
+describe("openOperandForStdin", () => {
+  it.each([
+    ["a.txt", "one\ntwo\n"],
+    ["./a.txt", "one\ntwo\n"],
+    [path.join(chat, "a.txt"), "one\ntwo\n"],
+    // A link that stays inside the chat's folder reads what it leads to.
+    ["in-link", "one\ntwo\n"],
+  ])("opens %s", (operand, contents) => {
+    expect(open(operand)).toBe(contents);
+  });
+
+  it.each([
+    ["a link out of every folder the chat reaches", "out-link"],
+    ["a file outside them", path.join(outside, "secret.txt")],
+    ["a file with a second name", "second-name.txt"],
+    ["a FIFO", "fifo"],
+    ["the app's own folder", `${CHAT_FOLDER_NAMES.private}/s.txt`],
+    ["a folder the rules close", "closed/c.txt"],
+    ["a folder that asks first", "asks/q.txt"],
+    ["a folder", "."],
+    ["a missing file", "nope.txt"],
+    ["the app's environment", "/proc/self/environ"],
+    ["a device", "/dev/zero"],
+  ])("leaves %s to the sandbox", (_, operand) => {
+    expect(open(operand)).toBeUndefined();
+  });
+});
+
+describe("shellSpellingOf on Windows", () => {
+  it.each([
+    ["C:\\Users\\sam\\a.txt", "/c/Users/sam/a.txt"],
+    ["d:/work/a.txt", "/d/work/a.txt"],
+    ["notes\\a.txt", "notes/a.txt"],
+    ["/c/Users/sam/a.txt", "/c/Users/sam/a.txt"],
+    ["\\\\?\\C:\\Users\\sam\\a.txt", undefined],
+    ["\\\\.\\PhysicalDrive0", undefined],
+    ["\\\\server\\share\\a.txt", undefined],
+    ["//server/share/a.txt", undefined],
+    ["C:a.txt", undefined],
+    ["C:\\Users\\sam\\a.txt:hidden", undefined],
+    ["a.txt:stream", undefined],
+  ])("%s is %s", (operand, spelled) => {
+    expect(shellSpellingOf(operand, "win32")).toBe(spelled);
+  });
+
+  it.each(["C:\\Users\\sam\\a.txt", "\\\\?\\C:\\Users\\sam\\a.txt"])(
+    "leaves %s outside the chat's folders to the sandbox",
+    (operand) => {
+      expect(
+        openOperandForStdin({
+          layout,
+          operand,
+          platform: "win32",
+          resolvePath: (spelled) => path.posix.resolve("/", spelled),
+        }),
+      ).toBeUndefined();
+    },
+  );
+});

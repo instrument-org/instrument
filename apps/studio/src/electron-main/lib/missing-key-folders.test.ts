@@ -40,6 +40,28 @@ vi.mock("@/electron-main/lib/electron-logger", () => ({
   logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 
+/** A watch that fires when the test says so, in place of the system's. */
+function fakeWatch() {
+  let heard: (() => void) | undefined;
+  let closed = false;
+  return {
+    fire: () => {
+      if (!closed) {
+        heard?.();
+      }
+    },
+    watch: ((_root: unknown, _options: unknown, listener: () => void) => {
+      heard = listener;
+      return {
+        close: () => {
+          closed = true;
+        },
+        on: () => undefined,
+      };
+    }) as unknown as typeof fs.watch,
+  };
+}
+
 /** A fresh copy of the modules, since the store is held in one. */
 async function load() {
   vi.resetModules();
@@ -130,18 +152,58 @@ describe("missing key folders", () => {
     folders.recordKeyFolders(root, ["Drafts"]);
 
     const seen: string[][] = [];
-    const stop = folders.watchKeyFolders(root, (missing) => {
-      seen.push([...missing]);
-    });
+    const watch = fakeWatch();
+    const stop = folders.watchKeyFolders(
+      root,
+      (missing) => {
+        seen.push([...missing]);
+      },
+      { watch: watch.watch },
+    );
     fs.rmSync(path.join(root, "Drafts"), { recursive: true });
-    await vi.waitFor(() => expect(seen).toContainEqual(["Drafts"]), {
-      // The watch collects a burst before it checks, and a loaded machine
-      // delivers the first event late; generous because the assertion is that
-      // it happens at all, not how soon.
-      timeout: 10_000,
-    });
+    // Whether the system delivers the event is the system's business, and the
+    // plan has that driven in a file manager; what is here is what happens
+    // when one arrives.
+    watch.fire();
+    await vi.waitFor(() => expect(seen).toContainEqual(["Drafts"]));
     stop();
-  }, 15_000);
+  });
+
+  it("checks once for a burst of events, which one gesture sends", async () => {
+    const { folders } = await load();
+    fs.mkdirSync(path.join(root, "Drafts"));
+    folders.recordKeyFolders(root, ["Drafts"]);
+
+    const seen: string[][] = [];
+    const watch = fakeWatch();
+    const stop = folders.watchKeyFolders(
+      root,
+      (missing) => {
+        seen.push([...missing]);
+      },
+      { watch: watch.watch },
+    );
+    fs.rmSync(path.join(root, "Drafts"), { recursive: true });
+    for (let i = 0; i < 5; i += 1) {
+      watch.fire();
+    }
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen).toEqual([["Drafts"]]);
+    stop();
+  });
+
+  it("carries on when the system refuses to watch", async () => {
+    const { folders } = await load();
+    folders.recordKeyFolders(root, ["Drafts"]);
+
+    const stop = folders.watchKeyFolders(root, () => undefined, {
+      watch: () => {
+        throw new Error("EMFILE");
+      },
+    });
+
+    expect(stop).not.toThrow();
+  });
 
   it("stops answering once the watch is stopped", async () => {
     const { folders } = await load();
@@ -149,11 +211,17 @@ describe("missing key folders", () => {
     folders.recordKeyFolders(root, ["Drafts"]);
 
     const seen: string[][] = [];
-    const stop = folders.watchKeyFolders(root, (missing) => {
-      seen.push([...missing]);
-    });
+    const watch = fakeWatch();
+    const stop = folders.watchKeyFolders(
+      root,
+      (missing) => {
+        seen.push([...missing]);
+      },
+      { watch: watch.watch },
+    );
     stop();
     fs.rmSync(path.join(root, "Drafts"), { recursive: true });
+    watch.fire();
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     expect(seen).toEqual([]);

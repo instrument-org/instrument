@@ -81,10 +81,15 @@ export async function missingKeyFolders(
  * The watch is best effort: a platform or a network volume that refuses to
  * watch leaves the launch check as the only one, which is the behavior a
  * person sees as the notice appearing when they next open the app.
+ *
+ * `watch` stands in for `fs.watch` so a test can say an event arrived without
+ * waiting for the system to deliver one, which it does late or not at all
+ * under load.
  */
 export function watchKeyFolders(
   root: string,
   onChange: (missing: KeyFolderName[]) => void,
+  { watch = fs.watch }: { watch?: typeof fs.watch } = {},
 ): () => void {
   let timer: NodeJS.Timeout | undefined;
   let stopped = false;
@@ -105,7 +110,7 @@ export function watchKeyFolders(
 
   let watcher: fs.FSWatcher | undefined;
   try {
-    watcher = fs.watch(root, { recursive: false }, () => {
+    watcher = watch(root, { recursive: false }, () => {
       if (timer === undefined) {
         timer = setTimeout(check, SETTLE_MS);
       }

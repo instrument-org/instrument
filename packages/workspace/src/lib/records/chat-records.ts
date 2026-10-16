@@ -438,7 +438,7 @@ export class ChatRecords {
     updater: (part: SessionMessagePart.Type) => SessionMessagePart.Type,
   ): Promise<SessionMessagePart.Type | undefined> {
     return this.#with(chatId, (chat) => {
-      const current = currentPart(chat, ids);
+      const current = currentPart(chat, this.#live.get(chatId), ids);
       if (!current) {
         return undefined;
       }
@@ -450,7 +450,13 @@ export class ChatRecords {
         this.live(chatId, ids.sessionId).setPart(next);
         return next;
       }
-      return this.#part(chat, next, isCommitPart(next)).then(() => next);
+      // Queued first, then the turn's copy goes: the part is in one of the
+      // two at every moment, and the arriving copy stops being drawn over the
+      // one that settled. Without the second line a part this turn offered
+      // before its own result keeps winning every read until the turn ends.
+      const written = this.#part(chat, next, isCommitPart(next));
+      this.live(chatId, ids.sessionId).forget(ids.partId);
+      return written.then(() => next);
     });
   }
 
@@ -1450,13 +1456,25 @@ const partIndexes = new WeakMap<
   Map<string, SessionMessagePart.Type>
 >();
 
+/**
+ * The part as it stands: the write still on its way to disk, then the turn's
+ * own memory, then the fold. In that order because each is newer than the one
+ * after it -- a part that settles leaves memory as its write is queued, and a
+ * part still arriving has no write of its own -- so the newest snapshot of a
+ * part is the one an update builds on.
+ */
 function currentPart(
   chat: OpenChat,
+  live: ReadonlyMap<StoreId.Session, LiveState> | undefined,
   ids: { partId: StoreId.Part; sessionId: StoreId.Session },
 ): SessionMessagePart.Type | undefined {
   const queued = chat.pending.get(ids.sessionId)?.parts.get(ids.partId);
   if (queued) {
     return queued.value;
+  }
+  const arriving = live?.get(ids.sessionId)?.parts.get(ids.partId);
+  if (arriving) {
+    return arriving;
   }
   const session = foldedSession(chat, ids.sessionId);
   if (!session) {

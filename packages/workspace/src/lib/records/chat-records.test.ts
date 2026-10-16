@@ -600,6 +600,38 @@ describe("ChatRecords", () => {
     unsubscribe();
   });
 
+  it("takes an updated part out of the turn's memory, so the record is what reads back", async () => {
+    await replyUnderWay();
+    const live = records.service.live(CHAT, chatSession);
+    const ids = {
+      messageId: messageId(2),
+      partId: partId(3),
+      sessionId: chatSession,
+    };
+    // A generator tool shows what it has before its own result: the offered
+    // snapshot is the turn's memory alone, and the one that settles is a
+    // record.
+    const offered = bashCall(3, "output-available", {
+      endedAt: at(3),
+      output: { stdout: "half" },
+      preliminary: true,
+    });
+    live.setPart(offered);
+
+    const settled = await records.service.updatePart(CHAT, ids, (current) => {
+      // The updater is handed the turn's own copy, which is the newest.
+      expect(current).toEqual(offered);
+      return bashCall(3, "output-available", {
+        endedAt: at(4),
+        output: { stdout: "whole" },
+      });
+    });
+
+    const read = await records.service.read(CHAT);
+    expect(liveView(read, chatSession)).toEqual([]);
+    expect(read.chat.sessions[0]?.messages[1]?.parts).toEqual([settled]);
+  });
+
   it("is the process's records, made from the workspace's config when none stands in", () => {
     expect(chatRecords()).toBe(records.service);
     installChatRecords(undefined);

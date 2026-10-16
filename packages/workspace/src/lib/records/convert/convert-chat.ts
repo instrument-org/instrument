@@ -185,9 +185,6 @@ export async function convertChat(
       return { kind: "no-store" };
     }
     const there = await recordsThere(chatDir, options.deviceId);
-    if (there.kind === "elsewhere") {
-      return { kind: "already-converted", store };
-    }
     const chat = ChatIdSchema.safeParse(path.basename(chatDir));
     if (!chat.success) {
       return {
@@ -301,19 +298,31 @@ async function storeFiles(chatDir: string): Promise<string[]> {
 
 /** What a chat's record folder holds already, which says whether it converts. */
 type RecordsThere =
-  /** Records another device wrote, which this one never writes over. */
-  | { kind: "elsewhere" }
-  /** Records of this device's holding messages, parts or a retraction. */
+  /** Records holding messages, parts or a retraction, whichever device wrote them. */
   | { kind: "history" }
   /**
-   * Nothing, or no more than this device's own restatement of the session
-   * rows: the files it removes and writes again from `chat.db`.
+   * Nothing, or no more than a restatement of the session rows, with this
+   * device's own among them: the files it removes and writes again from
+   * `chat.db`.
    */
   | { kind: "restating"; restating: string[] };
 
 /** The records a session row restates, which a conversion writes from it. */
 const RESTATED = new Set(["mark", "rollover", "session", "stopped", "state"]);
 
+/**
+ * Which device wrote a record does not say whether the records hold the
+ * conversation, so it does not decide this. A file that holds a history is a
+ * history whoever wrote it, and the comparison that follows folds the whole
+ * folder, so a chat whose records came from another computer is checked
+ * against `chat.db` the same way one written here is: the records hold
+ * everything the database holds, or the database stays.
+ *
+ * What the device does decide is which files may be removed and written
+ * again. Only this device's own restatement is, since every other file is its
+ * own writer's, and the conversion's own log is written under this device's
+ * name beside them.
+ */
 async function recordsThere(
   chatDir: string,
   device: DeviceId,
@@ -325,14 +334,11 @@ async function recordsThere(
     if (!parsed) {
       continue;
     }
-    if (parsed.device !== device) {
-      return { kind: "elsewhere" };
-    }
     const file = path.join(chatDir, name);
-    if (await restatesOnly(file, parsed.kind)) {
-      restating.push(file);
-    } else {
+    if (!(await restatesOnly(file, parsed.kind))) {
       history = true;
+    } else if (parsed.device === device) {
+      restating.push(file);
     }
   }
   return history ? { kind: "history" } : { kind: "restating", restating };
@@ -341,7 +347,7 @@ async function recordsThere(
 /**
  * Whether every record in a file says no more than the session row it came
  * from: its header, a mark, where its context was reset, who stopped its
- * turn, what it was state. A whole line this build cannot read counts for a
+ * turn, what standing facts it holds. A whole line this build cannot read counts for a
  * history, so a file holding anything unaccounted for is left alone rather
  * than written over.
  *
@@ -454,7 +460,7 @@ function lastUpdate(session: Session.Type): Date {
 
 /**
  * A session's log: its header, each message followed by its parts, then
- * where its context was last reset, who stopped it, and what it was state.
+ * where its context was last reset, who stopped it, and its standing facts.
  */
 async function logRecords(
   chat: ChatId,
@@ -680,7 +686,7 @@ async function sameShape(
 /**
  * Folds the records in `work` and compares them with what `chat.db` held:
  * every session row, every message in order, each of its parts in order
- * with its blobs read back, and what each session was state.
+ * with its blobs read back, and each session's standing facts.
  *
  * Every part is compared twice. A fold reads one through the same schema the
  * store does, so a payload neither can read comes back as `data-unknown` on

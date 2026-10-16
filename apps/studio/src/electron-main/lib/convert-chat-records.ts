@@ -57,11 +57,19 @@ export interface ChatRecordsConverted {
  */
 export async function convertChatRecords({
   appVersion,
+  convert = convertWorkspaceChats,
   deviceId,
   machineDir,
   rootDir,
 }: {
   appVersion: string;
+  /**
+   * The conversion itself, which the workspace package owns and tests. A seam
+   * so that what the app does around it -- what it sets aside, what it marks,
+   * what it leaves for the next launch -- is tested against each outcome the
+   * conversion can report rather than against a folder built to produce one.
+   */
+  convert?: typeof convertWorkspaceChats;
   deviceId: DeviceId;
   machineDir: string;
   rootDir: string;
@@ -73,7 +81,7 @@ export async function convertChatRecords({
   // converted is.
   if (entryExists(chatsDir)) {
     const startedAt = performance.now();
-    const conversion = await convertWorkspaceChats(chatsDir, {
+    const conversion = await convert(chatsDir, {
       app: appVersion,
       deviceId,
     });

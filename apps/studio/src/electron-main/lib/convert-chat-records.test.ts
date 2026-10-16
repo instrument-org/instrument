@@ -1,4 +1,9 @@
-import { newDeviceId } from "@instrument-org/workspace/electron";
+import {
+  CHAT_DB_FILE_NAME,
+  type ChatConversion,
+  type convertWorkspaceChats,
+  newDeviceId,
+} from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -13,10 +18,15 @@ import {
 
 /**
  * The launch step over a workspace's chats: what it sets aside, what it
- * marks, and what it leaves for the next launch. The conversion itself is
- * the workspace package's (`records/convert/convert-chat.test.ts`); what is
- * here is everything the app does around it, so the chats are seeded as
- * already holding records rather than through a store.
+ * marks, and what it leaves for the next launch.
+ *
+ * The conversion itself is the workspace package's
+ * (`records/convert/convert-chat.test.ts`), and it is handed in here rather
+ * than run: what each outcome means to the app is the thing under test, and
+ * a folder built to produce one outcome pins how the conversion classifies
+ * folders as a side effect, which is how the database of a chat whose records
+ * came from another computer came to be moved out of the workspace with
+ * nothing compared.
  */
 
 let rootDir: string;
@@ -40,6 +50,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  said.clear();
   fs.rmSync(path.dirname(rootDir), { force: true, recursive: true });
 });
 
@@ -48,20 +59,20 @@ const chatsDir = () => path.join(rootDir, ".instrument", "chats");
 const run = () =>
   convertChatRecords({
     appVersion: "0.0.0-test",
+    convert: conversionThatSays,
     deviceId: DEVICE,
     machineDir,
     rootDir,
   });
 
 /**
- * A chat holding records another device wrote, which no conversion touches,
- * and the `chat.db` a build left beside them for this launch to set aside.
- * Its sidecars too, where `withSidecars` asks for them.
+ * A chat's records and the `chat.db` beside them, for the launch to set
+ * aside. Its sidecars too, where `withSidecars` asks for them.
  */
 function seedChat(id: string, { withSidecars = false } = {}) {
   const dir = path.join(chatsDir(), id);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "marks.dev_BBBBBBBB.jsonl"), "");
+  fs.writeFileSync(path.join(dir, `marks.${DEVICE}.jsonl`), "");
   fs.writeFileSync(path.join(dir, "chat.db"), `${id}'s database`);
   if (withSidecars) {
     fs.writeFileSync(path.join(dir, "chat.db-wal"), "a write-ahead log");
@@ -69,6 +80,58 @@ function seedChat(id: string, { withSidecars = false } = {}) {
   }
   return dir;
 }
+
+/** What the conversion says about each chat it was handed, by folder name. */
+const said = new Map<string, ChatConversion>();
+
+/** The databases a chat folder holds, as the conversion reports them. */
+function storeOf(dir: string): string[] {
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name.startsWith(CHAT_DB_FILE_NAME))
+    .toSorted()
+    .map((name) => path.join(dir, name));
+}
+
+/**
+ * A conversion that reports what `said` holds for each folder, defaulting to
+ * a chat that converted whole, which is what most of these tests are about.
+ */
+const conversionThatSays: typeof convertWorkspaceChats = (dir) => {
+  const chats = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const where = path.join(dir, entry.name);
+      const outcome: ChatConversion = said.get(entry.name) ?? {
+        kind: "converted",
+        store: storeOf(where),
+      };
+      return { ...outcome, dir: where };
+    });
+  const counts = {
+    converted: 0,
+    different: 0,
+    failed: 0,
+    "half-written": 0,
+    "already-converted": 0,
+    "no-store": 0,
+    unreadable: 0,
+  };
+  for (const chat of chats) {
+    counts[chat.kind] += 1;
+  }
+  return Promise.resolve({
+    chats,
+    complete:
+      counts.different +
+        counts.failed +
+        counts["half-written"] +
+        counts.unreadable ===
+      0,
+    counts,
+  });
+};
 
 /** Every file under `dir`, by its path from there. */
 function tree(dir: string): string[] {
@@ -111,8 +174,8 @@ it("sets every converted chat's database aside and marks the workspace", async (
   ).toBe("a-trip-to-lisbon's database");
   // Out of the workspace, which may be in a synced folder.
   expect(tree(chatsDir())).toEqual([
-    path.join("a-trip-to-lisbon", "marks.dev_BBBBBBBB.jsonl"),
-    path.join("red-and-blue-squares", "marks.dev_BBBBBBBB.jsonl"),
+    path.join("a-trip-to-lisbon", `marks.${DEVICE}.jsonl`),
+    path.join("red-and-blue-squares", `marks.${DEVICE}.jsonl`),
   ]);
   const identity = readWorkspaceIdentity(rootDir);
   expect(identity.chatRecordsConverted).toBe(true);
@@ -125,6 +188,9 @@ it("is a no-op on the next launch", async () => {
   const aside = tree(asideDir());
   const chats = tree(chatsDir());
   const identity = readWorkspaceIdentity(rootDir);
+  // Its database is gone, so the next launch finds the chat already on its
+  // records with nothing left to move.
+  said.set("red-and-blue-squares", { kind: "already-converted", store: [] });
 
   const again = await run();
 
@@ -144,6 +210,10 @@ it("keeps the chat it could not convert, says why, and marks nothing", async () 
   const broken = path.join(chatsDir(), "not a chat id at all");
   fs.mkdirSync(broken, { recursive: true });
   fs.writeFileSync(path.join(broken, "chat.db"), "a database");
+  said.set("not a chat id at all", {
+    error: "not a chat id at all is not a chat id",
+    kind: "failed",
+  });
 
   const converted = await run();
 
@@ -159,6 +229,7 @@ it("keeps the chat it could not convert, says why, and marks nothing", async () 
   expect(identity.chatRecordsConverted).toBeUndefined();
   expect(identity.formatVersion).toBe(1);
 
+  said.set("red-and-blue-squares", { kind: "already-converted", store: [] });
   const again = await run();
 
   expect(again.left).toHaveLength(1);
@@ -169,6 +240,10 @@ it("marks the workspace once the last chat converts", async () => {
   const broken = path.join(chatsDir(), "not a chat id at all");
   fs.mkdirSync(broken, { recursive: true });
   fs.writeFileSync(path.join(broken, "chat.db"), "a database");
+  said.set("not a chat id at all", {
+    error: "not a chat id at all is not a chat id",
+    kind: "failed",
+  });
   await run();
   expect(readWorkspaceIdentity(rootDir).formatVersion).toBe(1);
 

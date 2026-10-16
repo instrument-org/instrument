@@ -17,6 +17,7 @@ import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
 import { foldChat, type FoldedChat, type FoldedSession } from "../fold";
 import { partFromRecord } from "../part-blobs";
 import { readLog } from "../read-records";
+import type { DeviceId } from "../device-id";
 import * as recordModule from "../record";
 import {
   assistantMessage,
@@ -181,18 +182,20 @@ async function recordFiles(dir: string): Promise<Record<string, string>> {
 }
 
 /**
- * Writes records into the chat's own folder, from this device, beside the
- * `chat.db` already there: the folder a conversion cut off partway leaves,
- * and the folder a build that wrote records beside the store left.
+ * Writes records into the chat's own folder beside the `chat.db` already
+ * there: the folder a conversion cut off partway leaves, the folder a build
+ * that wrote records beside the store left, and, under another `device`, the
+ * folder a second computer's records sync into.
  */
 async function alongsideTheStore(
   dir: string,
   chat: ChatId,
   write: (records: ChatRecords) => Promise<void>,
+  device: DeviceId = DEVICE_A,
 ): Promise<void> {
   const records = new ChatRecords({
     app: "0.0.0-test",
-    device: DEVICE_A,
+    device,
     dirOf: () => dir,
     fsync: false,
   });
@@ -855,14 +858,64 @@ describe("convertChat", () => {
     expect(await contents(dir)).toEqual(converted);
   });
 
-  it("leaves a chat holding another device's records as it is", async () => {
+  it("converts a chat whose only other-device file says nothing", async () => {
     const dir = chatPath("converted-elsewhere");
     await writeUntitledChat(dir);
+    // An empty marks file is no history, whichever device wrote it, so the
+    // chat's conversation is still only in `chat.db` and has to be written
+    // out. Which device wrote a record never decides whether the records hold
+    // the conversation; it decides only which files may be written again.
     await fs.writeFile(path.join(dir, marksFileName(DEVICE_B)), "");
+
+    expect((await convertChat(dir, OPTIONS)).kind).toBe("converted");
+    expect(await listing(dir)).toContain(marksFileName(DEVICE_B));
+  });
+
+  it("keeps a chat whose records from another device do not hold its history", async () => {
+    const dir = chatPath("half-written-elsewhere");
+    const chat = await writeEveryKindChat(dir);
+    // What two computers on one synced workspace leave: the other one wrote a
+    // turn into the records over a history only `chat.db` holds. Nothing can
+    // merge those, so the database stays and the chat is said back.
+    await alongsideTheStore(
+      dir,
+      chat,
+      async (records) => {
+        await records.saveSession(chat, EVERY_KIND_SESSION);
+        await records.appendMessage(
+          chat,
+          SessionMessage.Schema.parse(
+            userMessage(CHAT_SESSION, messageId(99), at(200)),
+          ),
+        );
+      },
+      DEVICE_B,
+    );
     const before = await contents(dir);
 
-    expect((await convertChat(dir, OPTIONS)).kind).toBe("already-converted");
+    const result = await convertChat(dir, OPTIONS);
+
+    expect(result.kind).toBe("half-written");
     expect(await contents(dir)).toEqual(before);
+  });
+
+  it("leaves another device's records where they are when it converts", async () => {
+    const dir = chatPath("beside-another-device");
+    const chat = await writeEveryKindChat(dir);
+    // A header and marks, which say no more than the session row does. Ours
+    // are removed and written again from `chat.db`; the other computer's are
+    // its own to write, so they stay as they are.
+    await alongsideTheStore(
+      dir,
+      chat,
+      (records) => records.saveSession(chat, EVERY_KIND_SESSION),
+      DEVICE_B,
+    );
+    const theirs = path.join(dir, logFileName(CHAT_SESSION, DEVICE_B));
+    const before = await fs.readFile(theirs);
+
+    expect((await convertChat(dir, OPTIONS)).kind).toBe("converted");
+    expect(await fs.readFile(theirs)).toEqual(before);
   });
 
   it("converts a chat the writer beside the store left a header and marks in", async () => {

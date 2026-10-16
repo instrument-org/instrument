@@ -8,6 +8,7 @@ import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { ChatReads } from "../chat-reads";
+import { followTitle } from "../chat-folders/follow-title";
 import { cappedTitle } from "../chat-folders/folder-name";
 import { chatModelURI } from "../chat-settings";
 import { sessionRole } from "./children";
@@ -162,5 +163,8 @@ async function retitleOnSettle({
   const title = await retitleChat({ id: chatId, keep: true, sessionId });
   if (title !== undefined) {
     await settleChatTitle(chatId);
+    // Between two turns, which is the only moment a folder may move: the
+    // chat has stopped, so nothing of its own holds the folder.
+    await followTitle(chatId, title);
   }
 }

@@ -7,6 +7,7 @@ import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
+  chatIsWorking,
   ChatSchema,
   markChatRead,
   markChatUnread,
@@ -16,6 +17,8 @@ import {
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
+import { followTitle } from "../../lib/chat-folders/follow-title";
+import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
@@ -201,11 +204,21 @@ const retitleChatRoute = base
     return { title };
   });
 
-/** Names a chat as the user typed it. */
+/** Names a chat as the user typed it, and its folder with it. */
 const renameChatRoute = base
   .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => renameChat(chatId, input.title));
+    await whenChat(input.id, async (chatId) => {
+      const renamed = await renameChat(chatId, input.title);
+      // The folder follows unless something of the chat's is running in it:
+      // a rename under a working agent takes its working directory out from
+      // under it, and Windows refuses it outright. The turn that is running
+      // ends by settling the title, which is where the folder catches up.
+      if (renamed && !(await chatIsWorking(chatId))) {
+        await followTitle(chatId, cappedTitle(input.title));
+      }
+      return renamed;
+    });
   });
 
 /** The topics a chat carries, replaced whole. */

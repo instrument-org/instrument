@@ -59,10 +59,10 @@ export function getScreenshotsDir(dir: WorkDir): AbsolutePath {
 /**
  * What the person sent the chat, in its record folder: where every build
  * before this one kept it, and where a chat whose folder it could not be
- * moved to keeps it still. Named by the migration and by
- * {@link chatAttachmentsDir}; everything else wants that one.
+ * moved to keeps it still. Read through {@link chatAttachmentsDir}, which
+ * is what everything outside this file wants.
  */
-export function getChatAttachmentsDir(dir: ChatDir): AbsolutePath {
+function inRecordFolder(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
 }
 
@@ -79,10 +79,10 @@ export function getChatAttachmentsDir(dir: ChatDir): AbsolutePath {
 export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
   const own = chatOwnFolder(dir);
   if (own === undefined) {
-    return getChatAttachmentsDir(dir);
+    return inRecordFolder(dir);
   }
   const inFolder = absolutePathJoin(own, CHAT_FOLDER_NAMES.attachments);
-  return fs.existsSync(inFolder) ? inFolder : getChatAttachmentsDir(dir);
+  return fs.existsSync(inFolder) ? inFolder : inRecordFolder(dir);
 }
 
 /** A chat's settings and where the person left off, in its record folder. */

@@ -62,7 +62,7 @@ const config: KnipConfig = {
         "tail",
         "op",
         "xdg-open",
-        "attrib", // Windows tool that hides a picked workspace's .instrument (lib/workspace-move.ts)
+        "attrib", // Windows tool that shows a workspace's .instrument again (lib/machine-cleanups.ts)
         "dbus-send", // Linux session bus tool (src/electron-main/lib/setup-dbus-env.ts)
       ],
       ignoreDependencies: [

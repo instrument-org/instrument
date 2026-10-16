@@ -3,10 +3,16 @@ import {
   BROWSER_FOLDER_NAMES,
   entryExists,
 } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
+import childProcess from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { type ResolvedWorkspace } from "./workspaces";
+import {
+  readWorkspaceIdentity,
+  type ResolvedWorkspace,
+  writeWorkspaceIdentity,
+} from "./workspaces";
 
 /**
  * What the move to visible folders leaves behind on this computer: a folder
@@ -53,7 +59,52 @@ function steps(where: {
         removePerChatBrowserHomes(where.machineDir, done);
       },
     ],
+    [
+      "show the workspace's .instrument again",
+      (done) => {
+        unhideAppFolder(where.workspace, done);
+      },
+    ],
   ];
+}
+
+/**
+ * Takes the hidden attribute off a workspace's `.instrument` on Windows,
+ * which an earlier build put there to hide a folder the dot does not hide
+ * and which kept OneDrive from syncing it. A folder whose records a sync
+ * engine skips is a folder the person's other computers cannot read the
+ * chats from, which costs more than the folder showing in Explorer.
+ *
+ * Spawned and left to finish, as the hiding was: a folder that stays hidden
+ * is cosmetic. The workspace records that it was done, so this spawns once
+ * rather than on every launch; only Windows records it, so a folder that
+ * reaches a Windows computer later is cleared there.
+ */
+function unhideAppFolder(workspace: ResolvedWorkspace, done: string[]) {
+  if (process.platform !== "win32") {
+    return;
+  }
+  const identity = readWorkspaceIdentity(workspace.path);
+  if (identity.appFolderUnhidden) {
+    return;
+  }
+  const dataDir = workspaceLayout(workspace.path).dataDir;
+  if (entryExists(dataDir)) {
+    const child = childProcess.spawn("attrib", ["-h", dataDir], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.on("error", () => {
+      // No attrib: the folder stays hidden, and nothing else changes.
+    });
+    child.unref();
+  }
+  writeWorkspaceIdentity(workspace.path, {
+    ...identity,
+    appFolderUnhidden: true,
+  });
+  done.push(`asked Windows to show ${dataDir} again`);
 }
 
 /**

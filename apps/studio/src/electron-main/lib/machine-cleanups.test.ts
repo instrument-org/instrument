@@ -1,3 +1,4 @@
+import childProcess from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,11 +7,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanUpMachineData } from "./machine-cleanups";
 import {
   defaultWorkspacePath,
+  readWorkspaceIdentity,
   type ResolvedWorkspace,
   workspaceMachineDirOf,
+  writeWorkspaceIdentity,
 } from "./workspaces";
 
 let userDataDir: string;
+const realPlatform = process.platform;
+
+/** Run the cleanups as a boot on `platform` does, with `attrib` stubbed. */
+function cleanOn(platform: string): {
+  attrib: ReturnType<typeof vi.spyOn>;
+  done: string[];
+} {
+  // Cleared rather than made: a second spy on one method is the first.
+  const attrib = vi
+    .spyOn(childProcess, "spawn")
+    .mockReturnValue({
+      on: () => undefined,
+      unref: () => undefined,
+    } as unknown as ReturnType<typeof childProcess.spawn>)
+    .mockClear();
+  Object.defineProperty(process, "platform", {
+    configurable: true,
+    value: platform,
+  });
+  try {
+    return { attrib, done: clean() };
+  } finally {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: realPlatform,
+    });
+  }
+}
 
 beforeEach(() => {
   userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "machine-cleanups-"));
@@ -87,5 +118,57 @@ describe("the browser homes kept per chat", () => {
 
   it("says nothing on an install that never had one", () => {
     expect(clean()).toEqual([]);
+  });
+});
+
+describe("the hidden attribute on .instrument", () => {
+  const dataDir = () =>
+    path.join(defaultWorkspacePath(userDataDir), ".instrument");
+
+  beforeEach(() => {
+    writeWorkspaceIdentity(defaultWorkspacePath(userDataDir), {
+      color: "gray",
+      createdBy: { kind: "person" },
+      formatVersion: 1,
+      name: "Default",
+      settingsVersion: 2,
+    });
+  });
+
+  it("asks Windows to show the folder again, so a sync engine carries it", () => {
+    const { attrib, done } = cleanOn("win32");
+
+    expect(attrib).toHaveBeenCalledWith(
+      "attrib",
+      ["-h", dataDir()],
+      expect.objectContaining({ detached: true }),
+    );
+    expect(done).toContain(`asked Windows to show ${dataDir()} again`);
+    expect(
+      readWorkspaceIdentity(defaultWorkspacePath(userDataDir))
+        .appFolderUnhidden,
+    ).toBe(true);
+  });
+
+  it("asks once, not on every boot after", () => {
+    cleanOn("win32");
+
+    const { attrib, done } = cleanOn("win32");
+
+    expect(attrib).not.toHaveBeenCalled();
+    expect(done).toEqual([]);
+  });
+
+  // The dot hides it everywhere else, so there was never an attribute to
+  // take off and nothing is written that a Windows boot would then skip.
+  it("does nothing off Windows, and leaves the mark for a Windows boot", () => {
+    const { attrib, done } = cleanOn("darwin");
+
+    expect(attrib).not.toHaveBeenCalled();
+    expect(done).toEqual([]);
+    expect(
+      readWorkspaceIdentity(defaultWorkspacePath(userDataDir))
+        .appFolderUnhidden,
+    ).toBeUndefined();
   });
 });

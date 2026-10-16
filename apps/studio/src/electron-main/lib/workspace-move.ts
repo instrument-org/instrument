@@ -18,7 +18,6 @@ import {
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
-import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -334,13 +333,12 @@ const COPY_MARK_FILE = "move-copy-mark";
  *    free; a file manager's records go.
  * 5. `<from>` → target is recorded in `moved-paths.json`, so a path stored
  *    into the old folder is read back in the new one (`remapMovedPath`).
- * 6. On Windows the target's `.instrument` is made hidden.
- * 7. Last, the original set aside is deleted, and `<from>` removed once
+ * 6. Last, the original set aside is deleted, and `<from>` removed once
  *    empty. A delete that fails part-way (a file another program holds
  *    open on Windows, a locked file) costs nothing, since nothing opens the
  *    aside: the pending move is kept with only this step left
  *    (`leftAside`), and each later launch tries it again.
- * 8. The pending move is cleared.
+ * 7. The pending move is cleared.
  *
  * A `.instrument` found at the target before step 1 is this move's own
  * copy only when it carries the move's mark, or when the original is gone
@@ -358,12 +356,10 @@ const COPY_MARK_FILE = "move-copy-mark";
  * another moved it does.
  */
 export function finishPendingMove({
-  hide = hideAppFolder,
   temporaryDirs = systemTemporaryDirs(),
   userDataDir,
   workspace,
 }: {
-  hide?: (dataDir: string) => void;
   /** The folders the system empties on its own (`systemTemporaryDirs`). */
   temporaryDirs?: string[];
   userDataDir: string;
@@ -390,7 +386,6 @@ export function finishPendingMove({
       }
       return makeMove({
         entry: current,
-        hide,
         machineDir,
         pending: current.pendingMove,
         temporaryDirs,
@@ -408,7 +403,6 @@ export function finishPendingMove({
 /** `finishPendingMove`'s steps, with the move lock held. */
 function makeMove({
   entry,
-  hide,
   machineDir,
   pending,
   temporaryDirs,
@@ -416,7 +410,6 @@ function makeMove({
   workspace,
 }: {
   entry: RegistryEntry;
-  hide: (dataDir: string) => void;
   machineDir: string;
   pending: PendingMove;
   temporaryDirs: string[];
@@ -520,10 +513,8 @@ function makeMove({
       moveTheRest({ done, from, to });
       // 5. Stored paths read back where they went.
       recordMovedPaths(machineDir, [{ from, to }]);
-      // 6. Hidden on Windows.
-      hide(toData);
     }
-    // 7. The original's records deleted, and the old folder once empty.
+    // 6. The original's records deleted, and the old folder once empty.
     const left = asidesOf(fromData).filter((aside) => {
       try {
         removeEntrySync(aside);
@@ -543,7 +534,7 @@ function makeMove({
     if (!entryExists(from)) {
       done.push(`removed ${from}`);
     }
-    // 8. Done.
+    // 7. Done.
     clearPendingMove(userDataDir, workspace.id);
   } catch (error) {
     done.push(
@@ -551,30 +542,6 @@ function makeMove({
     );
   }
   return { done, workspace: at };
-}
-
-/**
- * Hide a workspace's `.instrument` on Windows, which hides a dot folder only
- * by its attribute. Spawned and left to finish: a folder left showing is
- * cosmetic. Nothing to do elsewhere, where the dot hides it.
- */
-export function hideAppFolder(dataDir: string): void {
-  if (process.platform !== "win32") {
-    return;
-  }
-  try {
-    const child = spawn("attrib", ["+h", dataDir], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    child.on("error", () => {
-      // No attrib: the folder stays visible.
-    });
-    child.unref();
-  } catch {
-    // The same.
-  }
 }
 
 type RegistryEntry = WorkspaceRegistry["workspaces"][number];

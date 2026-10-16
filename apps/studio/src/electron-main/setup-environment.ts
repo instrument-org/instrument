@@ -1,10 +1,8 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { installAISDKWarningLogger } from "@instrument-org/workspace/electron";
-import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app } from "electron";
 import fixPath from "fix-path";
-import fs from "node:fs";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
@@ -25,12 +23,11 @@ import {
 import { cleanUpMachineData } from "./lib/machine-cleanups";
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
-import { finishPendingMove, hideAppFolder } from "./lib/workspace-move";
+import { finishPendingMove } from "./lib/workspace-move";
 import {
   inspectWorkspaceFolder,
   setWorkspaceRefusal,
 } from "./lib/workspace-refusal";
-import { pathWithin } from "./lib/path-identity";
 import {
   markWorkspaceOpen,
   releaseOpenMark,
@@ -133,12 +130,6 @@ function openWorkspace() {
     setWorkspaceRefusal(refusal);
     return;
   }
-  // A workspace made here for the first time outside the app's own data has
-  // its `.instrument` hidden on Windows once it exists.
-  const dataDir = workspaceLayout(workspace.path).dataDir;
-  const createdOutsideAppData =
-    !fs.existsSync(dataDir) && !pathWithin(workspace.path, userDataDir);
-
   for (const step of [
     ...migrateMachineSettings(userDataDir),
     ...migrateWorkspaceSettings({
@@ -164,9 +155,6 @@ function openWorkspace() {
     logger.info(`Machine cleanup: ${step}`);
   }
   setResolvedWorkspace({ ...workspace, machineDir: moved.machineDir });
-  if (createdOutsideAppData) {
-    hideAppFolder(dataDir);
-  }
 
   markWorkspaceOpen(moved.machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in

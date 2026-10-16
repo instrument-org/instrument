@@ -248,17 +248,11 @@ describe("checkMoveTarget", () => {
 });
 
 describe("finishPendingMove", () => {
-  const hide = vi.fn();
   const machineDir = () => workspaceMachineDirOf(userDataDir, "default");
   const registryFile = () => path.join(userDataDir, "workspaces.json");
 
-  beforeEach(() => {
-    hide.mockClear();
-  });
-
   function finish() {
     return finishPendingMove({
-      hide,
       temporaryDirs: [],
       userDataDir,
       workspace,
@@ -294,13 +288,11 @@ describe("finishPendingMove", () => {
     expect(entry).toMatchObject({ id: "default", path: picked });
     expect(entry?.pendingMove).toBeUndefined();
     expect(readMovedPaths(machineDir())).toEqual([{ from, to: picked }]);
-    expect(hide).toHaveBeenCalledWith(workspaceLayout(picked).dataDir);
     // The next launch opens it there, and has nothing to move.
     const again = resolveWorkspace({ pin: undefined, userDataDir });
     expect(again.workspace.path).toBe(picked);
     expect(
       finishPendingMove({
-        hide,
         temporaryDirs: [],
         userDataDir,
         workspace: again.workspace,
@@ -324,7 +316,6 @@ describe("finishPendingMove", () => {
     }));
 
     const { workspace: moved } = finishPendingMove({
-      hide,
       temporaryDirs: [],
       userDataDir,
       workspace: { ...workspace, path: picked },
@@ -480,7 +471,6 @@ describe("finishPendingMove", () => {
     fs.symlinkSync(from, picked);
 
     const { done } = finishPendingMove({
-      hide,
       temporaryDirs: [],
       userDataDir,
       workspace: { ...workspace, path: picked },
@@ -537,7 +527,6 @@ describe("finishPendingMove", () => {
       finish();
 
       const { done, workspace: opened } = finishPendingMove({
-        hide,
         temporaryDirs: [],
         userDataDir,
         workspace: stale,
@@ -641,7 +630,6 @@ describe("finishPendingMove", () => {
     function launch(n: number) {
       const resolved = resolveWorkspace({ pin: undefined, userDataDir });
       const result = finishPendingMove({
-        hide,
         temporaryDirs: [],
         userDataDir,
         workspace: resolved.workspace,

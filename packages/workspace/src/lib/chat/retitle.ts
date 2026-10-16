@@ -8,6 +8,7 @@ import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { ChatReads } from "../chat-reads";
+import { cappedTitle } from "../chat-folders/folder-name";
 import { chatModelURI } from "../chat-settings";
 import { sessionRole } from "./children";
 import { updateSessionTitle } from "../update-session-title";
@@ -84,8 +85,13 @@ export async function retitleChat({
   if (title.isErr()) {
     return undefined;
   }
-  if (title.value === session.value.title) {
-    return title.value;
+  // Cut here rather than on the way to storage, so the title compared, the
+  // title written and the title handed back are one string. A model that
+  // overran would otherwise be told its name was kept while a shorter one
+  // was stored.
+  const named = cappedTitle(title.value);
+  if (named === session.value.title) {
+    return named;
   }
   // Replaced only while the title is still the one read above: a title that
   // landed meanwhile (the opening call finishing late) is the newer fact.
@@ -93,9 +99,9 @@ export async function retitleChat({
     expectedCurrentTitle: session.value.title,
     sessionId,
     chatId: id,
-    title: title.value,
+    title: named,
   });
-  return title.value;
+  return named;
 }
 
 /**

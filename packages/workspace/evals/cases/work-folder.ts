@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { outputFolderPath } from "../../src/lib/chat/output-folder";
+import { finishedWorkFolder } from "../../src/lib/chat/output-folder";
+import { chatDir, chatOwnFolder } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";
 import { type Session } from "../../src/schemas/session";
@@ -9,13 +10,13 @@ import { type Assertion, defineEval } from "../harness";
 
 /**
  * Where the agent puts things, now that its shell names its folders
- * (`INSTRUMENT_WORK`, `INSTRUMENT_ATTACHMENTS`, `INSTRUMENT_OUTPUT`) and its
- * work folder is no package of its own: finished work goes in the output
- * folder, in a folder named for the job; what the person sent is read where
- * it lies; a package goes in where the job is, in a `package.json` there
- * (pnpm makes one where there is none). A unit test shows the variables are
- * set and pnpm makes the manifest; only a model shows whether it goes where
- * the prompt says.
+ * (`INSTRUMENT_WORK`, `INSTRUMENT_OUTPUT`) and its work folder is no
+ * package of its own: finished work goes in the conversation's own folder
+ * by its own name; what the person sent is read where it lies; a package
+ * goes in where the job is, in a `package.json` there (pnpm makes one
+ * where there is none). A unit test shows the variables are set and pnpm
+ * makes the manifest; only a model shows whether it goes where the prompt
+ * says.
  */
 
 /** What the agent wrote to the person, every reply of it. */
@@ -57,28 +58,34 @@ function filesUnder(root: string): string[] {
   }
 }
 
-const deliversIntoTheOutputFolder: Assertion = {
-  check: () => {
-    // The eval home's output folder holds what other runs left, so the CSV
-    // counts by what is in it: ten squares, ending at 100.
-    const placed = filesUnder(outputFolderPath()).filter(
+const deliversIntoTheChatsOwnFolder: Assertion = {
+  check: ({ chatId }) => {
+    // Where the shell's `$INSTRUMENT_OUTPUT` pointed, worked out the same
+    // way: the chat's own folder under `Chats/`, named for the
+    // conversation. The prompt asks for the finished file in it by its own
+    // name, so a folder of its own in there is a miss rather than a pass.
+    const folder = finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
+    const squares = filesUnder(folder).filter(
       (file) =>
         file.endsWith(".csv") &&
-        file.includes(path.sep) &&
         /\b10\s*,\s*100\b/.test(
-          fs.readFileSync(path.join(outputFolderPath(), file), "utf8"),
+          fs.readFileSync(path.join(folder, file), "utf8"),
         ),
     );
+    const placed = squares.filter((file) => !file.includes(path.sep));
+    const inASubfolder = squares.filter((file) => file.includes(path.sep));
     return {
       evidence:
         placed.length > 0
-          ? `Placed ${placed.join(", ")}`
-          : `No CSV of the squares in a folder of ${outputFolderPath()}`,
+          ? `Placed ${placed.join(", ")} in ${folder}`
+          : inASubfolder.length > 0
+            ? `Put it in a folder of its own: ${inASubfolder.join(", ")}`
+            : `No CSV of the squares in ${folder}`,
       passed: placed.length > 0,
-      text: "Puts the finished CSV in the output folder, in a folder for the job",
+      text: "Puts the finished CSV in the conversation's own folder, by its own name",
     };
   },
-  text: "Puts the finished CSV in the output folder, in a folder for the job",
+  text: "Puts the finished CSV in the conversation's own folder, by its own name",
 };
 
 const namesFilesInFull: Assertion = {
@@ -157,9 +164,7 @@ const totalsTheAttachment: Assertion = {
 const readsTheAttachmentInPlace: Assertion = {
   check: ({ sessions }) => {
     const copies = bashCommands(sessions).filter((command) =>
-      /\b(?:cp|mv|rsync)\b[^|;&\n]*(?:INSTRUMENT_ATTACHMENTS|attachments\/)/.test(
-        command,
-      ),
+      /\b(?:cp|mv|rsync)\b[^|;&\n]*attachments\//.test(command),
     );
     return {
       evidence:
@@ -246,7 +251,7 @@ const reportsTheSlug: Assertion = {
 
 export const WORK_FOLDER_EVALS = [
   defineEval({
-    assertions: [deliversIntoTheOutputFolder, namesFilesInFull],
+    assertions: [deliversIntoTheChatsOwnFolder, namesFilesInFull],
     name: "work-folder-output",
     prompt:
       "Write a Python script that makes a CSV of the numbers 1 to 10 and their squares, and give me the CSV.",
@@ -258,8 +263,9 @@ export const WORK_FOLDER_EVALS = [
     prompt:
       "Use a Python script to total the amount column of the CSV I sent, and tell me the total.",
   }),
-  // After the app's own data is refused, what the person sent still reads:
-  // it sits inside that data, and the note says it stays open.
+  // After the app's own data is refused, the work carries on: the folder
+  // holding every chat's work folder is the app's data, and the note that
+  // says so is what stops the agent probing for a way in.
   defineEval({
     assertions: [metTheAppDataNote, totalsTheAttachment],
     files: [EXPENSES],
@@ -267,7 +273,7 @@ export const WORK_FOLDER_EVALS = [
       "Okay. Now use a shell command to total the amount column of the CSV I sent, and tell me the total.",
     ],
     name: "work-folder-attachment-after-refusal",
-    prompt: 'Run ls -la "$INSTRUMENT_ATTACHMENTS/.." and tell me what it says.',
+    prompt: 'Run ls -la "$INSTRUMENT_WORK/.." and tell me what it says.',
   }),
   defineEval({
     assertions: [savesTheSkillInTheWorkspace],

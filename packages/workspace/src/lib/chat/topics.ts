@@ -1,7 +1,3 @@
-import {
-  PRIVATE_FOLDER_NAME,
-  SETTINGS_FILE_NAME,
-} from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { monotonicFactory } from "ulid";
@@ -10,57 +6,38 @@ import { z } from "zod";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { validateFolderName } from "../project-folder-name";
 import { getWorkspaceConfig } from "../workspace-config";
-import { updateJsonRecordSync } from "../json-record-file";
 import { remapMovedPath } from "../moved-paths";
-import { workspaceLayout } from "../workspace-layout";
+import {
+  parseTopicFile,
+  renderTopicFile,
+  TOPIC_FILE_NAME,
+  TopicFileSchema,
+  type TopicFolder,
+  TOPICS_FOLDER_NAME,
+  toTheSecond,
+} from "./topic-file";
 
 const ulid = monotonicFactory();
 
 const TOPIC_ID_PREFIX = "top_";
-/** The topic's standing words, in a file of its own beside its settings. */
-const INSTRUCTIONS_FILE_NAME = "instructions.md";
 
 /** How long a topic's name may be. Short names keep the marks readable. */
 export const TOPIC_NAME_MAX = 24;
 
-/** A folder of the user's that work under a topic uses, by its path on disk. */
-export const TopicFolderSchema = z.object({ path: z.string() });
-
-export type TopicFolder = z.output<typeof TopicFolderSchema>;
-
-/**
- * What `.instrument/settings.json` in a topic's folder holds: everything the
- * app keeps about it but its name, which is the folder's, and its
- * instructions, which are `instructions.md` beside it.
- */
-const TopicSettingsSchema = z.object({
-  /** The agent's line about what goes here, for later. */
-  about: z.string().optional(),
-  /** The tint its mark is drawn on, as a hex string. */
-  color: z.string().optional(),
-  createdAt: z.number(),
-  /** What stands for it: one emoji, chosen when it was made. */
-  emoji: z.string().optional(),
-  /** The user's folders the work under it uses, attached to each chat it is on. */
-  folders: z.array(TopicFolderSchema).optional(),
-  id: z.string(),
-  /**
-   * The 1.x project the migration made it from, or joined to it, so a later
-   * boot finds it again by that rather than by a name two projects can share.
-   */
-  projectId: z.string().optional(),
-  /** Out of the menus, with the chats that carry it left alone. */
-  retired: z.boolean().optional(),
-});
+export {
+  TOPIC_FILE_NAME,
+  type TopicFolder,
+  TopicFolderSchema,
+  TOPICS_FOLDER_NAME,
+} from "./topic-file";
 
 /**
  * A topic: a tag on chats, with a folder of its own in the workspace's
- * `.instrument/topics/` named for it. Its instructions are the standing words every chat filed under it
- * is read with.
+ * `Topics/` named for it, holding the `TOPIC.md` that is the topic. Its
+ * instructions are the standing words every chat filed under it is read
+ * with.
  */
-export const TopicSchema = TopicSettingsSchema.extend({
-  /** The standing words for work under it; empty for most topics. */
-  instructions: z.string().optional(),
+export const TopicSchema = TopicFileSchema.extend({
   name: z.string(),
 });
 
@@ -113,10 +90,10 @@ export function newTopicId(at?: number): string {
 /**
  * Every topic under a workspace root, in list order. Synchronous and
  * file-level, for the boot migrations that write topics before the workspace
- * is up, and for everything else, since a topic is two small files.
+ * is up, and for everything else, since a topic is one small file.
  */
 export function readTopicsSync(rootDir: string): Topic[] {
-  const dir = workspaceLayout(rootDir).topicsDir;
+  const dir = topicsDirOf(rootDir);
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -129,7 +106,10 @@ export function readTopicsSync(rootDir: string): Topic[] {
       const topic = readTopicFolder(path.join(dir, entry.name));
       return topic ? [topic] : [];
     })
-    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+    .sort(
+      (a, b) =>
+        a.created.getTime() - b.created.getTime() || a.id.localeCompare(b.id),
+    );
   return [
     ...topics.filter((topic) => !topic.retired),
     ...topics.filter((topic) => topic.retired),
@@ -169,11 +149,16 @@ export function topicName(raw: string): string {
     .trim();
 }
 
-/** Where every topic's folder is. */
+/**
+ * Where every topic's folder is: `Topics/` at the top level of the folder
+ * the person picked, so they can read a topic, change one, or rename one in
+ * a file manager.
+ *
+ * Builds before this kept it in the workspace's hidden `.instrument/`;
+ * `moveTopicsToFolder` brings it out once, at launch.
+ */
 export function topicsDir(): AbsolutePath {
-  return AbsolutePathSchema.parse(
-    workspaceLayout(getWorkspaceConfig().rootDir).topicsDir,
-  );
+  return AbsolutePathSchema.parse(topicsDirOf(getWorkspaceConfig().rootDir));
 }
 
 /**
@@ -210,30 +195,21 @@ export function updateTopic(
 }
 
 /**
- * Writes a topic whole into the folder named for it, making the folder the
- * first time: its settings, and its instructions when it has any. The name is
- * the caller's to have made unique and safe. A settings field this build
- * does not know is carried forward, and settings that cannot be read are
- * refused rather than written over.
+ * Writes a topic whole into the `TOPIC.md` in the folder named for it, making
+ * the folder the first time. The name is the caller's to have made unique and
+ * safe. A key this build does not know rides along on the topic's `others`,
+ * read off the file it came from, so a round trip through the app keeps what
+ * another client wrote.
  */
 export function writeTopicSync(rootDir: string, topic: Topic): void {
-  const { instructions, name, ...settings } = topic;
-  const folder = path.join(workspaceLayout(rootDir).topicsDir, name);
-  // Every field this build knows is written as the topic has it, absent ones
-  // dropped (a retired topic brought back loses its mark); the rest stay.
-  const known = Object.fromEntries(
-    Object.keys(TopicSettingsSchema.shape).map((key) => [key, undefined]),
+  const { name, ...file } = topic;
+  const folder = path.join(topicsDirOf(rootDir), name);
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(
+    path.join(folder, TOPIC_FILE_NAME),
+    renderTopicFile(file),
+    "utf8",
   );
-  updateJsonRecordSync(
-    path.join(folder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
-    () => ({ ...known, ...TopicSettingsSchema.parse(settings) }),
-  );
-  const instructionsFile = path.join(folder, INSTRUCTIONS_FILE_NAME);
-  if (instructions?.trim()) {
-    fs.writeFileSync(instructionsFile, `${instructions.trim()}\n`, "utf8");
-  } else {
-    fs.rmSync(instructionsFile, { force: true });
-  }
 }
 
 /** A name the person typed, or a `TopicNameError` saying why a folder cannot take it. */
@@ -282,7 +258,7 @@ function createTopicNow({
   const topic: Topic = {
     ...(about ? { about } : {}),
     ...(color ? { color } : {}),
-    createdAt: Date.now(),
+    created: toTheSecond(new Date()),
     ...(emoji ? { emoji } : {}),
     id: newTopicId(),
     name: wanted,
@@ -296,45 +272,42 @@ function nameKey(name: string): string {
 }
 
 /**
- * One topic by its folder, or nothing for a folder with no readable settings.
- * The name is the folder's, so a folder renamed in a file manager is a topic
- * renamed. Its folders are read where they are now, for one stored before a
- * migration moved it (`remapMovedPath`).
+ * One topic by its folder, or nothing for a folder whose `TOPIC.md` is not
+ * there or names no topic. The name is the folder's, so a folder renamed in a
+ * file manager is a topic renamed. Its folders are read where they are now,
+ * for one stored before a migration moved it (`remapMovedPath`).
  */
 function readTopicFolder(folderPath: string): Topic | undefined {
-  let settings: z.output<typeof TopicSettingsSchema>;
+  const file = path.join(folderPath, TOPIC_FILE_NAME);
+  let topic;
   try {
-    settings = TopicSettingsSchema.parse(
-      JSON.parse(
-        fs.readFileSync(
-          path.join(folderPath, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
-          "utf8",
-        ),
-      ),
-    );
+    // When the file was last written stands in for a `created` it does not
+    // hold, which is what a topic the person made by hand has.
+    topic = parseTopicFile(fs.readFileSync(file, "utf8"), {
+      at: fs.statSync(file).mtime,
+    });
   } catch {
     return undefined;
   }
-  let instructions = "";
-  try {
-    instructions = fs
-      .readFileSync(path.join(folderPath, INSTRUCTIONS_FILE_NAME), "utf8")
-      .trim();
-  } catch {
-    // Most topics have none.
+  if (!topic) {
+    return undefined;
   }
   return {
-    ...settings,
-    ...(settings.folders
+    ...topic,
+    ...(topic.folders
       ? {
-          folders: settings.folders.map((folder) => ({
+          folders: topic.folders.map((folder) => ({
             path: remapMovedPath(folder.path),
           })),
         }
       : {}),
-    ...(instructions ? { instructions } : {}),
     name: path.basename(folderPath),
   };
+}
+
+/** Where every topic's folder is, under a workspace root. */
+function topicsDirOf(rootDir: string): string {
+  return path.join(rootDir, TOPICS_FOLDER_NAME);
 }
 
 function retireTopicNow(topicId: string): void {
@@ -381,7 +354,7 @@ function updateTopicNow(topicId: string, change: TopicChange): void {
       );
     }
     if (name !== topic.name) {
-      const dir = workspaceLayout(rootDir).topicsDir;
+      const dir = topicsDirOf(rootDir);
       fs.renameSync(path.join(dir, topic.name), path.join(dir, name));
     }
   }

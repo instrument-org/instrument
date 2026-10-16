@@ -32,6 +32,8 @@ import {
   type FolderMoved,
   moveMemoriesToFolder,
   moveSkillsToFolder,
+  moveTopicsToFolder,
+  convertTopicsToTopicFiles,
   prepareBundledSkills,
   settleDrafts,
   moveChatPermissions,
@@ -131,6 +133,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // reads one of them.
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
+  await moveFolderOut("Topics", () => moveTopicsToFolder(rootDir));
+  // And once the topics are out, each one's two hidden files become the one
+  // `TOPIC.md` a person reads, which is its own step: the folder moves
+  // whatever is inside it, and a topic already converted is left alone.
+  await convertTopicFiles(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -557,15 +564,14 @@ async function settleWorkspaceDrafts(rootDir: string) {
  * kept. Idempotent, and a workspace that already holds `Memory/` is left
  * alone; a failure must not block boot.
  */
-async function moveFolderOut(
-  what: string,
-  move: () => Promise<FolderMoved>,
-) {
+async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
   try {
     const moved = await move();
     switch (moved.kind) {
       case "already-there":
-        logger.info(`${what}: ${moved.where} is already there, so nothing moved`);
+        logger.info(
+          `${what}: ${moved.where} is already there, so nothing moved`,
+        );
         break;
       case "failed":
         logger.warn(
@@ -577,6 +583,32 @@ async function moveFolderOut(
         break;
       case "none":
         break;
+    }
+  } catch (error) {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  }
+}
+
+/**
+ * Turn each topic's hidden settings and instructions into the one `TOPIC.md`
+ * a person reads and edits. Runs after the folder itself is out, for every
+ * workspace, since every build so far wrote the two files. Idempotent, and a
+ * topic that already has its file is left alone; a failure must not block
+ * boot.
+ */
+async function convertTopicFiles(rootDir: string) {
+  try {
+    const converted = await convertTopicsToTopicFiles(rootDir);
+    for (const line of converted.done) {
+      logger.info(`Topics: ${line}`);
+    }
+    for (const left of converted.left) {
+      logger.warn(
+        `Topics: left ${left.where} as it was, and the next launch tries again: ${left.reason}`,
+      );
     }
   } catch (error) {
     captureServerException(

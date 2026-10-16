@@ -219,17 +219,18 @@ describe("isRecordPath", () => {
       data("drafts", "d", "draft.md"),
       true,
     ],
+    ["a topic in Topics", "/Users/sam/Instrument/Topics/Home/TOPIC.md", false],
     [
-      "a topic's instructions",
+      "what a build left in the folder topics were hidden in",
       data("topics", "Home", "instructions.md"),
-      false,
-    ],
-    [
-      "a topic's settings",
-      data("topics", "Home", ".instrument", "settings.json"),
       true,
     ],
-    ["a workspace skill", data("skills", "brief", "SKILL.md"), false],
+    ["a skill in Skills", "/Users/sam/Instrument/Skills/brief/SKILL.md", false],
+    [
+      "what a build left in the folder skills were hidden in",
+      data("skills", "brief", "SKILL.md"),
+      true,
+    ],
     ["an app's setup", data("apps", "linear", "app.json"), false],
     ["a memory in Memory", "/Users/sam/Instrument/Memory/no-stevia.md", false],
     [

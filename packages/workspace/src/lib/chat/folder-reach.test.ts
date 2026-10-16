@@ -70,7 +70,7 @@ async function reach(grants: ChatGrant[]) {
 
 function topic(name: string, folders: string[]): Topic {
   return {
-    createdAt: 0,
+    created: new Date(0),
     folders: folders.map((folderPath) => ({ path: folderPath })),
     id: `top_${name}`,
     name,

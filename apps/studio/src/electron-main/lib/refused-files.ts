@@ -79,9 +79,9 @@ export function machineFolderViewRule({
  * Whether a path is one of the app's records by its names: under a
  * `.instrument` folder, matched in any case, and not in one of the folders
  * there that hold the person's own files (`PERSON_FOLDERS_IN_DATA_DIR`:
- * what they attached to a chat, their drafts, topics, skills, apps and
- * memories), each named in the app's own spelling. A second `.instrument`
- * below the first, such as a draft's or a topic's own settings, is a record
+ * what they attached to a chat, and their apps), each named in the app's own
+ * spelling. A second `.instrument` below the first, such as an app's own
+ * settings, is a record
  * again, and so is a path with a step up or a step in place below it, which
  * could name a record from inside one of those folders. Separated by either
  * slash, for a path from a URL as for one on Windows, where a name ending in

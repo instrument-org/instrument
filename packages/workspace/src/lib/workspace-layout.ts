@@ -45,8 +45,11 @@ export const WORKSPACE_DATA_ENTRIES = {
   /** The workspace's own skills, which the agent reads and writes. */
   skills: "skills",
   /**
-   * One folder per topic, named for it: its settings in
-   * `.instrument/settings.json` and its instructions in `instructions.md`.
+   * Where earlier builds kept the topics, a folder each named for the topic:
+   * its settings in `.instrument/settings.json` and its instructions in
+   * `instructions.md`. A topic is a `TOPIC.md` in `Topics/` at the
+   * workspace's top level now, and this is only what the migration reads
+   * (`lib/topics-move.ts`).
    */
   topics: "topics",
   /**
@@ -59,15 +62,14 @@ export const WORKSPACE_DATA_ENTRIES = {
 /**
  * What in a workspace's `.instrument/` is the person's own to look at, each
  * as the names below it, `*` standing for any one: what they attached to a
- * chat, and their topics, skills and apps. Everything else there (a chat's
- * database and settings, the workspace's own records, the window's) is the
- * app's, and so is a record folder of its own inside one of these, which
- * carries the same `.instrument` name.
+ * chat, and their apps. Everything else there (a chat's database and
+ * settings, the workspace's own records, the window's) is the app's, and so
+ * is a record folder of its own inside one of these, which carries the same
+ * `.instrument` name.
  */
 export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
   [WORKSPACE_DATA_ENTRIES.apps],
   [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
-  [WORKSPACE_DATA_ENTRIES.topics],
 ];
 
 /**

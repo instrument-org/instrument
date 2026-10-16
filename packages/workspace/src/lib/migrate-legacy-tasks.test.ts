@@ -520,7 +520,7 @@ describe("migrateLegacyTasks", () => {
 
   it("makes projects into topics, joining one of the same name, and files their tasks' chats under them", () => {
     writeTopicSync(root, {
-      createdAt: Date.parse("2026-09-17T17:07:55.921Z"),
+      created: new Date("2026-09-17T17:07:55.000Z"),
       emoji: "🛒",
       folders: [{ path: "/Users/someone/Lists" }],
       id: "top_01M2R5DNCH9PJ09F2CV1VEMM77",

@@ -11,6 +11,7 @@ import {
   createTopic,
   listTopics,
   retireTopic,
+  TOPIC_FILE_NAME,
   topicByName,
   topicName,
   TopicNameError,
@@ -93,45 +94,92 @@ describe("retireTopic", () => {
 });
 
 describe("topic folders", () => {
-  it("keeps settings as JSON and the instructions as Markdown, in a folder by name", async () => {
-    const made = await createTopic({ emoji: "🛒", name: "Shopping" });
+  it("keeps the whole topic in one TOPIC.md, in a folder by name", async () => {
+    const made = await createTopic({
+      about: "What to buy and where",
+      emoji: "🛒",
+      name: "Shopping",
+    });
     await updateTopic(made.id, {
+      color: "amber",
       folders: [{ path: "/Users/someone/Deals" }],
       instructions: "I have the Prime card.",
     });
 
     expect(tree(topicsDir())).toMatchInlineSnapshot(`
       [
-        "Shopping/.instrument/settings.json",
-        "Shopping/instructions.md",
+        "Shopping/TOPIC.md",
       ]
     `);
-    const settings = JSON.parse(
-      await fs.readFile(
-        path.join(topicsDir(), "Shopping", ".instrument", "settings.json"),
-        "utf8",
-      ),
-    ) as Record<string, unknown>;
-    expect({ ...settings, createdAt: "<at>", id: "<id>" })
-      .toMatchInlineSnapshot(`
-        {
-          "createdAt": "<at>",
-          "emoji": "🛒",
-          "folders": [
-            {
-              "path": "/Users/someone/Deals",
-            },
-          ],
-          "id": "<id>",
-        }
-      `);
+    expect(await topicFile("Shopping")).toMatchInlineSnapshot(`
+      "---
+      id: <id>
+      emoji: 🛒
+      color: amber
+      about: What to buy and where
+      created: <created>
+      folders:
+        - path: /Users/someone/Deals
+      ---
+
+      I have the Prime card.
+      "
+    `);
     expect(await listTopics()).toEqual([
       {
         ...made,
+        color: "amber",
         folders: [{ path: "/Users/someone/Deals" }],
         instructions: "I have the Prime card.",
       },
     ]);
+  });
+
+  it("writes the created stamp as the clock the person was reading", async () => {
+    const made = await createTopic({ name: "Shopping" });
+
+    const front = await topicFile("Shopping", { stamps: false });
+    expect(front).toContain(`created: ${stampOf(made.created)}`);
+    // What is in hand and what is on disk are the same topic, to the second.
+    expect((await listTopics())[0]?.created).toEqual(made.created);
+  });
+
+  it("marks a retired topic, and says nothing of one in the menus", async () => {
+    const made = await createTopic({ name: "Trips" });
+    expect(await topicFile("Trips")).not.toContain("retired");
+
+    await retireTopic(made.id);
+
+    expect(await topicFile("Trips")).toContain("retired: true");
+  });
+
+  it("writes back a key it does not know, where it found it", async () => {
+    const made = await createTopic({ emoji: "✈️", name: "Trips" });
+    // Two keys another client wrote, which this build has never heard of.
+    await fs.writeFile(
+      path.join(topicsDir(), "Trips", TOPIC_FILE_NAME),
+      `---\nid: ${made.id}\nemoji: ✈️\ncreated: ${stampOf(made.created)}\nsortsAfter: Home\nseen:\n  - phone\n---\n`,
+    );
+
+    await updateTopic(made.id, { instructions: "Aisle seats." });
+
+    expect(await topicFile("Trips")).toMatchInlineSnapshot(`
+      "---
+      id: <id>
+      emoji: ✈️
+      created: <created>
+      sortsAfter: Home
+      seen:
+        - phone
+      ---
+
+      Aisle seats.
+      "
+    `);
+    expect((await listTopics())[0]?.others).toEqual({
+      seen: ["phone"],
+      sortsAfter: "Home",
+    });
   });
 
   it("reads a folder stored before a migration moved it where it is now", async () => {
@@ -168,8 +216,7 @@ describe("topic folders", () => {
     await updateTopic(made.id, { name: "Travel" });
     expect(tree(topicsDir())).toMatchInlineSnapshot(`
       [
-        "Travel/.instrument/settings.json",
-        "Travel/instructions.md",
+        "Travel/TOPIC.md",
       ]
     `);
 
@@ -180,6 +227,8 @@ describe("topic folders", () => {
     expect(await listTopics()).toEqual([
       { ...made, instructions: "Aisle seats.", name: "Away" },
     ]);
+    // The name is the folder's, so nothing in the file says it.
+    expect(await topicFile("Away")).not.toContain("Away");
   });
 
   it.each([
@@ -220,6 +269,32 @@ describe("topic folders", () => {
     expect(listed?.retired).toBeUndefined();
   });
 });
+
+/**
+ * A topic's file as it reads, with the two values no snapshot can hold still
+ * stood in for: its id and the moment it was made.
+ */
+async function topicFile(
+  name: string,
+  { stamps = true }: { stamps?: boolean } = {},
+): Promise<string> {
+  const text = await fs.readFile(
+    path.join(topicsDir(), name, TOPIC_FILE_NAME),
+    "utf8",
+  );
+  return stamps
+    ? text
+        .replace(/^id: .+$/m, "id: <id>")
+        .replace(/^created: .+$/m, "created: <created>")
+    : text;
+}
+
+/** When something happened as `created` writes it: local, to the second. */
+function stampOf(at: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const day = `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+  return `${day} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
+}
 
 function tree(dir: string): string[] {
   return fsSync

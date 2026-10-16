@@ -48,7 +48,7 @@ import { workspaceLayoutMarks } from "./workspaces";
  * the person had and no longer has.
  */
 
-const SOURCE = process.env.REHEARSE_WORKSPACE;
+const SOURCE = process.env.REHEARSE_WORKSPACE ?? "";
 
 /**
  * Files the migrations are allowed to leave without a copy of their bytes
@@ -122,14 +122,14 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     clone = path.join(out, "workspace");
     machineDir = path.join(out, "machine");
     fs.mkdirSync(machineDir, { recursive: true });
-    cloneFolder(SOURCE as string, clone);
+    cloneFolder(SOURCE, clone);
     before = await inventory(clone);
     await runLaunchMigrations();
     after = await inventory(clone);
     machine = await inventory(machineDir);
     // eslint-disable-next-line no-console
     console.log(
-      `rehearsed ${SOURCE as string}\n  on ${clone}\n  ${before.size} files in, ${after.size} in the workspace and ${machine.size} in its folder on this computer`,
+      `rehearsed ${SOURCE}\n  on ${clone}\n  ${before.size} files in, ${after.size} in the workspace and ${machine.size} in its folder on this computer`,
     );
   }, PATIENCE);
 
@@ -443,7 +443,7 @@ function frontMatterOf(text: string): Record<string, unknown> | undefined {
   }
   let parsed: unknown;
   try {
-    parsed = parseYaml(match[1]) as unknown;
+    parsed = parseYaml(match[1] ?? "") as unknown;
   } catch {
     return undefined;
   }

@@ -691,6 +691,7 @@ export const llmRequestLogic = fromPromise<
               providerExecuted: part.providerExecuted,
               state: "input-available",
             };
+            toolCalls[part.toolCallId] = updatedPart;
             await writes.savePart(updatedPart);
             pendingInputParses.delete(existingPart.metadata.id);
           } else if (existingPart) {
@@ -767,6 +768,7 @@ export const llmRequestLogic = fromPromise<
                 providerExecuted: part.providerExecuted,
                 state: "output-error",
               };
+              toolCalls[part.toolCallId] = updatedPart;
               await writes.savePart(updatedPart);
               pendingInputParses.delete(toolCall.metadata.id);
               continue;
@@ -962,34 +964,6 @@ export const llmRequestLogic = fromPromise<
       }
     }
 
-    // Detection only. The agent machine finalizes this run's dangling
-    // `input-*` parts on its way into `Finishing` (stops included), so a part
-    // reported here points at a leftover that sweep does not cover, or a race
-    // with it. Repairing here would hide whatever produced the leftover.
-    const parts = await getCurrentParts();
-    for (const part of parts) {
-      if (isToolPart(part) && part.state === "input-streaming") {
-        const inputStreamText = toolCallInputText[part.toolCallId];
-        getWorkspaceConfig().captureException(
-          new Error("Unhandled tool input streaming part"),
-          {
-            assistant_error_kind: assistantMessage.metadata.error.kind,
-            input_stream_char_count: inputStreamText?.length,
-            message_id: assistantMessage.id,
-            modelId,
-            part_has_input: part.input !== undefined,
-            part_id: part.metadata.id,
-            provider_executed: part.providerExecuted,
-            providerId,
-            scopes: ["workspace", "llm-request"],
-            session_id: input.sessionId,
-            tool_call_id: part.toolCallId,
-            tool_type: part.type,
-          },
-        );
-      }
-    }
-
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
     await writes.saveMessage(assistantMessage);
@@ -997,13 +971,51 @@ export const llmRequestLogic = fromPromise<
 
   // Remove abort listener since we've completed
   signal.removeEventListener("abort", abortListener);
+  // The fragments that arrived since the last parse, so a call the turn is
+  // about to let go of carries everything the model typed rather than
+  // whatever the cadence last read.
+  for (const [id, call] of Object.entries(toolCalls)) {
+    if (call.state !== "input-streaming") {
+      continue;
+    }
+    const { value: typed } = await parsePartialJson(
+      toolCallInputText[id] ?? "",
+    );
+    await writes.savePart({ ...call, input: typed as never });
+  }
   // The turn is over, so what it was holding is written: every part that
   // settled is in the records already, since each write here was waited for,
   // and whatever was still arriving is written as the turn left it, which is
   // how a reply cut off mid-word is still a reply the person can read.
   await live?.clear();
 
-  return { message: assistantMessage, parts: await getCurrentParts() };
+  const parts = await getCurrentParts();
+  // Detection only, and after the turn has let go: a call still arriving at
+  // this point was settled as cut off, so one that reads `input-streaming`
+  // here is a leftover the turn's own ending did not cover.
+  for (const part of parts) {
+    if (isToolPart(part) && part.state === "input-streaming") {
+      getWorkspaceConfig().captureException(
+        new Error("Unhandled tool input streaming part"),
+        {
+          assistant_error_kind: assistantMessage.metadata.error?.kind,
+          input_stream_char_count: toolCallInputText[part.toolCallId]?.length,
+          message_id: assistantMessage.id,
+          modelId,
+          part_has_input: part.input !== undefined,
+          part_id: part.metadata.id,
+          provider_executed: part.providerExecuted,
+          providerId,
+          scopes: ["workspace", "llm-request"],
+          session_id: input.sessionId,
+          tool_call_id: part.toolCallId,
+          tool_type: part.type,
+        },
+      );
+    }
+  }
+
+  return { message: assistantMessage, parts };
 });
 
 /**

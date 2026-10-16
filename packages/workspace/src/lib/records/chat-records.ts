@@ -3,7 +3,10 @@ import path from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { isEqual, noop } from "radashi";
 
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
+import {
+  CUT_OFF_TOOL_CALL_ERROR_TEXT,
+  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+} from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -1422,7 +1425,7 @@ function asCutOff(
     return part.state === "input-streaming"
       ? SessionMessagePart.coerce({
           ...part,
-          errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+          errorText: CUT_OFF_TOOL_CALL_ERROR_TEXT,
           metadata: { ...part.metadata, endedAt: now },
           state: "output-error",
         })

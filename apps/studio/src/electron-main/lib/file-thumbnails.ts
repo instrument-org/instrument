@@ -293,7 +293,10 @@ export async function pruneThumbnails(dir: string, keep: Keep = KEEP) {
       gone.map((name) => fs.rm(path.join(dir, name), { force: true })),
     );
   } catch (error) {
-    log.warn(`Could not prune ${dir}: ${String(error)}`);
+    // A folder nothing has drawn into yet has nothing to prune.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      log.warn(`Could not prune ${dir}: ${String(error)}`);
+    }
   }
 }
 

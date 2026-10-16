@@ -50,3 +50,32 @@ it("lists a Windows drive whose root never answers by its letter, without waitin
     vi.mocked(fs.stat).mock.calls.filter(([at]) => at === "Z:\\"),
   ).toHaveLength(1);
 });
+
+it("lists a Mac disk that has stopped answering where it is mounted, without waiting on it", async () => {
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  const missing = () =>
+    Promise.reject(Object.assign(new Error("not there"), { code: "ENOENT" }));
+  vi.spyOn(fs, "readdir").mockImplementation(((at: string) =>
+    at === "/Volumes"
+      ? Promise.resolve(["Macintosh HD", "Backup"])
+      : missing()) as unknown as typeof fs.readdir);
+  // The boot volume is a link to `/`. The other disk's file system has
+  // stopped answering, so where it really is never comes back.
+  vi.spyOn(fs, "realpath").mockImplementation(((at: string) =>
+    at === "/Volumes/Macintosh HD"
+      ? Promise.resolve("/")
+      : new Promise(() => {})) as unknown as typeof fs.realpath);
+  vi.spyOn(fs, "stat").mockImplementation(((at: string) =>
+    at === "/"
+      ? Promise.resolve({ isDirectory: () => true })
+      : missing()) as unknown as typeof fs.stat);
+
+  const places = computerPlaces();
+  await vi.advanceTimersByTimeAsync(500);
+  await expect(places).resolves.toMatchObject({
+    volumes: [
+      { kind: "drive", name: "Macintosh HD", path: "/" },
+      { kind: "drive", name: "Backup", path: "/Volumes/Backup" },
+    ],
+  });
+});

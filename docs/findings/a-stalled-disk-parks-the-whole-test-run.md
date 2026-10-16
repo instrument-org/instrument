@@ -1,44 +1,38 @@
-# A stalled disk parks the whole test run
+# A stalled disk parks whatever reads it, the app and a test run alike
 
-**Status:** open, and not a bug in the code. Found 2026-10-16 on the branch, reproduced on `workspace-layout` as well.
+**Status:** the app path is bounded; a test that walks the real file system with a real binary is still exposed.
 
-A whole-package run of the workspace suite stops reporting after one file and never finishes. It is not slow: the worker sits at 0% CPU with no child process, and the run has to be killed. Three sessions in one day each lost an hour to it before anyone sampled the process.
+An external disk can stop answering while staying attached. The device is still there (`diskutil list external` answers, `diskutil info` names it), but its file system has stopped responding, and every read of it blocks in the kernel forever. Nothing on a Mac times a blocking `open` out, and nothing cancels one.
 
-## What it is
-
-The worker is parked in a single syscall. `sample <pid>` gives the same stack for every sample:
-
-```
-node::fs::ReadDir  →  uv_fs_scandir  →  scandir  →  __opendir2  →  open$NOCANCEL
-```
-
-`open` on a directory never returns. The directory is on an external disk that has stopped answering:
+## How to tell it apart from a hang in the code
 
 ```
 $ for v in /Volumes/*; do timeout 3 ls "$v" >/dev/null && echo ok || echo SLOW; done
 /Volumes/Macintosh HD: ok
 /Volumes/Recovery: ok
-/Volumes/T7 2TB BLK: SLOW
-/Volumes/T7 Time Machine: SLOW
+/Volumes/Archive: SLOW
 ```
 
-The device is still attached (`diskutil list external` answers, `diskutil info /dev/disk7` names it), so nothing has been unplugged; its filesystem has stopped responding. Reading it is what blocks, and nothing on a Mac times a blocking `open` out.
+- `sample <pid> 3` and look at the main thread. A deadlock in our own code shows JavaScript frames; this one bottoms out in `open$NOCANCEL`, under `node::fs::ReadDir` or a `stat`.
+- The process uses no CPU at all. A slow test burns CPU; this one does not.
+- `diskutil unmountDisk force /dev/diskN` then `diskutil eject` gets the machine back, and both answer promptly even though reads do not.
 
-## Why a test reaches it
+## What it costs a Node process
 
-The permission rules list every drive on the computer the way the person sees them: `{ id: "drives", paths: ["/Volumes"] }` in `lib/permissions/places.ts`, read each time the rules are built so a disk plugged in later is covered from the next command. A test that builds real rules against the real machine therefore reads `/Volumes`, and on a machine with a stalled disk that read never returns.
+A blocking file system call holds one of libuv's four thread pool threads for as long as it blocks, which here is forever. Two stalled volumes take half the pool; a path that reads them once per request leaks a thread per request until every file system call in the process waits behind the pool, whatever folder it was for. That is why one unresponsive disk can look like the whole program has stopped rather than one list being slow.
 
-`lib/app-data-rules.test.ts` is where it bites, because its table is built while the file is collected: with `--testTimeout=3000 --hookTimeout=3000` the file still never reports a single case, which is the tell that nothing has started running yet. Vitest collects every file before it runs any, so one parked collection holds the run, and the rest of the package looks like it stalled.
+Vitest collects every test file before it runs any, so a single parked collection holds a whole package's run with nothing reported. The tell is a file that never reports even one case under `--testTimeout`: a timeout cannot fire on work that has not started.
 
-## How to tell it apart from a hang in the code
+## What reaches it in the app
 
-- `sample <worker pid> 3` and look at the main thread. A deadlock in our own code shows JavaScript frames; this one bottoms out in `open$NOCANCEL`.
-- The worker uses no CPU at all. A slow test burns CPU; this one does not.
-- Running the same file from another checkout, or with the records install taken out of `test/setup.ts`, changes nothing.
-- The slices that do not build real rules (`src/lib/apps`, `src/lib/shell-commands`, `src/lib/chat`, `src/lib/records`) all pass in minutes.
+Listing the computer's places. `computerPlaces` wants each disk where it really is, since `/Volumes` holds the boot volume as a link to `/`, so it asked `realpath` and `stat` about every volume with nothing bounding the answer. Windows drive letters already had that bound, for a mapped drive whose server is gone.
 
-## What would make it not matter
+Both now go through one look-with-a-deadline: half a second, shared between askings so a disk that never answers holds one thread once rather than one more per asking, and a volume that misses the deadline is listed where it is mounted, the way the Finder keeps a disk it cannot reach in its sidebar. `lib/chat/computer-places.ts`.
 
-Nothing in the product: a person whose disk has stopped answering has a stalled disk, and an agent reading their folders would park on it the same way. What could change is the test's reach, which is the part under our control: the rules it builds could be given a fixed list of drives rather than the machine's, the way `windowsDrives` already takes an `exists` for its tests. That would also make the file's table the same on every machine.
+That is the one place in the app that enumerates volumes. The permission rules name `/Volumes` as a place (`lib/permissions/places.ts`) but only as a path to match against, and matching reads nothing.
 
-Until then, a machine with a stalled volume cannot finish the suite, and the fix is to that machine.
+## What is still exposed
+
+A test that runs a real binary over a real folder tree. `rg` and `du` walk what they are pointed at, under a real sandbox profile, and a walk that reaches `/Volumes` parks in the same syscall with no timeout anywhere in the test harness to stop it. This is what cost three sessions an hour each in one day before anyone sampled the process; which file did it was never isolated, because ejecting the disk fixed every one of them at once.
+
+What would make it not matter is narrowing what those tests walk, so no test depends on which disks are plugged into the machine running it. Until then, the recipe above is the fastest way to tell a stalled disk from a bug.

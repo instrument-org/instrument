@@ -256,15 +256,50 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
   ];
 }
 
-/** How long a drive's root has to answer before it is listed unanswered. */
+/** How long a disk has to answer before it is listed unanswered. */
 const DRIVE_ANSWER_MS = 500;
 
+/** What a look at a disk that has not answered in a moment gives back. */
+const UNANSWERED = Symbol("unanswered");
+
 /**
- * Each drive root still being checked, so a root that never answers holds
- * one of the file system's threads however many times the places are asked
- * for, rather than one more each time.
+ * Each drive root still being looked at, and each mounted volume, so a disk
+ * that never answers holds one of the file system's threads however many
+ * times the places are asked for, rather than one more each time.
  */
 const checkingDrives = new Map<string, Promise<boolean>>();
+const checkingVolumes = new Map<string, Promise<string | undefined>>();
+
+/**
+ * What `look` finds at `at`, or `UNANSWERED` when it has not finished in a
+ * moment. A disk whose file system has stopped answering never finishes, and
+ * nothing on either system cancels a read of one, so the look is shared
+ * between askings and the places go out without it.
+ */
+async function inAMoment<T>(
+  at: string,
+  look: (at: string) => Promise<T>,
+  looking: Map<string, Promise<T>>,
+): Promise<T | typeof UNANSWERED> {
+  let underway = looking.get(at);
+  if (!underway) {
+    underway = look(at).finally(() => {
+      looking.delete(at);
+    });
+    looking.set(at, underway);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const unanswered = new Promise<typeof UNANSWERED>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(UNANSWERED);
+    }, DRIVE_ANSWER_MS);
+  });
+  try {
+    return await Promise.race([underway, unanswered]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Whether a Windows drive letter has a disk behind it. A letter with nothing
@@ -274,24 +309,8 @@ const checkingDrives = new Map<string, Promise<boolean>>();
  * mapped drive it cannot reach, and the sidebar does not wait on it.
  */
 async function hasDrive(root: string): Promise<boolean> {
-  let check = checkingDrives.get(root);
-  if (!check) {
-    check = isDirectory(root).finally(() => {
-      checkingDrives.delete(root);
-    });
-    checkingDrives.set(root, check);
-  }
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const unanswered = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => {
-      resolve(true);
-    }, DRIVE_ANSWER_MS);
-  });
-  try {
-    return await Promise.race([check, unanswered]);
-  } finally {
-    clearTimeout(timer);
-  }
+  const answer = await inAMoment(root, isDirectory, checkingDrives);
+  return answer === UNANSWERED ? true : answer;
 }
 
 /**
@@ -308,7 +327,22 @@ async function windowsDriveNames(
   return (await ask?.(roots).catch(() => undefined)) ?? {};
 }
 
-/** The folders in a folder, each where it really is, as disks. */
+/** Where a mounted disk really is, or nothing when it is not a folder. */
+async function mountedAt(at: string): Promise<string | undefined> {
+  try {
+    const real = await fs.realpath(at);
+    return (await isDirectory(real)) ? real : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The folders in a folder, each where it really is, as disks. A disk whose
+ * file system has stopped answering never says where it really is, so it is
+ * listed where it is mounted, the way the Finder keeps a disk it cannot
+ * reach in its sidebar.
+ */
 async function realFolders(folder: string): Promise<ComputerPlace[]> {
   let names: string[];
   try {
@@ -320,14 +354,14 @@ async function realFolders(folder: string): Promise<ComputerPlace[]> {
     names
       .filter((name) => !name.startsWith("."))
       .map(async (name): Promise<ComputerPlace | undefined> => {
-        try {
-          const real = await fs.realpath(path.join(folder, name));
-          return (await isDirectory(real))
-            ? { kind: "drive", name, path: real }
-            : undefined;
-        } catch {
-          return undefined;
+        const at = path.join(folder, name);
+        const real = await inAMoment(at, mountedAt, checkingVolumes);
+        if (real === UNANSWERED) {
+          return { kind: "drive", name, path: at };
         }
+        return real === undefined
+          ? undefined
+          : { kind: "drive", name, path: real };
       }),
   );
   return found.filter((place) => place !== undefined);

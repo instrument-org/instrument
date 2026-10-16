@@ -33,11 +33,12 @@ REHEARSE_WORKSPACE="$HOME/Library/Application Support/Instrument/workspace" \
   src/electron-main/lib/migration-rehearsal.test.ts
 ```
 
-What it found on the 1.x install here (393 chats, 157,437 files, two and a half minutes):
+It passes whole on the 1.x install here: 393 chats, 157,437 files, two and a half minutes. Nothing lost, one folder per chat and one chat per folder, a `CHAT.md` in each naming its chat, what was sent in the chat's own folder and not in the records too, the hidden folders out, each topic down to one `TOPIC.md` and each app to one `APP.md`, every store set aside with none left where a chat is read, and a second run that changes nothing at all.
 
-- Everything above holds but the last one. Nothing lost, one folder per chat, a `CHAT.md` in each naming its chat, every store set aside, the hidden folders out, each topic down to one `TOPIC.md`.
-- 77 transcripts gain a `topics:` line on the second run, because the chat folders are written before the topics come out of `.instrument/`, so the first pass has no topic names. The order at the call site is the fix.
-- The three folders stop at an empty folder of their own name, which is what a real workspace has: ten skills stayed hidden under an empty `Skills/`. Fixed in the shared move.
+Two things it found on the way, both fixed:
+
+- 77 transcripts gained a `topics:` line on the second run, because the chat folders were written before the topics came out of `.instrument/`, so the first pass had no topic names. The order at the call site was the fix.
+- The three folders stopped at an empty folder of their own name, which is what a real workspace has: ten skills stayed hidden under an empty `Skills/`. Fixed in the shared move.
 
 Three of the assertions had to be written against what the migration is actually for, which is worth knowing before writing the next one: a work folder deliberately leaves `node_modules`, `.venv` and `.tmp` behind, 1.x staged a copy of the app's own skills inside every task, and a 1.x task's store is folded into the chat's records rather than set aside on its own.
 
@@ -64,6 +65,13 @@ What the Windows pass has shown so far, against the branch in the host's own che
 - Renaming the chat in the app renames the folder, between turns, with the transcript still in it.
 - `$INSTRUMENT_OUTPUT` is spelled for the shell with its drive letter and points at the chat's own folder. Writing into it is refused: [the chat folder the agent cannot write to](../../findings/the-chat-folder-the-agent-cannot-write-to.md).
 - A turn on a paid model cannot run there yet: the host's OpenRouter key is out of credits, and the free model its list starts with is rate-limited upstream. The steps that need a live agent are waiting on that.
+
+Linux, against a packaged preview of the branch with a copy of that machine's own pre-2.0 workspace in its data folder:
+
+- The 45 chats, 2 topics and 11 skills migrated at the first launch: `Chats/`, `Drafts/`, `Skills/` and `Topics/` at the top level, a folder per chat with its title and numbered where two shared a name, each topic one `TOPIC.md` with its instructions as the body, and `.instrument/` down to the records and the app's own files.
+- Renaming the chat in the app renamed the folder, with the transcript still in it.
+- Renaming that folder in the file manager and launching again: the chat adopted the new name, and no second folder was made.
+- A live turn needs credentials the copied workspace does not carry, so the same two steps as Windows are waiting.
 
 ## 3. Two computers, which nothing has tested
 

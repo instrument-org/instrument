@@ -775,18 +775,60 @@ const finderHeader = ({
     ${toolBtn(`<i class="ph ph-magnifying-glass text-[15px]"></i>`)}
   </div>`;
 
-/** The Finder's list view: Name, Date Modified, Size and Kind over 24px striped rows. Rows are [kind, name, modified, size, kindText]. */
-const finderListView = (rows, { pick = -1 } = {}) => `
+/** The Finder's list view: Name, Date Modified, Size and Kind over 24px striped rows, a folder led by its disclosure caret, the picked row filled in the brand color. Rows are [kind, name, modified, size, kindText]. `cols` false keeps only Name, for a narrow pane. */
+const finderListView = (rows, { pick = -1, cols = true } = {}) => {
+  const tpl = cols ? "1fr 170px 70px 110px" : "1fr";
+  return `
   <div class="text-[13px]">
-    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:1fr 170px 70px 110px"><span class="pl-6">Name <i class="ph ph-caret-up text-[9px]"></i></span><span>Date Modified</span><span class="text-right">Size</span><span class="pl-3">Kind</span></div>
-    ${rows.map(([k, n, d, sz, kt], i) => `<div class="grid h-6 items-center px-3 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:1fr 170px 70px 110px"><span class="flex min-w-0 items-center gap-2">${fileMark(k)}<span class="truncate">${n}</span></span><span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span></div>`).join("")}
+    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:${tpl}"><span class="pl-6">Name <i class="ph ph-caret-up text-[9px]"></i></span>${cols ? `<span>Date Modified</span><span class="text-right">Size</span><span class="pl-3">Kind</span>` : ""}</div>
+    ${rows.map(([k, n, d, sz, kt], i) => `<div class="mx-1 grid h-6 items-center rounded-md px-2 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:${tpl}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span>${cols ? `<span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span>` : ""}</div>`).join("")}
   </div>`;
+};
 
 /** A file's folder as the tree beside it: 240px, 24px rows, the open file in the brand color. Rows are [depth, kind, name]. */
 const fileTree = (rows, { on = "" } = {}) => `
   <div class="w-[240px] shrink-0 overflow-hidden border-r border-border px-1.5 py-1 text-[13px]">
     ${rows.map(([d, k, n]) => `<div class="flex h-6 items-center gap-1.5 rounded-md pr-2 ${n === on ? "bg-brand-600 text-white" : ""}" style="padding-left:${8 + d * 16}px">${k === "folder" ? `<i class="ph ph-caret-${d === 0 ? "down" : "right"} text-[10px] ${n === on ? "" : "text-muted-foreground"}"></i>` : `<span class="w-2.5"></span>`}${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}
   </div>`;
+
+/**
+ * Files' one 40px row, as main draws it (measured 2026-10-16): over the places (`side`,
+ * 175px, or folded) the sidebar toggle; then the views, sort, more and search; then the
+ * omnibar across the rest, a folder (or `mark`) leading the path and the open-in pill at
+ * its end; then Ask. There is no header under it. `narrow` drops Ask's word and the sort
+ * caret, for a pane.
+ */
+const filesRow = ({
+  crumbs = ["studio26"],
+  mark = fileMark("folder", "text-[15px]"),
+  open = "folder",
+  view = "list",
+  side = true,
+  narrow = false,
+} = {}) => {
+  const btn = (inner) =>
+    `<span class="flex h-7 min-w-7 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 text-muted-foreground">${inner}</span>`;
+  return `
+  <div class="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-1.5">
+    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-7 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
+    <span class="ml-1 flex h-7 shrink-0 items-center rounded-lg bg-foreground/6 p-0.5">${[
+      ["icons", "ph-squares-four"],
+      ["list", "ph-rows"],
+      ["columns", "ph-columns"],
+    ]
+      .map(
+        ([k, i]) =>
+          `<span class="grid h-6 w-7 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"}"><i class="ph ${i} text-[14px]"></i></span>`,
+      )
+      .join("")}</span>
+    ${btn(`<i class="ph ph-arrows-down-up text-[15px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[9px]"></i>`}`)}${btn(`<i class="ph ph-dots-three text-[15px]"></i>`)}${btn(`<i class="ph ph-magnifying-glass text-[15px]"></i>`)}
+    <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card pr-1 pl-2.5 text-[12px]">
+      ${mark}${crumbs.map((c, i) => `<span class="${i === crumbs.length - 1 ? "shrink-0 text-foreground" : "min-w-0 truncate text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right shrink-0 text-[9px] text-muted-foreground/60"></i>`)}
+      <span class="flex-1"></span>${openIn(open)}
+    </div>
+    <span class="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] font-medium text-foreground/80">${brand("instrumentglyph", "size-4")}${narrow ? "" : "Ask"}</span>
+  </div>`;
+};
 
 /** Files filling the card: its top row, then `side` (finderSidebar, fileTree, or nothing), then `head` over `body`. */
 const filesPlace = ({
@@ -806,9 +848,8 @@ const filesPlace = ({
 /** The Finder as Files opens it on the Instrument folder, in list view. */
 const finder = ({ pick = -1 } = {}) =>
   filesPlace({
-    top: filesTop({ crumbs: ["studio26", "Instrument"] }),
+    top: filesRow({ crumbs: ["studio26", "Instrument"] }),
     side: finderSidebar({ on: "Instrument" }),
-    head: finderHeader({ title: "Instrument", views: finderViews("list") }),
     body: finderListView(
       FINDER_FILES.map(([k, n], i) => [
         k,
@@ -861,6 +902,88 @@ const chatPeek = (t, { bottom = 180 } = {}) => `
     ${locRow(t, { close: true, expand: true })}
     <div class="relative min-h-0 flex-1 overflow-hidden">${page(t)}</div>
   </div>`;
+
+/**
+ * The floating chat expanded (measured 2026-10-16): one rounded card over the dimmed
+ * window, 80px in from the window's left and right edges and 40px from its top and foot,
+ * its head the chat's own (title and caret centered over `line`) with minimize, collapse
+ * and × at the right and nothing at the left, the transcript centered, the reply box at
+ * its foot. Pass it as appWindow's `over`. `body` replaces the inside under the head.
+ */
+const expandedChat = ({
+  title = PRICING_TITLE,
+  line = statusLine("Reading plans on zendesk.com"),
+  transcript = pricing(2),
+  body = "",
+} = {}) => `
+  <div class="absolute inset-0 z-40 bg-black/25">
+    <div class="absolute flex flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-black/5" style="left:80px;right:80px;top:40px;bottom:40px">
+      <div class="grid h-14 shrink-0 grid-cols-[120px_minmax(0,1fr)_120px] items-start px-3 pt-2">
+        <span></span>
+        <div class="flex min-w-0 flex-col items-center">
+          <span class="flex h-8 max-w-full min-w-0 items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
+          <div class="-mt-1 flex h-5 max-w-full min-w-0 justify-center">${line}</div>
+        </div>
+        <div class="flex h-8 items-center justify-end gap-1 text-muted-foreground">${["minus", "arrows-in-simple", "x"].map((i) => `<span class="grid size-8 place-items-center"><i class="ph ph-${i} text-[16px]"></i></span>`).join("")}</div>
+      </div>
+      ${
+        body ||
+        `<div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${transcript}</div></div>
+      <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${replyBox()}</div>`
+      }
+    </div>
+  </div>`;
+
+/**
+ * The browser a draft sets up for the agent (measured 2026-10-16): a stone tray with
+ * rounded top corners, its tabs as white pills on the tray (mark, title, ×) and + after
+ * them, then a white card holding back, forward and a full-width omnibar over the page.
+ * `tabs` are tabs as tabMark takes them; `active` the one shown; `body` replaces the page.
+ */
+const agentTray = ({ tabs = [{ browser: true }], active = 0, body } = {}) => `
+  <div class="flex h-full min-h-0 flex-col rounded-t-xl bg-gray-200 px-2 pt-2">
+    <div class="flex h-9 shrink-0 items-center gap-1.5 pb-1">
+      ${tabs
+        .map(
+          (t, i) =>
+            `<span class="flex h-8 max-w-48 min-w-0 items-center gap-2 rounded-lg px-2.5 text-[13px] ${i === active ? "bg-white font-medium shadow-xs" : "text-foreground/60"}">${tabMark(t)}<span class="min-w-0 flex-1 truncate">${tabTitle(t)}</span>${i === active ? `<i class="ph ph-x text-[12px] text-muted-foreground"></i>` : ""}</span>`,
+        )
+        .join("")}
+      <span class="grid size-7 shrink-0 place-items-center text-foreground/60"><i class="ph ph-plus text-[15px]"></i></span>
+    </div>
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg bg-white">
+      <div class="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2 text-foreground/50">
+        <i class="ph ph-caret-left px-1 text-[15px]"></i><i class="ph ph-caret-right px-1 text-[15px] text-foreground/25"></i>
+        <span class="flex h-7 min-w-0 flex-1 items-center rounded-full border border-border px-3 text-[12px] ${tabs[active]?.site ? "text-foreground/70" : "text-gray-400"}">${tabs[active]?.site ? SITES[tabs[active].site].host : "Search or enter address"}</span>
+      </div>
+      <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tabs[active] ?? { newtab: true })}</div>
+    </div>
+  </div>`;
+
+/**
+ * The popover the line under a chat's title opens (measured 2026-10-16): a white card
+ * about 320 wide hanging just under the line, its rows grouped under small labels
+ * ("Running", "Finished"), each a mark, the task's name and how long ago at the right.
+ * `groups` are [label, [[name, age, done]]]. Place it with `left` and `top`.
+ */
+const statusPop = (groups, { left, top, w = 320 } = {}) => `
+  <div class="absolute z-30 rounded-xl border border-border bg-white p-1.5 shadow-lg" style="left:${left}px;top:${top}px;width:${w}px">
+    ${groups
+      .map(
+        ([label, rows]) =>
+          `<div class="px-2.5 pt-1.5 pb-1 text-[11px] text-muted-foreground">${label}</div>${rows
+            .map(
+              ([name, age, done]) =>
+                `<div class="flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px]">${done ? `<i class="ph ph-check text-[14px] text-muted-foreground"></i>` : planningDot}<span class="min-w-0 flex-1 truncate ${done ? "text-foreground/80" : ""}">${name}</span><span class="text-[11px] text-muted-foreground tabular-nums">${age}</span></div>`,
+            )
+            .join("")}`,
+      )
+      .join("")}
+  </div>`;
+
+/** A step row in the transcript as built: a pale slate band with a dashed blue rule at its left, the tool's glyph in a small box, the step, and the eye that shows its detail. `icon` is a Phosphor name (terminal-window for a command, globe for a page). */
+const stepRow = (text, { icon = "terminal-window", done = false } = {}) =>
+  `<div class="flex h-7 items-center gap-2 rounded-r-md border-l-2 border-dashed border-blue-300 bg-slate-100/80 pr-2 pl-2 text-[13px] text-muted-foreground"><span class="grid size-5 place-items-center rounded bg-slate-200/70"><i class="ph ph-${done ? "check-circle" : icon} text-[12px]"></i></span><span class="min-w-0 flex-1 truncate">${text}</span><i class="ph ph-eye text-[14px] text-blue-400"></i></div>`;
 
 /** A minimized chat: a 300px dark bar on the bottom edge. */
 const miniBar = ({

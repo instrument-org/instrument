@@ -174,6 +174,53 @@ const states = [
     }),
   },
   {
+    title: "Floating chat expanded",
+    note: "Expand grows the floating chat into one large card over the dimmed window, with the chat's own head and only minimize, collapse and × at its right.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true }] }),
+      body: inboxCol({ on: -1 }) + noChatOpen(),
+      over: expandedChat(),
+    }),
+  },
+  {
+    title: "Status popover",
+    note: "Pressing the line under a chat's title opens a short list of its tasks, running ones first.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
+      body:
+        inboxCol({ on: 0 }) +
+        thread({
+          working: "Reading plans on zendesk.com",
+          body:
+            turnMeta() +
+            you(
+              "How does our pricing compare with Zendesk, Intercom and Freshdesk?",
+            ) +
+            stepRow("Opening the pricing pages", { icon: "globe" }) +
+            stepRow("Reading plans on zendesk.com", { icon: "globe" }) +
+            agent(
+              "It's going well: I'm reading each pricing page and noting what every tier includes.",
+            ),
+        }),
+      over: statusPop(
+        [
+          ["Running", [["Competitor pricing pages", "2m"]]],
+          ["Finished", [["Our plan prices from the site", "6m", true]]],
+        ],
+        { left: 860, top: 98 },
+      ),
+    }),
+  },
+  {
+    title: "Draft with a browser",
+    note: "Pressing Browser in a draft sets up a browser for the agent in a stone tray under the words, with its own tabs and address bar.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
+      body: inboxCol({ on: 0 }) + thread(),
+      over: `<div class="absolute bottom-0 z-40 flex w-[600px] flex-col rounded-t-2xl border border-b-0 border-border bg-card shadow-2xl" style="right:20px;height:600px"><div class="flex h-12 shrink-0 items-center px-4 text-[13px] font-medium">New chat</div><div class="px-4 pb-3"><span class="inline-flex h-7 items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-[12px] text-foreground/70"><i class="ph ph-globe"></i>Browser<i class="ph ph-x text-[11px]"></i></span></div><div class="h-20 px-4 text-[15px] text-gray-400">What do you need?</div><div class="mx-2 min-h-0 flex-1">${agentTray({ tabs: [{ site: "zendesk" }] })}</div></div>`,
+    }),
+  },
+  {
     title: "Draft",
     note: "A new chat opens a compose window docked at the bottom right. The model picker and send button are in its header, and below the text we offer Browser, This Mac and Apps, plus a place to drop files.",
     body: appWindow({

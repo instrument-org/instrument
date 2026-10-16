@@ -32,7 +32,7 @@ import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
  */
 
 /** What one chat's folder came to. */
-type ChatFolderSweep =
+export type ChatFolderSweep =
   /** The folder and the file are as they should be; nothing was written. */
   | { kind: "already-there" }
   | { error: string; kind: "failed" }
@@ -106,6 +106,38 @@ export async function sweepChatFolders({
     counts[chat.kind] += 1;
   }
   return { chats, complete: counts.failed === 0, counts };
+}
+
+/**
+ * Gives one chat its folder and `CHAT.md`, as the launch sweep does for
+ * every chat, for a caller that already knows which chat moved.
+ *
+ * The chat's own turn ending is that caller: the transcript on disk is a
+ * relaunch out of date otherwise. Nothing is adopted here, since a folder
+ * renamed in a file manager is the sweep's to notice, and nothing is
+ * written when the bytes already read the same.
+ */
+export function writeChatFolder({
+  chatsDir,
+  id,
+  rootDir,
+  timeZone,
+  topicNames,
+}: {
+  chatsDir: string;
+  id: ChatId;
+  rootDir: string;
+  timeZone: string;
+  topicNames?: ReadonlyMap<string, string>;
+}): Promise<ChatFolderSweep> {
+  return sweepChatFolder({
+    adopt: undefined,
+    chatsDir,
+    id,
+    rootDir,
+    timeZone,
+    topicNames,
+  });
 }
 
 /** Gives one chat its folder and `CHAT.md`. */

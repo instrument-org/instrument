@@ -21,7 +21,7 @@ import {
   userMessage,
 } from "../records/test-records";
 import { ensureChatFolder, renameChatFolder } from "./chat-folder";
-import { sweepChatFolders } from "./sweep";
+import { sweepChatFolders, writeChatFolder } from "./sweep";
 
 /**
  * The sweep is what gives a workspace that was converted at the update a
@@ -281,6 +281,35 @@ describe("a gesture in a file manager", () => {
 
     expect(await folderNames()).toEqual(["My own notes"]);
     expect((await settingsOf(dir)).folder).toBe("My own notes");
+  });
+
+  it("writes one chat's transcript on its own, as the end of its turn does", async () => {
+    await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
+    await writeChat("2026-10-15-taxes", { title: "Taxes" });
+
+    const written = await writeChatFolder({
+      chatsDir: chatsDir(),
+      id: ChatIdSchema.parse("2026-10-14-dishwashers"),
+      rootDir: root,
+      timeZone: ZONE,
+    });
+
+    // Only the chat whose turn ended; the other is the next sweep's.
+    expect(written).toEqual({ folder: "Dishwashers", kind: "written" });
+    expect(await folderNames()).toEqual(["Dishwashers"]);
+  });
+
+  it("writes nothing for a turn that left the transcript reading the same", async () => {
+    await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
+    const once = {
+      chatsDir: chatsDir(),
+      id: ChatIdSchema.parse("2026-10-14-dishwashers"),
+      rootDir: root,
+      timeZone: ZONE,
+    };
+    await writeChatFolder(once);
+
+    expect(await writeChatFolder(once)).toEqual({ kind: "already-there" });
   });
 
   it("opens no transcript at all where nothing was renamed", async () => {

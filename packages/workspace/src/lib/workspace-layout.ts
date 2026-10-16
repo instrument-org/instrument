@@ -22,9 +22,11 @@ export const WORKSPACE_DATA_ENTRIES = {
    */
   chats: "chats",
   /**
-   * One folder per draft: its words in `draft.md`, what was pasted into it
-   * beside them, and the rest of its record in its own
-   * `.instrument/settings.json`.
+   * Where earlier builds kept the drafts, a folder each: the words in
+   * `draft.md`, what was pasted into them beside those, and the rest of each
+   * record in its own `.instrument/settings.json`. A draft is in `Drafts/` at
+   * the workspace's top level now, and this is only what the migration reads
+   * (`lib/drafts/migrate.ts`).
    */
   drafts: "drafts",
   /**
@@ -55,7 +57,7 @@ export const WORKSPACE_DATA_ENTRIES = {
 /**
  * What in a workspace's `.instrument/` is the person's own to look at, each
  * as the names below it, `*` standing for any one: what they attached to a
- * chat, and their drafts, topics, skills, apps and memories. Everything else
+ * chat, and their topics, skills, apps and memories. Everything else
  * there (a chat's database and settings, the workspace's own records, the
  * window's) is the app's, and so is a record folder of its own inside one of
  * these, which carries the same `.instrument` name.
@@ -63,7 +65,6 @@ export const WORKSPACE_DATA_ENTRIES = {
 export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
   [WORKSPACE_DATA_ENTRIES.apps],
   [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
-  [WORKSPACE_DATA_ENTRIES.drafts],
   [WORKSPACE_DATA_ENTRIES.memory],
   [WORKSPACE_DATA_ENTRIES.skills],
   [WORKSPACE_DATA_ENTRIES.topics],

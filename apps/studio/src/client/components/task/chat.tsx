@@ -5,10 +5,12 @@ import {
 import {
   APPS_HREF,
   BROWSER_HREF,
+  chatBoxDraftsAtom,
   draftsAtom,
-  forgetChatDraftWords,
   holdDraftWhileSending,
+  makeReplyDraftAtom,
   replyDraftOf,
+  replySentAtom,
   swapInReplyDraftAtom,
 } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -43,7 +45,6 @@ import {
   useState,
 } from "react";
 import { toast } from "@/client/lib/toast";
-import { ulid } from "ulid";
 
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
@@ -334,9 +335,12 @@ export function ChatConversation({
   // the message says which draft it came from, and the draft goes once that
   // message is written.
   const [drafts, setDrafts] = useAtom(draftsAtom);
+  const boxDrafts = useAtomValue(chatBoxDraftsAtom);
+  const makeReplyDraft = useSetAtom(makeReplyDraftAtom);
+  const replySent = useSetAtom(replySentAtom);
   const replyDraft =
     draftKey.scope === "chat"
-      ? replyDraftOf(drafts, draftKey.chatId)
+      ? replyDraftOf(drafts, boxDrafts, draftKey.chatId)
       : undefined;
   // What was pasted into a reply goes into that draft's own folder, so it
   // outlasts a relaunch and is the one copy the chat is sent.
@@ -350,19 +354,7 @@ export function ChatConversation({
       }
       // A paste can arrive before any words have settled into a draft, and
       // it is on disk the moment it arrives, so the draft is made for it.
-      const made = ulid();
-      const now = Date.now();
-      setDrafts((current) => [
-        ...current,
-        {
-          chatId: draftKey.chatId,
-          createdAt: now,
-          id: made,
-          updatedAt: now,
-          words: "",
-        },
-      ]);
-      return made;
+      return makeReplyDraft({ chatId: draftKey.chatId });
     },
     onChange: (draftId, update) => {
       setDrafts((current) =>
@@ -518,11 +510,8 @@ export function ChatConversation({
                 // folder goes with it. A launch that finds the folder still
                 // there finds that message too, and takes it away then.
                 if (sent) {
-                  setDrafts((current) =>
-                    current.filter((entry) => entry.id !== sent),
-                  );
                   if (draftKey.scope === "chat") {
-                    forgetChatDraftWords(draftKey.chatId);
+                    replySent({ chatId: draftKey.chatId, draftId: sent });
                   }
                   letGo?.();
                 }

@@ -3,6 +3,7 @@ import { createStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  chatBoxDraftsAtom,
   chatDraftWordsAtom,
   type Draft,
   draftsAtom,
@@ -10,8 +11,9 @@ import {
   forgetChatDraftWords,
   forgetDraftWords,
   holdDraftWhileSending,
+  otherRepliesOf,
   replyDraftOf,
-  replyDraftsOf,
+  replySentAtom,
   swapInReplyDraftAtom,
 } from "./window";
 
@@ -117,7 +119,7 @@ describe("the words in a chat's own box", () => {
     expect(store.get(draftsAtom)).toMatchObject([{ chatId: CHAT, words: "" }]);
   });
 
-  it("hold the draft through a send, so the emptied box never reaches it", () => {
+  it("hold the draft through a send, words and all, so the emptied box never reaches it", () => {
     const store = createStore();
     store.set(chatDraftWordsAtom(CHAT), "Thanks");
     vi.advanceTimersByTime(300);
@@ -127,7 +129,9 @@ describe("the words in a chat's own box", () => {
     const letGo = holdDraftWhileSending(sent);
     store.set(chatDraftWordsAtom(CHAT), "");
     vi.advanceTimersByTime(300);
-    expect(store.get(draftsAtom)).toMatchObject([{ id: sent }]);
+    expect(store.get(draftsAtom)).toMatchObject([
+      { id: sent, words: "Thanks" },
+    ]);
 
     // A send that failed puts the words back into the draft they came from.
     letGo();
@@ -138,7 +142,28 @@ describe("the words in a chat's own box", () => {
     ]);
   });
 
-  it("read the newest of a chat's drafts, of several waiting", () => {
+  it("keep what is typed while a reply is in flight as a reply of its own", () => {
+    const store = createStore();
+    store.set(chatDraftWordsAtom(CHAT), "Thanks");
+    vi.advanceTimersByTime(300);
+    const sent = store.get(draftsAtom)[0]?.id ?? "";
+
+    const letGo = holdDraftWhileSending(sent);
+    store.set(chatDraftWordsAtom(CHAT), "");
+    vi.advanceTimersByTime(300);
+    store.set(chatDraftWordsAtom(CHAT), "And one more thing");
+    vi.advanceTimersByTime(300);
+
+    // The message naming the sent draft is written, so that draft goes and
+    // the words typed since stay as the reply they are.
+    store.set(replySentAtom, { chatId: CHAT, draftId: sent });
+    letGo();
+    expect(store.get(draftsAtom)).toMatchObject([
+      { chatId: CHAT, words: "And one more thing" },
+    ]);
+  });
+
+  it("read the newest of a chat's drafts, where the box has taken none up", () => {
     const drafts: Draft[] = [
       { chatId: CHAT, createdAt: 1, id: "first", updatedAt: 1, words: "one" },
       { chatId: CHAT, createdAt: 2, id: "second", updatedAt: 9, words: "two" },
@@ -147,7 +172,7 @@ describe("the words in a chat's own box", () => {
     const store = createStore();
     store.set(draftsAtom, drafts);
 
-    expect(replyDraftOf(drafts, CHAT)?.id).toBe("second");
+    expect(replyDraftOf(drafts, {}, CHAT)?.id).toBe("second");
     expect(store.get(chatDraftWordsAtom(CHAT))).toBe("two");
   });
 });
@@ -168,12 +193,17 @@ describe("a chat with several replies waiting", () => {
     vi.useRealTimers();
   });
 
-  it("lists its replies with the one in its box first", () => {
-    expect(replyDraftsOf(WAITING, CHAT).map((draft) => draft.id)).toEqual([
-      "third",
+  it("lists the replies its box is not writing into, newest first", () => {
+    expect(otherRepliesOf(WAITING, {}, CHAT).map((draft) => draft.id)).toEqual([
       "second",
       "first",
     ]);
+  });
+
+  it("lists every reply waiting where its box is writing into none", () => {
+    expect(
+      otherRepliesOf(WAITING, { [CHAT]: null }, CHAT).map((draft) => draft.id),
+    ).toEqual(["third", "second", "first"]);
   });
 
   it("puts the reply picked in the box", () => {
@@ -186,8 +216,59 @@ describe("a chat with several replies waiting", () => {
     });
 
     expect(picked?.words).toBe("one");
-    expect(replyDraftOf(store.get(draftsAtom), CHAT)?.id).toBe("first");
+    expect(inTheBox(store)?.id).toBe("first");
     expect(store.get(chatDraftWordsAtom(CHAT))).toBe("one");
+  });
+
+  it("writes into nothing once the box is emptied, so the replies waiting are left alone", () => {
+    const store = createStore();
+    store.set(draftsAtom, WAITING);
+
+    // Emptied by hand: the draft the box was writing into goes with it.
+    store.set(chatDraftWordsAtom(CHAT), "");
+    vi.advanceTimersByTime(300);
+    expect(wordsOf(store.get(draftsAtom))).toEqual({
+      first: "one",
+      "new-chat": "elsewhere",
+      second: "two",
+    });
+    expect(inTheBox(store)).toBeUndefined();
+
+    // The words typed next are a reply of their own, over nothing.
+    store.set(chatDraftWordsAtom(CHAT), "Something else entirely");
+    vi.advanceTimersByTime(300);
+    expect(repliesOf(store)).toEqual(["one", "two", "Something else entirely"]);
+    expect(inTheBox(store)?.words).toBe("Something else entirely");
+  });
+
+  it("writes into nothing once its reply is sent, so the next words are a reply of their own", () => {
+    const store = createStore();
+    store.set(draftsAtom, WAITING);
+    // What a submit does, for the reply the box is writing into.
+    const letGo = holdDraftWhileSending("third");
+    store.set(chatDraftWordsAtom(CHAT), "");
+    vi.advanceTimersByTime(300);
+    store.set(replySentAtom, { chatId: CHAT, draftId: "third" });
+    letGo();
+
+    expect(inTheBox(store)).toBeUndefined();
+    store.set(chatDraftWordsAtom(CHAT), "Next");
+    vi.advanceTimersByTime(300);
+    expect(repliesOf(store)).toEqual(["one", "two", "Next"]);
+  });
+
+  it("keeps words typed into an emptied box as their own reply when another is picked", () => {
+    const store = createStore();
+    store.set(draftsAtom, WAITING);
+    store.set(chatDraftWordsAtom(CHAT), "");
+    vi.advanceTimersByTime(300);
+    store.set(chatDraftWordsAtom(CHAT), "Started over");
+
+    store.set(swapInReplyDraftAtom, { chatId: CHAT, draftId: "first" });
+    vi.advanceTimersByTime(300);
+
+    expect(inTheBox(store)?.id).toBe("first");
+    expect(repliesOf(store)).toEqual(["one", "two", "Started over"]);
   });
 
   it("keeps the words typed into the one leaving, where they belong", () => {
@@ -223,4 +304,21 @@ describe("a chat with several replies waiting", () => {
 
 function wordsOf(drafts: Draft[]): Record<string, string> {
   return Object.fromEntries(drafts.map((draft) => [draft.id, draft.words]));
+}
+
+/** The reply the chat's box is writing into, as the composer reads it. */
+function inTheBox(store: ReturnType<typeof createStore>): Draft | undefined {
+  return replyDraftOf(
+    store.get(draftsAtom),
+    store.get(chatBoxDraftsAtom),
+    CHAT,
+  );
+}
+
+/** The words of every reply waiting in the chat, oldest first, drafts made here included. */
+function repliesOf(store: ReturnType<typeof createStore>): string[] {
+  return store
+    .get(draftsAtom)
+    .filter((draft) => draft.chatId === CHAT)
+    .map((draft) => draft.words);
 }

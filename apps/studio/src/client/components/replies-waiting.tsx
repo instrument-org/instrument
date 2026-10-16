@@ -1,4 +1,9 @@
-import { draftsAtom, replyDraftsOf } from "@/client/atoms/window";
+import {
+  chatBoxDraftsAtom,
+  draftsAtom,
+  otherRepliesOf,
+  replyDraftOf,
+} from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { useAtomValue } from "jotai";
@@ -16,13 +21,15 @@ import {
 const WORDS_SHOWN = 120;
 
 /**
- * The chat's other replies, over its box. A chat can have several waiting,
- * ready to be sent one after another, and the box holds the newest of them,
- * so this is the way back to the rest: it says how many there are and puts
- * the one picked in the box.
+ * The replies the chat's box is not writing into, over the box. A chat can
+ * have several waiting, ready to be sent one after another, and the box
+ * writes into one of them, so this is the way back to the rest: it says how
+ * many there are and puts the one picked in the box. A box writing into none,
+ * which is an emptied one and one whose reply has just been sent, has every
+ * waiting reply here.
  *
- * Nothing at all where the chat has one reply waiting or none, which is
- * almost every chat.
+ * Nothing at all where the box is writing into the chat's only reply, or
+ * where the chat has none waiting, which is almost every chat.
  */
 export function RepliesWaiting({
   chatId,
@@ -33,8 +40,9 @@ export function RepliesWaiting({
   onSwapIn: (draftId: string) => void;
 }) {
   const drafts = useAtomValue(draftsAtom);
-  // The first is the one in the box; these are the ones that are not.
-  const others = replyDraftsOf(drafts, chatId).slice(1);
+  const boxDrafts = useAtomValue(chatBoxDraftsAtom);
+  const others = otherRepliesOf(drafts, boxDrafts, chatId);
+  const inTheBox = replyDraftOf(drafts, boxDrafts, chatId) !== undefined;
 
   if (others.length === 0) {
     return null;
@@ -49,9 +57,7 @@ export function RepliesWaiting({
           variant="ghost"
         >
           <CardsThreeIcon />
-          {others.length === 1
-            ? "1 other reply waiting"
-            : `${others.length} other replies waiting`}
+          {countOf(others.length, inTheBox)}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-w-96">
@@ -74,6 +80,16 @@ export function RepliesWaiting({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** What the control says it has: the others, where the box is writing into one of the chat's replies, and all of them where it is not. */
+function countOf(waiting: number, inTheBox: boolean): string {
+  if (inTheBox) {
+    return waiting === 1
+      ? "1 other reply waiting"
+      : `${waiting} other replies waiting`;
+  }
+  return waiting === 1 ? "1 reply waiting" : `${waiting} replies waiting`;
 }
 
 function firstWords(words: string) {

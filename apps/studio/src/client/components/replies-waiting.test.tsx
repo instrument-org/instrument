@@ -1,4 +1,9 @@
-import { type Draft, draftsAtom } from "@/client/atoms/window";
+import {
+  chatBoxDraftsAtom,
+  type ChatBoxDrafts,
+  type Draft,
+  draftsAtom,
+} from "@/client/atoms/window";
 import { renderWithProviders } from "@/tests/render";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
@@ -17,13 +22,14 @@ function reply(id: string, daysAgo: number, words: string): Draft {
   return { chatId: CHAT, createdAt: updatedAt, id, updatedAt, words };
 }
 
-function show(drafts: Draft[]) {
+function show(drafts: Draft[], boxDrafts: ChatBoxDrafts = {}) {
   const onSwapIn = vi.fn();
   const { store } = renderWithProviders(
     <RepliesWaiting chatId={CHAT} onSwapIn={onSwapIn} />,
   );
   act(() => {
     store.set(draftsAtom, drafts);
+    store.set(chatBoxDraftsAtom, boxDrafts);
   });
   return { onSwapIn };
 }
@@ -57,6 +63,25 @@ describe("a chat's other replies waiting", () => {
     show([reply("first", 2, "one"), reply("second", 1, "two")]);
 
     expect(openMenu().textContent).toBe("1 other reply waiting");
+  });
+
+  it("counts them all, and says nothing of others, where the box is writing into none", () => {
+    show([reply("first", 2, "one"), reply("second", 1, "two")], {
+      [CHAT]: null,
+    });
+
+    expect(openMenu().textContent).toBe("2 replies waiting");
+  });
+
+  it("offers the chat's one reply where its box was emptied", () => {
+    const { onSwapIn } = show([reply("only", 1, "Thanks, that worked")], {
+      [CHAT]: null,
+    });
+
+    expect(openMenu().textContent).toBe("1 reply waiting");
+    fireEvent.click(screen.getByText("Thanks, that worked"));
+
+    expect(onSwapIn).toHaveBeenCalledWith("only");
   });
 
   it("counts no reply of another chat's", () => {

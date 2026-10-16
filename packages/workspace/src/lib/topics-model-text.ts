@@ -10,9 +10,7 @@ import { systemNote } from "./system-note";
  * note, so a chat tagged once is told once, and told again when the user
  * changes a topic's instructions or folders.
  */
-export function topicsModelNote(
-  data: SessionMessageDataPart.TopicsDataPart,
-) {
+export function topicsModelNote(data: SessionMessageDataPart.TopicsDataPart) {
   if (data.topics.length === 0) {
     return systemNote`
       This chat has no topics now.

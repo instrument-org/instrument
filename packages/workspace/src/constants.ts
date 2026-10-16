@@ -130,6 +130,23 @@ export const SKILLS_FOLDER_NAME = "Skills";
 export const APPS_FOLDER_NAME = "Apps";
 
 /**
+ * The six folders a person opens, at the workspace's top level, in the order
+ * they are listed to a reader. Collected so that something which has to treat
+ * them as a set -- the notice for one the person deleted, say -- cannot miss
+ * one that is added later.
+ */
+export const KEY_FOLDER_NAMES = [
+  CHATS_FOLDER_NAME,
+  DRAFTS_FOLDER_NAME,
+  TOPICS_FOLDER_NAME,
+  MEMORY_FOLDER_NAME,
+  SKILLS_FOLDER_NAME,
+  APPS_FOLDER_NAME,
+] as const;
+
+export type KeyFolderName = (typeof KEY_FOLDER_NAMES)[number];
+
+/**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between
  * the prompt that teaches it and the renderer that draws it, and a fence

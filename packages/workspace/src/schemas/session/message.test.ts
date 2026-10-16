@@ -449,13 +449,9 @@ describe("SessionMessage.toModelMessages", () => {
       [asked(first, "Back."), asked(second, "Back again.")],
       TOOLS_FOR_MODEL_OUTPUT,
     );
-    const notes = result
-      .flatMap((message) =>
-        Array.isArray(message.content) ? message.content : [],
-      )
-      .filter(
-        (part) => part.type === "text" && part.text.includes("last wrote"),
-      );
+    const notes = result.filter((message) =>
+      JSON.stringify(message.content).includes("last wrote"),
+    );
     expect(notes).toHaveLength(2);
   });
 

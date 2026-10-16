@@ -133,6 +133,10 @@ export function listNotices(now = Date.now()): BellNotice[] {
   if (updated && updated.to === app.getVersion()) {
     all.push(updatedNotice(updated));
   }
+  const { missingFolders } = getNoticesStore().store;
+  if (missingFolders) {
+    all.push(missingFoldersNotice(missingFolders));
+  }
   return all
     .filter(
       (notice) =>
@@ -162,6 +166,74 @@ function updatedNotice({
     severity: "info",
     title: `${APP_NAME} updated to ${to}`,
   };
+}
+
+/**
+ * The notice for folders that have gone from the workspace's top level, which
+ * the app makes itself. It only says so: nothing is restored or recreated, and
+ * the next thing the app writes there makes the folder again.
+ *
+ * Its id carries the names, so a second folder going missing is a notice of
+ * its own rather than one the person already dismissed.
+ */
+function missingFoldersNotice({
+  at,
+  names,
+}: NonNullable<NoticesStore["missingFolders"]>): Omit<BellNotice, "seen"> {
+  const listed = formatList(names);
+  return {
+    body:
+      names.length > 1
+        ? `Instrument put ${listed} in your Instrument folder, and they aren't there now. Nothing is lost, and it will make them again next time it saves something.`
+        : `Instrument put ${listed} in your Instrument folder, and it isn't there now. Nothing is lost, and it will make it again next time it saves something.`,
+    id: `missing-folders-${[...names].toSorted().join("-")}`,
+    kind: "announcement",
+    publishedAt: new Date(at).toISOString(),
+    severity: "info",
+    title: names.length > 1 ? "Some folders are gone" : `${listed} is gone`,
+  };
+}
+
+/**
+ * Records which of the six folders have gone from the workspace open now, or
+ * clears the record when none has.
+ *
+ * Writing the same set again changes nothing, so a watch that fires on every
+ * save does not keep remaking a notice the person dismissed.
+ */
+export function noteMissingFolders(root: string, names: string[]): void {
+  const held = getNoticesStore().store.missingFolders;
+  if (names.length === 0) {
+    if (held) {
+      getNoticesStore().delete("missingFolders");
+    }
+    return;
+  }
+  if (
+    held?.root === root &&
+    held.names.length === names.length &&
+    held.names.every((name, index) => name === names[index])
+  ) {
+    return;
+  }
+  getNoticesStore().set("missingFolders", { at: Date.now(), names, root });
+}
+
+/**
+ * The folders of the six that have gone, for the list that would be empty
+ * because of one. The bell says it too; this is so the column the person is
+ * looking at can say it before they go looking for the bell.
+ */
+export function missingFolderNames(): string[] {
+  return getNoticesStore().store.missingFolders?.names ?? [];
+}
+
+/** `Chats`, `Chats and Drafts`, `Chats, Drafts and Topics`. */
+function formatList(names: readonly string[]): string {
+  if (names.length <= 1) {
+    return names[0] ?? "";
+  }
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 /**

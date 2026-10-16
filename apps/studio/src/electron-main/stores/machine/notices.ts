@@ -28,6 +28,19 @@ const NoticesStoreSchema = z.object({
   etag: z.string().optional(),
   fetchedAt: z.number().default(0),
   marks: z.record(z.string(), NoticeMarksSchema).default({}),
+  /**
+   * The folders of the six that have gone from the workspace open now. One
+   * slot, like `updated` below: a workspace is open at a time, and a
+   * different set of folders is a different notice.
+   */
+  missingFolders: z
+    .object({
+      at: z.number(),
+      names: z.array(z.string()).min(1),
+      root: z.string(),
+    })
+    .optional()
+    .catch(undefined),
   notices: z.array(NoticeSchema).default([]),
   pollAfter: z.number().default(DEFAULT_POLL_SECONDS),
   /**

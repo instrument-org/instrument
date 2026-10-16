@@ -2,10 +2,13 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { noteUpdate } from "@/electron-main/lib/notices";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { KEY_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { app } from "electron";
 import Store from "electron-store";
 import semver from "semver";
 import { z } from "zod";
+
+const KeyFolderNameSchema = z.enum(KEY_FOLDER_NAMES);
 
 /**
  * What the app remembers about this computer, whichever workspace is open.
@@ -22,6 +25,15 @@ const MachineStateSchema = z.object({
   hardwareId: z.string().optional(),
   lastLaunchedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
+  /**
+   * The folders of the six this computer has made at each workspace's top
+   * level, by that workspace's path. What tells a folder the person deleted
+   * from one that was never there; see `lib/missing-key-folders.ts`.
+   */
+  madeFolders: z
+    .record(z.string(), z.array(KeyFolderNameSchema))
+    .optional()
+    .catch(undefined),
 });
 
 type MachineState = z.output<typeof MachineStateSchema>;

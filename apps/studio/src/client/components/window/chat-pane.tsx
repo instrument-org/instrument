@@ -74,6 +74,11 @@ export function ChatPane({
 }) {
   const appsBySlug = useAppsBySlug();
   const chatsQuery = useQuery(chatListOptions());
+  // Which of the six folders have gone, so a column with nothing in it says
+  // why rather than inviting the person to start a chat they already have.
+  const { data: missingFolders = [] } = useQuery(
+    rpcClient.notices.live.missingFolders.experimental_liveOptions(),
+  );
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const chats: Chat[] = chatsQuery.data ?? [];
   const topics: Topic[] = topicsQuery.data ?? [];
@@ -212,7 +217,7 @@ export function ChatPane({
         emptyLine={
           aiSearch.isLooking
             ? "Looking through your chats…"
-            : emptyLineFor(filters, chats.length)
+            : emptyLineFor(filters, chats.length, missingFolders)
         }
         // The drafts are kept on this computer, so they are never on
         // their way.
@@ -326,9 +331,19 @@ export function ChatPane({
 }
 
 /** What the list says when it has nothing to show, by where the column stands. */
-function emptyLineFor(filters: ChatFilters, total: number): string {
+function emptyLineFor(
+  filters: ChatFilters,
+  total: number,
+  missingFolders: string[],
+): string {
   if (filters.search.trim() !== "") {
     return "Nothing matches.";
+  }
+  // Before anything else about the column: a folder that is gone is why the
+  // column is empty, and saying "Press New" instead would be wrong.
+  const folder = folderBehind(filters.place, missingFolders);
+  if (folder) {
+    return `Your ${folder} folder isn't where Instrument put it. Nothing is lost.`;
   }
   if (filters.place === "drafts") {
     return "No drafts yet.";
@@ -343,4 +358,13 @@ function emptyLineFor(filters: ChatFilters, total: number): string {
     return "Nothing is archived.";
   }
   return total === 0 ? "Press New to start a chat." : "Nothing matches.";
+}
+
+/** The folder this column reads, when it is one of the ones that have gone. */
+function folderBehind(
+  place: ChatFilters["place"],
+  missingFolders: string[],
+): string | undefined {
+  const name = place === "drafts" ? "Drafts" : "Chats";
+  return missingFolders.includes(name) ? name : undefined;
 }

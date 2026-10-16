@@ -257,6 +257,31 @@ describe("buildBashFs", () => {
       ).resolves.toBe("hi\n");
     });
 
+    it("names the chat's own folder, where its finished work goes", async () => {
+      await fs.writeFile(
+        path.join(record, "settings.json"),
+        JSON.stringify({ folder: "Quiet dishwashers" }),
+      );
+
+      const layout = buildWorkspaceFsLayout({
+        chatHostRoot: WorkDirSchema.parse(work),
+        recordHostRoot: ChatDirSchema.parse(record),
+      });
+
+      expect(layout.folder?.hostRoot).toBe(
+        path.join(getWorkspaceConfig().rootDir, "Chats", "Quiet dishwashers"),
+      );
+    });
+
+    it("names no folder for a chat whose settings record none", async () => {
+      const layout = buildWorkspaceFsLayout({
+        chatHostRoot: WorkDirSchema.parse(work),
+        recordHostRoot: ChatDirSchema.parse(record),
+      });
+
+      expect(layout.folder).toBeUndefined();
+    });
+
     it("reads what the person sent and changes none of it", async () => {
       const bash = await makeChatBash();
       const read = await bash.exec(

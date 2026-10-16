@@ -13,6 +13,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ChatReads } from "./chat-reads";
 import { outputFolderPath } from "./chat/output-folder";
+import { chatDir, chatOwnFolder } from "./record-folders";
 import { getCurrentDate } from "./get-current-date";
 import { getSystemInfo } from "./get-system-info";
 import { baselineInForce } from "./session-baseline";
@@ -20,13 +21,23 @@ import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
-/** The computer this process runs on, as a session's model is told it. */
-export function currentEnvironment(): Environment {
+/**
+ * The computer this process runs on, as a session's model is told it.
+ *
+ * The output folder is the chat's own, so what the model reads matches the
+ * `$INSTRUMENT_OUTPUT` its shell is given; a change to it between turns is
+ * told as any other move of a folder is. Without a chat, as for the window,
+ * it is the Instrument folder.
+ */
+export function currentEnvironment(chatId?: ChatId): Environment {
   return {
     appsFolder: shellPath(getWorkspaceConfig().appsDir),
     computer: getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
-    outputFolder: shellPath(outputFolderPath()),
+    outputFolder: shellPath(
+      (chatId === undefined ? undefined : chatOwnFolder(chatDir(chatId))) ??
+        outputFolderPath(),
+    ),
     platform: process.platform,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     workspaceSkillsFolder: shellPath(getWorkspaceSkillsDir()),
@@ -118,7 +129,7 @@ export function detectEnvironmentChange({
       const change =
         told === undefined
           ? undefined
-          : environmentChange(told, currentEnvironment());
+          : environmentChange(told, currentEnvironment(chatId));
       if (change === undefined) {
         return ok(undefined);
       }

@@ -725,7 +725,11 @@ function folderVariables(
         getChatAttachmentsDir(layout.record.hostRoot),
       ),
     }),
-    [FOLDER_VARIABLES.output]: shellPath(outputFolderPath()),
+    // The chat's own folder, so finished work lands beside the transcript
+    // the person reads. A chat that has no folder yet, and the window,
+    // which never has one, fall back to the Instrument folder.
+    [FOLDER_VARIABLES.output]:
+      layout.folder?.shellRoot ?? shellPath(outputFolderPath()),
     ...(loadedSkillDir !== undefined && {
       [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
     }),

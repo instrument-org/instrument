@@ -370,7 +370,7 @@ describe("instrumentAgent", () => {
       "the save and the start go in one command, the save first",
       "name scratch files and folders after the job",
       "Nothing of theirs is deleted or overwritten unless they said so",
-      "in a subfolder named for the job",
+      "put the finished thing in it by its own name rather than in a subfolder",
       "IMPORTANT: Never fabricate a URL.",
       "links it the first time",
       "Every call carries an `activity`",

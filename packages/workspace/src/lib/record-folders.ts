@@ -2,6 +2,7 @@ import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
+import { CHATS_FOLDER_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import {
   type AbsolutePath,
@@ -163,6 +164,45 @@ export function sessionOfChat(id: ChatId): StoreId.Session | undefined {
  * The session a chat's settings name, read straight from its file, or why
  * there is none: settings that cannot be read, or that name no session.
  */
+/**
+ * The name of the chat's own folder under `Chats/`, as its settings last
+ * recorded it, or nothing where it has none or they cannot be read.
+ *
+ * Read synchronously because the filesystem layout a chat's shell runs
+ * under is built synchronously, and the folder is one of its mounts.
+ */
+export function storedChatFolderName(chatFolder: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      fs.readFileSync(path.join(chatFolder, SETTINGS_FILE_NAME), "utf8"),
+    );
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null || !("folder" in parsed)) {
+    return undefined;
+  }
+  return typeof parsed.folder === "string" && parsed.folder
+    ? parsed.folder
+    : undefined;
+}
+
+/**
+ * Where the chat's own folder under `Chats/` is, the one the person sees,
+ * or nothing for a chat that has none recorded yet and for the window.
+ *
+ * The one place that answer is worked out, so the shell's
+ * `$INSTRUMENT_OUTPUT` and what the model is told about it cannot drift
+ * apart after the folder follows a title.
+ */
+export function chatOwnFolder(chatFolder: string): string | undefined {
+  const name = storedChatFolderName(chatFolder);
+  return name === undefined
+    ? undefined
+    : path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME, name);
+}
+
 export function storedChatSession(
   chatFolder: string,
 ):

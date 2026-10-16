@@ -116,11 +116,11 @@ export const instrumentAgent = setupAgent({
               };
             }),
             intro:
-              "These are the user's folders this conversation reaches: their home folder, the output folder where results go when nobody said where, and any folder they sent, allowed, or filed the conversation's topic with:",
+              "These are the user's folders this conversation reaches: their home folder, the Instrument folder this conversation's own folder is in, and any folder they sent, allowed, or filed the conversation's topic with:",
           })
         : `You reach none of the user's folders yet. Reaching for one shows the person a card; folders allowed later are announced on the message they arrive with.`;
 
-    const environment = currentEnvironment();
+    const environment = currentEnvironment(chatId);
     const userMessage = createContextMessage({
       agentName: name,
       environment,
@@ -293,7 +293,7 @@ function systemPrompt(): string {
 
     # Your folders
     Every command starts in your work folder, \`$${V.work}\`, which every task shares: scratch, scripts, and what you build go there, each job in a folder named for it, and what the browser downloads lands in \`${F.downloads}/\`. Use relative paths inside it and full paths for everything else. Files the user sent are in \`$${V.attachments}\`, read where they are. Throwaway files go in \`$TMPDIR\`.
-    - A finished file goes where the user said, or else in the output folder (\`$${V.output}\`) in a subfolder named for the job, placed in one \`cp\` or \`mv\` once you have checked it. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
+    - A finished file goes where the user said, or else in this conversation's own folder (\`$${V.output}\`), placed in one \`cp\` or \`mv\` once you have checked it. That folder is named for the conversation and the user reads it in their files, so put the finished thing in it by its own name rather than in a subfolder. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
     - Every program you run sees these variables, so a script reads them from its environment.
     - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
     - An HTML file opens in the user's browser at its place on disk: inline what it needs, or link files beside it by relative path. A page that has to fetch data needs a server on localhost.

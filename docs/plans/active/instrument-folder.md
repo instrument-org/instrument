@@ -54,12 +54,35 @@ On this computer, per workspace: a topic's granted folders and a chat's grants m
 
 ## Chat folder lifecycle
 
-1. Created at Send of the first message, named by that message's first words (the words are final by then). The agent's output folder and pasted files need it during the first turn.
-2. Renamed to the title between turns, once the title settles. Never renamed while a turn runs. `settings.json` in the record folder holds `folder`, the name it last gave the folder; references to pasted files are stored relative to the chat folder, so a rename breaks none.
-3. Names follow the sync rules: no `/ \ : * ? " < > |`, no leading dot, no trailing dot or space, no reserved Windows names, at most 80 characters, a number (` 2`) only on collision. A name is taken by making the folder, which the system does in one step, rather than by listing what is there and picking what is free: two chats under one title, settling at the same moment or swept together, would otherwise both pick that name and share a folder.
+What a person sees in the app and what they find on disk are meant to be the same thing. A chat's folder is named for the chat, a chat renamed in the app is renamed on disk, and where the two cannot both be had, the app's name wins and the folder carries the difference.
+
+1. Created at Send of the first message, named by that message's first words (the words are final by then). The agent's output folder and pasted files need it during the first turn, so there is nothing to wait for and nothing timed: a pasted screenshot moves out of the draft folder into it before the first command runs.
+2. Renamed to the title between turns, once the title settles, and again whenever the person renames the chat. Never renamed while a turn runs. `settings.json` in the record folder holds `folder`, the name it last gave the folder; references to pasted files are stored relative to the chat folder, so a rename breaks none.
+3. Between turns is not a preference, it is the only time a rename works. Measured on a Windows host: renaming a folder succeeds when nothing holds it, and fails with an `IOException` when a file inside it is open for reading, when one is open for writing, and when any process has its working directory in it. macOS and Linux survive all three, since handles and working directories follow the inode, but our own sandbox mounts folders at their real paths, so a rename mid-command breaks path resolution everywhere.
+4. Names follow the sync rules: no `/ \ : * ? " < > | $`, no leading dot, no trailing dot or space, no reserved Windows names, at most 80 characters, a number (` 2`) only on collision. The `$` is ours rather than any system's: a title holding a price makes a path the shell expands. A name is taken by making the folder, which the system does in one step, rather than by listing what is there and picking what is free: two chats under one title, settling at the same moment or swept together, would otherwise both pick that name and share a folder.
+5. 80 characters is Windows' 260-character path limit, not a sync service's: OneDrive allows 400 with 255 per segment, so it is the looser of the two. The cap a person meets is smaller and comes from what the app can show, and the same cap applies to a title they type and one the model writes, so a title and its folder never diverge.
+6. A collision in a title the model wrote is suffixed in both places, so the chat is "Weekly report 2" in the app and on disk. A collision in a title the person typed leaves their words alone and suffixes only the folder: changing what someone just typed is worse than one character of difference.
 4. If the folder `settings.json` names is gone, the launch sweep looks for it: a chat adopts a folder under `Chats/` that no chat claims when exactly one of them holds its `CHAT.md` link, which is the Finder rename. The scan costs one listing when nothing has been renamed, since it opens a `CHAT.md` only where a claimed folder is missing and an unclaimed one is there. It refuses to guess when two unclaimed folders hold the same link (a copy, a conflict copy, a restore), when the chat's own folder is still there, and when the folder has no link to read. Any of those, and the chat's next change makes a fresh folder by the current title; the old one, wherever it went, is the person's.
 5. Never deleted for being empty. Deleting a chat in the app opens a delete screen that shows what goes: the chat itself (its records and transcript) always, and its folder with what the agent made only if the person checks that option, which starts unchecked. An unchecked folder stays as the person's own files.
-6. At the update, every existing chat gets its folder and `CHAT.md`, built from the converter's fold. Files old chats already made stay where they are.
+9. At the update, every existing chat gets its folder and `CHAT.md`, built from the converter's fold. Files old chats already made stay where they are.
+10. A folder renamed in Finder is adopted and keeps working, and the chat's title does not follow it. The name on disk has already been sanitized, so feeding it back would quietly strip characters out of what the person called the chat.
+11. If the first message has no words at all, only an attachment, the folder falls back to the chat id until a title arrives. It is the one place an id appears under `Chats/`.
+
+## Naming a chat well enough to find it
+
+The folder is only as good as the title, so the title is a product surface rather than a label. Three changes, each worth an eval:
+
+- The model is given the titles of other recent chats when it names one, so it can see what it would collide with.
+- It is told to be specific enough to be recognized later, with the example being that "Check the weather" could have been "Check the weather for Friday". Specific where it helps, not pedantic: a date on every title is the failure mode to eval against.
+- A name that collides is handed back to it to try again, rather than silently suffixed.
+
+Not proposed: giving the model tools to query other chats before naming. It turns a one-shot title into a session, and the cost is not worth it.
+
+## Archiving
+
+Archiving a chat moves its folder out of `Chats/`, because a person who archived something does not expect to still find it there.
+
+A folder cannot move while a turn is running: the Windows result above applies exactly, and the agent's own mounts resolve through that path. Rather than stopping a turn to archive it, the control is disabled while a chat is working, with a tooltip saying why. That is a smaller promise than "are you sure", and it cannot race.
 
 ## Drafts
 

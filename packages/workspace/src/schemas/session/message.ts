@@ -325,6 +325,17 @@ export namespace SessionMessage {
    */
   export interface ModelNoteOptions {
     attachmentsDir?: string;
+    /**
+     * How a host path is spelled where the agent's shell will read it,
+     * which is the same path on macOS and Linux and `/c/Users/...` for
+     * `C:\Users\...` on Windows.
+     *
+     * Passed in rather than imported: this module is shared with the
+     * renderer, which has no business knowing about shells, and a file the
+     * person sent is now named to the model at its own absolute path
+     * rather than at a copy inside the workspace.
+     */
+    shellPath?: (hostPath: string) => string;
   }
 
   export async function toModelMessages(
@@ -342,7 +353,7 @@ export namespace SessionMessage {
    */
   export function toUIMessages(
     messages: WithParts[],
-    { attachmentsDir }: ModelNoteOptions = {},
+    { attachmentsDir, shellPath }: ModelNoteOptions = {},
   ): UIMessage[] {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
@@ -448,7 +459,7 @@ export namespace SessionMessage {
             const attachmentDescriptions = attachmentsPart.data.files
               .map((file) => {
                 const formattedSize = formatBytes(file.size);
-                return `- ${attachmentPathForModel(file.filePath, attachmentsDir)} (${formattedSize})`;
+                return `- ${attachmentPathForModel(file.filePath, attachmentsDir, shellPath)} (${formattedSize})`;
               })
               .join("\n");
 
@@ -780,10 +791,14 @@ export namespace SessionMessage {
 function attachmentPathForModel(
   filePath: string,
   attachmentsDir: string | undefined,
+  shellPath: ((hostPath: string) => string) | undefined,
 ): string {
   const bare = filePath.startsWith("./") ? filePath.slice(2) : filePath;
   const prefix = `${CHAT_FOLDER_NAMES.attachments}/`;
-  return attachmentsDir !== undefined && bare.startsWith(prefix)
-    ? `${attachmentsDir}/${bare.slice(prefix.length)}`
-    : filePath;
+  if (attachmentsDir !== undefined && bare.startsWith(prefix)) {
+    return `${attachmentsDir}/${bare.slice(prefix.length)}`;
+  }
+  // A file read where the person keeps it is named at its own path, which
+  // on Windows is theirs to spell rather than the shell's.
+  return shellPath === undefined ? filePath : shellPath(filePath);
 }

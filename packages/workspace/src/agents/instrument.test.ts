@@ -337,14 +337,21 @@ describe("instrumentAgent", () => {
   it("names its folders by the variables the shell sets", () => {
     for (const named of [
       "Every command starts in your work folder, `$INSTRUMENT_WORK`",
-      "`$INSTRUMENT_ATTACHMENTS`, read where they are",
       "`$INSTRUMENT_OUTPUT`",
       "Throwaway files go in `$TMPDIR`",
       "`$INSTRUMENT_SKILL_DIR` is its folder",
     ]) {
       expect(prompt).toContain(named);
     }
-    for (const gone of ["package root", "virtualenv", "`work/", "`skills/`"]) {
+    // A sent file is read where the person keeps it, so the prompt must not
+    // send the agent to a folder of copies that no longer holds one.
+    for (const gone of [
+      "package root",
+      "virtualenv",
+      "`work/",
+      "`skills/`",
+      "INSTRUMENT_ATTACHMENTS",
+    ]) {
       expect(prompt).not.toContain(gone);
     }
   });

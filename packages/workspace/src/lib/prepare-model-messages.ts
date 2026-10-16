@@ -287,7 +287,10 @@ export async function prepareModelMessages({
   const modelMessages = await SessionMessage.toModelMessages(
     portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
-    { attachmentsDir: shellPath(getChatAttachmentsDir(chatDir(chatId))) },
+    {
+      attachmentsDir: shellPath(getChatAttachmentsDir(chatDir(chatId))),
+      shellPath,
+    },
   );
 
   const nonEmptyModelMessages = modelMessages.filter(

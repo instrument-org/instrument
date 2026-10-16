@@ -126,12 +126,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
   await convertChatDatabases(deviceId, rootDir);
-  // Once every chat is on its records, each gets the folder a person opens,
-  // written from them.
-  await writeChatFolders(rootDir);
-  // And the drafts move out to `Drafts/`, where a send the app was
-  // interrupted partway through is finished from the records just converted.
-  await settleWorkspaceDrafts(rootDir);
   // The person's own folders come out of `.instrument/` before anything
   // reads one of them.
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
@@ -143,6 +137,15 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // inside it, and one already converted is left alone.
   await convertTopicFiles(rootDir);
   await convertAppFiles(rootDir);
+  // Then every chat gets the folder a person opens, written from its
+  // records. After the topics, because a transcript names the topic its chat
+  // is filed under: written first, every chat filed under one would be
+  // written again by the next launch, which a folder in iCloud sees as a
+  // change to every one of those files.
+  await writeChatFolders(rootDir);
+  // And the drafts move out to `Drafts/`, where a send the app was
+  // interrupted partway through is finished from the records just converted.
+  await settleWorkspaceDrafts(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.

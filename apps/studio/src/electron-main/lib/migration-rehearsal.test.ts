@@ -1,6 +1,9 @@
 import {
   giveChatsTheirFolders,
   migrateWorkspaceLayout,
+  type AppConnectionStore,
+  convertAppsToAppFiles,
+  moveAppsToFolder,
   moveMemoriesToFolder,
   moveSkillsToFolder,
   moveTopicsToFolder,
@@ -74,8 +77,11 @@ const TRANSFORMED = [
   // A render: the app writes it from the chat's records and rewrites it
   // whole, so a build that renders differently leaves none of the old bytes.
   /(?:^|\/)CHAT\.md$/,
-  // A topic's two hidden files become its one TOPIC.md.
+  // A topic's two hidden files become its one TOPIC.md, and an app's two
+  // become its one APP.md.
   /(?:^|\/)instructions\.md$/,
+  /(?:^|\/)app\.json$/,
+  /(?:^|\/)guide\.md$/,
   // A draft's words and settings become its DRAFT.md.
   /(?:^|\/)draft\.md$/,
   // What a work folder never takes with it when it moves out of the folder
@@ -292,6 +298,28 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     expect(problems).toEqual([]);
   });
 
+  it("turns each app's two files into the one APP.md, named for the app", () => {
+    const problems: string[] = [];
+    for (const name of foldersUnder(path.join(clone, "Apps"))) {
+      const folder = path.join(clone, "Apps", name);
+      const file = path.join(folder, "APP.md");
+      if (!fs.existsSync(file)) {
+        problems.push(`${name}: no APP.md`);
+        continue;
+      }
+      const front = frontMatterOf(fs.readFileSync(file, "utf8"));
+      if (front === undefined || typeof front.id !== "string") {
+        problems.push(`${name}: APP.md names no app`);
+      }
+      for (const left of ["app.json", "guide.md"]) {
+        if (fs.existsSync(path.join(folder, left))) {
+          problems.push(`${name}: still holds ${left}`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
   it("changes nothing at all when it runs again", async () => {
     // The documents as they stand, so a file written differently the second
     // time can say which line moved rather than only that it did.
@@ -368,12 +396,27 @@ async function runLaunchMigrations(): Promise<void> {
     machineDir,
     rootDir: clone,
   });
-  await giveChatsTheirFolders(clone);
-  await settleDrafts(clone);
   await moveMemoriesToFolder(clone);
   await moveSkillsToFolder(clone);
   await moveTopicsToFolder(clone);
+  await moveAppsToFolder(clone);
   await convertTopicsToTopicFiles(clone);
+  await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
+  await giveChatsTheirFolders(clone);
+  await settleDrafts(clone);
+}
+
+/**
+ * The app's record of where each app stands, which lives on this computer
+ * rather than in the workspace, so a rehearsal has none to read: the
+ * conversion restamps nothing and says so in what it returns.
+ */
+function forgottenConnections(): AppConnectionStore {
+  return {
+    get: () => Promise.resolve(undefined),
+    list: () => Promise.resolve({}),
+    remove: () => Promise.resolve(),
+  };
 }
 
 /** Each chat's id and the folder its settings say it claimed. */

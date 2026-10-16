@@ -114,7 +114,8 @@ export async function sweepChatFolders({
 
 /**
  * Moves what the person sent a chat out of its record folder and into the
- * folder they can see, once, at the launch that gives the chat its folder.
+ * folder they can see, at the launch that gives the chat its folder and at
+ * any later launch where the move was refused.
  *
  * Nothing stored has to be rewritten for this. An attachment's path is kept
  * relative, as `attachments/<name>`, so moving the folder the prefix refers

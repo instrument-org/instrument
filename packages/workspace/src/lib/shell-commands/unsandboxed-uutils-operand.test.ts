@@ -51,8 +51,20 @@ writeFileSync(path.join(outside, "secret.txt"), "secret\n");
 writeFileSync(path.join(record, "s.txt"), "s\n");
 writeFileSync(path.join(chat, "closed", "c.txt"), "c\n");
 writeFileSync(path.join(chat, "asks", "q.txt"), "q\n");
-symlinkSync(path.join(outside, "secret.txt"), path.join(chat, "out-link"));
-symlinkSync(path.join(chat, "a.txt"), path.join(chat, "in-link"));
+// Windows makes a symbolic link only in Developer Mode or for an
+// administrator. A junction needs neither and leads out of the chat as well,
+// though only to a folder.
+let symlinks = true;
+try {
+  symlinkSync(path.join(outside, "secret.txt"), path.join(chat, "out-link"));
+  symlinkSync(path.join(chat, "a.txt"), path.join(chat, "in-link"));
+} catch (error) {
+  if (process.platform !== "win32") {
+    throw error;
+  }
+  symlinks = false;
+  symlinkSync(outside, path.join(chat, "out-junction"), "junction");
+}
 if (process.platform !== "win32") {
   execFileSync("mkfifo", [path.join(chat, "fifo")]);
 }
@@ -96,13 +108,16 @@ describe("openOperandForStdin", () => {
     ["./a.txt", "one\ntwo\n"],
     [path.join(chat, "a.txt"), "one\ntwo\n"],
     // A link that stays inside the chat's folder reads what it leads to.
-    ["in-link", "one\ntwo\n"],
+    ...(symlinks ? [["in-link", "one\ntwo\n"]] : []),
   ])("opens %s", (operand, contents) => {
     expect(open(operand)).toBe(contents);
   });
 
   it.each([
-    ["a link out of every folder the chat reaches", "out-link"],
+    [
+      "a link out of every folder the chat reaches",
+      symlinks ? "out-link" : "out-junction/secret.txt",
+    ],
     ["a file outside them", path.join(outside, "secret.txt")],
     ["a file with a second name", "second-name.txt"],
     ["a FIFO", "fifo"],

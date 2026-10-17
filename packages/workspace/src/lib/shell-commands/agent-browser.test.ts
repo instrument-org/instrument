@@ -1,17 +1,37 @@
 import { Bash, createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import {
   createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
+import {
+  agentBrowserRuns,
+  answerAgentBrowser,
+} from "../../test/helpers/agent-browser-runs";
 import { browserTargetOf } from "../../types";
 import { updateHeldTabs } from "../held-tabs";
 import { sessionLayout } from "../session-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  shellPath,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
 import {
   agentBrowserCommandDescription,
   browserFreeReadEnv,
@@ -29,6 +49,10 @@ import {
 import { NETWORK_IDLE_GAVE_UP, namedWaitGaveUp } from "./agent-browser-wait";
 
 vi.mock("execa");
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 
 /**
  * The command as a shell of the session's builds it, its layout read when it
@@ -81,6 +105,32 @@ describe("createAgentBrowserCommand", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(`flag ${flag} is not allowed`);
+  });
+
+  // Connected to the app's browser, which is already running, the CLI
+  // drops an extension.
+  it.each([
+    [["--extension", "/Users/sam/ext", "open", "https://example.com"]],
+    [["open", "https://example.com", "--extension=/Users/sam/ext"]],
+  ])("refuses --extension, which has no effect here: %j", async (args) => {
+    const result = await command.execute(args, mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe(
+      "agent-browser: flag --extension has no effect on Instrument's browser: an extension loads only into a browser agent-browser starts itself, and this one is already running.\n",
+    );
+    expect(await agentBrowserRuns()).toEqual([]);
+  });
+
+  it("drives the app's browser with a page init script, its path checked later", () => {
+    expect(
+      classifyInvocation(
+        ["--init-script", "hook.js", "open", "https://x.com"],
+        {
+          hasNoWindow: false,
+        },
+      ),
+    ).toEqual({ kind: "tabs" });
   });
 
   it("serves the CLI's core guide, led by what differs in this app", async () => {
@@ -277,27 +327,42 @@ describe("browserFreeReadEnv", () => {
       PATH: "/usr/bin",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "AGENT_BROWSER_IDLE_TIMEOUT_MS": "300000",
-        "AGENT_BROWSER_SOCKET_DIR": "/tmp/.instrument-browser",
-        "HOME": "/task/.instrument/agent-browser-home",
-        "PATH": "/usr/bin",
-      }
-    `);
+    expect(result).toEqual({
+      AGENT_BROWSER_IDLE_TIMEOUT_MS: "300000",
+      // On Windows the daemon listens on TCP, with no socket folder.
+      AGENT_BROWSER_SOCKET_DIR:
+        process.platform === "win32" ? undefined : "/tmp/.instrument-browser",
+      HOME: "/task/.instrument/agent-browser-home",
+      PATH: "/usr/bin",
+    });
   });
 });
 
 describe("resolveAgentBrowserPathArgs", () => {
+  // The chat's folder as this computer spells it, which the daemon is
+  // handed, and as the agent's shell does, which differs on Windows.
+  const chat = path.resolve("/Users/sam/chat");
+  const shell = shellPath(chat);
+  const host = (...segments: string[]) => path.join(chat, ...segments);
   let fs = new InMemoryFs();
+  let layout: WorkspaceFsLayout;
 
   beforeEach(async () => {
+    createMockChatConfig(ChatIdSchema.parse("paths"));
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(chat),
+      rules: {
+        home: path.resolve("/Users/sam"),
+        rules: [],
+        dangerouslyAllowEveryFolder: false,
+      },
+    });
     fs = new InMemoryFs();
-    await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
-    await fs.mkdir("/Users/sam/chat/work", { recursive: true });
-    await fs.writeFile("/Users/sam/chat/attachments/back.png", "back");
-    await fs.writeFile("/Users/sam/chat/work/front.png", "front");
-    await fs.writeFile("/Users/sam/chat/work/image.png", "image");
+    await fs.mkdir(`${shell}/attachments`, { recursive: true });
+    await fs.mkdir(`${shell}/work`, { recursive: true });
+    await fs.writeFile(`${shell}/attachments/back.png`, "back");
+    await fs.writeFile(`${shell}/work/front.png`, "front");
+    await fs.writeFile(`${shell}/work/image.png`, "image");
   });
 
   it("hands upload files to the daemon absolute, against the shell's cwd", async () => {
@@ -309,9 +374,10 @@ describe("resolveAgentBrowserPathArgs", () => {
         "front.png",
         "--quiet",
         "../attachments/back.png",
-        "/Users/sam/chat/work/image.png",
+        `${shell}/work/image.png`,
       ],
-      { cwd: "/Users/sam/chat/work", fs },
+      { cwd: `${shell}/work`, fs },
+      layout,
     );
 
     expect(result).toEqual({
@@ -319,10 +385,10 @@ describe("resolveAgentBrowserPathArgs", () => {
         "--json",
         "upload",
         "@e1",
-        "/Users/sam/chat/work/front.png",
+        host("work", "front.png"),
         "--quiet",
-        "/Users/sam/chat/attachments/back.png",
-        "/Users/sam/chat/work/image.png",
+        host("attachments", "back.png"),
+        host("work", "image.png"),
       ],
     });
   });
@@ -332,20 +398,29 @@ describe("resolveAgentBrowserPathArgs", () => {
       name: "missing file in the chat's folder",
       path: "attachments/missing.png",
     },
-    { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
-  ])("refuses an upload of a $name", async ({ path }) => {
-    const result = await resolveAgentBrowserPathArgs(["upload", "@e1", path], {
-      cwd: "/Users/sam/chat",
-      fs,
-    });
+    { name: "file URL", path: `file://${shell}/output/x.png` },
+  ])("refuses an upload of a $name", async ({ path: operand }) => {
+    const result = await resolveAgentBrowserPathArgs(
+      ["upload", "@e1", operand],
+      { cwd: shell, fs },
+      layout,
+    );
 
-    expect(result).toEqual({ error: `Upload file not found: "${path}".` });
+    expect(result).toEqual({
+      // On Windows the ":" past the scheme names a stream, which the rules
+      // refuse before anything looks for the file.
+      error:
+        process.platform === "win32" && operand.startsWith("file:")
+          ? expect.stringContaining("by one of its streams")
+          : `Upload file not found: "${operand}".`,
+    });
   });
 
   it("leaves non-upload relative arguments unchanged", async () => {
     const result = await resolveAgentBrowserPathArgs(
       ["fill", "@e1", "attachments/image.png"],
-      { cwd: "/Users/sam/chat", fs },
+      { cwd: shell, fs },
+      layout,
     );
 
     expect(result).toEqual({
@@ -364,48 +439,236 @@ describe("resolveAgentBrowserPathArgs", () => {
       name: "a wait function opening with a regex",
     },
   ])("passes $name through as typed", async ({ args }) => {
-    const result = await resolveAgentBrowserPathArgs(args, {
-      cwd: "/Users/sam/chat",
-      fs,
-    });
+    const result = await resolveAgentBrowserPathArgs(
+      args,
+      { cwd: shell, fs },
+      layout,
+    );
 
     expect(result).toEqual({ args });
   });
 
   it("passes a screenshot path through as written", async () => {
     const result = await resolveAgentBrowserPathArgs(
-      ["screenshot", "/Users/sam/chat/work/page.png"],
-      { cwd: "/Users/sam/chat", fs },
+      ["screenshot", `${shell}/work/page.png`],
+      { cwd: shell, fs },
+      layout,
     );
 
     expect(result).toEqual({
-      args: ["screenshot", "/Users/sam/chat/work/page.png"],
+      args: ["screenshot", host("work", "page.png")],
     });
   });
 
   it.each([
     [
       ["screenshot", "shot.png"],
-      ["screenshot", "/Users/sam/chat/work/shot.png"],
+      ["screenshot", host("work", "shot.png")],
     ],
     [
       ["screenshot", ".hero", "a.png"],
-      ["screenshot", ".hero", "/Users/sam/chat/work/a.png"],
+      ["screenshot", ".hero", host("work", "a.png")],
     ],
     [
       ["record", "start", "out.webm"],
-      ["record", "start", "/Users/sam/chat/work/out.webm"],
+      ["record", "start", host("work", "out.webm")],
     ],
     [
       ["screenshot", "@e2"],
       ["screenshot", "@e2"],
     ],
   ])("resolves %j's file operands only", async (args, expected) => {
-    const result = await resolveAgentBrowserPathArgs(args, {
-      cwd: "/Users/sam/chat/work",
-      fs,
-    });
+    const result = await resolveAgentBrowserPathArgs(
+      args,
+      { cwd: `${shell}/work`, fs },
+      layout,
+    );
     expect(result).toEqual({ args: expected });
+  });
+});
+
+/**
+ * The CLI and its browser read and write files as the person, outside the
+ * sandbox, so a file operand meets the folder rules before it is handed on:
+ * a folder closed in Settings, a read-only one, and a link in the work
+ * folder to a closed file, against the work folder the defaults write to.
+ */
+describe("agent-browser file operands and the folder rules", () => {
+  let root = "";
+  let layout: WorkspaceFsLayout;
+  let ctx = mockCtx;
+
+  beforeEach(async () => {
+    createMockChatConfig(ChatIdSchema.parse("rules"));
+    root = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "agent-browser-rules-")),
+    );
+    for (const folder of ["work", "closed", "shelf"]) {
+      mkdirSync(path.join(root, folder));
+    }
+    writeFileSync(path.join(root, "closed", "secret.txt"), "secret");
+    writeFileSync(path.join(root, "closed", "baseline.png"), "png");
+    writeFileSync(path.join(root, "shelf", "form.pdf"), "pdf");
+    writeFileSync(path.join(root, "work", "photo.png"), "png");
+    writeFileSync(path.join(root, "closed", "hook.js"), "js");
+    writeFileSync(path.join(root, "work", "hook.js"), "js");
+    symlinkSync(
+      path.join(root, "closed", "secret.txt"),
+      path.join(root, "work", "notes.txt"),
+    );
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(path.join(root, "work")),
+      rules: {
+        home: root,
+        rules: [
+          { level: "never", path: path.join(root, "closed"), source: "folder" },
+          {
+            level: "readOnly",
+            path: path.join(root, "shelf"),
+            source: "folder",
+          },
+        ],
+        dangerouslyAllowEveryFolder: false,
+      },
+    });
+    ctx = {
+      ...mockCtx,
+      cwd: shellPath(path.join(root, "work")),
+      fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
+    };
+  });
+
+  afterEach(() => {
+    rmSync(root, { force: true, recursive: true });
+  });
+
+  // The daemon is handed host paths, and a note names a path as the agent's
+  // shell does, which differs on Windows: both read as <root>, with `/`.
+  const resolve = async (args: string[]) => {
+    const result = await resolveAgentBrowserPathArgs(args, ctx, layout);
+    return "error" in result
+      ? { error: result.error.replaceAll(shellPath(root), "<root>") }
+      : {
+          args: result.args.map((arg) =>
+            arg.replaceAll(root, "<root>").replaceAll(path.sep, "/"),
+          ),
+        };
+  };
+
+  it.each([
+    { args: ["upload", "@e1", "../closed/secret.txt"], name: "an upload" },
+    {
+      args: ["upload", "@e1", "notes.txt"],
+      name: "an upload through a link in the work folder",
+    },
+    {
+      args: ["diff", "screenshot", "--baseline", "../closed/baseline.png"],
+      name: "a diff baseline",
+    },
+    {
+      args: ["--init-script", "../closed/hook.js", "open", "https://x.com"],
+      name: "a page init script",
+    },
+    {
+      args: ["open", "https://x.com", "--init-script", "notes.txt"],
+      name: "a page init script through a link in the work folder",
+    },
+    {
+      args: ["--init-script=../closed/hook.js", "open", "https://x.com"],
+      name: "a page init script spelled with =",
+    },
+  ])("refuses $name from a closed folder", async ({ args }) => {
+    const result = await resolve(args);
+
+    expect(result).toEqual({
+      error: expect.stringContaining(
+        "is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+      ),
+    });
+  });
+
+  it("names the operand and why, as the shell's other commands do", async () => {
+    expect(await resolve(["upload", "@e1", "../closed/secret.txt"]))
+      .toMatchInlineSnapshot(`
+      {
+        "error": "../closed/secret.txt: Permission denied
+      "<root>/closed/secret.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+      }
+    `);
+  });
+
+  it.each([
+    { args: ["screenshot", "../closed/page.png"] },
+    { args: ["screenshot", "@e1", "../closed/page"] },
+    { args: ["pdf", "../closed/page"] },
+    { args: ["download", "@e1", "../closed/report.csv"] },
+    { args: ["record", "start", "--fps", "10", "../closed/take.webm"] },
+    { args: ["trace", "stop", "../closed/trace.json"] },
+    { args: ["profiler", "stop", "../closed/profile.json"] },
+    { args: ["network", "har", "stop", "../closed/traffic.har"] },
+    {
+      args: [
+        "diff",
+        "screenshot",
+        "--baseline",
+        "photo.png",
+        "-o",
+        "../closed/d.png",
+      ],
+    },
+  ])("refuses $args writing into a closed folder", async ({ args }) => {
+    expect(await resolve(args)).toEqual({
+      error: expect.stringContaining("Permission denied"),
+    });
+  });
+
+  it("refuses a write into a read-only folder", async () => {
+    expect(await resolve(["pdf", "../shelf/page.pdf"])).toEqual({
+      error: expect.stringContaining("is read-only."),
+    });
+  });
+
+  // The shell on Windows reads no folder outside the ones it mounts, so an
+  // upload finds nothing there to send.
+  it.skipIf(process.platform === "win32")(
+    "uploads from a read-only folder",
+    async () => {
+      expect(await resolve(["upload", "@e1", "../shelf/form.pdf"])).toEqual({
+        args: ["upload", "@e1", "<root>/shelf/form.pdf"],
+      });
+    },
+  );
+
+  it("refuses a page init script that is not there", async () => {
+    expect(
+      await resolve(["--init-script", "gone.js", "open", "https://x.com"]),
+    ).toEqual({ error: 'Init script not found: "gone.js".' });
+  });
+
+  it.each([
+    [["screenshot"], ["screenshot"]],
+    [
+      ["--init-script", "hook.js", "open", "https://x.com"],
+      ["--init-script", "<root>/work/hook.js", "open", "https://x.com"],
+    ],
+    [
+      ["--init-script=hook.js", "open", "https://x.com"],
+      ["--init-script=<root>/work/hook.js", "open", "https://x.com"],
+    ],
+    [
+      ["screenshot", "shot.png"],
+      ["screenshot", "<root>/work/shot.png"],
+    ],
+    [
+      ["download", "@e1", "report.csv"],
+      ["download", "@e1", "<root>/work/report.csv"],
+    ],
+    [
+      ["upload", "@e1", "photo.png"],
+      ["upload", "@e1", "<root>/work/photo.png"],
+    ],
+  ])("lets %j work in the work folder", async (args, expected) => {
+    expect(await resolve(args)).toEqual({ args: expected });
   });
 });
 
@@ -413,7 +676,10 @@ describe("agent-browser routing", () => {
   const chatId = ChatIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
   const command = commandFor(chatId, sessionId);
-  const chatRoot = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
+  const workRoot = path.join(MOCK_WORKSPACE_DIRS.work, "routing");
+  // The folder the shell is in, as this computer spells it and as the shell
+  // does, which differs on Windows.
+  const chatFolder = path.resolve("/Users/sam/chat");
   let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
@@ -421,9 +687,12 @@ describe("agent-browser routing", () => {
   beforeEach(async () => {
     createMockChatConfig(chatId);
     const fs = new InMemoryFs();
-    await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
-    await fs.writeFile("/Users/sam/chat/attachments/image.png", "image");
-    commandCtx = { ...mockCtx, cwd: "/Users/sam/chat", fs };
+    await fs.mkdir(`${shellPath(chatFolder)}/attachments`, { recursive: true });
+    await fs.writeFile(
+      `${shellPath(chatFolder)}/attachments/image.png`,
+      "image",
+    );
+    commandCtx = { ...mockCtx, cwd: shellPath(chatFolder), fs };
   });
 
   afterEach(() => {
@@ -435,44 +704,18 @@ describe("agent-browser routing", () => {
     args: string[],
     agentEnv: [string, string][] = [],
   ) {
-    const { execa } = await import("execa");
-    vi.mocked(execa).mockResolvedValue({
-      exitCode: 0,
-      stderr: "",
-      stdout: "",
-    } as never);
+    await answerAgentBrowser({ exitCode: 0, stderr: "", stdout: "" });
 
     await command.execute(args, {
       ...commandCtx,
       env: new Map(agentEnv),
     });
 
-    const call = vi.mocked(execa).mock.calls[0];
-    if (!call) {
+    const [run] = await agentBrowserRuns();
+    if (!run) {
       throw new Error("agent-browser was never spawned");
     }
-    // execa's overloads type the call tuple as its 2-argument form, so read
-    // the (binary, args, options) triple positionally and narrow each part.
-    const positional: unknown[] = [...call];
-    const spawnedArgs = positional[1];
-    const options = positional[2];
-    const optionsEnv =
-      typeof options === "object" && options !== null && "env" in options
-        ? options.env
-        : undefined;
-    const env: Record<string, string | undefined> =
-      typeof optionsEnv === "object" && optionsEnv !== null
-        ? Object.fromEntries(
-            Object.entries(optionsEnv).map(([key, value]) => [
-              key,
-              typeof value === "string" ? value : undefined,
-            ]),
-          )
-        : {};
-    return {
-      args: Array.isArray(spawnedArgs) ? spawnedArgs.map(String) : [],
-      env,
-    };
+    return run;
   }
 
   it("routes a bare command to the in-app browser via the instrument provider", async () => {
@@ -497,13 +740,12 @@ describe("agent-browser routing", () => {
       "5000",
     ]);
 
-    const { execa } = await import("execa");
-    vi.mocked(execa).mockResolvedValue({
+    await answerAgentBrowser({
       exitCode: 1,
       stderr:
         "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
       stdout: "",
-    } as never);
+    });
     const result = await command.execute(
       ["wait", "--load", "networkidle"],
       commandCtx,
@@ -517,18 +759,15 @@ describe("agent-browser routing", () => {
   });
 
   it("keeps a named wait's timeout a failure through a chain and says what to do next", async () => {
-    const { execa } = await import("execa");
-    vi.mocked(execa)
-      .mockResolvedValueOnce({
-        exitCode: 0,
-        stderr: "",
-        stdout: "✓ Done\n",
-      } as never)
-      .mockResolvedValueOnce({
-        exitCode: 1,
-        stderr: "✗ Wait timed out after 10000ms\n",
-        stdout: "",
-      } as never);
+    await answerAgentBrowser((args) =>
+      args.includes("wait")
+        ? {
+            exitCode: 1,
+            stderr: "✗ Wait timed out after 10000ms\n",
+            stdout: "",
+          }
+        : { exitCode: 0, stderr: "", stdout: "✓ Done\n" },
+    );
     const bash = new Bash({
       customCommands: [
         createAgentBrowserCommand({
@@ -537,7 +776,7 @@ describe("agent-browser routing", () => {
           sessionId,
         }),
       ],
-      cwd: "/Users/sam/chat",
+      cwd: commandCtx.cwd,
       fs: commandCtx.fs,
     });
 
@@ -545,10 +784,7 @@ describe("agent-browser routing", () => {
       'agent-browser click @e197 && agent-browser wait --url "**/wiki/MOSFET" && agent-browser get title',
     );
 
-    const spawned = vi
-      .mocked(execa)
-      .mock.calls.map((call) => [...call][1])
-      .map((args) => (Array.isArray(args) ? args.map(String) : []));
+    const spawned = (await agentBrowserRuns()).map((run) => run.args);
     expect(spawned).toHaveLength(2);
     expect(spawned[1]?.slice(-5)).toEqual([
       "wait",
@@ -571,7 +807,7 @@ describe("agent-browser routing", () => {
       "attachments/image.png",
     ]);
 
-    expect(args).toContain("/Users/sam/chat/attachments/image.png");
+    expect(args).toContain(path.join(chatFolder, "attachments", "image.png"));
   });
 
   it("fails before spawning when an upload file is missing", async () => {
@@ -586,8 +822,7 @@ describe("agent-browser routing", () => {
         'agent-browser: Upload file not found: "attachments/missing.png".\n',
       stdout: "",
     });
-    const { execa } = await import("execa");
-    expect(execa).not.toHaveBeenCalled();
+    expect(await agentBrowserRuns()).toEqual([]);
   });
 
   it.each([
@@ -602,14 +837,29 @@ describe("agent-browser routing", () => {
       snapshotArgs: undefined,
     },
   ])(
-    "follows $name with a snapshot of the same page only when it has one",
+    "follows $name with a read of the same page only when it has one",
     async ({ args, snapshotArgs }) => {
-      const { execa } = await import("execa");
-      vi.mocked(execa).mockResolvedValue({
-        exitCode: 0,
-        stderr: "",
-        stdout: "unchanged (revision 2)\n",
-      } as never);
+      await answerAgentBrowser((given) => {
+        if (given.includes("list")) {
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({
+              data: {
+                tabs: [{ active: true, title: "Sign in", url: "http://x/in" }],
+              },
+            }),
+          };
+        }
+        if (given.includes("alert")) {
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: "That password is wrong.\n",
+          };
+        }
+        return { exitCode: 0, stderr: "", stdout: "unchanged (revision 2)\n" };
+      });
       const followUp = new BrowserFollowUp();
 
       await withBrowserFollowUp(followUp, () =>
@@ -617,31 +867,72 @@ describe("agent-browser routing", () => {
       );
       const page = await followUp.take(new AbortController().signal);
 
-      const calls = vi.mocked(execa).mock.calls.map((call) => {
-        const positional: unknown[] = [...call];
-        const spawned = positional[1];
-        return Array.isArray(spawned) ? spawned.map(String) : [];
-      });
+      const calls = (await agentBrowserRuns()).map((run) => run.args);
       if (snapshotArgs === undefined) {
         expect(page).toBeUndefined();
         expect(calls).toHaveLength(1);
         return;
       }
-      expect(page).toMatchObject({ after: "click", kind: "unchanged" });
-      expect(calls).toHaveLength(3);
+      expect(page).toMatchObject({
+        after: "click",
+        kind: "unchanged",
+        said: "That password is wrong.",
+        title: "Sign in",
+        url: "http://x/in",
+      });
+      expect(calls).toHaveLength(5);
       expect(calls[1]?.slice(-3)).toEqual([
         "wait",
         "--load",
         "domcontentloaded",
       ]);
       expect(calls[2]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
+      // Together, so either order is the one that happened.
+      expect(
+        calls
+          .slice(3)
+          .map((call) => call.join(" "))
+          .toSorted(),
+      ).toEqual([
+        expect.stringContaining("find role alert text"),
+        expect.stringContaining("tab list --json"),
+      ]);
     },
   );
 
-  it("keeps the in-app browser's downloads inside the chat's folder", async () => {
+  it("attaches the page without its name or message when neither read works", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("list") || given.includes("alert")
+        ? { exitCode: 1, stderr: "no", stdout: "" }
+        : { exitCode: 0, stderr: "", stdout: "unchanged (revision 2)\n" },
+    );
+    const followUp = new BrowserFollowUp();
+
+    await withBrowserFollowUp(followUp, () =>
+      command.execute(["click", "@e1"], commandCtx),
+    );
+
+    expect(await followUp.take(new AbortController().signal)).toEqual({
+      after: "click",
+      kind: "unchanged",
+      text: "",
+    });
+  });
+
+  it("keeps the in-app browser's downloads inside the chat's work folder", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
-    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${chatRoot}/downloads`);
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(
+      path.join(workRoot, "downloads"),
+    );
+  });
+
+  it("keeps agent-browser's home, which holds the plugin it runs, out of the chat's folders", async () => {
+    const { env } = await spawnedWith(["open", "https://example.com"]);
+
+    expect(env.HOME).toBe(
+      path.join(MOCK_WORKSPACE_DIRS.machine, "browser", "agent-browser-home"),
+    );
   });
 
   it("keeps the host environment away from the in-app browser", async () => {
@@ -663,6 +954,8 @@ describe("agent-browser routing", () => {
         ["AGENT_BROWSER_PROVIDER", "evil"],
         ["AGENT_BROWSER_SESSION", "hijacked"],
         ["AGENT_BROWSER_CONFIG", "/task/agent-browser.json"],
+        ["AGENT_BROWSER_INIT_SCRIPTS", "/Users/sam/secrets/hook.js"],
+        ["AGENT_BROWSER_EXTENSIONS", "/Users/sam/ext"],
       ],
     );
 
@@ -674,6 +967,8 @@ describe("agent-browser routing", () => {
     expect(env.AGENT_BROWSER_PROFILE).toBeUndefined();
     expect(env.AGENT_BROWSER_SESSION).toBeUndefined();
     expect(env.AGENT_BROWSER_CONFIG).toBeUndefined();
+    expect(env.AGENT_BROWSER_INIT_SCRIPTS).toBeUndefined();
+    expect(env.AGENT_BROWSER_EXTENSIONS).toBeUndefined();
     expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
     expect(env.AGENT_BROWSER_PLUGINS).not.toContain("evil");
   });
@@ -693,15 +988,10 @@ describe("agent-browser and browsers outside the app", () => {
   });
 
   async function execute(args: string[]) {
-    const { execa } = await import("execa");
-    vi.mocked(execa).mockResolvedValue({
-      exitCode: 0,
-      stderr: "",
-      stdout: "",
-    } as never);
+    await answerAgentBrowser({ exitCode: 0, stderr: "", stdout: "" });
 
     const result = await command.execute(args, mockCtx);
-    return { result, spawned: vi.mocked(execa).mock.calls.length > 0 };
+    return { result, spawned: (await agentBrowserRuns()).length > 0 };
   }
 
   it.each([
@@ -823,5 +1113,48 @@ describe("isExternalBrowserInvocation", () => {
     },
   ])("$args -> external: $external", ({ args, external }) => {
     expect(isExternalBrowserInvocation(args)).toBe(external);
+  });
+});
+
+/**
+ * A file named the way Windows names one, which the CLI and the browser open
+ * as the path it is rather than as a name in the working folder, so the rules
+ * are asked about the file it names. A file this computer does hold is
+ * reached in `shell-commands/host-spelled-path.test.ts`, which runs where
+ * such a path can be resolved.
+ */
+describe("agent-browser file operands spelled as the host spells them", () => {
+  const platform = process.platform;
+  let fs = new InMemoryFs();
+  let layout: WorkspaceFsLayout;
+
+  beforeEach(async () => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    createMockChatConfig(ChatIdSchema.parse("host-spelled"));
+    layout = buildWorkspaceFsLayout({
+      chatHostRoot: WorkDirSchema.parse(String.raw`C:\Users\sam\chat`),
+      rules: {
+        home: String.raw`C:\Users\sam`,
+        rules: [],
+        dangerouslyAllowEveryFolder: false,
+      },
+    });
+    fs = new InMemoryFs();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+  });
+
+  it("refuses a file outside every folder named by its drive", async () => {
+    const result = await resolveAgentBrowserPathArgs(
+      ["screenshot", "--path", String.raw`C:\Users\other\shot.png`],
+      { cwd: "/c/Users/sam/chat/work", fs },
+      layout,
+    );
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining("/c/Users/other/shot.png"),
+    });
   });
 });

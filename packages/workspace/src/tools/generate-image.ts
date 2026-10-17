@@ -2,28 +2,21 @@ import { imageParametersDescription } from "@instrument-org/ai-gateway";
 import { imageSize } from "image-size";
 import mime from "mime-types";
 import ms from "ms";
+import { type IFileSystem } from "just-bash";
 import { err, ok, Result } from "neverthrow";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
-import { absolutePathJoin } from "../lib/absolute-path-join";
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
-import { sessionLayout } from "../lib/session-layout";
-import { pathExists } from "../lib/path-exists";
 import { prepareSourceImage } from "../lib/prepare-source-image";
-import {
-  resolveExistingFilePath,
-  resolveWritableToolPath,
-} from "../lib/resolve-agent-path";
+import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
 import {
@@ -32,7 +25,6 @@ import {
   UsageOutputSchema,
 } from "./base";
 import { setupTool } from "./create-tool";
-import { workDir } from "../lib/work-dir";
 
 const INPUT_PARAMS = {
   allowOverwrite: "allowOverwrite",
@@ -68,7 +60,7 @@ export const GenerateImage = setupTool({
         description: `Replace an existing file at ${INPUT_PARAMS.filePath} instead of saving under a new name. Only set when the user clearly wants to replace the earlier image in place.`,
       }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Relative path with filename but WITHOUT extension (e.g. ./work/image-name); the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Relative path with filename but WITHOUT extension (e.g. ./poster/image-name); the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -141,49 +133,43 @@ export const GenerateImage = setupTool({
     })}
   `,
   async *execute({ input, partId, model, sessionId, signal, chatId }) {
-    const layout = await sessionLayout({ chatId, partId, sessionId });
-    const filePathResult = resolveWritableToolPath({
-      inputPath: input.filePath,
-      layout,
-    });
-    if (filePathResult.isErr()) {
-      yield err(filePathResult.error);
+    const files = await sessionToolFs({ chatId, partId, sessionId });
+    const typed = files.resolve(input.filePath);
+    if (typed.isErr()) {
+      yield err(typed.error);
       return;
     }
-    // Everything below resolves against the chat's folder and the tool's
-    // output contract is a path relative to it, so a path in another folder
-    // would land in a shadow tree inside the chat's folder rather than in that folder. Generate
-    // into the chat's folder and move the result instead.
-    if (filePathResult.value.mount) {
+    // The tool's output contract is a path relative to the chat's folder, so
+    // generate into it and move the result instead.
+    if (!files.inWorkFolder(typed.value)) {
       yield executeError(
-        `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
-          `Generate into this conversation's folder (e.g. ${CHAT_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
+        `Images cannot be generated directly into "${files.shown(typed.value)}". ` +
+          `Generate into this conversation's folder (e.g. poster/image.png), then move it there with the bash tool if it belongs in the folder.`,
       );
       return;
     }
-    const { displayPath: fixedPath } = filePathResult.value;
 
     // Strip extension if mistakenly provided
-    const parsedPath = path.parse(fixedPath);
+    const parsedPath = path.posix.parse(typed.value);
 
     // Auto-version the path unless allowOverwrite is set, so iterating on the
     // same filePath doesn't clobber an earlier image. Resolved once before
     // streaming so this call's partial frames don't bump its own final frame.
-    let pathWithoutExt = normalizePath(
-      path.join(parsedPath.dir, parsedPath.name),
-    );
+    let pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
     let renamedToAvoidOverwrite = false;
     if (!input.allowOverwrite) {
-      const dirAbsolute = absolutePathJoin(workDir(chatId), parsedPath.dir);
       // Match on name without extension: the output extension is model-derived,
       // so a prior foo.jpg must block a new foo.png.
-      const existingNames = await readExistingBaseNames(dirAbsolute);
+      const existingNames = await readExistingBaseNames(
+        files.fs,
+        parsedPath.dir,
+      );
       const { name, renamed } = await findAvailableName({
         isTaken: (candidate) => existingNames.has(candidate),
         name: parsedPath.name,
       });
       renamedToAvoidOverwrite = renamed;
-      pathWithoutExt = normalizePath(path.join(parsedPath.dir, name));
+      pathWithoutExt = path.posix.join(parsedPath.dir, name);
     }
 
     let sourceImageBuffers: Buffer[] | undefined;
@@ -191,24 +177,29 @@ export const GenerateImage = setupTool({
     if (input.sourceImages && input.sourceImages.length > 0) {
       const resolvedSources = [];
       for (const inputPath of input.sourceImages) {
-        // Sources are reads in our own process (not a native subprocess), so
-        // they resolve like read_file: paths in the chat's folder or in other folders, with
-        // the same symlink containment.
-        const pathResult = resolveExistingFilePath({ inputPath, layout });
-        if (pathResult.isErr()) {
-          yield err(pathResult.error);
+        // Sources are read like read_file reads, through the shell's
+        // filesystem.
+        const typedSource = files.resolve(inputPath);
+        if (typedSource.isErr()) {
+          yield err(typedSource.error);
           return;
         }
-        const { absolutePath, displayPath } = pathResult.value;
-        if (!(await pathExists(absolutePath))) {
-          yield executeError(`Source image not found: ${displayPath}`);
+        const source = await files.existing(typedSource.value);
+        const displayPath = files.shown(source);
+        let bytes: Uint8Array;
+        try {
+          bytes = await files.fs.readFileBuffer(source);
+        } catch (error) {
+          yield isMissing(error)
+            ? executeError(`Source image not found: ${displayPath}`)
+            : await files.failure(error, source);
           return;
         }
-        resolvedSources.push({ absolutePath, displayPath });
-        const stats = await fs.stat(absolutePath);
+        resolvedSources.push({ bytes: Buffer.from(bytes), displayPath });
+        const stats = await files.fs.stat(source);
         sourceImages.push({
           filePath: displayPath,
-          modifiedAt: stats.mtimeMs,
+          modifiedAt: stats.mtime.getTime(),
         });
       }
       // A file the model cannot decode is worth catching here rather than in
@@ -216,12 +207,8 @@ export const GenerateImage = setupTool({
       // arrives a whole request later.
       const prepared = Result.combine(
         await Promise.all(
-          resolvedSources.map(async ({ absolutePath, displayPath }) =>
-            prepareSourceImage({
-              bytes: await fs.readFile(absolutePath),
-              displayPath,
-              signal,
-            }),
+          resolvedSources.map(({ bytes, displayPath }) =>
+            prepareSourceImage({ bytes, displayPath, signal }),
           ),
         ),
       );
@@ -246,11 +233,10 @@ export const GenerateImage = setupTool({
               ? `${pathWithoutExt}-${index + 1}.${ext}`
               : `${pathWithoutExt}.${ext}`;
 
-          const absolutePath = absolutePathJoin(workDir(chatId), filename);
           const imageBuffer = Buffer.from(image.base64, "base64");
 
-          await writeFileWithDir(absolutePath, imageBuffer, { signal });
-          const stats = await fs.stat(absolutePath);
+          await files.fs.writeFile(filename, imageBuffer);
+          const stats = await files.fs.stat(filename);
 
           // Try to get image dimensions, but don't fail if it doesn't work
           let dimensions: { height?: number; width?: number } = {};
@@ -265,9 +251,11 @@ export const GenerateImage = setupTool({
           }
 
           return {
-            filePath: RelativePathSchema.parse(filename),
+            filePath: RelativePathSchema.parse(
+              normalizePath(files.shown(filename)),
+            ),
             ...dimensions,
-            modifiedAt: stats.mtimeMs,
+            modifiedAt: stats.mtime.getTime(),
             sizeBytes: imageBuffer.length,
           };
         }),
@@ -422,7 +410,10 @@ export const GenerateImage = setupTool({
 
 // Extension-less names of a directory's entries, for collision checks before
 // the model-derived output extension is known. Empty if the dir is absent.
-async function readExistingBaseNames(dir: string): Promise<Set<string>> {
+async function readExistingBaseNames(
+  fs: IFileSystem,
+  dir: string,
+): Promise<Set<string>> {
   try {
     const entries = await fs.readdir(dir);
     return new Set(entries.map((entry) => path.parse(entry).name));

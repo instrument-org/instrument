@@ -30,6 +30,7 @@ import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
+import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
@@ -227,9 +228,13 @@ function focusField() {
   field?.select();
 }
 
-/** Whether a draft has anything written in it, which is what keeps it past its window. */
-function hasWords(draft: Draft): boolean {
-  return draft.words.trim() !== "";
+/**
+ * Whether a draft holds anything: words, or something pasted or attached
+ * into it. What keeps it past its window, and what a draft has to have to be
+ * one to come back to.
+ */
+function holdsSomething(draft: Draft): boolean {
+  return draft.words.trim() !== "" || (draft.attached ?? []).length > 0;
 }
 
 function WindowShell({
@@ -319,7 +324,12 @@ function WindowShell({
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
     );
-    const isKept = (draft: Draft) => hasWords(draft) || floating.has(draft.id);
+    // A reply waiting in a chat's box is kept by the chat, not by a window
+    // of its own, so nothing here takes one away.
+    const isKept = (draft: Draft) =>
+      draft.chatId !== undefined ||
+      holdsSomething(draft) ||
+      floating.has(draft.id);
     for (const draft of drafts) {
       if (!isKept(draft)) {
         windowTabs.dropGroup(draftGroupOf(draft.id));
@@ -464,6 +474,7 @@ function WindowShell({
     void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
+    void queryClient.prefetchQuery(storageLocationQueryOptions());
     void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
   }, [activeRouter, opened, queryClient]);
 
@@ -726,14 +737,20 @@ function WindowShell({
     childTitles,
     compose,
     discardDraft,
-    // Only a draft with words is a draft to come back to; one being written
-    // with none yet is its window's alone, one being sent is already its
-    // chat, and one just discarded is gone unless its Undo brings it back.
+    // Only a draft holding something is a draft to come back to; one being
+    // written with nothing in it yet is its window's alone, one being sent is
+    // already its chat, and one just discarded is gone unless its Undo brings
+    // it back. A reply waiting in a chat's box belongs to that chat and is
+    // read there rather than listed here, until the chat is deleted: then it
+    // is listed, so its words can be sent as a chat of their own.
     chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
-        hasWords(draft) &&
+        (draft.chatId === undefined ||
+          (chats.data !== undefined &&
+            !chats.data.some((chat) => chat.id === draft.chatId))) &&
+        holdsSomething(draft) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),

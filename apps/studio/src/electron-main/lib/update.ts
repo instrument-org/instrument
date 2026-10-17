@@ -1,5 +1,6 @@
 import {
   createAppUpdater,
+  StagedUpdateRejectedError,
   type UpdaterPort,
 } from "@/electron-main/lib/create-app-updater";
 import { logger } from "@/electron-main/lib/electron-logger";
@@ -12,8 +13,9 @@ import {
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
 import { app } from "electron";
-import pkg from "electron-updater";
+import pkg, { type UpdateInfo } from "electron-updater";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -33,9 +35,11 @@ const IS_MACOS_INTEL = os.platform() === "darwin" && os.arch() === "x64";
 // macOS on Intel is the only custom channel, otherwise use the defaults.
 const MACOS_INTEL_CHANNEL = "latest-x64";
 
-// Where the artifact for the staged update landed, recorded when the download
-// finishes. Only the Debian install reads it, which drives dpkg itself.
-let stagedInstallerPath: string | undefined;
+// The staged update, recorded when the download finishes: where its artifact
+// landed, and what the feed published for it this session. On Linux the
+// artifact is checked against that right before it is installed; the Debian
+// install also hands it to dpkg itself.
+let staged: undefined | { file: string; info: UpdateInfo };
 
 export function createStudioAppUpdater({
   confirmQuit,
@@ -59,6 +63,9 @@ export function createStudioAppUpdater({
     `Running ${app.getVersion()} on the ${getChannel() ?? "latest"} channel`,
   );
   reportPreviousInstall();
+  // Registered before electron-updater adds its own, which it does once a
+  // download finishes, so this runs first on the same quit.
+  app.on("quit", checkBeforeInstallOnQuit);
 
   const port: UpdaterPort = {
     checkForUpdates: async ({ download }) => {
@@ -95,7 +102,7 @@ export function createStudioAppUpdater({
         // process of its own. Taken from the event rather than rebuilt from the
         // cache-directory name, which the app and the build it is updating from
         // do not always agree on.
-        stagedInstallerPath = event.downloadedFile;
+        staged = { file: event.downloadedFile, info: event };
         handlers.downloaded(event);
       });
       autoUpdater.on("update-not-available", handlers.notAvailable);
@@ -147,7 +154,7 @@ export function isDebInstall({
 // than exact text so a reworded upstream message still lands.
 const SQUIRREL_HANDOFF_LOG = /nativeUpdater|proxy server/i;
 
-export function installedFromDeb() {
+function installedFromDeb() {
   return isDebInstall({
     packageType: readPackageType(),
     platform: os.platform(),
@@ -216,7 +223,144 @@ function getInstallNotice() {
   return `${APP_NAME} will close and ask you to authenticate, then reopen once the update is installed.`;
 }
 
+/**
+ * The sha512 the feed published for the artifact at `file`, as electron-builder
+ * writes it (base64): the entry whose URL names the file, else the one entry
+ * with its extension, which is how electron-updater chose what to download.
+ */
+export function publishedSha512(
+  info: Pick<UpdateInfo, "files">,
+  file: string,
+): string | undefined {
+  const name = path.basename(file);
+  const nameOf = (url: string) => {
+    try {
+      return path.posix.basename(
+        decodeURIComponent(new URL(url, "https://feed.invalid/").pathname),
+      );
+    } catch {
+      return path.posix.basename(url);
+    }
+  };
+  const named = info.files.find((entry) => nameOf(entry.url) === name);
+  if (named) {
+    return named.sha512;
+  }
+  const extension = path.extname(name).toLowerCase();
+  const sameKind = info.files.filter((entry) =>
+    nameOf(entry.url).toLowerCase().endsWith(extension),
+  );
+  return sameKind.length === 1 ? sameKind[0]?.sha512 : undefined;
+}
+
+/**
+ * Why the staged artifact is not the one the feed published, or undefined when
+ * it is. Read whole each time: electron-updater hashes an artifact it finds
+ * from an earlier launch, but of one it downloaded in this run it checks only
+ * that the file exists, so a file replaced in the cache folder since would
+ * otherwise be installed as the update.
+ */
+export function stagedArtifactProblem(stagedUpdate: {
+  file: string;
+  info: Pick<UpdateInfo, "files">;
+}): string | undefined {
+  const expected = publishedSha512(stagedUpdate.info, stagedUpdate.file);
+  if (!expected) {
+    return `the feed lists no checksum for ${path.basename(stagedUpdate.file)}`;
+  }
+  let actual: string;
+  try {
+    actual = sha512Of(stagedUpdate.file);
+  } catch (error) {
+    return `it could not be read: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  return actual === expected
+    ? undefined
+    : `its sha512 is ${actual}, and the feed published ${expected}`;
+}
+
+// Synchronous, because the install on quit runs in a quit handler that cannot
+// wait, and an explicit install is the last thing this process does.
+function sha512Of(file: string) {
+  const hash = createHash("sha512");
+  const fd = fs.openSync(file, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
+    for (
+      let read = fs.readSync(fd, buffer);
+      read > 0;
+      read = fs.readSync(fd, buffer)
+    ) {
+      hash.update(buffer.subarray(0, read));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest("base64");
+}
+
+// The artifact last checked and found to be the published one, so the quit
+// that follows an explicit install does not read it a second time.
+let verifiedFile: string | undefined;
+
+/**
+ * Check the staged artifact on Linux, where nothing else stands between the
+ * cache folder and an install that runs as root (a package) or replaces the
+ * app (an AppImage). macOS and Windows check the signature of what they
+ * install. One that does not match is removed, so the next check downloads it
+ * again rather than finding it on disk.
+ */
+function rejectedStagedArtifact(): string | undefined {
+  if (os.platform() !== "linux") {
+    return;
+  }
+  if (!staged) {
+    return "no staged update was recorded";
+  }
+  const problem = stagedArtifactProblem(staged);
+  if (problem === undefined) {
+    verifiedFile = staged.file;
+    return;
+  }
+  scopedLogger.error(
+    new Error(`Refusing to install ${staged.file}: ${problem}`),
+  );
+  try {
+    fs.rmSync(staged.file, { force: true });
+  } catch (error) {
+    scopedLogger.warn(
+      new Error("Could not remove the rejected update", { cause: error }),
+    );
+  }
+  staged = undefined;
+  verifiedFile = undefined;
+  return problem;
+}
+
+/**
+ * The install electron-updater runs from its own quit handler (every Linux
+ * package but the Debian one) is checked here first, and turned off for this
+ * quit when the artifact is not the published one.
+ */
+function checkBeforeInstallOnQuit() {
+  if (
+    !autoUpdater.autoInstallOnAppQuit ||
+    !staged ||
+    staged.file === verifiedFile
+  ) {
+    return;
+  }
+  if (rejectedStagedArtifact() !== undefined) {
+    autoUpdater.autoInstallOnAppQuit = false;
+  }
+}
+
 function installStagedUpdate() {
+  if (rejectedStagedArtifact() !== undefined) {
+    throw new StagedUpdateRejectedError(
+      `The update ${APP_NAME} downloaded doesn't match the one that was published, so it wasn't installed. Check for updates to download it again.`,
+    );
+  }
   if (!installedFromDeb()) {
     autoUpdater.quitAndInstall();
     return;
@@ -235,7 +379,7 @@ function installStagedUpdate() {
   // installation that will not start at all, and takes the `apt-get install -f`
   // recovery down with the process that would have run it.
   // See docs/findings/deb-update-left-the-package-unconfigured.md.
-  if (!stagedInstallerPath) {
+  if (!staged) {
     scopedLogger.warn(
       "No staged installer path recorded; leaving the install to electron-updater",
     );
@@ -244,7 +388,7 @@ function installStagedUpdate() {
   }
 
   try {
-    startDetachedInstall(stagedInstallerPath);
+    startDetachedInstall(staged.file);
   } catch (error) {
     scopedLogger.error(
       new Error("Could not hand off the Linux install", { cause: error }),

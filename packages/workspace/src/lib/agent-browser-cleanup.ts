@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { AbsolutePathSchema } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
@@ -11,7 +10,6 @@ import {
   AGENT_BROWSER_SOCKET_DIR,
   readSessionName,
 } from "./agent-browser";
-import { getExternalBrowserTmpDir } from "./chat-dir-utils";
 
 export async function closeAgentBrowserSessionsForSessions(
   sessionIds: StoreId.Session[],
@@ -69,24 +67,5 @@ export async function closeAllAgentBrowserSessions() {
   await execa(AGENT_BROWSER_PATH, ["close", "--all"], {
     env: { AGENT_BROWSER_SOCKET_DIR },
     reject: false,
-  });
-}
-
-/**
- * Empties the workspace's external-browser temp dir. The CLI removes a cloned
- * Chrome profile when the browser it launched exits, and a clean quit closes
- * every session, so what survives here is an orphan from a crash: hundreds of
- * megabytes holding a copy of the user's cookies and browsing history. Call at
- * boot, where the worst case is a daemon that outlived a crash and is minutes
- * from its idle timeout, still holding open handles to files it can lose.
- */
-export async function pruneExternalBrowserTmp({
-  rootDir,
-}: {
-  rootDir: string;
-}) {
-  await fs.rm(getExternalBrowserTmpDir(AbsolutePathSchema.parse(rootDir)), {
-    force: true,
-    recursive: true,
   });
 }

@@ -4,16 +4,15 @@ import {
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   CHAT_DB_FILE_NAME,
-  CHATS_DIR_NAME,
   LEGACY_TASK_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
-import { AbsolutePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
 import { foldTaskWorkDir } from "./fold-task-work-dir";
@@ -22,7 +21,20 @@ import {
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
-import { windowDir } from "./window-paths";
+import {
+  type AppFoldersMove,
+  moveAppFoldersIntoDataDir,
+} from "./move-app-folders";
+import {
+  entryExists,
+  isDirectorySync,
+  moveEntrySync,
+  removeIfEmptySync,
+} from "./move-entry";
+import { rewriteStoredPaths } from "./rewrite-stored-paths";
+import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
+import { STORE_TABLE } from "./store-table";
+import { workspaceLayout } from "./workspace-layout";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -30,6 +42,17 @@ const LEGACY_DB_FILE_NAME = "sessions.db";
 const LEGACY_STATE_FILE_NAME = "project-state.json";
 const LEGACY_SETTINGS_FILE_NAME = "instrument.json";
 const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
+
+// Where an empty database a record held while its own sessions were still in
+// the file beside it is kept, with what the migrations set aside rather than
+// delete: a chat's `chat.db` beside its `task.db`, and a 1.x task's `task.db`
+// beside its `sessions.db`.
+const EMPTY_STORES_SET_ASIDE_DIR_NAME = "empty-chat-stores";
+
+// Where a task's 1.x settings file is kept once what it holds has been filled
+// into the settings the task opens, with the rest the migrations set aside
+// rather than delete.
+const TASK_SETTINGS_SET_ASIDE_DIR_NAME = "task-settings";
 
 // `.state` is intentionally not migrated: the task db stores direct path
 // references to screenshots/bash-output under `.state/`, so moving the files
@@ -39,30 +62,64 @@ const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
 // suffix is the db file itself. Harmless if a given sidecar is absent.
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 
-// Presence = legacy projects/ already drained. Empty-by-design; only existence matters.
-const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
+// The layoutVersion mark holding this value = a sweep at this version has
+// visited every task under tasks/ and made every 1.x task into a chat and
+// every project into a topic, so boot skips both walks (their cost grows with
+// the task count, and they are a no-op for every task a current build
+// touched). Bump the version when a normalization step is added, so existing
+// workspaces run the sweep once more. Between bumps, tasks must enter the
+// workspace only through code that leaves them in the current shape, as
+// initializeTask does. A task folder hand-copied into tasks/, or one a 1.x
+// build writes after the sweep, stays as it is until the next version bump.
+// 5: each chat's work moved out of the folder holding its records
+// (splitChatRecords).
+// 6: the app's folders moved from the workspace's top level into its
+// `.instrument/` (moveAppFoldersIntoDataDir).
+// 7: a chat whose `chat.db` holds no sessions given the `task.db` beside it
+// that holds its conversation (renameChatDatabases).
+// 8: a 1.x task whose `task.db` holds no sessions given the `sessions.db`
+// beside it that holds its conversation (normalizeTaskPrivateFiles).
+// 9: what a task's 1.x settings file holds filled into the settings it opens
+// (normalizeTaskSettingsFile), and an attachment whose name is taken landed
+// beside it in `attachments/` (normalizeTaskAttachments).
+export const WORKSPACE_LAYOUT_VERSION = 9;
 
-// Marker holding this value = a sweep at this version has visited every task
-// under tasks/ and made every 1.x task into a chat and every project into a
-// topic, so boot skips both walks (their cost grows with the task count, and
-// they are a no-op for every task a current build touched). Bump the version
-// when a normalization step is added, so existing workspaces run the sweep
-// once more. Between bumps, tasks must enter the workspace only through code
-// that leaves them in the current shape, as initializeTask does. A task folder
-// hand-copied into tasks/, or one a 1.x build writes after the sweep, stays as
-// it is until the next version bump.
-const WORKSPACE_LAYOUT_VERSION = 4;
-const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
+// The temp folder an external browser cloned the person's Chrome profile
+// into, in the workspace's `.instrument/`, which nothing writes since that
+// browser was removed. Spelled out: it is a name from builds before.
+const EXTERNAL_BROWSER_TMP_DIR_NAME = "external-browser-tmp";
 
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
 // inherited it as TMPDIR. Each is a copy of the user's real profile -- cookies,
 // login data, browsing history -- and inside the task it is indexed and
-// readable by the agent, so these are deleted rather than moved. Current
-// builds clone outside the task entirely (getExternalBrowserTmpDir); a task
-// written by an older build can still carry one.
+// readable by the agent, so these are deleted rather than moved. No build
+// clones one now; a task written by an older build can still carry one.
 const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
 
+/** How far this migration has brought a workspace. */
+export interface LayoutMarks {
+  /** The layout version the last sweep that finished with nothing left over ran at. */
+  layoutVersion?: number;
+  /** Set once legacy `projects/` has been drained into `tasks/`. */
+  legacyProjectsMigrated?: boolean;
+}
+
+/**
+ * Where the marks are kept, by whoever owns the workspace's own record (the
+ * app keeps them in its `workspace.json`). A write names only what changed.
+ */
+export interface LayoutMarkStore {
+  read(): LayoutMarks;
+  write(change: LayoutMarks): void;
+}
+
 export interface WorkspaceLayoutMigration {
+  // What moving the app's folders into the workspace's `.instrument/`, and
+  // setting aside what 1.x left in `projects/`, did, for the boot log.
+  appFolders: AppFoldersMove;
+  // What naming each chat's database and splitting its records from its work
+  // did, for the boot log.
+  chatRecords: ChatRecordsSplit;
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
@@ -77,59 +134,110 @@ export interface WorkspaceLayoutMigration {
 }
 
 // Boot migration: two passes.
-// 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: sentinel
-//    runs the pass at most once; isProjectFolder skips any real project folder
-//    (load-bearing — survives a lost marker).
-// 2. Normalize tasks under tasks/ to current layout, then make 1.x tasks into
-//    chats and projects into topics. Idempotent. Guard: the layout-version
-//    marker skips it once a sweep at the current version has completed, and
+// 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: the
+//    legacyProjectsMigrated mark runs the pass at most once; isProjectFolder
+//    skips any real project folder (load-bearing: it survives a lost mark).
+// 2. Move the app's folders into the workspace's `.instrument/`, normalize
+//    tasks under tasks/ to current layout, then make 1.x tasks into chats and
+//    projects into topics, then split every chat's records from its work,
+//    which the 1.x tasks just made into chats need as much as the chats an
+//    earlier build made. The folders move first, so the steps after it
+//    (and a later sweep finishing what one left) find every chat and topic
+//    where it now lives. Idempotent. Guard: the layoutVersion
+//    mark skips it once a sweep at the current version has completed, and
 //    is written only after one completes with nothing left over, so a sweep a
 //    crash cut short retries on the next boot. It also runs whenever pass 1
 //    did, since the tasks that pass moves in are legacy-shaped.
 // Synchronous, and renames rather than copies except for the browser-profile
 // clones it deletes outright; no db handle open.
 export function migrateWorkspaceLayout({
+  machineDir,
+  marks,
   rootDir,
 }: {
+  /** This computer's folder for the workspace, where each chat's work goes. */
+  machineDir: string;
+  marks: LayoutMarkStore;
   rootDir: string;
 }): WorkspaceLayoutMigration {
-  let migration: Omit<WorkspaceLayoutMigration, "legacyTasks"> = {
+  let migration: Omit<
+    WorkspaceLayoutMigration,
+    "appFolders" | "chatRecords" | "legacyTasks"
+  > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
   };
-  const legacyMigrationRan = !legacyProjectsMigrationDone(rootDir);
+  const { layoutVersion, legacyProjectsMigrated } = marks.read();
+  const legacyMigrationRan = legacyProjectsMigrated !== true;
   if (legacyMigrationRan) {
     migration = migrateLegacyProjectsDir(rootDir);
-    markLegacyProjectsMigrationDone(rootDir);
+    marks.write({ legacyProjectsMigrated: true });
   }
 
-  if (!legacyMigrationRan && workspaceLayoutCurrent(rootDir)) {
+  if (!legacyMigrationRan && layoutVersion === WORKSPACE_LAYOUT_VERSION) {
     return {
       ...migration,
+      appFolders: { done: [], failed: 0 },
+      chatRecords: { done: [], failed: 0 },
       legacyTasks: {
         adoptedCount: 0,
         emptyCount: 0,
         leftOver: 0,
         topicCount: 0,
+        unreadable: [],
       },
     };
   }
 
-  renameChatDatabases(rootDir);
-  const removedBrowserProfileCloneCount = normalizeTasks(
-    path.join(rootDir, TASKS_DIR_NAME),
-  );
+  const movedIn = moveAppFoldersIntoDataDir({ machineDir, rootDir });
+  const named = renameChatDatabases(rootDir);
+  const normalized: ChatRecordsSplit = { done: [], failed: 0 };
+  const removedBrowserProfileCloneCount = normalizeTasks(rootDir, normalized);
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
   const legacyTasks = migrateLegacyTasks(rootDir);
-  // A task or project left over, or a chat left staged with its task inside,
-  // is finished by the next boot's sweep.
-  if (legacyTasks.leftOver === 0) {
-    markWorkspaceLayoutCurrent(rootDir);
+  // After the 1.x migration, which turns the projects in `projects/` into
+  // topics first.
+  const projectsLeft = setAsideLegacyProjectsDir({ machineDir, rootDir });
+  const appFolders = {
+    done: [...movedIn.done, ...projectsLeft.done],
+    failed: movedIn.failed + projectsLeft.failed,
+  };
+  // 1.x kept its tasks there, and nothing else is: once they are chats, the
+  // folder goes.
+  removeIfEmptySync(path.join(rootDir, TASKS_DIR_NAME));
+  // After the 1.x migration, whose chats it splits too.
+  const split = splitChatRecords({ machineDir, rootDir });
+  const chatRecords: ChatRecordsSplit = {
+    done: [...named.done, ...normalized.done, ...split.done],
+    failed: named.failed + normalized.failed + split.failed,
+  };
+  fs.rmSync(
+    path.join(workspaceLayout(rootDir).dataDir, EXTERNAL_BROWSER_TMP_DIR_NAME),
+    {
+      force: true,
+      recursive: true,
+    },
+  );
+  // A task or project left over, a chat left staged with its task inside, or
+  // an entry a move or a split could not move, is finished by the next
+  // boot's sweep.
+  if (
+    appFolders.failed === 0 &&
+    legacyTasks.leftOver === 0 &&
+    chatRecords.failed === 0
+  ) {
+    marks.write({ layoutVersion: WORKSPACE_LAYOUT_VERSION });
   }
 
-  return { ...migration, legacyTasks, removedBrowserProfileCloneCount };
+  return {
+    ...migration,
+    appFolders,
+    chatRecords,
+    legacyTasks,
+    removedBrowserProfileCloneCount,
+  };
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
@@ -152,52 +260,69 @@ function isProjectFolder(folderPath: string): boolean {
   return ProjectIdSchema.safeParse(parsed.id).success;
 }
 
-function legacyProjectsMarkerPath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    PRIVATE_FOLDER_NAME,
-    LEGACY_PROJECTS_MIGRATED_MARKER_NAME,
-  );
-}
-
-function legacyProjectsMigrationDone(rootDir: string): boolean {
-  return fs.existsSync(legacyProjectsMarkerPath(rootDir));
-}
-
-function markLegacyProjectsMigrationDone(rootDir: string) {
-  const marker = legacyProjectsMarkerPath(rootDir);
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.writeFileSync(marker, "");
-}
-
-function markWorkspaceLayoutCurrent(rootDir: string) {
-  const marker = workspaceLayoutMarkerPath(rootDir);
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.writeFileSync(marker, String(WORKSPACE_LAYOUT_VERSION));
-}
-
-// Moves every top-level entry of source into destination (per-entry, so a
-// pre-existing destination is preserved), then removes source if it ends empty.
-function mergeDirInto(source: string, destination: string) {
+/**
+ * Moves every top-level entry of source into destination (per-entry, so a
+ * pre-existing destination is preserved), then removes source if it ends
+ * empty. An entry whose name is taken there lands beside the one holding it
+ * under a numbered name, so two files an earlier build kept in two folders
+ * are both in the one the person looks in.
+ */
+function mergeDirInto({
+  destination,
+  name,
+  normalized,
+  source,
+}: {
+  destination: string;
+  /** The task the folders belong to, which a line names it by. */
+  name: string;
+  normalized: ChatRecordsSplit;
+  source: string;
+}) {
   if (!fs.existsSync(source)) {
     return;
   }
   for (const entry of fs.readdirSync(source)) {
-    moveIfMissingTarget(
-      path.join(source, entry),
-      path.join(destination, entry),
-    );
+    const from = path.join(source, entry);
+    const to = path.join(destination, freeEntryName(destination, entry));
+    if (path.basename(to) !== entry) {
+      normalized.done.push(
+        `${name}: moved ${from} to ${to}, its own name taken`,
+      );
+    }
+    moveIfMissingTarget(from, to);
   }
   if (fs.readdirSync(source).length === 0) {
     fs.rmdirSync(source);
   }
 }
 
+/**
+ * A name nothing in `dir` holds: the one asked for, or it numbered before its
+ * extension (`a.png`, then `a-2.png`), as every other name a person reads is
+ * made free.
+ */
+function freeEntryName(dir: string, name: string): string {
+  const extension = path.extname(name);
+  const stem = name.slice(0, name.length - extension.length);
+  let candidate = name;
+  for (let suffix = 2; entryExists(path.join(dir, candidate)); suffix += 1) {
+    candidate = `${stem}-${suffix.toString()}${extension}`;
+  }
+  return candidate;
+}
+
 function migrateLegacyProjectsDir(
   rootDir: string,
-): Omit<WorkspaceLayoutMigration, "legacyTasks"> {
+): Omit<
+  WorkspaceLayoutMigration,
+  "appFolders" | "chatRecords" | "legacyTasks"
+> {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
-  const migration: Omit<WorkspaceLayoutMigration, "legacyTasks"> = {
+  const migration: Omit<
+    WorkspaceLayoutMigration,
+    "appFolders" | "chatRecords" | "legacyTasks"
+  > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
@@ -243,6 +368,66 @@ function migrateLegacyProjectsDir(
   return migration;
 }
 
+/**
+ * What 1.x left in the workspace's top-level `projects/` once its tasks
+ * moved to `tasks/` and its projects became topics (a file beside them, a
+ * task copy whose id another task had), set aside with the projects already
+ * in `.instrument/.pre-chats/projects/`, and the folder removed once empty.
+ * The top level becomes the person's folder, and the output folder once
+ * the workspace moves, so it keeps none of 1.x's. An entry whose name is
+ * taken there goes beside it under a numbered name; a project still waiting
+ * for its topic stays for the 1.x migration, and a `projects` that is a
+ * link or a file stays as it is. An entry that cannot move is counted in
+ * `failed`, so the next sweep tries it again.
+ */
+function setAsideLegacyProjectsDir({
+  machineDir,
+  rootDir,
+}: {
+  machineDir: string;
+  rootDir: string;
+}): AppFoldersMove {
+  const move: AppFoldersMove = { done: [], failed: 0 };
+  const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
+  if (!isDirectorySync(legacyDir)) {
+    return move;
+  }
+  const asideDir = path.join(
+    workspaceLayout(rootDir).setAsideDir,
+    LEGACY_TASKS_DIR_NAME,
+  );
+  const names = fs
+    .readdirSync(legacyDir)
+    .filter((name) => !isProjectFolder(path.join(legacyDir, name)));
+  for (const name of names) {
+    const from = path.join(legacyDir, name);
+    let to = path.join(asideDir, name);
+    for (let suffix = 2; entryExists(to); suffix += 1) {
+      to = path.join(asideDir, `${name}-${suffix.toString()}`);
+    }
+    try {
+      moveEntrySync(from, to);
+      move.done.push(`set aside ${from} in ${to}`);
+    } catch (error) {
+      move.failed++;
+      move.done.push(
+        `could not set aside ${from} (${String(error)}); left it there`,
+      );
+    }
+  }
+  removeIfEmptySync(legacyDir);
+  if (names.length > 0) {
+    move.done.push(
+      ...rewriteStoredPaths({
+        machineDir,
+        moves: [{ from: legacyDir, to: asideDir }],
+        rootDir,
+      }),
+    );
+  }
+  return move;
+}
+
 function moveIfMissingTarget(source: string, destination: string) {
   if (fs.existsSync(source) && !fs.existsSync(destination)) {
     fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -252,48 +437,95 @@ function moveIfMissingTarget(source: string, destination: string) {
 
 // Normalizes one task folder to the current layout. Each step is idempotent
 // and no-ops on a task already in the current shape. Called for every task by
-// the marker-gated boot sweep. Returns the number of browser profile clones
+// the mark-gated boot sweep. Returns the number of browser profile clones
 // deleted.
-function normalizeTask(taskFolder: string): number {
-  normalizeTaskPrivateFiles(taskFolder);
-  normalizeTaskSettingsFile(taskFolder);
+function normalizeTask({
+  normalized,
+  setAsideDir,
+  taskFolder,
+}: {
+  normalized: ChatRecordsSplit;
+  /** Where what a step takes the place of is kept. */
+  setAsideDir: string;
+  taskFolder: string;
+}): number {
+  normalizeTaskPrivateFiles({ normalized, setAsideDir, taskFolder });
+  normalizeTaskSettingsFile({ normalized, setAsideDir, taskFolder });
   // After both, so `state.json` is under its current name and the settings
   // file it folds into is in the private dir.
   foldTaskStateFile(taskFolder);
   // After the fold, so the stamp is written to the file that survives it.
   stampTaskTimestamps(taskFolder);
-  normalizeTaskAttachments(taskFolder);
+  normalizeTaskAttachments(taskFolder, normalized);
   // Before the work/ fold, so a clone is found at the path the build that
   // wrote it used rather than the one the fold is about to move it to.
   const removedBrowserProfileCloneCount =
     removeBrowserProfileClones(taskFolder);
-  foldTaskWorkDir(taskFolder);
+  foldTaskWorkDir(taskFolder, normalized);
   return removedBrowserProfileCloneCount;
 }
 
 // Folds legacy user-input dirs (user-provided/, agent-retrieved/) into a single
 // attachments/ dir.
-function normalizeTaskAttachments(taskFolder: string) {
+function normalizeTaskAttachments(
+  taskFolder: string,
+  normalized: ChatRecordsSplit,
+) {
   const attachmentsDir = path.join(taskFolder, CHAT_FOLDER_NAMES.attachments);
   for (const legacyName of LEGACY_ATTACHMENT_DIR_NAMES) {
-    mergeDirInto(path.join(taskFolder, legacyName), attachmentsDir);
+    mergeDirInto({
+      destination: attachmentsDir,
+      name: path.basename(taskFolder),
+      normalized,
+      source: path.join(taskFolder, legacyName),
+    });
   }
 }
 
-// Renames a 1.x task's private files to the names the 1.x migration reads:
-// sessions.db -> task.db (with sidecars) and the legacy state file ->
-// state.json.
-function normalizeTaskPrivateFiles(taskFolder: string) {
+/**
+ * Renames a 1.x task's private files to the names the 1.x migration reads:
+ * `sessions.db` to `task.db` (with sidecars) and the legacy state file to
+ * `state.json`.
+ *
+ * The task gets the database that holds its conversation, by the rule a
+ * chat's own rename follows: where a `task.db` is already there holding no
+ * sessions and the `sessions.db` holds them, the empty one is set aside and
+ * the `sessions.db` takes the name. Nothing but this reads `sessions.db`, so
+ * leaving the empty one under the name would cost the task its whole
+ * conversation: the 1.x migration would read none of it and set the task
+ * aside as one nobody ever said anything in.
+ */
+function normalizeTaskPrivateFiles({
+  normalized,
+  setAsideDir,
+  taskFolder,
+}: {
+  normalized: ChatRecordsSplit;
+  setAsideDir: string;
+  taskFolder: string;
+}) {
   const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
   if (!fs.existsSync(privateDir)) {
     return;
   }
 
-  for (const suffix of DB_FILE_SUFFIXES) {
-    moveIfMissingTarget(
-      path.join(privateDir, LEGACY_DB_FILE_NAME + suffix),
-      path.join(privateDir, LEGACY_TASK_DB_FILE_NAME + suffix),
-    );
+  const legacy = path.join(privateDir, LEGACY_DB_FILE_NAME);
+  const store = path.join(privateDir, LEGACY_TASK_DB_FILE_NAME);
+  const name = path.basename(taskFolder);
+  if (
+    !fs.existsSync(legacy) ||
+    !fs.existsSync(store) ||
+    freeStoreName({
+      asideDir: path.join(setAsideDir, EMPTY_STORES_SET_ASIDE_DIR_NAME, name),
+      legacy,
+      name,
+      named: normalized,
+      store,
+    })
+  ) {
+    for (const suffix of DB_FILE_SUFFIXES) {
+      moveIfMissingTarget(legacy + suffix, store + suffix);
+    }
   }
 
   moveIfMissingTarget(
@@ -305,71 +537,310 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
 /**
  * Renames each chat's database from the name it had while a chat was a task
  * record (`task.db`) to `chat.db`, and the window's, which is scoped like a
- * chat. Only `chats/<id>/.instrument` is touched: a folder an earlier build
- * left under a chat's `tasks/` stays as it is.
+ * chat. Only a chat's own record folder is touched: a folder an earlier build
+ * left under a chat's `tasks/` stays as it is, and so does a chat the 1.x
+ * migration staged and has not finished, whose database that migration names
+ * itself.
+ *
+ * Runs for every workspace, a folder the person picked included, rather than
+ * only with the rest of the sweep: which database a chat opens is what a chat
+ * needs before it is read, and nothing else settles one left opening an empty
+ * store. What it reads and renames is in the workspace's own `.instrument/`
+ * alone, every path below a chat's record folder, the window's, or
+ * `.pre-chats/`, so the person's own folders are never reached. A record
+ * folder, a folder's own `.instrument/`, or `chats/` itself that is a link is
+ * left as it is rather than followed out of there.
  */
-function renameChatDatabases(rootDir: string) {
-  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
-  const chats = fs.existsSync(chatsDir)
+export function renameChatDatabases(rootDir: string): ChatRecordsSplit {
+  const named: ChatRecordsSplit = { done: [], failed: 0 };
+  const layout = workspaceLayout(rootDir);
+  const chats = isDirectorySync(layout.chatsDir)
     ? fs
-        .readdirSync(chatsDir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => path.join(chatsDir, entry.name))
+        .readdirSync(layout.chatsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+        .map((entry) => path.join(layout.chatsDir, entry.name))
     : [];
-  for (const folder of [
-    ...chats,
-    windowDir(AbsolutePathSchema.parse(rootDir)),
-  ]) {
-    renameChatDatabase(path.join(folder, PRIVATE_FOLDER_NAME));
+  for (const folder of [...chats, layout.windowDir].filter((candidate) =>
+    isDirectorySync(candidate),
+  )) {
+    const name = path.basename(folder);
+    renameChatDatabase({
+      asideDir: path.join(
+        layout.setAsideDir,
+        EMPTY_STORES_SET_ASIDE_DIR_NAME,
+        name,
+      ),
+      name,
+      named,
+      recordDir: folder,
+    });
   }
+  return named;
 }
 
 /**
  * One folder's `task.db` as `chat.db`: its sidecars first and the database
  * last, so a sweep cut short between them leaves the rest for the next boot's
- * sweep rather than a database apart from its write-ahead log. A name already
- * taken is never overwritten.
+ * sweep rather than a database apart from its write-ahead log. It takes the
+ * place of the store the chat opens, at the top of the record folder or in
+ * the folder's own `.instrument/` for a chat no split has reached, and where
+ * there is no store at all it lands in the `.instrument/`, which the split
+ * that follows lifts to the top.
+ *
+ * A `chat.db` holding the chat's own sessions is never overwritten, wherever
+ * the chat opens it.
  */
-function renameChatDatabase(privateDir: string) {
+function renameChatDatabase({
+  asideDir,
+  name,
+  named,
+  recordDir,
+}: {
+  asideDir: string;
+  /** The chat the folder is, which a line names it by. */
+  name: string;
+  named: ChatRecordsSplit;
+  recordDir: string;
+}) {
+  const privateDir = path.join(recordDir, PRIVATE_FOLDER_NAME);
+  if (!isDirectorySync(privateDir)) {
+    return;
+  }
+  const legacy = path.join(privateDir, LEGACY_TASK_DB_FILE_NAME);
+  if (!fs.existsSync(legacy)) {
+    return;
+  }
+  const atTop = path.join(recordDir, CHAT_DB_FILE_NAME);
+  const store = fs.existsSync(atTop)
+    ? atTop
+    : path.join(privateDir, CHAT_DB_FILE_NAME);
   if (
-    !fs.existsSync(path.join(privateDir, LEGACY_TASK_DB_FILE_NAME)) ||
-    fs.existsSync(path.join(privateDir, CHAT_DB_FILE_NAME))
+    fs.existsSync(store) &&
+    !freeStoreName({ asideDir, legacy, name, named, store })
   ) {
     return;
   }
   for (const suffix of [...DB_FILE_SUFFIXES.filter(Boolean), ""]) {
     moveIfMissingTarget(
       path.join(privateDir, LEGACY_TASK_DB_FILE_NAME + suffix),
-      path.join(privateDir, CHAT_DB_FILE_NAME + suffix),
+      `${store}${suffix}`,
     );
   }
 }
 
+/**
+ * Takes a name back for the database beside it, where the one holding the
+ * name holds no sessions and the one beside it does: a build that opened a
+ * chat before a sweep reached it left an empty store under the name the chat
+ * opens, and a 1.x task can hold an empty `task.db` beside the `sessions.db`
+ * that is the only file its conversation is in. Nothing but this sweep reads
+ * the file the conversation is in, so the record opens empty while the whole
+ * of it sits in a file nothing reads. The empty one is set aside in the
+ * workspace's own folder rather than deleted, sidecars first and the
+ * database last, so a sweep cut short leaves no database paired with a
+ * sidecar that is not its own. Answers whether the name is free.
+ *
+ * Where both hold sessions, or either cannot be read, both files stay as
+ * they are, each under its own name, and a line says which held what:
+ * choosing between two conversations is a person's to do, and no later sweep
+ * settles it, so it is not counted as left over either. Every sweep after
+ * leaves the same two files.
+ */
+function freeStoreName({
+  asideDir,
+  legacy,
+  name,
+  named,
+  store,
+}: {
+  asideDir: string;
+  legacy: string;
+  name: string;
+  named: ChatRecordsSplit;
+  store: string;
+}): boolean {
+  const inStore = holdsSessions(store);
+  const inLegacy = holdsSessions(legacy);
+  if (inStore !== false || inLegacy !== true) {
+    named.done.push(
+      `${name}: left ${store} (${sessionsHeld(inStore)}) beside ${legacy} (${sessionsHeld(inLegacy)})`,
+    );
+    return false;
+  }
+  let aside = asideDir;
+  for (let suffix = 2; entryExists(aside); suffix += 1) {
+    aside = `${asideDir}-${suffix.toString()}`;
+  }
+  try {
+    for (const suffix of [...DB_FILE_SUFFIXES.filter(Boolean), ""]) {
+      const from = `${store}${suffix}`;
+      if (fs.existsSync(from)) {
+        moveEntrySync(from, path.join(aside, path.basename(from)));
+      }
+    }
+  } catch (error) {
+    named.failed++;
+    named.done.push(
+      `could not set aside ${store} (${String(error)}); left it there`,
+    );
+    return false;
+  }
+  named.done.push(
+    `${name}: set aside ${store}, which held no sessions, in ${aside}, and took the ${path.basename(legacy)} beside it`,
+  );
+  return true;
+}
+
+/**
+ * Whether a store holds a session, or `undefined` where SQLite could not
+ * read it, which is as good as holding one: nothing then moves. Read-only
+ * and one statement over the key each session is filed under, with none of
+ * the store's own migrations run on it, so a store this build has not opened
+ * is left exactly as the build that wrote it left it.
+ */
+function holdsSessions(file: string): boolean | undefined {
+  let database: DatabaseSync | undefined;
+  try {
+    database = new DatabaseSync(file, { readOnly: true });
+    return (
+      database
+        .prepare(
+          `select key from ${STORE_TABLE} where key like 'sessions:%' limit 1`,
+        )
+        .get() !== undefined
+    );
+  } catch {
+    return undefined;
+  } finally {
+    database?.close();
+  }
+}
+
+/** What a line says a store held. */
+function sessionsHeld(sessions: boolean | undefined): string {
+  if (sessions === undefined) {
+    return "could not be read";
+  }
+  return sessions ? "holds sessions" : "holds none";
+}
+
 // Normalizes every task folder to the current layout.
-function normalizeTasks(tasksDir: string) {
+function normalizeTasks(rootDir: string, normalized: ChatRecordsSplit) {
+  const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
   if (!fs.existsSync(tasksDir)) {
     return 0;
   }
+  const { setAsideDir } = workspaceLayout(rootDir);
   let removedBrowserProfileCloneCount = 0;
   for (const entry of fs.readdirSync(tasksDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    removedBrowserProfileCloneCount += normalizeTask(
-      path.join(tasksDir, entry.name),
-    );
+    removedBrowserProfileCloneCount += normalizeTask({
+      normalized,
+      setAsideDir,
+      taskFolder: path.join(tasksDir, entry.name),
+    });
   }
   return removedBrowserProfileCloneCount;
 }
 
-// Moves the settings file from the task root into the private dir, whether it
-// is named `instrument.json` or `settings.json`.
-function normalizeTaskSettingsFile(taskFolder: string) {
+/**
+ * Moves the settings file from the task root into the private dir, whether it
+ * is named `instrument.json` or `settings.json`.
+ *
+ * Where the private dir holds one already, what the root file has and it does
+ * not is filled into it and the root file is set aside, so the task's title,
+ * `createdAt` and `projectId` reach the chat it becomes rather than staying
+ * in a file nothing reads. The settings the task opens win field by field, as
+ * the state file's fold has them win, so a stamp or a draft written since is
+ * never replaced by what 1.x left. A file either side that cannot be read as
+ * a record leaves both where they are, named, since writing over settings
+ * this cannot read would take the title the task has now with them.
+ */
+function normalizeTaskSettingsFile({
+  normalized,
+  setAsideDir,
+  taskFolder,
+}: {
+  normalized: ChatRecordsSplit;
+  setAsideDir: string;
+  taskFolder: string;
+}) {
   const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
   const settingsDestination = path.join(privateDir, SETTINGS_FILE_NAME);
   for (const filename of [SETTINGS_FILE_NAME, LEGACY_SETTINGS_FILE_NAME]) {
-    moveIfMissingTarget(path.join(taskFolder, filename), settingsDestination);
+    const from = path.join(taskFolder, filename);
+    if (!fs.existsSync(from)) {
+      continue;
+    }
+    if (fs.existsSync(settingsDestination)) {
+      foldSettingsFile({
+        from,
+        normalized,
+        setAsideDir,
+        taskFolder,
+        to: settingsDestination,
+      });
+      continue;
+    }
+    moveIfMissingTarget(from, settingsDestination);
   }
+}
+
+/** One root settings file filled into the settings the task opens. */
+function foldSettingsFile({
+  from,
+  normalized,
+  setAsideDir,
+  taskFolder,
+  to,
+}: {
+  from: string;
+  normalized: ChatRecordsSplit;
+  setAsideDir: string;
+  taskFolder: string;
+  to: string;
+}) {
+  const name = path.basename(taskFolder);
+  const root = readJsonRecordSync(from);
+  const own = readJsonRecordSync(to);
+  if (root.kind !== "read" || own.kind === "unreadable") {
+    normalized.done.push(
+      `${name}: left ${from} beside ${to}, one of which could not be read`,
+    );
+    return;
+  }
+  const held = own.kind === "read" ? own.record : {};
+  const filling = Object.keys(root.record).filter((key) => !(key in held));
+  const asideDir = path.join(
+    setAsideDir,
+    TASK_SETTINGS_SET_ASIDE_DIR_NAME,
+    name,
+  );
+  const aside = path.join(
+    asideDir,
+    freeEntryName(asideDir, path.basename(from)),
+  );
+  try {
+    if (filling.length > 0) {
+      updateJsonRecordSync(to, () =>
+        Object.fromEntries(filling.map((key) => [key, root.record[key]])),
+      );
+    }
+    moveEntrySync(from, aside);
+  } catch (error) {
+    normalized.failed++;
+    normalized.done.push(
+      `could not fold ${from} into ${to} (${String(error)}); left it there`,
+    );
+    return;
+  }
+  normalized.done.push(
+    filling.length > 0
+      ? `${name}: took ${filling.join(", ")} from ${from} into ${to}, and set it aside in ${aside}`
+      : `${name}: set aside ${from}, which held nothing ${to} does not, in ${aside}`,
+  );
 }
 
 // What the list saw before the stamps existed: the session database's
@@ -471,24 +942,4 @@ function stampTaskTimestamps(taskFolder: string) {
     createdAt: current.createdAt ?? observed.createdAt,
     lastActivityAt: current.lastActivityAt ?? observed.lastActivityAt,
   }));
-}
-
-// A missing or unreadable marker reads as stale, which just costs one sweep.
-function workspaceLayoutCurrent(rootDir: string): boolean {
-  try {
-    return (
-      fs.readFileSync(workspaceLayoutMarkerPath(rootDir), "utf8") ===
-      String(WORKSPACE_LAYOUT_VERSION)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function workspaceLayoutMarkerPath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    PRIVATE_FOLDER_NAME,
-    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
-  );
 }

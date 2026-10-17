@@ -815,8 +815,7 @@ export function ComputerPage({
   // written to history for the back button to return to.
   const settled = loaded.root === root;
   // The recents are rooted nowhere, so no place in the list is the one open.
-  // A root under `~` (the Instrument folder a fresh Finder opens at) is the
-  // same folder spelled out below the home folder.
+  // A root under `~` is the same folder spelled out below the home folder.
   const rootHostPath = isRecents
     ? undefined
     : root === "~"
@@ -2619,9 +2618,14 @@ function hostPathOfItem(item: FileSystemItem | undefined) {
 
 /** A refusal in a line, under a folder opened in place in the list. */
 export function refusalLine(reason: ComputerRefusal["reason"]) {
-  return reason === "system"
-    ? "macOS hasn’t let Instrument read this folder"
-    : "Your account can’t read this folder";
+  switch (reason) {
+    case "account":
+      return "Your account can’t read this folder";
+    case "app":
+      return "Instrument keeps this folder private";
+    case "system":
+      return "macOS hasn’t let Instrument read this folder";
+  }
 }
 
 /**
@@ -2634,7 +2638,7 @@ export function refusalLine(reason: ComputerRefusal["reason"]) {
  * folder's own permissions has neither, so it only says whose they are. A
  * package (a Photos library) has neither either: the panel will not pick one,
  * and what guards it is the app's own permission, so the way in is to open it
- * in its app.
+ * in its app. The app's own data has no way in from here at all.
  */
 function NotPermitted({
   onGranted,
@@ -2666,6 +2670,23 @@ function NotPermitted({
   );
   const openInApp = useMutation(rpcClient.utils.openPath.mutationOptions());
   const isSystem = refusal.reason === "system";
+  if (refusal.reason === "app") {
+    return (
+      <div className="flex size-full items-center justify-center p-8">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
+          <div>
+            <p className="text-sm font-medium">
+              {`Instrument keeps “${name}” private`}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              It holds Instrument’s own data, so you can’t open it here.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (isSystem && refusal.package) {
     return (
       <div className="flex size-full items-center justify-center p-8">

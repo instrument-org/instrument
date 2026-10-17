@@ -34,15 +34,3 @@ export function folderHref(
 ) {
   return `/files${defaultStringifySearch({ path: "", root: hostPath, select })}`;
 }
-
-/**
- * The output folder, where what the app makes lands, as the workspace
- * places it (`outputFolderPath`): written under `~` so the address is the
- * same on every computer and the workspace expands it where it lists.
- */
-export const OUTPUT_FOLDER = "~/Documents/Instrument";
-
-/** The address a fresh Finder opens at: standing in the output folder. */
-export function outputFolderHref() {
-  return folderHref(OUTPUT_FOLDER);
-}

@@ -832,7 +832,10 @@ function useRows({
         ? { empty: `Nothing at “${folderName}”` }
         : listed?.kind === "refused"
           ? {
-              empty: `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
+              empty:
+                listed.reason === "app"
+                  ? `Instrument keeps “${folderName}” private`
+                  : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
             }
           : listed
             ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }

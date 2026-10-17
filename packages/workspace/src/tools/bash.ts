@@ -19,6 +19,7 @@ import {
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
+import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
 import {
@@ -209,6 +210,7 @@ export const BashTool = setupTool({
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
+      loadedSkillDir: await lastLoadedSkillDir({ chatId, sessionId }),
       role,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
@@ -346,7 +348,7 @@ export const BashTool = setupTool({
 
     const pageAfter = await browserFollowUp.take(signal);
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({ sessionId, signal, chatId })
+      ? await browserSkillToDeliver({ sessionId, chatId })
       : undefined;
 
     return ok({

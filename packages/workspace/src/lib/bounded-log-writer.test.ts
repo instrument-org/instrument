@@ -1,3 +1,4 @@
+import { openSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -20,7 +21,7 @@ describe("BoundedLogWriter", () => {
     const logPath = path.join(testDir, "complete.log");
     const writer = new BoundedLogWriter({
       maxContentBytes: 100,
-      path: logPath,
+      fd: openSync(logPath, "w"),
     });
 
     await writer.write("one\n");
@@ -36,7 +37,7 @@ describe("BoundedLogWriter", () => {
     const logPath = path.join(testDir, "bounded.log");
     const writer = new BoundedLogWriter({
       maxContentBytes: 5,
-      path: logPath,
+      fd: openSync(logPath, "w"),
     });
 
     await writer.write("abc");
@@ -58,7 +59,7 @@ describe("BoundedLogWriter", () => {
     const logPath = path.join(testDir, "utf8.log");
     const writer = new BoundedLogWriter({
       maxContentBytes: 3,
-      path: logPath,
+      fd: openSync(logPath, "w"),
     });
 
     await writer.write("a€");
@@ -72,17 +73,19 @@ describe("BoundedLogWriter", () => {
   });
 
   it("does not expose the host path in write errors", async () => {
-    const logPath = path.join(testDir, "missing", "private-name.log");
+    const logPath = path.join(testDir, "private-name.log");
+    await fs.writeFile(logPath, "");
     const writer = new BoundedLogWriter({
       maxContentBytes: 100,
-      path: logPath,
+      // Open for reading, so the write fails.
+      fd: openSync(logPath, "r"),
     });
 
     await writer.write("content");
     await writer.closed;
 
     expect(writer.errorMessage).toBe(
-      "Could not write the background process log (ENOENT).",
+      "Could not write the background process log (EBADF).",
     );
     expect(writer.errorMessage).not.toContain(logPath);
   });

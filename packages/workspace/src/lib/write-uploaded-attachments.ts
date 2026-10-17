@@ -17,32 +17,32 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getMimeType } from "./get-mime-type";
-import { normalizePath } from "./normalize-path";
+import { chatFolderTheyOpen } from "./chat/output-folder";
+import { chatOwnFolder } from "./record-folders";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
-import { getChatAttachmentsDir } from "./chat-dir-utils";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
   filename: string;
   filePath: AbsolutePath;
   input: FileUpload.Type;
-  // A source the chat's folder already holds is attached where it lies, so there is
+  // A file the person attached by path is read where it lies, so there is
   // nothing to write and `filePath` names the file itself.
-  isInChatFolder: boolean;
+  inPlace: boolean;
   mimeType: string;
-  relativePath: RelativePath;
+  storedPath: AbsolutePath | RelativePath;
 }
 
 export async function writeUploadedAttachments({
-  dir,
   files,
   messageId,
+  recordDir,
   sessionId,
 }: {
-  /** The folder the files land in, under `attachments/`: the chat's (`workDir`). */
-  dir: ChatDir;
   files?: FileUpload.Type[];
+  /** The chat whose folder pasted bytes land in, named by its record folder. */
+  recordDir: ChatDir;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
@@ -51,39 +51,23 @@ export async function writeUploadedAttachments({
 
     if (files && files.length > 0) {
       const preparedFiles = yield* await prepareUploadedFiles({
-        dir,
         files,
+        recordDir,
       });
 
       for (const preparedFile of preparedFiles) {
-        if (!preparedFile.isInChatFolder) {
-          if ("path" in preparedFile.input) {
-            // A copy-on-write clone where the filesystem has them (APFS,
-            // Btrfs, XFS), so a file handed from one task to another takes
-            // no space until a side changes it; elsewhere a plain copy.
-            yield* ResultAsync.fromPromise(
-              fs.copyFile(
-                preparedFile.input.path,
-                preparedFile.filePath,
-                fs.constants.COPYFILE_FICLONE,
+        // Pasted bytes are all there is to write: a file attached by path is
+        // already on disk at `filePath`.
+        if (!preparedFile.inPlace && "content" in preparedFile.input) {
+          const buffer = Buffer.from(preparedFile.input.content, "base64");
+          yield* ResultAsync.fromPromise(
+            fs.writeFile(preparedFile.filePath, buffer),
+            (error) =>
+              new TypedError.FileSystem(
+                error instanceof Error ? error.message : "Unknown error",
+                { cause: error },
               ),
-              (error) =>
-                new TypedError.FileSystem(
-                  error instanceof Error ? error.message : "Unknown error",
-                  { cause: error },
-                ),
-            );
-          } else {
-            const buffer = Buffer.from(preparedFile.input.content, "base64");
-            yield* ResultAsync.fromPromise(
-              fs.writeFile(preparedFile.filePath, buffer),
-              (error) =>
-                new TypedError.FileSystem(
-                  error instanceof Error ? error.message : "Unknown error",
-                  { cause: error },
-                ),
-            );
-          }
+          );
         }
 
         const stats = yield* ResultAsync.fromPromise(
@@ -95,21 +79,9 @@ export async function writeUploadedAttachments({
             ),
         );
 
-        if (
-          !preparedFile.isInChatFolder &&
-          "path" in preparedFile.input &&
-          stats.size !== preparedFile.input.size
-        ) {
-          yield* err(
-            new TypedError.FileSystem(
-              `Uploaded file size changed during copy: ${preparedFile.input.filename}`,
-            ),
-          );
-        }
-
         fileInfos.push({
           filename: preparedFile.filename,
-          filePath: preparedFile.relativePath,
+          filePath: preparedFile.storedPath,
           mimeType: preparedFile.mimeType,
           modifiedAt: stats.mtimeMs,
           size: stats.size,
@@ -159,14 +131,26 @@ async function getUniqueFilename(
 }
 
 function prepareUploadedFiles({
-  dir,
   files,
+  recordDir,
 }: {
-  dir: ChatDir;
   files: FileUpload.Type[];
+  recordDir: ChatDir;
 }) {
   return safeTry(async function* () {
-    const inputDir = getChatAttachmentsDir(dir);
+    // Into the chat's own folder under `Chats/`, beside the transcript the
+    // person reads, so what they sent is theirs to open rather than
+    // something in the records.
+    //
+    // Unless that folder is not one they open: a workspace kept in the
+    // app's own data is inside the folder the rules close to every command,
+    // so a file written there is refused outright, with no card to allow
+    // it, and the agent cannot read what the person just sent it. Those
+    // keep it in the record folder, which the rules open for reading. The
+    // stored path is `attachments/<name>` either way, so what resolves it
+    // is which folder holds them and nothing stored has to change.
+    const sentTo = chatFolderTheyOpen(chatOwnFolder(recordDir)) ?? recordDir;
+    const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -176,24 +160,22 @@ function prepareUploadedFiles({
     const reservedFilenames = new Set<string>();
 
     for (const file of files) {
+      // A file the person pointed at is attached where it lies, wherever that
+      // is. Copying it into `attachments/` would fork it: the agent would work
+      // on the copy while the original the user pointed at silently went
+      // stale, and a 2 GB video would be cloned to say so.
       if ("path" in file) {
         yield* await validatePathUpload({ file });
 
-        // A file the chat's folder already holds is attached where it lies. Copying it
-        // into `attachments/` would fork it: the agent would work on the copy
-        // while the original the user pointed at silently went stale.
-        const inChatPath = chatAttachmentPath({ dir, filePath: file.path });
-        if (inChatPath) {
-          preparedFiles.push({
-            filename: file.filename,
-            filePath: file.path,
-            input: file,
-            isInChatFolder: true,
-            mimeType: file.mimeType,
-            relativePath: inChatPath,
-          });
-          continue;
-        }
+        preparedFiles.push({
+          filename: file.filename,
+          filePath: file.path,
+          input: file,
+          inPlace: true,
+          mimeType: file.mimeType,
+          storedPath: file.path,
+        });
+        continue;
       }
 
       const sanitized = sanitizeFilename(file.filename);
@@ -210,41 +192,16 @@ function prepareUploadedFiles({
 
       preparedFiles.push({
         filename: uniqueFilename,
-        filePath: absolutePathJoin(dir, relativePath),
+        filePath: absolutePathJoin(sentTo, relativePath),
         input: file,
-        isInChatFolder: false,
-        mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
-        relativePath,
+        inPlace: false,
+        mimeType: getMimeType(uniqueFilename),
+        storedPath: relativePath,
       });
     }
 
     return ok(preparedFiles);
   });
-}
-
-/**
- * The relative spelling of a path already inside the chat's folder, or undefined
- * for one outside it. The private dir counts as outside: the agent may not read
- * it, so a file dragged out of there is copied in like any other outside file.
- */
-function chatAttachmentPath({
-  dir,
-  filePath,
-}: {
-  dir: ChatDir;
-  filePath: AbsolutePath;
-}): RelativePath | undefined {
-  const relative = normalizePath(path.relative(dir, filePath));
-  if (
-    relative === "" ||
-    relative === ".." ||
-    relative.startsWith("../") ||
-    path.isAbsolute(relative) ||
-    relative.split("/")[0] === CHAT_FOLDER_NAMES.private
-  ) {
-    return undefined;
-  }
-  return RelativePathSchema.parse(relative);
 }
 
 function validatePathUpload({ file }: { file: PathFileUpload }) {
@@ -278,7 +235,7 @@ function validatePathUpload({ file }: { file: PathFileUpload }) {
     if (sourceStats.size !== file.size) {
       yield* err(
         new TypedError.FileSystem(
-          `Uploaded file size changed before copy: ${file.filename}`,
+          `Uploaded file size changed since it was picked: ${file.filename}`,
         ),
       );
     }

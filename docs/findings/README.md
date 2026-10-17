@@ -102,6 +102,8 @@ Grouped by area; status is the short form of each file's own line.
 | [The file-open cache is sized for a vanished cost](file-open-cache-is-sized-for-a-vanished-cost.md) | open, deliberate |
 | [The task list ordered itself by file mtime](task-list-order-followed-file-mtimes.md) — so reading a task counted as changing it | fixed |
 | [Connector authentication notes](connector-authentication-technical-notes.md) | reference, partly overtaken by apps |
+| [Syncing a data folder through file sync](syncing-a-data-folder-through-file-sync.md): what iCloud Drive, Dropbox, Google Drive, OneDrive and Syncthing do to files two devices share, and the format rules that survive them | research, nothing built |
+| [One permission decision, expressed four times](one-permission-decision-expressed-four-times.md) — the rules, then Seatbelt, bubblewrap and MXC, with the native path inferring its answer from a program's stderr | open, storage deliberately unchanged |
 
 ### Model and context
 
@@ -125,6 +127,8 @@ Grouped by area; status is the short form of each file's own line.
 | [Root causes of three weeks of fixes](root-causes-of-three-weeks-of-fixes.md): 595 fixes sorted by the mechanism that caused them | open, measured 10-12 |
 | [Where coding agents lose time in this repo](where-coding-agents-lose-time-in-this-repo.md): 753 agent transcripts read for friction | open, two findings addressed |
 | [Test suites re-evaluate module graphs](test-suite-module-evaluation-cost.md) — where the time actually goes | all four fixes landed |
+| [The full gate flakes on a busy machine](the-full-gate-flakes-on-a-busy-machine.md) — a different test each run | open, not worth fixing in the suites |
+| [A converted message is the read, not the row](a-converted-message-is-the-read-not-the-row.md) — what the verification cannot see | open, measured as free on this install |
 | [TypeScript 7 (tsgo) dual package](typescript-7-native-preview-dual-package.md) | resolved |
 | [Why the spell checker is `typos`](spelling-check-cost-versus-signal.md) — and not cspell | resolved |
 | [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | fixed |

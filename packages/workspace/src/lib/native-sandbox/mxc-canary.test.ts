@@ -26,7 +26,7 @@ describe.runIf(process.platform === "win32" && exec)(
       rules: {
         home: process.env.USERPROFILE ?? "",
         rules: [],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       },
     };
 

@@ -4,9 +4,12 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { getChatSettings } from "../chat-settings";
 import { chatDir } from "../record-folders";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { readChatPermissions } from "../permissions/rules";
 import { chatGrants, grantFolder, revokeGrant } from "./grants";
 
 let chatId: ChatId;
@@ -18,6 +21,12 @@ beforeEach(async () => {
     path.join(root, "chats", ChatIdSchema.parse("grants-test")),
   );
   await fs.mkdir(chatDir(chatId), { recursive: true });
+  // The grants live in this computer's permission settings now, so each case
+  // needs a machine folder of its own as much as a chat folder of its own.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
+  });
 });
 
 afterEach(async () => {
@@ -41,7 +50,9 @@ describe("grantFolder", () => {
     expect(await chatGrants(chatId)).toEqual([first]);
   });
 
-  it("writes beside the chat's other settings", async () => {
+  // Kept on this computer, not beside the chat: a grant names a folder here,
+  // and the chat's own folder travels with the workspace.
+  it("writes into this computer's permission settings", async () => {
     const notes = path.join(root, "Notes");
     const photos = path.join(root, "Photos");
 
@@ -51,9 +62,11 @@ describe("grantFolder", () => {
     ]);
     await revokeGrant({ chatId, path: notes });
 
+    const held = await readChatPermissions(chatId);
+    expect(held.grants.map(({ path: p, source }) => [p, source])).toEqual([
+      [photos, "card"],
+    ]);
     const settings = await getChatSettings(chatDir(chatId));
-    expect(settings?.grants?.map(({ path: p, source }) => [p, source])).toEqual(
-      [[photos, "card"]],
-    );
+    expect(settings?.grants).toBeUndefined();
   });
 });

@@ -110,6 +110,25 @@
       "diff": "refused-writes-3.6.0.diff"
     },
     {
+      "name": "glob after quotes",
+      "pulls": [
+        { "number": 588, "commit": "2bd0de5091e0e189d745b275bfee3094782d3d15" }
+      ]
+    },
+    {
+      "name": "redirect directories",
+      "diff": "redirect-directories-3.6.0.diff",
+      "ports": [589]
+    },
+    {
+      "name": "virtual path separators",
+      "diff": "virtual-path-separators-3.6.0.diff"
+    },
+    {
+      "name": "mountable dirents",
+      "diff": "mountable-dirents-3.6.0.diff"
+    },
+    {
       "name": "process.env writes",
       "pulls": [
         { "number": 598, "commit": "135060a243f535e8475698883fb8cd4d39d3e5b7" }

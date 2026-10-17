@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatReads } from "./chat-reads";
 import { ensureChatSession } from "./create-session";
 import { sessionOfChat } from "./record-folders";
-import { Store } from "./store";
 
 vi.mock(import("./session-store-storage"));
 
@@ -19,7 +19,7 @@ describe("ensureChatSession", () => {
     expect(again._unsafeUnwrap().createdAt).toEqual(
       first._unsafeUnwrap().createdAt,
     );
-    const sessions = await Store.getSessions(chatId);
+    const sessions = await ChatReads.sessions({ chatId });
     expect(sessions._unsafeUnwrap().map((session) => session.id)).toEqual([
       sessionOfChat(chatId),
     ]);

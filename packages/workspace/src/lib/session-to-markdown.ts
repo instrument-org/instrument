@@ -15,8 +15,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
+import { ChatReads } from "./chat-reads";
 import { isToolPart } from "./is-tool-part";
-import { Store } from "./store";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
 interface MessageRenderInfo {
@@ -122,14 +122,19 @@ export async function getSessionMarkdown({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<string> {
-  const result = await Store.getSessionWithMessagesAndParts(sessionId, chatId);
-  if (result.isErr()) {
+  const session = await ChatReads.session({ chatId, sessionId });
+  const messages = await ChatReads.transcript({
+    bytes: true,
+    chatId,
+    sessionId,
+  });
+  if (session.isErr() || messages.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
-  return sessionToMarkdown(result.value, {
-    frontMatter,
-    includeContextMessages,
-  });
+  return sessionToMarkdown(
+    { ...session.value, messages: messages.value },
+    { frontMatter, includeContextMessages },
+  );
 }
 
 export function renderAssistantMetadata(

@@ -4,7 +4,7 @@ What holds the agent to Settings › Permissions on Windows, what MXC adds when 
 
 ## What holds everywhere
 
-The agent's own tools follow the Permissions rules on every platform: the shell's builtins (`cat`, `ls`, `rg`, `cp`, and the rest) and the file tools check each path against the rules before they touch it, refuse what is Not allowed, and ask before a folder marked Ask first. The shell spells a Windows path the POSIX way, `D:\Photos` as `/d/Photos`, and converts it back at the edge for native commands and for anything shown to the person.
+The agent's own tools follow the Permissions rules on every platform: the shell's builtins (`cat`, `ls`, `cp`, and the rest) and the file tools check each path against the rules before they touch it, refuse what is Not allowed, and ask before a folder marked Ask first. `rg` is the real ripgrep binary, which nothing sandboxes on Windows: the paths it is given are checked against the rules and its walk leaves the app's own data out, but it reads what the person can. The shell spells a Windows path the POSIX way, `D:\Photos` as `/d/Photos`, and converts it back at the edge for native commands and for anything shown to the person.
 
 ## Native programs
 
@@ -14,23 +14,31 @@ A native program the agent runs (`python`, `node`, `uv`, `pnpm`, `git`, `ffmpeg`
 
 `wrapNativeCommand` (`lib/native-sandbox/index.ts`) returns MXC's launcher, `wxc-exec.exe`, which Studio ships alone in `resources/mxc/` (`scripts/download-mxc.ts`, pinned by hash; it is signed by Microsoft and needs nothing else from the package). `launchNative` then builds the request once the working folder and environment are known, since the container inherits neither from the launcher, and every caller spawns through it.
 
-The request asks for MXC's Tier 1, BaseContainer, the process security environment Windows 11 24H2 and later provide, which needs no administrator step. It refuses the fallback that would add ACEs to the person's folders (`fallback.allowDaclMutation: false`), so a machine without Tier 1 fails the spawn rather than having its folders edited. UI stays enabled in the request: with it disabled, anything importing USER32, Node and Electron run as Node among them, fails to start with `STATUS_DLL_INIT_FAILED`. The clipboard and input injection stay closed by MXC's defaults. The network is open, as it is to native commands everywhere.
+Microsoft's MXC (`@microsoft/mxc-sdk`, AppContainer-based) is the candidate. It is deny-by-default, so the rules become a list of the folders a program may reach: the user's tool folders, the chat's work folder, and the folders granted. It needs Windows 11 24H2 or later. It needs no administrator step for the mode we would use: `wxc-host-prep`'s `prepare-system-drive` grants AppContainer SIDs, which is a different tier, and a run from an unelevated token reports `needsDaclAugmentation: false`.
 
-The filesystem lists come from `mxcFilesystemPolicy`, the Seatbelt profile again in MXC's terms, where the deepest entry holding a path decides: the system drive and the home folder readable, each rule's folder opened or closed, the reach's own folders, the app's install, the names that run code already in an allowed folder read-only, and the app's sandbox folder closed. A closed folder above an open one is also listed for looking at (`enumeratePaths`), so a program can `lstat` its way down (Node's `realpath` does) while the folder still refuses listing and reads. A path MXC would reject (no drive, or a missing folder above it) is left out, as is a missing path nothing could make. A policy is kept (`mxcPolicyFor`) by the reach and rules it was built from, with a stamp of every path its answers came from (`native-sandbox/disk.ts`): each part of the way to a path it checked or resolved, by its identity (device, inode, mode, birth time, a link's target), and each folder it listed, by its times as well. The next command reuses it while every stamp matches, so a name that runs code made in an allowed folder, a folder made or removed, or a link changed builds a new one. A listed folder changed less than two seconds before the build proves nothing (FAT keeps times to two seconds), so that policy is not kept.
+Two things were recorded here as blocking it, and both were re-tested on build 26200.9711 and did not hold.
 
-### The canary
+[microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464), where a program inside the base container cannot turn an open file back into a drive-letter path, does not reproduce on that build: `GetFinalPathNameByHandleW` with `VOLUME_NAME_DOS` answers, `fs.realpathSync.native` works, and `git status`, `rev-parse`, `log` and `commit` exit 0 **with no grant on the drive root at all**, which is what the earlier reading of this said was impossible. Only `QueryDosDevice` is still refused, and nothing here calls it. The issue's reporters were on 26100.9457, so the floor sits somewhere between the two and one host cannot narrow it.
 
-Whether MXC holds on a machine is decided by running it, not by the Windows build (`lib/native-sandbox/mxc-canary.ts`). Before the first command, the launcher's own probe must report Tier 1 with no ACEs to add, and then one real spawn of the app's `node`, through the same generator and launcher, must show three things: a file in a granted folder reads, `fs.realpathSync.native` resolves it to its drive-letter path ([microsoft/mxc#1464](https://github.com/microsoft/mxc/issues/1464), which a check that only asks whether a program ran would pass), and a closed folder can neither be read nor an ungranted one written, judged from outside by what was read or made. The verdict is kept per Windows build with its update revision and per launcher, in a folder every request closes. If any condition fails, native commands run unwrapped and the Settings notice stays; if the canary gives no answer, the command is refused and the next one tries again.
+`STATUS_DLL_INIT_FAILED` was the harness, not MXC. It is [microsoft/mxc#1465](https://github.com/microsoft/mxc/issues/1465): from a session-0 or network-logon token every binary importing USER32 dies with `0xC0000142`, whatever the UI policy says. Our bake-off ran over SSH. On the same host with the same policy, in an interactive session, node, git and powershell all exit 0. Granting the whole of `C:\` read-write did not help, which is what rules out a DLL search path; Git's own `env.exe` named the real refusal, `NtCreateDirectoryObject(\BaseNamedObjects\msys-2.0...)` with `0xC0000022`, which is [microsoft/mxc#1061](https://github.com/microsoft/mxc/issues/1061).
 
-### Cost
+Note that `scripts/sandbox-bakeoff/probe.ts` cannot produce a Windows result: it reads `const mac = process.platform === "darwin"`, runs everything through `/bin/sh -c`, and asks for `containment: { type: mac ? "seatbelt" : "bubblewrap" }`. Whatever produced the earlier Windows verdict is not in this repository, which is reason enough to re-measure rather than read.
 
-Each program starts in a container of its own, about 55 ms on top of starting it, and about 90 ms through the agent's shell, which also builds the request. A pipeline pays that start once per stage, and the bytes the app relays between stages on Windows cross the container's boundary at each one. [The plan](../plans/active/windows-sandbox-mxc.md) has the measurements and what is left to do.
+Two things are settled about how it would ship. The elevated tier is out:
+it wants an administrator-approved setup with local accounts and firewall
+rules, and this is not an app whose user should have to understand that. And
+git runs with the person's own `.gitconfig` readable, rather than with HOME
+redirected and `GIT_CONFIG_NOSYSTEM` set: a chat that commits as the wrong
+author is worse than one more file in the list, and the app has no business
+pretending the person's own tools are configured differently than they are.
 
-### What MXC leaves open
+What is not settled is the version floor, and the fallback matters more than
+the floor does: an older Windows drops silently to the AppContainer tier,
+where #1464 does bite. Silently is the wrong behavior. Settings says plainly
+there which Windows this is, that the sandbox is not protecting it, and what
+updating would change.
 
-- A `node` script has no `tools` global: Node's IPC channel is an inherited handle the container does not get.
-- A CommonJS script below a closed folder with no `package.json` between fails, since Node looks for one in every folder above it and stops on the refused read. A chat's folder carries one from the template.
-- A repository's `.git` can be renamed out from under the read-only grant on its hooks.
+So Windows 11 at a build still to be pinned runs native programs under MXC, generated from the same rules as Seatbelt and bubblewrap, behind the same `wrapNativeCommand` seam (`wxc-exec.exe --config-base64 <b64> -- <cmd>` fits its `{file, args}` return, and `--dry-run` makes a generated policy testable without running anything), and the notice in Settings goes away there. It costs about 45 ms a spawn against roughly 6 ms for Seatbelt. Older Windows stays as it is, with the notice.
 
 ## Related
 

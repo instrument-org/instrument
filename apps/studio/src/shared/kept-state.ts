@@ -1,12 +1,14 @@
 /**
- * The files in the workspace's settings that hold what the app's windows keep
- * across launches. The main process owns them; a window reads them all once
- * as it loads and writes a key back as it changes.
+ * The files that hold what the app's windows keep across launches. The main
+ * process owns them; a window reads them all once as it loads and writes a
+ * key back as it changes.
  *
  * They split by what losing one costs: `layout` is where the person left off,
  * `drafts` and `bookmarks` are things they made, and `view` is how they like
- * things laid out. `drafts` is not a file: its one key, {@link DRAFTS_KEY},
- * is kept as a folder per draft at the workspace root.
+ * things laid out. What they made travels with the workspace; `layout` and
+ * `view` stay on this computer, in the workspace's machine folder. `drafts`
+ * is not a file: its one key, {@link DRAFTS_KEY}, is kept as a folder per
+ * draft in the workspace's `.instrument/drafts/`.
  */
 export const KEPT_FILES = ["bookmarks", "drafts", "layout", "view"] as const;
 

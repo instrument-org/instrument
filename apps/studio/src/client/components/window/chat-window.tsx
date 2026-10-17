@@ -2,7 +2,7 @@ import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import {
   type ChatId,
   browserTargetOf,
@@ -170,6 +170,7 @@ export function ChatWindow({
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
+  const outputFolder = useOutputFolder();
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
   const up = windowTabs.selectedTabIn(chatId);
   const isExpanded = placement === "expanded";
@@ -321,7 +322,7 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(outputFolderHref(), { isOpened: false });
+          openHere(outputFolderHref(outputFolder), { isOpened: false });
         }}
         onAddWeb={() => {
           openHere(BROWSER_HREF, { isOpened: false });

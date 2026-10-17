@@ -7,6 +7,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { outputFolderPath } from "./chat/output-folder";
 import { createBashEnv } from "./create-bash-env";
 import { RG_DISK_PATH } from "./ripgrep";
 
@@ -69,6 +70,44 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
       exitCode: 0,
       stderr: "",
       stdout: `args=a b c cwd=${chatRoot}/sub in=piped\n`,
+    });
+  });
+
+  it("names the work and output folders to the shell and to every program it starts", async () => {
+    await writeProgram(
+      binDir,
+      "folder-vars",
+      'printf "%s\\n" "$INSTRUMENT_WORK" "$INSTRUMENT_OUTPUT"',
+    );
+    const result = await run(
+      'echo "$INSTRUMENT_WORK"; echo "$INSTRUMENT_OUTPUT"; folder-vars',
+    );
+    // No attachments variable: a file the person sends is read where they
+    // keep it, so there is no folder of copies to name.
+    const folders = [chatRoot, outputFolderPath()];
+    expect(result.stdout.split("\n")).toEqual([...folders, ...folders, ""]);
+  });
+
+  it("names the folder of the skill loaded last, where one was", async () => {
+    await writeProgram(
+      binDir,
+      "skill-var",
+      'printf "%s\\n" "$INSTRUMENT_SKILL_DIR"',
+    );
+    const skillDir = path.join(tmpDir, "runtime", "skills", "pdf");
+    const loaded = await createBashEnv({
+      chatId,
+      loadedSkillDir: skillDir,
+      sessionId,
+    });
+
+    await expect(
+      loaded.exec('echo "$INSTRUMENT_SKILL_DIR"; skill-var', {
+        signal: AbortSignal.timeout(30_000),
+      }),
+    ).resolves.toMatchObject({ stdout: `${skillDir}\n${skillDir}\n` });
+    await expect(run('echo "[$INSTRUMENT_SKILL_DIR]"')).resolves.toMatchObject({
+      stdout: "[]\n",
     });
   });
 
@@ -136,6 +175,9 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
   });
 
   it("names the program one of our commands runs", async () => {
+    // A virtualenv at the root of the work folder, which `python` runs in.
+    await fs.mkdir(path.join(chatRoot, ".venv"), { recursive: true });
+    await fs.writeFile(path.join(chatRoot, ".venv", "pyvenv.cfg"), "");
     const venvPython = path.join(chatRoot, ".venv", "bin", "python");
     const result = await run(
       [

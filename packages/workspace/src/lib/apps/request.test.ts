@@ -119,34 +119,32 @@ describe("buildAppUrl", () => {
   });
 });
 
-describe("AppManifestSchema baseUrl", () => {
-  const manifest = (baseUrl: string) => ({
+describe("an API app's url", () => {
+  const manifest = (url: string) => ({
     auth: { kind: "bearer" },
-    baseUrl,
-    name: "Test",
     test: { path: "/ok" },
     type: "api",
+    url,
   });
 
   it.each([
-    { baseUrl: "https://api.example.com", ok: true },
-    { baseUrl: "http://127.0.0.1:8080", ok: true },
-    { baseUrl: "http://localhost:3000", ok: true },
-    { baseUrl: "http://api.example.com", ok: false },
-    { baseUrl: "https://user:pass@api.example.com", ok: false },
-    { baseUrl: "not-a-url", ok: false },
-  ])("$baseUrl -> $ok", ({ baseUrl, ok }) => {
-    expect(AppManifestSchema.safeParse(manifest(baseUrl)).success).toBe(ok);
+    { ok: true, url: "https://api.example.com" },
+    { ok: true, url: "http://127.0.0.1:8080" },
+    { ok: true, url: "http://localhost:3000" },
+    { ok: false, url: "http://api.example.com" },
+    { ok: false, url: "https://user:pass@api.example.com" },
+    { ok: false, url: "not-a-url" },
+  ])("$url -> $ok", ({ ok, url }) => {
+    expect(AppManifestSchema.safeParse(manifest(url)).success).toBe(ok);
   });
 });
 
 describe("AppManifestSchema strictness", () => {
   const base = {
     auth: { kind: "bearer" },
-    baseUrl: "https://api.example.com",
-    name: "Test",
     test: { path: "/ok" },
     type: "api",
+    url: "https://api.example.com",
   };
 
   it("accepts static headers", () => {
@@ -219,10 +217,9 @@ describe("performAppRequest", () => {
     );
     const manifest: ApiAppManifest = {
       auth: { kind: "none" },
-      baseUrl: "https://api.example.com",
-      name: "Test",
       test: { path: "/ok" },
       type: "api",
+      url: "https://api.example.com",
     };
 
     const result = await performAppRequest({
@@ -335,9 +332,8 @@ describe("performAppRequest", () => {
 function publicManifest(): ApiAppManifest {
   return {
     auth: { kind: "none" },
-    baseUrl: "https://api.example.com",
-    name: "Test",
     test: { path: "/ok" },
     type: "api",
+    url: "https://api.example.com",
   };
 }

@@ -15,7 +15,10 @@
   "exports": {
     "./bash-worker": "./src/lib/bash-worker/entry.ts",
     "./client": "./src/client.ts",
+    "./drafts": "./src/lib/drafts/index.ts",
     "./electron": "./src/electron.ts",
+    "./host-path": "./src/lib/host-path.ts",
+    "./layout": "./src/lib/workspace-layout.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

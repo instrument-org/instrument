@@ -184,14 +184,13 @@ export function loadedSkill({
   return call({
     input: { explanation, name },
     output: {
-      alreadyLoaded: false,
       content:
         content ?? `# ${name}\n\nWhat this skill is for and how to use it.`,
       contentTruncated: false,
-      directory: `skills/${name}`,
-      files: [`skills/${name}/SKILL.md`],
+      files: ["scripts/run.py"],
       name,
       origin: "workspace",
+      skillDir: `/Users/casey/Documents/Instrument/.instrument/skills/${name}`,
       skillName: name,
       state: "success",
       truncated: false,

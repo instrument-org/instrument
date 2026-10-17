@@ -7,14 +7,11 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { parentPort } from "node:worker_threads";
 
-import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
-import {
-  setChatVenvCreator,
-  setPythonBaseRefresher,
-  type ChatVenvError,
-} from "../ensure-chat-venv";
+import { setVenvCreator, type VenvError } from "../venv";
+import { setPythonEnvironmentBuilder } from "../skill-environments";
+import { setPythonBaseRefresher } from "../python-base";
 import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
@@ -61,9 +58,12 @@ const toolCalls = new Map<
   { reject: (error: Error) => void; resolve: (value: string) => void }
 >();
 const chunkAcks = new Map<number, () => void>();
-const venvRequests = new Map<
+const venvRequests = new Map<number, (result: undefined | VenvError) => void>();
+const environmentRequests = new Map<
   number,
-  (result: ChatVenvError | undefined) => void
+  (
+    result: Extract<ToWorker, { type: "python-environment-result" }>["result"],
+  ) => void
 >();
 let nextCallId = 0;
 let nextChunkSeq = 0;
@@ -83,7 +83,8 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // State the main thread owns: which turn a skill write belongs to, the process
-// trees to end if this worker dies, and the one creator of each task's venv.
+// trees to end if this worker dies, and the one creator of every venv and
+// skill environment.
 setAskForwarder(({ asker, kind, target }) => {
   post({ asker, kind, target, type: "ask" });
 });
@@ -101,12 +102,21 @@ setSubprocessTreeObserver({
     post({ pid, state: "started", type: "tree" });
   },
 });
-setChatVenvCreator(
-  (chatId: ChatId) =>
+setVenvCreator(
+  (venv, chatId) =>
     new Promise((resolve) => {
       const requestId = nextVenvRequestId++;
       venvRequests.set(requestId, resolve);
-      post({ requestId, chatId, type: "venv" });
+      post({ chatId, requestId, type: "venv", venv });
+    }),
+);
+
+setPythonEnvironmentBuilder(
+  ({ chatId, skillDir }) =>
+    new Promise((resolve) => {
+      const requestId = nextVenvRequestId++;
+      environmentRequests.set(requestId, resolve);
+      post({ chatId, requestId, skillDir, type: "python-environment" });
     }),
 );
 setPythonBaseRefresher(() => {
@@ -151,6 +161,11 @@ port.on("message", (message: ToWorker) => {
     case "venv-result": {
       venvRequests.get(message.requestId)?.(message.result);
       venvRequests.delete(message.requestId);
+      return;
+    }
+    case "python-environment-result": {
+      environmentRequests.get(message.requestId)?.(message.result);
+      environmentRequests.delete(message.requestId);
       return;
     }
   }

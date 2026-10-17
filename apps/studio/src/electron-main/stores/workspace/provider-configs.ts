@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
@@ -45,7 +45,7 @@ export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
     };
 
     PROVIDER_CONFIGS_STORE = new Store<ProviderConfigsStore>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceKeysDir(),
       defaults: defaultStore,
       deserialize: (value) => {
         if (is.dev) {

@@ -56,7 +56,7 @@ import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import {
   type ChatId,
   browserTargetOf,
@@ -133,6 +133,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
+  const outputFolder = useOutputFolder();
   const setInboxOpen = useSetAtom(inboxOpenAtom);
   const sidebarWidth = useAtomValue(inboxWidthAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
@@ -198,7 +199,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       chosenId={showsPane ? up.id : undefined}
       isChatWorking={chatRecord?.working === true}
       onAddComputer={() => {
-        windowTabs.openScreen(outputFolderHref(), {
+        windowTabs.openScreen(outputFolderHref(outputFolder), {
           group: chat,
           select: true,
         });

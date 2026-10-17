@@ -10,6 +10,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Guards the just-bash patch for upstream #527: unpatched, `ReadWriteFs` hands
@@ -67,7 +68,7 @@ describe("rmdir on a writable mount", () => {
     ],
     [
       "a granted folder",
-      () => `${attachedDir}/empty`,
+      () => `${shellPath(attachedDir)}/empty`,
       () => path.join(attachedDir, "empty"),
     ],
   ])("removes an empty directory in %s", async (_, target, hostPath) => {
@@ -101,7 +102,7 @@ describe("rmdir on a writable mount", () => {
   it("leaves an empty folder mount's own directory in place", async () => {
     await fs.rm(path.join(attachedDir, "empty"), { recursive: true });
 
-    expect((await run(`rmdir '${attachedDir}'`)).exitCode).toBe(1);
+    expect((await run(`rmdir '${shellPath(attachedDir)}'`)).exitCode).toBe(1);
     expect((await fs.stat(attachedDir)).isDirectory()).toBe(true);
   });
 
@@ -120,7 +121,7 @@ describe("rm without -r", () => {
   it.each(["work/empty", "DOCS/empty"])(
     "refuses the directory %s",
     async (name) => {
-      const target = name.replace("DOCS", attachedDir);
+      const target = name.replace("DOCS", shellPath(attachedDir));
       const result = await run(`rm '${target}'`);
       expect(result).toEqual({
         exitCode: 1,

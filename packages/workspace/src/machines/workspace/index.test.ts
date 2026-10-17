@@ -14,6 +14,8 @@ import {
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
 import { workspaceMachine } from "./index";
+import { newDeviceId } from "../../lib/records/device-id";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
 
 // Long-running no-op actor used to stand in for every spawned child machine.
 // It stays "active" until the parent stops it, so we can assert which children
@@ -34,6 +36,7 @@ const testMachine = workspaceMachine.provide({ actors: stubActors });
 function createWorkspaceActor(
   rootDir = "/tmp/workspace",
   machine = testMachine,
+  deviceId = newDeviceId(),
 ) {
   return createActor(machine, {
     input: {
@@ -42,19 +45,20 @@ function createWorkspaceActor(
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureException: noop,
-      chatTemplateDir: MOCK_WORKSPACE_DIRS.chatTemplate,
+      deviceId,
       getAIProviderConfigs: () => [],
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",
-      preparedSkillsDir: "/tmp/prepared-skills",
       registryDir: MOCK_WORKSPACE_DIRS.registry,
       rootDir,
+      runtimeDir: "/tmp/workspace/runtime",
       systemSkillsDir: MOCK_WORKSPACE_DIRS.systemSkills,
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
-      uvDataDir: "/tmp/workspace/uv-data",
       webSearch: unavailableWebSearchClient,
+      machineDir: MOCK_WORKSPACE_DIRS.machine,
+      workspaceMachineDir: MOCK_WORKSPACE_DIRS.machine,
     },
   });
 }
@@ -95,6 +99,18 @@ const spawnSession = (
     },
   });
 };
+
+describe("workspaceMachine config", () => {
+  it("writes records as the device it was started as", () => {
+    const deviceId = newDeviceId();
+    const actor = createWorkspaceActor(undefined, testMachine, deviceId);
+    actor.start();
+
+    expect(actor.getSnapshot().context.config.deviceId).toBe(deviceId);
+    expect(getWorkspaceConfig().deviceId).toBe(deviceId);
+    actor.stop();
+  });
+});
 
 describe("workspaceMachine task trashing", () => {
   // Trashing a chat is the user's doing, which wakes nothing: a task's turn

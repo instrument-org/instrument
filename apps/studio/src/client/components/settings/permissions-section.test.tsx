@@ -25,7 +25,7 @@ describe("PermissionsSection", () => {
         folders: [{ addedAt: new Date(0), level: "allow", path }],
         home,
         places: [],
-        withoutAsking: false,
+        dangerouslyAllowEveryFolder: false,
       });
 
       expect(

@@ -8,6 +8,10 @@ import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import {
+  agentBrowserRuns,
+  answerAgentBrowser,
+} from "../../test/helpers/agent-browser-runs";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
@@ -15,10 +19,15 @@ import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { chatDir } from "../record-folders";
 import { sessionLayout } from "../session-layout";
 import { getChatState, setChatState } from "../chat-record";
+import { disposeSessionsStoreStorage } from "../session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
 
 vi.mock("execa");
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 
 const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
@@ -98,12 +107,7 @@ async function run(
   sessionId = TASK_SESSION,
   chatId: ChatId = CHAT_ID,
 ) {
-  const { execa } = await import("execa");
-  vi.mocked(execa).mockResolvedValue({
-    exitCode: 0,
-    stderr: "",
-    stdout: "",
-  } as never);
+  await answerAgentBrowser({ exitCode: 0, stderr: "", stdout: "" });
   return createAgentBrowserCommand({
     chatId,
     layout: await sessionLayout({ chatId, sessionId }),
@@ -125,15 +129,7 @@ async function holdTabs(
 }
 
 async function spawnedCdpUrl() {
-  const { execa } = await import("execa");
-  const call = vi.mocked(execa).mock.calls.at(-1);
-  const positional: unknown[] = call ? [...call] : [];
-  const options = positional[2];
-  const env =
-    typeof options === "object" && options !== null && "env" in options
-      ? options.env
-      : undefined;
-  return JSON.stringify(env);
+  return JSON.stringify((await agentBrowserRuns()).at(-1)?.env);
 }
 
 beforeEach(async () => {
@@ -143,9 +139,6 @@ beforeEach(async () => {
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../../templates/default"),
-    ),
     chatsDir: AbsolutePathSchema.parse(
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
@@ -153,7 +146,7 @@ beforeEach(async () => {
   });
   counter += 1;
   CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
-  chatFor(CHAT_SESSION, CHAT_ID);
+  await chatFor(CHAT_SESSION, CHAT_ID);
   TASK_SESSION = await chatTaskFor(CHAT_ID, { title: "Read the page" });
   live = new Set();
   asks = [];
@@ -164,6 +157,9 @@ beforeEach(async () => {
 afterEach(async () => {
   stopAnswering();
   vi.resetAllMocks();
+  // Windows deletes no file a process holds open, so the chat's database is
+  // closed first.
+  await disposeSessionsStoreStorage(CHAT_ID);
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 

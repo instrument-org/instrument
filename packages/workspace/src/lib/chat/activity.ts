@@ -1,12 +1,13 @@
-import { alphabetical } from "radashi";
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { listBackgroundProcesses } from "../background-processes";
+import { ChatReads } from "../chat-reads";
 import { getChatAgentStatus } from "../get-chat-agent-status";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
+import { writingChatRecords } from "../records/chat-records";
+import { liveView } from "../records/views";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";
 import { latestStepIn } from "./step-label";
@@ -56,57 +57,42 @@ export function isWorking(chatId: ChatId, sessionId?: StoreId.Session) {
 }
 
 /**
- * A session's own messages, without what a task carries on from its chat;
- * empty when the read fails.
+ * A session's own messages, without what a task carries on from its chat,
+ * the parts its running turn holds over them included; empty when the read
+ * fails.
  */
 export async function ownMessages(
   ref: SessionRef,
 ): Promise<SessionMessage.WithParts[]> {
-  const messages = await Store.getMessagesWithParts({
-    ...ref,
-    inherited: false,
-  });
+  const messages = await ChatReads.transcript({ ...ref, inherited: false });
   return messages.isOk() ? messages.value : [];
 }
 
 /**
- * The label on the newest tool call of a session's own, read from the newest
- * message back and stopping at the first that has one, so a task at work is
- * not read whole on every change.
+ * What a session's running turn holds in memory, which nothing has written:
+ * the reply streaming in, and the calls whose input is still arriving.
+ * Empty where this process writes no records, or the chat has none.
  */
-export async function latestStep(ref: SessionRef): Promise<string | undefined> {
-  for await (const message of newestFirst(ref)) {
-    const step = latestStepIn([message]);
-    if (step !== undefined) {
-      return step;
-    }
+export async function liveMessages(
+  ref: SessionRef,
+): Promise<SessionMessage.WithParts[]> {
+  const records = writingChatRecords();
+  if (!records) {
+    return [];
   }
-  return undefined;
+  try {
+    return liveView(await records.read(ref.chatId), ref.sessionId);
+  } catch {
+    return [];
+  }
 }
 
 /**
- * A session's own messages, newest first, each read only when the one after
- * it has been looked at. A message that cannot be read is skipped, as a
- * whole read does.
+ * The label on the newest tool call of a session's own, the turn's own
+ * memory included, where a call still being typed is.
  */
-async function* newestFirst({
-  sessionId,
-  chatId,
-}: SessionRef): AsyncGenerator<SessionMessage.WithParts> {
-  const ids = await Store.getMessageIds(sessionId, chatId);
-  if (ids.isErr()) {
-    return;
-  }
-  for (const messageId of alphabetical(ids.value, (id) => id).toReversed()) {
-    const message = await Store.getMessageWithParts({
-      messageId,
-      sessionId,
-      chatId,
-    });
-    if (message.isOk()) {
-      yield message.value;
-    }
-  }
+export async function latestStep(ref: SessionRef): Promise<string | undefined> {
+  return latestStepIn(await ownMessages(ref));
 }
 
 /**

@@ -1,13 +1,17 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { execa } from "execa";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pick } from "radashi";
 
 import { type AbsolutePath } from "../../../schemas/paths";
 import { absolutePathJoin } from "../../absolute-path-join";
 import { commandLineToolsEnv } from "../../command-line-tools-env";
+import { nodeBuildEnvFor, uvBuildEnvFor } from "../../tool-isolation-env";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type LocalMcpAppManifest } from "../manifest";
+import { workspaceMachineDir } from "../../workspace-machine-dir";
 
 /** How a local server is started: what to run, with what, in what environment. */
 export interface LocalServerLaunch {
@@ -16,10 +20,10 @@ export interface LocalServerLaunch {
   env: Record<string, string>;
 }
 
-// Installed servers live beside the apps folder rather than inside it. The
-// folder is the app's record and the agent writes it; a package's own code is
-// neither, and the agent has no mount here.
-const SERVERS_DIR_NAME = ".app-servers";
+// Installed servers live on this computer's side of the workspace rather than
+// in the apps folder. The folder is the app's record and the agent writes it; a
+// package's own code is neither, it is built for this computer, and the agent
+// has no mount here.
 
 // What the last install put in a server's directory, so an unchanged package
 // spec starts the server without going to the registry again.
@@ -159,7 +163,7 @@ async function installNodePackage({
     `${JSON.stringify({ name: `instrument-app-server`, private: true, version: "0.0.0" }, null, 2)}\n`,
   );
 
-  const { nodeExecEnv, pnpmBinPath } = getWorkspaceConfig();
+  const { nodeExecEnv, pnpmBinPath, runtimeDir } = getWorkspaceConfig();
   // pnpm ships as a script for node to run, and the node that runs it is the
   // one this process is: the same way every other install in the app goes out
   // (see run-pnpm.ts), and the reason no `node` has to be on PATH.
@@ -171,6 +175,11 @@ async function installNodePackage({
       cwd: dir,
       env: {
         ...nodeExecEnv,
+        // The app's own registry settings, store, caches and config, in the
+        // build folders no chat reaches, never the person's `~/.npmrc` or a
+        // chat's: what this installs runs outside every sandbox. The same
+        // release-age gate as every other install.
+        ...nodeBuildEnvFor(runtimeDir),
         ...commandLineToolsEnv(),
         // pnpm locates its store through os.homedir(); the real home is where
         // every other install in this app already writes (see run-pnpm.ts).
@@ -178,8 +187,8 @@ async function installNodePackage({
         pnpm_config_loglevel: "error",
         // Outside a workspace pnpm fails an install over any dependency with
         // an install script it was not told to allow. The scripts stay
-        // unrun, as in a chat's folder (templates/default/pnpm-workspace.yaml),
-        // and a server that needed one fails the entry check below instead.
+        // unrun, as in the agent's own installs (`nodeToolsEnvFor`), and a
+        // server that needed one fails the entry check below instead.
         pnpm_config_strict_dep_builds: "false",
       },
       node: true,
@@ -205,7 +214,11 @@ async function installNodePackage({
 
 /** Where one app's installed server lives. */
 function localServerDir(slug: string): AbsolutePath {
-  return absolutePathJoin(getWorkspaceConfig().rootDir, SERVERS_DIR_NAME, slug);
+  return absolutePathJoin(
+    workspaceMachineDir(),
+    WORKSPACE_MACHINE_ENTRIES.appServers,
+    slug,
+  );
 }
 
 function message(error: unknown): string {
@@ -222,9 +235,12 @@ function packageName(spec: string): string {
  * uv pinned to the app's own dirs and its managed interpreter, the same way
  * the sandbox's python runs it, minus the chat's virtualenv: a local MCP
  * server belongs to the workspace rather than to whichever task calls it.
+ * Its cache is the build folders' rather than the chats': the server runs
+ * outside every chat's sandbox from the environment uv keeps there, so no
+ * chat may write it.
  */
 function uvEnv(): Record<string, string> {
-  const { uvBinPath, uvDataDir } = getWorkspaceConfig();
+  const { runtimeDir, uvBinPath } = getWorkspaceConfig();
   return {
     ...commandLineToolsEnv(),
     ...(process.env.HOME ? { HOME: process.env.HOME } : {}),
@@ -233,12 +249,14 @@ function uvEnv(): Record<string, string> {
       ...(process.env.PATH ? [process.env.PATH] : []),
     ].join(path.delimiter),
     TERM: "dumb",
-    UV_CACHE_DIR: path.join(uvDataDir, "cache"),
+    ...pick(uvBuildEnvFor(runtimeDir), [
+      "UV_CACHE_DIR",
+      "UV_PYTHON_INSTALL_DIR",
+      "UV_TOOL_DIR",
+      "XDG_CACHE_HOME",
+    ]),
     UV_NO_CONFIG: "1",
     UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
     UV_PYTHON_PREFERENCE: "only-managed",
-    UV_TOOL_DIR: path.join(uvDataDir, "tools"),
-    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
   };
 }

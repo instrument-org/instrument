@@ -1,5 +1,5 @@
 import os from "node:os";
-import { ORPCError } from "@orpc/server";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
@@ -16,13 +16,8 @@ import {
   readPermissionSettings,
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
-import {
-  appBundleId,
-  appReach,
-  grantApp,
-  reachesEveryFile,
-} from "../../lib/permissions/apps";
-import { closeAsk } from "../../lib/chat/asks";
+import { appBundleId, grantApp } from "../../lib/permissions/apps";
+import { closeAsk, openAsks } from "../../lib/chat/asks";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";
@@ -30,6 +25,9 @@ import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
+import { recordChanges } from "../../lib/record-changes";
+import { AskSchema } from "../../schemas/chat-state";
+import { distinct, liveRead } from "../live-read";
 
 const PermissionsViewSchema = z.object({
   apps: z.array(
@@ -51,7 +49,7 @@ const PermissionsViewSchema = z.object({
       paths: z.array(z.string()),
     }),
   ),
-  withoutAsking: z.boolean(),
+  dangerouslyAllowEveryFolder: z.boolean(),
 });
 
 function view(
@@ -71,7 +69,7 @@ function view(
           : (settings.places[place.id] ?? PLACE_DEFAULTS[place.id]),
       paths: place.paths,
     })),
-    withoutAsking: settings.withoutAsking,
+    dangerouslyAllowEveryFolder: settings.dangerouslyAllowEveryFolder,
   };
 }
 
@@ -116,7 +114,6 @@ function withFolderLevel(
       place.id !== "output" &&
       only !== undefined &&
       others.length === 0 &&
-      !place.homeDotEntries &&
       !place.closedUnlessAllowed &&
       hostPathWithin(only, folder) === "/"
     ) {
@@ -165,14 +162,14 @@ const removeFolder = base
   );
 
 /** "Use folders without asking": every Ask first becomes a yes. */
-const setWithoutAsking = base
-  .input(z.object({ withoutAsking: z.boolean() }))
+const setDangerouslyAllowEveryFolder = base
+  .input(z.object({ dangerouslyAllowEveryFolder: z.boolean() }))
   .output(PermissionsViewSchema)
   .handler(async ({ input }) =>
     view(
       await updatePermissionSettings((settings) => ({
         ...settings,
-        withoutAsking: input.withoutAsking,
+        dangerouslyAllowEveryFolder: input.dangerouslyAllowEveryFolder,
       })),
     ),
   );
@@ -219,15 +216,6 @@ const removeApp = base
       })),
     ),
   );
-
-/** What the rules make of an app for one chat, for its card. */
-const appReachRoute = base
-  .input(z.object({ app: z.string(), id: ChatIdSchema }))
-  .output(z.object({ level: LevelSchema, reachesEveryFile: z.boolean() }))
-  .handler(async ({ input }) => ({
-    level: await appReach(input.id, input.app),
-    reachesEveryFile: reachesEveryFile(input.app),
-  }));
 
 /**
  * The person's answer to an ask: allowed in this chat, allowed always, or
@@ -298,14 +286,35 @@ const answer = base
     );
   });
 
+/**
+ * The chat's open asks, as its cards draw them, oldest first, read again
+ * whenever the chat's state moves.
+ */
+const liveAsks = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(AskSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) => change.id === input.id && change.kind === "state",
+          ),
+        ],
+        read: () => openAsks(input.id),
+      }),
+    );
+  });
+
 export const permissions = {
   answer,
-  appReach: appReachRoute,
+  liveAsks,
   get,
   removeApp,
   setApp,
   removeFolder,
   setFolder,
   setPlace,
-  setWithoutAsking,
+  setDangerouslyAllowEveryFolder,
 };

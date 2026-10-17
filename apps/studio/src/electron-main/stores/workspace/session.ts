@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { safeStorage } from "electron";
@@ -45,15 +45,15 @@ function parseSessionState(raw: unknown): SessionState {
 }
 
 /**
- * The bearer token the session store in another workspace's settings folder
+ * The bearer token the session store in another workspace's keys folder
  * holds, read without opening it as a store. Null when it holds none or the
  * file cannot be read.
  */
-export function readBearerTokenIn(settingsDir: string): null | string {
+export function readBearerTokenIn(keysDir: string): null | string {
   let value: string;
   try {
     value = fs.readFileSync(
-      path.join(settingsDir, `${SESSION_FILE_NAME}.${SESSION_FILE_EXTENSION}`),
+      path.join(keysDir, `${SESSION_FILE_NAME}.${SESSION_FILE_EXTENSION}`),
       "utf8",
     );
   } catch {
@@ -83,7 +83,7 @@ function decodeSessionFile(value: string): unknown {
 export const getSessionStore = (): Store<SessionState> => {
   if (SESSION_STORE === null) {
     SESSION_STORE = new Store<SessionState>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceKeysDir(),
       deserialize: (value) => {
         const decoded = decodeSessionFile(value);
         return decoded === undefined ? {} : parseSessionState(decoded);

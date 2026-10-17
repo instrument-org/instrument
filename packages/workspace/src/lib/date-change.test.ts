@@ -5,8 +5,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatWrites } from "./chat-writes";
 import { detectDateChange } from "./date-change";
-import { Store } from "./store";
 
 vi.mock(import("./session-store-storage"));
 
@@ -34,7 +34,7 @@ describe("detectDateChange", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("mock"));
     const sessionId = StoreId.newSessionId();
 
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       {
         createdAt: baselineAt ?? new Date(),
         id: sessionId,
@@ -45,7 +45,7 @@ describe("detectDateChange", () => {
 
     if (baselineAt) {
       const messageId = StoreId.newMessageId();
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: {
@@ -82,7 +82,7 @@ describe("detectDateChange", () => {
         }),
       record: async (part: SessionMessagePart.Type) => {
         const messageId = part.metadata.messageId;
-        await Store.saveMessageWithParts(
+        await ChatWrites.saveMessageWithParts(
           {
             id: messageId,
             metadata: { createdAt: new Date(), sessionId },

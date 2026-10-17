@@ -26,7 +26,7 @@ import path from "node:path";
 
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
@@ -206,11 +206,13 @@ function loadedSkill(name: string): Assertion {
   };
 }
 
-function landedInAppFolder(slug: string, file: string): Assertion {
-  const text = `${file} is in ${slug}'s app folder`;
+function landedInAppFolder(name: string, file: string): Assertion {
+  const text = `${file} is in ${name}'s app folder`;
   return {
     check: () => {
-      const target = path.join(getWorkspaceConfig().appsDir, slug, file);
+      // The folder is the app's name, so that is what the file is looked for
+      // in rather than the slug its `id` carries.
+      const target = path.join(getWorkspaceConfig().appsDir, name, file);
       return fs.existsSync(target)
         ? pass(text, `${fs.statSync(target).size} bytes`)
         : fail(text, `nothing at ${target}`);
@@ -284,7 +286,7 @@ function madeDocuments(extensions: string[]): Assertion {
   return {
     check: async ({ chatId }) => {
       // The chat's tasks work in its folder.
-      const written = [os.homedir(), chatDir(chatId)].flatMap((dir) =>
+      const written = [os.homedir(), workDir(chatId)].flatMap((dir) =>
         recentFilesUnder(dir),
       );
       const missing = extensions.filter(
@@ -399,7 +401,7 @@ export const CHAT_EVALS = [
   defineEval({
     // A file bound for an app's folder, which the agent writes like any other.
     apps: [{ name: "Beacon", slug: "beacon" }],
-    assertions: [landedInAppFolder("beacon", "icon.png")],
+    assertions: [landedInAppFolder("Beacon", "icon.png")],
     kind: "chat",
     name: "chat-places-a-file-in-an-app-folder",
     prompt:

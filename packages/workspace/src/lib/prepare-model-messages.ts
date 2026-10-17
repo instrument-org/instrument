@@ -1,5 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { err, ok, Result } from "neverthrow";
+import { err, ok } from "neverthrow";
 import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
@@ -8,6 +8,8 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import { ChatReads } from "./chat-reads";
+import { chatAttachmentsDir } from "./chat-dir-utils";
 import {
   applyContextRollover,
   contextRolloverBoundaryInForce,
@@ -18,20 +20,27 @@ import {
   contextOccupancyFromMessages,
   usableContextTokens,
 } from "./context-budget";
+import { ChatWrites } from "./chat-writes";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 import { resetMemoryReported } from "./create-memory-part";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
-import { contextRolloverNotice, readHandoffNotes } from "./handoff-notes";
+import {
+  agentHandoffNotesPath,
+  contextRolloverNotice,
+  readHandoffNotes,
+} from "./handoff-notes";
 import { modelChangeSincePreviousTurn } from "./model-change";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
+import { chatDir } from "./record-folders";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { sanitizeModelText } from "./sanitize-model-text";
+import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
-import { Store } from "./store";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Marks a message said for this request only and kept nowhere. A model that
@@ -40,19 +49,6 @@ import { Store } from "./store";
  * since the next request leaves it out or says it differently.
  */
 export const TRANSIENT = { instrument: { transient: true } };
-
-/**
- * The shape of the session baseline this build writes.
- *
- * A change to an agent's system prompt needs no bump: a stored system message
- * that differs from `agent.systemPrompt()` is rebuilt on its own. Bump this
- * when the rest of what `agent.getMessages` writes, the context message,
- * starts carrying something a session that already has a baseline stored
- * would otherwise never see. Without a bump such a session keeps the context
- * message it was opened with for the rest of its life.
- */
-
-export const SESSION_CONTEXT_VERSION = 41;
 
 export async function prepareModelMessages({
   agent,
@@ -67,10 +63,14 @@ export async function prepareModelMessages({
   signal: AbortSignal;
   chatId: ChatId;
 }) {
-  const messageResults = await Store.getMessagesWithParts(
-    { sessionId, chatId },
-    { signal },
-  );
+  const contextLength = effectiveContextLength(model);
+  const usable = usableContextTokens(contextLength);
+
+  const messageResults = await ChatReads.modelHistory({
+    chatId,
+    sessionId,
+    usable,
+  });
 
   // Every failure is re-wrapped rather than returned as it came. A neverthrow
   // `Err` carries the success type of the result it came from, so passing the
@@ -100,11 +100,8 @@ export async function prepareModelMessages({
   // window: a reported count from before a reset describes a request that is no
   // longer being sent, and taking it at face value would roll the session over
   // again on every turn, eating another slice of history each time.
-  const sessionResult = await Store.getSession(sessionId, chatId, { signal });
+  const sessionResult = await ChatReads.session({ chatId, sessionId });
   const session = sessionResult.isOk() ? sessionResult.value : undefined;
-
-  const contextLength = effectiveContextLength(model);
-  const usable = usableContextTokens(contextLength);
 
   // Recorded before anything is measured or reset, so the transcript says the
   // model moved even on a turn that then fails. Attached to the newest message
@@ -120,7 +117,7 @@ export async function prepareModelMessages({
     newestMessage &&
     !newestMessage.parts.some((part) => part.type === "data-modelChange")
   ) {
-    await Store.savePart(
+    await ChatWrites.savePart(
       {
         data: modelChange,
         metadata: {
@@ -132,14 +129,13 @@ export async function prepareModelMessages({
         type: "data-modelChange",
       },
       chatId,
-      { signal },
     );
   }
 
   // Asked on every request rather than read straight off the session, so a
   // boundary drawn when a smaller model ran out stops narrowing the history
   // once a model with room for it is the one being asked.
-  const rolledOverAfterMessageId = contextRolloverBoundaryInForce({
+  let rolledOverAfterMessageId = contextRolloverBoundaryInForce({
     rolledOverAfterMessageId: session?.rolledOverAfterMessageId,
     rolledOverUnderUsableTokens: session?.rolledOverUnderUsableTokens,
     usable,
@@ -202,20 +198,21 @@ export async function prepareModelMessages({
             rolledOverAfterMessageId: newest.id,
           });
 
-    if (
-      newest &&
-      session &&
-      narrowed &&
-      narrowed.length < allNonContextMessages.length
-    ) {
-      const saveResult = await Store.saveSession(
-        {
-          ...session,
-          rolledOverAfterMessageId: newest.id,
-          rolledOverUnderUsableTokens: usable,
-        },
-        chatId,
-        { signal },
+    if (newest && narrowed && narrowed.length < allNonContextMessages.length) {
+      // The row is read here rather than taken from the boundary read above,
+      // because the row is what is written: the store is still what keeps a
+      // session, and a row written from anything but itself would carry the
+      // other side's answer for every field the boundary is not.
+      const stored = await ChatReads.session({ chatId, sessionId });
+      const saveResult = await stored.asyncAndThen((row) =>
+        ChatWrites.saveSession(
+          {
+            ...row,
+            rolledOverAfterMessageId: newest.id,
+            rolledOverUnderUsableTokens: usable,
+          },
+          chatId,
+        ),
       );
 
       // A boundary we could not record is one that would not survive the next
@@ -223,6 +220,7 @@ export async function prepareModelMessages({
       // refused for size, which is the behavior this feature is replacing
       // rather than a regression it introduces.
       if (saveResult.isOk()) {
+        rolledOverAfterMessageId = newest.id;
         nonContextMessages = narrowed;
         budget = computeContextBudget({
           contextLength,
@@ -234,7 +232,7 @@ export async function prepareModelMessages({
         // transcript and the boundary assembly reads are recorded together or
         // not at all. A failed part leaves the rollover itself intact: the
         // session is still correct, it is only undrawn.
-        await Store.savePart(
+        await ChatWrites.savePart(
           {
             data: {
               droppedMessages:
@@ -250,7 +248,6 @@ export async function prepareModelMessages({
             type: "data-contextRollover",
           },
           chatId,
-          { signal },
         );
 
         // The whole of memory was told on a message the cut just dropped, so
@@ -260,82 +257,19 @@ export async function prepareModelMessages({
     }
   }
 
-  // The session's baseline: built once, when the session first needs model
-  // input, and reused verbatim for the rest of the session. Rebuilding it later
-  // would rewrite the front of every subsequent request -- the bytes a provider
-  // cache is keyed on -- to restate facts that mostly did not change. Values
-  // that do change reach the model as append-only corrections on the user turn
-  // where they were detected instead (see `SessionMessage.toModelMessages`).
-  //
-  // The one thing that does rewrite it is a build whose baseline holds
-  // something the stored one cannot: the marker each message carries says which
-  // shape it was written under, and a baseline older than this build's is
-  // replaced on the first turn after the upgrade and then reused like any
-  // other. A baseline of this build's shape whose system message is not the
-  // prompt this build writes is replaced the same way. So the prefix moves once
-  // per prompt or shape change, and never on a clock. A marker from ahead of
-  // this build is left alone, since an older release running against a newer
-  // baseline has nothing better to put there.
-  let contextMessages = existingSessionContextMessages;
-
-  const systemPrompt = agent.systemPrompt();
-  const hasOutdatedBaseline = contextMessages.some((message) => {
-    const version = message.metadata.contextVersion ?? 0;
-    return (
-      version < SESSION_CONTEXT_VERSION ||
-      (version === SESSION_CONTEXT_VERSION &&
-        message.metadata.realRole === "system" &&
-        textOf(message) !== systemPrompt)
-    );
+  // The front of every request, written once and read back verbatim; see
+  // `session-baseline.ts` for the few times it is written again.
+  const baselineResult = await sessionBaseline({
+    agent,
+    chatId,
+    contextMessages: existingSessionContextMessages,
+    rolledOverAfterMessageId,
+    sessionId,
   });
-
-  if (contextMessages.length === 0 || hasOutdatedBaseline) {
-    // Replaced rather than added to: two baselines in the store are two
-    // baselines in every later request, and the superseded one would keep being
-    // sent for the rest of the session. A task's inherited baseline belongs to
-    // its chat, which replaces it on its own next turn, so only this session's
-    // own are removed.
-    for (const message of contextMessages.filter(
-      (stored) => stored.metadata.sessionId === sessionId,
-    )) {
-      const removeResult = await Store.removeMessage(
-        message.id,
-        message.metadata.sessionId,
-        chatId,
-        { signal },
-      );
-
-      if (removeResult.isErr()) {
-        return err(removeResult.error);
-      }
-    }
-
-    const builtContextMessages = await agent.getMessages({
-      sessionId,
-      chatId,
-    });
-
-    const newContextMessages = builtContextMessages.map((message) => ({
-      ...message,
-      metadata: {
-        ...message.metadata,
-        contextVersion: SESSION_CONTEXT_VERSION,
-      },
-    }));
-
-    const saveResults = await Promise.all(
-      newContextMessages.map((message) =>
-        Store.saveMessageWithParts(message, chatId, { signal }),
-      ),
-    );
-
-    const combinedResult = Result.combine(saveResults);
-    if (combinedResult.isErr()) {
-      return err(combinedResult.error);
-    }
-
-    contextMessages = newContextMessages;
+  if (baselineResult.isErr()) {
+    return err(baselineResult.error);
   }
+  const contextMessages = baselineResult.value;
 
   const orderedMessages = dropTrailingFailedMessages([
     // ulid sorts oldest to newest
@@ -353,6 +287,10 @@ export async function prepareModelMessages({
   const modelMessages = await SessionMessage.toModelMessages(
     portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
+    {
+      attachmentsDir: shellPath(chatAttachmentsDir(chatDir(chatId))),
+      shellPath,
+    },
   );
 
   const nonEmptyModelMessages = modelMessages.filter(
@@ -407,7 +345,10 @@ export async function prepareModelMessages({
   // the first one after.
   if (nonContextMessages.length < allNonContextMessages.length) {
     preparedMessages.push({
-      content: contextRolloverNotice(await readHandoffNotes(chatId)),
+      content: contextRolloverNotice(
+        await readHandoffNotes(chatId),
+        agentHandoffNotesPath(chatId),
+      ),
       providerOptions: TRANSIENT,
       role: "user",
     });
@@ -417,7 +358,7 @@ export async function prepareModelMessages({
   // hands back the notes, and this one says how much room what remains has
   // left. Read the other way around, the instruction to write notes arrives
   // before the agent has been given the ones it already wrote.
-  const notice = contextBudgetNotice(budget);
+  const notice = contextBudgetNotice(budget, agentHandoffNotesPath(chatId));
 
   if (notice !== undefined) {
     preparedMessages.push({
@@ -428,10 +369,4 @@ export async function prepareModelMessages({
   }
 
   return ok(preparedMessages);
-}
-
-function textOf(message: SessionMessage.ContextWithParts) {
-  return message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("");
 }

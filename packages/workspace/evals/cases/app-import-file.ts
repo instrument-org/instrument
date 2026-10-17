@@ -6,8 +6,9 @@
  * told to do it "through Raycast's interface" spent three minutes on 33 GUI-scripting calls through System Events and
  * created none. Raycast documents a JSON format its Import Snippets command
  * reads; once the user pointed at it, the same task made the file in under
- * forty seconds. `osascript` now refuses GUI scripting and names the routes to
- * take instead, and this case measures whether a run ends at the file.
+ * forty seconds. The agent has no `osascript` of its own any more, so GUI
+ * scripting is refused outright, and this case measures whether a run ends
+ * at the file.
  *
  * It runs as a chat, and the work is scored wherever it happened: in the chat
  * or in a task it forked. The date snippets are what show the docs were read: Raycast expands
@@ -17,7 +18,6 @@
  * Run against a build without the refusal, this case drives Raycast on the
  * machine it runs on.
  */
-import { worksAppWindows } from "../../src/lib/shell-commands/osascript";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -109,7 +109,8 @@ const leavesTheWindowsAlone: Assertion = {
     const tried = (await treeWrites(ctx))
       .map((write) => write.content)
       .filter(
-        (content) => /\bosascript\b/.test(content) && worksAppWindows(content),
+        (content) =>
+          /\bosascript\b/.test(content) && /System Events/i.test(content),
       );
     return tried.length === 0
       ? result(text, true, "no GUI-scripting osascript call")

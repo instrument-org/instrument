@@ -286,10 +286,19 @@ export function withShimNotes({
   stdout: string;
   walks: boolean | undefined;
 }): { exitCode: number | undefined; stderr: string } {
+  // A command that failed is told of any path the rules kept it from, the
+  // likeliest reason it failed. One that exited 0 handled the refusal itself,
+  // as a script printing the error it caught does, so it is told only of a
+  // path in the app's own data that its stderr names: nothing opens that, and
+  // a bare "Operation not permitted" reads as something to work around. Its
+  // stdout is its own output, and a path a card could open raises no card
+  // from a command that did not fail.
   const refused =
-    reach && !walks && exitCode !== 0
-      ? refusedPathIn(`${stderr}\n${stdout}`, reach, cwd)
-      : undefined;
+    !reach || walks
+      ? undefined
+      : exitCode === 0
+        ? refusedPathIn(stderr, reach, cwd, { appDataOnly: true })
+        : refusedPathIn(`${stderr}\n${stdout}`, reach, cwd);
   const refusal = refused && refusalNote(refused);
   // A program that reached a developer tool stub on a Mac without the tools
   // fails with the stub's own error, which does not say what to do.

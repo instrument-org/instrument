@@ -29,7 +29,7 @@ const WORDS =
 
 const HOUSE: Topic = {
   color: "#0f9d6e",
-  createdAt: 1,
+  created: new Date(1),
   emoji: "🏠",
   id: "house",
   name: "House",

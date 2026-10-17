@@ -17,6 +17,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { BashTool } from "./bash";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 const model = createMockAIGatewayModel();
 
@@ -44,7 +45,7 @@ describe("bash background processes, end to end", () => {
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
+    await removeChatsDir(path.dirname(chatRoot));
   });
 
   function toolOptions<TInput>(input: TInput) {
@@ -127,31 +128,36 @@ describe("bash background processes, end to end", () => {
     await kill(processId);
   }, 30_000);
 
-  it("captures output a killed process writes while shutting down", async () => {
-    await fs.writeFile(
-      path.join(chatRoot, "work", "graceful.js"),
-      [
-        'process.on("SIGTERM", () => {',
-        '  console.log("shutting down");',
-        "  process.exit(0);",
-        "});",
-        'setInterval(() => console.log("beat"), 100);',
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+  // Windows has no SIGTERM: a kill there ends the process before any handler runs.
+  it.skipIf(process.platform === "win32")(
+    "captures output a killed process writes while shutting down",
+    async () => {
+      await fs.writeFile(
+        path.join(chatRoot, "work", "graceful.js"),
+        [
+          'process.on("SIGTERM", () => {',
+          '  console.log("shutting down");',
+          "  process.exit(0);",
+          "});",
+          'setInterval(() => console.log("beat"), 100);',
+          "",
+        ].join("\n"),
+        "utf8",
+      );
 
-    const started = await bash("node work/graceful.js", 500);
-    const processId = started.processId ?? "";
+      const started = await bash("node work/graceful.js", 500);
+      const processId = started.processId ?? "";
 
-    await kill(processId);
+      await kill(processId);
 
-    // The kill waits for the child to actually exit, so its shutdown output is
-    // still readable rather than cut off when the log closed.
-    const readOutput = await read(processId, 0);
-    expect(readOutput.output).not.toContain("is still running");
-    expect(readOutput.output).toContain("shutting down");
-  }, 30_000);
+      // The kill waits for the child to actually exit, so its shutdown output is
+      // still readable rather than cut off when the log closed.
+      const readOutput = await read(processId, 0);
+      expect(readOutput.output).not.toContain("is still running");
+      expect(readOutput.output).toContain("shutting down");
+    },
+    30_000,
+  );
 
   it.runIf(process.platform !== "win32")(
     "does not return from a kill until descendants are gone",

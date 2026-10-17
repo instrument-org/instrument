@@ -105,6 +105,8 @@ So the deb, and only the deb, turns `autoInstallOnAppQuit` off and writes a shel
 
 That authentication prompt is also why the `installing` status carries a notice on this path and no other: declining the prompt is the one way an update quietly does not happen.
 
+Every Linux install first reads the staged artifact whole and checks its sha512 against the entry the feed published for it this session (`stagedArtifactProblem` in `update.ts`), whether the install is the deb handoff, an explicit `quitAndInstall()`, or electron-updater's own install on quit, which a `quit` handler registered ahead of electron-updater's checks first. electron-updater hashes an artifact it finds from an earlier launch, but of one it downloaded in the same run it checks only that the file exists, and the cache folder is in the home folder, where the agent can write when the person allows it. A package installs as root, and an AppImage replaces the app, so a file replaced there would otherwise run outside every sandbox. An artifact that fails is removed and the install refused with `StagedUpdateRejectedError`; the updater then forgets the staged build, so the next check downloads it again. macOS and Windows check the signature of what they install instead.
+
 ## Upstream
 
 The manifest asks for `^6.8.9` and the lockfile currently resolves 6.8.9. 6.8.8 hardened the install path against relative `PATH` entries, path traversal, and environment-variable interception, so staying current on the 6.x line matters more here than in most dependencies.

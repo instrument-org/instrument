@@ -12,9 +12,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
-import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import {
+  createMockChatConfig,
+  knowChat,
+} from "../../test/helpers/mock-chat-config";
+import { ChatWrites } from "../chat-writes";
 import { listMemories, memoryDir } from "../memory/store";
-import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createMemoryCommand } from "./memory";
 
@@ -34,15 +37,19 @@ beforeEach(async () => {
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
   });
-  await Store.saveSession(
-    {
-      createdAt: new Date(),
-      id: sessionId,
-      title: "Roofer call",
-      updatedAt: new Date(),
-    },
-    chatId,
-  );
+  // The chat's records go in the folder this test's own chats folder gives it.
+  knowChat(chatId);
+  (
+    await ChatWrites.saveSession(
+      {
+        createdAt: new Date(),
+        id: sessionId,
+        title: "Roofer call",
+        updatedAt: new Date(),
+      },
+      chatId,
+    )
+  )._unsafeUnwrap();
 });
 
 afterEach(async () => {

@@ -1,4 +1,4 @@
-import { ok } from "neverthrow";
+import { okAsync } from "neverthrow";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,9 +22,9 @@ vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
   sessionOfChat: () => StoreId.newSessionId(),
 }));
-vi.mock(import("../store"), () => ({
-  Store: {
-    getSession: () => Promise.resolve(ok({ topics: world.tagged } as never)),
+vi.mock(import("../chat-reads"), () => ({
+  ChatReads: {
+    session: () => okAsync({ topics: world.tagged } as never),
   } as never,
 }));
 vi.mock(import("./topics"), () => ({
@@ -35,9 +35,10 @@ vi.mock(import("../permissions/rules"), async (importOriginal) => ({
   readPermissionSettings: () =>
     Promise.resolve({
       apps: [],
+      chats: {},
       folders: [],
       places: world.places,
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     }),
 }));
 vi.mock(import("../path-exists"), () => ({
@@ -47,7 +48,9 @@ vi.mock(import("../path-exists"), () => ({
 
 const chatId = ChatIdSchema.parse("chat-reach");
 const home = os.homedir();
-const workspace = path.join(home, "Documents", "Instrument");
+// The folder the app names itself while nobody has picked one, which is what
+// the standing folders below carry.
+const workspace = path.join(home, "Instrument");
 const elsewhere = path.resolve(path.sep, "Volumes", "Archive");
 
 function granted(...grants: { at: number; path: string }[]): ChatGrant[] {
@@ -69,7 +72,7 @@ async function reach(grants: ChatGrant[]) {
 
 function topic(name: string, folders: string[]): Topic {
   return {
-    createdAt: 0,
+    created: new Date(0),
     folders: folders.map((folderPath) => ({ path: folderPath })),
     id: `top_${name}`,
     name,

@@ -20,7 +20,7 @@ vi.mock("../workspace-config", () => ({
 const reach: NativeReach = {
   readOnly: [],
   readWrite: [],
-  rules: { home: "/nope/home", rules: [], withoutAsking: false },
+  rules: { home: "/nope/home", rules: [], dangerouslyAllowEveryFolder: false },
 };
 
 /** The probe failing as execFileSync reports a timeout or a refusal. */

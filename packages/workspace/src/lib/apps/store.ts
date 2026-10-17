@@ -1,19 +1,27 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { err, ok, type Result } from "neverthrow";
-import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { omit } from "radashi";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
+import { readOwnFile, writeOwnFile } from "../own-file";
 import { APP_COMMAND } from "../shell-commands/app-command";
+import {
+  type AppFile,
+  APP_FILE_NAME,
+  type AppFileRead,
+  APPS_FOLDER_NAME,
+  parseAppFile,
+  renderAppFile,
+  unusedAppName,
+} from "./app-file";
 import { type AppCatalogEntry, catalogEntryForApp } from "./catalog";
 import {
-  APP_GUIDE_FILE_NAME,
-  APP_MANIFEST_FILE_NAME,
   type AppManifest,
   AppManifestSchema,
+  manifestHash,
   type AppSlug,
   AppSlugSchema,
 } from "./manifest";
@@ -23,6 +31,8 @@ export interface AppInfo {
   manifest: AppManifest;
   /** What the connection record is pinned to: the manifest as it is on disk. */
   manifestHash: string;
+  /** What the person calls it: the name of its folder. */
+  name: string;
   slug: AppSlug;
 }
 
@@ -32,39 +42,52 @@ interface AppLoadError {
 }
 
 /**
- * Read every app folder under `appsDir`. Folders whose manifest fails to
- * parse are returned separately so callers (the Apps screen, `app list`) can
- * surface the problem instead of silently hiding the app.
+ * Read every app folder under `appsDir`. A folder with no `APP.md` is not an
+ * app's and is passed over; one whose `APP.md` names an app this build cannot
+ * read is returned separately, so callers (the Apps screen, `app list`) can
+ * say so instead of letting the app disappear.
+ *
+ * Two folders carrying one `id` is a copy-paste: the first by name is the
+ * app, and the other is reported, since whichever way they were told apart
+ * would be a guess at which one the key belongs to.
  */
 export async function listApps(appsDir: AbsolutePath): Promise<{
   apps: AppInfo[];
   invalid: { message: string; slug: string }[];
 }> {
-  let entries;
-  try {
-    entries = await fs.readdir(appsDir, { withFileTypes: true });
-  } catch {
-    return { apps: [], invalid: [] };
-  }
-
   const apps: AppInfo[] = [];
   const invalid: { message: string; slug: string }[] = [];
+  const taken = new Map<string, string>();
 
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) {
+  for (const { folder, read } of await readAppFolders(appsDir)) {
+    if (read.kind === "none") {
       continue;
     }
-    const result = await loadApp(appsDir, entry.name);
-    if (result.isOk()) {
-      apps.push(result.value);
-    } else if (result.error.reason !== "not-found") {
-      invalid.push({ message: result.error.message, slug: entry.name });
+    if (read.kind === "invalid") {
+      invalid.push({ message: read.message, slug: read.id });
+      continue;
     }
+    const first = taken.get(read.app.id);
+    if (first !== undefined) {
+      invalid.push({
+        message: `"${folder}" says it is "${read.app.id}", which "${first}" already is. Give one of them an id of its own, or take it away.`,
+        slug: read.app.id,
+      });
+      continue;
+    }
+    taken.set(read.app.id, folder);
+    apps.push(appInfoOf(appsDir, folder, read.app));
   }
 
   return { apps, invalid };
 }
 
+/**
+ * One app by its id, found by reading the apps folder: its name is its
+ * folder's, which the person may rename at any time, so nothing but the `id`
+ * in its `APP.md` says which app a folder holds. A handful of small files, so
+ * no cache stands between the folder and the answer.
+ */
 export async function loadApp(
   appsDir: AbsolutePath,
   rawSlug: string,
@@ -72,72 +95,57 @@ export async function loadApp(
   const slugResult = AppSlugSchema.safeParse(rawSlug);
   if (!slugResult.success) {
     return err({
-      message: `"${rawSlug}" is not an app slug (lowercase letters, digits, and hyphens).`,
+      message: `"${rawSlug}" is not an app id (lowercase letters, digits, and hyphens).`,
       reason: "invalid-slug",
     });
   }
   const slug = slugResult.data;
-  const dir = absolutePathJoin(appsDir, slug);
-  const manifestPath = path.join(dir, APP_MANIFEST_FILE_NAME);
-
-  let raw: string;
-  try {
-    raw = await fs.readFile(manifestPath, "utf8");
-  } catch {
-    return err({
-      message: `App "${slug}" has no ${APP_MANIFEST_FILE_NAME}.`,
-      reason: "not-found",
-    });
+  let broken: string | undefined;
+  for (const { folder, read } of await readAppFolders(appsDir)) {
+    if (read.kind === "app" && read.app.id === slug) {
+      return ok(appInfoOf(appsDir, folder, read.app));
+    }
+    if (read.kind === "invalid" && read.id === slug) {
+      broken ??= read.message;
+    }
   }
-
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch (error) {
-    return err({
-      message: `${APP_MANIFEST_FILE_NAME} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-      reason: "invalid-manifest",
-    });
-  }
-
-  const parsed = AppManifestSchema.safeParse(json);
-  if (!parsed.success) {
-    return err({
-      message: `${APP_MANIFEST_FILE_NAME} is invalid: ${parsed.error.issues
-        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-        .join("; ")}`,
-      reason: "invalid-manifest",
-    });
-  }
-
-  return ok({
-    dir,
-    manifest: parsed.data,
-    manifestHash: manifestHash(parsed.data),
-    slug,
-  });
+  return broken === undefined
+    ? err({
+        message: `No app is "${slug}": no ${APP_FILE_NAME} in ${APPS_FOLDER_NAME}/ gives that as its id.`,
+        reason: "not-found",
+      })
+    : err({ message: broken, reason: "invalid-manifest" });
 }
 
-export async function readAppGuide(
-  appDir: AbsolutePath,
-): Promise<null | string> {
-  try {
-    const guide = await fs.readFile(
-      path.join(appDir, APP_GUIDE_FILE_NAME),
-      "utf8",
-    );
-    return guide.trim() === "" ? null : guide;
-  } catch {
-    return null;
-  }
-}
-
-export async function writeAppGuide(appDir: AbsolutePath, guide: string) {
-  await fs.writeFile(
-    path.join(appDir, APP_GUIDE_FILE_NAME),
-    `${guide.trimEnd()}\n`,
-    "utf8",
+/** The app's guide: the body of its `APP.md`, or nothing where it has none. */
+export function readAppGuide(appDir: AbsolutePath): Promise<null | string> {
+  const read = parseAppFile(
+    readAppFileText(path.dirname(appDir), path.basename(appDir)) ?? "",
   );
+  return Promise.resolve(
+    read.kind === "app" && read.app.guide !== "" ? `${read.app.guide}\n` : null,
+  );
+}
+
+/**
+ * Writes the app's guide, keeping the manifest above it and every key found
+ * with it, since the guide is the body of the one file the manifest is in.
+ */
+export function writeAppGuide(appDir: AbsolutePath, guide: string) {
+  const appsDir = path.dirname(appDir);
+  const read = parseAppFile(
+    readAppFileText(appsDir, path.basename(appDir)) ?? "",
+  );
+  if (read.kind !== "app") {
+    throw new Error(
+      `${path.join(appDir, APP_FILE_NAME)} is not an app, so there is no guide to write.`,
+    );
+  }
+  writeOwnFile({
+    data: renderAppFile({ ...read.app, guide }),
+    file: path.join(appDir, APP_FILE_NAME),
+    folder: appsDir,
+  });
 }
 
 /**
@@ -180,6 +188,9 @@ export function guidePlaceholdersLeft(
  * it is reached. An MCP app's is complete as written. An API app's carries
  * the directory's endpoints and conventions when it has them, and otherwise
  * the prompts the agent answers before connecting.
+ *
+ * It opens with no heading: the folder is the app's name, and the guide is
+ * the body of the file under it.
  */
 export function guideSkeleton(
   manifest: AppManifest,
@@ -193,37 +204,30 @@ export function guideSkeleton(
         : manifest.type === "web"
           ? `Worked on the web at ${manifest.url}, where the user signs in in ${APP_NAME}'s browser: a task opens the site in a tab and works there. No \`${APP_COMMAND.name}\` call or request reaches it.`
           : `Reached through its MCP server at ${manifest.url}: ${tools}`;
-    return `# ${manifest.name}\n\n${entry ? `${entry.description}\n\n` : ""}${reach}\n`;
+    return `${entry ? `${entry.description}\n\n` : ""}${reach}\n`;
   }
   const guide = entry?.apiGuide;
-  return `# ${manifest.name}\n\n${entry?.description ?? GUIDE_PROMPTS.purpose}\n\nReached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\n${guide?.endpoints ?? GUIDE_PROMPTS.endpoints}\n\n## Conventions\n\n${guide?.conventions ?? GUIDE_PROMPTS.conventions}\n`;
+  return `${entry?.description ?? GUIDE_PROMPTS.purpose}\n\nReached through its API at ${manifest.url}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\n${guide?.endpoints ?? GUIDE_PROMPTS.endpoints}\n\n## Conventions\n\n${guide?.conventions ?? GUIDE_PROMPTS.conventions}\n`;
 }
 
-/** Write a manifest and, when the folder has none, a guide to fill in. */
 /**
  * Names the account an app is signed in as, or clears the name, rewriting
- * only its manifest. The name is outside the manifest's hash, so the app
- * stays connected.
+ * its manifest and keeping its guide. The name is outside the manifest's
+ * hash, so the app stays connected.
  */
 export async function setAppAccount(
   appsDir: AbsolutePath,
   slug: AppSlug,
   account: string | undefined,
 ): Promise<AppManifest> {
-  const loaded = await loadApp(appsDir, slug);
-  if (loaded.isErr()) {
-    throw new Error(loaded.error.message);
-  }
-  const rest = omit(loaded.value.manifest, ["account"]);
-  const manifest = AppManifestSchema.parse(
-    account === undefined ? rest : { ...rest, account },
+  const rest = omit((await requireApp(appsDir, slug)).manifest, ["account"]);
+  return writeManifest(
+    appsDir,
+    slug,
+    AppManifestSchema.parse(
+      account === undefined ? rest : { ...rest, account },
+    ),
   );
-  await fs.writeFile(
-    path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
-  return manifest;
 }
 
 /**
@@ -237,88 +241,164 @@ export async function setWebAppAccount(
   slug: AppSlug,
   account: string,
 ): Promise<AppManifest> {
-  const loaded = await loadApp(appsDir, slug);
-  if (loaded.isErr()) {
-    throw new Error(loaded.error.message);
-  }
-  const current = loaded.value.manifest;
+  const current = (await requireApp(appsDir, slug)).manifest;
   const accountHome =
     current.type === "web"
       ? catalogEntryForApp(slug, current)?.accountHome
       : undefined;
-  const manifest = AppManifestSchema.parse({
-    ...current,
-    account,
-    ...(accountHome
-      ? { url: accountHome.replace("{account}", encodeURIComponent(account)) }
-      : {}),
-  });
-  await fs.writeFile(
-    path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
+  return writeManifest(
+    appsDir,
+    slug,
+    AppManifestSchema.parse({
+      ...current,
+      account,
+      ...(accountHome
+        ? { url: accountHome.replace("{account}", encodeURIComponent(account)) }
+        : {}),
+    }),
   );
-  return manifest;
 }
 
+/**
+ * Writes an app's folder: its `APP.md`, the manifest as front matter over the
+ * guide. An app already here keeps the folder it is in, whatever the person
+ * has renamed it to, and keeps the guide unless `replacesGuide` says the
+ * service is reached another way now. A new one takes `name` as its folder,
+ * numbered where another app has that name, which is what a second account
+ * of one service comes to.
+ */
 export async function writeAppFolder({
   appsDir,
   guide,
   manifest,
+  name,
   replacesGuide = false,
   slug,
 }: {
   appsDir: AbsolutePath;
   guide: string;
   manifest: AppManifest;
+  /** What the app is called, and so what its folder is called when it is new. */
+  name: string;
   /** Writes the guide over one already there, for a manifest that reaches the service another way. */
   replacesGuide?: boolean;
   slug: AppSlug;
 }): Promise<AbsolutePath> {
-  const dir = absolutePathJoin(appsDir, slug);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(
-    path.join(dir, APP_MANIFEST_FILE_NAME),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
-  );
-  const guidePath = path.join(dir, APP_GUIDE_FILE_NAME);
-  if (replacesGuide || (await readAppGuide(dir)) === null) {
-    await fs.writeFile(guidePath, guide, "utf8");
-  }
+  const here = await findApp(appsDir, slug);
+  const dir =
+    here?.dir ??
+    absolutePathJoin(
+      appsDir,
+      unusedAppName(name, await appFolderNames(appsDir)),
+    );
+  const kept = here === undefined || replacesGuide ? "" : here.guide;
+  writeOwnFile({
+    data: renderAppFile({
+      guide: kept || guide,
+      id: slug,
+      manifest,
+      ...(here?.others ? { others: here.others } : {}),
+    }),
+    file: path.join(dir, APP_FILE_NAME),
+    folder: appsDir,
+  });
   return dir;
 }
 
-/**
- * A digest of the manifest as parsed, so a connection record can say which
- * manifest passed the test and a call can refuse one edited since. Over the
- * parsed value rather than the file's bytes, so reformatting the JSON is not
- * a change. A local app's `macApp` is left out: it only says which icon the
- * app is drawn with, and naming one changes nothing that runs or is sent.
- * Nor is any app's `account`, a label for the account it is signed in as,
- * or its `service`, which says what it is rather than how it is reached.
- */
-function manifestHash(manifest: AppManifest): string {
-  const reached =
-    manifest.type === "mcp-local"
-      ? omit(manifest, ["account", "macApp", "service"])
-      : omit(manifest, ["account", "service"]);
-  return createHash("sha256")
-    .update(JSON.stringify(sortKeys(reached)))
-    .digest("hex")
-    .slice(0, 32);
+/** The folders in the apps folder, in name order; none where there is no such folder. */
+async function appFolderNames(appsDir: string): Promise<string[]> {
+  try {
+    return (await fs.readdir(appsDir, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name)
+      .toSorted();
+  } catch {
+    return [];
+  }
 }
 
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(sortKeys);
+/**
+ * An app's file as text, read as the app itself rather than through the
+ * sandbox: a program the agent runs can put a link at any name in here, and
+ * nothing on the way to the file is followed (`readOwnFile`).
+ */
+function readAppFileText(appsDir: string, folder: string): string | undefined {
+  try {
+    return readOwnFile({
+      file: path.join(appsDir, folder, APP_FILE_NAME),
+      folder: appsDir,
+    }).toString("utf8");
+  } catch {
+    return undefined;
   }
-  if (value !== null && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, child]) => [key, sortKeys(child)]),
+}
+
+/** Every folder in the apps folder with what its `APP.md` says, in name order. */
+async function readAppFolders(
+  appsDir: AbsolutePath,
+): Promise<{ folder: string; read: AppFileRead }[]> {
+  return (await appFolderNames(appsDir)).map((folder) => ({
+    folder,
+    read: parseAppFile(readAppFileText(appsDir, folder) ?? ""),
+  }));
+}
+
+function appInfoOf(
+  appsDir: AbsolutePath,
+  folder: string,
+  app: AppFile,
+): AppInfo {
+  return {
+    dir: absolutePathJoin(appsDir, folder),
+    manifest: app.manifest,
+    manifestHash: manifestHash(app.manifest),
+    name: folder,
+    slug: app.id,
+  };
+}
+
+/**
+ * The app as its file holds it, with the folder it is in: what a write that
+ * keeps the rest of the file needs. Nothing where no folder gives that id.
+ */
+async function findApp(
+  appsDir: AbsolutePath,
+  slug: AppSlug,
+): Promise<(AppFile & { dir: AbsolutePath }) | undefined> {
+  for (const { folder, read } of await readAppFolders(appsDir)) {
+    if (read.kind === "app" && read.app.id === slug) {
+      return { ...read.app, dir: absolutePathJoin(appsDir, folder) };
+    }
+  }
+  return undefined;
+}
+
+/** The app, or why there is none to write to. */
+async function requireApp(
+  appsDir: AbsolutePath,
+  slug: AppSlug,
+): Promise<AppFile & { dir: AbsolutePath }> {
+  const app = await findApp(appsDir, slug);
+  if (app === undefined) {
+    const loaded = await loadApp(appsDir, slug);
+    throw new Error(
+      loaded.isErr() ? loaded.error.message : `"${slug}" is not an app.`,
     );
   }
-  return value;
+  return app;
+}
+
+/** Writes a manifest over the one in the app's file, keeping everything else in it. */
+async function writeManifest(
+  appsDir: AbsolutePath,
+  slug: AppSlug,
+  manifest: AppManifest,
+): Promise<AppManifest> {
+  const app = await requireApp(appsDir, slug);
+  writeOwnFile({
+    data: renderAppFile({ ...app, manifest }),
+    file: path.join(app.dir, APP_FILE_NAME),
+    folder: appsDir,
+  });
+  return manifest;
 }

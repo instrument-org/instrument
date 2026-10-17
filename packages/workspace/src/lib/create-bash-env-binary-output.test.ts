@@ -5,7 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -71,9 +70,7 @@ const read = (name: string) => fs.readFile(path.join(chatRoot, name));
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-binary-output-"));
   chatRoot = path.join(tmpDir, "chats", "binary-output");
-  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
-    recursive: true,
-  });
+  await fs.mkdir(chatRoot, { recursive: true });
   await fs.writeFile(path.join(chatRoot, "binary.bin"), BINARY);
   await fs.writeFile(
     path.join(chatRoot, "secret.txt"),

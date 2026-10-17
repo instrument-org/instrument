@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
-import { Store } from "../../src/lib/store";
+import { workspaceLayout } from "../../src/lib/workspace-layout";
+import { ChatReads } from "../../src/lib/chat-reads";
+import { writingChatRecords } from "../../src/lib/records/chat-records";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
 import { folderReach } from "../../src/lib/chat/folder-reach";
 import { getChatSettings } from "../../src/lib/chat-settings";
@@ -20,11 +21,15 @@ import {
 
 const opened: ChatId[] = [];
 
-// Storage handles are cached by task id, and every case here seeds the same
-// fixture into a new directory under the same ids. Without this, a read in one
-// case leaves a handle open on its workspace that the next case would reuse.
+// A chat is held open by id, and every case here seeds the same fixture into
+// a new directory under the same ids. Without this, a read in one case leaves
+// the chat open on its workspace, and the next case reads that one: the
+// sessions of every case so far, in the folder the first one made.
 afterEach(async () => {
-  await Promise.all(opened.splice(0).map(disposeSessionsStoreStorage));
+  const records = writingChatRecords();
+  for (const id of opened.splice(0)) {
+    await records?.close(id);
+  }
 });
 
 function at<T>(items: readonly T[], index: number): T {
@@ -43,19 +48,19 @@ function at<T>(items: readonly T[], index: number): T {
 async function readSeededSession(seeded: SeededTask) {
   if (seeded.chat !== undefined) {
     const sessionId = StoreId.SessionSchema.parse(seeded.id);
-    const loaded = await Store.getSessionWithMessagesAndParts(
+    const loaded = await ChatReads.sessionWithMessages({
+      chatId: seeded.chat,
       sessionId,
-      seeded.chat,
-    );
+    });
     return { session: loaded._unsafeUnwrap(), sessionIds: [sessionId] };
   }
   const chatId = ChatIdSchema.parse(seeded.id);
-  const sessions = await Store.getSessions(chatId);
+  const sessions = await ChatReads.sessions({ chatId });
   const sessionIds = sessions._unsafeUnwrap().map((session) => session.id);
-  const loaded = await Store.getSessionWithMessagesAndParts(
-    at(sessionIds, 0),
+  const loaded = await ChatReads.sessionWithMessages({
     chatId,
-  );
+    sessionId: at(sessionIds, 0),
+  });
   return { session: loaded._unsafeUnwrap(), sessionIds };
 }
 
@@ -229,7 +234,7 @@ describe("seedWorkspace", () => {
     );
     expect(JSON.parse(preferences)).toEqual({ developerMode: true });
     await expect(
-      fs.access(path.join(userDataDir, "workspace", "chats")),
+      fs.access(workspaceLayout(path.join(userDataDir, "workspace")).chatsDir),
     ).resolves.toBeUndefined();
   });
 
@@ -260,19 +265,29 @@ describe("seedWorkspace", () => {
     ).toEqual({ developerMode: true, theme: "dark" });
   });
 
-  it("copies the task's files to the paths it declares, in its chat's folder", async () => {
-    const { chatTask, seeded } = await seedIntoTempDir();
+  it("copies the task's files to the paths it declares, in its chat's work folder", async () => {
+    const { chatTask, seeded, userDataDir } = await seedIntoTempDir();
     const filedIn = at(seeded, 1).chat;
     if (!filedIn) {
       throw new Error("the task was seeded in no chat");
     }
-    const dir = chatDir(filedIn);
+    // Where the app keeps the work folder of a chat in the first workspace.
+    const dir = path.join(
+      userDataDir,
+      "workspaces-data",
+      "default",
+      "work",
+      filedIn,
+    );
 
     expect(chatTask.files.length).toBeGreaterThan(0);
     for (const file of chatTask.files) {
       expect(await fs.readFile(path.join(dir, file.to))).toEqual(
         await fs.readFile(file.from),
       );
+      await expect(
+        fs.access(path.join(chatDir(filedIn), file.to)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     }
   });
 

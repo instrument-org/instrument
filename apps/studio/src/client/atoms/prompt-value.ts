@@ -1,13 +1,13 @@
 import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { draftWordsAtom } from "@/client/atoms/window";
+import { chatDraftWordsAtom, draftWordsAtom } from "@/client/atoms/window";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 
 // A prompt draft is scoped one of two ways:
-//  - chat: the reply in one chat of the window's, kept in memory for the
-//    window's life so a reply left half-typed is there on coming back, and so
-//    the inbox can say the chat has one.
+//  - chat: the reply in one chat, kept as a draft of its own in Drafts (see
+//    `chatDraftWordsAtom`), so a reply left half-typed is there on coming
+//    back, survives a relaunch, and the inbox can say the chat has one.
 //  - draft: a new chat's draft, whose words are the draft's own (see
 //    `draftWordsAtom`), kept whether or not its window is up.
 //  - transient: a composer that starts from a prefill and is meant to be thrown
@@ -37,16 +37,11 @@ export function draftKeyString(key: PromptDraftKey): string {
 // Transient drafts, discarded by the composer when it unmounts or re-keys.
 const transientDraftFamily = atomFamily((_id: string) => atom(""));
 
-// Chat replies, one per chat, kept as long as the window is: read by the
-// chat's composer and by its row in the inbox alike, so the atom for a
-// chat is always the same one, whether or not its composer is mounted.
-const chatDraftFamily = atomFamily((_chatId: ChatId) => atom(""));
-
 /** The value atom for a draft, resolving to the right backing store per scope. */
 export function promptDraftAtom(key: PromptDraftKey) {
   switch (key.scope) {
     case "chat": {
-      return chatDraftFamily(key.chatId);
+      return chatDraftWordsAtom(key.chatId);
     }
     case "draft": {
       return draftWordsAtom(key.draftId);

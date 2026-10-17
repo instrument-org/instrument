@@ -148,8 +148,8 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-chatContext": {
       return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
     }
-    case "data-chatTopics": {
-      return `<data-chatTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-chatTopics>`;
+    case "data-topics": {
+      return `<data-topics>${part.data.topics.map((topic) => topic.name).join(",")}</data-topics>`;
     }
     case "data-contextRollover": {
       const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;
@@ -158,6 +158,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-dateChange": {
       return `<data-dateChange date="${part.data.date}" />`;
+    }
+    case "data-environmentChange": {
+      const facts = Object.entries(part.data)
+        .map(([fact, value]) => `${fact}="${value}"`)
+        .join(" ");
+      return `<data-environmentChange ${facts} />`;
     }
     case "data-fileChanges": {
       const files = part.data.files
@@ -182,6 +188,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
+    }
+    case "data-outputLimit": {
+      return `<data-outputLimit continuations="${part.data.continuations}" />`;
     }
     case "data-reply": {
       return `<data-reply>${part.data.text}</data-reply>`;

@@ -20,8 +20,9 @@ import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
 import { taskStanding } from "../../lib/chat/standing";
 import { startChatWake } from "../../lib/chat/wake";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
+import { ChatReads } from "../../lib/chat-reads";
+import { ChatWrites } from "../../lib/chat-writes";
 import { sessionOfChat } from "../../lib/record-folders";
-import { Store } from "../../lib/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -31,7 +32,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { chatTaskFor } from "../../test/helpers/chat-task";
+import { chatTaskFor, writtenIn } from "../../test/helpers/chat-task";
 import { publisher } from "../publisher";
 import { permissions } from "./permissions";
 import { session } from "./session";
@@ -94,7 +95,7 @@ afterEach(async () => {
 
 /** The task events of the notes written into `chatId`'s own session. */
 async function notesIn(chatId: ChatId) {
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
     chatId,
     sessionId: sessionOfChat(chatId) ?? StoreId.newSessionId(),
   });
@@ -116,7 +117,7 @@ function wokenSince(before: number) {
 
 /** A chat someone has written in, with one task. */
 async function chatWithTask() {
-  const chatId = chatFor(StoreId.newSessionId());
+  const chatId = await chatFor(StoreId.newSessionId());
   const written = await updateChatSettings(chatId, {
     modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
@@ -129,6 +130,7 @@ async function chatWithTask() {
   if (!own) {
     throw new Error("expected the chat's session");
   }
+  await writtenIn(chatId);
   const task = await chatTaskFor(chatId, { title: "Sleep 300 seconds" });
   owners.push(own, task);
   return { chatId, own, task };
@@ -165,7 +167,7 @@ function running(
 async function said(chatId: ChatId, sessionId: StoreId.Session, text: string) {
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
-  const written = await Store.saveMessageWithParts(
+  const written = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: {
@@ -463,11 +465,11 @@ describe("session.stop", () => {
       const { chatId, own } = await chatWithTask();
       const messageId = StoreId.newMessageId();
       const createdAt = new Date();
-      await Store.saveSession(
+      await ChatWrites.saveSession(
         { createdAt, id: own, title: "Documents" },
         chatId,
       );
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: { createdAt, sessionId: own },

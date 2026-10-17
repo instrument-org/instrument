@@ -1,5 +1,5 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
@@ -23,12 +23,28 @@ async function catalog(...words: string[]) {
   return result.stdout;
 }
 
+/**
+ * The catalog as a Mac reads it. The scripted commands run only on macOS, so
+ * the lines that name one are there and nowhere else.
+ */
+async function catalogOnMac(...words: string[]) {
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  try {
+    return await catalog(...words);
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform });
+  }
+}
+
 describe("app catalog", () => {
-  // A task told to use osascript for Reminders walked every reminder for
-  // minutes; the helper answers in a query, so where the build carries it
-  // the set-up line names it.
+  // The helper is the only way into Reminders, so a build without it says
+  // there is none rather than naming a command it lacks.
   it.each([
-    [undefined, "do it with osascript on this Mac"],
+    [
+      undefined,
+      "set up: none: Instrument has no way into Reminders in this build",
+    ],
     ["/app/bin/instrument-mac", "do it with the `calendar` command"],
   ])("sends Reminders through the helper when it is %s", async (bin, line) => {
     const config = getWorkspaceConfig();
@@ -42,6 +58,21 @@ describe("app catalog", () => {
       expect(await catalog("apple-reminders")).toContain(line);
     } finally {
       setWorkspaceConfig(config);
+    }
+  });
+
+  it.each([
+    ["apple-mail", "mail"],
+    ["apple-notes", "notes"],
+    ["apple-messages", "messages"],
+  ])("sends %s through the `%s` command on a Mac", async (slug, command) => {
+    vi.stubGlobal("process", { ...process, platform: "darwin" });
+    try {
+      expect(await catalog(slug)).toContain(
+        `do it with the \`${command}\` command`,
+      );
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 
@@ -152,13 +183,13 @@ describe("app catalog", () => {
   });
 
   it("works the Mac's own apps with nothing to connect", async () => {
-    const text = await catalog("apple notes");
+    const text = await catalogOnMac("apple notes");
     expect(text).toContain("set up: nothing to connect");
     expect(text).not.toContain("account is added");
   });
 
   it("reaches Gmail through Mail until its sign-in client clears", async () => {
-    const text = await catalog("gmail");
+    const text = await catalogOnMac("gmail");
     expect(text).toContain(
       "set up: nothing to connect, and no `app new`: when the user asks for something in Mail",
     );

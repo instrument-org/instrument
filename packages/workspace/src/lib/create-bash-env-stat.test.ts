@@ -75,9 +75,14 @@ describe("stat -c format directives", () => {
     const result = await run(
       "stat -c 'mode=%a raw=%f pct=%% unknown=%q pad=[%6s]' work/note.md",
     );
+    // The mode the disk reports: 644 under the usual umask, and on Windows,
+    // which keeps no permission bits, 666 for any file that can be written.
+    const { mode } = await fs.stat(
+      path.join(tmpDir, "tasks", "test", "work", "note.md"),
+    );
 
     expect(result.stdout).toBe(
-      "mode=644 raw=81a4 pct=% unknown=? pad=[     8]\n",
+      `mode=${(mode & 0o777).toString(8)} raw=${mode.toString(16)} pct=% unknown=? pad=[     8]\n`,
     );
     expect(result.exitCode).toBe(0);
   });

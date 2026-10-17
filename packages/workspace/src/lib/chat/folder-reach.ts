@@ -5,8 +5,8 @@ import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
+import { ChatReads } from "../chat-reads";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { chatGrants } from "./grants";
 import { type PlaceId, placePaths } from "../permissions/places";
 import { readPermissionSettings } from "../permissions/rules";
@@ -46,7 +46,9 @@ export async function folderReach(
     const granted = (grants ?? (await chatGrants(chatId))).toSorted(
       (a, b) => a.grantedAt.getTime() - b.grantedAt.getTime(),
     );
-    for (const grant of granted) {
+    // A file the user sent is open by the rules alone, in whichever folder
+    // holds it; it is no folder to reach.
+    for (const grant of granted.filter((each) => each.kind !== "file")) {
       add({
         access: "read-write",
         id: MountedFolder.IdSchema.parse(`grant:${grant.path}`),
@@ -121,7 +123,7 @@ async function topicFolderPaths(chatId: ChatId): Promise<string[]> {
   if (!sessionId) {
     return [];
   }
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   const tagged = session.isOk() ? (session.value.topics ?? []) : [];
   if (tagged.length === 0) {
     return [];

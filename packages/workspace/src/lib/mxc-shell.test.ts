@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -55,9 +54,7 @@ function readsClosed(): string {
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "mxc-shell-"));
   const chatRoot = path.join(tmpDir, "chats", "mxc");
-  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
-    recursive: true,
-  });
+  await fs.mkdir(chatRoot, { recursive: true });
   await fs.writeFile(path.join(chatRoot, "words.txt"), "b\na\nc\n");
   // Under `AppData` but outside its temp folder, which the rules open.
   closedFile = path.join(

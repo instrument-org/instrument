@@ -31,6 +31,10 @@ export class ReadOnlyBaseFs implements IFileSystem {
     // A disk says for itself why a read failed.
     this.onMissing = disk ? () => undefined : onMissing;
     this.onWrite = onWrite;
+    const listing = this.disk.readdirWithFileTypes?.bind(this.disk);
+    this.readdirWithFileTypes = listing
+      ? (path) => this.missing(path, () => listing(path))
+      : undefined;
   }
 
   private refuseWrite(op: string, path: string): Promise<never> {
@@ -64,6 +68,14 @@ export class ReadOnlyBaseFs implements IFileSystem {
   mv: IFileSystem["mv"] = (_src, dest) => this.refuseWrite("mv", dest);
   readdir: IFileSystem["readdir"] = (path) =>
     this.missing(path, () => this.disk.readdir(path));
+  /**
+   * Carried through where the disk has it, so a walk of the disk reads each
+   * folder once instead of stating every entry in it. Left unimplemented
+   * where the disk has none, which is what tells a caller to ask about each
+   * entry itself: answering with no types would read every folder as a file
+   * and stop a walk at the first one.
+   */
+  readdirWithFileTypes: IFileSystem["readdirWithFileTypes"];
   readFile: IFileSystem["readFile"] = (path, options) =>
     this.missing(path, () => this.disk.readFile(path, options));
   readFileBuffer: IFileSystem["readFileBuffer"] = (path) =>

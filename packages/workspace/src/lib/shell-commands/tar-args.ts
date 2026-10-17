@@ -1,5 +1,3 @@
-import { CHAT_FOLDER_NAMES } from "../../constants";
-
 /**
  * tar's short options that take a value, in the tar each platform carries:
  * GNU tar on Linux, bsdtar on macOS and Windows. They disagree on `-L`,
@@ -140,12 +138,11 @@ export function tarWritesStdout(args: string[]): boolean {
 }
 
 /**
- * tar's arguments as the system tar gets them: old-style options dashed,
- * and every `.instrument` folder left out of what it archives or extracts,
- * as the shell's own commands never show it. Both GNU tar and bsdtar match
- * an `--exclude` pattern at any depth, and read it before the mode. An
+ * tar's arguments as the system tar gets them: old-style options dashed. An
  * archive created with no `-f` is written to stdout, as `-f -`: where `-f`
- * is missing, bsdtar on Windows writes to a tape drive.
+ * is missing, bsdtar on Windows writes to a tape drive. Nothing in a chat's
+ * folder is the app's to leave out; the app's own data is the native
+ * sandbox's to refuse.
  */
 export function tarProgramArgs(args: string[]): string[] {
   const dashed = tarWithDashedOptions(args);
@@ -154,7 +151,5 @@ export function tarProgramArgs(args: string[]): string[] {
     mode !== undefined && "Acru".includes(mode) && archives.length === 0
       ? ["-f", "-"]
       : [];
-  return mode !== undefined && "Acrux".includes(mode)
-    ? [`--exclude=${CHAT_FOLDER_NAMES.private}`, ...toStdout, ...dashed]
-    : dashed;
+  return [...toStdout, ...dashed];
 }

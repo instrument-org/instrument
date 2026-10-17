@@ -141,12 +141,12 @@ async function runsNatively(hostPath: string): Promise<boolean> {
 }
 
 /**
- * The PATH a program is looked up on: the app's own, with this chat's
- * virtualenv and the bundled uv ahead of it, the same PATH a native command
- * and the scripts it starts run with.
+ * The PATH a program is looked up on from `cwd` (a shell path): the app's
+ * own, with the virtualenv nearest it and the bundled uv ahead of it, the
+ * same PATH a native command and the scripts it starts run with.
  */
-function programPath(chatId: ChatId) {
-  return uvSubprocessEnv({ chatId }).PATH;
+function programPath(chatId: ChatId, cwd: string) {
+  return uvSubprocessEnv({ chatId, cwd: hostPathOf(cwd) }).PATH;
 }
 
 /**
@@ -169,7 +169,7 @@ export function createPathProgramResolver(
         : undefined;
     }
     const [hostPath] = await programsOnPath(name, {
-      path: programPath(chatId),
+      path: programPath(chatId, cwd),
       pathExt: hostEnv("PATHEXT"),
     });
     return hostPath === undefined
@@ -181,10 +181,17 @@ export function createPathProgramResolver(
   };
 }
 
-/** Every program a name names on the PATH programs are looked up on. */
-export async function pathProgramsNamed(chatId: ChatId, name: string) {
+/**
+ * Every program a name names on the PATH programs are looked up on from
+ * `cwd` (a shell path).
+ */
+export async function pathProgramsNamed(
+  chatId: ChatId,
+  name: string,
+  cwd: string,
+) {
   const found = await programsOnPath(name, {
-    path: programPath(chatId),
+    path: programPath(chatId, cwd),
     pathExt: hostEnv("PATHEXT"),
   });
   return found.map((hostPath) => shellPath(hostPath));

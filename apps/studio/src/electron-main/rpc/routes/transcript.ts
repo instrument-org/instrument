@@ -6,6 +6,7 @@ import {
   getChatSettings,
   StoreId,
   chatDir,
+  workDir,
   type ChatId,
   ChatIdSchema,
   workspaceRouter,
@@ -53,12 +54,14 @@ async function buildSystemFrontMatter(chatId: ChatId) {
     runtimeOs: `${osName} ${os.release()} / ${os.arch()}`,
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
     taskName: (await chatTitle(chatId)) ?? "unknown",
-    // Absolute path to the chat's on-disk folder so an agent reading this
-    // transcript can inspect its artifacts (screenshots, output, chat.db),
-    // which is most of why a transcript gets handed to one. It names the
-    // user's own machine in a file the user asked for and nothing sends it
-    // anywhere, so where the file goes next is theirs to decide.
+    // Absolute paths to the chat's record folder (chat.db, settings.json,
+    // attachments) and its work folder (screenshots, output) so an agent
+    // reading this transcript can inspect its artifacts, which is most of why
+    // a transcript gets handed to one. They name the user's own machine in a
+    // file the user asked for and nothing sends them anywhere, so where the
+    // file goes next is theirs to decide.
     chatDir: dir,
+    workDir: workDir(chatId),
     transcriptGeneratedAt: new Date().toISOString(),
   };
 }

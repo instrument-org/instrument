@@ -33,8 +33,9 @@ import { StoreId } from "../../schemas/store-id";
 import { inheritedEnv } from "../native-env";
 import { accountCanWrite } from "../permissions/account-can-write";
 import { raiseAsk } from "../chat/asks";
-import { type Rule } from "../permissions/rules";
+import { reachOf, type Rule } from "../permissions/rules";
 import { AbsolutePathSchema } from "../../schemas/paths";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
@@ -51,6 +52,10 @@ vi.mock("../chat/asks", async (importOriginal) => ({
   raiseAsk: vi.fn(),
 }));
 
+// Windows runs native commands with no Seatbelt or bubblewrap profile, so
+// nothing there builds one or reads the refusals of a command held by one.
+const onWindows = process.platform === "win32";
+
 /** The arguments a wrapped command spawns with, as every caller launches it. */
 function argsOf(spawned: WrappedCommand): string[] {
   return launchNative(spawned, { env: {} }).args;
@@ -60,31 +65,46 @@ function reachOver(home: string, rules: Rule[]): NativeReach {
   return {
     readOnly: [],
     readWrite: [],
-    rules: { home, rules, withoutAsking: false },
+    rules: { home, rules, dangerouslyAllowEveryFolder: false },
   };
 }
 
-describe("seatbeltProfile", () => {
-  it("closes the disk and home to changes, then applies rules shallow to deep", () => {
-    const profile = seatbeltProfile(
-      reachOver("/nope/home", [
-        { level: "allow", path: "/nope/home/Documents/Acme", source: "grant" },
-        { level: "ask", path: "/nope/home/Documents", source: "place" },
-        { dotEntries: true, level: "ask", path: "/nope/home", source: "place" },
-        { level: "never", path: '/nope/home/with "quote"', source: "place" },
-      ]),
-    );
-    expect(
-      profile
-        .split("\n")
-        .filter(
-          (line) =>
-            !line.includes("/.cache") &&
-            !line.includes("Library/") &&
-            !line.includes("/var/folders") &&
-            !/\/\.(npm|local|config|gitconfig)/.test(line),
-        ),
-    ).toMatchInlineSnapshot(`
+describe.skipIf(onWindows)("seatbeltProfile", () => {
+  // The profile opens the way to this computer's own temp folder for
+  // metadata, which is `/private/var/folders/...` on a Mac and `/tmp`
+  // elsewhere, so the lines around the filtered ones are the Mac's. Seatbelt
+  // holds a program on a Mac alone, so that is the profile worth pinning.
+  it.runIf(process.platform === "darwin")(
+    "closes the disk and home to changes, then applies rules shallow to deep",
+    () => {
+      const profile = seatbeltProfile(
+        reachOver("/nope/home", [
+          {
+            level: "allow",
+            path: "/nope/home/Documents/Acme",
+            source: "grant",
+          },
+          { level: "ask", path: "/nope/home/Documents", source: "place" },
+          {
+            dotEntries: true,
+            level: "ask",
+            path: "/nope/home",
+            source: "place",
+          },
+          { level: "never", path: '/nope/home/with "quote"', source: "place" },
+        ]),
+      );
+      expect(
+        profile
+          .split("\n")
+          .filter(
+            (line) =>
+              !line.includes("/.cache") &&
+              !line.includes("Library/") &&
+              !line.includes("/var/folders") &&
+              !/\/\.(npm|local|config|gitconfig)/.test(line),
+          ),
+      ).toMatchInlineSnapshot(`
       [
         "(version 1)",
         "(allow default)",
@@ -110,26 +130,29 @@ describe("seatbeltProfile", () => {
         "(deny mach-lookup (global-name "com.apple.dt.CommandLineTools.installondemand"))",
       ]
     `);
-  });
+    },
+  );
 });
 
-describe("a read-only folder inside a place that opens without asking", () => {
-  const home = "/nope/home";
-  const reach: NativeReach = {
-    readOnly: [`${home}/Library/App/uv`],
-    readWrite: [`${home}/Library/App/uv/cache`],
-    rules: {
-      home,
-      rules: [{ level: "ask", path: `${home}/Library`, source: "place" }],
-      withoutAsking: true,
-    },
-  };
+describe.skipIf(onWindows)(
+  "a read-only folder inside a place that opens without asking",
+  () => {
+    const home = "/nope/home";
+    const reach: NativeReach = {
+      readOnly: [`${home}/Library/App/uv`],
+      readWrite: [`${home}/Library/App/uv/cache`],
+      rules: {
+        home,
+        rules: [{ level: "ask", path: `${home}/Library`, source: "place" }],
+        dangerouslyAllowEveryFolder: true,
+      },
+    };
 
-  it("stays closed to changes under Seatbelt, with its stores open", () => {
-    const lines = seatbeltProfile(reach)
-      .split("\n")
-      .filter((line) => line.includes("Library"));
-    expect(lines).toMatchInlineSnapshot(`
+    it("stays closed to changes under Seatbelt, with its stores open", () => {
+      const lines = seatbeltProfile(reach)
+        .split("\n")
+        .filter((line) => line.includes("Library"));
+      expect(lines).toMatchInlineSnapshot(`
       [
         "(allow file-read* file-write* network-outbound (subpath "/nope/home/Library"))",
         "(allow file-read* (subpath "/nope/home/Library/App/uv"))",
@@ -142,19 +165,17 @@ describe("a read-only folder inside a place that opens without asking", () => {
         "(deny file-write-unlink (require-all (regex #"/\\.git$") (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
       ]
     `);
-  });
+    });
 
-  it("binds the closed-file stand-in's folder read-only under bubblewrap", () => {
-    const standIn = path.join(
-      path.dirname(getWorkspaceConfig().uvDataDir),
-      "sandbox",
-    );
-    const args = bwrapArgs(reach).join(" ");
-    expect(args).toContain(`--ro-bind ${realpathSync(standIn)}`);
-  });
-});
+    it("binds the closed-file stand-in's folder read-only under bubblewrap", () => {
+      const standIn = runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox;
+      const args = bwrapArgs(reach).join(" ");
+      expect(args).toContain(`--ro-bind ${realpathSync(standIn)}`);
+    });
+  },
+);
 
-describe("the passwords place in a profile", () => {
+describe.skipIf(onWindows)("the passwords place in a profile", () => {
   const home = "/nope/home";
   const socket = "/nope/agent.sock";
   const lines = (rules: Rule[]) =>
@@ -241,7 +262,7 @@ describe("inheritedEnv", () => {
   });
 });
 
-describe("refusedPathIn", () => {
+describe.skipIf(onWindows)("refusedPathIn", () => {
   const reach = reachOver("/Users/someone", [
     { level: "never", path: "/Users/someone/.ssh", source: "place" },
     { level: "ask", path: "/Users/someone/Documents", source: "place" },
@@ -295,13 +316,42 @@ describe("refusedPathIn", () => {
     );
   });
 
+  describe("of the app's own data only", () => {
+    const appData = "/Users/someone/Library/Application Support/Instrument";
+    const withAppData = reachOver("/Users/someone", [
+      ...reach.rules.rules,
+      { appData: true, level: "never", path: appData, source: "system" },
+    ]);
+
+    it.each([
+      [
+        "passes over a path a card could open for one in the app's data",
+        [
+          "cat: /Users/someone/Documents/Acme/a.csv: Operation not permitted",
+          `PermissionError: [Errno 1] Operation not permitted: '${appData}/work/other/a.md'`,
+        ].join("\n"),
+        `${appData}/work/other/a.md`,
+      ],
+      [
+        "finds none where only places are refused",
+        "cat: /Users/someone/.ssh/id_ed25519: Operation not permitted",
+        undefined,
+      ],
+    ])("%s", (_name, output, hostPath) => {
+      expect(
+        refusedPathIn(output, withAppData, undefined, { appDataOnly: true })
+          ?.hostPath,
+      ).toBe(hostPath);
+    });
+  });
+
   it("asks for the folder one level into the place", () => {
     const refused = refusedPathIn(
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       reach,
     );
     expect(refused && refusalNote(refused)).toMatchInlineSnapshot(
-      `"~/Documents/Acme/a.csv needs the person's yes first."`,
+      `""~/Documents/Acme/a.csv" needs the person's yes first."`,
     );
   });
 
@@ -344,8 +394,8 @@ describe("refusedPathIn", () => {
     );
     expect(note).toBe(
       asked
-        ? `Waiting on the person to allow ${asked}. If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run the command again once they allow it.`
-        : "~/notes.txt is directly in ~, which no card can open whole. Work in this conversation's folder, or a folder the person names.",
+        ? `Waiting on the person to allow "${asked}". If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run the command again once they allow it.`
+        : `"~/notes.txt" is directly in "~", which no card can open whole. Work in this conversation's folder, or a folder the person names.`,
     );
   });
 
@@ -356,7 +406,7 @@ describe("refusedPathIn", () => {
       reach,
     );
     expect(refused && refusalNote(refused)).toMatchInlineSnapshot(
-      `"~/Documents/Acme/a.csv belongs to the system, and only an administrator can change it. Write what you need somewhere you can, or tell the person what you needed it for."`,
+      `""~/Documents/Acme/a.csv" belongs to the system, and only an administrator can change it. Write what you need somewhere you can, or tell the person what you needed it for."`,
     );
   });
 });
@@ -372,6 +422,9 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(path.join(closed, "key"), "s");
+  // A file the person sent from the closed folder, open alone.
+  const sent = path.join(closed, "sent.md");
+  writeFileSync(sent, "d");
   writeFileSync(path.join(asks, "other.txt"), "o");
   writeFileSync(path.join(granted, "brief.md"), "b");
   writeFileSync(path.join(home, "notes.md"), "n");
@@ -382,6 +435,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     { level: "ask", path: asks, source: "place" },
     { dotEntries: true, level: "ask", path: home, source: "place" },
     { level: "allow", path: granted, source: "grant" },
+    { file: true, level: "allow", path: sent, source: "grant" },
   ]);
 
   async function run(file: string, args: string[]) {
@@ -399,6 +453,17 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
       0,
     ],
     ["refuses a closed folder", ["cat", path.join(closed, "key")], 1],
+    ["reads a file sent from a closed folder", ["cat", sent], 0],
+    [
+      "changes a file sent from a closed folder in place",
+      ["sh", "-c", `echo x > ${sent}`],
+      0,
+    ],
+    [
+      "refuses a new file beside one sent from a closed folder",
+      ["sh", "-c", `echo x > ${path.join(closed, "new")}`],
+      1,
+    ],
     [
       "refuses a closed folder by its Data-volume path",
       ["cat", `/System/Volumes/Data${path.join(closed, "key")}`],
@@ -443,7 +508,7 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
   it("keeps a sign-in folder closed when using folders without asking opens the other hidden ones", async () => {
     mkdirSync(path.join(home, ".ssh"), { recursive: true });
     writeFileSync(path.join(home, ".ssh", "id"), "k");
-    const withoutAsking = {
+    const dangerouslyAllowEveryFolder = {
       ...reach,
       rules: {
         ...reach.rules,
@@ -458,11 +523,15 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
           } satisfies Rule,
           ...reach.rules.rules,
         ],
-        withoutAsking: true,
+        dangerouslyAllowEveryFolder: true,
       },
     };
     const cat = (file: string) => {
-      const spawned = wrapNativeCommand("/bin/cat", [file], withoutAsking);
+      const spawned = wrapNativeCommand(
+        "/bin/cat",
+        [file],
+        dangerouslyAllowEveryFolder,
+      );
       return execa(spawned.file, argsOf(spawned), { reject: false });
     };
     expect((await cat(path.join(home, ".hidden", "x"))).exitCode).toBe(0);
@@ -571,6 +640,9 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(path.join(closed, "key"), "s");
+  // A file the person sent from the closed folder, open alone.
+  const sent = path.join(closed, "sent.md");
+  writeFileSync(sent, "d");
   writeFileSync(path.join(asks, "other.txt"), "o");
   writeFileSync(path.join(granted, "brief.md"), "b");
   writeFileSync(path.join(home, "notes.md"), "n");
@@ -581,6 +653,7 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     { level: "ask", path: asks, source: "place" },
     { dotEntries: true, level: "ask", path: home, source: "place" },
     { level: "allow", path: granted, source: "grant" },
+    { file: true, level: "allow", path: sent, source: "grant" },
   ]);
 
   it.each([
@@ -588,6 +661,17 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     ["reads in a granted folder", `cat ${path.join(granted, "brief.md")}`, 0],
     ["writes in a granted folder", `echo x > ${path.join(granted, "new")}`, 0],
     ["refuses a closed folder", `cat ${path.join(closed, "key")}`, 1],
+    ["reads a file sent from a closed folder", `cat ${sent}`, 0],
+    [
+      "changes a file sent from a closed folder in place",
+      `echo x > ${sent}`,
+      0,
+    ],
+    [
+      "refuses a new file beside one sent from a closed folder",
+      `echo x > ${path.join(closed, "new")}`,
+      1,
+    ],
     ["refuses a place that asks", `cat ${path.join(asks, "other.txt")}`, 1],
     ["refuses a hidden folder", `cat ${path.join(home, ".hidden", "x")}`, 1],
     [
@@ -610,7 +694,37 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
   });
 });
 
-describe("bwrapArgs", () => {
+describe.skipIf(onWindows)("bwrapArgs", () => {
+  // The appFiles place is a rule over the hidden entries of the home folder,
+  // so the folder it names is home itself. The walk for names that run code
+  // has to stop at the entries such a rule closes, not at home.
+  it("leaves a hidden home folder the rules hold at ask closed to a program", () => {
+    const home = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "bwrap-dot-")),
+    );
+    mkdirSync(path.join(home, ".config/nvim/.git"), { recursive: true });
+    const rules: Rule[] = [
+      { level: "allow", path: home, source: "grant" },
+      { dotEntries: true, level: "ask", path: home, source: "place" },
+    ];
+
+    const args = bwrapArgs(reachOver(home, rules)).join(" ");
+
+    expect(
+      reachOf(
+        { home, rules, dangerouslyAllowEveryFolder: false },
+        path.join(home, ".config"),
+        "write",
+      ).level,
+    ).toBe("ask");
+    for (const closed of [".config", ".config/nvim", ".config/nvim/.git"]) {
+      expect(args).not.toContain(
+        `--bind ${path.join(home, closed)} ${path.join(home, closed)}`,
+      );
+    }
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("refuses a closed folder or file rather than showing it empty", () => {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
     for (const folder of ["Documents/Acme", "Secrets"]) {
@@ -659,8 +773,7 @@ describe("bwrapArgs", () => {
     const planted = [
       path.join(os.tmpdir(), `instrument-closed-${process.getuid?.() ?? 0}`),
       path.join(
-        path.dirname(getWorkspaceConfig().uvDataDir),
-        "sandbox",
+        runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox,
         "closed-file",
       ),
     ];
@@ -688,6 +801,35 @@ describe("bwrapArgs", () => {
     rmSync(home, { force: true, recursive: true });
   });
 
+  it("binds a file the person sent alone, never makes one that is gone, and binds one that runs code read-only", () => {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+    const closed = path.join(home, "Private");
+    mkdirSync(closed);
+    const sent = path.join(closed, "report.md");
+    const envrc = path.join(closed, ".envrc");
+    const gone = path.join(closed, "deleted.md");
+    writeFileSync(sent, "r");
+    writeFileSync(envrc, "e");
+    const args = bwrapArgs(
+      reachOver(home, [
+        { level: "never", path: closed, source: "folder" },
+        ...[sent, envrc, gone].map(
+          (file): Rule => ({
+            file: true,
+            level: "allow",
+            path: file,
+            source: "grant",
+          }),
+        ),
+      ]),
+    ).join(" ");
+    expect(args).toContain(`--bind ${sent} ${sent}`);
+    expect(args).toContain(`--ro-bind ${envrc} ${envrc}`);
+    expect(args).not.toContain(gone);
+    expect(existsSync(gone)).toBe(false);
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("leaves the temp folder to the rule that opens it", () => {
     // The layout holds each temp folder with a system allow rule, which
     // binds it; a fixed bind besides would mount it twice.
@@ -697,7 +839,7 @@ describe("bwrapArgs", () => {
   });
 });
 
-describe("bwrapArgs over the login session's sockets", () => {
+describe.skipIf(onWindows)("bwrapArgs over the login session's sockets", () => {
   const scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
   afterAll(() => {
     rmSync(scratch, { force: true, recursive: true });
@@ -758,7 +900,7 @@ describe("bwrapArgs over the login session's sockets", () => {
   });
 });
 
-describe("bwrapArgs over names that run code", () => {
+describe.skipIf(onWindows)("bwrapArgs over names that run code", () => {
   /** A home with `paths` made in it: a trailing slash makes a folder. */
   function plant(paths: string[]): string {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
@@ -787,7 +929,11 @@ describe("bwrapArgs over names that run code", () => {
     } = {},
   ): string[] {
     const args = bwrapArgs(
-      { readOnly: [], readWrite, rules: { home, rules, withoutAsking: false } },
+      {
+        readOnly: [],
+        readWrite,
+        rules: { home, rules, dangerouslyAllowEveryFolder: false },
+      },
       walk,
     );
     const lines: string[] = [];

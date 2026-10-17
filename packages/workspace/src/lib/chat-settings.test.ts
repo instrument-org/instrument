@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { getChatPrivateDir } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getChatState, setChatState } from "./chat-record";
 import { getChatSettings, updateChatSettings } from "./chat-settings";
@@ -73,7 +72,7 @@ describe("updateChatSettings", () => {
   it("survives a state half the schema cannot read", async () => {
     await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
     await fs.writeFile(
-      path.join(getChatPrivateDir(chatDir(chatId)), "settings.json"),
+      path.join(chatDir(chatId), "settings.json"),
       JSON.stringify({
         createdWithAppVersion: "2.0.0",
         state: { browserTabs: "broken" },
@@ -98,11 +97,8 @@ describe("updateChatSettings", () => {
   // a write that fills the gap with what it parsed erases the settings of any
   // chat a newer build -- or a hand edit -- left one bad field in.
   it("keeps the fields a malformed sibling makes unreadable", async () => {
-    const recordPath = path.join(
-      getChatPrivateDir(chatDir(chatId)),
-      "settings.json",
-    );
-    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    const recordPath = path.join(chatDir(chatId), "settings.json");
+    await fs.mkdir(chatDir(chatId), { recursive: true });
     await fs.writeFile(
       recordPath,
       JSON.stringify({

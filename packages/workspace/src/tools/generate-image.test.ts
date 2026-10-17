@@ -1,10 +1,12 @@
 import { type ImageModelV4 } from "@ai-sdk/provider";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { measureImage } from "../lib/render-image";
 import { grantFolder } from "../lib/chat/grants";
+import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
+import { shellPath } from "../lib/workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -56,9 +58,15 @@ beforeEach(async () => {
   await grantFolder({ chatId, path: photosDir, source: "attached" });
 });
 
+// Closed before the temp folder goes, which Windows refuses to remove while
+// the chat's database is open.
+afterEach(async () => {
+  await disposeSessionsStoreStorage(chatId);
+});
+
 /** A file in the granted folder, at the path the agent reaches it by. */
 function photo(name: string) {
-  return path.join(photosDir, name);
+  return shellPath(path.join(photosDir, name));
 }
 
 function makeExecuteArgs(

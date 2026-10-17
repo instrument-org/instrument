@@ -170,6 +170,21 @@ export function shortenHomePath(
 }
 
 /**
+ * A path the way a person could type it back: from `~` in the home folder on
+ * a Mac or Linux ({@link shortenHomePath}), and as it is anywhere else and on
+ * Windows, whose file manager has no `~`. For a path shown to be copied or
+ * looked up rather than read as names, like where the Instrument folder is.
+ */
+export function typedHostPath(
+  filePath: string,
+  homeDir: string | undefined,
+): string {
+  return isWindowsPath(filePath)
+    ? filePath
+    : shortenHomePath(filePath, homeDir);
+}
+
+/**
  * Whether a path is spelled the Windows way, from a drive (`C:\`) or a
  * network share (`\\server\share`). Only there is a backslash a separator;
  * on a Mac or Linux it is a character a name can hold.

@@ -64,9 +64,9 @@ const LOCAL_REFERENCE =
   /\[[^\]]*\]\(\.?\/?((?:scripts|references|assets|tests)\/[^)\s]+|[\w.-]+\.\w+)\)/g;
 
 /**
- * Directories `copySkill` strips on the way into a task. A skill that tells the
- * agent to run something from one of them is describing a file that will not be
- * there.
+ * What a Node skill's built copy, the folder its scripts run from, leaves
+ * out (`SKILL_COPY_IGNORE`). A skill that tells the agent to run something
+ * from one of them is describing a file that may not be there.
  */
 const NOT_COPIED = ["tests/", "SKILL.template.md"];
 
@@ -283,7 +283,7 @@ export async function validateSkill({
       add(
         "warning",
         "reference-not-copied",
-        `SKILL.md mentions "${excluded}", which is stripped when the skill is copied into a task. The agent will not find it there.`,
+        `SKILL.md mentions "${excluded}", which is left out of the copy a skill with Node.js dependencies runs from. The agent may not find it there.`,
         "SKILL.md",
       );
     }

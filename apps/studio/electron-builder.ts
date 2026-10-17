@@ -137,11 +137,6 @@ const config: Configuration = {
   },
   extraResources: [
     {
-      filter: ["**/*"],
-      from: "../../packages/workspace/templates/default",
-      to: "chat-template",
-    },
-    {
       filter: ["**/*.json"],
       from: "../../registry/api",
       to: "registry/api",
@@ -280,7 +275,7 @@ const config: Configuration = {
       // Asked the first time a task controls each app, named in the ask.
       NSAppleEventsUsageDescription: `${APP_NAME} works in this app for you when you ask it to.`,
       NSDesktopFolderUsageDescription: `${APP_NAME} reads and writes files on your Desktop when you ask it to work there.`,
-      NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and keeps what it makes in Documents/${APP_NAME}.`,
+      NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and when your ${APP_NAME} folder is there.`,
       NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,
       NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { hostPathWithin } from "../host-path";
-import { levelWithoutAsking, ruleRank } from "../permissions/rules";
+import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   type Disk,
@@ -19,6 +19,7 @@ import { type NativeReach } from "./reach";
 import {
   dotEntriesIn,
   namesThatRunCode,
+  runsCodeByName,
   WALK_LIMITS,
   type WalkLimits,
 } from "./walk";
@@ -115,13 +116,13 @@ export function mxcPolicyFor(
   } = {},
 ): MxcFilesystemPolicy {
   const inputs = policyInputs(given);
-  const { home, rules, withoutAsking } = reach.rules;
+  const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   const key = JSON.stringify([
     reach.readOnly,
     reach.readWrite,
     home,
     rules,
-    withoutAsking,
+    dangerouslyAllowEveryFolder,
     inputs,
   ]);
   const kept = policies.get(key);
@@ -176,7 +177,7 @@ export function mxcFilesystemPolicy(
   { disk = liveDisk, ...given }: Partial<PolicyInputs> & { disk?: Disk } = {},
 ): MxcFilesystemPolicy {
   const { appFolders, closed, root, walk } = policyInputs(given);
-  const { home, rules, withoutAsking } = reach.rules;
+  const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   // The app's own folders are made before they are granted, as bubblewrap
   // makes them, so a first run can write one the app makes later; and
   // before anything is read, so the policy is built from the disk as it is
@@ -216,9 +217,19 @@ export function mxcFilesystemPolicy(
   add(root, "read", -2);
   add(home, "read", -1);
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
+    // A file the user sent that runs code when its folder is used (an
+    // `.envrc`) opens to reading alone, as the rules have it.
     const access: Access =
-      level === "allow" ? "write" : level === "readOnly" ? "read" : "deny";
+      level === "allow" && !(rule.file && runsCodeByName(rule.path))
+        ? "write"
+        : level === "allow" || level === "readOnly"
+          ? "read"
+          : "deny";
     for (const target of rule.dotEntries
       ? dotEntriesIn(rule.path, disk)
       : [rule.path]) {
@@ -240,7 +251,11 @@ export function mxcFilesystemPolicy(
   ]);
   for (const rule of rules) {
     if (
-      levelWithoutAsking(rule.level, rule, withoutAsking) !== "allow" ||
+      levelAllowingEveryFolder(
+        rule.level,
+        rule,
+        dangerouslyAllowEveryFolder,
+      ) !== "allow" ||
       rule.source === "system"
     ) {
       continue;

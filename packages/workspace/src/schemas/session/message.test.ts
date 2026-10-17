@@ -421,6 +421,40 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("repeats an unchanged event note, which is a different turn's news", async () => {
+    const first = baseMetadata();
+    const second = baseMetadata();
+    const gap = { minutes: 90 };
+
+    function asked(
+      ids: ReturnType<typeof baseMetadata>,
+      text: string,
+    ): SessionMessage.WithParts {
+      return {
+        id: ids.messageId,
+        metadata: ids.messageMetadata,
+        parts: [
+          { metadata: ids.partMetadata, state: "done", text, type: "text" },
+          {
+            data: gap,
+            metadata: { ...ids.partMetadata, id: StoreId.newPartId() },
+            type: "data-messageGap",
+          },
+        ],
+        role: "user",
+      };
+    }
+
+    const result = await SessionMessage.toModelMessages(
+      [asked(first, "Back."), asked(second, "Back again.")],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+    const notes = result.filter((message) =>
+      JSON.stringify(message.content).includes("last wrote"),
+    );
+    expect(notes).toHaveLength(2);
+  });
+
   it("does not repeat unchanged browser status", async () => {
     const first = baseMetadata();
     const second = baseMetadata();
@@ -838,9 +872,12 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).not.toContain("/Users/sam/Downloads");
   });
 
+  // An upload is kept in the chat's record folder while the agent's shell
+  // starts in its work folder, so the note names an upload at its full path;
+  // a file attached where it lay in the work folder keeps its relative path.
   it("lists a sent file at the path the agent reads it by", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
-    const sentFile = SessionMessagePart.coerce({
+    const sentFiles = SessionMessagePart.coerce({
       data: {
         files: [
           {
@@ -849,6 +886,13 @@ describe("SessionMessage.toModelMessages", () => {
             mimeType: "image/png",
             modifiedAt: 1_718_198_400_000,
             size: 18_545,
+          },
+          {
+            filename: "report.md",
+            filePath: "work/report.md",
+            mimeType: "text/markdown",
+            modifiedAt: 1_718_198_400_000,
+            size: 120,
           },
         ],
       },
@@ -860,18 +904,50 @@ describe("SessionMessage.toModelMessages", () => {
         id: StoreId.newMessageId(),
         metadata: messageMetadata,
         parts: [
-          sentFile,
+          sentFiles,
           { metadata: partMetadata, text: "what is this", type: "text" },
         ],
         role: "user",
       },
     ] satisfies SessionMessage.WithParts[];
+    const uploadedFilesNote = async (
+      options?: SessionMessage.ModelNoteOptions,
+    ) => {
+      const [message] = await SessionMessage.toModelMessages(
+        messages,
+        TOOLS_FOR_MODEL_OUTPUT,
+        options,
+      );
+      const content = Array.isArray(message?.content) ? message.content : [];
+      return content.flatMap((part) =>
+        part.type === "text" && part.text.includes("<uploaded_files>")
+          ? [part.text]
+          : [],
+      );
+    };
 
-    const note = JSON.stringify(
-      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
-    );
-    expect(note).toContain("now available in the chat's folder");
-    expect(note).not.toContain("--file");
+    expect(
+      await uploadedFilesNote({
+        attachmentsDir: "/workspace/chats/c/attachments",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "<uploaded_files>
+      The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
+      - /workspace/chats/c/attachments/screen.png (18KB)
+      - work/report.md (120B)
+      </uploaded_files>",
+      ]
+    `);
+    expect(await uploadedFilesNote()).toMatchInlineSnapshot(`
+      [
+        "<uploaded_files>
+      The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
+      - attachments/screen.png (18KB)
+      - work/report.md (120B)
+      </uploaded_files>",
+      ]
+    `);
   });
 
   // A tool's output schema outgrows the sessions already recorded against it,
@@ -1092,6 +1168,103 @@ describe("SessionMessage.toModelMessages", () => {
           "content": [
             {
               "text": "And again.",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  it("carries the output limit onto the next user turn", async () => {
+    const { sessionId } = baseMetadata();
+
+    function reply(
+      part: (metadata: {
+        createdAt: Date;
+        id: StoreId.Part;
+        messageId: StoreId.Message;
+        sessionId: StoreId.Session;
+      }) => SessionMessage.WithParts["parts"][number],
+    ): SessionMessage.WithParts {
+      const id = StoreId.newMessageId();
+      return {
+        id,
+        metadata: {
+          aiGatewayModel: undefined,
+          createdAt: mockDate,
+          finishReason: "length",
+          modelId: "synthetic",
+          providerId: "system",
+          sessionId,
+          synthetic: true,
+        },
+        parts: [
+          part({
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId: id,
+            sessionId,
+          }),
+        ],
+        role: "assistant",
+      };
+    }
+
+    const asked = StoreId.newMessageId();
+    const messages: SessionMessage.WithParts[] = [
+      reply((metadata) => ({
+        data: { continuations: 1 },
+        metadata,
+        type: "data-outputLimit",
+      })),
+      {
+        id: asked,
+        metadata: { createdAt: mockDate, sessionId },
+        parts: [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId: asked,
+              sessionId,
+            },
+            state: "done",
+            text: "Carry on.",
+            type: "text",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Carry on.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      The previous run was cut off at the output limit 2 times in a row and stopped there, not because the task was finished. What was written is above. Pick up from where it stops, and write the rest in several short replies rather than one long one.
+      </instrument-system-note>",
               "type": "text",
             },
           ],

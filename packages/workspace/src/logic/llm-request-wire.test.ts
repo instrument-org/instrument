@@ -27,8 +27,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type AnyActorRef, createActor, waitFor } from "xstate";
 
+import { ChatWrites } from "../lib/chat-writes";
 import { generateTitleFromUserMessage } from "../lib/generate-title-from-user-message";
-import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
@@ -674,13 +674,13 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
         model,
       });
       const sessionId = StoreId.newSessionId();
-      await Store.saveSession(
+      await ChatWrites.saveSession(
         { createdAt: new Date(0), id: sessionId, title: "Wire" },
         chatId,
       );
       const build = SCENARIOS[scenario];
       for (const message of build?.({ model, sessionId, target }) ?? []) {
-        const saved = await Store.saveMessageWithParts(message, chatId);
+        const saved = await ChatWrites.saveMessageWithParts(message, chatId);
         saved._unsafeUnwrap();
       }
 

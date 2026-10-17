@@ -1,23 +1,33 @@
+import { WORKSPACE_LAYOUT_VERSION } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { startLiveProcess } from "../../tests/live-process";
 import { workspaceSettingsDirOf } from "./settings-migration";
 import {
   createWorkspace,
+  keysDirOf,
   listWorkspaces,
   registerStray,
+  removeFolderIfEmpty,
+  startWorkspaceAfresh,
   unregisterWorkspace,
   whyNotDeletable,
 } from "./workspace-management";
 import {
   defaultWorkspacePath,
+  machineDirOwnedBy,
+  markWorkspaceOpen,
   readRegistry,
+  readWorkspaceIdentity,
+  releaseOpenMark,
   type ResolvedWorkspace,
   updateRegistry,
-  workspacePrivateDir,
   writeWorkspaceIdentity,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 let userDataDir: string;
@@ -31,36 +41,62 @@ beforeEach(() => {
     path: defaultWorkspacePath(userDataDir),
     pinned: false,
   };
-  fs.mkdirSync(workspaceSettingsDirOf(resolved.path), { recursive: true });
 });
 
 afterEach(() => {
   fs.rmSync(userDataDir, { force: true, recursive: true });
 });
 
-function settingsOf(dir: string) {
-  return fs.readdirSync(workspaceSettingsDirOf(dir)).toSorted();
+function entriesOf(dir: string) {
+  return fs.readdirSync(dir).toSorted();
+}
+
+/** The machine folder a created workspace settled on. */
+function machineDirOf(workspace: { id: string; path: string }) {
+  const machineDir = machineDirOwnedBy(userDataDir, workspace);
+  if (machineDir === undefined) {
+    throw new Error(`${workspace.path} has no machine folder`);
+  }
+  return machineDir;
 }
 
 describe("createWorkspace", () => {
   it("starts blank, signed out, with developer mode as the creator had it", () => {
-    const { id, path: dir } = createWorkspace({
+    const created = createWorkspace({
       color: "teal",
       copySignInsFrom: null,
       developerMode: true,
       name: "BYOK only",
       userDataDir,
     });
+    const { id, path: dir } = created;
     expect(id).toBe("byok-only");
-    expect(settingsOf(dir)).toEqual(["preferences.json"]);
+    expect(entriesOf(workspaceLayout(dir).dataDir)).toEqual([
+      "preferences.json",
+      "workspace.json",
+    ]);
     expect(
       JSON.parse(
         fs.readFileSync(
-          path.join(workspaceSettingsDirOf(dir), "preferences.json"),
+          path.join(workspaceLayout(dir).dataDir, "preferences.json"),
           "utf8",
         ),
       ),
     ).toEqual({ developerMode: true });
+    // Already in the current format and layout, so no sweep ever runs on
+    // it, with an id of its own and a machine folder, named by its local
+    // id, holding nothing but whose it is.
+    const identity = readWorkspaceIdentity(dir);
+    expect(identity.formatVersion).toBe(WORKSPACE_FORMAT_VERSION);
+    expect(identity).toMatchObject({
+      layoutVersion: WORKSPACE_LAYOUT_VERSION,
+      legacyProjectsMigrated: true,
+    });
+    expect(identity.id).toMatch(/^[\dA-Z]{26}$/);
+    expect(machineDirOf(created)).toBe(
+      path.join(userDataDir, "workspaces-data", "byok-only"),
+    );
+    expect(entriesOf(machineDirOf(created))).toEqual(["owner.json"]);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "byok-only",
@@ -68,7 +104,8 @@ describe("createWorkspace", () => {
   });
 
   it("copies only the sign-in stores when asked", () => {
-    const from = workspaceSettingsDirOf(resolved.path);
+    const from = path.join(userDataDir, "keys-of-the-open-workspace");
+    fs.mkdirSync(from, { recursive: true });
     for (const file of [
       "session-dev.json",
       "providers.json",
@@ -79,20 +116,27 @@ describe("createWorkspace", () => {
     ]) {
       fs.writeFileSync(path.join(from, file), "{}");
     }
-    const { path: dir } = createWorkspace({
+    const created = createWorkspace({
       color: "blue",
-      copySignInsFrom: resolved.path,
+      copySignInsFrom: from,
       developerMode: false,
       name: "Second account",
       userDataDir,
     });
     // Not the ChatGPT account: two holders of its rotating refresh token sign
     // each other out.
-    expect(settingsOf(dir)).toEqual([
-      "preferences.json",
+    expect(entriesOf(path.join(machineDirOf(created), "keys"))).toEqual([
       "providers.json",
       "session-dev.json",
-      "state.json",
+    ]);
+    expect(
+      JSON.parse(
+        fs.readFileSync(path.join(machineDirOf(created), "state.json"), "utf8"),
+      ),
+    ).toEqual({ hasCompletedProviderSetup: true });
+    expect(entriesOf(workspaceLayout(created.path).dataDir)).toEqual([
+      "preferences.json",
+      "workspace.json",
     ]);
   });
 
@@ -115,7 +159,8 @@ describe("createWorkspace", () => {
 });
 
 describe("listWorkspaces", () => {
-  it("lists strays, drops entries whose folder is gone, and marks the resolved one", () => {
+  it("lists strays, keeps entries it cannot reach, and marks the resolved one", () => {
+    fs.mkdirSync(resolved.path);
     const { path: kept } = createWorkspace({
       color: "gray",
       copySignInsFrom: null,
@@ -123,48 +168,178 @@ describe("listWorkspaces", () => {
       name: "Kept",
       userDataDir,
     });
-    const gone = path.join(userDataDir, "elsewhere", "clean-room");
+    const gone = path.join(userDataDir, "elsewhere", "unplugged");
     updateRegistry(userDataDir, (registry) => ({
       ...registry,
-      workspaces: [...registry.workspaces, { id: "clean-room", path: gone }],
+      workspaces: [...registry.workspaces, { id: "unplugged", path: gone }],
     }));
     const stray = path.join(userDataDir, "workspaces", "stray");
     writeWorkspaceIdentity(stray, {
       color: "red",
       createdBy: { kind: "person" },
+      formatVersion: 0,
       name: "Stray",
       settingsVersion: 1,
     });
 
     const listed = listWorkspaces({ resolved, userDataDir });
     expect(
-      listed.map(({ id, isRegistered, isResolved, path: dir }) => ({
-        dir,
-        id,
-        isRegistered,
-        isResolved,
-      })),
+      listed.map(
+        ({ id, isReachable, isRegistered, isResolved, path: dir }) => ({
+          dir,
+          id,
+          isReachable,
+          isRegistered,
+          isResolved,
+        }),
+      ),
     ).toEqual([
       {
         dir: resolved.path,
         id: "default",
+        isReachable: true,
         isRegistered: true,
         isResolved: true,
       },
-      { dir: kept, id: "kept", isRegistered: true, isResolved: false },
-      { dir: stray, id: "stray", isRegistered: false, isResolved: false },
+      {
+        dir: kept,
+        id: "kept",
+        isReachable: true,
+        isRegistered: true,
+        isResolved: false,
+      },
+      {
+        dir: gone,
+        id: "unplugged",
+        isReachable: false,
+        isRegistered: true,
+        isResolved: false,
+      },
+      {
+        dir: stray,
+        id: "stray",
+        isReachable: true,
+        isRegistered: false,
+        isResolved: false,
+      },
     ]);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "kept",
+      "unplugged",
     ]);
 
     expect(registerStray({ dir: stray, resolved, userDataDir })).toBe(true);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "kept",
+      "unplugged",
       "stray",
     ]);
+  });
+
+  it("takes a folder spelled through a link, or in another case where the disk ignores it, for the one registered", () => {
+    const { path: kept } = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Kept",
+      userDataDir,
+    });
+    const link = path.join(userDataDir, "link-to-kept");
+    fs.symlinkSync(kept, link);
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [
+        ...registry.workspaces,
+        { id: "kept-again", path: link },
+        { id: "kept-shouting", path: kept.toUpperCase() },
+      ],
+    }));
+
+    const ids = readRegistry(userDataDir).workspaces.map((w) => w.id);
+    const foldsCase = fs.existsSync(kept.toUpperCase());
+    expect(ids).toEqual(
+      foldsCase ? ["default", "kept"] : ["default", "kept", "kept-shouting"],
+    );
+  });
+});
+
+describe("startWorkspaceAfresh", () => {
+  it("gives a workspace it cannot read a new folder in the app's data, keeping its ids", () => {
+    const unreadable = path.join(userDataDir, "..", "Unplugged", "Instrument");
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: registry.workspaces.map((entry) => ({
+        ...entry,
+        path: unreadable,
+        pendingMove: { from: unreadable, to: "/elsewhere" },
+        workspaceId: "01K0000000000000000000KEEP",
+      })),
+    }));
+
+    const dir = startWorkspaceAfresh({ id: "default", userDataDir });
+
+    expect(dir).toBe(defaultWorkspacePath(userDataDir));
+    expect(readWorkspaceIdentity(dir)).toMatchObject({
+      id: "01K0000000000000000000KEEP",
+      layoutVersion: WORKSPACE_LAYOUT_VERSION,
+      name: "Default",
+    });
+    expect(readRegistry(userDataDir)).toMatchObject({
+      active: "default",
+      workspaces: [{ id: "default", path: dir }],
+    });
+    expect(
+      readRegistry(userDataDir).workspaces[0]?.pendingMove,
+    ).toBeUndefined();
+  });
+});
+
+describe("where a workspace's own data is", () => {
+  it("finds the sign-ins in the machine folder, or the settings folder of one not yet moved", () => {
+    const moved = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Moved",
+      userDataDir,
+    });
+    expect(keysDirOf(userDataDir, moved)).toBe(
+      path.join(machineDirOf(moved), "keys"),
+    );
+    expect(keysDirOf(userDataDir, resolved)).toBe(
+      workspaceSettingsDirOf(resolved.path),
+    );
+  });
+
+  it("reports a workspace another process holds open by its machine folder's mark", () => {
+    const busy = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Busy",
+      userDataDir,
+    });
+    const other = startLiveProcess();
+    try {
+      fs.writeFileSync(
+        path.join(machineDirOf(busy), "open.pid"),
+        other.pid.toString(),
+      );
+      const heldBy = () =>
+        listWorkspaces({ resolved, userDataDir }).find(
+          (listing) => listing.path === busy.path,
+        )?.openElsewhereBy;
+      expect(heldBy()).toBe(other.pid);
+
+      fs.rmSync(path.join(machineDirOf(busy), "open.pid"));
+      markWorkspaceOpen(machineDirOf(busy));
+      expect(heldBy()).toBeNull();
+      releaseOpenMark(machineDirOf(busy));
+    } finally {
+      other.stop();
+    }
   });
 });
 
@@ -230,6 +405,24 @@ describe("deleting", () => {
     ).toBe(blocked);
   });
 
+  it.each([
+    [[], false],
+    [[".DS_Store"], false],
+    [["report.pdf"], true],
+    [["downloads"], true],
+  ])(
+    "removes the folder once its .instrument/ is gone and it holds %o: kept %s",
+    (left, kept) => {
+      const dir = path.join(userDataDir, "workspaces", "gone");
+      fs.mkdirSync(dir, { recursive: true });
+      for (const name of left) {
+        fs.writeFileSync(path.join(dir, name), "");
+      }
+      removeFolderIfEmpty(dir);
+      expect(fs.existsSync(dir)).toBe(kept);
+    },
+  );
+
   it("sends active back to the default workspace when the active one is unregistered", () => {
     const { id, path: dir } = createWorkspace({
       color: "gray",
@@ -241,6 +434,6 @@ describe("deleting", () => {
     updateRegistry(userDataDir, (registry) => ({ ...registry, active: id }));
     unregisterWorkspace({ dir, userDataDir });
     expect(readRegistry(userDataDir)).toMatchObject({ active: "default" });
-    expect(fs.existsSync(workspacePrivateDir(dir))).toBe(true);
+    expect(fs.existsSync(workspaceLayout(dir).dataDir)).toBe(true);
   });
 });

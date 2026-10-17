@@ -6,7 +6,7 @@ import { type Assertion, defineEval } from "../harness";
 /**
  * Python over a folder the chat reaches.
  *
- * `python` is the chat's virtualenv interpreter, held to the native sandbox,
+ * `python` runs in the nearest `.venv`, held to the native sandbox,
  * and reads an attached folder in place, so a parse of a file there should
  * involve no copy into the chat's folder. A package goes in with `pip` and
  * the same `python` runs it. These check that a model takes the direct path,
@@ -132,7 +132,7 @@ const installedThePackageAndRanIt: Assertion = {
     const ran = commands.findIndex(
       (command, index) =>
         // The same command counts when python comes after the install in it:
-        // `pip install pandas && python -c ...`.
+        // `pip install polars && python -c ...`.
         (index > installed ||
           (index === installed && /install[^\n]*python3?\s/.test(command))) &&
         /(?:^|[\s;&|(])python3?\s/.test(command),

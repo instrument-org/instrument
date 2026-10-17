@@ -6,7 +6,6 @@ import {
   segmentsOf,
 } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
-import { osConventions } from "@/client/lib/utils";
 import {
   askTargetName,
   type ChatId,
@@ -192,12 +191,6 @@ function PermissionAskCard({
   const { isBusy, send } = useAnswer(chatId, ask);
   const shown = askTargetName(ask.kind, ask.target);
   const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
-  const reach = useQuery({
-    ...rpcClient.workspace.permissions.appReach.queryOptions({
-      input: { app: ask.target, id: chatId },
-    }),
-    enabled: ask.kind === "app" && !compact,
-  });
   const choose = async () => {
     const picked = await rpcClient.utils.showFolderPicker.call({
       buttonLabel: "Allow",
@@ -257,10 +250,6 @@ function PermissionAskCard({
         {ask.kind === "folder" ? (
           <p className="mt-1 text-xs break-all text-muted-foreground">
             {readablePath(ask.target)}
-          </p>
-        ) : reach.data?.reachesEveryFile ? (
-          <p className="mt-1 text-xs text-muted-foreground">
-            {`Allowing ${shown} lets Instrument reach every file on your ${osConventions().computerKind}.`}
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">

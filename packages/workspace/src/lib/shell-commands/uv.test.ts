@@ -69,8 +69,8 @@ describe.skipIf(!runSmoke)("uv python/pip integration", () => {
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       uvBinPath: AbsolutePathSchema.parse(uvBin),
-      uvDataDir: AbsolutePathSchema.parse(
-        mkdtempSync(path.join(tmpdir(), "uv-data-")),
+      runtimeDir: AbsolutePathSchema.parse(
+        mkdtempSync(path.join(tmpdir(), "runtime-")),
       ),
     });
 

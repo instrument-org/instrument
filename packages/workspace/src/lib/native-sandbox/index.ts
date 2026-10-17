@@ -2,10 +2,10 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { getWorkspaceConfig } from "../workspace-config";
-import { bwrapCommand, bwrapState } from "./bwrap";
+import { bwrapAvailable, bwrapCommand, bwrapState } from "./bwrap";
 import { type MxcCommand, mxcLaunch, mxcPolicyFor, mxcState } from "./mxc";
 import { currentReach, type NativeReach } from "./reach";
-import { seatbeltCommand, seatbeltState } from "./seatbelt";
+import { seatbeltAvailable, seatbeltCommand, seatbeltState } from "./seatbelt";
 
 export { bwrapArgs, bwrapAvailable } from "./bwrap";
 export {
@@ -38,6 +38,19 @@ export function nativeSandboxEnforced(): boolean {
     seatbeltState() !== "unavailable" ||
     bwrapState() !== "unavailable" ||
     mxcState() !== "unavailable"
+  );
+}
+
+/**
+ * Whether a native command started now runs held to the rules: a reach
+ * applies here and a system sandbox can hold it.
+ */
+export function nativeCommandsSandboxed(): boolean {
+  return (
+    currentReach() !== undefined &&
+    (seatbeltAvailable() ||
+      bwrapAvailable() ||
+      (mxcState() === "works" && Boolean(getWorkspaceConfig().mxcExecPath)))
   );
 }
 

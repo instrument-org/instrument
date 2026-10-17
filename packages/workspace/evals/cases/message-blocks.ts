@@ -24,7 +24,7 @@ import {
   type MessageKind,
   parseMessage,
 } from "../../src/lib/parse-message";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -113,7 +113,7 @@ async function messageFiles(
   context: Context,
 ): Promise<{ file: string; message: MessageDraft }[]> {
   // The chat's tasks work in its folder.
-  const roots = [os.homedir(), chatDir(context.chatId)];
+  const roots = [os.homedir(), workDir(context.chatId)];
   const found = new Map<string, MessageDraft>();
   for (const root of roots) {
     if (!fs.existsSync(root)) {

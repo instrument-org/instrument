@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { publisher } from "../rpc/publisher";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -32,10 +33,14 @@ describe("workspace skill watcher", () => {
     const nextEvent = events.next();
     const stop = await startWatchingWorkspaceSkills();
     try {
-      const skillDir = path.join(root, "skills", "review");
+      const skillDir = path.join(root, SKILLS_FOLDER_NAME, "review");
       await fs.mkdir(path.join(skillDir, "scripts"), { recursive: true });
-      await fs.writeFile(path.join(skillDir, "scripts", "run.ts"), "");
-      await expect(nextEvent).resolves.toMatchObject({ done: false });
+      await expect(
+        writeUntilPublished(
+          path.join(skillDir, "scripts", "run.ts"),
+          nextEvent,
+        ),
+      ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();
       await stop();
@@ -53,8 +58,12 @@ describe("workspace skill watcher", () => {
     const stopSecond = await startWatchingWorkspaceSkills();
     try {
       await stopFirst();
-      await fs.writeFile(path.join(root, "skills", "kept.md"), "");
-      await expect(nextEvent).resolves.toMatchObject({ done: false });
+      await expect(
+        writeUntilPublished(
+          path.join(root, SKILLS_FOLDER_NAME, "kept.md"),
+          nextEvent,
+        ),
+      ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();
       await stopSecond();
@@ -74,8 +83,12 @@ describe("workspace skill watcher", () => {
     const stopFresh = await startWatchingWorkspaceSkills();
     try {
       await stopStale();
-      await fs.writeFile(path.join(root, "skills", "fresh.md"), "");
-      await expect(nextEvent).resolves.toMatchObject({ done: false });
+      await expect(
+        writeUntilPublished(
+          path.join(root, SKILLS_FOLDER_NAME, "fresh.md"),
+          nextEvent,
+        ),
+      ).resolves.toMatchObject({ done: false });
     } finally {
       controller.abort();
       await stopFresh();
@@ -84,7 +97,7 @@ describe("workspace skill watcher", () => {
 
   it("ignores generated dependency trees", async () => {
     root = await setupWorkspace();
-    const skillsDir = path.join(root, "skills");
+    const skillsDir = path.join(root, SKILLS_FOLDER_NAME);
     const watchedSkillsDir = await fs.realpath(skillsDir);
     const generatedDir = path.join(
       skillsDir,
@@ -106,12 +119,15 @@ describe("workspace skill watcher", () => {
     );
     try {
       await fs.writeFile(path.join(generatedDir, "index.js"), "");
-      await fs.writeFile(path.join(skillsDir, "review", "SKILL.md"), "");
       await vi.waitFor(
-        () => {
+        async () => {
+          // Written on each attempt for the same reason
+          // `writeUntilPublished` does it: one change can go unheard, and
+          // waiting on a single write that was missed only waits.
+          await fs.writeFile(path.join(skillsDir, "review", "SKILL.md"), "");
           expect(files).toContain(path.join("review", "SKILL.md"));
         },
-        { timeout: 10_000 },
+        { interval: 1000, timeout: 10_000 },
       );
       expect(files.some((file) => file.includes("node_modules"))).toBe(false);
     } finally {
@@ -119,6 +135,31 @@ describe("workspace skill watcher", () => {
     }
   }, 15_000);
 });
+
+/**
+ * Writes `file` until the watcher publishes a change. On Windows a single
+ * change has gone unheard by the native watcher under load, so one write is
+ * not enough; a watcher that stopped hears none of them.
+ */
+async function writeUntilPublished(
+  file: string,
+  nextEvent: Promise<IteratorResult<unknown>>,
+) {
+  let heard: IteratorResult<unknown> | undefined;
+  void nextEvent.then((event) => {
+    heard = event;
+  });
+  return vi.waitFor(
+    async () => {
+      if (heard) {
+        return heard;
+      }
+      await fs.writeFile(file, String(Date.now()));
+      throw new Error(`No change heard yet for ${file}`);
+    },
+    { interval: 1000, timeout: 10_000 },
+  );
+}
 
 async function setupWorkspace() {
   const workspaceRoot = await fs.mkdtemp(
@@ -129,6 +170,8 @@ async function setupWorkspace() {
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(workspaceRoot),
   });
-  await fs.mkdir(path.join(workspaceRoot, "skills"), { recursive: true });
+  await fs.mkdir(path.join(workspaceRoot, SKILLS_FOLDER_NAME), {
+    recursive: true,
+  });
   return workspaceRoot;
 }

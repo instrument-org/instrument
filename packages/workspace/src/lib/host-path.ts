@@ -18,13 +18,16 @@ const CASE_INSENSITIVE =
  * against a mount root. Returns null when resolution fails for any reason other
  * than absence, so the caller can fail closed.
  */
-export function canonicalizeThroughMissing(hostPath: string): null | string {
+export function canonicalizeThroughMissing(
+  hostPath: string,
+  realpath: (existing: string) => string = realpathSync,
+): null | string {
   const missing: string[] = [];
   let current = hostPath;
 
   for (;;) {
     try {
-      return nodePath.join(realpathSync(current), ...missing.toReversed());
+      return nodePath.join(realpath(current), ...missing.toReversed());
     } catch (error) {
       if (!isEnoent(error)) {
         return null;
@@ -86,6 +89,86 @@ export function withoutDataVolume(
   }
   const match = /^\/System\/Volumes\/Data(?=\/|$)/i.exec(hostPath);
   return match ? hostPath.slice(match[0].length) || "/" : hostPath;
+}
+
+/**
+ * A path as Windows opens it: each name without the dots and spaces that end
+ * it, which Windows drops, so `.instrument.` and `.instrument ` open
+ * `.instrument`. A name made only of dots (`..`) is left as it is. Other
+ * systems keep those characters, and the path is returned as given there.
+ */
+export function withoutTrailingDots(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32"
+    ? hostPath.replaceAll(/(?<=[^/\\. ])[. ]+(?=[/\\]|$)/g, "")
+    : hostPath;
+}
+
+/**
+ * Whether a path names a file or folder through one of its NTFS streams:
+ * on Windows a `:` after the drive is never part of a name, only what
+ * separates one from a stream (`.instrument::$INDEX_ALLOCATION` opens the
+ * `.instrument` folder). Nothing elsewhere, where `:` is a character a
+ * name may hold.
+ */
+export function namesStream(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  return (
+    platform === "win32" &&
+    hostPath.replace(/^(?:[\\/]{2}[?.][\\/])?(?:[A-Za-z]:)?/, "").includes(":")
+  );
+}
+
+/**
+ * A path as Windows opens it, which can differ from its spelling by more
+ * than case: an 8.3 short name (`INSTRU~1`) opens the folder its long name
+ * does. The system resolves the deepest part that exists
+ * (`realpathSync.native`), and the rest is kept as spelled. The path as given
+ * elsewhere, and where the system cannot resolve it.
+ */
+export function windowsOpenedPath(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "win32") {
+    return hostPath;
+  }
+  return (
+    canonicalizeThroughMissing(hostPath, (existing) =>
+      realpathSync.native(existing),
+    ) ?? hostPath
+  );
+}
+
+/**
+ * A path without the backslashes a shell escapes characters with, which a
+ * word expanded wrongly can leave in it (`Instrument Preview \(x\)` for
+ * `Instrument Preview (x)`). Windows keeps them, as they separate its
+ * folders there.
+ */
+export function withoutShellEscapes(
+  hostPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32" ? hostPath : hostPath.replaceAll(/\\(.)/gs, "$1");
+}
+
+/**
+ * Where a path really is, as the rules compare paths: absolute, every link
+ * on the way followed (through a tail that does not exist yet), on macOS off
+ * the Data volume, and on Windows without the dots and spaces that end a
+ * name. The path as given, made absolute, where it cannot be resolved, which
+ * is also where the system cannot follow it.
+ */
+export function realHostPath(hostPath: string): string {
+  const resolved = nodePath.resolve(hostPath);
+  return withoutTrailingDots(
+    withoutDataVolume(canonicalizeThroughMissing(resolved) ?? resolved),
+  );
 }
 
 function isEnoent(error: unknown): boolean {

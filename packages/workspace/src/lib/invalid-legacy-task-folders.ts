@@ -21,7 +21,7 @@ interface InvalidLegacyTaskFolder {
 }
 
 /** Why a folder is listed in Settings > Storage when its settings are the trouble. */
-export const UNREADABLE_SETTINGS_REASON =
+const UNREADABLE_SETTINGS_REASON =
   "Missing or unreadable settings (.instrument/settings.json)";
 
 /**
@@ -51,6 +51,9 @@ export async function listInvalidLegacyTaskFolders(
   workspaceConfig: WorkspaceConfig,
 ): Promise<InvalidLegacyTaskFolder[]> {
   const rootDir = workspaceConfig.legacyTasksDir;
+  if (rootDir === undefined) {
+    return [];
+  }
   const rootExists = await fs
     .stat(rootDir)
     .then(() => true)
@@ -86,11 +89,13 @@ export async function trashInvalidLegacyTaskFolder(
   name: string,
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<void, TypedError.FileSystem | TypedError.Parse>> {
+  const { legacyTasksDir } = workspaceConfig;
+  if (legacyTasksDir === undefined) {
+    return err(new TypedError.Parse("This workspace keeps no 1.x tasks"));
+  }
   if (
     ChatIdSchema.safeParse(name).success &&
-    hasReadableLegacyTaskSettings(
-      path.join(workspaceConfig.legacyTasksDir, name),
-    )
+    hasReadableLegacyTaskSettings(path.join(legacyTasksDir, name))
   ) {
     return err(
       new TypedError.Parse("Refusing to trash a valid task folder this way"),
@@ -105,7 +110,7 @@ export async function trashInvalidLegacyTaskFolder(
     return err(new TypedError.Parse("Invalid folder name"));
   }
 
-  const tasksDir = path.resolve(workspaceConfig.legacyTasksDir);
+  const tasksDir = path.resolve(legacyTasksDir);
   const target = path.resolve(tasksDir, name);
   if (path.dirname(target) !== tasksDir) {
     return err(new TypedError.Parse("Folder is outside the tasks directory"));

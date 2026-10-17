@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import {
   findSkills,
@@ -252,7 +253,10 @@ describe("skill discovery", () => {
       qualifiedName: "review",
     });
 
-    await writeSkill(path.join(workspace, "skills", "review"), "Workspace");
+    await writeSkill(
+      path.join(workspace, SKILLS_FOLDER_NAME, "review"),
+      "Workspace",
+    );
     const after = await findSkills(sources);
     expect(
       after.map(({ id, qualifiedName }) => ({ id, qualifiedName })),
@@ -281,7 +285,10 @@ describe("skill discovery", () => {
         path.join(home, vendor, "skills", "review"),
       );
     }
-    await writeSkill(path.join(workspace, "skills", "review"), "Workspace");
+    await writeSkill(
+      path.join(workspace, SKILLS_FOLDER_NAME, "review"),
+      "Workspace",
+    );
 
     const sources = getSkillSources(
       {
@@ -349,7 +356,10 @@ describe("skill discovery", () => {
     for (const vendor of [".claude", ".cursor", ".gemini"]) {
       await writeSkill(path.join(home, vendor, "skills", "review"), "Shared");
     }
-    await writeSkill(path.join(workspace, "skills", "review"), "Shared");
+    await writeSkill(
+      path.join(workspace, SKILLS_FOLDER_NAME, "review"),
+      "Shared",
+    );
     await writeSkill(
       path.join(home, ".codex", "skills", "review"),
       "Different",

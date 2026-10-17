@@ -115,7 +115,7 @@ export async function performAppRequest({
   signal: AbortSignal;
 }): Promise<Result<AppResponse, AppRequestError>> {
   const urlResult = buildAppUrl({
-    baseUrl: manifest.baseUrl,
+    baseUrl: manifest.url,
     params,
     path,
   });
@@ -123,7 +123,7 @@ export async function performAppRequest({
     return err(urlResult.error);
   }
 
-  const origin = new URL(manifest.baseUrl).origin;
+  const origin = new URL(manifest.url).origin;
 
   let url = urlResult.value;
   let authenticated = true;

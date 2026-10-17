@@ -4,15 +4,22 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../../schemas/mounted-folder";
-import { ChatDirSchema } from "../../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { createBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
-import { getWorkspaceConfig } from "../workspace-config";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { workDir } from "../work-dir";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
+import { workspaceLayout } from "../workspace-layout";
+import { type ChatIdSchema } from "../../schemas/chat-id";
 
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
@@ -45,16 +52,11 @@ beforeEach(async () => {
   chatRoot = path.join(tmpDir, "tasks", "test");
   attachedDir = path.join(tmpDir, "Docs");
   await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
-  await fs.mkdir(path.join(chatRoot, ".instrument"), { recursive: true });
   await fs.mkdir(attachedDir, { recursive: true });
 
   await fs.writeFile(
     path.join(chatRoot, "work", "a.ts"),
     "const NEEDLE = 1;\n",
-  );
-  await fs.writeFile(
-    path.join(chatRoot, ".instrument", "state.json"),
-    '{"host":"NEEDLE"}',
   );
   await fs.writeFile(path.join(attachedDir, "note.md"), "NEEDLE attached\n");
 
@@ -76,11 +78,11 @@ describe("rg command", () => {
         sessionId,
         chatId,
       });
-      const result = await bash.exec(`rg -l NEEDLE '${appDir}'`, {
+      const result = await bash.exec(`rg -l NEEDLE '${shellPath(appDir)}'`, {
         signal: AbortSignal.timeout(30_000),
       });
       expect(result.stderr).toBe("");
-      expect(result.stdout).toBe(`${appDir}/app.ts\n`);
+      expect(result.stdout).toBe(`${shellPath(appDir)}/app.ts\n`);
     } finally {
       await fs.rm(appDir, { force: true, recursive: true });
     }
@@ -154,71 +156,6 @@ describe("rg command", () => {
     expect(result.stdout).toBe("café déjà\n");
   });
 
-  it("never walks the private dir, even when asked for hidden files", async () => {
-    const result = await run("rg --hidden NEEDLE");
-    expect(result.stdout).not.toContain("state.json");
-    expect(result.stdout).toContain("work/a.ts");
-  });
-
-  it("refuses an explicit path into the private dir", async () => {
-    const result = await run(`rg NEEDLE ${chatRoot}/.instrument/state.json`);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr + result.stdout).toContain("not accessible");
-  });
-
-  // ripgrep applies no glob filter to a file named on the command line, so the
-  // deny glob that covers the walk says nothing about these.
-  it.each([
-    { as: "a file", command: "rg NEEDLE .instrument/state.json" },
-    { as: "a directory to walk", command: "rg --hidden NEEDLE .instrument" },
-    { as: "a traversal", command: "rg NEEDLE work/../.instrument/state.json" },
-  ])("refuses the private dir named relatively, $as", async ({ command }) => {
-    const result = await run(command);
-
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stdout).not.toContain("host");
-    expect(result.stderr + result.stdout).toContain("private");
-  });
-
-  // ripgrep's glob precedence is last-wins, so the agent's own glob is applied
-  // after ours and re-includes what ours took out.
-  it.each([
-    "rg --hidden --glob '.instrument/**' NEEDLE",
-    "rg --hidden --iglob '.INSTRUMENT/**' NEEDLE",
-    "rg --hidden -g '**' --files",
-  ])("keeps the private dir out of `%s`", async (command) => {
-    const result = await run(command);
-
-    expect(result.stdout).not.toContain("state.json");
-  });
-
-  // ripgrep anchors a glob at its working directory and matches it against
-  // each path as printed, so a search root named any other way than the
-  // working directory walks straight past an exclusion anchored there.
-  it.each([
-    "rg --hidden NEEDLE CHAT",
-    "rg --hidden NEEDLE CHAT/",
-    "cd work && rg --hidden NEEDLE CHAT",
-    "cd work && rg -uu NEEDLE ..",
-    "cd work && rg -uu NEEDLE ../",
-    "cd work && rg --hidden --no-ignore NEEDLE ./..",
-    "cd work && rg -uu NEEDLE ../work/..",
-    "cd work && rg -uu NEEDLE ././..",
-    "cd work && rg -uu NEEDLE .//..",
-    "cd work && rg -uu NEEDLE ../../test",
-    "cd work && rg -uu NEEDLE -- ..",
-    "cd work && rg -uu -g '**' NEEDLE ..",
-    "cd work && rg -uu --iglob '*.JSON' --iglob '*.ts' NEEDLE CHAT",
-    "cd work && rg -uu --files ..",
-    "cd work && rg -uu --files CHAT",
-    "cd work && rg -uu --files CHAT work ..",
-  ])("keeps the private dir out of `%s`", async (command) => {
-    const result = await run(command.replaceAll("CHAT", `'${chatRoot}'`));
-
-    expect(result.stdout).not.toContain("state.json");
-    expect(result.stdout).toContain("a.ts");
-  });
-
   it("keeps an empty pattern, which matches every line", async () => {
     const result = await run(
       "printf 'x\\n\\n' > work/b.txt; rg -c '' work/b.txt",
@@ -227,34 +164,6 @@ describe("rg command", () => {
     expect(result.stdout.trim()).toBe("2");
   });
 
-  // A search root spelled with glob metacharacters is named literally by the
-  // glob that anchors the exclusion there.
-  it("keeps the private dir out of a root spelled with glob metacharacters", async () => {
-    await fs.mkdir(path.join(chatRoot, "work", "[x]*{y}?"));
-
-    const result = await run("cd work && rg -uu NEEDLE '[x]*{y}?/../..'");
-
-    expect(result.stdout).not.toContain("state.json");
-    expect(result.stdout).toContain("a.ts");
-  });
-
-  it.each([
-    { as: "in another case", command: "rg NEEDLE .INSTRUMENT/state.json" },
-    {
-      as: "after `--` with a leading dash",
-      command:
-        "cd work && mkdir ./-x && rg NEEDLE -- -x/../../.instrument/state.json",
-    },
-  ])("refuses a file in the private dir named $as", async ({ command }) => {
-    const result = await run(command);
-
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stdout).not.toContain("host");
-    expect(result.stderr).toContain("private");
-  });
-
-  // The deny glob is a flag, so it has to land ahead of the operand separator
-  // rather than after the arguments it is appended to.
   it("still searches when the pattern is given after `--`", async () => {
     const result = await run("rg -- NEEDLE");
 
@@ -302,9 +211,9 @@ describe("rg command", () => {
   });
 
   it("searches a folder it reaches and reports its real paths", async () => {
-    const result = await run(`rg NEEDLE '${attachedDir}'`, true);
+    const result = await run(`rg NEEDLE '${shellPath(attachedDir)}'`, true);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(`${attachedDir}/note.md`);
+    expect(result.stdout).toContain(`${shellPath(attachedDir)}/note.md`);
   });
 
   it("stops at its output cap and points at filtering inside rg", async () => {
@@ -313,7 +222,10 @@ describe("rg command", () => {
       "NEEDLE\n".repeat(1_500_000),
     );
 
-    const result = await run(`rg NEEDLE '${attachedDir}' | wc -l`, true);
+    const result = await run(
+      `rg NEEDLE '${shellPath(attachedDir)}' | wc -l`,
+      true,
+    );
 
     expect(result.stdout.trim()).toBe("0");
     expect(result.stderr).toMatch(/^rg: stopped after 8 MB of output.*--iglob/);
@@ -332,55 +244,83 @@ describe("rg command", () => {
   });
 });
 
-// A chat's folder is mounted with its `tasks/` dir masked: what an
-// earlier version left there is nothing of the chat's.
+// A chat's shell starts in its work folder, apart from its records: what the
+// person sent is searched where it is, and the rest of the record folder is
+// the workspace's.
 describe("rg command in a chat", () => {
-  const childId = ChatIdSchema.parse(`01k${"rgchild".padEnd(23, "0")}`);
-  let chatFolder: string;
-  let childDir: string;
-
-  async function runInChat(command: string) {
-    const made = chatFor();
-    chatFolder = chatDir(made);
-    childDir = path.join(chatFolder, "tasks", childId);
-    await fs.mkdir(path.join(chatFolder, "work"), { recursive: true });
-    await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
-    await fs.mkdir(path.join(childDir, "output"), { recursive: true });
-    await fs.writeFile(path.join(chatFolder, "work", "a.ts"), "NEEDLE chat\n");
+  async function runInChat(
+    command: string,
+    spell: (hostPath: string) => string = shellPath,
+  ) {
+    // The record folder in a workspace, which the rules keep hidden, and the
+    // work folder in this computer's folder for it.
+    const rootDir = path.join(tmpDir, "workspace");
+    const machineDir = path.join(tmpDir, "machine");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      chatsDir: AbsolutePathSchema.parse(workspaceLayout(rootDir).chatsDir),
+      rootDir: WorkspaceDirSchema.parse(rootDir),
+      workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
+      workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
+    });
+    const made = await chatFor();
+    const recordFolder = chatDir(made);
+    const work = workDir(made);
+    await fs.mkdir(path.join(work, "work"), { recursive: true });
+    await fs.mkdir(path.join(recordFolder, "attachments"), { recursive: true });
+    await fs.writeFile(path.join(work, "work", "a.ts"), "NEEDLE chat\n");
     await fs.writeFile(
-      path.join(childDir, ".instrument", "settings.json"),
-      "NEEDLE sentinel\n",
+      path.join(recordFolder, "attachments", "note.md"),
+      "NEEDLE sent\n",
     );
-    await fs.writeFile(
-      path.join(childDir, "output", "report.md"),
-      "NEEDLE report\n",
-    );
+    await fs.writeFile(path.join(recordFolder, "chat.db"), "NEEDLE sentinel\n");
     const bash = await createBashEnv({
       role: "chat",
       sessionId: StoreId.newSessionId(),
       chatId: made,
     });
-    return bash.exec(command.replaceAll("CHAT", `'${chatFolder}'`), {
+    return bash.exec(command.replaceAll("RECORD", `'${spell(recordFolder)}'`), {
       signal: AbortSignal.timeout(30_000),
     });
   }
 
-  afterEach(async () => {
-    await fs.rm(chatFolder, { force: true, recursive: true });
+  it("walks the work folder, where the shell starts", async () => {
+    const result = await runInChat("rg -uu NEEDLE");
+
+    expect(result.stdout).toContain("work/a.ts");
+    expect(result.stdout).not.toMatch(/sentinel|sent/);
   });
 
+  it("searches what the person sent in the record folder", async () => {
+    const result = await runInChat("rg -uu NEEDLE RECORD/attachments");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("attachments/note.md");
+  });
+
+  // The agent names the record folder by its shell path, and on Windows can
+  // also type its drive path, which ripgrep opens as the same folder.
   it.each([
-    "rg -uu NEEDLE",
-    "rg -uu NEEDLE CHAT",
-    "cd work && rg -uu NEEDLE ..",
-    "cd work && rg -uu NEEDLE CHAT",
-    "cd work && rg -uu NEEDLE ../work/..",
-    "cd work && rg -uu --files ..",
-    "cd work && rg -uu -g '**' --files CHAT",
-  ])("keeps the tasks dir out of `%s`", async (command) => {
-    const result = await runInChat(command);
+    ...["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"].map(
+      (command) => [command, "its shell path", shellPath] as const,
+    ),
+    ...(process.platform === "win32"
+      ? ["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"].map(
+          (command) =>
+            [
+              command,
+              "its drive path",
+              (hostPath: string) => hostPath,
+            ] as const,
+        )
+      : []),
+  ])(
+    "keeps the rest of the record folder out of `%s`, named by %s",
+    async (command, _spelling, spell) => {
+      const result = await runInChat(command, spell);
 
-    expect(result.stdout).toContain("a.ts");
-    expect(result.stdout).not.toMatch(/sentinel|report|settings\.json/);
-  });
+      expect(result.stdout).not.toContain("sentinel");
+      expect(result.exitCode).not.toBe(0);
+    },
+  );
 });

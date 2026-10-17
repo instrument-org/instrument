@@ -4,13 +4,16 @@ export {
   AGENT_MESSAGE_LANGUAGE,
   CHAT_FOLDER_NAMES,
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+  KEY_FOLDER_NAMES,
+  type KeyFolderName,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
-export { chatTopicsModelNote } from "./lib/chat-topics-model-text";
+export { topicsModelNote } from "./lib/topics-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
+export { environmentChangeModelNote } from "./lib/environment-model-text";
 export { describeMessageError } from "./lib/describe-message-error";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
@@ -19,6 +22,7 @@ export { isToolPart } from "./lib/is-tool-part";
 export { askTargetName } from "./lib/permissions/ask-target";
 export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
+export { outputLimitModelNote } from "./lib/output-limit-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";

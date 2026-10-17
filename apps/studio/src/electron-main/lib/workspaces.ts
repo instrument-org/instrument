@@ -1,15 +1,32 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import {
+  instrumentFolderInDocuments,
+  instrumentFolderUnchosen,
+  isDirectorySync,
+  type LayoutMarkStore,
+  rewriteStoredPaths,
+} from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { ulid } from "ulid";
 import { z } from "zod";
+
+import { pathKey, pathWithin, samePath } from "./path-identity";
 
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
  *
- * A workspace is a folder: chats, tasks, and the rest at the top level, and
- * what the app keeps for it under `.instrument/` (its database, its settings
- * stores, its Chromium profiles). The machine keeps a list of them in
- * `workspaces.json` at the root of userData, with the one to open next.
+ * A workspace is a folder: the person's own work at the top level, and
+ * everything the app keeps for it that travels with it under `.instrument/`
+ * (its identity, its preferences, its chats, drafts and topics, laid out by
+ * `workspaceLayout`). What is this computer's own about it (keys,
+ * Chromium profiles, window state, folder rules) is in its machine folder,
+ * `<userData>/workspaces-data/<local id>/`, named by the short id this
+ * machine's registry gives it. The machine keeps a list of them in
+ * `workspaces.json` at the root of userData, with the one to open next and
+ * the id each one carries in its own `workspace.json`.
  *
  * Everything here is synchronous and never throws, because it runs in
  * `setup-environment.ts` before any store opens: a damaged registry has to
@@ -18,15 +35,29 @@ import { z } from "zod";
 
 export const DEFAULT_WORKSPACE_ID = "default";
 
-/** The default workspace's folder, which predates the registry and never moves. */
+/**
+ * Where the default workspace starts, in userData, and stays until the
+ * person picks a folder for it (`workspace-move.ts`).
+ */
 const DEFAULT_WORKSPACE_DIR_NAME = "workspace";
 
 /** Where workspaces created after the default one are put. */
 const WORKSPACES_DIR_NAME = "workspaces";
 
+/**
+ * Where this computer keeps each workspace's own data, one folder per local
+ * id. Short, since a Chromium profile's deepest paths inside it come close to
+ * Windows' 260 characters. Not `workspaces/`, which holds whole workspaces
+ * made from the dev panel: one folder name meaning two kinds of thing would
+ * let a listing or a delete take the wrong one.
+ */
+const WORKSPACES_DATA_DIR_NAME = "workspaces-data";
+
 const REGISTRY_FILENAME = "workspaces.json";
 const IDENTITY_FILENAME = "workspace.json";
-const OPEN_PID_FILENAME = "open.pid";
+
+/** How long a local id made from a name may be, since it names a folder. */
+export const LOCAL_ID_LENGTH = 32;
 
 const WORKSPACE_COLORS = [
   "gray",
@@ -41,27 +72,104 @@ const WORKSPACE_COLORS = [
 
 export const WorkspaceColorSchema = z.enum(WORKSPACE_COLORS);
 
+/**
+ * An id that names a folder: letters, digits, `-` and `_`, so one read from a
+ * file can never point outside the folder it is joined to.
+ */
+const FolderSafeIdSchema = z.string().regex(/^[\dA-Za-z][\w-]{0,63}$/);
+
+const WorkspaceIdSchema = FolderSafeIdSchema;
+
 const WorkspaceCreatorSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("person") }),
   z.object({ kind: z.literal("agent"), purpose: z.string() }),
 ]);
 
 /**
+ * The format a workspace folder is in once what is this computer's own has
+ * moved out of it, which `machine-data-migration.ts` brings it to and which
+ * is all a move of the folder waits for.
+ */
+export const MACHINE_DATA_FORMAT_VERSION = 1;
+
+/**
+ * The format this build keeps a workspace folder in
+ * (`WorkspaceIdentity.formatVersion`). 1: what is this computer's own lives in
+ * the workspace's machine folder. 2: every chat's conversation is in its
+ * records, which a build that reads one only from its `chat.db` would show
+ * as an empty chat.
+ */
+export const WORKSPACE_FORMAT_VERSION = 2;
+
+/**
  * What a workspace says about itself, kept inside it so a copied or moved
  * workspace keeps its name.
  */
 export const WorkspaceIdentitySchema = z.object({
+  /**
+   * Set on Windows once the launch has taken the hidden attribute off
+   * `.instrument`, which an earlier build put there and which kept OneDrive
+   * from syncing it. Only Windows writes it, so a folder that reaches a
+   * Windows computer for the first time is still cleared there.
+   */
+  appFolderUnhidden: z.boolean().optional().catch(undefined),
   color: WorkspaceColorSchema.catch("gray"),
   createdBy: WorkspaceCreatorSchema.catch({ kind: "person" }),
+  /** Set once every chat in the workspace is on its records rather than a `chat.db`. */
+  chatRecordsConverted: z.boolean().optional().catch(undefined),
+  /**
+   * The format the workspace folder is in. 1: what is this computer's own
+   * (keys, browser profiles, window state, folder rules) lives in its
+   * machine folder, not here. 2: each chat's conversation is in its records.
+   */
+  formatVersion: z.number().int().nonnegative().catch(0),
+  /**
+   * The workspace's own id, a ULID minted the first time a build that keeps
+   * its machine data apart opens it, and the same on every computer it is
+   * opened on. Each computer's registry records it beside the local id it
+   * names that computer's folder for the workspace by.
+   */
+  id: WorkspaceIdSchema.optional().catch(undefined),
+  /** The layout version the last finished sweep of `migrateWorkspaceLayout` left. */
+  layoutVersion: z.number().int().nonnegative().optional().catch(undefined),
+  /** Set once that sweep has taken in a 1.x `projects/` folder. */
+  legacyProjectsMigrated: z.boolean().optional().catch(undefined),
   name: z.string().min(1).catch("Workspace"),
   /** How far `settings-migration.ts` has brought this workspace. */
   settingsVersion: z.number().int().nonnegative().catch(0),
 });
 
 const RegistryEntrySchema = z.object({
-  id: z.string().min(1),
+  /** This machine's short id for it, which also names its machine folder. */
+  id: FolderSafeIdSchema,
   lastOpenedAt: z.number().optional(),
   path: z.string().min(1),
+  /**
+   * A move of its `.instrument/` the person asked for, from the folder it was
+   * in when they asked to the one they picked, which the next launch makes
+   * before anything opens it (`finishPendingMove`).
+   */
+  pendingMove: z
+    .object({
+      /**
+       * What the copy this move made across volumes carries, written here
+       * before the copy takes its place at the target, so a launch cut short
+       * after that tells its own whole copy from a `.instrument` anything
+       * else put there.
+       */
+      copyMark: z.string().min(1).optional().catch(undefined),
+      from: z.string().min(1),
+      /**
+       * Set once the move is made but for deleting the original records it
+       * renamed aside in `from`, which each launch tries again.
+       */
+      leftAside: z.literal(true).optional().catch(undefined),
+      to: z.string().min(1),
+    })
+    .optional()
+    .catch(undefined),
+  /** The id in the workspace's own `workspace.json`, once a build has settled one. */
+  workspaceId: WorkspaceIdSchema.optional().catch(undefined),
 });
 
 const RegistrySchema = z.object({
@@ -88,6 +196,12 @@ export interface ResolvedWorkspace {
    */
   pinned: boolean;
 }
+
+/** The workspace this process runs, once its machine data is in place. */
+export type OpenWorkspace = ResolvedWorkspace & {
+  /** This computer's folder for it (`workspaceMachineDirOf`). */
+  machineDir: string;
+};
 export type WorkspaceIdentity = z.output<typeof WorkspaceIdentitySchema>;
 export type WorkspaceRegistry = z.output<typeof RegistrySchema>;
 
@@ -101,10 +215,53 @@ export function defaultWorkspacePath(userDataDir: string): string {
   return path.join(userDataDir, DEFAULT_WORKSPACE_DIR_NAME);
 }
 
+/**
+ * Where finished work goes while the workspace is the app's own: `Instrument`
+ * in the home folder, which macOS asks nothing about, so a first launch
+ * raises no prompt over it.
+ *
+ * An install that already made the older folder in Documents keeps that one,
+ * so its finished work does not end up split across two folders. That folder
+ * is only looked for once this computer has a workspace of its own, since
+ * looking inside Documents is the one thing a first launch must not do: a
+ * launch that has a workspace has been through whatever macOS asked long
+ * ago, and a refused look reads as the folder not being there, which sends
+ * new work to the home folder.
+ */
+export function unchosenOutputFolder(userDataDir: string): string {
+  const older = instrumentFolderInDocuments();
+  return hasWorkspaceIdentity(defaultWorkspacePath(userDataDir)) &&
+    isDirectorySync(older)
+    ? older
+    : instrumentFolderUnchosen();
+}
+
 export function hasWorkspaceIdentity(workspacePath: string): boolean {
   return fs.existsSync(
-    path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+    path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
   );
+}
+
+/**
+ * What a folder holds for the app: a workspace, nothing it can tell because
+ * the system will not let it read there (a folder it was given no access
+ * to), or no workspace. `hasWorkspaceIdentity` takes a refused read for no
+ * workspace, which would tell the person their chats are not there.
+ */
+export function workspaceFolderState(
+  dir: string,
+): "denied" | "none" | "workspace" {
+  try {
+    fs.readFileSync(
+      path.join(workspaceLayout(dir).dataDir, IDENTITY_FILENAME),
+      "utf8",
+    );
+    return "workspace";
+  } catch (error) {
+    const code =
+      error instanceof Error && "code" in error ? error.code : undefined;
+    return code === "EACCES" || code === "EPERM" ? "denied" : "none";
+  }
 }
 
 export function readRegistry(userDataDir: string): WorkspaceRegistry {
@@ -116,7 +273,7 @@ export function readWorkspaceIdentity(
 ): WorkspaceIdentity {
   const parsed = WorkspaceIdentitySchema.safeParse(
     readJson(
-      path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+      path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
     ) ?? {},
   );
   return parsed.success ? parsed.data : WorkspaceIdentitySchema.parse({});
@@ -141,21 +298,34 @@ export function resolveWorkspace({
   userDataDir: string;
 }): { problems: string[]; workspace: ResolvedWorkspace } {
   const problems: string[] = [];
-  const fallback = toResolved(
+  const unregistered = toResolved(
     { id: DEFAULT_WORKSPACE_ID, path: defaultWorkspacePath(userDataDir) },
     false,
   );
 
   try {
-    let chosen = fallback;
+    let chosen = unregistered;
     // Decided inside the locked update, so an id picked for a new pin cannot
     // collide with one another process registers at the same moment.
     updateRegistry(userDataDir, (current) => {
-      chosen = chooseWorkspace({ current, fallback, pin, problems });
+      // The default workspace wherever it is now.
+      const fallback = toResolved(
+        current.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ??
+          unregistered,
+        false,
+      );
+      chosen = chooseWorkspace({
+        current,
+        fallback,
+        pin,
+        problems,
+        userDataDir,
+      });
       if (chosen.pinned) {
         fs.mkdirSync(chosen.path, { recursive: true });
       }
       const entry: RegistryEntry = {
+        ...current.workspaces.find((other) => other.id === chosen.id),
         id: chosen.id,
         lastOpenedAt: now,
         path: chosen.path,
@@ -175,8 +345,81 @@ export function resolveWorkspace({
     problems.push(
       `Could not settle the workspace (${String(error)}); opening the default workspace`,
     );
-    return { problems, workspace: fallback };
+    // Where the registry, read without writing, says the default is: one
+    // the person moved is opened there, never made again in userData.
+    return {
+      problems,
+      workspace: toResolved(
+        readRegistry(userDataDir).workspaces.find(
+          (entry) => entry.id === DEFAULT_WORKSPACE_ID,
+        ) ?? unregistered,
+        false,
+      ),
+    };
   }
+}
+
+/**
+ * The registry entry for the workspace in `dir`, a folder the person picked
+ * that already holds one: the entry naming that folder, else the entry of
+ * the same workspace whose folder is gone (moved by hand, or found again
+ * after macOS stopped the app reading it), which keeps its local id and with
+ * it its machine folder, and every path the app stored into its old folder
+ * written here, else a new entry. Undefined when `dir` holds no
+ * workspace, or only a link to one. Opening it is the caller's: `active` is
+ * left as it is.
+ */
+export function registerWorkspaceFolder({
+  dir,
+  userDataDir,
+}: {
+  dir: string;
+  userDataDir: string;
+}): undefined | { id: string } {
+  // A linked `.instrument` is no workspace's: opening it would settle a new
+  // id through the link into the records it points to.
+  if (
+    !isDirectorySync(workspaceLayout(dir).dataDir) ||
+    !hasWorkspaceIdentity(dir)
+  ) {
+    return undefined;
+  }
+  const moves: { from: string; id: string }[] = [];
+  const registered: string[] = [];
+  updateRegistry(userDataDir, (current) => {
+    const known = current.workspaces.find((entry) => samePath(entry.path, dir));
+    const moved = known ? undefined : movedTo(current, dir);
+    const entry: RegistryEntry = {
+      ...(known ?? moved),
+      id: known?.id ?? moved?.id ?? idForPath(current, dir),
+      path: known?.path ?? path.resolve(dir),
+    };
+    if (moved) {
+      moves.push({ from: moved.path, id: moved.id });
+    }
+    registered.push(entry.id);
+    return {
+      ...current,
+      workspaces: current.workspaces.some((other) => other.id === entry.id)
+        ? current.workspaces.map((other) =>
+            other.id === entry.id ? entry : other,
+          )
+        : [...current.workspaces, entry],
+    };
+  });
+  const id = registered.at(-1);
+  if (id === undefined) {
+    return undefined;
+  }
+  const move = moves.at(-1);
+  if (move) {
+    rewriteStoredPaths({
+      machineDir: workspaceMachineDirOf(userDataDir, move.id),
+      moves: [{ from: move.from, to: path.resolve(dir) }],
+      rootDir: path.resolve(dir),
+    });
+  }
+  return { id };
 }
 
 /**
@@ -188,30 +431,144 @@ export function updateRegistry(
   userDataDir: string,
   change: (registry: WorkspaceRegistry) => WorkspaceRegistry,
 ): WorkspaceRegistry {
+  return withRegistryLock(userDataDir, () =>
+    changeRegistry(userDataDir, change),
+  );
+}
+
+/**
+ * The machine folder of a registered workspace, when it has one: the folder
+ * its local id names says it belongs to the id in the workspace's own
+ * `workspace.json`. Undefined for a workspace no build that keeps machine
+ * data apart has opened yet.
+ */
+export function machineDirOwnedBy(
+  userDataDir: string,
+  workspace: { id: string; path: string },
+): string | undefined {
+  const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
+  const owner = readOwner(machineDir);
+  return owner !== undefined &&
+    owner === readWorkspaceIdentity(workspace.path).id
+    ? machineDir
+    : undefined;
+}
+
+/**
+ * Settle the workspace's id and its machine folder before the folder is
+ * first used, and answer the folder. The id in its `workspace.json` is minted
+ * where neither it nor the registry has one, and minted again for a copy of a
+ * workspace another entry still holds with the same id, so the copy starts
+ * with machine data of its own (signed out, a fresh browser) rather than
+ * sharing the original's keys and profiles. The registry entry records it, so
+ * the workspace is known by it on every computer that opens it. A machine
+ * folder another workspace left under the same local id (one deleted outside
+ * the app, its id since reused) is set aside beside it, never handed over.
+ * Under the registry's lock, so two processes opening one workspace at once
+ * settle on one id.
+ */
+export function settleWorkspace({
+  newId = ulid,
+  userDataDir,
+  workspace,
+}: {
+  newId?: () => string;
+  userDataDir: string;
+  workspace: { id: string; path: string };
+}): string {
   return withRegistryLock(userDataDir, () => {
-    const { registry, unreadable } = readRegistryFile(userDataDir);
-    if (unreadable) {
-      // Kept rather than overwritten: it may list workspaces outside
-      // `workspaces/`, which nothing else would find again.
-      fs.copyFileSync(
-        registryPath(userDataDir),
-        `${registryPath(userDataDir)}.unreadable-${Date.now().toString()}`,
+    const { registry } = readRegistryFile(userDataDir);
+    const identity = readWorkspaceIdentity(workspace.path);
+    const entry = registry.workspaces.find(
+      (other) => other.id === workspace.id,
+    );
+    let workspaceId = identity.id ?? entry?.workspaceId;
+    const copied =
+      workspaceId !== undefined &&
+      registry.workspaces.some(
+        (other) =>
+          other.id !== workspace.id &&
+          other.workspaceId === workspaceId &&
+          !samePath(other.path, workspace.path) &&
+          readWorkspaceIdentity(other.path).id === workspaceId,
+      );
+    if (workspaceId === undefined || copied) {
+      workspaceId = newId();
+    }
+    if (identity.id !== workspaceId) {
+      writeWorkspaceIdentity(workspace.path, { ...identity, id: workspaceId });
+    }
+    if (entry && entry.workspaceId !== workspaceId) {
+      const recorded = workspaceId;
+      changeRegistry(userDataDir, (current) => ({
+        ...current,
+        workspaces: current.workspaces.map((other) =>
+          other.id === workspace.id
+            ? { ...other, workspaceId: recorded }
+            : other,
+        ),
+      }));
+    }
+
+    const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
+    const owner = readOwner(machineDir);
+    if (owner !== undefined && owner !== workspaceId) {
+      const aside = `${machineDir}.${owner}`;
+      fs.renameSync(
+        machineDir,
+        fs.existsSync(aside) ? `${aside}.${Date.now().toString()}` : aside,
       );
     }
-    const next = normalize(change(registry), userDataDir);
-    writeJsonAtomic(registryPath(userDataDir), {
-      ...next,
-      workspaces: next.workspaces.map((entry) => ({
-        ...entry,
-        path: storedPath(entry.path, userDataDir),
-      })),
-    });
-    return next;
+    if (owner !== workspaceId) {
+      writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner), {
+        workspaceId,
+      });
+    }
+    return machineDir;
   });
 }
 
-export function workspacePrivateDir(workspacePath: string): string {
-  return path.join(workspacePath, PRIVATE_FOLDER_NAME);
+/**
+ * Where `migrateWorkspaceLayout` keeps how far it has brought the workspace:
+ * two fields of its `workspace.json`, so the record travels with the folders
+ * it describes.
+ */
+export function workspaceLayoutMarks(workspacePath: string): LayoutMarkStore {
+  return {
+    read: () => {
+      const { layoutVersion, legacyProjectsMigrated } =
+        readWorkspaceIdentity(workspacePath);
+      return { layoutVersion, legacyProjectsMigrated };
+    },
+    write: (change) => {
+      writeWorkspaceIdentity(workspacePath, {
+        ...readWorkspaceIdentity(workspacePath),
+        ...change,
+      });
+    },
+  };
+}
+
+/**
+ * This computer's folder for the workspace with this local id (its registry
+ * id): what is secret, means something only here, or is rebuilt here
+ * (`WORKSPACE_MACHINE_ENTRIES`), none of which travels with the workspace
+ * folder.
+ */
+export function workspaceMachineDirOf(
+  userDataDir: string,
+  localId: string,
+): string {
+  return path.join(userDataDir, WORKSPACES_DATA_DIR_NAME, localId);
+}
+
+/**
+ * The workspace's database on this computer, `workspace.db`, at the top of
+ * its machine folder (`workspaceMachineDirOf`), so a workspace whose folder
+ * moves keeps it.
+ */
+export function workspaceDbFileOf(machineDir: string): string {
+  return path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.database);
 }
 
 /** Write through a sibling and rename, so a crash mid-write leaves the old file. */
@@ -227,29 +584,42 @@ export function writeWorkspaceIdentity(
   identity: WorkspaceIdentity,
 ): void {
   writeJsonAtomic(
-    path.join(workspacePrivateDir(workspacePath), IDENTITY_FILENAME),
+    path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
     identity,
   );
 }
 
+/**
+ * The pin, then `active`, then the default. A workspace in userData whose
+ * folder is gone gives way to the default, since the app made it and can
+ * make the default again; one in a folder the person picked never does,
+ * since opening another in its place would read as their chats being gone:
+ * the boot says it cannot read the folder instead (`workspace-refusal.ts`).
+ */
 function chooseWorkspace({
   current,
   fallback,
   pin,
   problems,
+  userDataDir,
 }: {
   current: WorkspaceRegistry;
   fallback: ResolvedWorkspace;
   pin: string | undefined;
   problems: string[];
+  userDataDir: string;
 }): ResolvedWorkspace {
   if (pin) {
     if (path.isAbsolute(pin)) {
-      const known = current.workspaces.find(
-        (entry) => path.resolve(entry.path) === path.resolve(pin),
+      const known = current.workspaces.find((entry) =>
+        samePath(entry.path, pin),
       );
+      const moved = known ? undefined : movedTo(current, pin);
       return toResolved(
-        known ?? { id: idForPath(current, pin), path: path.resolve(pin) },
+        known ??
+          (moved
+            ? { ...moved, path: path.resolve(pin) }
+            : { id: idForPath(current, pin), path: path.resolve(pin) }),
         true,
       );
     }
@@ -266,7 +636,10 @@ function chooseWorkspace({
     const known = current.workspaces.find(
       (entry) => entry.id === current.active,
     );
-    if (known && isDirectory(known.path)) {
+    if (
+      known &&
+      (isDirectory(known.path) || !pathWithin(known.path, userDataDir))
+    ) {
       return toResolved(known, false);
     }
     problems.push(
@@ -276,19 +649,37 @@ function chooseWorkspace({
   return fallback;
 }
 
-/** A registry id for a folder named from outside: its name, made unique. */
+/**
+ * A registry id for a folder named from outside: its name, made unique. Kept
+ * short, since it names the workspace's machine folder.
+ */
 function idForPath(registry: WorkspaceRegistry, workspacePath: string) {
   const base =
     path
       .basename(workspacePath)
       .toLowerCase()
       .replaceAll(/[^a-z0-9]+/g, "-")
+      .slice(0, LOCAL_ID_LENGTH)
       .replaceAll(/^-|-$/g, "") || "workspace";
   let id = base;
   for (let n = 2; registry.workspaces.some((entry) => entry.id === id); n++) {
     id = `${base}-${n.toString()}`;
   }
   return id;
+}
+
+/**
+ * The entry of a workspace whose folder is gone and whose id the folder at
+ * `workspacePath` carries: the same workspace, moved, which keeps its local id
+ * and with it its machine folder.
+ */
+function movedTo(registry: WorkspaceRegistry, workspacePath: string) {
+  const { id } = readWorkspaceIdentity(workspacePath);
+  return id === undefined
+    ? undefined
+    : registry.workspaces.find(
+        (entry) => entry.workspaceId === id && !isDirectory(entry.path),
+      );
 }
 
 function isDirectory(dir: string) {
@@ -300,28 +691,28 @@ function isDirectory(dir: string) {
 }
 
 /**
- * The default workspace first, always at this userData's own folder whatever
- * the file says, and each folder listed once: a second entry for a folder
- * already listed (the default one under another id, say) would let it be
- * mistaken for a different workspace.
+ * The default workspace first, in userData's own folder until the person
+ * picks one for it, and each folder listed once, by the folder its path names
+ * however it is spelled (`pathKey`): a second entry for a folder already
+ * listed (the default one under another id, say) would let it be mistaken
+ * for a different workspace. An entry whose folder cannot be reached stays:
+ * a disk not plugged in, or a folder macOS stopped the app reading, comes
+ * back.
  */
 function normalize(
   registry: WorkspaceRegistry,
   userDataDir: string,
 ): WorkspaceRegistry {
-  const defaultEntry =
-    registry.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ??
-    ({ id: DEFAULT_WORKSPACE_ID } satisfies Partial<RegistryEntry>);
+  const defaultEntry = registry.workspaces.find(
+    (entry) => entry.id === DEFAULT_WORKSPACE_ID,
+  ) ?? { id: DEFAULT_WORKSPACE_ID, path: defaultWorkspacePath(userDataDir) };
   const seen = new Set<string>();
   const workspaces: RegistryEntry[] = [];
   const others = registry.workspaces.filter(
     (other) => other.id !== DEFAULT_WORKSPACE_ID,
   );
-  for (const entry of [
-    { ...defaultEntry, path: defaultWorkspacePath(userDataDir) },
-    ...others,
-  ]) {
-    const key = path.resolve(entry.path);
+  for (const entry of [defaultEntry, ...others]) {
+    const key = pathKey(entry.path);
     if (!seen.has(key)) {
       seen.add(key);
       workspaces.push(entry);
@@ -361,12 +752,49 @@ function readRegistryFile(userDataDir: string): {
         workspaces: registry.workspaces.map((entry) => ({
           ...entry,
           path: path.resolve(userDataDir, entry.path),
+          ...(entry.pendingMove && {
+            pendingMove: {
+              ...entry.pendingMove,
+              from: path.resolve(userDataDir, entry.pendingMove.from),
+            },
+          }),
         })),
       },
       userDataDir,
     ),
     unreadable,
   };
+}
+
+/** The registry change of `updateRegistry`, for a caller already holding its lock. */
+function changeRegistry(
+  userDataDir: string,
+  change: (registry: WorkspaceRegistry) => WorkspaceRegistry,
+): WorkspaceRegistry {
+  const { registry, unreadable } = readRegistryFile(userDataDir);
+  if (unreadable) {
+    // Kept rather than overwritten: it may list workspaces outside
+    // `workspaces/`, which nothing else would find again.
+    fs.copyFileSync(
+      registryPath(userDataDir),
+      `${registryPath(userDataDir)}.unreadable-${Date.now().toString()}`,
+    );
+  }
+  const next = normalize(change(registry), userDataDir);
+  writeJsonAtomic(registryPath(userDataDir), {
+    ...next,
+    workspaces: next.workspaces.map((entry) => ({
+      ...entry,
+      path: storedPath(entry.path, userDataDir),
+      ...(entry.pendingMove && {
+        pendingMove: {
+          ...entry.pendingMove,
+          from: storedPath(entry.pendingMove.from, userDataDir),
+        },
+      }),
+    })),
+  });
+  return next;
 }
 
 function registryPath(userDataDir: string) {
@@ -430,13 +858,13 @@ function withRegistryLock<T>(userDataDir: string, run: () => T): T {
   }
 }
 
-let resolvedWorkspace: ResolvedWorkspace | undefined;
+let resolvedWorkspace: OpenWorkspace | undefined;
 
 /**
  * The workspace this process runs. Resolved once in `setup-environment.ts`; a
  * read before that would put a store in the wrong folder, so it throws instead.
  */
-export function getResolvedWorkspace(): ResolvedWorkspace {
+export function getResolvedWorkspace(): OpenWorkspace {
   if (!resolvedWorkspace) {
     throw new Error(
       "The workspace was read before setup-environment resolved it",
@@ -446,30 +874,46 @@ export function getResolvedWorkspace(): ResolvedWorkspace {
 }
 
 /**
- * Mark the workspace open in this process, until `releaseOpenMark`. Advisory:
- * it does not stop a second process opening the same workspace (worktrees
- * share the default one), only a delete from under a running one.
+ * Mark the workspace whose machine folder this is open in this process, until
+ * `releaseOpenMark`. Advisory: it does not stop a second process opening the
+ * same workspace (worktrees share the default one), only a delete from under
+ * a running one. On this computer's side, since a process id means nothing
+ * on another.
  */
-export function markWorkspaceOpen(workspacePath: string): void {
+export function markWorkspaceOpen(machineDir: string): void {
   // A live process already holding it keeps its mark: a second process (a
   // single-instance lock loser on its way out, a second worktree) would
   // otherwise take the mark and then remove it on exit.
-  if (openElsewhereBy(workspacePath) !== null) {
+  if (openElsewhereBy(machineDir) !== null) {
     return;
   }
   try {
-    fs.mkdirSync(workspacePrivateDir(workspacePath), { recursive: true });
-    fs.writeFileSync(openPidPath(workspacePath), process.pid.toString());
+    fs.mkdirSync(machineDir, { recursive: true });
+    fs.writeFileSync(openPidPath(machineDir), process.pid.toString());
   } catch {
     // Advisory; a workspace that cannot be marked still opens.
   }
 }
 
-/** The pid of another live process holding the workspace open, if any. */
-export function openElsewhereBy(workspacePath: string): null | number {
+/**
+ * The pid of another live process holding open the workspace marked in
+ * `markDir` (its machine folder), if any. A live process counts only when it
+ * runs this app's program: a mark left by a process that ended without
+ * removing it (a crash, the computer shutting down) names a pid the system
+ * may since have given to another program.
+ */
+export function openElsewhereBy(markDir: string): null | number {
+  return liveHolderOf(openPidPath(markDir));
+}
+
+/**
+ * The pid a file names, when it is another live process running this app's
+ * program, as `openElsewhereBy` reads the open mark.
+ */
+export function liveHolderOf(pidFile: string): null | number {
   let pid: number;
   try {
-    pid = Number(fs.readFileSync(openPidPath(workspacePath), "utf8").trim());
+    pid = Number(fs.readFileSync(pidFile, "utf8").trim());
   } catch {
     return null;
   }
@@ -478,29 +922,105 @@ export function openElsewhereBy(workspacePath: string): null | number {
   }
   try {
     process.kill(pid, 0);
-    return pid;
   } catch {
     return null;
   }
+  return runsThisApp(pid) ? pid : null;
 }
 
-export function releaseOpenMark(workspacePath: string): void {
+/**
+ * Whether the live process `pid` runs the same program as this one, by the
+ * name of its executable. The name rather than the whole path, since each
+ * worktree's development build runs its own copy of Electron. Where the
+ * system will not say, it is taken to: trusting a mark too long only defers
+ * a move to a later boot, while dropping a live one lets two processes move
+ * one workspace's data at once.
+ */
+function runsThisApp(pid: number): boolean {
+  const name = executableNameOf(pid);
+  if (name === undefined) {
+    return true;
+  }
+  const own = path.basename(process.execPath);
+  return process.platform === "win32"
+    ? name.toLowerCase() === own.toLowerCase()
+    : name === own;
+}
+
+/**
+ * The name the system gives the executable a process runs, "" when no
+ * process has that pid any more, and undefined when the system would not
+ * say. Read from `/proc` on Linux and asked of `ps` on a Mac and `tasklist`
+ * on Windows, each part of the system.
+ *
+ * On Linux it is the program `/proc/<pid>/exe` leads to rather than
+ * `/proc/<pid>/comm`, which is the name of the process's first thread: Node
+ * calls that one "MainThread" and Chromium calls the browser process's
+ * "CrBrowserMain", so comm never names the program for anything this app
+ * runs. A link this account cannot read answers undefined, which counts the
+ * process as this app's, as a system that will not say does.
+ */
+function executableNameOf(pid: number): string | undefined {
+  const ask = (file: string, args: string[]) =>
+    execFileSync(file, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 5000,
+      windowsHide: true,
+    });
+  try {
+    switch (process.platform) {
+      case "linux":
+        return path.basename(fs.readlinkSync(`/proc/${pid.toString()}/exe`));
+      case "win32": {
+        const row = /^"([^"]*)","(\d+)"/m.exec(
+          ask("tasklist", [
+            "/FI",
+            `PID eq ${pid.toString()}`,
+            "/FO",
+            "CSV",
+            "/NH",
+          ]),
+        );
+        return row?.[2] === pid.toString() ? (row[1] ?? "") : "";
+      }
+      default:
+        return path.basename(
+          ask("ps", ["-p", pid.toString(), "-o", "comm="]).trim(),
+        );
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+export function releaseOpenMark(machineDir: string): void {
   try {
     if (
-      fs.readFileSync(openPidPath(workspacePath), "utf8").trim() ===
+      fs.readFileSync(openPidPath(machineDir), "utf8").trim() ===
       process.pid.toString()
     ) {
-      fs.rmSync(openPidPath(workspacePath));
+      fs.rmSync(openPidPath(machineDir));
     }
   } catch {
     // Already gone, or another process took it over.
   }
 }
 
-export function setResolvedWorkspace(workspace: ResolvedWorkspace): void {
+export function setResolvedWorkspace(workspace: OpenWorkspace): void {
   resolvedWorkspace = workspace;
 }
 
-function openPidPath(workspacePath: string) {
-  return path.join(workspacePrivateDir(workspacePath), OPEN_PID_FILENAME);
+function openPidPath(markDir: string) {
+  return path.join(markDir, WORKSPACE_MACHINE_ENTRIES.openMark);
+}
+
+/** The workspace id a machine folder's record says it belongs to. */
+function readOwner(machineDir: string): string | undefined {
+  const parsed = z
+    .object({ workspaceId: WorkspaceIdSchema })
+    .safeParse(
+      readJson(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner)),
+    );
+  return parsed.success ? parsed.data.workspaceId : undefined;
 }

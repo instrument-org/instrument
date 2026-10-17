@@ -12,7 +12,7 @@ import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
 import { chatDir, chatIds, resolveChat, sessionOfChat } from "./record-folders";
 import { getChatSettings } from "./chat-settings";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 
 export interface ChatInfoListOptions {
   direction?: "asc" | "desc";
@@ -86,7 +86,7 @@ export async function chatTitle(chatId: ChatId): Promise<string | undefined> {
   if (!sessionId) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   return session.isOk() ? session.value.title : undefined;
 }
 

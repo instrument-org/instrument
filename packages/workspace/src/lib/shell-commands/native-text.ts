@@ -18,16 +18,17 @@ import nodePath from "node:path";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { inheritedEnv } from "../native-env";
-import { CHAT_FOLDER_NAMES } from "../../constants";
-import { isAtOrUnder, relativeWithin } from "../path-containment";
+import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
-  classifyShellPath,
+  hostPathOf,
   otherFolders,
   outsideFolderRefusal,
   resolveHostPath,
   shellPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
@@ -356,31 +357,6 @@ export function findWithHiddenEntriesPruned(
 }
 
 /**
- * The chat's hidden entries other than `.instrument` (which is pruned by
- * name) that a walk from each start point reaches, spelled as find prints
- * them from that start: `./tasks` from the chat's folder.
- */
-function maskedUnder(
-  starts: string[],
-  layout: WorkspaceFsLayout,
-  resolvePath: (arg: string) => string,
-): string[] {
-  return starts.flatMap((start) => {
-    const resolved = resolvePath(start);
-    const spelled = start.replace(/\/+$/, "");
-    return layout.chat.maskedEntries
-      .filter((entry) => entry !== CHAT_FOLDER_NAMES.private)
-      .flatMap((entry) => {
-        const rest = relativeWithin(
-          resolved,
-          `${layout.chat.shellRoot}/${entry}`,
-        );
-        return rest === null || rest === "/" ? [] : [`${spelled}${rest}`];
-      });
-  });
-}
-
-/**
  * One argument quoted the way Windows' CommandLineToArgvW reads it back,
  * whatever it holds: backslashes before a quote and at the end doubled, the
  * quote escaped.
@@ -417,12 +393,14 @@ function coreutilsLinks(): string | null {
     return linksDir;
   }
   linksDir = null;
-  const { toolBinDir } = getWorkspaceConfig();
   const coreutils = uutilsProgram("coreutils");
-  if (toolBinDir === undefined || coreutils === undefined) {
+  if (coreutils === undefined) {
     return linksDir;
   }
-  const dir = nodePath.join(nodePath.dirname(toolBinDir), "uutils-links");
+  const dir = nodePath.join(
+    runtimeLayout(getWorkspaceConfig().runtimeDir).bin,
+    "uutils-links",
+  );
   try {
     mkdirSync(dir, { recursive: true });
     const names = execFileSync(coreutils, ["--list"], { encoding: "utf8" })
@@ -577,6 +555,7 @@ function operandRefusal(
     (folder) => folder.shellRoot,
   );
   const written = new Set(route.writes?.(args) ?? []);
+  const hostCwd = hostPathOf(resolvePath("."));
   let operandsOnly = false;
   for (const arg of [...args, ...written]) {
     const isOperand = written.has(arg) || operandsOnly || !arg.startsWith("-");
@@ -585,10 +564,10 @@ function operandRefusal(
       continue;
     }
     const op = written.has(arg) ? "write" : "read";
-    const resolved = resolvePath(arg);
-    if (classifyShellPath(layout, resolved)?.masked !== undefined) {
-      return `${route.name}: ${arg}: No such file or directory`;
-    }
+    // An operand spelled the way this computer spells a path names the same
+    // file as its shell spelling, and meets the same rules.
+    const resolved =
+      shellPathOfHostSpelling(arg, { hostCwd }) ?? resolvePath(arg);
     const refusal = roots.some((root) => isAtOrUnder(root, resolved))
       ? mountedRefusal(layout, resolved, op)
       : outsideFolderRefusal(layout, resolved, op);
@@ -720,18 +699,12 @@ export function createNativeTextCommand(
       layout,
       resolvePath,
     );
+    // Nothing inside a chat's folder is masked on this layout, so a find
+    // needs no pruning: what the app keeps closed is the workspace's own
+    // folder, which no mount reaches.
     const programArgs = outside
       ? outside.args
-      : starts
-        ? findWithHiddenEntriesPruned(
-            args,
-            maskedUnder(
-              starts.length > 0 ? starts : ["."],
-              layout,
-              resolvePath,
-            ),
-          )
-        : (route.programArgs?.(args) ?? args);
+      : (route.programArgs?.(args) ?? args);
     const context = resolveCommandContext(chatId, ctx);
     const { hostCwd } = context;
     const env = outside

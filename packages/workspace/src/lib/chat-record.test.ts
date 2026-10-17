@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { getChatPrivateDir } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { readChatRecord, setChatState, updateChatRecord } from "./chat-record";
 
@@ -32,11 +31,11 @@ function heldFileError(code: string): Error {
 }
 
 function recordPath(): string {
-  return path.join(getChatPrivateDir(chatDir(chatId)), "settings.json");
+  return path.join(chatDir(chatId), "settings.json");
 }
 
 async function writeRecordFile(record: unknown): Promise<void> {
-  await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   await fs.writeFile(recordPath(), JSON.stringify(record, null, 2), "utf8");
 }
 
@@ -79,7 +78,7 @@ describe("readChatRecord", () => {
   });
 
   it("answers empty for a file that is not JSON, rather than throwing", async () => {
-    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.mkdir(chatDir(chatId), { recursive: true });
     await fs.writeFile(recordPath(), "{ truncated mid-wr", "utf8");
 
     await expect(readChatRecord(chatDir(chatId))).resolves.toMatchObject({
@@ -97,7 +96,7 @@ describe("readChatRecord", () => {
     ["truncated JSON", "{ truncated mid-wr"],
     ["JSON that is not an object", "[1, 2, 3]"],
   ])("reports %s as unreadable", async (_name, contents) => {
-    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.mkdir(chatDir(chatId), { recursive: true });
     await fs.writeFile(recordPath(), contents, "utf8");
 
     const record = await readChatRecord(chatDir(chatId));
@@ -156,7 +155,7 @@ describe("updateChatRecord", () => {
   // on it: the record read as though the task had nothing, so the write would
   // have been the settings and the tabs replaced by one model choice.
   it("refuses to replace a record it could not read", async () => {
-    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.mkdir(chatDir(chatId), { recursive: true });
     await fs.writeFile(
       recordPath(),
       '{ "createdWithAppVersion": "2.0.0", "state',
@@ -183,7 +182,7 @@ describe("updateChatRecord", () => {
   });
 
   it("takes writes again once the unreadable record is repaired", async () => {
-    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.mkdir(chatDir(chatId), { recursive: true });
     await fs.writeFile(recordPath(), "{ truncated", "utf8");
     await expect(
       setChatState(chatDir(chatId), { appGuidesRead: ["refused"] }),
@@ -203,7 +202,7 @@ describe("updateChatRecord", () => {
       createdWithAppVersion: "2.0.0",
     }));
 
-    const entries = await fs.readdir(getChatPrivateDir(chatDir(chatId)));
+    const entries = await fs.readdir(chatDir(chatId));
 
     expect(entries).toEqual(["settings.json"]);
   });

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../command-line-tools-env";
 import { DANGEROUS_NAMES } from "../permissions/places";
-import { levelWithoutAsking, ruleRank } from "../permissions/rules";
+import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appEnv, depthOf, resolveReal, spellings, toolCaches } from "./host";
 import { probeSandbox, type ProbeResult } from "./probe";
@@ -34,7 +34,7 @@ export function seatbeltProfile(
   /** The ssh-agent's socket the app was started with, if any. */
   agentSocket = appEnv.SSH_AUTH_SOCK,
 ): string {
-  const { home, rules, withoutAsking } = reach.rules;
+  const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   const entries: {
     depth: number;
     /** The folder the entry opens, for an allow. */
@@ -46,17 +46,23 @@ export function seatbeltProfile(
     // Again at the home folder, so a folder allowed above it (a temp folder
     // holding a test's planted home) opens nothing in it.
     {
-      depth: depthOf(home),
+      depth: depthOf(resolveReal(home)),
       rank: -1,
       text: `(deny file-write* (subpath ${sbplString(resolveReal(home))}))`,
     },
   ];
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
     const filter = (spelled: string) =>
       rule.dotEntries
         ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
-        : `(subpath ${sbplString(spelled)})`;
+        : rule.file
+          ? `(literal ${sbplString(spelled)})`
+          : `(subpath ${sbplString(spelled)})`;
     // A socket in a closed place is how another program hands out what the
     // place holds (1Password's or gpg's agent signs with keys the agent may
     // not read), so connecting to one is closed with it, as the ssh-agent's
@@ -80,7 +86,7 @@ export function seatbeltProfile(
     entries.push(
       ...spellings(rule.path).flatMap((spelled) =>
         texts(spelled).map((text) => ({
-          depth: depthOf(rule.path) + (rule.dotEntries ? 1 : 0),
+          depth: depthOf(spelled) + (rule.dotEntries ? 1 : 0),
           opened:
             level !== "allow" && level !== "readOnly"
               ? undefined
@@ -96,7 +102,7 @@ export function seatbeltProfile(
   const opens = (paths: readonly string[], access: string) =>
     paths.flatMap((opened) =>
       spellings(opened).map((spelled) => ({
-        depth: depthOf(opened),
+        depth: depthOf(spelled),
         opened: spelled,
         rank: 3,
         text: `(allow ${access} (subpath ${sbplString(spelled)}))`,
@@ -110,7 +116,7 @@ export function seatbeltProfile(
     // (an Ask first place under folders-without-asking) does not open it.
     ...reach.readOnly.flatMap((closed) =>
       spellings(closed).map((spelled) => ({
-        depth: depthOf(closed),
+        depth: depthOf(spelled),
         rank: 3,
         text: `(deny file-write* (subpath ${sbplString(spelled)}))`,
       })),
@@ -146,7 +152,11 @@ export function seatbeltProfile(
   // what is in them is a different path and stays as the rules say.
   const closedAbove = new Set<string>();
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
     if (level === "allow" || level === "readOnly" || rule.dotEntries) {
       continue;
     }
@@ -212,8 +222,8 @@ export function seatbeltProfile(
   );
   // No Apple Events and no opening apps: a command could otherwise have
   // another app do what the profile keeps it from, outside any sandbox.
-  // osascript reaches an app only when the person allowed that app, and then
-  // runs unwrapped (osascript.ts).
+  // The app's own scripts reach an app only when the person allowed that
+  // app, and then run unwrapped (app-scripts.ts).
   texts.push(
     "(deny appleevent-send)",
     "(deny lsopen)",

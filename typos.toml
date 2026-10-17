@@ -38,6 +38,8 @@ exclud = "exclud"
 wel = "wel"
 # The `b a` branch in a sed one-liner, written `$!ba`.
 ba = "ba"
+# tasklist's output-format switch, `/FO CSV`.
+FO = "FO"
 # xargs' `-P` with its count attached, written `-PN`.
 PN = "PN"
 

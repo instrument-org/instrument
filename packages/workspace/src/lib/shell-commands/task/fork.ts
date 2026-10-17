@@ -2,6 +2,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
+import { ChatReads } from "../../chat-reads";
 import { addChildTask, type ChatTask } from "../../chat/children";
 import { defaultTaskName } from "../../default-task-name";
 import {
@@ -10,7 +11,6 @@ import {
 } from "../../background-processes";
 import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
-import { Store } from "../../store";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import {
   type SubcommandInput,
@@ -148,9 +148,9 @@ async function forkPoint({
   chatId: ChatId;
   chatSessionId: StoreId.Session;
 }): Promise<StoreId.Message> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId: chatSessionId,
+  const messages = await ChatReads.transcript({
     chatId,
+    sessionId: chatSessionId,
   });
   if (messages.isErr()) {
     throw messages.error;
@@ -197,7 +197,10 @@ async function startFork({
   /** Called with the task's session before its first turn starts. */
   onSession?: (sessionId: StoreId.Session) => void;
 }): Promise<ChatTask> {
-  const chatSession = await Store.getSession(chatSessionId, chatId);
+  const chatSession = await ChatReads.session({
+    chatId,
+    sessionId: chatSessionId,
+  });
   if (chatSession.isErr()) {
     throw chatSession.error;
   }

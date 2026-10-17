@@ -28,6 +28,7 @@ vi.mock("../../../resources/instrument-folder-windows.ico?asset", async () => {
   };
 });
 
+import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { applyLinuxFolderIcon } from "./output-folder-icon-linux";
 import { applyWindowsFolderIcon } from "./output-folder-icon-windows";
 
@@ -157,3 +158,23 @@ it("does not rewrite GIO metadata that already points to the app's icon", async 
   await applyLinuxFolderIcon(folder);
   expect(execute).toHaveBeenCalledTimes(1);
 });
+
+// macOS holds the read of a folder in Documents while its own prompt for
+// Documents waits, so the read's timeout is that prompt going unanswered.
+it.runIf(process.platform === "darwin")(
+  "skips the Mac icon when reading the folder runs out of time",
+  async () => {
+    vi.spyOn(os, "homedir").mockReturnValue(folder);
+    const documents = path.join(folder, "Documents", "Instrument");
+    await fs.mkdir(documents, { recursive: true });
+    execute.mockRejectedValue(
+      Object.assign(new Error("Command failed: /usr/bin/xattr"), {
+        killed: true,
+        signal: "SIGTERM",
+      }),
+    );
+    await expect(ensureOutputFolderIcon(documents)).resolves.toBeUndefined();
+    expect(execute).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  },
+);

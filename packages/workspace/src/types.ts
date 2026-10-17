@@ -12,6 +12,7 @@ import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
 import { type FinderEntry } from "./lib/chat/finder-entries";
+import { type DeviceId } from "./lib/records/device-id";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type WebSearchClient } from "./schemas/web-search";
@@ -144,16 +145,16 @@ export interface WorkspaceAppsConfig {
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
-  /**
-   * The file this workspace's record of the model requests it made is kept
-   * in, inside the workspace's own `.instrument` folder. Absent where nothing
-   * should persist (tests, scripts), and then nothing is recorded.
-   */
-  aiUsageFile?: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
-  chatTemplateDir: AbsolutePath;
+  /**
+   * This install of the app on this machine, which every chat record this
+   * process writes is filed under: the only writer of each log and marks
+   * file whose name carries it. Chosen before the workspace starts, from
+   * what the machine's state holds and the hardware it runs on.
+   */
+  deviceId: DeviceId;
   /**
    * What the system's file manager calls each drive at `roots` (`C:\`), by
    * its root, for the Files sidebar's Locations: "Local Disk (C:)" on
@@ -176,6 +177,14 @@ export interface WorkspaceConfig {
    * Absent off macOS and in builds without the Mac module.
    */
   resolveAlias?: (path: string) => Promise<string | undefined>;
+  /**
+   * Whether the person's own views of this computer keep a file or folder
+   * closed: the app's own data (each workspace's keys, sign-ins and browser
+   * profiles, its records), which the channel the viewers read files
+   * through refuses too. Files leaves such an entry out of a listing, and
+   * answers such a folder as refused by the app. Absent, nothing is.
+   */
+  isRefusedFile?: (hostPath: string) => Promise<boolean>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
@@ -185,13 +194,44 @@ export interface WorkspaceConfig {
    */
   getUser?: () => Promise<undefined | { email: string; name?: string }>;
   /**
-   * Where each workspace's index of its chats and tasks is kept: derived,
-   * rebuilt from the workspace whenever it is missing or out of date, and
-   * outside the workspace so a workspace in a synced folder never carries a
-   * live database. Absent where nothing should persist (tests, scripts), and
-   * then every read derives from the stores.
+   * `workspace.db`, the database this computer keeps for the workspace
+   * (`workspace-db.ts`): the index of its chats and tasks, rebuilt from the
+   * workspace whenever it is missing or out of date, and the activity log of
+   * the model requests it made. Outside the workspace, in its machine folder,
+   * so a workspace in a synced folder never carries a live database, and a
+   * moved workspace keeps it. Absent where nothing should persist (tests,
+   * scripts), and then every read derives from the stores and no activity is
+   * recorded.
    */
-  indexesDir?: AbsolutePath;
+  workspaceDbFile?: AbsolutePath;
+  /**
+   * This computer's folder, Electron's userData: the runtime folder, each
+   * workspace's machine folder, the registry of workspaces, the app's own
+   * Chromium profile and machine preferences. Closed to every command the
+   * agent runs, but for what the rules open in it.
+   */
+  machineDir: AbsolutePath;
+  /**
+   * Where finished work goes when nobody said where (`outputFolderPath`):
+   * the workspace's own folder once the person picked where it is kept,
+   * whose top level is theirs. Absent while the workspace is kept in the
+   * app's own data, and wherever there is no person's folder (tests,
+   * scripts, evals), and then it is `Instrument` in their Documents.
+   */
+  outputDir?: AbsolutePath;
+  /**
+   * This computer's own folder for the workspace, outside it: the folder
+   * rules (`permissions.json`), the in-app browser's profile, the apps'
+   * installed servers, the app's keys and window state, and each chat's
+   * work folder, none of which travels with the workspace. The agent reaches
+   * only its own chat's work folder in it.
+   */
+  workspaceMachineDir: AbsolutePath;
+  /**
+   * Where every chat's work folder is, `work/` in the workspace's machine
+   * folder: `workDir(id)` is the folder named by the chat's id in it.
+   */
+  workFoldersDir: AbsolutePath;
   /**
    * Replace a provider config's credential if it has already expired,
    * resolving once the replacement is in or the wait gave up. The model proxy
@@ -204,29 +244,36 @@ export interface WorkspaceConfig {
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   /**
-   * Whether native commands (node, python, uv, pnpm, ffmpeg, git,
-   * osascript) are held to Settings › Permissions with Seatbelt on macOS. A
-   * plain flag, because native commands run in the bash worker, which is sent
-   * a snapshot of the config with each command. Off, native commands run
-   * unwrapped, as they do off macOS.
+   * Whether native commands (node, python, uv, pnpm, ffmpeg, git) are held
+   * to Settings › Permissions with Seatbelt on macOS. A plain flag, because
+   * native commands run in the bash worker, which is sent a snapshot of the
+   * config with each command. Off, native commands run unwrapped, as they do
+   * off macOS.
    */
   nativeSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
-  // Where the skills the app ships are prepared for use. They cannot run from
-  // the bundle -- it is signed, notarized, and replaced wholesale by the updater,
-  // so nothing may write a `node_modules` there -- so they are materialized once
-  // per machine here instead. Outside the workspace deliberately: several
-  // workspaces, or a workspace the user moves, all source from one prepared set.
-  preparedSkillsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  /**
+   * The one folder on this computer for what the app can always rebuild,
+   * shared by every workspace on it and never inside one: the `bin` links,
+   * the managed Python, the caches and config of the app's own uv, pnpm and
+   * npm, and the skills the app ships, prepared there since nothing may
+   * write into the signed bundle the updater replaces. `runtimeLayout` names
+   * its folders.
+   */
+  runtimeDir: AbsolutePath;
   // Where every chat's folder is, `chats/` under the root.
   chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
-  // Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
-  // migration reads, and names a new chat stays clear of while a folder
-  // there waits to move.
-  legacyTasksDir: AbsolutePath;
+  /**
+   * Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
+   * migration reads, and names a new chat stays clear of while a folder
+   * there waits to move. Absent for a workspace in a folder the person
+   * picked, which no 1.x build kept and whose top level is theirs, and
+   * wherever nothing 1.x made is opened (evals, scripts).
+   */
+  legacyTasksDir?: AbsolutePath;
   /**
    * The system's temp folders, which the agent writes with no card. Absent,
    * they are the system's own (`/tmp`, `/var/tmp` and `os.tmpdir()`). A test
@@ -259,13 +306,6 @@ export interface WorkspaceConfig {
   // the home folder by its English name: Windows moves Desktop and Documents
   // into OneDrive, and Linux names them in the desktop's language.
   knownFolders?: Record<KnownFolder, string>;
-  // The app's folder on PATH that links `node`, `pnpm`, `uv` and the rest,
-  // which a package script or bin shim finds `node` through. Native commands
-  // may read it whatever the rules say about the folder it sits in.
-  toolBinDir?: AbsolutePath;
-  // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
-  // app's userData so uv never writes into the person's home.
-  uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }
 export type KnownFolder =

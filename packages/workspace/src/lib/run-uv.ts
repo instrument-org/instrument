@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { existsSync } from "node:fs";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
@@ -11,24 +12,35 @@ import {
   withInstallerClosed,
   wrapNativeCommand,
 } from "./native-sandbox";
-import { uvToolsEnvFor } from "./tool-isolation-env";
+import { runtimeLayout } from "./runtime-dir";
+import { uvBuildEnvFor } from "./tool-isolation-env";
 import {
   getUvBinPath,
   MANAGED_PYTHON_VERSION,
+  uvBuildSubprocessEnv,
   uvSubprocessEnv,
   withPythonVersionNote,
 } from "./uv";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workDir } from "./work-dir";
 
 export async function runUvCommand({
   args,
+  buildFolders = false,
   cwd,
   lockfilePinned = false,
   signal,
   stdin,
   chatId,
+  writable = [],
 }: {
   args: string[];
+  /**
+   * Whether this is the app building a skill it ships, which keeps uv's
+   * cache in the build folders rather than the chats' and opens them to
+   * this command alone, so nothing a chat wrote reaches what it builds.
+   */
+  buildFolders?: boolean;
   cwd?: AbsolutePath;
   /**
    * Whether the versions come from a lockfile someone already chose them
@@ -39,17 +51,31 @@ export async function runUvCommand({
   signal?: AbortSignal;
   stdin?: string;
   chatId: ChatId;
+  /**
+   * Folders the command may change beyond what the chat may: a skill
+   * environment the app is building for it.
+   */
+  writable?: AbsolutePath[];
 }) {
-  const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({ chatId });
+  const { UV_EXCLUDE_NEWER, ...pinnedEnv } = buildFolders
+    ? uvBuildSubprocessEnv()
+    : uvSubprocessEnv({
+        chatId,
+        cwd: cwd ?? workDir(chatId),
+      });
   // Held to the chat's reach like any command of its own: uv runs the
   // chat's virtualenv interpreter to read it, and that interpreter, with the
   // `.pth` files beside it, is the chat's to change.
+  const reach = await chatNativeReach(chatId);
+  const opened = buildFolders
+    ? [...writable, runtimeLayout(getWorkspaceConfig().runtimeDir).buildCaches]
+    : writable;
   let spawned: ReturnType<typeof wrapNativeCommand>;
   try {
     spawned = wrapNativeCommand(
       getUvBinPath(),
       args,
-      (await chatNativeReach(chatId)) ?? null,
+      reach ? { ...reach, readWrite: [...reach.readWrite, ...opened] } : null,
     );
   } catch (error) {
     if (error instanceof NativeSandboxUnavailableError) {
@@ -117,19 +143,83 @@ export function ensureManagedPython(): Promise<
   return managedPython;
 }
 
+let managedInterpreter: string | undefined;
+
+/**
+ * The managed Python's interpreter, where `managedPythonInterpreter` has
+ * found it.
+ */
+export function foundManagedPython(): string | undefined {
+  return managedInterpreter;
+}
+
+/**
+ * The managed Python's own interpreter, which `python` runs where no
+ * virtualenv is near: installed first when it is not, and asked of uv,
+ * which knows where it keeps it. Remembered once found.
+ */
+export async function managedPythonInterpreter(): Promise<
+  ManagedPythonFailure | { path: string }
+> {
+  const failure = await ensureManagedPython();
+  if (failure) {
+    return failure;
+  }
+  if (managedInterpreter !== undefined && existsSync(managedInterpreter)) {
+    return { path: managedInterpreter };
+  }
+  const { runtimeDir } = getWorkspaceConfig();
+  const spawned = withInstallerClosed(getUvBinPath(), [
+    "python",
+    "find",
+    "--no-project",
+    MANAGED_PYTHON_VERSION,
+  ]);
+  // From the Pythons' own folder, with no virtualenv in the environment, so
+  // uv answers with the managed interpreter rather than one a project or a
+  // `.venv` beside it would pick.
+  const result = await execa(spawned.file, spawned.args, {
+    all: true,
+    cwd: runtimeLayout(runtimeDir).python,
+    env: {
+      ...inheritedEnv(),
+      ...uvBuildEnvFor(runtimeDir),
+      UV_PYTHON_DOWNLOADS: "never",
+    },
+    extendEnv: false,
+    reject: false,
+    stdin: "ignore",
+  });
+  if (result.exitCode !== 0) {
+    return {
+      exitCode: result.exitCode ?? 1,
+      output: withPythonVersionNote(
+        filterShellOutput(
+          result.all ||
+            result.shortMessage ||
+            "uv failed without diagnostic output.",
+        ),
+      ),
+    };
+  }
+  managedInterpreter = result.stdout.trim();
+  return { path: managedInterpreter };
+}
+
 /**
  * `uv python install`, run as the app outside any chat's reach, which is
  * safe because it runs none of a chat's code: only the Command Line Tools
- * installer is closed to it, as uv may reach for `install_name_tool`. An
+ * installer is closed to it, as uv may reach for `install_name_tool`. Its
+ * downloads are cached in the build folders, which no chat writes. An
  * installed Python makes it a no-op of about 50 ms.
  */
 async function installManagedPython() {
   const spawned = withInstallerClosed(getUvBinPath(), [
     "python",
     "install",
-    // Into uv's data folder alone: no `python3.12` in ~/.local/bin, and
-    // nothing in the Windows registry, where the person's own tools would
-    // find it.
+    // Into the runtime folder's `python/` alone: no `python3.12` in
+    // ~/.local/bin, and nothing in the Windows registry, where the person's
+    // own tools would find it.
     "--no-bin",
     "--no-registry",
     MANAGED_PYTHON_VERSION,
@@ -138,7 +228,7 @@ async function installManagedPython() {
     all: true,
     env: {
       ...inheritedEnv(),
-      ...uvToolsEnvFor(getWorkspaceConfig().uvDataDir),
+      ...uvBuildEnvFor(getWorkspaceConfig().runtimeDir),
     },
     extendEnv: false,
     reject: false,

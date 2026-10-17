@@ -16,11 +16,10 @@ import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config"
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
 import { instrumentAgent } from "../../agents/instrument";
 import { createSession } from "../create-session";
-import {
-  prepareModelMessages,
-  SESSION_CONTEXT_VERSION,
-} from "../prepare-model-messages";
-import { Store } from "../store";
+import { prepareModelMessages } from "../prepare-model-messages";
+import { SESSION_CONTEXT_VERSION } from "../session-baseline";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { chatDir } from "../record-folders";
 import { updateChatSettings } from "../chat-settings";
 import { chatGrants } from "../chat/grants";
@@ -28,6 +27,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { newSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runNew = subcommandRunner(newSubcommand, "task new");
 
@@ -86,16 +86,13 @@ beforeEach(async () => {
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../../templates/default"),
-    ),
     chatsDir: AbsolutePathSchema.parse(
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatSessionId = StoreId.newSessionId();
-  const chatId = chatFor(
+  const chatId = await chatFor(
     chatSessionId,
     ChatIdSchema.parse(`2026-10-06-files-${counter}`),
   );
@@ -128,7 +125,7 @@ beforeEach(async () => {
     "a,b\n",
   );
   for (const message of chatMessages) {
-    const saved = await Store.saveMessageWithParts(message, chatId);
+    const saved = await ChatWrites.saveMessageWithParts(message, chatId);
     if (saved.isErr()) {
       throw saved.error;
     }
@@ -137,7 +134,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 /**
@@ -308,7 +305,7 @@ describe("task new", () => {
     const id = forkId(handOffs);
 
     const session = (
-      await Store.getSession(id, context.chatId)
+      await ChatReads.session({ chatId: context.chatId, sessionId: id })
     )._unsafeUnwrap();
     // The last message the step that called `task new` was sent: the
     // finished `ls`, not the reply still in flight.
@@ -319,7 +316,7 @@ describe("task new", () => {
     });
     // Not one of the chat's own sessions, and no record or folder of its own.
     expect(
-      (await Store.getSessions(context.chatId))
+      (await ChatReads.sessions({ chatId: context.chatId }))
         ._unsafeUnwrap()
         .map((one) => one.id),
     ).toEqual([chatSessionId]);
@@ -344,11 +341,11 @@ describe("task new", () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);
     (
-      await Store.saveMessageWithParts(started().message, context.chatId)
+      await ChatWrites.saveMessageWithParts(started().message, context.chatId)
     )._unsafeUnwrap();
 
     const history = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         sessionId: id,
         chatId: context.chatId,
       })
@@ -364,7 +361,7 @@ describe("task new", () => {
         .every((message) => message.metadata.sessionId === chatSessionId),
     ).toBe(true);
     const own = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         inherited: false,
         sessionId: id,
         chatId: context.chatId,
@@ -409,11 +406,11 @@ describe("task new", () => {
       ),
     };
     (
-      await Store.saveMessageWithParts(answered, context.chatId)
+      await ChatWrites.saveMessageWithParts(answered, context.chatId)
     )._unsafeUnwrap();
     const newerId = StoreId.newMessageId();
     (
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           ...answered,
           id: newerId,
@@ -434,8 +431,12 @@ describe("task new", () => {
 
     const { handOffs } = await fork();
     expect(
-      (await Store.getSession(forkId(handOffs), context.chatId))._unsafeUnwrap()
-        .forkedAtMessageId,
+      (
+        await ChatReads.session({
+          chatId: context.chatId,
+          sessionId: forkId(handOffs),
+        })
+      )._unsafeUnwrap().forkedAtMessageId,
     ).toBe(chatMessages[2]?.id);
   });
 
@@ -448,7 +449,10 @@ describe("task new", () => {
     expect(second.result.stdout).toContain("Started task t2");
     expect(
       (
-        await Store.getSession(forkId(first.handOffs), context.chatId)
+        await ChatReads.session({
+          chatId: context.chatId,
+          sessionId: forkId(first.handOffs),
+        })
       )._unsafeUnwrap().handle,
     ).toBe("t1");
   });
@@ -505,15 +509,17 @@ describe("task new", () => {
       throw new Error("the conversation is empty");
     }
     (
-      await Store.removeMessage(reply.id, chatSessionId, context.chatId)
+      await ChatWrites.retract(context.chatId, chatSessionId, [reply.id])
     )._unsafeUnwrap();
     const chat = await request(chatSessionId);
-    (await Store.saveMessageWithParts(reply, context.chatId))._unsafeUnwrap();
+    (
+      await ChatWrites.saveMessageWithParts(reply, context.chatId)
+    )._unsafeUnwrap();
 
     const { handOffs } = await fork();
     // The session machine saves the assignment before the first request.
     (
-      await Store.saveMessageWithParts(started().message, context.chatId)
+      await ChatWrites.saveMessageWithParts(started().message, context.chatId)
     )._unsafeUnwrap();
     const forked = await request(forkId(handOffs));
 

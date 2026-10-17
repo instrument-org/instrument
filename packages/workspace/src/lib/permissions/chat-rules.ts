@@ -10,8 +10,8 @@ import { folderReach } from "../chat/folder-reach";
 import { chatGrants } from "../chat/grants";
 import { chatDenials } from "./denials";
 import { type NativeReach } from "../native-sandbox";
-import { nodeToolsDir } from "../tool-isolation";
-import { uvPythonBaseDir, uvPythonInstallDir } from "../tool-isolation-env";
+import { runtimeLayout } from "../runtime-dir";
+import { skillSourceRoots } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { readPermissionSettings, type Rules, rulesFor } from "./rules";
@@ -40,6 +40,11 @@ export async function chatRules({
     extraAllows: Object.values(folders)
       .map((folder) => folder.path)
       .filter((folderPath) => path.resolve(folderPath) !== path.resolve(home)),
+    // The same folders the shell mounts read-only, so the file tools and the
+    // commands agree about a skill the agent was told to read where it is.
+    extraReadOnly: skillSourceRoots(getWorkspaceConfig())
+      .filter((root) => root.readOnly)
+      .map((root) => root.dir),
     denials: (await chatDenials(chatId))
       .filter((denial) => denial.kind === "folder")
       .map((denial) => denial.target),
@@ -105,23 +110,26 @@ export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,
 ): NativeReach {
-  const { toolBinDir, uvDataDir } = getWorkspaceConfig();
+  const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
   return {
     readOnly: [
       ...layout.skills.map((mount) => mount.hostRoot),
-      ...(toolBinDir ? toolBinFolders(toolBinDir) : []),
+      ...toolBinFolders(runtime.bin),
       // The managed Pythons every chat's virtualenv runs on, which the app
-      // installs (installManagedPython): a file one chat put there would run
-      // in every other. The rest of uv's folder, its caches, stays open.
-      uvPythonInstallDir(uvDataDir),
+      // installs (installManagedPython), the skill environments it builds,
+      // which every chat runs, and the preload every chat's `node` imports:
+      // a file one chat put there would run in every other.
+      runtime.python,
+      runtime.environments,
+      runtime.preload,
       // The packages every chat's virtualenv imports (python-base.ts), and
       // the cache they were installed from, for the same reason.
-      uvPythonBaseDir(uvDataDir),
+      runtime.pythonBase,
     ],
     readWrite: [
       layout.chat.hostRoot,
-      uvDataDir,
-      nodeToolsDir(),
+      runtime.caches,
+      runtime.config,
       ...(layout.apps ? [layout.apps.hostRoot] : []),
     ],
     rules,

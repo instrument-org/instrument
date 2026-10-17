@@ -1,17 +1,18 @@
 import { type ChatId } from "../../schemas/chat-id";
-import { type ChatDenial } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
-import { chatDir } from "../record-folders";
+import {
+  type ChatDenial,
+  readChatPermissions,
+  updateChatPermissions,
+} from "./rules";
 
 /** What the person said not now to in a chat, oldest first. */
 export async function chatDenials(chatId: ChatId): Promise<ChatDenial[]> {
   if (chatId === WINDOW_ID) {
     return [];
   }
-  const record = await readChatRecord(chatDir(chatId));
-  return record.settings?.denials ?? [];
+  return (await readChatPermissions(chatId)).denials;
 }
 
 /**
@@ -24,12 +25,12 @@ export async function setDenied(
   target: string,
   denied: boolean,
 ): Promise<void> {
-  await updateChatRecord(chatDir(chatId), "settings", (record) => {
-    const others = (record.settings?.denials ?? []).filter(
+  await updateChatPermissions(chatId, (held) => {
+    const others = held.denials.filter(
       (denial) => !(denial.kind === kind && denial.target === target),
     );
     return {
-      ...record.raw,
+      ...held,
       denials: denied
         ? [...others, { deniedAt: getCurrentDate(), kind, target }]
         : others,

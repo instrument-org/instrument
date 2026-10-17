@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createAppUpdater,
+  StagedUpdateRejectedError,
   type UpdaterEvents,
   type UpdaterPort,
 } from "./create-app-updater";
@@ -377,6 +378,28 @@ describe("quitAndInstall", () => {
   // The macOS path: MacUpdater delegates to Squirrel.Mac and re-emits its
   // failure from the native updater's own error event, which lands after
   // install() has returned and the request has already answered "installing".
+  // The staged artifact failed its check and was removed, so the next check
+  // downloads the build again instead of holding back for one on disk.
+  it("reports a rejected artifact and downloads the build again on the next check", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+    h.installs.mockImplementationOnce(() => {
+      throw new StagedUpdateRejectedError("The download didn't match.");
+    });
+
+    await expect(h.updater.quitAndInstall()).resolves.toEqual({
+      message: "The download didn't match.",
+      type: "failed",
+    });
+    expect(h.published.at(-1)).toMatchObject({ type: "error" });
+
+    h.checks.mockClear();
+    await h.updater.checkForUpdates();
+
+    expect(h.checks).toHaveBeenCalledWith({ download: true });
+  });
+
   it("re-arms the retry when the error lands after the install call returns", async () => {
     const h = createHarness();
     h.stage(STAGED);

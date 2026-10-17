@@ -20,6 +20,7 @@ import {
   resolveChat,
   sessionOfChat,
 } from "./record-folders";
+import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 // Each test reuses its chats' names in a fresh folder, so a store kept open
@@ -34,7 +35,6 @@ beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "record-folders-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(path.join(rootDir, "template")),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
     legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
@@ -74,8 +74,9 @@ async function makeChat(name: string, sessionId = SESSION) {
   return chatId;
 }
 
+/** Where `dir` is in the workspace, spelled with `/` on every platform. */
 function relative(dir: string) {
-  return path.relative(rootDir, dir);
+  return path.relative(rootDir, dir).replaceAll(path.sep, "/");
 }
 
 describe("chat folder names", () => {
@@ -113,7 +114,8 @@ describe("record folders", () => {
     expect(resolveChat(left)).toBeUndefined();
     const { chats } = await getChatInfos();
     expect(chats.map((info) => info.id)).toEqual([chat]);
-    expect(relative(chatDir(WINDOW_ID))).toBe(".instrument/window");
+    // The window keeps its scope's id, and no record folder.
+    expect(() => chatDir(WINDOW_ID)).toThrow("No chat has the id window.");
     expect(chatIdTaken(WINDOW_ID)).toBe(true);
   });
 
@@ -135,13 +137,12 @@ describe("record folders", () => {
     ).not.toBe(chat);
   });
 
-  it("gives a chat the scaffold a working folder starts with", async () => {
+  it("makes a chat's records, and no work folder until its agent needs one", async () => {
     await fs.writeFile(path.join(rootDir, "template", "package.json"), "{}");
     const chat = await makeChat("2026-09-24-transcribe-a-note");
 
-    expect(await fs.readdir(chatDir(chat))).toEqual(
-      expect.arrayContaining(["attachments", "package.json", "work"]),
-    );
+    expect(await fs.readdir(chatDir(chat))).toEqual(["settings.json"]);
+    await expect(fs.access(workDir(chat))).rejects.toThrow(/ENOENT/);
   });
 });
 
@@ -172,20 +173,11 @@ describe("resolveChat", () => {
     await fs.mkdir(path.join(rootDir, "tasks", "made-elsewhere"), {
       recursive: true,
     });
-    await fs.mkdir(
-      path.join(rootDir, "chats", "2026-09-25-other", ".instrument"),
-      {
-        recursive: true,
-      },
-    );
+    await fs.mkdir(path.join(rootDir, "chats", "2026-09-25-other"), {
+      recursive: true,
+    });
     await fs.writeFile(
-      path.join(
-        rootDir,
-        "chats",
-        "2026-09-25-other",
-        ".instrument",
-        "settings.json",
-      ),
+      path.join(rootDir, "chats", "2026-09-25-other", "settings.json"),
       JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
     );
 

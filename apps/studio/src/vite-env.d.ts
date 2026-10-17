@@ -23,6 +23,8 @@ declare namespace NodeJS {
     /** Ensures we don't accidentally use process.env for other variables */
     env: {
       ANALYZE_BUILD: string | undefined;
+      /** Linux only: the image an AppImage build runs from, set by its runtime. */
+      APPIMAGE: string | undefined;
       APPLE_NOTARIZATION_ENABLED: string | undefined;
       ARCH: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
@@ -68,6 +70,8 @@ declare namespace NodeJS {
       /** Windows only: the personal account's OneDrive folder. */
       OneDriveConsumer: string | undefined;
       PATH: string | undefined;
+      /** A workspace to rehearse the launch migrations on a clone of (migration-rehearsal.test.ts). */
+      REHEARSE_WORKSPACE: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
       REMOTE_DEBUGGING_PORT: string | undefined;
       SIGNTOOL_PATH: string | undefined;

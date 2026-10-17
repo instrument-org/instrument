@@ -7,7 +7,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 
 /**
  * How long the user has to be away before the next thing they write is treated
@@ -43,22 +43,20 @@ export function detectMessageGap({
   messageId,
   sentAt,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   /** When the message being assembled was sent, so the part matches its message. */
   sentAt: Date;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const messages = yield* Store.getMessagesWithParts(
-        { sessionId, chatId },
-        { signal },
-      );
+      const messages = yield* ChatReads.modelHistory({
+        chatId,
+        sessionId,
+      });
 
       // ulid sorts oldest to newest, and the store makes no ordering promise.
       const previous = alphabetical(

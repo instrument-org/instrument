@@ -1,11 +1,11 @@
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
-import { type ChatDir } from "../../schemas/paths";
+import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
-import { type ChatVenvError } from "../ensure-chat-venv";
+import { type VenvError } from "../venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
 /**
@@ -17,24 +17,29 @@ export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
   "chatsDir",
-  "chatTemplateDir",
+  // Where this computer's folder is, which the rules close.
+  "machineDir",
+  // Where the folder rules are read from, live, for each command.
+  "workspaceMachineDir",
   "macHelperBinPath",
   "seatbeltHelperPath",
   "mxcExecPath",
   "nativeSandbox",
   "nodeExecEnv",
+  // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
+  "outputDir",
   "pnpmBinPath",
-  "preparedSkillsDir",
   "registryDir",
   "rootDir",
+  "runtimeDir",
   "systemSkillsDir",
   "legacyTasksDir",
   "tempFolders",
-  "toolBinDir",
   "uutilsDir",
   "uutilsOutsideSandbox",
   "uvBinPath",
-  "uvDataDir",
+  // Where each chat's work folder is, which the shell starts in.
+  "workFoldersDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
 
 export type ExceptionProperties = Parameters<CaptureExceptionFunction>[1];
@@ -71,7 +76,14 @@ export type FromWorker =
   | { pid: number; state: "settled" | "started"; type: "tree" }
   /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; chatId: ChatId; type: "venv" }
+  | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath }
+  /** A skill's Python environment, built on main, which builds each one once. */
+  | {
+      chatId: ChatId;
+      requestId: number;
+      skillDir: AbsolutePath;
+      type: "python-environment";
+    }
   /** A due check of the base Python packages, which main runs. */
   | { type: "python-base-refresh" };
 
@@ -100,8 +112,13 @@ export type ToWorker =
   | { callId: number; type: "tool-result"; value: string }
   | {
       requestId: number;
-      result: ChatVenvError | undefined;
+      result: undefined | VenvError;
       type: "venv-result";
+    }
+  | {
+      requestId: number;
+      result: { error: VenvError } | { venv: AbsolutePath };
+      type: "python-environment-result";
     }
   | { seq: number; type: "chunk-ack" };
 

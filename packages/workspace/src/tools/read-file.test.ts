@@ -10,6 +10,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { measureImage } from "../lib/render-image";
 import { grantFolder } from "../lib/chat/grants";
+import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
+import { shellPath } from "../lib/workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -908,7 +910,9 @@ describe("ReadFile", () => {
       expect(value.state).toBe("exists");
       if (value.state === "exists") {
         expect(value.content).toContain("async function testGrep");
-        expect(value.filePath).toBe(path.join(testFolder, "grep-test.txt"));
+        expect(value.filePath).toBe(
+          shellPath(path.join(testFolder, "grep-test.txt")),
+        );
       }
     });
 
@@ -982,6 +986,8 @@ describe("ReadFile Unicode path fallbacks", () => {
   });
 
   afterEach(async () => {
+    // Windows refuses to remove the folder while the chat's database is open.
+    await disposeSessionsStoreStorage(tmpTaskConfig);
     await fs.rm(tmpDir, { force: true, recursive: true });
   });
 

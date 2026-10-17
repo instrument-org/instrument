@@ -1,10 +1,12 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../schemas/paths";
 import { getSkillProvenance } from "./skill-provenance";
 import { type SkillSourceKind } from "./skills";
 
-const writableRoot = "/workspace/skills";
+// Absolute host paths, which start with a drive on Windows.
+const writableRoot = path.resolve("/workspace/skills");
 
 describe("getSkillProvenance", () => {
   it.each([
@@ -56,7 +58,7 @@ describe("getSkillProvenance", () => {
   }[])("$name", ({ expected, skillDir, source }) => {
     expect(
       getSkillProvenance(
-        { skillDir: AbsolutePathSchema.parse(skillDir), source },
+        { skillDir: AbsolutePathSchema.parse(path.resolve(skillDir)), source },
         writableRoot,
       ),
     ).toEqual(expected);

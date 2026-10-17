@@ -10,8 +10,8 @@ import {
 import { reachOf } from "../permissions/rules";
 import {
   classifyHostPath,
-  classifyShellPath,
   resolveHostPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 
@@ -29,9 +29,14 @@ import {
 /**
  * An operand in the shell's spelling. On Windows a program also takes the
  * host's own (`C:\Users\sam\a.txt`, `C:/Users/...`), which becomes
- * `/c/Users/...`; a device path (`\\?\`, `\\.\`), a share (`\\server\x`), a
+ * `/c/Users/...` as {@link shellPathOfHostSpelling} spells it everywhere
+ * else. A device path (`\\?\`, `\\.\`), a share (`\\server\x`), a
  * drive-relative path (`C:a.txt`) or an NTFS stream (`a.txt:s`) is not
- * spelled here, and leaves the call to the sandbox. Undefined for those.
+ * spelled here, though the shell spells some of them: each names its file
+ * through something other than the path checked here (Windows' own parsing
+ * lifted, another computer, the folder a program runs in on that drive, a
+ * stream the file's name leaves out), so it leaves the call to the sandbox.
+ * Undefined for those.
  */
 export function shellSpellingOf(
   operand: string,
@@ -40,12 +45,13 @@ export function shellSpellingOf(
   if (platform !== "win32") {
     return operand;
   }
-  const drive = /^([A-Za-z]):[\\/](.*)$/.exec(operand);
-  if (drive) {
-    const rest = drive[2] ?? "";
-    return rest.includes(":")
+  if (/^[A-Za-z]:[\\/]/.test(operand)) {
+    return operand.slice(2).includes(":")
       ? undefined
-      : `/${(drive[1] ?? "").toLowerCase()}/${rest.replaceAll("\\", "/")}`;
+      : (shellPathOfHostSpelling(operand, {
+          hostCwd: operand.slice(0, 3),
+          platform,
+        }) ?? undefined);
   }
   if (/^[\\/]{2}/.test(operand) || operand.includes(":")) {
     return undefined;
@@ -79,10 +85,8 @@ export function openOperandForStdin({
   if (spelled === undefined || spelled === "") {
     return undefined;
   }
-  const shellAbs = resolvePath(spelled);
-  const named = classifyShellPath(layout, shellAbs);
-  const resolved = resolveHostPath(layout, shellAbs);
-  if (!named || named.masked !== undefined || resolved === null) {
+  const resolved = resolveHostPath(layout, resolvePath(spelled));
+  if (resolved === null) {
     return undefined;
   }
   let real: string;
@@ -92,11 +96,11 @@ export function openOperandForStdin({
     return undefined;
   }
   // Where every link leads, which is what the program would read: inside a
-  // folder the chat reaches, not one of the app's own, with no stream name.
+  // folder the chat reaches, with no stream name, and open to reading both
+  // as named and as reached, which closes the app's own data.
   const target = classifyHostPath(layout, real);
   if (
     !target ||
-    target.masked !== undefined ||
     (platform === "win32" && real.slice(2).includes(":")) ||
     reachOf(layout.rules, real, "read").level !== "allow" ||
     reachOf(layout.rules, resolved.hostPath, "read").level !== "allow"

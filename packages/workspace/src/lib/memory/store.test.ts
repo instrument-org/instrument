@@ -82,6 +82,29 @@ describe("saveMemory", () => {
     ]);
   });
 
+  it("keeps front matter it does not write when a memory is corrected", async () => {
+    const file = path.join(dir, "sweetener.md");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      file,
+      [
+        "---",
+        "at: 2026-10-14T18:22:04.000Z",
+        "topic: Kitchen",
+        "---",
+        "No stevia.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    await saveMemory(dir, { name: "sweetener", text: "Stevia is fine." });
+
+    const written = await fs.readFile(file, "utf8");
+    expect(written).toContain("topic: Kitchen");
+    expect(written).toContain("Stevia is fine.");
+  });
+
   it("refuses an empty memory, a bad name, and one past the ceiling", async () => {
     await expect(saveMemory(dir, { name: "x", text: "  " })).rejects.toThrow(
       "needs some text",

@@ -4,8 +4,11 @@ import path from "node:path";
 import { getChatInfos } from "../src/lib/chat-info";
 import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
-import { Store } from "../src/lib/store";
+import { isToolPart } from "../src/lib/is-tool-part";
+import { SessionMessage } from "../src/schemas/session/message";
+import { ChatReads } from "../src/lib/chat-reads";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import { workDir } from "../src/lib/work-dir";
 import { chatModelURI } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import {
@@ -29,8 +32,9 @@ import {
   systemPromptDigest,
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
+import { readRunRecord } from "./lib/run-record";
 import { renderUserView } from "./lib/user-view";
-import { type StoreId } from "../src/schemas/store-id";
+import { StoreId } from "../src/schemas/store-id";
 import { type ChatId } from "../src/schemas/chat-id";
 
 interface RollupSummary {
@@ -94,6 +98,30 @@ interface RunReport {
  * them buries the pass/fail column that is the reason to look at all.
  */
 const MAX_CONSOLE_EVIDENCE = 300;
+
+/**
+ * The calls a run asked for and never made: a tool part still waiting for its
+ * input to finish arriving, or holding a finished input that was never run.
+ *
+ * The sweep settles a dangling part when a session is stopped, so one still
+ * open once a run is over means the run ended between the model asking for
+ * the call and the call being made. The assertions then measure a session
+ * that never happened, which is not the same as a model getting something
+ * wrong, and a report that cannot tell them apart says the wrong thing about
+ * both.
+ */
+export function unfinishedCalls(
+  messages: readonly SessionMessage.WithParts[],
+): { messageId: string; state: string; type: string }[] {
+  return messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      isToolPart(part) &&
+      (part.state === "input-available" || part.state === "input-streaming")
+        ? [{ messageId: message.id, state: part.state, type: part.type }]
+        : [],
+    ),
+  );
+}
 
 export async function generateReport({
   caseForRoots,
@@ -197,12 +225,26 @@ export async function generateReport({
       rollupModelURIs.add(taskModelURI);
     }
 
-    // `task.title` is the case name the harness passed at creation, so the pair
-    // that names a run survives even without the runs that produced it: a report
-    // over a past workspace dir is still filed by case and model rather than by
-    // a slug of the prompt with a numeric suffix, which named nothing anyone
+    // A run this process did not watch is known by what the harness recorded
+    // when it started (`recordRun`), so a report over a past workspace dir is
+    // still matched to its case and filed by case, model and trial rather
+    // than by a chat title or a slug of the prompt, which named nothing anyone
     // could act on.
-    const caseName = run?.name ?? caseForRoots ?? task.title;
+    const recorded = run
+      ? undefined
+      : await readRunRecord(absoluteWorkspaceDir, chatId);
+    const known = run ?? recorded;
+    const rootSession = known
+      ? { id: StoreId.SessionSchema.parse(known.sessionId), title: known.name }
+      : await runSessionOf(chatId);
+    if (!rootSession) {
+      continue;
+    }
+
+    // A run from before runs were recorded: the session it went to carries
+    // its case's name, which the harness gave it at creation (`startRun`),
+    // unless the app has titled it since.
+    const caseName = known?.name ?? caseForRoots ?? rootSession.title;
     const evalCase =
       evalCasesByName.get(caseName) ??
       evalCasesByName.get(task.id) ??
@@ -211,9 +253,9 @@ export async function generateReport({
       )?.[1];
 
     const key = runKey({
-      modelLabel: run?.modelLabel ?? modelLabelFor(taskModelURI ?? "unknown"),
+      modelLabel: known?.modelLabel ?? modelLabelFor(taskModelURI ?? "unknown"),
       name: caseName,
-      trial: run?.trial ?? 1,
+      trial: known?.trial ?? 1,
     });
     let { dir: relativeDir, label } = key;
     for (let n = 2; claimedDirs.has(relativeDir); n += 1) {
@@ -221,13 +263,6 @@ export async function generateReport({
       label = `${key.label}-${n}`;
     }
     claimedDirs.add(relativeDir);
-
-    const rootSession = run
-      ? { id: run.sessionId }
-      : await runSessionOf(chatId, label);
-    if (!rootSession) {
-      continue;
-    }
 
     const markdown = await getSessionMarkdown({
       includeContextMessages,
@@ -251,10 +286,10 @@ export async function generateReport({
     // any other -- so counting them together reported six cases working exactly
     // as designed as six provider failures, and the only way to tell was to open
     // the stored errors by hand.
-    const sessionWithParts = await Store.getSessionWithMessagesAndParts(
-      rootSession.id,
+    const sessionWithParts = await ChatReads.sessionWithMessages({
       chatId,
-    );
+      sessionId: rootSession.id,
+    });
     const messageErrors = sessionWithParts.isOk()
       ? sessionWithParts.value.messages.flatMap((message) =>
           message.role === "assistant" && message.metadata.error
@@ -264,15 +299,29 @@ export async function generateReport({
       : [];
     const apiErrors = messageErrors.filter((error) => error.kind !== "aborted");
     const aborted = messageErrors.length - apiErrors.length;
-    if (apiErrors.length > 0) {
+    const stoppedBy = run?.stoppedBy ?? (aborted > 0 ? "unknown" : undefined);
+    // A call the run never finished. The sweep settles a dangling part when a
+    // session is stopped, so one still open at report time means the run ended
+    // between the model asking for the call and the call being made: the
+    // assertions then measure a session that never happened, and counting it
+    // as a pass with failures says the model was wrong about something it was
+    // never given the chance to do.
+    const unfinished = unfinishedCalls(
+      sessionWithParts.isOk() ? sessionWithParts.value.messages : [],
+    );
+    const neverRan = stoppedBy === undefined && unfinished.length > 0;
+    if (apiErrors.length > 0 || neverRan) {
       rollupErroredTasks += 1;
       await fs.writeFile(
         path.join(taskOutputDir, "errors.json"),
-        JSON.stringify(apiErrors, null, 2),
+        JSON.stringify(
+          { ...(neverRan && { unfinishedCalls: unfinished }), apiErrors },
+          null,
+          2,
+        ),
         "utf8",
       );
     }
-    const stoppedBy = run?.stoppedBy ?? (aborted > 0 ? "unknown" : undefined);
     if (stoppedBy) {
       rollupStoppedTasks += 1;
     }
@@ -292,10 +341,17 @@ export async function generateReport({
       JSON.stringify(stats, null, 2),
       "utf8",
     );
-    const symlinkPath = path.join(taskOutputDir, "task");
-    await fs.symlink(chatDir(chatId), symlinkPath).catch(() => {
-      return;
-    });
+    // What the run made, and beside it the chat's records.
+    await fs
+      .symlink(workDir(chatId), path.join(taskOutputDir, "task"))
+      .catch(() => {
+        return;
+      });
+    await fs
+      .symlink(chatDir(chatId), path.join(taskOutputDir, "record"))
+      .catch(() => {
+        return;
+      });
 
     if (!evalCase) {
       process.stderr.write(
@@ -450,25 +506,33 @@ export async function generateReport({
 }
 
 /**
- * The session a run past its process went to, read from its chat: the
- * chat's own conversation when anything was said in it, else the task a
- * task case started from the empty chat.
+ * The session a run past its process went to, read from its chat, with its
+ * title: the chat's own conversation when the case's prompt was typed there,
+ * else the task a task case started from the empty chat. A task case's chat
+ * is not always empty: the task's finish can wake it, which writes a
+ * text-less message there and a turn after it.
  */
 async function runSessionOf(
   chatId: ChatId,
-  label: string,
-): Promise<undefined | { id: StoreId.Session }> {
+): Promise<undefined | { id: StoreId.Session; title: string }> {
   const own = resolveChat(chatId) ? sessionOfChat(chatId) : undefined;
   if (!own) {
-    process.stderr.write(`Warning: ${label} has no session, skipping.\n`);
+    process.stderr.write(`Warning: ${chatId} has no session, skipping.\n`);
     return undefined;
   }
-  const said = await Store.getMessageIds(own, chatId);
-  if (said.isOk() && said.value.length > 0) {
-    return { id: own };
-  }
-  const [task] = await listChildTasks(chatId);
-  return { id: task?.id ?? own };
+  const said = await ChatReads.transcript({ chatId, sessionId: own });
+  const typed =
+    said.isOk() &&
+    said.value.some(
+      (message) =>
+        message.role === "user" &&
+        message.parts.some(
+          (part) => part.type === "text" && part.text.trim() !== "",
+        ),
+    );
+  const id = typed ? own : ((await listChildTasks(chatId))[0]?.id ?? own);
+  const session = await ChatReads.session({ chatId: chatId, sessionId: id });
+  return { id, title: session.isOk() ? session.value.title : chatId };
 }
 
 function truncate(text: string): string {

@@ -1,12 +1,11 @@
 import { APP_NAME } from "@instrument-org/shared";
+import { createHash } from "node:crypto";
+import { omit } from "radashi";
 import { z } from "zod";
 
-export const APP_MANIFEST_FILE_NAME = "app.json";
-export const APP_GUIDE_FILE_NAME = "guide.md";
-
-// Folder names under apps/ double as the app's identity everywhere (the `app`
-// command, the connection record, the credential store, the UI), so keep them
-// to a safe, predictable set.
+// An app's `id` is its identity everywhere (the `app` command, the connection
+// record, the credential store, the UI), so keep it to a safe, predictable
+// set.
 export const AppSlugSchema = z
   .string()
   .min(1)
@@ -24,9 +23,11 @@ export type AppSlug = z.output<typeof AppSlugSchema>;
  * itself never appears in the manifest: it lives in the app's encrypted
  * credential store and is injected at request time, keyed by the app's slug.
  *
- * Strict objects throughout: manifests are written and repaired by agents,
+ * Strict objects throughout: the manifest is written and repaired by agents,
  * and a silently stripped unknown key ("headers" vs "defaultHeaders") sends
- * them guessing. An unrecognized-key error is the feedback loop.
+ * them guessing. An unrecognized-key error is the feedback loop. A key the
+ * front matter holds that none of these names is the person's own note or
+ * another build's, and never reaches here (`AppFile.others`).
  */
 const ApiAuthSchema = z.discriminatedUnion("kind", [
   // Authorization: Basic base64(<user>:<credential>), or base64(<credential>)
@@ -142,15 +143,10 @@ const ServiceSchema = z.string().min(1).optional();
 const ApiAppManifestSchema = z.strictObject({
   account: AccountSchema,
   auth: ApiAuthSchema,
-  baseUrl: z.string().refine(isAllowedBaseUrl, {
-    message:
-      "baseUrl must be a valid https:// URL (http:// is allowed only for loopback hosts) with no embedded credentials",
-  }),
   // Static, non-secret headers sent with every request (e.g. Notion-Version).
   // The auth binding wins on conflicts. Secrets never belong here; the secret
   // scan the test runs is what catches one.
   headers: z.record(z.string(), z.string()).optional(),
-  name: z.string().min(1),
   // Canary the test uses to verify auth and connectivity. Defaults to GET;
   // set method and body for APIs whose only cheap auth check is a POST (e.g.
   // a GraphQL `viewer` query). A 2xx is a pass.
@@ -166,6 +162,11 @@ const ApiAppManifestSchema = z.strictObject({
     }),
   service: ServiceSchema,
   type: z.literal("api"),
+  // The base every request's path is relative to.
+  url: z.string().refine(isAllowedBaseUrl, {
+    message:
+      "url must be a valid https:// base URL (http:// is allowed only for loopback hosts) with no embedded credentials",
+  }),
 });
 
 export type ApiAppManifest = z.output<typeof ApiAppManifestSchema>;
@@ -175,7 +176,6 @@ export type ApiAppManifest = z.output<typeof ApiAppManifestSchema>;
 const McpAppManifestSchema = z.strictObject({
   account: AccountSchema,
   auth: McpAuthSchema,
-  name: z.string().min(1),
   service: ServiceSchema,
   type: z.literal("mcp"),
   url: z.string().refine(isAllowedBaseUrl, {
@@ -195,9 +195,6 @@ const LocalMcpAppManifestSchema = z
     // Arguments the server itself takes, after its own name.
     args: z.array(z.string()).optional(),
     auth: LocalMcpAuthSchema,
-    // Static, non-secret environment for the process. The credential is never
-    // one of these; the secret scan the test runs is what catches one.
-    env: z.record(z.string(), z.string()).optional(),
     // The bundle identifier of the Mac app the server drives, when it drives
     // one ("com.agiletortoise.Drafts-OSX"). A server that runs here has no
     // site to draw, so the app is drawn with that app's own icon.
@@ -205,10 +202,9 @@ const LocalMcpAppManifestSchema = z
       .string()
       .regex(/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/, {
         message:
-          'macApp must be a bundle identifier, like "com.apple.Notes"; `osascript -e \'id of app "Notes"\'` prints one.',
+          'macApp must be a bundle identifier, like "com.apple.Notes"; `plutil -extract CFBundleIdentifier raw /Applications/<App>.app/Contents/Info.plist` prints one.',
       })
       .optional(),
-    name: z.string().min(1),
     package: z.string().min(1),
     runtime: z.enum(["node", "python"]),
     service: ServiceSchema,
@@ -229,7 +225,6 @@ export type LocalMcpAppManifest = z.output<typeof LocalMcpAppManifestSchema>;
 // the user said they are signed in, and a task works the site in a tab.
 const WebAppManifestSchema = z.strictObject({
   account: AccountSchema,
-  name: z.string().min(1),
   // The page the sign-in opens, when it is not where the work happens.
   signIn: z
     .string()
@@ -250,16 +245,43 @@ const WebAppManifestSchema = z.strictObject({
 export type WebAppManifest = z.output<typeof WebAppManifestSchema>;
 
 /**
+ * A local app's manifest with any `env` left out. Its server runs outside
+ * the sandbox and its environment is the app's to set: a variable such as
+ * `NODE_OPTIONS` would load code from wherever the manifest's author
+ * pointed it. A manifest that names one still loads, without it, and hashes
+ * as one that never did, so an approval given with it no longer matches and
+ * the person is asked again.
+ */
+function withoutRetiredKeys(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !("type" in value) ||
+    value.type !== "mcp-local" ||
+    !("env" in value)
+  ) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== "env"),
+  );
+}
+
+/**
  * What an app folder's manifest describes: how to call a service, and nothing
  * about whether it may be called. Whether it may is the connection record,
  * which the app keeps where the agent cannot write it.
  */
-export const AppManifestSchema = z.discriminatedUnion("type", [
-  ApiAppManifestSchema,
-  LocalMcpAppManifestSchema,
-  McpAppManifestSchema,
-  WebAppManifestSchema,
-]);
+export const AppManifestSchema = z.preprocess(
+  withoutRetiredKeys,
+  z.discriminatedUnion("type", [
+    ApiAppManifestSchema,
+    LocalMcpAppManifestSchema,
+    McpAppManifestSchema,
+    WebAppManifestSchema,
+  ]),
+);
 
 export type AppManifest = z.output<typeof AppManifestSchema>;
 
@@ -280,39 +302,88 @@ export function isMcpManifest(
 /**
  * Canonical manifests shown to the agent in the command's help and in
  * validation failures, so a broken manifest is a one-round fix instead of a
- * guessing game.
+ * guessing game. Each is the front matter of an app's `APP.md`, whose folder
+ * is the app's name and whose body is its guide.
+ *
+ * There is no name key: the folder is the name. The `id` is what the `app`
+ * command, the stored key, and the connection record all name the app by.
  */
-export const APP_MANIFEST_EXAMPLE = `MCP app (tools on a hosted MCP server; "oauth" means a one-click sign-in in the browser, no key):
-{
-  "name": "Linear",
-  "type": "mcp",
-  "url": "https://mcp.linear.app/mcp",
-  "auth": { "kind": "oauth" }
+export const APP_MANIFEST_EXAMPLE = `MCP app (tools on a hosted MCP server; "oauth" means a one-click sign-in in the browser, no key), in Apps/Linear/APP.md:
+---
+id: linear
+type: mcp
+url: https://mcp.linear.app/mcp
+auth:
+  kind: oauth
+---
+
+Local MCP app (an MCP server that runs on this machine, installed from npm ("node") or PyPI ("python")), in Apps/Drafts/APP.md:
+---
+id: drafts
+type: mcp-local
+package: "@agiletortoise/drafts-mcp-server"
+runtime: node
+macApp: com.agiletortoise.Drafts-OSX
+auth:
+  kind: none
+---
+
+API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), none), in Apps/Notion/APP.md:
+---
+id: notion
+type: api
+url: https://api.notion.com/v1
+auth:
+  kind: bearer
+headers:
+  Notion-Version: 2022-06-28
+test:
+  path: /users/me
+---
+
+Web app (a service worked on its own site in ${APP_NAME}'s browser, for one with no sign-in the card can open; "signIn" is optional, the login page when it is not "url"), in Apps/Google Drive/APP.md:
+---
+id: google-drive
+type: web
+url: https://drive.google.com
+---`;
+
+/**
+ * A digest of the manifest as parsed, so a connection record can say which
+ * manifest passed the test and a call can refuse one edited since. Over the
+ * parsed value rather than the file's bytes, so rewriting the front matter is
+ * not a change, and over the keys this build knows, so a note the person
+ * added never disconnects the app. A local app's `macApp` is left out: it
+ * only says which icon the app is drawn with, and naming one changes nothing
+ * that runs or is sent, and its retired `env` with it. Nor is any app's
+ * `account`, a label for the account it is signed in as, or its `service`,
+ * which says what it is rather than how it is reached.
+ *
+ * Takes a loose record as well as a parsed manifest, so the migration can
+ * digest the manifest an older build wrote and find the approval given for
+ * it (`lib/apps-move.ts`).
+ */
+export function manifestHash(manifest: Record<string, unknown>): string {
+  const reached =
+    manifest.type === "mcp-local"
+      ? omit(manifest, ["account", "env", "macApp", "service"])
+      : omit(manifest, ["account", "service"]);
+  return createHash("sha256")
+    .update(JSON.stringify(sortKeys(reached)))
+    .digest("hex")
+    .slice(0, 32);
 }
 
-Local MCP app (an MCP server that runs on this machine, installed from npm ("node") or PyPI ("python")):
-{
-  "name": "Drafts",
-  "type": "mcp-local",
-  "runtime": "node",
-  "package": "@agiletortoise/drafts-mcp-server",
-  "macApp": "com.agiletortoise.Drafts-OSX",
-  "auth": { "kind": "none" }
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortKeys);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, sortKeys(child)]),
+    );
+  }
+  return value;
 }
-
-API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), none):
-{
-  "name": "Notion",
-  "type": "api",
-  "baseUrl": "https://api.notion.com/v1",
-  "auth": { "kind": "bearer" },
-  "headers": { "Notion-Version": "2022-06-28" },
-  "test": { "path": "/users/me" }
-}
-
-Web app (a service worked on its own site in ${APP_NAME}'s browser, for one with no sign-in the card can open; "signIn" is optional, the login page when it is not "url"):
-{
-  "name": "Google Drive",
-  "type": "web",
-  "url": "https://drive.google.com"
-}`;

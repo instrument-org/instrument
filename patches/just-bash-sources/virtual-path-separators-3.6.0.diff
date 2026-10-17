@@ -1,0 +1,64 @@
+diff --git a/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts b/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
+--- a/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
++++ b/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
+@@ -1192,7 +1192,9 @@ export class ReadWriteFs implements IFileSystem {
+         `EACCES: permission denied, cp '${virtualSource}' contains an unsafe symlink`,
+       );
+     }
+-    const relative = preservedTarget.slice(this.canonicalRoot.length);
++    const relative = this.virtualSeparators(
++      preservedTarget.slice(this.canonicalRoot.length),
++    );
+     return relative || "/";
+   }
+ 
+@@ -1746,14 +1748,18 @@ export class ReadWriteFs implements IFileSystem {
+       if (isPathWithinRoot(canonicalTarget, this.canonicalRoot)) {
+         // Within root - compute virtual target path and return as relative
+         const virtualTarget =
+-          canonicalTarget.slice(this.canonicalRoot.length) || "/";
++          this.virtualSeparators(
++            canonicalTarget.slice(this.canonicalRoot.length),
++          ) || "/";
+         // Return as relative path from the link's virtual directory
+         if (linkDir === "/") {
+           return virtualTarget.startsWith("/")
+             ? virtualTarget.slice(1) || "."
+             : virtualTarget;
+         }
+-        return nodePath.relative(linkDir, virtualTarget);
++        // Both of these are virtual paths, which "/" separates whatever
++        // this computer writes between the names of its own.
++        return nodePath.posix.relative(linkDir, virtualTarget);
+       }
+ 
+       // Outside root - the symlink target points outside the sandbox.
+@@ -1819,13 +1825,27 @@ export class ReadWriteFs implements IFileSystem {
+     // with resolveAndValidate. Use boundary-safe prefix check to prevent
+     // /data matching /datastore.
+     if (isPathWithinRoot(resolved, this.canonicalRoot)) {
+-      const relative = resolved.slice(this.canonicalRoot.length);
++      const relative = this.virtualSeparators(
++        resolved.slice(this.canonicalRoot.length),
++      );
+       return relative || "/";
+     }
+     // Resolved path is outside root - reject it to prevent sandbox escape
+     throw new Error(`ENOENT: no such file or directory, realpath '${path}'`);
+   }
+ 
++  /**
++   * The tail of a host path as a virtual one: "/" between its names, where a
++   * host path has whatever this computer writes between the names of its
++   * own. A host that writes "/" is answered as it is, so a name holding a
++   * backslash stays that name.
++   */
++  private virtualSeparators(hostRelative: string): string {
++    return nodePath.sep === "/"
++      ? hostRelative
++      : hostRelative.split(nodePath.sep).join("/");
++  }
++
+   /**
+    * Set access and modification times of a file
+    * @param path - The file path

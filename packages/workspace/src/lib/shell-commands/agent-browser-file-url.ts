@@ -1,9 +1,7 @@
 import { fileUrlOfHostPath } from "../local-page-address";
 import { normalizePath } from "../normalize-path";
-import { reachOf } from "../permissions/rules";
 import { ruleRefusal } from "../permissions/rules-fs";
 import {
-  classifyHostPath,
   resolveHostPath,
   shellPath,
   type WorkspaceFsLayout,
@@ -66,11 +64,7 @@ export async function rewriteNavigationArgToFileUrl(
   // A path the agent named that no folder holds is refused whatever its
   // spelling: passed on, the CLI would read `/Users/...` as a host name.
   const resolved = resolveHostPath(layout, parsed.path);
-  if (
-    resolved === null ||
-    classifyHostPath(layout, resolved.hostPath, resolved.mount)?.masked !==
-      undefined
-  ) {
+  if (resolved === null) {
     return { error: unreachableFileMessage(target.value) };
   }
   // A page the agent opens is a file it reads, held to the same rules.
@@ -82,9 +76,6 @@ export async function rewriteNavigationArgToFileUrl(
   });
   if (refusal) {
     return { error: refusal };
-  }
-  if (reachOf(layout.rules, resolved.hostPath, "read").level === "hidden") {
-    return { error: unreachableFileMessage(target.value) };
   }
 
   const fileUrl = `${fileUrlOfHostPath(resolved.hostPath)}${parsed.suffix}`;
@@ -146,5 +137,5 @@ async function parseSandboxTarget(
 }
 
 function unreachableFileMessage(arg: string) {
-  return `${arg} is not a file you can open. Open a file by its path (agent-browser open work/page.html, or the full path of a file in one of your folders).`;
+  return `${arg} is not a file you can open. Open a file by its path (agent-browser open site/page.html, or the full path of a file in one of your folders).`;
 }

@@ -15,6 +15,7 @@ import {
 import ms from "ms";
 import { dedent } from "radashi";
 
+import { FOLDER_VARIABLES } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
@@ -44,8 +45,14 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
+import { createMailCommand, MAIL_COMMAND } from "./shell-commands/mail";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
+import {
+  createMessagesCommand,
+  MESSAGES_COMMAND,
+} from "./shell-commands/messages";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import { createNotesCommand, NOTES_COMMAND } from "./shell-commands/notes";
 import {
   createNativeTextCommand,
   nativeTextRoutes,
@@ -55,8 +62,8 @@ import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./chat/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
-import { type Listings } from "./permissions/rules-fs";
 import { getWorkspaceConfig } from "./workspace-config";
+import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
   CALENDAR_COMMAND,
   CONTACTS_COMMAND,
@@ -67,11 +74,6 @@ import {
   SHORTCUTS_COMMAND,
   SHORTCUTS_PATH,
 } from "./shell-commands/shortcuts";
-import {
-  createOsascriptCommand,
-  OSASCRIPT_COMMAND,
-  OSASCRIPT_PATH,
-} from "./shell-commands/osascript";
 import {
   createPip3Command,
   createPipCommand,
@@ -110,22 +112,15 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
-import { chatVenvPython, getUvBinPath } from "./uv";
-import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
+import { finishedWorkFolder } from "./chat/output-folder";
+import { foundManagedPython } from "./run-uv";
+import { getUvBinPath, nearestVenv, venvPython } from "./uv";
+import { workDir } from "./work-dir";
+import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
-import { createWalkBudget, type WalkBudget } from "./walk-budget";
+import { type WalkBudget } from "./walk-budget";
 import { roleLayout } from "./session-layout";
-
-/**
- * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
- * (`maxOutputSize`); maxHeredocSize unchanged (64 MiB). A pipeline stage that
- * is a builtin buffers rather than streams (only native programs side by side
- * stream, through an OS pipe), so a file passes through `cat big.csv | wc -l`
- * whole, and
- * an output bound below the read bound fails a file the agent may read. The
- * shell runs in a worker thread, so carrying it costs the window nothing.
- */
-const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
+import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
 
 /**
  * Lines, records, and JSON values one command may hold, against just-bash's
@@ -158,16 +153,6 @@ const SANDBOX_MAX_COMMANDS = 10_000_000;
  */
 const SANDBOX_MAX_TRAVERSAL = 300_000;
 
-/**
- * The same budget for walks over a folder that holds the workspace (the
- * user's whole home folder), counted on their own (`WalkBudget`). A stray
- * `find` over the home folder is the likeliest runaway walk there is, and the
- * budget counts entries rather than time: 300,000 of them costs a few
- * seconds of `find` on macOS and over half a minute on Windows, all on the
- * thread that paints the window.
- */
-const HOME_MAX_TRAVERSAL = 20_000;
-
 function stubCommand(
   name: string,
   message = "this command is non-functional in the sandboxed environment",
@@ -194,6 +179,18 @@ function stubCommand(
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // searches only the shell's own PATH; replaced below
 ]);
+
+/**
+ * What the agent hears for `osascript`: the commands that reach the apps it
+ * would have scripted, the helper's where this build carries it.
+ */
+function osascriptRefusal(): string {
+  const helper =
+    getWorkspaceConfig().macHelperBinPath === undefined
+      ? ""
+      : ` Calendar and Reminders have the \`${CALENDAR_COMMAND.name}\` command, and Contacts the \`${CONTACTS_COMMAND.name}\` command.`;
+  return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} The person's own automations run with \`${SHORTCUTS_COMMAND.name}\`. Any other app has no way in from here, so tell the person what you couldn't do in it.`;
+}
 
 const STATIC_STUB_COMMANDS = [
   stubCommand(
@@ -426,7 +423,8 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CALENDAR_COMMAND.description,
-    factory: ({ chatId }) => createMacHelperCommand(CALENDAR_COMMAND, chatId),
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CALENDAR_COMMAND, chatId, layout),
     listInDescription: true,
     name: CALENDAR_COMMAND.name,
     platforms: ["darwin"],
@@ -434,7 +432,8 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CONTACTS_COMMAND.description,
-    factory: ({ chatId }) => createMacHelperCommand(CONTACTS_COMMAND, chatId),
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CONTACTS_COMMAND, chatId, layout),
     listInDescription: true,
     name: CONTACTS_COMMAND.name,
     platforms: ["darwin"],
@@ -447,10 +446,34 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     platforms: ["darwin"],
   },
   {
-    description: OSASCRIPT_COMMAND.description,
-    factory: ({ layout, chatId }) => createOsascriptCommand(chatId, layout),
+    description: MAIL_COMMAND.description,
+    factory: ({ layout, chatId }) => createMailCommand(chatId, layout),
     listInDescription: true,
-    name: OSASCRIPT_COMMAND.name,
+    name: MAIL_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: NOTES_COMMAND.description,
+    factory: ({ layout, chatId }) => createNotesCommand(chatId, layout),
+    listInDescription: true,
+    name: NOTES_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: MESSAGES_COMMAND.description,
+    factory: ({ layout, chatId }) => createMessagesCommand(chatId, layout),
+    listInDescription: true,
+    name: MESSAGES_COMMAND.name,
+    platforms: ["darwin"],
+  },
+  {
+    description: "Refuses AppleScript the agent writes.",
+    // AppleScript the agent writes would have to run outside the sandbox to
+    // reach an app, which no check of its text can make safe. By its path,
+    // osascript runs inside the sandbox, where no app takes its Apple Events.
+    factory: () => stubCommand("osascript", osascriptRefusal()),
+    listInDescription: false,
+    name: "osascript",
     platforms: ["darwin"],
   },
   {
@@ -531,14 +554,22 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
     [FFPROBE_COMMAND.name]: () => FFPROBE_PATH,
     [GIT_COMMAND.name]: () => gitBinaryPath(),
     [NODE_COMMAND.name]: () => process.execPath,
-    [OSASCRIPT_COMMAND.name]: () => OSASCRIPT_PATH,
     [PNPM_COMMAND.name]: () => getWorkspaceConfig().pnpmBinPath,
-    [PYTHON_COMMAND.name]: chatVenvPython,
-    [PYTHON3_COMMAND.name]: chatVenvPython,
+    [PYTHON_COMMAND.name]: pythonProgram,
+    [PYTHON3_COMMAND.name]: pythonProgram,
     [RG_COMMAND.name]: () => RG_DISK_PATH,
     [SHORTCUTS_COMMAND.name]: () => SHORTCUTS_PATH,
     [UV_COMMAND.name]: () => getUvBinPath(),
   };
+
+/**
+ * The interpreter `python` runs in the work folder: its virtualenv's, or the
+ * managed Python's own.
+ */
+function pythonProgram(chatId: ChatId): string | undefined {
+  const venv = nearestVenv(chatId, workDir(chatId));
+  return venv ? venvPython(venv) : foundManagedPython();
+}
 
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
@@ -582,6 +613,11 @@ export interface BashEnvOptions {
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   chatId: ChatId;
+  /**
+   * The folder of the skill the session loaded last, on the host, which the
+   * shell names `INSTRUMENT_SKILL_DIR` (`lastLoadedSkillDir`).
+   */
+  loadedSkillDir?: string;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
@@ -633,9 +669,9 @@ export function createBashDescription() {
 
     IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the real interpreter in this conversation's virtualenv, and \`${NODE_COMMAND.name}\` is a real Node with this conversation's packages. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
+    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs a skill's script with that skill's packages and anything else in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -668,6 +704,34 @@ export function createBashDescription() {
     Specialized commands:
     ${specializedCommands}
   `.trim();
+}
+
+/**
+ * The folders the agent works with, by the names the shell gives them: the
+ * workspace's apps, its work folder, what the person sent the chat (none for
+ * the window), the output folder, the folder of the skill it loaded last,
+ * where it has loaded one, and the workspace's own skills, in the shell's
+ * spelling.
+ */
+function folderVariables(
+  layout: WorkspaceFsLayout,
+  loadedSkillDir: string | undefined,
+): Record<string, string> {
+  return {
+    [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
+    // The chat's own folder, so finished work lands beside the transcript
+    // the person reads. A chat with no folder yet, the window, which never
+    // has one, and a workspace whose folders the person does not open fall
+    // back to the Instrument folder (see `finishedWorkFolder`).
+    [FOLDER_VARIABLES.output]: shellPath(
+      finishedWorkFolder(layout.folder?.hostRoot),
+    ),
+    ...(loadedSkillDir !== undefined && {
+      [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
+    }),
+    [FOLDER_VARIABLES.work]: layout.chat.shellRoot,
+    [FOLDER_VARIABLES.workspaceSkills]: shellPath(getWorkspaceSkillsDir()),
+  };
 }
 
 /**
@@ -704,6 +768,7 @@ export async function createBashEnv(
 export async function createLocalBashEnv({
   folders,
   callPartId,
+  loadedSkillDir,
   role = "task",
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
@@ -731,19 +796,8 @@ export async function createLocalBashEnv({
   // What the shell mounts, held to the chat's rules. rg, du, agent-browser
   // and the output a promoted command streams all take it from here.
   const layout = roleLayout({ chatId, folders, role, rules });
-  // The working folder walks at the sandbox's budget, and the home folder at
-  // its own, smaller one.
-  const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
-  // Refusals heard during one exec, told to the agent after its output with
-  // the host path spelled out, which an error from a script worker loses.
-  const refusals = new Set<string>();
-  const listings: Listings = { count: 0 };
-  const fs = await buildBashFs(layout, {
-    homeWalkBudget,
-    listings,
-    maxFileReadSize: SANDBOX_MAX_BYTES,
-    onRefusal: (refusal) => refusals.add(refusal),
-  });
+  // Refusals heard during one exec are told to the agent after its output.
+  const { fs, homeWalkBudget, listings, refusals } = await shellFs(layout);
 
   const allowedCommands = [
     ...getCommandNames(),
@@ -834,6 +888,7 @@ export async function createLocalBashEnv({
       // The home the rules hold, so `~` in the shell is the folder its
       // native commands call home, rather than just-bash's default of `/`.
       HOME: shellPath(rules.home),
+      ...folderVariables(layout, loadedSkillDir),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       // The system's temp folder, which every program it runs gets too.
@@ -855,6 +910,9 @@ export async function createLocalBashEnv({
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
     resolveExternalCommand: createPathProgramResolver(chatId),
+    // A redirect into a folder that does not exist fails, as in bash, rather
+    // than making the folder on the disk.
+    redirectCreatesDirectories: false,
   });
 
   // Order matters: the alias runs first so the recorded command list names

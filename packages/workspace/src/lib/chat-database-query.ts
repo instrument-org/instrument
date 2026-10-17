@@ -1,8 +1,9 @@
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { constants, DatabaseSync } from "node:sqlite";
 
-import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
+import { CHAT_DB_FILE_NAME } from "../constants";
 
 interface ChatDatabaseQueryResult {
   columns: string[];
@@ -53,10 +54,18 @@ export function queryChatDatabase({
   }
 }
 
+/**
+ * The database a path names: the file itself, or the one in a chat's record
+ * folder, or in its `.instrument/` for a folder a build from before records
+ * moved apart from work left.
+ */
 export function resolveChatDatabasePath(inputPath: string): string {
   const absoluteInputPath = path.resolve(inputPath);
+  const inRecordFolder = path.join(absoluteInputPath, CHAT_DB_FILE_NAME);
   const databasePath = fs.statSync(absoluteInputPath).isDirectory()
-    ? path.join(absoluteInputPath, CHAT_FOLDER_NAMES.private, CHAT_DB_FILE_NAME)
+    ? fs.existsSync(inRecordFolder)
+      ? inRecordFolder
+      : path.join(absoluteInputPath, PRIVATE_FOLDER_NAME, CHAT_DB_FILE_NAME)
     : absoluteInputPath;
 
   if (!fs.statSync(databasePath).isFile()) {

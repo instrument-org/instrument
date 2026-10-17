@@ -14,11 +14,12 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
-import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -34,6 +35,14 @@ import {
 } from "./agent";
 import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
+
+/**
+ * How many steps a session takes in one run before it stops and offers to
+ * carry on. A backstop against a run that never ends rather than a budget
+ * for work: a run that goes this far has nothing left to finish on its own,
+ * and the person's yes is cheaper than another thousand steps.
+ */
+const UNATTENDED_STEPS = 500;
 
 export type SessionMachineParentEvent = {
   type: "session.done";
@@ -137,15 +146,15 @@ export const sessionMachine = setup({
     getLastMessageId: fromPromise<
       StoreId.Message | undefined,
       { sessionId: StoreId.Session; chatId: ChatId }
-    >(async ({ input, signal }) => {
-      const result = await Store.getMessageIds(input.sessionId, input.chatId, {
-        signal,
+    >(async ({ input }) => {
+      const result = await ChatReads.messageIds({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
       });
       if (result.isErr()) {
         throw new Error(result.error.message);
       }
-      // ulid sorts oldest to newest
-      return alphabetical(result.value, (id) => id).at(-1);
+      return result.value.at(-1);
     }),
 
     saveQueuedMessage: fromPromise<
@@ -156,7 +165,7 @@ export const sessionMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const hasMismatchedSessionId = input.message.parts.some(
         (part) => part.metadata.sessionId !== input.sessionId,
       );
@@ -168,10 +177,9 @@ export const sessionMachine = setup({
       if (input.saved) {
         return input.message;
       }
-      const result = await Store.saveMessageWithParts(
+      const result = await ChatWrites.saveMessageWithParts(
         input.message,
         input.chatId,
-        { signal },
       );
       if (result.isErr()) {
         throw new Error(result.error.message);
@@ -185,9 +193,10 @@ export const sessionMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input: { sessionId, chatId }, signal }) => {
-      const existingSession = await Store.getSession(sessionId, chatId, {
-        signal,
+    >(async ({ input: { sessionId, chatId } }) => {
+      const existingSession = await ChatReads.session({
+        chatId,
+        sessionId,
       });
       // Every session is written before its first message: a chat's with
       // the chat, a task's when the chat starts it.
@@ -196,13 +205,12 @@ export const sessionMachine = setup({
           `Failed to get session: ${existingSession.error.message}`,
         );
       } else {
-        const result = await Store.saveSession(
+        const result = await ChatWrites.saveSession(
           {
             ...existingSession.value,
             updatedAt: new Date(),
           },
           chatId,
-          { signal },
         );
         if (result.isErr()) {
           throw new Error(`Failed to update session: ${result.error.message}`);
@@ -273,7 +281,7 @@ export const sessionMachine = setup({
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
       heldMessageIds: [],
       llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
-      maxStepCount: input.maxStepCount ?? 200,
+      maxStepCount: input.maxStepCount ?? UNATTENDED_STEPS,
       model: input.model,
       parentRef: input.parentRef,
       queuedMessages: input.queuedMessages,

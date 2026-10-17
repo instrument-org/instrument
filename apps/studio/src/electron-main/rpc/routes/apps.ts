@@ -181,11 +181,7 @@ function keyHelpFor(
   }
   const keyHelp = catalogKeyHelp(
     slug,
-    manifest.type === "api"
-      ? manifest.baseUrl
-      : manifest.type === "mcp"
-        ? manifest.url
-        : manifest.package,
+    manifest.type === "mcp-local" ? manifest.package : manifest.url,
   );
   return keyHelp ? { keyHelp } : {};
 }
@@ -215,7 +211,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
-          name: app.manifest.name,
+          name: app.name,
           ...withService(catalogEntryForApp(app.slug, app.manifest)?.slug),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
@@ -227,7 +223,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
             return {
               ...listed,
               authKind: manifest.auth.kind,
-              endpoint: manifest.baseUrl,
+              endpoint: manifest.url,
               ...keyHelpFor(app.slug, manifest),
               type: manifest.type,
             };

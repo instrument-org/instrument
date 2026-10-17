@@ -1,4 +1,5 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -40,6 +41,8 @@ describe("shortcuts", () => {
     );
   });
 
+  // Unchanged but for its spelling, which on Windows turns from the shell's
+  // (`/c/...`) to the host's.
   it("passes a run's output path through unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
@@ -51,7 +54,7 @@ describe("shortcuts", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/shortcuts",
-      ["run", "Resize", "-o", `${layout.chat.shellRoot}/out.png`],
+      ["run", "Resize", "-o", path.join(layout.chat.hostRoot, "out.png")],
       expect.anything(),
     );
   });

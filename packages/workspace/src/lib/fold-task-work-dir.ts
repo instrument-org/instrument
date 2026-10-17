@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
+import { type ChatRecordsSplit } from "./split-chat-records";
 
 // Where the package lived when `work/` was the task's runnable root. Spelled
 // out rather than built from the current folder names, because these are the
@@ -31,17 +32,27 @@ const ROOT_ENTRY_NAMES = [
  *
  * Synchronous and idempotent. A task already folded has nothing at the old
  * paths and returns without writing. An entry that already exists at the root
- * wins and the one under `work/` is left alone, so a half-finished fold never
- * overwrites the newer copy on its next attempt.
+ * wins and the one under `work/` is left where it is, named in `left`, so a
+ * half-finished fold never overwrites the newer copy on its next attempt. It
+ * is not counted as failed: the one left behind goes to the chat's work
+ * folder with the rest of `work/` when the records are split, where it is
+ * still the person's to open, and no later fold settles the two.
  */
-export function foldTaskWorkDir(taskFolder: string): void {
+export function foldTaskWorkDir(
+  taskFolder: string,
+  left: ChatRecordsSplit,
+): void {
   const workDir = path.join(taskFolder, LEGACY_WORK_DIR_NAME);
   if (!fs.existsSync(workDir)) {
     return;
   }
 
   for (const name of ROOT_ENTRY_NAMES) {
-    moveIfMissingTarget(path.join(workDir, name), path.join(taskFolder, name));
+    moveIfMissingTarget(
+      path.join(workDir, name),
+      path.join(taskFolder, name),
+      left,
+    );
   }
 
   // The temp dir moved and gained a dot with it. Without this its contents stay
@@ -50,6 +61,7 @@ export function foldTaskWorkDir(taskFolder: string): void {
   moveIfMissingTarget(
     path.join(workDir, LEGACY_TMP_DIR_NAME),
     path.join(taskFolder, CHAT_FOLDER_NAMES.tmp),
+    left,
   );
 
   // `.tool-output` deliberately stays where it is, like `.state`: the task db
@@ -107,8 +119,17 @@ function foldWorkspacePackageGlobs(workspaceFile: string): void {
   }
 }
 
-function moveIfMissingTarget(source: string, destination: string): void {
-  if (fs.existsSync(source) && !fs.existsSync(destination)) {
-    fs.renameSync(source, destination);
+function moveIfMissingTarget(
+  source: string,
+  destination: string,
+  left: ChatRecordsSplit,
+): void {
+  if (!fs.existsSync(source)) {
+    return;
   }
+  if (fs.existsSync(destination)) {
+    left.done.push(`left ${source}: ${destination} is already there`);
+    return;
+  }
+  fs.renameSync(source, destination);
 }

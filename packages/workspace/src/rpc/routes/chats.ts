@@ -1,11 +1,13 @@
 import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { ChatWrites } from "../../lib/chat-writes";
 import { isWorking, latestStep } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
+  chatIsWorking,
   ChatSchema,
   markChatRead,
   markChatUnread,
@@ -15,6 +17,8 @@ import {
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
+import { followTitle } from "../../lib/chat-folders/follow-title";
+import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
@@ -30,7 +34,6 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { trashChat } from "../../lib/trash-chat";
-import { Store } from "../../lib/store";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { chatRoutes } from "./chat";
@@ -201,11 +204,21 @@ const retitleChatRoute = base
     return { title };
   });
 
-/** Names a chat as the user typed it. */
+/** Names a chat as the user typed it, and its folder with it. */
 const renameChatRoute = base
   .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => renameChat(chatId, input.title));
+    await whenChat(input.id, async (chatId) => {
+      const renamed = await renameChat(chatId, input.title);
+      // The folder follows unless something of the chat's is running in it:
+      // a rename under a working agent takes its working directory out from
+      // under it, and Windows refuses it outright. The turn that is running
+      // ends by settling the title, which is where the folder catches up.
+      if (renamed && !(await chatIsWorking(chatId))) {
+        await followTitle(chatId, cappedTitle(input.title));
+      }
+      return renamed;
+    });
   });
 
 /** The topics a chat carries, replaced whole. */
@@ -255,11 +268,22 @@ const chatOfSessionRoute = base
   .handler(({ input }) => ({ id: chatOfSession(input.sessionId) ?? null }));
 
 /**
- * Deletes a chat with every task it started: their work stops, and the chat's
- * folder, which holds theirs, goes to the trash.
+ * Deletes a chat with every task it started: their work stops, and the
+ * records and work folder, which hold theirs, go to the trash.
+ *
+ * The chat's own folder under `Chats/` goes only when asked. What is in it
+ * is the person's: a transcript they can read and whatever the agent
+ * finished for them, and deleting a chat to tidy a list is not a request to
+ * throw that away.
  */
 const trashChatRoute = base
-  .input(z.object({ id: ChatIdSchema }))
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      /** Whether the chat's own folder goes with it; off unless asked. */
+      itsFolder: z.boolean().optional(),
+    }),
+  )
   .handler(async ({ context, errors, input }) => {
     const id = resolveChat(input.id);
     if (!id) {
@@ -267,6 +291,7 @@ const trashChatRoute = base
     }
     const result = await trashChat({
       id,
+      itsFolder: input.itsFolder,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,
     });
@@ -324,15 +349,19 @@ const answerQuestionRoute = base
           return;
         }
         // On the call too, so the card draws the answer from its own part.
-        const written = await Store.updatePart(
-          { messageId: question.messageId, partId, sessionId },
+        const written = await ChatWrites.updatePart(
+          {
+            chatId: input.id,
+            messageId: question.messageId,
+            partId,
+            sessionId,
+          },
           (part) =>
             part.type === "tool-choose" &&
             part.state === "output-available" &&
             "asked" in part.output
               ? { ...part, output: { ...part.output, answer: input.answer } }
               : part,
-          input.id,
         );
         if (written.isErr()) {
           context.workspaceConfig.captureException(written.error);

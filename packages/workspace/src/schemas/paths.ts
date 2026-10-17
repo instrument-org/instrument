@@ -18,9 +18,21 @@ export type AbsolutePath = z.output<typeof AbsolutePathSchema>;
 export const WorkspaceDirSchema = AbsolutePathSchema.brand("WorkspaceDir");
 export type WorkspaceDir = z.output<typeof WorkspaceDirSchema>;
 
-/** A chat's folder, `chats/<id>/`, or the window's, which is scoped like one. */
+/**
+ * A chat's record folder in the workspace, `chats/<id>/`: its records, one
+ * log per session per device, its `settings.json`, `attachments/` and handoff
+ * notes. The window's, which is scoped like one, is `.instrument/window/`.
+ */
 export const ChatDirSchema = AbsolutePathSchema.brand("ChatDir");
 export type ChatDir = z.output<typeof ChatDirSchema>;
+
+/**
+ * A chat's work folder on this computer, `work/<id>/` in the workspace's
+ * machine folder: where its agent's shell starts, shared by its tasks, and
+ * where what they make lands.
+ */
+export const WorkDirSchema = AbsolutePathSchema.brand("WorkDir");
+export type WorkDir = z.output<typeof WorkDirSchema>;
 
 const UnbrandedRelativePathSchema = z.string().refine((val) => {
   return !isAbsolutePath(val);

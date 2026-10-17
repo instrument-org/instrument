@@ -102,3 +102,11 @@ export function dotEntriesIn(folder: string, disk: Disk = liveDisk): string[] {
     .filter((name) => name.startsWith("."))
     .map((name) => path.join(folder, name));
 }
+
+/** Whether a path is, or is in, a name that runs code when its folder is used. */
+export function runsCodeByName(target: string): boolean {
+  const slashed = target.replaceAll(path.sep, "/");
+  return [".git", ...DANGEROUS_NAMES].some(
+    (name) => slashed.endsWith(`/${name}`) || slashed.includes(`/${name}/`),
+  );
+}

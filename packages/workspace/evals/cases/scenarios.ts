@@ -14,7 +14,7 @@ import path from "node:path";
 
 import { listMemories, memoryDir } from "../../src/lib/memory/store";
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { Store } from "../../src/lib/store";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessage } from "../../src/schemas/session/message";
 import { StoreId } from "../../src/schemas/store-id";
@@ -634,7 +634,7 @@ async function seedOtherChat() {
   const now = new Date(Date.now() - 86_400_000);
   const userId = StoreId.newMessageId();
   (
-    await Store.saveMessageWithParts(
+    await ChatWrites.saveMessageWithParts(
       {
         id: userId,
         metadata: { createdAt: now, sessionId },
@@ -657,7 +657,7 @@ async function seedOtherChat() {
   )._unsafeUnwrap();
   const replyId = StoreId.newMessageId();
   (
-    await Store.saveMessageWithParts(
+    await ChatWrites.saveMessageWithParts(
       {
         id: replyId,
         metadata: {

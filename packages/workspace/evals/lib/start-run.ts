@@ -3,8 +3,10 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { addChildTask } from "../../src/lib/chat/children";
+import { renameChat } from "../../src/lib/chat/chats";
 import { newMessage } from "../../src/lib/new-message";
-import { Store } from "../../src/lib/store";
+import { ChatReads } from "../../src/lib/chat-reads";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { updateChatSettings } from "../../src/lib/chat-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
@@ -98,13 +100,19 @@ export async function startRun(
   }
   const message = sent.value;
 
-  const session = (await Store.getSession(sessionId, chatId))._unsafeUnwrap();
+  const session = (
+    await ChatReads.session({ chatId: chatId, sessionId: sessionId })
+  )._unsafeUnwrap();
   (
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       { ...session, title: name, updatedAt: new Date() },
       chatId,
     )
   )._unsafeUnwrap();
+  // Named the way a person names a chat, which settles its title: otherwise a
+  // chat case's first exchange retitles it, and a task case's chat stays a
+  // placeholder, and `report <dir>` finds a run's case by that name.
+  await renameChat(chatId, name);
 
   workspaceRef.send({
     type: "createSession",

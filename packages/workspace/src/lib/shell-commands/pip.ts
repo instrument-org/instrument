@@ -4,13 +4,13 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PYTHON_COMMAND } from "./python";
 import { hostPathArgs, resolveCommandContext } from "./utils";
-import { ensureVenvForCommand, runUv } from "./uv";
+import { installVenvError, runUv } from "./uv";
 
 // `pip` (and the `pip3` alias) route through `uv pip`, which installs into the
-// task venv (.venv) without needing pip seeded into the env. `uv pip`
-// honors VIRTUAL_ENV, set by the uv env overlay.
+// nearest virtualenv without needing pip seeded into it. `uv pip` honors
+// VIRTUAL_ENV, set by the uv env overlay.
 export const PIP_COMMAND = {
-  description: `Install Python packages into the chat's virtualenv (.venv) via uv, where \`${PYTHON_COMMAND.name}\` runs. Use like pip, e.g. \`pip install <package>\`.`,
+  description: `Install Python packages via uv into the nearest \`.venv\` up to this conversation's folder, which the first install makes at its root, and where \`${PYTHON_COMMAND.name}\` runs. Use like pip, e.g. \`pip install <package>\`.`,
   name: "pip",
 } as const;
 
@@ -49,13 +49,13 @@ function createPipCommandNamed(chatId: ChatId, name: string) {
       };
     }
 
-    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
-
-    const venvError = await ensureVenvForCommand({ ctx, chatId });
+    const venvError = await installVenvError({ chatId, ctx });
     if (venvError !== undefined) {
       return { exitCode: 1, stderr: venvError, stdout: "" };
     }
 
+    // After the venv is there, so the overlay points `uv pip` at it.
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     return runUv({
       args: ["pip", ...hostPathArgs(args)],
       ctx,

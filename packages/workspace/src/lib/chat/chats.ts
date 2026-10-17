@@ -9,16 +9,23 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
+import { ChatWrites } from "../chat-writes";
+import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { cardLine, openAsks } from "./asks";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
-import { indexedByStore, kept, unkept } from "../workspace-index";
-import { type ChatActivity, chatActivity, isWorking } from "./activity";
+import { indexedByRecords, kept, unkept } from "../workspace-index";
+import {
+  type ChatActivity,
+  chatActivity,
+  isWorking,
+  liveMessages,
+} from "./activity";
 import { listChatIds } from "./chat-records";
 import { listChildTasks, sessionRole } from "./children";
 import { joinedMidTurn } from "./mid-turn";
@@ -228,7 +235,7 @@ export async function chatReadProblem(
   if (await chatDigest(chatId, sessionId)) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   return session.isErr() ? "unreadable-session" : "unreadable-messages";
 }
 
@@ -296,7 +303,7 @@ export async function renameChat(
 ): Promise<boolean> {
   return saveMark(chatId, (session) => ({
     ...session,
-    title,
+    title: cappedTitle(title),
     titleSettledAt: new Date(),
   }));
 }
@@ -356,7 +363,7 @@ export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
  * The hosts a task's session has visited, held until its session is
  * written: the browser records a visit there and announces nothing.
  */
-const filedHosts = indexedByStore<string[]>("task_hosts");
+const filedHosts = indexedByRecords<string[]>("task_hosts");
 
 /**
  * What a chat's row is made from that its own store holds: its session
@@ -487,13 +494,19 @@ async function chatFor(
   const ask = state === "working" ? undefined : anyAsk;
 
   const [lead] = runningTasks;
+  // A turn under way names its step from what it holds in memory, where a
+  // call whose input is still arriving is; the written step stands for it
+  // otherwise, and a turn that has ended names none.
+  const ownStep = ownWorking
+    ? (latestStepIn(await liveMessages({ chatId, sessionId: session.id })) ??
+      digest.stepInTurn)
+    : undefined;
   const latest = latestFor({
     ask,
     digest,
     // The chat's own turn names its step first, as the line under its title
     // does; a task at work, its step or else its name.
-    step:
-      (ownWorking ? digest.stepInTurn : undefined) ?? lead?.step ?? lead?.title,
+    step: ownStep ?? lead?.step ?? lead?.title,
     state,
   });
 
@@ -552,7 +565,7 @@ async function chatFor(
 }
 
 /** Each chat's digest, kept until its own session changes. */
-const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
+const chatDigests = indexedByRecords<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
 function chatDigest(
@@ -560,11 +573,11 @@ function chatDigest(
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
   return chatDigests(chatId, sessionId, async () => {
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return unkept(undefined);
     }
-    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
+    const messages = await ChatReads.transcript({ chatId, sessionId });
     return messages.isOk()
       ? kept(digestOf(session.value, messages.value))
       : unkept(undefined);
@@ -823,11 +836,11 @@ function saveMark(
     if (!sessionId) {
       return false;
     }
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return false;
     }
-    const saved = await Store.saveSession(mark(session.value), chatId);
+    const saved = await ChatWrites.saveSession(mark(session.value), chatId);
     return saved.isOk();
   });
 }

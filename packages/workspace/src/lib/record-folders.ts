@@ -1,20 +1,18 @@
-import {
-  PRIVATE_FOLDER_NAME,
-  SETTINGS_FILE_NAME,
-} from "@instrument-org/shared";
+import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
+import { CHATS_FOLDER_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import {
   type AbsolutePath,
+  AbsolutePathSchema,
   type ChatDir,
   ChatDirSchema,
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { TypedError } from "./errors";
-import { windowDir } from "./window-paths";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -24,9 +22,9 @@ import { getWorkspaceConfig } from "./workspace-config";
  * kept current by whatever makes or trashes a chat. An id it does not know
  * is looked for on disk where a chat would be before it is called not found,
  * so a folder made behind its back is found; one moved behind its back (the
- * layout migration) calls `forgetChatFolders`. A `tasks/` folder an earlier
- * version left inside a chat is nobody's: a chat's tasks are sessions in its
- * store.
+ * layout migration) calls `forgetChatFolders`. A chat's tasks are sessions
+ * in its store, and its work is in its work folder (`workDir`), apart from
+ * the record folder named here.
  */
 interface Index {
   /** Each chat's one session, by its id. */
@@ -47,15 +45,13 @@ let index: Index | undefined;
 let handed: Map<ChatId, ChatDir> | undefined;
 
 /**
- * The folder a chat lives in. The window, which is no chat, has a folder of
- * its own in the workspace's `.instrument/`. An id no chat has throws
- * `TypedError.NotFound` rather than naming a folder that is not there; ask
- * `resolveChat` where an unknown id is an answer rather than a mistake.
+ * The folder a chat's records live in: its `chat.db`, `settings.json`,
+ * `attachments/` and handoff notes. An id no chat has, the window's among
+ * them, throws `TypedError.NotFound` rather than naming a folder that is not
+ * there; ask `resolveChat` where an unknown id is an answer rather than a
+ * mistake.
  */
 export function chatDir(id: ChatId): ChatDir {
-  if (id === WINDOW_ID) {
-    return ChatDirSchema.parse(windowDir());
-  }
   const given = handed?.get(id);
   if (given) {
     return given;
@@ -82,7 +78,15 @@ export function chatIdTaken(id: string): boolean {
     parsed.data === WINDOW_ID ||
     known.chats.has(parsed.data) ||
     fs.existsSync(folderOf(parsed.data)) ||
-    fs.existsSync(path.join(getWorkspaceConfig().legacyTasksDir, parsed.data))
+    legacyTaskTaken(parsed.data)
+  );
+}
+
+/** Whether 1.x left a task under this id, in a workspace that kept its tasks. */
+function legacyTaskTaken(id: ChatId): boolean {
+  const { legacyTasksDir } = getWorkspaceConfig();
+  return (
+    legacyTasksDir !== undefined && fs.existsSync(path.join(legacyTasksDir, id))
   );
 }
 
@@ -161,6 +165,47 @@ export function sessionOfChat(id: ChatId): StoreId.Session | undefined {
  * The session a chat's settings name, read straight from its file, or why
  * there is none: settings that cannot be read, or that name no session.
  */
+/**
+ * The name of the chat's own folder under `Chats/`, as its settings last
+ * recorded it, or nothing where it has none or they cannot be read.
+ *
+ * Read synchronously because the filesystem layout a chat's shell runs
+ * under is built synchronously, and the folder is one of its mounts.
+ */
+export function storedChatFolderName(chatFolder: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      fs.readFileSync(path.join(chatFolder, SETTINGS_FILE_NAME), "utf8"),
+    );
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null || !("folder" in parsed)) {
+    return undefined;
+  }
+  return typeof parsed.folder === "string" && parsed.folder
+    ? parsed.folder
+    : undefined;
+}
+
+/**
+ * Where the chat's own folder under `Chats/` is, the one the person sees,
+ * or nothing for a chat that has none recorded yet and for the window.
+ *
+ * The one place that answer is worked out, so the shell's
+ * `$INSTRUMENT_OUTPUT` and what the model is told about it cannot drift
+ * apart after the folder follows a title.
+ */
+export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
+  const name = storedChatFolderName(chatFolder);
+  return name === undefined
+    ? undefined
+    : AbsolutePathSchema.parse(
+        path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME, name),
+      );
+}
+
 export function storedChatSession(
   chatFolder: string,
 ):
@@ -169,10 +214,7 @@ export function storedChatSession(
   let parsed: unknown;
   try {
     parsed = JSON.parse(
-      fs.readFileSync(
-        path.join(chatFolder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
-        "utf8",
-      ),
+      fs.readFileSync(path.join(chatFolder, SETTINGS_FILE_NAME), "utf8"),
     );
   } catch {
     return { problem: "unreadable-settings" };

@@ -26,10 +26,7 @@
 
 import "./lib/define-globals-apply";
 
-import {
-  PRIVATE_FOLDER_NAME,
-  SETTINGS_FILE_NAME,
-} from "@instrument-org/shared";
+import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -39,7 +36,7 @@ import superjson from "superjson";
 import { TASKS_DIR_NAME } from "../src/constants";
 import { listChildTasks } from "../src/lib/chat/children";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import {
   AbsolutePathSchema,
@@ -51,6 +48,7 @@ import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
+import { workspaceOfRecord } from "./lib/workspace-of-record";
 import {
   fixtureChatSessionPath,
   fixtureSessionPath,
@@ -172,11 +170,14 @@ async function readSession(
   preferred?: string,
   { inherited = true }: { inherited?: boolean } = {},
 ): Promise<Session.WithMessagesAndParts> {
-  const sessionIdsResult = await Store.getStoreId(chatId);
+  const sessionIdsResult = await ChatReads.sessions({
+    chatId,
+    includeChildSessions: true,
+  });
   if (sessionIdsResult.isErr()) {
     throw sessionIdsResult.error;
   }
-  const sessionIds = sessionIdsResult.value;
+  const sessionIds = sessionIdsResult.value.map((session) => session.id);
 
   if (sessionIds.length === 0) {
     throw new Error(`${chatId} has no sessions`);
@@ -195,11 +196,12 @@ async function readSession(
     );
   }
 
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr()) {
     throw session.error;
   }
-  const messages = await Store.getMessagesWithParts({
+  const messages = await ChatReads.transcript({
+    bytes: true,
     chatId,
     inherited,
     sessionId,
@@ -235,7 +237,7 @@ async function recordChat({
   chatKey: string;
   fixture: string;
 }) {
-  const rootDir = path.dirname(path.dirname(chatDir));
+  const rootDir = workspaceOfRecord(chatDir);
   setWorkspaceConfig(
     createStubWorkspaceConfig({
       rootDir: AbsolutePathSchema.parse(rootDir),
@@ -244,10 +246,7 @@ async function recordChat({
   );
   const chatId = ChatIdSchema.parse(path.basename(chatDir));
   const settings = JSON.parse(
-    await fs.readFile(
-      path.join(chatDir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
-      "utf8",
-    ),
+    await fs.readFile(path.join(chatDir, SETTINGS_FILE_NAME), "utf8"),
   ) as { chatSessionId?: string; grants?: { path: string }[] };
   const folderPaths = (settings.grants ?? []).map((grant) => grant.path);
 

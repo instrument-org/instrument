@@ -7,13 +7,19 @@ import { type NativeReach } from "./reach";
 /** What separates a path's parts in a program's output here. */
 const SEPARATOR = process.platform === "win32" ? /[\\/]/ : /\//;
 
+const MISSING = /no such file/i;
+
+/**
+ * How a program says the system refused it a path, in either case: Node and
+ * Go write `permission denied` and `no such file or directory` in lowercase.
+ */
 const REFUSALS = [
-  "not permitted",
-  "Permission denied",
+  /not permitted/i,
+  /permission denied/i,
   // Windows' own wording, as a Rust or C program prints it.
-  "Access is denied",
-  "No such file",
-  "Read-only file system",
+  /access is denied/i,
+  MISSING,
+  /read-only file system/i,
 ];
 
 /**
@@ -26,7 +32,11 @@ const REFUSALS = [
  * (`/bin/sh: 1: cannot create <path>`). Failing both, each word with a
  * slash, last first.
  */
-function pathsNamedIn(line: string, refusal: string): string[] {
+function pathsNamedIn(
+  line: string,
+  /** Where in the line the refusal starts. */
+  refusalAt: number,
+): string[] {
   const quoted = [
     ...line.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`|‘([^’]*)’|“([^”]*)”/g),
   ]
@@ -35,7 +45,7 @@ function pathsNamedIn(line: string, refusal: string): string[] {
   if (quoted.length > 0) {
     return quoted.toReversed();
   }
-  const end = line.lastIndexOf(": ", line.indexOf(refusal));
+  const end = line.lastIndexOf(": ", refusalAt);
   if (end !== -1) {
     const words = (line.slice(0, end).split(": ").at(-1) ?? "").split(" ");
     const first = words.findIndex((word) => SEPARATOR.test(word));
@@ -65,36 +75,51 @@ interface Refused {
 }
 
 /**
- * The first path a failed command's output says it was not permitted to use
- * that the rules keep from it, so the agent is told why rather than left to
- * read a bare "Operation not permitted" as something to work around.
+ * The first path a command's output says it was not permitted to use that
+ * the rules keep from it, so the agent is told why rather than left to read
+ * a bare "Operation not permitted" as something to work around.
  */
 export function refusedPathIn(
   output: string,
   reach: NativeReach,
   /** The command's working folder, which a relative path is read against. */
   cwd?: string,
+  {
+    appDataOnly = false,
+  }: {
+    /**
+     * Only a path in the app's own data, which nothing opens and no card
+     * asks for; any other refused path is passed over.
+     */
+    appDataOnly?: boolean;
+  } = {},
 ): undefined | Refused {
   for (const line of output.split("\n")) {
-    // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
-    // closed folder empty and a home folder read-only, so the same refusal
-    // reads as a missing file or a read-only disk there.
-    const refusal = REFUSALS.find((each) => line.includes(each));
-    if (refusal === undefined) {
+    // Seatbelt refuses with "Operation not permitted"; bubblewrap passes a
+    // closed folder through with only what opens in it, and leaves the home
+    // folder read-only, so the same refusal reads as a missing file or a
+    // read-only disk there.
+    const refusalAt = REFUSALS.map((each) => line.search(each)).find(
+      (at) => at !== -1,
+    );
+    if (refusalAt === undefined) {
       continue;
     }
     // A program names a path the way it was given, so `closed/a.txt` is
     // read against the cwd.
-    for (const named of pathsNamedIn(line, refusal)) {
+    for (const named of pathsNamedIn(line, refusalAt)) {
       if (!path.isAbsolute(named) && cwd === undefined) {
         continue;
       }
       const hostPath = path.resolve(cwd ?? "/", named);
       // A missing file can only be a closed read; anything else may have
       // been a change.
-      const op = line.includes("No such file") ? "read" : "write";
+      const op = MISSING.test(line) ? "read" : "write";
       const decided = reachOf(reach.rules, hostPath, op);
-      if (decided.level !== "allow") {
+      if (
+        decided.level !== "allow" &&
+        (!appDataOnly || decided.rule?.appData === true)
+      ) {
         return {
           hostPath,
           // `mkdir: cannot create directory`, git's `cannot mkdir`, Node's

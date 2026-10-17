@@ -14,17 +14,21 @@ import {
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway/schemas";
-import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
+import {
+  AI_GATEWAY_API_KEY_NOT_NEEDED,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
+import { workspaceLayout } from "../../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import {
@@ -36,15 +40,24 @@ import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 import { mxcTestConfig } from "./mxc-test-config";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
+import { newDeviceId } from "../../lib/records/device-id";
 
-const MOCK_WORKSPACE_DIR = "/tmp/workspace";
+// Resolved, so on Windows each carries the current drive (`C:\tmp\workspace`)
+// as every folder the app holds does there. A path with no drive is resolved
+// against `process.cwd()`, which the agent's shell blocks while a command runs.
+const MOCK_WORKSPACE_DIR = path.resolve("/tmp/workspace");
+// Outside the workspace, as this computer's folder for it is.
+const MOCK_WORKSPACE_MACHINE_DIR = path.resolve("/tmp/workspace-machine");
+const MOCK_WORKSPACE_LAYOUT = workspaceLayout(MOCK_WORKSPACE_DIR);
 
 export const MOCK_WORKSPACE_DIRS = {
-  chatTemplate: `${MOCK_WORKSPACE_DIR}/chat-template`,
-  registry: `${MOCK_WORKSPACE_DIR}/registry`,
-  systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
-  chats: `${MOCK_WORKSPACE_DIR}/${CHATS_DIR_NAME}`,
-  tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
+  registry: path.join(MOCK_WORKSPACE_DIR, "registry"),
+  systemSkills: path.join(MOCK_WORKSPACE_DIR, "system-skills"),
+  apps: MOCK_WORKSPACE_LAYOUT.appsDir,
+  chats: MOCK_WORKSPACE_LAYOUT.chatsDir,
+  machine: MOCK_WORKSPACE_MACHINE_DIR,
+  tasks: path.join(MOCK_WORKSPACE_DIR, TASKS_DIR_NAME),
+  work: path.join(MOCK_WORKSPACE_MACHINE_DIR, WORKSPACE_MACHINE_ENTRIES.work),
 } as const;
 
 // Provider configs registered by createMockChatConfig. The singleton's
@@ -113,32 +126,34 @@ export function createMockChatConfig(
 
   const workspaceConfig: WorkspaceConfig = {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse([MOCK_WORKSPACE_DIR, "apps"].join("/")),
+    appsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.apps),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    chatTemplateDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chatTemplate),
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     modelCache: options.catalog
       ? { ...noopModelCache, read: () => options.catalog }
       : noopModelCache,
     nodeExecEnv: {},
-    pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
-    preparedSkillsDir: AbsolutePathSchema.parse(
-      `${MOCK_WORKSPACE_DIR}/prepared-skills`,
-    ),
+    pnpmBinPath: AbsolutePathSchema.parse(path.resolve("/tmp/pnpm")),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     chatsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
+    runtimeDir: AbsolutePathSchema.parse(
+      path.join(MOCK_WORKSPACE_DIR, "runtime"),
+    ),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     legacyTasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     tempFolders: [],
     trashItem: () => Promise.resolve(),
-    uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
-    uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
+    uvBinPath: AbsolutePathSchema.parse(path.resolve("/tmp/uv")),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
+    workFoldersDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.work),
+    machineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
+    workspaceMachineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
     ...mxcTestConfig(),
   };
 
@@ -175,8 +190,10 @@ function mockSessionOf(id: ChatId): StoreId.Session {
   return StoreId.SessionSchema.parse(`ses_0${chars.join("")}`);
 }
 
-// Returns a chat id whose chatDir(id) resolves to `dir`, by pointing the
-// singleton's chatsDir at its parent. The dir's basename must be a valid id.
+// Returns a chat id whose record folder (chatDir) and work folder (workDir)
+// both resolve to `dir`, by pointing the singleton's chatsDir and
+// workFoldersDir at its parent. The dir's basename must be a valid id. A test
+// of what lies apart between the two sets them apart itself.
 export function createMockChatConfigForDir(
   dir: string,
   options: Parameters<typeof createMockChatConfig>[1] = {},
@@ -186,6 +203,7 @@ export function createMockChatConfigForDir(
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.dirname(dir)),
+    workFoldersDir: AbsolutePathSchema.parse(path.dirname(dir)),
   });
   if (!options.unplaced) {
     knowChat(id);

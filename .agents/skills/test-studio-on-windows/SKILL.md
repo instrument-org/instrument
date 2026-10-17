@@ -31,13 +31,13 @@ If the profile or either scheduled task is missing, read [references/host-enroll
   node "$WINDOWS_HOST" start --host "$HOST" --target preview [--name <preview-name>]
   node "$WINDOWS_HOST" tunnel --host "$HOST" --target preview
   node "$WINDOWS_HOST" stop --host "$HOST" --target preview
-  node "$WINDOWS_HOST" purge-recycled --host "$HOST" --path 'C:\Users\<user>\<your test folder>'
+  node "$WINDOWS_HOST" purge-recycled --host "$HOST" --path 'C:\Users\<user>\<your test folder>' --since <ISO time the test started>
   node "$WINDOWS_HOST" remove-preview --host "$HOST" --all-but-latest    # or --name <a>,<b>
   ```
 
-  Each build installs and keeps data under its own name, about a gigabyte apiece, so `remove-preview` uninstalls superseded ones silently and deletes their data (a running one is skipped) and reports the free space left.
+  Each build installs and keeps data under its own name, about a gigabyte apiece, so `remove-preview` uninstalls superseded ones silently and deletes their data (a running one is skipped) and reports the free space left. It deletes names Windows' usual paths cannot reach, such as a file a test left named `trailing-dot.`, and lists anything it still could not delete under `notRemoved` rather than stopping.
 
-  `tunnel` without `--local-port` takes the first free port from the conventional one up (another host's tunnel may hold it) and names it in its first line; wait for that line before probing. `status` lists installed previews and which is running. `purge-recycled` empties from the Recycle Bin only what was deleted from inside the named folder, without Explorer's confirmation, so a test that deletes files cleans up after itself; it refuses a drive root or the home folder. `install-preview` fetches the run's installer (cached locally by artifact id), copies it over and installs it silently, beside Instrument, as `Instrument Preview (<name>)` in `%LOCALAPPDATA%\Programs\instrument-preview-<name>`, with its own user data. `start` launches the named preview, or the most recently installed, without a console window on the desktop. `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. A preview's output folder is still `Documents\Instrument`, shared with the installed app. Its main log is `%APPDATA%\Instrument Preview (<name>)\logs\main.log`, with `last-crash.log` beside `logs\`. A fresh preview starts with Developer Mode on. Google sign-in leaves Brave in front of the app, with a "Signed in" tab open, so the app window is covered until it is brought back (`desk.mjs ... bring_to_front`), and a covered window draws nothing.
+  `tunnel` without `--local-port` takes the first free port from the conventional one up (another host's tunnel may hold it) and names it in its first line; wait for that line before probing. `status` lists installed previews and which is running. `purge-recycled` empties from the Recycle Bin only what was deleted from inside the named folder at or after `--since`, without Explorer's confirmation, so a test that deletes files cleans up after itself and leaves what was in the bin before it alone. Note the time before the test deletes anything (`date -u +%Y-%m-%dT%H:%M:%SZ`; the time needs a zone) and pass it; what came from the folder earlier is listed under `kept`. It refuses to run without `--since`, and refuses a drive root or the home folder. `install-preview` fetches the run's installer (cached locally by artifact id), copies it over and installs it silently, beside Instrument, as `Instrument Preview (<name>)` in `%LOCALAPPDATA%\Programs\instrument-preview-<name>`, with its own user data. `start` launches the named preview, or the most recently installed, without a console window on the desktop. `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. A preview's output folder is still `Documents\Instrument`, shared with the installed app. Its main log is `%APPDATA%\Instrument Preview (<name>)\logs\main.log`, with `last-crash.log` beside `logs\`. A fresh preview starts with Developer Mode on. Google sign-in leaves Brave in front of the app, with a "Signed in" tab open, so the app window is covered until it is brought back (`desk.mjs ... bring_to_front`), and a covered window draws nothing.
 
 - The installed and preview targets validate a packaged build, not the remote checkout. The dev targets validate the remote checkout's exact Git state, not uncommitted changes on the primary machine.
 
@@ -72,6 +72,8 @@ Start waits until the expected executable owns the loopback CDP listener and the
 node "$WINDOWS_HOST" start --host "$HOST" --target dev
 node "$WINDOWS_HOST" start --host "$HOST" --target installed
 ```
+
+A launch that refuses its workspace (one made by a newer build, or a folder it cannot read) shows only a window of its own, with no renderer behind it. `start` still returns once that window is up, with `refusal: true` and a line saying so; drive it with `studio-drive`'s `--page refusal`.
 
 The installed task must set `DISABLE_AUTO_UPDATE_POLLING=true` and pass `--remote-debugging-port=<port>` to the executable. Confirm both in `status`; do not run an installed-product test if the task omits either. A packaged app already running without CDP must be closed first because its single-instance lock prevents a second launch from adding the debug flag.
 
@@ -161,6 +163,25 @@ node "$WINDOWS_HOST" stop --host "$HOST" --target installed
 ```
 
 Stopping either dev target terminates every Studio development process whose command line belongs to the configured checkout, and stops both dev tasks: they run the same command from the same checkout, and a process does not carry which workspace it was pointed at. Do not use it when another person or agent is intentionally using that same checkout.
+
+## Measuring anything that runs a program
+
+A command run straight over SSH lands in a session-0 / network-logon token,
+and that alone fails things that have nothing to do with what is being
+tested: every binary importing USER32 dies with `STATUS_DLL_INIT_FAILED`
+(`0xC0000142`) whatever policy it was given. A sandbox bake-off run that way
+recorded node and git as unable to start under MXC, which went into an
+architecture doc as a blocker and was wrong for two months.
+
+So anything whose result depends on a program actually starting -- a sandbox
+probe, a native command, a benchmark -- runs in the interactive session, the
+way the scheduled tasks here already do, and not through a bare `ssh host
+<command>`. Reading files, inspecting state and running the test suite are
+unaffected and stay as they are.
+
+The tell is a failure that is the same for every policy, including the most
+permissive one you can write. A containment result that does not change when
+you grant everything is measuring the session, not the sandbox.
 
 ## Troubleshooting
 

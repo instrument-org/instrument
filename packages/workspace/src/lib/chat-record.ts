@@ -1,4 +1,3 @@
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
@@ -8,10 +7,9 @@ import {
   ChatSettingsSchema,
 } from "../schemas/chat-settings";
 import { StoredChatStateSchema, type ChatState } from "../schemas/chat-state";
-import { absolutePathJoin } from "./absolute-path-join";
 import { readJsonRecord, updateJsonRecord } from "./json-record-file";
 import { recordChanged } from "./record-changes";
-import { getChatPrivateDir } from "./chat-dir-utils";
+import { chatSettingsPath } from "./chat-dir-utils";
 
 /**
  * The one file a chat keeps beside its database (`settings.json`), and the
@@ -174,7 +172,7 @@ function recordFrom(parsed: unknown): ChatRecord {
 }
 
 function recordPath(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(getChatPrivateDir(dir), SETTINGS_FILE_NAME);
+  return chatSettingsPath(dir);
 }
 
 /**

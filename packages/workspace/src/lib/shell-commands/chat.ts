@@ -1,9 +1,8 @@
 import { defineCommand } from "just-bash";
-import { alphabetical } from "radashi";
 
+import { ChatReads } from "../chat-reads";
 import { type Chat, listChats, setChatTopics } from "../chat/chats";
 import { listTopics, type Topic, topicByName } from "../chat/topics";
-import { Store } from "../store";
 import { CHAT_COMMAND } from "./chat-command";
 import {
   defineSubcommands,
@@ -140,27 +139,16 @@ function findChat(
 
 /** A chat's messages as `who: what` lines, oldest first. */
 async function lines(chat: Chat, max = LINE_MAX): Promise<string[]> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId: chat.sessionId,
+  const said = await ChatReads.said({
     chatId: chat.id,
+    sessionId: chat.sessionId,
   });
-  if (messages.isErr()) {
+  if (said.isErr()) {
     return [];
   }
-  return alphabetical(messages.value, (message) => message.id).flatMap(
-    (message) => {
-      if (message.role !== "user" && message.role !== "assistant") {
-        return [];
-      }
-      const text = message.parts
-        .flatMap((part) => (part.type === "text" ? [part.text] : []))
-        .join(" ")
-        .trim();
-      if (!text) {
-        return [];
-      }
-      return [`${message.role === "user" ? "user" : "you"}: ${cut(text, max)}`];
-    },
+  return said.value.map(
+    ({ role, text }) =>
+      `${role === "user" ? "user" : "you"}: ${cut(text, max)}`,
   );
 }
 

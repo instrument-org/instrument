@@ -12,10 +12,12 @@ import { StoreId } from "./store-id";
  * it alone. "card" is an allow from a permission card (or `task folder
  * --add`), "attached" a folder the user sent with a message. Where it mounts
  * is derived from its path and when it was granted (folder-reach.ts), never
- * stored.
+ * stored. A grant of `kind` "file" is a file the user sent, opened alone:
+ * the rules allow it, and nothing mounts it.
  */
 const ChatGrantSchema = z.object({
   grantedAt: z.coerce.date(),
+  kind: z.literal("file").optional(),
   path: AbsolutePathSchema,
   source: z.enum(["attached", "card"]),
 });
@@ -47,8 +49,6 @@ const ChatDenialSchema = z.object({
   target: z.string().min(1),
 });
 
-export type ChatDenial = z.output<typeof ChatDenialSchema>;
-
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole settings file, whose `state` key it is meant to ignore rather than
 // reject. Making it strict would fail every chat's settings at once, and with
@@ -71,6 +71,15 @@ export const ChatSettingsSchema = z.object({
   // What the person said not now to in this chat. One that will not parse
   // costs the chat these alone.
   denials: z.array(ChatDenialSchema).optional().catch(undefined),
+  // The name this chat's own folder was last given under `Chats/`, which is
+  // the app's whole hold on that folder: the folder is found by this name and
+  // never by what is inside it, so a folder moved out of `Chats/` is not
+  // followed, and the chat's next change makes a fresh one under its current
+  // title. A folder renamed in place is followed by the launch sweep, which
+  // writes the name the person gave it here (chat-folders/sweep.ts).
+  // References to what the person pasted are stored relative to the folder,
+  // so a rename breaks none of them.
+  folder: z.string().min(1).optional().catch(undefined),
   // The folders granted in this chat, oldest first. One that will not parse
   // costs the chat its grants rather than the rest of its settings.
   grants: z.array(ChatGrantSchema).optional().catch(undefined),

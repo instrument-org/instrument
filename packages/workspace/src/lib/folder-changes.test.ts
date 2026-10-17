@@ -10,12 +10,13 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { grantFolder, revokeGrant } from "./chat/grants";
 import { detectFolderChanges } from "./folder-changes";
 import { setFoldersBaseline } from "./folders-baseline";
+import { sessionOfChat } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { initializeTestChat } from "../test/helpers/initialize-test-chat";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
-// A chat of its own per test: the session store is cached by chat id, so a
-// second chat under one name in a fresh temp directory reuses the handle on the
-// database the last one deleted, which answers every write as readonly.
+// A chat of its own per test: a chat's records are read back whole, so a
+// second case under one name would be told what the first one was.
 let chatCount = 0;
 let CHAT_ID: ReturnType<typeof ChatIdSchema.parse>;
 
@@ -56,19 +57,27 @@ beforeEach(async () => {
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../templates/default"),
+    // A chat's grants live in this computer's permission settings, so each
+    // case needs a machine folder of its own as much as a chat of its own.
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(rootDir, "machine"),
     ),
   });
   await initializeTestChat({
     initialSettings: {},
     chatId: CHAT_ID,
   });
-  sessionId = StoreId.newSessionId();
+  // What a turn is diffed against is written into the session's own log, so
+  // the session is the chat's, as the one a turn runs in always is.
+  const session = sessionOfChat(CHAT_ID);
+  if (!session) {
+    throw new Error("expected the chat's session");
+  }
+  sessionId = session;
 });
 
 afterEach(async () => {
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 describe("detectFolderChanges", () => {

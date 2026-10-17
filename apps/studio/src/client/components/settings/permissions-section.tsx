@@ -25,7 +25,7 @@ import {
   segmentsOf,
 } from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isWindows } from "@/client/lib/utils";
+import { isMacOS, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -47,6 +47,11 @@ type Level = View["folders"][number]["level"];
 type Place = View["places"][number];
 
 const SEPARATOR = " › ";
+
+// oxlint-disable studio/no-os-words -- shown only on macOS, where Seatbelt does not nest inside another sandbox
+const MAC_SANDBOX_OFF =
+  "On this Mac, Instrument can't use the system's sandbox, which happens when Instrument itself runs inside another one. Its own tools still follow this list, but a program the agent runs, like Python, could reach other folders.";
+// oxlint-enable studio/no-os-words
 
 const LEVEL_LABELS = {
   allow: "Allowed",
@@ -108,11 +113,13 @@ export function PermissionsSection() {
       onSuccess: refresh,
     }),
   );
-  const setWithoutAsking = useMutation(
-    rpcClient.workspace.permissions.setWithoutAsking.mutationOptions({
-      onError,
-      onSuccess: refresh,
-    }),
+  const setDangerouslyAllowEveryFolder = useMutation(
+    rpcClient.workspace.permissions.setDangerouslyAllowEveryFolder.mutationOptions(
+      {
+        onError,
+        onSuccess: refresh,
+      },
+    ),
   );
 
   if (!view) {
@@ -173,6 +180,8 @@ export function PermissionsSection() {
                 Learn more
               </button>
             </p>
+          ) : isMacOS() ? (
+            <p>{MAC_SANDBOX_OFF}</p>
           ) : (
             <p>
               On Linux, Instrument follows this list as closely as it can. Its
@@ -189,7 +198,7 @@ export function PermissionsSection() {
               Use folders without asking
             </span>
             <span className="block text-xs text-muted-foreground">
-              {view.withoutAsking
+              {view.dangerouslyAllowEveryFolder
                 ? passwordsAsk
                   ? "Instrument uses any folder that isn't marked Not allowed, but still asks before using your passwords and keys."
                   : "Instrument uses any folder that isn't marked Not allowed."
@@ -197,14 +206,21 @@ export function PermissionsSection() {
             </span>
           </span>
           <Switch
-            checked={view.withoutAsking}
-            onCheckedChange={(withoutAsking) => {
-              setWithoutAsking.mutate({ withoutAsking });
+            checked={view.dangerouslyAllowEveryFolder}
+            onCheckedChange={(dangerouslyAllowEveryFolder) => {
+              setDangerouslyAllowEveryFolder.mutate({
+                dangerouslyAllowEveryFolder,
+              });
             }}
           />
         </label>
       </Card>
-      <div className={cn("space-y-6", view.withoutAsking && "opacity-45")}>
+      <div
+        className={cn(
+          "space-y-6",
+          view.dangerouslyAllowEveryFolder && "opacity-45",
+        )}
+      >
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
             Your folders

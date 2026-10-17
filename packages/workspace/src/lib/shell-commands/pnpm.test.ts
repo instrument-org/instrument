@@ -1,9 +1,11 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import {
   createNpxCommand,
   createPnpmCommand,
@@ -26,33 +28,32 @@ describe("createPnpmCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const command = createPnpmCommand(chatId, chatLayout(chatId));
 
-  // The agent runs pnpm from `work/`; seed a manifest at the cwd so the manifest
-  // guard passes. The dedicated guard test below uses a fresh, empty fs.
-  beforeAll(async () => {
-    await mockCtx.fs.writeFile("/package.json", "{}");
-  });
+  it("adds a package in a folder with no manifest, where pnpm makes one", async () => {
+    const { execaNodeForChat } = await import("../execa-node-for-chat");
+    vi.mocked(execaNodeForChat).mockClear();
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: "+ lodash 4.17.21",
+    });
 
-  it("errors when run from a directory without a package manifest", async () => {
+    // The folder as this computer spells it, where pnpm runs, and as the
+    // shell does, which differs on Windows.
+    const job = path.resolve("/job");
     const result = await command.execute(["add", "lodash"], {
       ...mockCtx,
-      fs: new InMemoryFs(),
+      cwd: shellPath(job),
+      fs: new InMemoryFs({ [`${shellPath(job)}/notes.md`]: "" }),
     });
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "Your package is this conversation's folder",
-    );
-  });
-
-  it("strips global flags from the manifest guard suggestion", async () => {
-    const result = await command.execute(["add", "--global", "lodash"], {
-      ...mockCtx,
-      fs: new InMemoryFs(),
-    });
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      `\`cd ${chatLayout(chatId).chat.shellRoot} && pnpm add lodash\``,
+    expect(result.exitCode).toBe(0);
+    expect(vi.mocked(execaNodeForChat)).toHaveBeenCalledOnce();
+    expect(vi.mocked(execaNodeForChat)).toHaveBeenLastCalledWith(
+      chatId,
+      getWorkspaceConfig().pnpmBinPath,
+      ["add", "lodash"],
+      expect.any(Object),
+      job,
+      undefined,
     );
   });
 

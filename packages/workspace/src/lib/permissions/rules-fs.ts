@@ -1,24 +1,29 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { type IFileSystem } from "just-bash";
 import { existsSync } from "node:fs";
 import nodePath from "node:path";
 
-import {
-  canonicalizeThroughMissing,
-  hostPathWithin,
-  withoutDataVolume,
-} from "../host-path";
+import { FOLDER_VARIABLES } from "../../constants";
+import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { raiseAsk, waitingNote } from "../chat/asks";
 import { isClosedDiskRoot } from "../disk-root";
-import { folderToAskFor, type Reach, reachOf, type Rules } from "./rules";
+import {
+  folderToAskFor,
+  holdsAppData,
+  type Reach,
+  reachOf,
+  type Rules,
+} from "./rules";
 
 /**
  * What the agent reads when the rules keep it from a path, and the card it
  * raises where the person can open it: the one answer for the shell's own
  * commands, the file tools, the commands that check their operands, and the
  * programs the native profiles stopped. `spell` turns a host path into the
- * path the agent uses. Undefined where the path is open, and for the app's
- * internals, which the agent meets as missing rather than refused.
+ * path the agent uses, which the note quotes as a JSON string, so a name
+ * that reads as words to the agent (one taken from a download or an
+ * archive) stays a name. Undefined where the path is open.
  */
 export function ruleRefusal({
   afterAsk,
@@ -59,45 +64,56 @@ export function ruleRefusal({
 }): string | undefined {
   const hostPath = withoutDataVolume(given);
   const reach = decided ?? reachOf(rules, hostPath, op);
-  if (reach.level === "allow" || reach.level === "hidden") {
+  if (reach.level === "allow") {
     return undefined;
   }
+  const shown = (shownPath: string) => JSON.stringify(spell(shownPath));
   if (reach.level === "never") {
-    return closedNote(reach, spell(hostPath));
+    return closedNote(reach, shown(hostPath));
   }
   if (op === "write" && !accountCanWrite(hostPath)) {
-    return systemOwnedNote(spell(hostPath));
+    return systemOwnedNote(shown(hostPath));
   }
   let folder = folderToAskFor({
-    home: rules.home,
     hostPath,
     isDirectory,
     rule: reach.rule,
+    rules,
   });
   while (onDisk && !existsSync(folder) && folder !== nodePath.dirname(folder)) {
     folder = nodePath.dirname(folder);
   }
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
-    return `${spell(hostPath)} is directly in ${spell(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
+    return `${shown(hostPath)} is directly in ${shown(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
+  }
+  // Nor is a folder that holds the app's own data, which no yes opens.
+  if (holdsAppData(rules, folder)) {
+    return `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`;
   }
   if (!asks || !rules.asker) {
-    return `${spell(hostPath)} needs the person's yes first.`;
+    return `${shown(hostPath)} needs the person's yes first.`;
   }
   raiseAsk(rules.asker, "folder", folder);
-  const waiting = waitingNote(spell(folder));
+  const waiting = waitingNote(shown(folder));
   return afterAsk ? `${waiting} ${afterAsk}` : waiting;
 }
 
 /**
  * What the agent reads about a path the rules never open to it this way,
- * by why: the person's not now in this chat, a folder only read, a file
+ * by why: a path through an NTFS stream, the person's not now in this chat, a folder only read, a file
  * that runs when they log in, a name that runs code when its folder is
  * used, or a place closed in Settings. Only the last is something a
  * setting changes, so only it sends the person there.
  */
 export function closedNote(reach: Reach, shown: string): string {
+  if (reach.stream) {
+    return `${shown} names a file or folder by one of its streams (the part after a ":"), a second name no rule opens. Use its own path.`;
+  }
   const rule = reach.rule;
+  if (rule?.appData) {
+    return `${shown} is ${APP_NAME}'s own data, which no command reads or changes; don't look for another way in. Your work folder ($${FOLDER_VARIABLES.work}) and this conversation's own folder ($${FOLDER_VARIABLES.output}) stay open to you, and a file the person sent is read where they keep it.`;
+  }
   if (rule?.denied) {
     return `${shown}: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.`;
   }
@@ -162,24 +178,6 @@ export function rulesFs({
     const real = followsLinks ? canonicalizeThroughMissing(host) : null;
     return real === null || real === host ? [host] : [host, real];
   };
-  const isHidden = (mountPath: string) =>
-    hostsOf(mountPath).some(
-      (host) => reachOf(rules, host, "read").level === "hidden",
-    );
-  // A hidden folder on the way to one the agent reaches (the workspace on
-  // the way to the chat's folder) answers stat and exists, as the folders
-  // above a mount do, so `cd` can pass through it. Its listing stays
-  // missing.
-  const leadsOn = (mountPath: string) =>
-    hostsOf(mountPath).some((host) =>
-      rules.rules.some((rule) => {
-        if (rule.level === "hidden" || rule.dotEntries) {
-          return false;
-        }
-        const within = hostPathWithin(host, rule.path);
-        return within !== null && within !== "/";
-      }),
-    );
   const check = (
     op: "read" | "write",
     syscall: string,
@@ -187,12 +185,6 @@ export function rulesFs({
     asks = true,
   ) => {
     const shown = spell(given(mountPath));
-    if (isHidden(mountPath)) {
-      throw Object.assign(
-        new Error(`ENOENT: no such file or directory, ${syscall} '${shown}'`),
-        { code: "ENOENT" },
-      );
-    }
     for (const hostPath of hostsOf(mountPath)) {
       const refusal = ruleRefusal({
         asks,
@@ -220,9 +212,16 @@ export function rulesFs({
     "readFileBytes",
     "readlink",
   ]);
+  // Every method that changes the filesystem, by the name just-bash gives it.
+  // `createExclusive` is the one that does not read as a write: it is what
+  // `mktemp` names its file with, so leaving it out let an entry be made
+  // wherever the rules close, with no card and no refusal. A method added to
+  // the interface and not to this set falls through unchecked, which is why
+  // the list is of the whole interface rather than of what we expect.
   const writes = new Set([
     "appendFile",
     "chmod",
+    "createExclusive",
     "mkdir",
     "rm",
     "utimes",
@@ -236,44 +235,13 @@ export function rulesFs({
       }
       const call = (...args: unknown[]): unknown =>
         Reflect.apply(value, target, args);
-      if (key === "exists") {
-        return async (mountPath: string) =>
-          (!isHidden(mountPath) || leadsOn(mountPath)) &&
-          (await call(mountPath)) === true;
-      }
-      if (key === "stat" || key === "lstat" || key === "realpath") {
-        return async (...args: unknown[]) => {
-          if (isHidden(String(args[0])) && !leadsOn(String(args[0]))) {
-            check("read", key, String(args[0]));
-          }
-          return call(...args);
-        };
-      }
       if (key === "readdir" || key === "readdirWithFileTypes") {
         return async (...args: unknown[]) => {
           const dir = String(args[0]);
           const named = listings.count === 0;
           listings.count++;
           check("read", key, dir, named);
-          const listed = await call(...args);
-          // The app's internals are left out of a listing, the way a missing
-          // folder would be.
-          return Array.isArray(listed)
-            ? listed.filter((entry: unknown) => {
-                const name =
-                  typeof entry === "string"
-                    ? entry
-                    : typeof entry === "object" &&
-                        entry !== null &&
-                        "name" in entry
-                      ? entry.name
-                      : undefined;
-                return (
-                  typeof name !== "string" ||
-                  !isHidden(nodePath.posix.join(dir, name))
-                );
-              })
-            : listed;
+          return call(...args);
         };
       }
       if (reads.has(key) || writes.has(key)) {

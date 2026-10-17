@@ -41,6 +41,7 @@ import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import {
+  BrowserWindow,
   app,
   dialog,
   nativeImage,
@@ -59,6 +60,7 @@ import {
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
+import { chooseLaunchDeviceId } from "./lib/launch-device-id";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -73,6 +75,9 @@ import {
   requestQuitApproval,
   withdrawQuitApproval,
 } from "./lib/quit";
+import { getWorkspaceRefusal } from "./lib/workspace-refusal";
+import { showWorkspaceRefusal } from "./lib/workspace-refusal-window";
+import { machineDir } from "./lib/get-workspace-folder";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -111,6 +116,11 @@ if (gotTheLock) {
   registerCrashDiagnostics(app);
 
   app.on("second-instance", (_event, commandLine) => {
+    // A refused workspace's window is the only one, and takes nothing else.
+    if (getWorkspaceRefusal()) {
+      BrowserWindow.getAllWindows()[0]?.focus();
+      return;
+    }
     focusForegroundWindow();
 
     const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
@@ -129,13 +139,15 @@ if (gotTheLock) {
   // launches the app arrives before it is; the screen waits for the window.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    openAppFile(filePath);
+    if (!getWorkspaceRefusal()) {
+      openAppFile(filePath);
+    }
   });
 
   // The same hand-over on Windows and Linux, for a launch that starts the app.
-  for (const filePath of filesInArgv(process.argv, {
-    defaultApp: process.defaultApp,
-  })) {
+  for (const filePath of getWorkspaceRefusal()
+    ? []
+    : filesInArgv(process.argv, { defaultApp: process.defaultApp })) {
     openAppFile(filePath);
   }
 
@@ -147,6 +159,14 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  // A workspace this build will not open is said in a window of its own, and
+  // nothing else starts: no stores, no workspace, no other window.
+  const refusal = getWorkspaceRefusal();
+  if (refusal) {
+    await showWorkspaceRefusal({ refusal, userDataDir: machineDir() });
+    return;
+  }
+
   const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
   if (!canContinueLaunch) {
     app.quit();
@@ -251,9 +271,12 @@ async function bootstrapPrimaryInstance() {
   // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
 
+  // Chosen before the workspace starts, which writes every chat record
+  // under it.
+  const deviceId = await timeBootStep("chooseDeviceId", chooseLaunchDeviceId);
   const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
     "createWorkspaceActor",
-    createWorkspaceActor,
+    () => createWorkspaceActor(deviceId),
   );
 
   // A signed-in ChatGPT account's access token lasts an hour.

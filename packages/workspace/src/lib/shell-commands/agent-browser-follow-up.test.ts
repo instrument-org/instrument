@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  activeTab,
   BrowserFollowUp,
   pageAfterText,
   pageEffect,
@@ -81,15 +82,15 @@ describe("BrowserFollowUp", () => {
 
   function run(steps: { args: string[]; exitCode?: number }[]) {
     const followUp = new BrowserFollowUp();
-    const snapshot = vi.fn(() => Promise.resolve(FULL));
+    const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
     for (const { args, exitCode = 0 } of steps) {
-      followUp.note({ args, exitCode, snapshot });
+      followUp.note({ args, exitCode, read });
     }
-    return { followUp, snapshot };
+    return { followUp, read };
   }
 
   it("snapshots after a chain that ends in a change", async () => {
-    const { followUp, snapshot } = run([
+    const { followUp, read } = run([
       { args: ["click", "@e1"] },
       { args: ["wait", "--load", "load"] },
       { args: ["get", "url"] },
@@ -98,7 +99,7 @@ describe("BrowserFollowUp", () => {
       after: "click",
       kind: "full",
     });
-    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -112,9 +113,9 @@ describe("BrowserFollowUp", () => {
     },
     { name: "no change at all", steps: [{ args: ["get", "url"] }] },
   ])("attaches nothing after $name", async ({ steps }) => {
-    const { followUp, snapshot } = run(steps);
+    const { followUp, read } = run(steps);
     expect(await followUp.take(signal)).toBeUndefined();
-    expect(snapshot).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("names the last change, not the first", async () => {
@@ -126,12 +127,12 @@ describe("BrowserFollowUp", () => {
     expect((await followUp.take(signal))?.after).toBe("click");
   });
 
-  it("attaches nothing when the snapshot fails", async () => {
+  it("attaches nothing when the page cannot be read", async () => {
     const followUp = new BrowserFollowUp();
     followUp.note({
       args: ["click", "@e1"],
       exitCode: 0,
-      snapshot: () => Promise.reject(new Error("daemon gone")),
+      read: () => Promise.reject(new Error("daemon gone")),
     });
     expect(await followUp.take(signal)).toBeUndefined();
   });
@@ -186,13 +187,67 @@ describe("parseFollowUpSnapshot", () => {
   });
 });
 
+// Recorded from `agent-browser tab list --json` against the same build.
+const TABS = JSON.stringify({
+  data: {
+    tabs: [
+      { active: false, title: "Other", url: "http://127.0.0.1:8731/" },
+      {
+        active: true,
+        title: "Sign in",
+        url: "http://127.0.0.1:8731/signin.html",
+      },
+    ],
+  },
+  success: true,
+});
+
+describe("activeTab", () => {
+  it("takes the tab the commands are acting on", () => {
+    expect(activeTab(TABS)).toEqual({
+      title: "Sign in",
+      url: "http://127.0.0.1:8731/signin.html",
+    });
+  });
+
+  it("falls back to the only tab when none says it is active", () => {
+    expect(
+      activeTab(JSON.stringify({ data: { tabs: [{ url: "http://x/" }] } })),
+    ).toEqual({ url: "http://x/" });
+  });
+
+  it.each([
+    { name: "output that is not JSON", output: "✓ Done" },
+    { name: "JSON of another shape", output: '{"ok":true}' },
+    { name: "no tabs at all", output: '{"data":{"tabs":[]}}' },
+    {
+      name: "a tab that reports neither",
+      output: '{"data":{"tabs":[{"active":true}]}}',
+    },
+  ])("says nothing about $name", ({ output }) => {
+    expect(activeTab(output)).toEqual({});
+  });
+
+  it("leaves out a title that is only whitespace", () => {
+    expect(
+      activeTab(
+        '{"data":{"tabs":[{"active":true,"title":"  ","url":"http://x/"}]}}',
+      ),
+    ).toEqual({ url: "http://x/" });
+  });
+});
+
 describe("pageAfterText", () => {
-  function rendered(output: string, after: string) {
+  function rendered(
+    output: string,
+    after: string,
+    extra: { said?: string; title?: string; url?: string } = {},
+  ) {
     const parsed = parseFollowUpSnapshot(output, after);
     if (!parsed) {
       throw new Error("expected a page");
     }
-    return pageAfterText(parsed);
+    return pageAfterText({ ...parsed, ...extra });
   }
 
   it("renders a full snapshot", () => {
@@ -209,6 +264,40 @@ describe("pageAfterText", () => {
     expect(rendered(UNCHANGED, "click")).toMatchInlineSnapshot(
       `"Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it."`,
     );
+  });
+
+  it("names the page it is of", () => {
+    expect(
+      rendered(UNCHANGED, "click", {
+        title: "Sign in",
+        url: "http://127.0.0.1:8731/signin.html",
+      }),
+    ).toMatchInlineSnapshot(
+      `"Page after \`click\` on “Sign in”, http://127.0.0.1:8731/signin.html (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it."`,
+    );
+  });
+
+  it("names the page by its address where it has no title", () => {
+    expect(
+      rendered(UNCHANGED, "click", { url: "http://127.0.0.1:8731/" }),
+    ).toMatchInlineSnapshot(
+      `"Page after \`click\` on http://127.0.0.1:8731/ (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it."`,
+    );
+  });
+
+  it("carries what the page said about the action, above the controls", () => {
+    expect(
+      rendered(DELTA, "click", {
+        said: "That password is wrong.",
+        title: "Sign in",
+        url: "http://127.0.0.1:8731/signin.html",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Page after \`click\` on “Sign in”, http://127.0.0.1:8731/signin.html (\`agent-browser snapshot -i --delta\`, run for you): only what changed since the page's last snapshot is below, and every other element and ref is as it was. If you no longer have that snapshot, run \`agent-browser snapshot -i\`.
+      The page's own message: That password is wrong.
+      No longer on the page: @e8
+      - button "Confirm" [ref=e50]"
+    `);
   });
 
   it("renders a delta", () => {

@@ -51,10 +51,10 @@ describe("tarWritesStdout", () => {
 
 describe("tarProgramArgs", () => {
   it.each<[string[], string]>([
-    [["czf", "out.tgz", "."], "--exclude=.instrument -c -z -f out.tgz ."],
-    [["czf", "-", "."], "--exclude=.instrument -c -z -f - ."],
-    [["-cz", "."], "--exclude=.instrument -f - -cz ."],
-    [["-xf", "a.tar"], "--exclude=.instrument -xf a.tar"],
+    [["czf", "out.tgz", "."], "-c -z -f out.tgz ."],
+    [["czf", "-", "."], "-c -z -f - ."],
+    [["-cz", "."], "-f - -cz ."],
+    [["-xf", "a.tar"], "-xf a.tar"],
     [["-tf", "a.tar"], "-tf a.tar"],
   ])("%j becomes %s", (args, expected) => {
     expect(tarProgramArgs(args).join(" ")).toBe(expected);

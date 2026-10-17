@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { absolutePathJoin } from "../../lib/absolute-path-join";
+import { outputFolderPath } from "../../lib/chat/output-folder";
 import {
   listInvalidChatFolders,
   trashInvalidChatFolder,
@@ -22,9 +23,17 @@ const InvalidFolderSchema = z.object({
   reason: z.string(),
 });
 
+/**
+ * Where the workspace is kept, and where finished work goes when nobody said
+ * where (`outputFolderPath`), which is the workspace's own folder once the
+ * person picked one.
+ */
 const location = base
-  .output(z.object({ rootDir: z.string() }))
-  .handler(({ context }) => ({ rootDir: context.workspaceConfig.rootDir }));
+  .output(z.object({ outputFolder: z.string(), rootDir: z.string() }))
+  .handler(({ context }) => ({
+    outputFolder: outputFolderPath(),
+    rootDir: context.workspaceConfig.rootDir,
+  }));
 
 // Folders on disk that the app can't open as a chat (bad name, missing or
 // corrupt settings, or an unreadable store), and 1.x task folders the
@@ -44,11 +53,13 @@ const listInvalidFolders = base
         ...folder,
         path: absolutePathJoin(chatsDir(), folder.name),
       })),
-      ...legacyTasks.map((folder) => ({
-        kind: "legacy-task" as const,
-        ...folder,
-        path: absolutePathJoin(legacyTasksDir, folder.name),
-      })),
+      ...(legacyTasksDir === undefined
+        ? []
+        : legacyTasks.map((folder) => ({
+            kind: "legacy-task" as const,
+            ...folder,
+            path: absolutePathJoin(legacyTasksDir, folder.name),
+          }))),
     ];
   });
 

@@ -1,22 +1,34 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
 
+import path from "node:path";
+
+import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
+import { pythonBaseDir } from "../python-base";
+import {
+  environmentBinDir,
+  pythonLayerEnv,
+  skillPythonToRun,
+} from "../skill-environments";
+import { venvPython } from "../uv";
+import { pythonToRun } from "../venv";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { chatVenvPython } from "../uv";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext } from "./utils";
-import { ensureVenvForCommand } from "./uv";
 
 /**
- * `python` (and `python3`) is the interpreter in the chat's virtualenv, a real
- * process held to the same native sandbox as every other binary the shell
- * runs. It is where `pip install` puts packages, so a script imports what was
- * installed.
+ * `python` (and `python3`) is a real process held to the same native sandbox
+ * as every other binary the shell runs. A script in a skill's folder runs in
+ * that skill's environment, with the virtualenv nearest the shell's folder,
+ * where `pip install` put packages, behind it; anything else runs in that
+ * virtualenv, with the environment of the skill loaded last behind it, or
+ * where there is none, in that skill's environment, or the managed Python's
+ * own.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python as a real process in the chat's virtualenv (.venv), with the standard library and whatever \`pip\` installed. It reads and writes the folders you reach where they sit.`,
+  description: `Run Python as a real process: a skill's script with that skill's packages, and your own code with what \`pip\` installed in the nearest \`.venv\` up to this conversation's folder. Each also finds the other's packages where its own have none by that name: a skill's script finds what you installed, and your code the packages of the skill you loaded last. It reads and writes the folders you reach where they sit.`,
   name: "python",
 } as const;
 
@@ -48,7 +60,7 @@ function createPythonCommandNamed(chatId: ChatId, name: string) {
   };
 }
 
-/** Run the interpreter in the chat's virtualenv as a real subprocess. */
+/** Run the interpreter for the shell's folder as a real subprocess. */
 async function runNativePython(
   chatId: ChatId,
   name: string,
@@ -70,19 +82,64 @@ async function runNativePython(
   const finalArgs = hostPathArgs(args);
   const stdin = latin1FromBytes(ctx.stdin);
 
-  const venvError = await ensureVenvForCommand({ ctx, chatId });
-  if (venvError !== undefined) {
-    return { exitCode: 1, stderr: venvError, stdout: "" };
+  const script = pythonScript(finalArgs);
+  const skill = await skillPythonToRun({
+    chatId,
+    cwd: hostCwd,
+    loadedSkillDir: env[FOLDER_VARIABLES.skill],
+    script: script === undefined ? undefined : path.resolve(hostCwd, script),
+    signal: ctx.signal,
+  });
+  if ("error" in skill) {
+    return { exitCode: 1, stderr: skill.error.output, stdout: "" };
   }
+  const interpreter = skill.venv
+    ? { python: venvPython(skill.venv), venv: skill.venv }
+    : await pythonToRun({ chatId, cwd: hostCwd, signal: ctx.signal });
+  if ("error" in interpreter) {
+    return { exitCode: 1, stderr: interpreter.error.output, stdout: "" };
+  }
+
+  // The base packages every chat is pointed at. A virtualenv is given them by
+  // a `.pth` written inside it (`linkPythonBase`), and the managed Python run
+  // bare has no site-packages of its own to put one in, so the folder goes on
+  // `PYTHONPATH` instead: the same set by the other door, so a chat's first
+  // `python -c "import matplotlib"` works before anything has run `pip`.
+  const base =
+    skill.venv === undefined && interpreter.venv === undefined
+      ? pythonBaseDir()
+      : undefined;
+  const pythonPath =
+    [base, env.PYTHONPATH].filter(Boolean).join(path.delimiter) || undefined;
 
   return runNative(
     ctx,
-    chatVenvPython(chatId),
+    interpreter.python,
     finalArgs,
     {
       cancelSignal: ctx.signal,
       cwd: hostCwd,
-      env,
+      // A skill's environment, and the one layered behind the interpreter's,
+      // are what a Python the script starts finds too. The managed Python run
+      // bare reads no packages of the person's own (their user
+      // site-packages), as a virtualenv reads none.
+      env: {
+        ...env,
+        ...(skill.venv
+          ? {
+              PATH: [environmentBinDir(skill.venv), env.PATH]
+                .filter(Boolean)
+                .join(path.delimiter),
+              VIRTUAL_ENV: skill.venv,
+            }
+          : interpreter.venv
+            ? {}
+            : { PYTHONNOUSERSITE: "1" }),
+        ...(pythonPath === undefined ? {} : { PYTHONPATH: pythonPath }),
+        // Last, and handed what `PYTHONPATH` now holds, so a skill's layer
+        // goes in front of the base set rather than over it.
+        ...(skill.layer && pythonLayerEnv(skill.layer, pythonPath)),
+      },
       // Buffer, not the latin1-packed string: execa UTF-8 encodes string
       // input, which would double-encode every non-ASCII byte.
       ...(stdin
@@ -97,4 +154,48 @@ async function runNativePython(
       ...binaryStdout(result),
     }),
   );
+}
+
+/** Options of Python's own that take the argument after them. */
+const VALUE_OPTIONS = new Set(["W", "X"]);
+
+/**
+ * The script a `python` command line runs, as given: its first argument
+ * that is not one of Python's own options. Undefined for code run from
+ * `-c`, a module run with `-m`, or a program read from stdin.
+ */
+export function pythonScript(args: string[]): string | undefined {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? "";
+    if (arg === "-") {
+      return undefined;
+    }
+    if (arg === "--") {
+      return args[index + 1];
+    }
+    if (arg.startsWith("--")) {
+      if (arg === "--check-hash-based-pycs") {
+        index++;
+      }
+      continue;
+    }
+    if (!arg.startsWith("-")) {
+      return arg;
+    }
+    // A cluster of single-letter options (`-uB`), the last of which may
+    // take a value, attached (`-Wignore`) or as the next argument.
+    for (let position = 1; position < arg.length; position++) {
+      const letter = arg[position] ?? "";
+      if (letter === "c" || letter === "m") {
+        return undefined;
+      }
+      if (VALUE_OPTIONS.has(letter)) {
+        if (position === arg.length - 1) {
+          index++;
+        }
+        break;
+      }
+    }
+  }
+  return undefined;
 }

@@ -12,7 +12,7 @@ import {
   readMemory,
   saveMemory,
 } from "../memory/store";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { MEMORY_COMMAND } from "./memory-command";
 import { defineSubcommands, subcommand } from "./subcommands";
 import { subprocessStdin } from "./utils";
@@ -85,7 +85,7 @@ async function chatOf({
   chatId,
   sessionId,
 }: MemoryCommandContext): Promise<Memory["from"]> {
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr() || !session.value.title.trim()) {
     return undefined;
   }

@@ -1,44 +1,97 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
-import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import {
-  chatVenvDir,
-  chatVenvPython,
+  createMockChatConfig,
+  createMockChatConfigForDir,
+} from "../test/helpers/mock-chat-config";
+import {
+  nearestVenv,
+  uvBuildSubprocessEnv,
   uvSubprocessEnv,
+  venvPython,
   withPythonVersionNote,
+  workVenvDir,
 } from "./uv";
+import { workDir } from "./work-dir";
 
 const isWindows = process.platform === "win32";
 const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
 
-describe("chatVenvDir", () => {
-  it("resolves to .venv at the root of the chat's folder", () => {
-    expect(chatVenvDir(chatId).replaceAll("\\", "/")).toBe(
-      "/tmp/workspace/chats/test/.venv",
+describe("workVenvDir", () => {
+  it("resolves to .venv at the root of the chat's work folder", () => {
+    expect(workVenvDir(chatId)).toBe(
+      path.resolve("/tmp/workspace-machine/work/test/.venv"),
     );
   });
 });
 
-describe("chatVenvPython", () => {
+describe("venvPython", () => {
   it("points at the venv interpreter for the platform layout", () => {
     const expected = isWindows
-      ? "chats/test/.venv/Scripts/python.exe"
-      : "chats/test/.venv/bin/python";
-    expect(chatVenvPython(chatId).replaceAll("\\", "/")).toContain(expected);
+      ? "work/test/.venv/Scripts/python.exe"
+      : "work/test/.venv/bin/python";
+    expect(venvPython(workVenvDir(chatId)).replaceAll("\\", "/")).toContain(
+      expected,
+    );
+  });
+});
+
+/**
+ * A chat whose work folder holds a virtualenv at its root and one in `job/`,
+ * and none in `other/`.
+ */
+function chatWithVenvs() {
+  const id = createMockChatConfigForDir(
+    path.join(mkdtempSync(path.join(os.tmpdir(), "nearest-venv-")), "chat"),
+  );
+  const root = workDir(id);
+  for (const venv of [".venv", "job/.venv"]) {
+    mkdirSync(path.join(root, venv), { recursive: true });
+    writeFileSync(path.join(root, venv, "pyvenv.cfg"), "");
+  }
+  mkdirSync(path.join(root, "job", "deeper"), { recursive: true });
+  mkdirSync(path.join(root, "other"), { recursive: true });
+  return { id, root };
+}
+
+describe("nearestVenv", () => {
+  it.each([
+    { cwd: ".", venv: ".venv" },
+    { cwd: "job", venv: "job/.venv" },
+    { cwd: "job/deeper", venv: "job/.venv" },
+    { cwd: "other", venv: ".venv" },
+  ])("takes $venv from $cwd", ({ cwd, venv }) => {
+    const { id, root } = chatWithVenvs();
+    expect(nearestVenv(id, path.join(root, cwd))).toBe(path.join(root, venv));
+  });
+
+  it("takes the work folder's own from a folder outside it", () => {
+    const { id, root } = chatWithVenvs();
+    expect(nearestVenv(id, os.homedir())).toBe(path.join(root, ".venv"));
+  });
+
+  it("finds none where no folder up to the work folder's root holds one", () => {
+    const id = createMockChatConfigForDir(
+      path.join(mkdtempSync(path.join(os.tmpdir(), "nearest-venv-")), "chat"),
+    );
+    mkdirSync(path.join(workDir(id), "job"), { recursive: true });
+    expect(nearestVenv(id, path.join(workDir(id), "job"))).toBeUndefined();
+    expect(nearestVenv(id, os.homedir())).toBeUndefined();
   });
 });
 
 describe("uvSubprocessEnv", () => {
-  const env = uvSubprocessEnv({ chatId });
+  const env = uvSubprocessEnv({ chatId, cwd: workDir(chatId) });
+  const runtime = path.resolve("/tmp/workspace/runtime");
 
-  it("isolates uv's cache/python/tool dirs under uvDataDir", () => {
-    expect(env.UV_CACHE_DIR).toBe(path.join("/tmp/workspace/uv-data", "cache"));
-    expect(env.UV_PYTHON_INSTALL_DIR).toBe(
-      path.join("/tmp/workspace/uv-data", "python"),
-    );
-    expect(env.UV_TOOL_DIR).toBe(path.join("/tmp/workspace/uv-data", "tools"));
+  it("keeps uv's cache and tools in the runtime caches, and its Pythons in their own folder", () => {
+    expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "caches", "uv"));
+    expect(env.UV_PYTHON_INSTALL_DIR).toBe(path.join(runtime, "python"));
+    expect(env.UV_TOOL_DIR).toBe(path.join(runtime, "caches", "uv-tools"));
   });
 
   it("pins uv to managed Python, which the app installs, and ignores host config", () => {
@@ -60,25 +113,54 @@ describe("uvSubprocessEnv", () => {
     expect(withPythonVersionNote("error: other\n")).toBe("error: other\n");
   });
 
-  it("points VIRTUAL_ENV at the chat's venv", () => {
-    expect(env.VIRTUAL_ENV).toBe(chatVenvDir(chatId));
+  it("points VIRTUAL_ENV at the venv nearest the command's folder", () => {
+    const { id, root } = chatWithVenvs();
+    expect(
+      uvSubprocessEnv({ chatId: id, cwd: path.join(root, "job", "deeper") })
+        .VIRTUAL_ENV,
+    ).toBe(path.join(root, "job", ".venv"));
+  });
+
+  it("names no VIRTUAL_ENV where no venv is near", () => {
+    expect(env.VIRTUAL_ENV).toBeUndefined();
   });
 
   it("redirects model/data caches to app-managed dirs without overriding HOME", () => {
-    expect(env.XDG_CACHE_HOME).toBe(
-      path.join("/tmp/workspace/uv-data", "cache-home"),
-    );
-    expect(env.HF_HOME).toBe(
-      path.join("/tmp/workspace/uv-data", "huggingface"),
-    );
-    expect(env.U2NET_HOME).toBe(path.join("/tmp/workspace/uv-data", "u2net"));
+    expect(env.XDG_CACHE_HOME).toBe(path.join(runtime, "caches"));
+    expect(env.HF_HOME).toBe(path.join(runtime, "caches", "huggingface"));
+    expect(env.U2NET_HOME).toBe(path.join(runtime, "caches", "u2net"));
     // HOME stays the real host home (or unset), never the isolated dir.
-    expect(env.HOME).not.toBe(path.join("/tmp/workspace/uv-data", "home"));
+    expect(env.HOME).toBe(process.env.HOME);
   });
 
-  it("prepends the uv binary dir and venv bin dir to PATH", () => {
-    const dirs = (env.PATH ?? "").split(path.delimiter);
-    expect(dirs[0]).toBe(path.dirname("/tmp/uv"));
-    expect(dirs[1]).toContain(path.join("chats", "test", ".venv"));
+  it("prepends the uv binary dir and the nearest venv's bin dir to PATH", () => {
+    const { id, root } = chatWithVenvs();
+    const dirs = (
+      uvSubprocessEnv({ chatId: id, cwd: path.join(root, "job") }).PATH ?? ""
+    ).split(path.delimiter);
+    expect(dirs[0]).toBe(path.dirname(path.resolve("/tmp/uv")));
+    expect(dirs[1]).toBe(
+      path.join(root, "job", ".venv", isWindows ? "Scripts" : "bin"),
+    );
+  });
+});
+
+describe("uvBuildSubprocessEnv", () => {
+  const env = uvBuildSubprocessEnv();
+  const runtime = path.resolve("/tmp/workspace/runtime");
+
+  it("keeps a shipped skill's build in the build folders, with nothing of a chat's", () => {
+    expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "build", "caches", "uv"));
+    expect(env.XDG_CACHE_HOME).toBe(path.join(runtime, "build", "caches"));
+    expect(env.UV_PYTHON_INSTALL_DIR).toBe(path.join(runtime, "python"));
+    expect(env.UV_PYTHON_DOWNLOADS).toBe("never");
+    expect(
+      Object.entries(env).filter(
+        ([, value]) =>
+          value.startsWith(path.join(runtime, "caches")) ||
+          value.startsWith(path.join(runtime, "config")),
+      ),
+    ).toEqual([]);
+    expect(env.VIRTUAL_ENV).toBeUndefined();
   });
 });

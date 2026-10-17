@@ -1,6 +1,7 @@
 import { type ByteString, latin1FromBytes } from "just-bash";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
+import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { gitSubprocessEnv } from "../git";
@@ -94,10 +95,12 @@ export function resolveCommandContext(
     fs: { resolvePath(cwd: string, path: string): string };
   },
 ) {
-  const uvEnv = uvSubprocessEnv({ chatId });
+  const hostCwd = AbsolutePathSchema.parse(
+    hostPathOf(ctx.fs.resolvePath(ctx.cwd, ".")),
+  );
   const shellEnv: Record<string, string> = {
     ...Object.fromEntries(ctx.env),
-    ...uvEnv,
+    ...uvSubprocessEnv({ chatId, cwd: hostCwd }),
   };
   // The shell's TZ is an IANA name (America/Chicago), which Windows' C
   // runtime does not read: it takes TZ as `CST6CDT` or nothing, and a name
@@ -106,9 +109,15 @@ export function resolveCommandContext(
   if (process.platform === "win32" && shellEnv.TZ?.includes("/")) {
     delete shellEnv.TZ;
   }
-  // The shell's temp folder, the system's unless the agent set another, in
-  // the spelling a program on this computer reads.
-  for (const name of ["TEMP", "TMP", "TMPDIR"]) {
+  // The shell's temp folder, the system's unless the agent set another, and
+  // the folders it names for the agent, in the spelling a program on this
+  // computer reads.
+  for (const name of [
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    ...Object.values(FOLDER_VARIABLES),
+  ]) {
     const value = shellEnv[name];
     if (value !== undefined) {
       shellEnv[name] = hostPathOf(value);
@@ -117,14 +126,13 @@ export function resolveCommandContext(
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
     // ffmpeg, uv, python, pip) all resolve `uv`/`python` on PATH and share the
-    // chat's venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
-    // gitSubprocessEnv comes last and is handed the env it has to correct, so
-    // it can drop every GIT_* the agent exported into the bash env rather than
-    // only overriding the ones it sets. It extends the PATH uv just built.
+    // venv nearest the shell's folder. uvSubprocessEnv wins (PATH/VIRTUAL_ENV)
+    // over the bash env. gitSubprocessEnv comes last and is handed the env it
+    // has to correct, so it can drop every GIT_* the agent exported into the
+    // bash env rather than only overriding the ones it sets. It extends the
+    // PATH uv just built.
     env: withGitEnv(shellEnv),
-    hostCwd: AbsolutePathSchema.parse(
-      hostPathOf(ctx.fs.resolvePath(ctx.cwd, ".")),
-    ),
+    hostCwd,
   };
 }
 

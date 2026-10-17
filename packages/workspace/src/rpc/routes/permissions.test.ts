@@ -6,6 +6,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { updateChatSettings } from "../../lib/chat-settings";
+import { appRefusal } from "../../lib/permissions/apps";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
 import { readPermissionSettings } from "../../lib/permissions/rules";
@@ -39,12 +40,14 @@ function createContext(): WorkspaceRPCContext {
   };
 }
 
+// A workspace of its own for each test, and this computer's folder for it,
+// where the folder rules are kept.
 beforeEach(() => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "permissions-route-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "permissions-route-")),
-    ),
+    rootDir: WorkspaceDirSchema.parse(rootDir),
+    workspaceMachineDir: AbsolutePathSchema.parse(`${rootDir}-machine`),
   });
 });
 
@@ -107,7 +110,7 @@ describe("permissions.answer", () => {
 
   /** A chat someone has written in, with one task. */
   async function chatWithTask() {
-    const chatId = chatFor(StoreId.newSessionId());
+    const chatId = await chatFor(StoreId.newSessionId());
     const written = await updateChatSettings(chatId, {
       modelURI: AIGatewayModelURI.Schema.parse(
         "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
@@ -178,6 +181,75 @@ describe("permissions.answer", () => {
         { answer: ["declined"], sessionId: own },
         { answer: ["declined"], sessionId: task },
       ]),
+    );
+  });
+
+  // No test for a card written in the old shape. The stored key is `asks`
+  // now and its entries carry `askers`, where a card used to carry one
+  // `partId` and `sessionId`; nothing reads the old shape, deliberately, so a
+  // card left unanswered across the update is asked again rather than
+  // migrated. Two installs have one, and asking twice costs less than a shim.
+
+  // The card names an app as its command asked for it, and an Always allow
+  // keeps that name, which is how Settings › Permissions lists the app; it
+  // then holds in every chat, and "Allow in this chat" in this one only.
+  it.each([
+    ["Calendar", "com.apple.iCal"],
+    ["Reminders", "com.apple.reminders"],
+    ["Contacts", "com.apple.AddressBook"],
+    ["Mail", "com.apple.mail"],
+    ["Notes", "com.apple.Notes"],
+    ["Messages", "com.apple.MobileSMS"],
+  ])(
+    "lists %s in Settings by the card's name once allowed always",
+    async (name, bundleId) => {
+      const app = { bundleId, name };
+      const here = await chatWithTask();
+      const elsewhere = await chatWithTask();
+      await recordAsk(
+        { chatId: here.chatId, sessionId: here.own },
+        "app",
+        name,
+      );
+      const [card] = await openAsks(here.chatId);
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "always", id: here.chatId },
+        { context: context() },
+      );
+
+      expect((await readPermissionSettings()).apps).toEqual([
+        expect.objectContaining({ level: "allow", name }),
+      ]);
+      expect(await appRefusal(here.chatId, app, undefined)).toBeUndefined();
+      expect(
+        await appRefusal(elsewhere.chatId, app, undefined),
+      ).toBeUndefined();
+    },
+  );
+
+  it("allows an app in the asking chat only, without listing it in Settings", async () => {
+    const app = { bundleId: "com.apple.AddressBook", name: "Contacts" };
+    const here = await chatWithTask();
+    const elsewhere = await chatWithTask();
+    await recordAsk(
+      { chatId: here.chatId, sessionId: here.own },
+      "app",
+      "Contacts",
+    );
+    const [card] = await openAsks(here.chatId);
+
+    await call(
+      permissions.answer,
+      { askId: card?.id ?? "", decision: "allowed", id: here.chatId },
+      { context: context() },
+    );
+
+    expect((await readPermissionSettings()).apps).toEqual([]);
+    expect(await appRefusal(here.chatId, app, undefined)).toBeUndefined();
+    expect(await appRefusal(elsewhere.chatId, app, undefined)).toBe(
+      "using Contacts needs the person's yes first.",
     );
   });
 });

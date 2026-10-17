@@ -1,4 +1,4 @@
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
 import { session, type Session } from "electron";
 import fs from "node:fs";
@@ -7,7 +7,6 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { registerAppProtocol } from "./app-protocol";
 import { logger } from "./electron-logger";
-import { appSessionDirOf } from "./settings-migration";
 import { applyStandardUserAgent } from "./user-agent";
 
 /**
@@ -32,15 +31,19 @@ export function configureAppSession(ses: Session): void {
 let appSession: null | Session = null;
 
 /**
- * The Chromium profile the app and onboarding windows run on, inside the
- * workspace, so two workspaces never share cookies or caches. What the windows
- * keep across launches is not here but in files the main process owns
- * (`stores/workspace/kept-state.ts`). The in-app browser has a profile of its
- * own beside it (`browser-session`).
+ * The Chromium profile the app and onboarding windows run on, one per
+ * workspace on this computer, so two workspaces never share cookies or
+ * caches. What the windows keep across launches is not here but in files the
+ * main process owns (`stores/workspace/kept-state.ts`). The in-app browser
+ * has a profile of its own beside it (`browser-session`).
  */
+function appSessionDir(): string {
+  return path.join(workspaceBrowserDir(), "app-session");
+}
+
 export function getAppSession(): Session {
   if (appSession === null) {
-    const dir = appSessionDirOf(getWorkspaceFolder());
+    const dir = appSessionDir();
     fs.mkdirSync(dir, { recursive: true });
     appSession = session.fromPath(dir);
     configureAppSession(appSession);
@@ -65,7 +68,7 @@ export async function waitForPreviousDevInstance(): Promise<void> {
   if (!is.dev) {
     return;
   }
-  const dir = appSessionDirOf(getWorkspaceFolder());
+  const dir = appSessionDir();
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, "dev-instance.json");
   const previous = readDevInstance(file);

@@ -3,15 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
 
 import { instrumentAgent } from "../agents/instrument";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { isToolPart } from "../lib/is-tool-part";
-import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import { agentMachine } from "./agent";
+import { agentMachine, type ShouldContinueResult } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
 
 vi.mock(import("../lib/session-store-storage"));
@@ -39,6 +40,8 @@ describe("agentMachine", () => {
     role: "assistant",
   };
 
+  const noParts: SessionMessagePart.Type[] = [];
+
   const parts: SessionMessagePart.Type[] = [
     {
       input: { explanation: "reading", filePath: "./test.txt" },
@@ -65,7 +68,7 @@ describe("agentMachine", () => {
                 return Promise.resolve();
               }),
               executeToolLogic: fromPromise(
-                () => new Promise<{ preliminarySaved: boolean }>(noop),
+                () => new Promise<void>(noop),
               ),
             },
           }),
@@ -74,7 +77,10 @@ describe("agentMachine", () => {
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       {
@@ -179,10 +185,19 @@ describe("agentMachine", () => {
     };
   }
 
+  /** A session of the chat's, which a message of a run's goes into. */
+  async function startedSession(): Promise<StoreId.Session> {
+    const id = StoreId.newSessionId();
+    (
+      await ChatWrites.saveSession({ createdAt, id, title: "Run" }, chatId)
+    )._unsafeUnwrap();
+    return id;
+  }
+
   async function readToolParts(runSessionId: StoreId.Session) {
-    const messagesResult = await Store.getMessagesWithParts({
-      sessionId: runSessionId,
+    const messagesResult = await ChatReads.transcript({
       chatId,
+      sessionId: runSessionId,
     });
     return messagesResult
       ._unsafeUnwrap()
@@ -195,7 +210,7 @@ describe("agentMachine", () => {
   }
 
   it("runs consecutive read-only calls together and a write on its own", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
       runSessionId,
@@ -218,7 +233,6 @@ describe("agentMachine", () => {
                 log.push(`start ${input.part.toolCallId}`);
                 await new Promise((resolve) => setTimeout(resolve, 10));
                 log.push(`end ${input.part.toolCallId}`);
-                return { preliminarySaved: false };
               }),
             },
           }),
@@ -227,7 +241,10 @@ describe("agentMachine", () => {
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       {
@@ -267,7 +284,7 @@ describe("agentMachine", () => {
       name: "more read-only calls than run at once",
     },
   ])("runs every one of $name", async ({ calls }) => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
       runSessionId,
@@ -286,13 +303,12 @@ describe("agentMachine", () => {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
               executeToolLogic: fromPromise(
-                async (): Promise<{ preliminarySaved: boolean }> => {
+                async (): Promise<void> => {
                   running++;
                   mostRunning = Math.max(mostRunning, running);
                   await new Promise((resolve) => setTimeout(resolve, 10));
                   running--;
                   finished++;
-                  return { preliminarySaved: false };
                 },
               ),
             },
@@ -302,7 +318,10 @@ describe("agentMachine", () => {
           ),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       {
@@ -323,7 +342,7 @@ describe("agentMachine", () => {
   });
 
   it("finalizes queued sibling tool calls when the turn is stopped mid-queue", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -347,12 +366,12 @@ describe("agentMachine", () => {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
               executeToolLogic: fromPromise(
-                () => new Promise<{ preliminarySaved: boolean }>(noop),
+                () => new Promise<void>(noop),
               ),
             },
           }),
           llmRequestLogic: fromPromise(async () => {
-            const savedResult = await Store.saveMessageWithParts(
+            const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
               chatId,
             );
@@ -361,7 +380,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -404,7 +426,7 @@ describe("agentMachine", () => {
   // decides which one can be cut off: `onFinish` sees the run as it ended,
   // with the queued calls still dangling.
   it("persists what the turn produced before sweeping its dangling parts", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -425,12 +447,12 @@ describe("agentMachine", () => {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
               executeToolLogic: fromPromise(
-                () => new Promise<{ preliminarySaved: boolean }>(noop),
+                () => new Promise<void>(noop),
               ),
             },
           }),
           llmRequestLogic: fromPromise(async () => {
-            const savedResult = await Store.saveMessageWithParts(
+            const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
               chatId,
             );
@@ -444,7 +466,10 @@ describe("agentMachine", () => {
             );
           }),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -468,7 +493,7 @@ describe("agentMachine", () => {
   });
 
   it("finalizes saved parts when the turn is stopped during input streaming", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -506,7 +531,7 @@ describe("agentMachine", () => {
           // context array, because the machine leaves LLMStreaming before the
           // invoke's onDone runs.
           llmRequestLogic: fromPromise(async () => {
-            const savedResult = await Store.saveMessageWithParts(
+            const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: savedParts },
               chatId,
             );
@@ -519,7 +544,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -552,7 +580,7 @@ describe("agentMachine", () => {
   });
 
   it("reads nothing back when a completed turn leaves the queues empty", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();
     const runMessage = createAssistantMessage(
       StoreId.newMessageId(),
@@ -572,15 +600,14 @@ describe("agentMachine", () => {
         type: "text",
       },
     ];
-    const getMessagesWithParts = vi.spyOn(Store, "getMessagesWithParts");
-    const getMessageIds = vi.spyOn(Store, "getMessageIds");
-    const getParts = vi.spyOn(Store, "getParts");
+    const messageIds = vi.spyOn(ChatReads, "messageIds");
+    const transcript = vi.spyOn(ChatReads, "transcript");
 
     const actor = createActor(
       agentMachine.provide({
         actors: {
           llmRequestLogic: fromPromise(async () => {
-            const runResult = await Store.saveMessageWithParts(
+            const runResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: runParts },
               chatId,
             );
@@ -589,7 +616,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -599,13 +629,12 @@ describe("agentMachine", () => {
     await waitFor(actor, (state) => state.matches("Done"));
 
     // Nothing this turn produced can be unresolved, so finishing costs no read.
-    expect(getMessagesWithParts).not.toHaveBeenCalled();
-    expect(getMessageIds).not.toHaveBeenCalled();
-    expect(getParts).not.toHaveBeenCalled();
+    expect(messageIds).not.toHaveBeenCalled();
+    expect(transcript).not.toHaveBeenCalled();
   });
 
   it("leaves finished and prior-run parts alone on a turn that ends without a stop", async () => {
-    const runSessionId = StoreId.newSessionId();
+    const runSessionId = await startedSession();
     // A dangling part on a message from before this run: outside what the run
     // owns, so finishing must not rewrite it.
     const earlierMessage = createAssistantMessage(
@@ -649,12 +678,12 @@ describe("agentMachine", () => {
       agentMachine.provide({
         actors: {
           llmRequestLogic: fromPromise(async () => {
-            const earlierResult = await Store.saveMessageWithParts(
+            const earlierResult = await ChatWrites.saveMessageWithParts(
               { ...earlierMessage, parts: earlierParts },
               chatId,
             );
             earlierResult._unsafeUnwrap();
-            const runResult = await Store.saveMessageWithParts(
+            const runResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: runParts },
               chatId,
             );
@@ -663,7 +692,10 @@ describe("agentMachine", () => {
           }),
           onFinish: fromPromise(() => Promise.resolve()),
           onStart: fromPromise(() => Promise.resolve()),
-          shouldContinue: fromPromise(() => Promise.resolve(false)),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
         },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
@@ -686,5 +718,81 @@ describe("agentMachine", () => {
         },
       ]
     `);
+  });
+
+  it("records how many replies the output limit cut off when it ends the turn", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    let recorded: number | undefined;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({
+              message: createAssistantMessage(
+                StoreId.newMessageId(),
+                runSessionId,
+              ),
+              parts: noParts,
+            }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          saveOutputLimitMessage: fromPromise(({ input }) => {
+            recorded = input.continuations;
+            return Promise.resolve();
+          }),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 1 }),
+          ),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(recorded).toBe(1);
+  });
+
+  it("ends the turn with nothing written when the output limit was not why", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    let saved = false;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({
+              message: createAssistantMessage(
+                StoreId.newMessageId(),
+                runSessionId,
+              ),
+              parts: noParts,
+            }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          saveOutputLimitMessage: fromPromise(() => {
+            saved = true;
+            return Promise.resolve();
+          }),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(saved).toBe(false);
   });
 });

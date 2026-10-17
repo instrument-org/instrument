@@ -53,11 +53,9 @@ The skills Instrument's tasks can use, and making a new one.
 
 ### Storage (`storage`)
 
-Where your chats and tasks live, and fixing ones whose folders have problems.
+Where your Instrument folder is, and fixing chats and tasks whose folders have problems.
 
-The sidebar lists this page only when some chats or tasks have problems in their folders, though a link opens it either way.
-
-- **Workspace location** (`workspace-location`): Where your chats and tasks live on this computer.
+- **Instrument folder** (`instrument-folder`): Where your chats, topics, and memories are kept, and moving them.
 - **Broken chats and tasks** (`broken-folders`): Chats and tasks with problems in their folders.
 
 ## Screens

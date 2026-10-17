@@ -1,4 +1,4 @@
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/client/lib/output-folder";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
@@ -41,7 +41,7 @@ describe("screenPresentation", () => {
     ["the home folder", "/files?path=&root=~", "sam"],
     [
       "the Instrument folder a Finder opens at",
-      outputFolderHref(),
+      outputFolderHref("~/Documents/Instrument"),
       "Instrument",
     ],
     [
@@ -128,7 +128,7 @@ describe("screenLocation", () => {
     ["the home folder", "/files?path=&root=~", "~"],
     [
       "the Instrument folder a Finder opens at",
-      outputFolderHref(),
+      outputFolderHref("~/Documents/Instrument"),
       "~/Documents/Instrument",
     ],
     [

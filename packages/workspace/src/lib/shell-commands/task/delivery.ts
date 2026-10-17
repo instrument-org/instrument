@@ -1,9 +1,9 @@
 import { type ByteString } from "just-bash";
 
+import { ChatWrites } from "../../chat-writes";
 import { isWorking } from "../../chat/activity";
 import { type ChatTask, touchTask } from "../../chat/children";
 import { newMessage } from "../../new-message";
-import { Store } from "../../store";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { subprocessStdin } from "../utils";
 import { type TaskCommandContext } from "./context";
@@ -54,7 +54,10 @@ export async function deliver({
     throw message.error;
   }
   const running = isWorking(task.chatId, sessionId);
-  const written = await Store.saveMessageWithParts(message.value, task.chatId);
+  const written = await ChatWrites.saveMessageWithParts(
+    message.value,
+    task.chatId,
+  );
   if (written.isErr()) {
     throw written.error;
   }

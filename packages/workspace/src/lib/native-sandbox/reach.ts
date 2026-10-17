@@ -55,7 +55,7 @@ export function appNativeReach(
         place: "passwords",
         source: "place",
       })),
-      withoutAsking: false,
+      dangerouslyAllowEveryFolder: false,
     },
   };
 }

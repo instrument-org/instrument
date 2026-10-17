@@ -5,12 +5,13 @@
  * Usage:
  *   pnpm script:run-bash                               # interactive REPL
  *   pnpm script:run-bash -- "echo hello"               # one-shot; exits with command's exit code
- *   pnpm script:run-bash -- "echo hello" "ls work/"    # sequential commands in one chat folder
+ *   pnpm script:run-bash -- "echo hello > a" "cat a"   # sequential commands in one chat's work folder
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
- *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against an existing chat folder
+ *   pnpm script:run-bash -- --task <id> "ls"           # one-shot against an existing chat
  *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
  *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
+ *   pnpm script:run-bash -- --skill pdf 'echo $INSTRUMENT_SKILL_DIR' # load a skill first, as load_skill does
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -22,9 +23,10 @@ import "dotenv/config";
 import "./lib/define-globals-apply";
 
 import { noopModelCache } from "@instrument-org/ai-gateway";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { execa } from "execa";
 import { createRequire } from "node:module";
-import { toolBinDirIn } from "./lib/tool-bin-dir";
+import { makeToolBinIn } from "./lib/tool-bin-dir";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -36,7 +38,19 @@ import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
-import { setWorkspaceConfig } from "../src/lib/workspace-config";
+import { prepareBundledSkills } from "../src/lib/prepare-bundled-skills";
+import { getSkillRuntime } from "../src/lib/skill-runtime";
+import {
+  findSkills,
+  getSkillSources,
+  resolveSkillName,
+} from "../src/lib/skills";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../src/lib/workspace-config";
+import { setUpSkill } from "../src/tools/load-skill";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { MountedFolder } from "../src/schemas/mounted-folder";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
@@ -44,6 +58,7 @@ import { ChatIdSchema } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 function parseArgs(argv: string[]) {
   const attach: {
@@ -54,6 +69,7 @@ function parseArgs(argv: string[]) {
   const commands: string[] = [];
   let chatId: string | undefined;
   let chatsDir: string | undefined;
+  let skill: string | undefined;
 
   const remaining = [...argv];
   while (remaining.length > 0) {
@@ -96,6 +112,11 @@ function parseArgs(argv: string[]) {
 
         break;
       }
+      case "--skill": {
+        skill = remaining.shift();
+
+        break;
+      }
       default: {
         if (arg !== undefined && !arg.startsWith("-")) {
           commands.push(arg);
@@ -104,17 +125,23 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  return { attach, bail, chatsDir, commands, chatId };
+  return { attach, bail, chatsDir, commands, chatId, skill };
 }
 
 const args = parseArgs(process.argv.slice(2));
 
 const rootDir = path.resolve(os.tmpdir(), "instrument-bash-repl");
-const chatsDir = args.chatsDir
-  ? path.resolve(args.chatsDir)
-  : path.join(rootDir, "chats");
+const layout = workspaceLayout(rootDir);
+const chatsDir = args.chatsDir ? path.resolve(args.chatsDir) : layout.chatsDir;
+// Outside the workspace, as the app keeps this computer's folder for it.
+const machineDir = path.resolve(os.tmpdir(), "instrument-bash-repl-machine");
+const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
+
+const runtimeDir = path.join(rootDir, "runtime");
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
 
 await fs.mkdir(chatsDir, { recursive: true });
+makeToolBinIn(runtimeDir);
 
 const SEATBELT_LAUNCHER = path.resolve(
   import.meta.dirname,
@@ -129,15 +156,13 @@ const uvBinPath = AbsolutePathSchema.parse(
 
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
-  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
+  appsDir: AbsolutePathSchema.parse(layout.appsDir),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
   captureException: () => {
     return;
   },
-  chatTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "chat-template"),
-  ),
+  deviceId: newDeviceId(),
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},
@@ -158,20 +183,17 @@ setWorkspaceConfig({
       "pnpm.mjs",
     ),
   ),
-  preparedSkillsDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "prepared-skills"),
-  ),
-  registryDir: WorkspaceDirSchema.parse(path.join(rootDir, "registry")),
+  // The skills this checkout ships, as the app reads them.
+  registryDir: WorkspaceDirSchema.parse(path.join(repoRoot, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
+  runtimeDir: AbsolutePathSchema.parse(runtimeDir),
   systemSkillsDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "system-skills"),
+    path.resolve(import.meta.dirname, "../system-skills"),
   ),
   chatsDir: AbsolutePathSchema.parse(chatsDir),
   legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
-  toolBinDir: AbsolutePathSchema.parse(toolBinDirIn(rootDir)),
   trashItem: () => Promise.resolve(),
   uvBinPath,
-  uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   // The Seatbelt launcher `pnpm --filter @instrument-org/studio
   // build:mac-helper` builds, so native commands start the way the app's
   // do; without it they start through sandbox-exec.
@@ -189,6 +211,9 @@ setWorkspaceConfig({
   ),
   uutilsOutsideSandbox: true,
   webSearch: unavailableWebSearchClient,
+  workFoldersDir: AbsolutePathSchema.parse(workFoldersDir),
+  machineDir: AbsolutePathSchema.parse(machineDir),
+  workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
 });
 
 // On this thread unless INSTRUMENT_BASH_WORKER=1 asks for the bash worker.
@@ -199,12 +224,12 @@ if (process.env.INSTRUMENT_BASH_WORKER === "1") {
 const chatId = ChatIdSchema.parse(args.chatId ?? ulid().toLowerCase());
 
 const chatDir = path.join(chatsDir, chatId);
-await fs.mkdir(chatDir, { recursive: true });
-// Match initializeTask's guarantee: the agent-visible pair always exists
-// (the repl skips the template copy that normally scaffolds `work/`).
-for (const dirName of [CHAT_FOLDER_NAMES.attachments, CHAT_FOLDER_NAMES.work]) {
-  await fs.mkdir(path.join(chatDir, dirName), { recursive: true });
-}
+const workDir = path.join(workFoldersDir, chatId);
+// The record folder with somewhere for attachments. The work folder is made
+// by the first command, as a chat's is.
+await fs.mkdir(path.join(chatDir, CHAT_FOLDER_NAMES.attachments), {
+  recursive: true,
+});
 const sessionId = StoreId.newSessionId();
 // The shell finds its folder through the chat index, which the repl's folder,
 // made by hand, is put in.
@@ -225,13 +250,45 @@ const folders = Object.fromEntries(
 
 const bash = await createBashEnv({
   folders,
+  loadedSkillDir: args.skill ? await loadSkill(args.skill) : undefined,
   sessionId,
   chatId,
 });
 
 process.stderr.write(
-  `chat dir: ${chatDir}\nchat: ${chatId}  session: ${sessionId}\n\n`,
+  `work folder: ${workDir}\nrecord folder: ${chatDir}\nchat: ${chatId}  session: ${sessionId}\n\n`,
 );
+
+/**
+ * What `load_skill` does before the shell names the skill's folder: the
+ * shipped skills prepared in the runtime folder, and the skill's
+ * environments built. Says where it is and what was set up, on stderr.
+ */
+async function loadSkill(name: string): Promise<string> {
+  const config = getWorkspaceConfig();
+  await prepareBundledSkills(config);
+  const resolved = resolveSkillName(
+    await findSkills(getSkillSources(config)),
+    name,
+  );
+  if (!("skill" in resolved)) {
+    throw new Error(`No skill answers to ${name}.`);
+  }
+  const runtime = getSkillRuntime(resolved.skill.skillDir, name);
+  if ("error" in runtime) {
+    throw new Error(runtime.error);
+  }
+  const started = performance.now();
+  const { installResults, skillDir } = await setUpSkill({
+    chatId,
+    runtime,
+    skill: resolved.skill,
+  });
+  process.stderr.write(
+    `skill: ${skillDir} (${installResults.map((result) => `${result.runtime} ${result.state}`).join(", ") || "no dependencies"}, ${Math.round(performance.now() - started)}ms)\n`,
+  );
+  return skillDir;
+}
 
 // The exit is explicit, so nothing a command left running (a background job,
 // a pooled worker) holds the process open, and waits for both pipes

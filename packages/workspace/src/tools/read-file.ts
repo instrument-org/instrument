@@ -4,12 +4,9 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { isBinaryFile } from "isbinaryfile";
 import ms from "ms";
 import { err, ok } from "neverthrow";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { dedent, fork } from "radashi";
 import { z } from "zod";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
 import { formatBytes } from "../lib/format-bytes";
@@ -24,8 +21,6 @@ import {
   SUPPORTED_IMAGE_FORMATS,
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
-import { listFiles } from "../lib/list-files";
-import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,
   isCompleteImage,
@@ -36,17 +31,12 @@ import {
   MAX_DECODED_PIXELS,
   measureImage,
 } from "../lib/render-image";
-import {
-  getSimilarPathSuggestions,
-  resolveExistingFilePath,
-} from "../lib/resolve-agent-path";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
+import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { sessionLayout } from "../lib/session-layout";
-import { workDir } from "../lib/work-dir";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
@@ -105,7 +95,7 @@ const MEDIA_CONFIG: Record<
     // that no longer has to be refused: outgoing images are resized to the
     // provider's budget on the way out (`normalize-model-images.ts`), which
     // brings a large photo or scan under the cap on its own. So this bounds
-    // only how much is read off disk and base64'd. What a decode would cost
+    // only how much is base64'd. What a decode would cost
     // is a separate question that bytes cannot answer -- see
     // `MAX_DECODED_PIXELS`.
     maxSize: 50 * 1024 * 1024,
@@ -152,18 +142,23 @@ function describeReadableMedia(model: AIGatewayModel.Type) {
 }
 
 async function handleMediaFile({
-  absolutePath,
+  fileData,
   fixedPath,
+  hostPath,
   mimeType,
   model,
+  modifiedAt,
   region,
   signal,
   state,
 }: {
-  absolutePath: string;
+  fileData: Buffer;
   fixedPath: string;
+  /** Where the file is on the disk, for `ffprobe`, which reads it itself. */
+  hostPath: () => Promise<string>;
   mimeType: string;
   model: AIGatewayModel.Type;
+  modifiedAt: number;
   region?: RegionInput;
   signal: AbortSignal;
   state: MediaFileState;
@@ -183,29 +178,25 @@ async function handleMediaFile({
     );
   }
 
-  const stats = await fs.stat(absolutePath);
-
   if (state === "image" && !SUPPORTED_IMAGE_FORMATS.includes(mimeType)) {
     return ok({
       filePath: fixedPath,
       mimeType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       reason: "unsupported-image-format" as const,
       state: "unsupported-format" as const,
     });
   }
 
-  if (stats.size > config.maxSize) {
+  if (fileData.length > config.maxSize) {
     return executeError(
       [
         `${config.label} file too large: ${fixedPath}`,
-        `(${formatBytes(stats.size)}, max ${formatBytes(config.maxSize)}).`,
+        `(${formatBytes(fileData.length)}, max ${formatBytes(config.maxSize)}).`,
         "You can use command-line tools or scripts to compress or convert the file to reduce its size.",
       ].join(" "),
     );
   }
-
-  const fileData = await fs.readFile(absolutePath, { signal });
 
   if (state !== "image") {
     // Same reason images are checked: these go out as media with nothing but a
@@ -214,13 +205,13 @@ async function handleMediaFile({
     const decodable =
       state === "pdf"
         ? isReadablePdf(fileData)
-        : await canDecodeMedia({ absolutePath, signal });
+        : await canDecodeMedia({ absolutePath: await hostPath(), signal });
 
     if (!decodable) {
       return ok({
         filePath: fixedPath,
         mimeType,
-        modifiedAt: stats.mtimeMs,
+        modifiedAt,
         reason:
           state === "pdf"
             ? ("undecodable-pdf" as const)
@@ -233,7 +224,7 @@ async function handleMediaFile({
       base64Data: fileData.toString("base64"),
       filePath: fixedPath,
       mimeType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       state,
     });
   }
@@ -254,7 +245,7 @@ async function handleMediaFile({
     return ok({
       filePath: fixedPath,
       mimeType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       reason: "undecodable-image" as const,
       state: "unsupported-format" as const,
     });
@@ -271,7 +262,7 @@ async function handleMediaFile({
     return ok({
       filePath: fixedPath,
       mimeType: sniffedMimeType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       reason: "image-too-large" as const,
       state: "unsupported-format" as const,
     });
@@ -286,7 +277,7 @@ async function handleMediaFile({
     return ok({
       filePath: fixedPath,
       mimeType: sniffedMimeType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       reason: "truncated-image" as const,
       state: "unsupported-format" as const,
     });
@@ -320,7 +311,7 @@ async function handleMediaFile({
       base64Data: previewBytes.toString("base64"),
       filePath: fixedPath,
       mimeType: previewMediaType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       state,
       ...dimensions,
     });
@@ -347,7 +338,7 @@ async function handleMediaFile({
       base64Data: previewBytes.toString("base64"),
       filePath: fixedPath,
       mimeType: previewMediaType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       regionIgnored: cropped.value.reason,
       requestedRegion: cropped.value.asked,
       state,
@@ -360,7 +351,7 @@ async function handleMediaFile({
     base64Data: cropped.value.rendered.bytes.toString("base64"),
     filePath: fixedPath,
     mimeType: cropped.value.rendered.mediaType,
-    modifiedAt: stats.mtimeMs,
+    modifiedAt,
     region: cropped.value.region,
     renderedHeight: cropped.value.rendered.height,
     renderedWidth: cropped.value.rendered.width,
@@ -483,7 +474,7 @@ export const ReadFile = setupTool({
     Reads a file from this conversation's folder, or from one of the user's folders. You can access any file directly by using this tool.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to this conversation's folder, or the full path of a file in one of the user's folders. E.g. ./${CHAT_FOLDER_NAMES.attachments}/upload.txt
+    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to this conversation's folder, or the full path of a file in one of the user's folders. E.g. ./research/notes.md
     - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
@@ -496,72 +487,61 @@ export const ReadFile = setupTool({
   `,
   execute: async ({ input, partId, model, sessionId, signal, chatId }) => {
     const region = input.region;
-    const layout = await sessionLayout({ chatId, partId, sessionId });
-    const pathResult = resolveExistingFilePath({
-      inputPath: input.filePath,
-      layout,
-    });
+    const files = await sessionToolFs({ chatId, partId, sessionId });
+    const typed = files.resolve(input.filePath);
+    if (typed.isErr()) {
+      return err(typed.error);
+    }
+    const target = await files.existing(typed.value);
+    const displayPath = files.shown(target);
 
-    if (pathResult.isErr()) {
-      return err(pathResult.error);
+    // What is there, to tell a folder from a file; the read below is what
+    // the rules are asked of, as they are of `cat`.
+    const stats = await files.fs.stat(target).catch(() => undefined);
+    if (stats?.isDirectory) {
+      try {
+        const { entries, truncated } = await files.list(
+          target,
+          DIRECTORY_LISTING_LIMIT,
+        );
+        return ok({
+          entries,
+          filePath: displayPath,
+          state: "is-directory" as const,
+          truncated,
+        });
+      } catch (error) {
+        return files.failure(error, target);
+      }
     }
 
-    const { absolutePath, displayPath } = pathResult.value;
-    const exists = await pathExists(absolutePath);
-
-    if (!exists) {
-      const suggestions = await getSimilarPathSuggestions({
-        absolutePath,
-        displayPath,
-      });
-
+    let fileData: Buffer;
+    try {
+      const bytes = await files.fs.readFileBuffer(target);
+      fileData = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    } catch (error) {
+      if (!isMissing(error)) {
+        return files.failure(error, target);
+      }
       return ok({
         filePath: displayPath,
         state: "does-not-exist" as const,
-        suggestions,
+        suggestions: await files.similar(target),
       });
     }
-
-    const stats = await fs.stat(absolutePath);
-    if (stats.isDirectory()) {
-      const { files: entries, truncated: dirTruncated } = await listFiles(
-        absolutePath,
-        {
-          // The private dir is masked from the shell too, so listing it here
-          // would advertise a path every read of it rejects.
-          exclude:
-            path.resolve(absolutePath) === path.resolve(workDir(chatId))
-              ? [CHAT_FOLDER_NAMES.private]
-              : undefined,
-          hidden: true,
-          limit: DIRECTORY_LISTING_LIMIT,
-        },
-      );
-
-      return ok({
-        entries,
-        filePath: displayPath,
-        state: "is-directory" as const,
-        truncated: dirTruncated,
-      });
-    }
+    const modifiedAt = (stats ?? (await files.fs.stat(target))).mtime.getTime();
 
     // A rectangle has nothing to crop in any other kind of file, and a model
     // that sends one there is nearly always filling the parameter in rather
     // than aiming it, so the file is read as usual and the result says so.
     const regionIgnored =
-      region &&
-      aimsSomewhere(region) &&
-      !isReadableImage(getMimeType(absolutePath))
+      region && aimsSomewhere(region) && !isReadableImage(getMimeType(target))
         ? ("not-an-image" as const)
         : undefined;
 
-    const isBinary = await isBinaryFile(absolutePath);
+    const isBinary = await isBinaryFile(fileData);
     if (!isBinary) {
-      const content = await fs.readFile(absolutePath, {
-        encoding: "utf8",
-        signal,
-      });
+      const content = fileData.toString("utf8");
 
       const normalized = content.replaceAll("\r\n", "\n");
       const lines = normalized.split("\n");
@@ -609,7 +589,7 @@ export const ReadFile = setupTool({
         displayedLines: selectedLines.length,
         filePath: displayPath,
         hasMoreLines,
-        modifiedAt: stats.mtimeMs,
+        modifiedAt,
         offset: clampedOffset,
         ...(regionIgnored && { regionIgnored }),
         state: "exists" as const,
@@ -618,57 +598,37 @@ export const ReadFile = setupTool({
       });
     }
 
-    const mimeType = getMimeType(absolutePath);
+    const mimeType = getMimeType(target);
+    const media = {
+      fileData,
+      fixedPath: displayPath,
+      hostPath: () => files.hostPath(target),
+      mimeType,
+      model,
+      modifiedAt,
+      signal,
+    };
 
     if (isReadableImage(mimeType)) {
-      return handleMediaFile({
-        absolutePath,
-        fixedPath: displayPath,
-        mimeType,
-        model,
-        region,
-        signal,
-        state: "image",
-      });
+      return handleMediaFile({ ...media, region, state: "image" });
     }
 
     if (mimeType === "application/pdf") {
-      return handleMediaFile({
-        absolutePath,
-        fixedPath: displayPath,
-        mimeType,
-        model,
-        signal,
-        state: "pdf",
-      });
+      return handleMediaFile({ ...media, state: "pdf" });
     }
 
     if (mimeType.startsWith("audio/")) {
-      return handleMediaFile({
-        absolutePath,
-        fixedPath: displayPath,
-        mimeType,
-        model,
-        signal,
-        state: "audio",
-      });
+      return handleMediaFile({ ...media, state: "audio" });
     }
 
     if (mimeType.startsWith("video/")) {
-      return handleMediaFile({
-        absolutePath,
-        fixedPath: displayPath,
-        mimeType,
-        model,
-        signal,
-        state: "video",
-      });
+      return handleMediaFile({ ...media, state: "video" });
     }
 
     return ok({
       filePath: displayPath,
       mimeType,
-      modifiedAt: stats.mtimeMs,
+      modifiedAt,
       reason: "binary-file" as const,
       state: "unsupported-format" as const,
     });

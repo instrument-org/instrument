@@ -93,6 +93,33 @@ export function filterShellOutput(
   return filtered;
 }
 
+/** A drive-absolute path spelled with `/` throughout (`C:/Users/sam/a.txt`). */
+const SLASHED_DRIVE_PATH_PATTERN =
+  /(?<![\w/\\])([A-Za-z]):((?:\/[^\\/"'<>|*?:;\r\n\t]+(?=\/))*\/[^\s\\/"'<>|*?:;]*)/g;
+
+/**
+ * The output of a tool told to print its paths with `/`, with the drive on
+ * each of those paths respelled the way the shell spells it
+ * (`C:/Users/sam/a.txt` as `/c/Users/sam/a.txt`), so a path it printed stays
+ * usable as the next command's argument. A backslash is left alone wherever
+ * it is, which is what keeps the escapes in a line the tool quoted from a
+ * file, and in the JSON it wraps one in, as the file has them. The output as
+ * it came on macOS and Linux, where a tool prints no drive.
+ */
+export function shellSpelledSlashedPaths(
+  output: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "win32" || !/[A-Za-z]:\//.test(output)) {
+    return output;
+  }
+  return output.replaceAll(
+    SLASHED_DRIVE_PATH_PATTERN,
+    (_, drive: string, rest: string) =>
+      `/${drive.toLowerCase()}${rest}`.replace(/(.)\/$/, "$1"),
+  );
+}
+
 export function shouldFilterDebuggerMessage(message: string): boolean {
   return (
     shouldFilter() &&

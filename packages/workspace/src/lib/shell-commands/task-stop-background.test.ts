@@ -21,6 +21,7 @@ import { logSubcommand } from "./task/log";
 import { stopSubcommand } from "./task/stop";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runLog = subcommandRunner(logSubcommand, "task log");
 const runStop = subcommandRunner(stopSubcommand, "task stop");
@@ -73,9 +74,6 @@ beforeEach(async () => {
     ...getWorkspaceConfig(),
     // A chat's record goes under the root, kept apart from the folders
     // the test attaches.
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../../templates/default"),
-    ),
     chatsDir: AbsolutePathSchema.parse(
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
@@ -95,7 +93,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await killSessionBackgroundProcesses(CHILD_ID);
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 /**
@@ -251,7 +249,7 @@ describe("task stop, for what a task left running", () => {
   // chat's, to read or to stop.
   it("knows no task another chat started", async () => {
     const server = leave("node work/server.js");
-    const here = { ...context, chatId: chatFor() };
+    const here = { ...context, chatId: await chatFor() };
     await expect(runStop([CHILD_ID, "--all"], here)).rejects.toThrow(
       `no task "${CHILD_ID}" of yours. See \`task list\`.`,
     );

@@ -43,7 +43,9 @@ import { openAsks } from "../lib/chat/asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
 import * as recordFolders from "../lib/record-folders";
-import { Store } from "../lib/store";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
+import { chatRecords } from "../lib/records/chat-records";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -234,7 +236,11 @@ describe("sessionMachine", () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // The chat's records stay folded in memory for as long as anything holds
+    // the chat, so letting go of it is what keeps one case's messages out of
+    // the next, which all of them write into the same session.
+    await chatRecords().close(ChatIdSchema.parse(chatFolder));
     mockFs.restore();
     vi.restoreAllMocks();
   });
@@ -325,7 +331,7 @@ describe("sessionMachine", () => {
       },
     );
 
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       {
         createdAt: mockDate,
         id: sessionId,
@@ -413,7 +419,7 @@ describe("sessionMachine", () => {
   }) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    return Store.getSessionWithMessagesAndParts(sessionId, chatId);
+    return ChatReads.sessionWithMessages({ chatId, sessionId });
   }
 
   async function createAndRunTestMachine(
@@ -425,10 +431,8 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.chatTemplate]: {
-        "package.json": "{}",
-      },
-      [MOCK_WORKSPACE_DIRS.chats]: {
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatFolder]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: {
         [chatFolder]: {
           "image.png": mockFs.load(
             path.resolve(
@@ -436,7 +440,6 @@ describe("sessionMachine", () => {
               "../../fixtures/assets/image.png",
             ),
           ),
-          "package.json": "{}",
           "test.txt": "Hello, world!",
         },
       },
@@ -542,14 +545,14 @@ describe("sessionMachine", () => {
             </input>
             <output>
               {
-                "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII=",
                 "filePath": "./image.png",
                 "mimeType": "image/png",
                 "state": "image",
                 "height": 75,
                 "viewHeight": 75,
                 "viewWidth": 100,
-                "width": 100
+                "width": 100,
+                "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII="
               }
             </output>
           </tool>
@@ -855,7 +858,7 @@ describe("sessionMachine", () => {
         </user>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
-          <tool tool="read_file" state="output-error" callId="test-call-1">
+          <tool tool="unavailable" state="output-error" callId="test-call-1">
             <input>
               {
                 "filePath": "test.txt"
@@ -1078,7 +1081,10 @@ describe("sessionMachine", () => {
     });
     await runTestMachine(result);
     stop();
-    expect([...kinds].toSorted()).toEqual(["agent", "messages", "session"]);
+    // Its messages and its agent, and nothing of the session itself: a
+    // session's own records are its header, where its context was reset, who
+    // stopped it and what it was told, and a turn writes none of those.
+    expect([...kinds].toSorted()).toEqual(["agent", "messages"]);
   });
 
   it("should stop agents during llm request", async () => {
@@ -1260,7 +1266,7 @@ describe("sessionMachine", () => {
 
   /** Why each reply a session's turn cut off was cut off, oldest first. */
   function abortReasons(
-    session: Awaited<ReturnType<typeof Store.getSessionWithMessagesAndParts>>,
+    session: Awaited<ReturnType<typeof ChatReads.sessionWithMessages>>,
   ) {
     return session
       ._unsafeUnwrap()
@@ -1280,10 +1286,10 @@ describe("sessionMachine", () => {
     result.actor.start();
     // The reply is stored as its request goes out, before any of it arrives.
     await vi.waitFor(async () => {
-      const session = await Store.getSessionWithMessagesAndParts(
-        result.sessionId,
-        result.chatId,
-      );
+      const session = await ChatReads.sessionWithMessages({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
       expect(
         session
           ._unsafeUnwrap()
@@ -1296,10 +1302,10 @@ describe("sessionMachine", () => {
     await vi.waitFor(async () => {
       expect(
         abortReasons(
-          await Store.getSessionWithMessagesAndParts(
-            result.sessionId,
-            result.chatId,
-          ),
+          await ChatReads.sessionWithMessages({
+            chatId: result.chatId,
+            sessionId: result.sessionId,
+          }),
         ),
       ).toEqual(["manual"]);
     });
@@ -1427,8 +1433,8 @@ describe("sessionMachine", () => {
     result.actor.start();
 
     // First attempt: one chunk and then silence, so the deadline expires and
-    // the agent retries. The clock waits for the streamed tool call to be
-    // stored, since the aborted message is expected to carry it.
+    // the agent retries. The clock waits for the turn to be holding the
+    // streamed tool call, since the aborted message is expected to carry it.
     const stalled = await waitForAttempt(0);
     const agentRef = result.actor.getSnapshot().context.agentRef;
     if (!agentRef) {
@@ -1438,13 +1444,15 @@ describe("sessionMachine", () => {
     stalled.push(readFileChunks[0]);
     await vi.waitFor(
       async () => {
-        const session = await Store.getSessionWithMessagesAndParts(
-          result.sessionId,
-          result.chatId,
-        );
-        expect(sessionToShorthand(session)).toContain(
-          'state="input-streaming"',
-        );
+        // The transcript, since a call still arriving is the turn's own
+        // memory rather than anything the session's messages hold.
+        const transcript = await ChatReads.transcript({
+          chatId: result.chatId,
+          sessionId: result.sessionId,
+        });
+        expect(
+          transcript._unsafeUnwrap().flatMap((message) => message.parts),
+        ).toContainEqual(expect.objectContaining({ state: "input-streaming" }));
       },
       { interval: 5, timeout: 10_000 },
     );
@@ -1486,7 +1494,7 @@ describe("sessionMachine", () => {
             <input>
               "none"
             </input>
-            <error>This action was stopped.</error>
+            <error>This action was cut off before it could run.</error>
           </tool>
         </assistant>
         <session-context instrument realRole="system" />
@@ -1851,7 +1859,7 @@ describe("sessionMachine", () => {
           role: "user",
         };
         if (saved) {
-          await Store.saveMessageWithParts(steer, result.chatId);
+          await ChatWrites.saveMessageWithParts(steer, result.chatId);
         }
         result.actor.send({
           model: createMockAIGatewayModel(),
@@ -1942,7 +1950,7 @@ describe("sessionMachine", () => {
       it("joins the turn at its next step, marked as sent mid-turn", async () => {
         const result = await startChatTurn();
         const message = typed("b/c it's for the release notes");
-        await Store.saveMessageWithParts(message, result.chatId);
+        await ChatWrites.saveMessageWithParts(message, result.chatId);
         result.actor.send({
           model: createMockAIGatewayModel(),
           saved: true,
@@ -2116,8 +2124,11 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
+        defaultQueuedMessage,
+        result.chatId,
+      );
+      await ChatWrites.saveMessageWithParts(
         createFailedAssistantMessage(),
         result.chatId,
       );
@@ -2158,8 +2169,11 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
+        defaultQueuedMessage,
+        result.chatId,
+      );
+      await ChatWrites.saveMessageWithParts(
         createFailedAssistantMessage(),
         result.chatId,
       );

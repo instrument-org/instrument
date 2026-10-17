@@ -1,26 +1,27 @@
 import { DRAFTS_KEY } from "@/shared/kept-state";
+import {
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
+} from "@instrument-org/shared";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  createDraftsFolder,
-  DRAFTS_DIR_NAME,
-  draftDirOf,
-  freeNameIn,
-} from "../stores/workspace/drafts-folder";
+import { freeNameIn } from "../stores/workspace/drafts-folder";
 
 import {
   hasWorkspaceIdentity,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
-  workspacePrivateDir,
+  WORKSPACE_FORMAT_VERSION,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
 
 /**
- * Brings settings written before workspaces existed into the shape this build
- * reads: machine stores at the root of userData, workspace stores under
+ * Brings settings written before workspaces existed into the shape the
+ * machine data move (`machine-data-migration.ts`), which runs next, takes
+ * from: machine stores at the root of userData, workspace stores under
  * `<workspace>/.instrument/settings/`.
  *
  * The machine half runs on every boot and does nothing once its files exist.
@@ -33,7 +34,7 @@ import {
  * rather than keeping those defaults over the user's legacy files.
  *
  * Version 2 moves a workspace's drafts out of its settings into a folder each
- * at its root.
+ * in its drafts folder.
  */
 
 export const CURRENT_SETTINGS_VERSION = 2;
@@ -86,8 +87,10 @@ const COPIED_FILES = [
  * The copied files that hold secrets in a packaged build. A packaged build
  * deletes its root copies once the workspace holds them, so a signed-in session
  * or a key does not outlive a sign-out or a disconnect in a file nothing reads.
- * Dev builds keep them, since every checkout on the machine shares one dev
- * userData and an older one may still read them.
+ * Dev builds keep them here, since every checkout on the machine shares one dev
+ * userData and an older one may still read them; the machine data move removes
+ * them in every build once the workspace's keys hold them
+ * (`machine-data-migration.ts`).
  */
 const PACKAGED_SECRET_FILES = [
   "session.json.enc",
@@ -108,10 +111,6 @@ const MOVED_FILES = ["chatgpt-account.json", "chatgpt-account.json.enc"];
  * so a boot that finds it knows the last take-in stopped partway.
  */
 const TAKE_IN_MARKER = ".take-in-unfinished";
-
-export function appSessionDirOf(workspacePath: string): string {
-  return path.join(workspacePrivateDir(workspacePath), "app-session");
-}
 
 /** Take the machine keys out of the legacy root files, which stay for the workspace half. */
 export function migrateMachineSettings(userDataDir: string): string[] {
@@ -175,6 +174,12 @@ export function migrateWorkspaceSettings({
       }
       writeWorkspaceIdentity(workspace.path, {
         ...identity,
+        // A folder no build made a workspace of holds nothing kept in an
+        // older format, so it starts at this one, and the machine data move
+        // never takes the person's own top-level files for the app's.
+        ...(hadIdentity || workspace.isDefault
+          ? {}
+          : { formatVersion: WORKSPACE_FORMAT_VERSION }),
         // A folder pinned from outside with nothing to say about itself is
         // named after the folder.
         name: workspace.isDefault
@@ -203,24 +208,32 @@ export function migrateWorkspaceSettings({
 /**
  * Version 2: a 2.0 beta kept the drafts as one list in the settings'
  * `drafts.json`, and what was pasted into each in `.instrument/drafts/<id>/`
- * one folder per item. Each draft becomes a folder of its own at the
- * workspace root, with what was pasted into it beside its words. A draft
- * whose folder is already there is left as it is. `history.json`, which kept
- * a list nothing reads any longer, goes too.
+ * one folder per item. Each draft becomes a folder of its own in the
+ * workspace's drafts folder, with what was pasted into it beside its words.
+ * A draft whose folder is already there is left as it is. `history.json`,
+ * which kept a list nothing reads any longer, goes too.
+ *
+ * The beta's staging folder is the drafts folder itself, so of it only the
+ * item folders the kept list names go, and a draft's folder only once that
+ * leaves it empty: a draft kept there since is never touched.
  */
 function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
   const settingsDir = workspaceSettingsDirOf(workspacePath);
   const keptFile = path.join(settingsDir, "drafts.json");
-  const stagedRoot = path.join(workspacePrivateDir(workspacePath), "drafts");
+  const root = workspaceLayout(workspacePath).draftsDir;
+  const stagedItems = new Set<string>();
   const kept = readObject(keptFile)?.[DRAFTS_KEY];
   if (Array.isArray(kept) && kept.length > 0) {
-    const root = path.join(workspacePath, DRAFTS_DIR_NAME);
-    const folder = createDraftsFolder(root);
-    const read = folder.read()[DRAFTS_KEY];
-    const onDisk: unknown[] = Array.isArray(read) ? read : [];
+    for (const draft of kept) {
+      for (const file of stagedFilesOf(root, draft)) {
+        stagedItems.add(file.itemDir);
+      }
+    }
     const present = new Set(
-      onDisk.flatMap((draft) =>
-        isObject(draft) && typeof draft.id === "string" ? [draft.id] : [],
+      (fs.existsSync(root) ? fs.readdirSync(root) : []).filter((name) =>
+        fs.existsSync(
+          path.join(root, name, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
+        ),
       ),
     );
     const moved = kept.flatMap((draft: unknown) => {
@@ -231,14 +244,16 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
       ) {
         return [];
       }
-      const dir = draftDirOf(root, draft.id);
-      const staged = path.join(stagedRoot, draft.id) + path.sep;
+      const dir = path.join(root, draft.id);
+      const staged = new Set(
+        stagedFilesOf(root, draft).map((file) => file.path),
+      );
       const attached = Array.isArray(draft.attached)
         ? draft.attached.map((item: unknown) => {
             if (
               !isObject(item) ||
               typeof item.path !== "string" ||
-              !item.path.startsWith(staged) ||
+              !staged.has(item.path) ||
               !fs.existsSync(item.path)
             ) {
               return item;
@@ -254,26 +269,108 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
         : undefined;
       return [{ ...draft, ...(attached ? { attached } : {}) }];
     });
-    folder.write({
-      [DRAFTS_KEY]: [...onDisk, ...moved],
-    });
+    for (const draft of moved) {
+      writeDraftToFolder(root, draft);
+    }
     done.push(`moved ${moved.length.toString()} drafts into their folders`);
+  }
+  for (const itemDir of stagedItems) {
+    fs.rmSync(itemDir, { force: true, recursive: true });
+    removeIfEmpty(path.dirname(itemDir));
   }
   fs.rmSync(keptFile, { force: true });
   fs.rmSync(path.join(settingsDir, "history.json"), { force: true });
-  fs.rmSync(stagedRoot, { force: true, recursive: true });
+}
+
+/**
+ * One draft in a folder of its own under the drafts folder, in the shape the
+ * build after the beta read: its words in `draft.md` and the rest of its
+ * record in its own `.instrument/settings.json`. The drafts move again from
+ * there, out to `Drafts/` at the workspace's top level
+ * (`lib/drafts/migrate.ts`), which is why this writes the old shape rather
+ * than today's: a workspace two shapes behind takes one hop at a time, and
+ * each hop is a migration that can be run again.
+ */
+function writeDraftToFolder(root: string, draft: Record<string, unknown>) {
+  const { id, words, ...record } = draft;
+  if (typeof id !== "string") {
+    return;
+  }
+  const dir = path.join(root, id);
+  fs.mkdirSync(path.join(dir, PRIVATE_FOLDER_NAME), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "draft.md"),
+    typeof words === "string" ? words : "",
+  );
+  writeJsonAtomic(
+    path.join(dir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
+    record,
+  );
+}
+
+/**
+ * The files a beta draft names that it staged: each in an item folder of its
+ * own, `<id>/<item>/<name>` under the drafts folder.
+ */
+function stagedFilesOf(
+  root: string,
+  draft: unknown,
+): { itemDir: string; path: string }[] {
+  if (
+    !isObject(draft) ||
+    typeof draft.id !== "string" ||
+    !Array.isArray(draft.attached)
+  ) {
+    return [];
+  }
+  const draftDir = path.join(root, draft.id);
+  return draft.attached.flatMap((item: unknown) => {
+    if (!isObject(item) || typeof item.path !== "string") {
+      return [];
+    }
+    const [itemName, ...rest] = path
+      .relative(draftDir, item.path)
+      .split(path.sep);
+    return itemName === undefined ||
+      itemName === "" ||
+      itemName === ".." ||
+      path.isAbsolute(itemName) ||
+      rest.length === 0
+      ? []
+      : [{ itemDir: path.join(draftDir, itemName), path: item.path }];
+  });
+}
+
+function removeIfEmpty(dir: string) {
+  try {
+    if (fs.readdirSync(dir).length === 0) {
+      fs.rmdirSync(dir);
+    }
+  } catch {
+    // Not there, or not empty: either way it stays as it is.
+  }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Where a workspace's page pictures were kept before its machine data moved
+ * out (`machine-data-migration.ts`), which is where the legacy take-in puts
+ * them on their way.
+ */
 export function pageThumbnailsDirOf(workspacePath: string): string {
-  return path.join(workspacePrivateDir(workspacePath), "page-thumbnails");
+  return path.join(workspaceLayout(workspacePath).dataDir, "page-thumbnails");
 }
 
+/**
+ * Where a workspace's stores were kept before its machine data moved out
+ * (`machine-data-migration.ts`): the steps here bring them up to date there,
+ * and that move then takes each to where it now lives.
+ */
 export function workspaceSettingsDirOf(workspacePath: string): string {
-  return path.join(workspacePrivateDir(workspacePath), "settings");
+  return path.join(workspaceLayout(workspacePath).dataDir, "settings");
 }
 
 /**

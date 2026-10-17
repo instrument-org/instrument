@@ -577,9 +577,10 @@ export function FilesScreen({
   );
 
   // A missing file returns to the preceding visit, or closes its dedicated
-  // tab; beside its folder, it slides away and leaves the folder. Asked as
-  // the file opens and again whenever its watch says it went, so trashing it
-  // from the folder beside it, or moving a folder above it, puts it away.
+  // tab; beside its folder, it slides away and leaves the folder. The app's
+  // own data goes the same way, which the channel forbids. Asked as the file
+  // opens and again whenever its watch says it went, so trashing it from the
+  // folder beside it, or moving a folder above it, puts it away.
   const isFileGone = useWatchedFileGone(file);
   useEffect(() => {
     if (!file) {
@@ -592,13 +593,26 @@ export function FilesScreen({
           headers: { Range: "bytes=0-0" },
           signal: controller.signal,
         });
-        if (response.status === 404 && !controller.signal.aborted) {
-          toast(`${segmentsOf(file).at(-1) ?? file} is no longer there`);
+        if (controller.signal.aborted) {
+          return;
+        }
+        const name = segmentsOf(file).at(-1) ?? file;
+        const putAway = () => {
           if (isFileOpen) {
             closeBeside();
           } else {
             leaveFile();
           }
+        };
+        if (response.status === 403) {
+          toast(`Instrument keeps “${name}” private`, {
+            description:
+              "It’s part of Instrument’s own data, so you can’t open it here.",
+          });
+          putAway();
+        } else if (response.status === 404) {
+          toast(`${name} is no longer there`);
+          putAway();
         }
       } catch {
         // The channel is not up, or the request was cut off: not the file's

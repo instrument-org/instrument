@@ -6,6 +6,7 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
+import { machineDir } from "./lib/get-workspace-folder";
 import {
   LAUNCH_OVERRIDES_FILENAME,
   readLaunchOverrides,
@@ -19,7 +20,14 @@ import {
   migrateMachineSettings,
   migrateWorkspaceSettings,
 } from "./lib/settings-migration";
+import { cleanUpMachineData } from "./lib/machine-cleanups";
+import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
+import { finishPendingMove } from "./lib/workspace-move";
+import {
+  inspectWorkspaceFolder,
+  setWorkspaceRefusal,
+} from "./lib/workspace-refusal";
 import {
   markWorkspaceOpen,
   releaseOpenMark,
@@ -61,6 +69,18 @@ function configureUserDataDirectory() {
 
 configureUserDataDirectory();
 
+// A page can hand an agent its own callable tools, described and typed,
+// through `document.modelContext`, instead of making it read the page and
+// click. The agent reads that registry over CDP, and the domain it reads
+// through needs no switch on this Chromium; this one turns on the page half,
+// which a site feature-detects before it registers anything, so without it
+// there is nothing on the other side to read. Read before appending, because
+// the value already there is the one the browser process took.
+const blink = app.commandLine.getSwitchValue("enable-blink-features");
+app.commandLine.appendSwitch(
+  "enable-blink-features",
+  blink ? `${blink},WebMCP` : "WebMCP",
+);
 // A dev build is a different binary in every checkout, so macOS asks again for
 // the keychain's Safe Storage item on each one's first launch. Dev keeps its
 // own stores in plaintext, and the mock keychain leaves Chromium's cookie
@@ -73,24 +93,43 @@ initializeElectronLogging();
 installAISDKWarningLogger();
 
 /**
- * Settles which workspace this process runs and brings its settings up to this
- * build, before any store opens: every workspace store reads its folder from
- * the resolved workspace when it is first asked for.
+ * Settles which workspace this process runs, makes a move to a folder the
+ * person picked, brings its settings up to this build, and moves what is
+ * this computer's own into its machine folder, before any store opens:
+ * every workspace store reads its folder from the resolved workspace when it
+ * is first asked for.
  */
 function openWorkspace() {
-  const userDataDir = app.getPath("userData");
-  const { problems, workspace } = resolveWorkspace({
+  const userDataDir = machineDir();
+  const resolved = resolveWorkspace({
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,
   });
-  for (const problem of problems) {
+  for (const problem of resolved.problems) {
     logger.warn(problem);
   }
-  setResolvedWorkspace(workspace);
+  const { done: moveSteps, workspace } = finishPendingMove({
+    userDataDir,
+    workspace: resolved.workspace,
+  });
+  for (const step of moveSteps) {
+    logger.info(`Workspace move: ${step}`);
+  }
   logger.info(
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
-
+  // A folder made by a newer build, or one that cannot be read, is not
+  // opened: the boot says so in a window of its own and starts nothing else.
+  const refusal = inspectWorkspaceFolder({ userDataDir, workspace });
+  if (refusal) {
+    logger.warn(
+      refusal.kind === "newer"
+        ? `Not opening ${workspace.path}: a newer build made it`
+        : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
+    );
+    setWorkspaceRefusal(refusal);
+    return;
+  }
   for (const step of [
     ...migrateMachineSettings(userDataDir),
     ...migrateWorkspaceSettings({
@@ -102,11 +141,26 @@ function openWorkspace() {
     logger.info(`Settings migration: ${step}`);
   }
 
-  markWorkspaceOpen(workspace.path);
+  // After the settings migration, which brings what predates workspaces into
+  // the folder this takes it from.
+  const moved = moveMachineData({ userDataDir, workspace });
+  for (const step of moved.done) {
+    logger.info(`Machine data: ${step}`);
+  }
+  for (const step of cleanUpMachineData({
+    machineDir: moved.machineDir,
+    userDataDir,
+    workspace,
+  })) {
+    logger.info(`Machine cleanup: ${step}`);
+  }
+  setResolvedWorkspace({ ...workspace, machineDir: moved.machineDir });
+
+  markWorkspaceOpen(moved.machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in
   // `app.exit`, which skips `will-quit`.
   process.on("exit", () => {
-    releaseOpenMark(workspace.path);
+    releaseOpenMark(moved.machineDir);
   });
 }
 

@@ -61,7 +61,7 @@ function makeExecuteArgs(
 
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
-    [MOCK_WORKSPACE_DIRS.chats]: {
+    [MOCK_WORKSPACE_DIRS.work]: {
       [chatId]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,
@@ -245,7 +245,7 @@ describe("EditFile", () => {
       `);
       await expect(
         fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.chats, chatId, "index.ts"),
+          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "index.ts"),
           "utf8",
         ),
       ).resolves.toBe(original);
@@ -281,6 +281,75 @@ describe("EditFile", () => {
   });
 
   describe("execute - block anchor guard rails", () => {
+    // Every real source file has a blank line in it, and the block anchors
+    // are what answers when the model's oldString is close but not exact,
+    // which is the only reason they exist.
+    it("replaces a block with blank lines above it", async () => {
+      setupMockFs({
+        "blanks.ts": [
+          "const first = 1;",
+          "",
+          "function keep() {",
+          "  doWork(1);",
+          "}",
+          "",
+          "const last = 2;",
+        ].join("\n"),
+      });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./blanks.ts",
+          newString: ["function keep() {", "  done();", "}"].join("\n"),
+          // The anchors match and the middle is near enough to accept, which
+          // is the block anchors doing their job.
+          oldString: ["function keep() {", "  doWork(2);", "}"].join("\n"),
+        }),
+      );
+
+      expect(result.isOk()).toBe(true);
+      expect(
+        await fs.readFile(
+          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "blanks.ts"),
+          "utf8",
+        ),
+      ).toBe(
+        [
+          "const first = 1;",
+          "",
+          "function keep() {",
+          "  done();",
+          "}",
+          "",
+          "const last = 2;",
+        ].join("\n"),
+      );
+    });
+
+    // Two anchors with one line between them: a search block of two lines is
+    // all anchors and no middle, so nothing checks what sits between.
+    it("refuses a two-line oldString rather than eat the line between", async () => {
+      setupMockFs({ "pair.ts": "foo();\n  const keep = 1;\nbar();\n" });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./pair.ts",
+          newString: "REPLACED\n",
+          oldString: "foo();\nbar();\n",
+        }),
+      );
+
+      expect(result.isErr()).toBe(true);
+      expect(
+        await fs.readFile(
+          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "pair.ts"),
+          "utf8",
+        ),
+      ).toContain("const keep = 1;");
+    });
+
     it("refuses a block anchored on matching first and last lines with an unrelated middle", async () => {
       setupMockFs({
         "anchors.ts": [

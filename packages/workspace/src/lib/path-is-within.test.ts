@@ -1,6 +1,13 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { pathIsWithin } from "./path-is-within";
+
+/**
+ * A normalized host path from the disk's root, with this platform's
+ * separators (`C:\foo\bar` on Windows), keeping a trailing separator.
+ */
+const host = (posixPath: string) => path.join(path.resolve("/"), posixPath);
 
 describe("pathIsWithin", () => {
   it.each([
@@ -16,7 +23,7 @@ describe("pathIsWithin", () => {
   ])(
     "$candidate within $root -> $expected",
     ({ candidate, expected, root }) => {
-      expect(pathIsWithin(candidate, root)).toBe(expected);
+      expect(pathIsWithin(host(candidate), host(root))).toBe(expected);
     },
   );
 });

@@ -1,10 +1,32 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import nodePath from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { folderToAskFor, reachOf, rulesFor } from "./rules";
+import { SYSTEM_DRIVE } from "../disk-root";
+import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
 
-const home = "/Users/someone";
-const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
+// A home folder on the drive this computer runs from, spelled as node:path
+// spells one here (`C:\Users\someone` on Windows), so a folder the rules name
+// compares as is. The drive is named rather than left to `resolve`, which
+// takes the drive the run happens to be on: a machine whose temp folder or
+// checkout is on another drive would put this home inside the drives place,
+// which asks, and every case below that reads a path no rule covers would
+// read as asking instead.
+const home = nodePath.join(
+  process.platform === "win32" ? `${SYSTEM_DRIVE}\\` : "/",
+  "Users",
+  "someone",
+);
+const inHome = (relative: string) => nodePath.join(home, relative);
+const settings = {
+  apps: [],
+  chats: {},
+  folders: [],
+  places: {},
+  dangerouslyAllowEveryFolder: false,
+};
 
 describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
   const rules = rulesFor({
@@ -40,9 +62,16 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     ["read", `${home}/.netrc`, "ask"],
     ["read", `${home}/Library/Keychains/login.keychain-db`, "never"],
     ["read", `${home}/Library/Application Support/Arc/User Data`, "never"],
-    ["read", `${home}/.config/uv/uv.toml`, "ask"],
+    // A hidden folder in the home folder that no sign-in list names is read
+    // without a card, and changed only after one.
+    ["read", `${home}/.config/uv/uv.toml`, "allow"],
+    ["write", `${home}/.config/uv/uv.toml`, "ask"],
+    ["read", `${home}/.m2/settings.xml`, "ask"],
     ["read", `${home}/Library/Preferences/x.plist`, "ask"],
-    ["write", `${home}/Documents/Instrument/out.png`, "allow"],
+    // The output folder, which is the home folder's `Instrument` while
+    // nobody has picked one; Documents around it still asks.
+    ["write", `${home}/Instrument/out.png`, "allow"],
+    ["write", `${home}/Documents/Instrument/out.png`, "ask"],
     ["read", "/Volumes/Backup/photos", "ask"],
     ["read", "/usr/bin/env", "allow"],
     ["write", "/opt/thing", "ask"],
@@ -73,7 +102,7 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
   });
 
   it("turns asks into allows without asking but sign-ins', never never", () => {
-    const relaxed = { ...rules, withoutAsking: true };
+    const relaxed = { ...rules, dangerouslyAllowEveryFolder: true };
     expect(reachOf(relaxed, `${home}/Desktop/a.png`, "write").level).toBe(
       "allow",
     );
@@ -136,7 +165,7 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     const declined = rulesFor({
       denials: [`${home}/Desktop/Trip`],
       home,
-      settings: { ...settings, withoutAsking: true },
+      settings: { ...settings, dangerouslyAllowEveryFolder: true },
     });
     const reach = reachOf(declined, `${home}/Desktop/Trip/a.png`, "read");
     expect(reach.level).toBe("never");
@@ -177,38 +206,43 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
 describe("folderToAskFor", () => {
   const documents = {
     level: "ask",
-    path: `${home}/Documents`,
+    path: inHome("Documents"),
     source: "place",
   } as const;
 
   it.each([
     [
-      `${home}/Documents/Clients/Acme/a.pdf`,
+      inHome("Documents/Clients/Acme/a.pdf"),
       false,
-      `${home}/Documents/Clients`,
+      inHome("Documents/Clients"),
     ],
-    [`${home}/Documents/report.pdf`, false, `${home}/Documents`],
-    [`${home}/Documents/Clients`, true, `${home}/Documents/Clients`],
+    [inHome("Documents/report.pdf"), false, inHome("Documents")],
+    [inHome("Documents/Clients"), true, inHome("Documents/Clients")],
   ])("%s asks for %s", (hostPath, isDirectory, expected) => {
     expect(
-      folderToAskFor({ home, hostPath, isDirectory, rule: documents }),
+      folderToAskFor({
+        hostPath,
+        isDirectory,
+        rule: documents,
+        rules: rulesFor({ home, settings }),
+      }),
     ).toBe(expected);
   });
 
   it.each([
-    [`${home}/.ssh/config`, `${home}/.ssh`],
-    [`${home}/.ssh/keys/work/id_ed25519`, `${home}/.ssh`],
-    [`${home}/.config/gh/hosts.yml`, `${home}/.config/gh`],
-    [`${home}/.netrc`, `${home}/.netrc`],
-    [`${home}/.docker/config.json`, `${home}/.docker/config.json`],
+    [inHome(".ssh/config"), inHome(".ssh")],
+    [inHome(".ssh/keys/work/id_ed25519"), inHome(".ssh")],
+    [inHome(".config/gh/hosts.yml"), inHome(".config/gh")],
+    [inHome(".netrc"), inHome(".netrc")],
+    [inHome(".docker/config.json"), inHome(".docker/config.json")],
   ])("asks for a sign-in place whole: %s asks for %s", (hostPath, expected) => {
     const rules = rulesFor({ home, settings });
     expect(
       folderToAskFor({
-        home,
         hostPath,
         isDirectory: false,
         rule: reachOf(rules, hostPath, "read").rule,
+        rules,
       }),
     ).toBe(expected);
   });
@@ -216,13 +250,65 @@ describe("folderToAskFor", () => {
   it("asks one level below home where no rule holds the path", () => {
     expect(
       folderToAskFor({
-        home,
-        hostPath: `${home}/Projects/site/index.html`,
+        hostPath: inHome("Projects/site/index.html"),
         isDirectory: false,
         rule: undefined,
+        rules: rulesFor({ home, settings }),
       }),
-    ).toBe(`${home}/Projects`);
+    ).toBe(inHome("Projects"));
   });
+
+  // The app's own data in a place that asks, as the machine folder sits in
+  // the Library on a Mac: a card for something beside it names the folder
+  // below the one that holds it, and one with nothing below asks for the
+  // folder that holds it, which ruleRefusal raises no card for.
+  it.each([
+    [
+      inHome("Library/Application Support/Other/state.json"),
+      false,
+      inHome("Library/Application Support/Other"),
+    ],
+    [
+      inHome("Library/Application Support/Other/cache/a"),
+      true,
+      inHome("Library/Application Support/Other"),
+    ],
+    [
+      inHome("Library/Application Support"),
+      true,
+      inHome("Library/Application Support"),
+    ],
+    [
+      inHome("Library/Preferences/x.plist"),
+      false,
+      inHome("Library/Preferences"),
+    ],
+  ])(
+    "asks around the app's own data: %s asks for %s",
+    (hostPath, isDirectory, expected) => {
+      const base = rulesFor({ home, settings });
+      const rules = {
+        ...base,
+        rules: [
+          ...base.rules,
+          {
+            appData: true,
+            level: "never",
+            path: inHome("Library/Application Support/Instrument"),
+            source: "system",
+          } as const,
+        ],
+      };
+      expect(
+        folderToAskFor({
+          hostPath,
+          isDirectory,
+          rule: { level: "ask", path: inHome("Library"), source: "place" },
+          rules,
+        }),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe.runIf(process.platform !== "win32")("an allow above the home", () => {
@@ -271,11 +357,221 @@ describe("reachOf at one depth", () => {
     (_order, rules) => {
       expect(
         reachOf(
-          { home, rules: [...rules], withoutAsking: false },
+          { home, rules: [...rules], dangerouslyAllowEveryFolder: false },
           `${home}/.ssh/id_ed25519`,
           "read",
         ).level,
       ).toBe("ask");
     },
   );
+});
+
+describe("reachOf on Windows, where a name's trailing dots are dropped", () => {
+  const platform = process.platform;
+  const rules: Rules = {
+    home,
+    rules: [
+      { level: "allow", path: "/ws", source: "folder" },
+      {
+        appData: true,
+        level: "never",
+        path: "/ws/.instrument",
+        source: "system",
+      },
+    ],
+    dangerouslyAllowEveryFolder: false,
+  };
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+  });
+
+  it.each([".instrument.", ".instrument ", ".instrument. ."])(
+    "closes /ws/%s/chats/c/chat.db as the app's own data",
+    (name) => {
+      Object.defineProperty(process, "platform", { value: "win32" });
+      expect(reachOf(rules, `/ws/${name}/chats/c/chat.db`, "read").level).toBe(
+        "never",
+      );
+    },
+  );
+});
+
+/**
+ * NTFS opens a folder by two more names than its own: its 8.3 short name
+ * (`INSTRU~1`, in any case) and its `::$INDEX_ALLOCATION` stream. Node opens
+ * both, so the rules decide on the path as the system resolves it, and the
+ * stream's `:` is never part of a name there. The system's resolver is
+ * stood in for here, as it answers on Windows.
+ */
+describe("reachOf on Windows, where a folder has second names", () => {
+  const platform = process.platform;
+  const rules: Rules = {
+    home,
+    rules: [
+      { level: "allow", path: "/ws", source: "folder" },
+      {
+        appData: true,
+        level: "never",
+        path: "/ws/.instrument",
+        source: "system",
+      },
+    ],
+    dangerouslyAllowEveryFolder: false,
+  };
+
+  beforeEach(() => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    vi.spyOn(fs.realpathSync, "native").mockImplementation((given) => {
+      const spelled = String(given);
+      const opened = spelled.replace(
+        /^\/ws\/instru~1(?=\/|$)/i,
+        "/ws/.instrument",
+      );
+      if (!/^\/ws(?:\/|$)/.test(spelled) && spelled !== "/") {
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      }
+      if (
+        spelled !== opened ||
+        ["/", "/ws", "/ws/.instrument"].includes(spelled)
+      ) {
+        return opened;
+      }
+      // Below /ws/.instrument, as it exists on that disk.
+      if (/^\/ws\/\.instrument\/keys(?:\/secret\.txt)?$/.test(spelled)) {
+        return spelled;
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+    vi.restoreAllMocks();
+  });
+
+  // The stood-in resolver answers for these POSIX spellings only; on Windows
+  // itself the real disk answers, in the test after this block.
+  it
+    .skipIf(process.platform === "win32")
+    .each([
+      "/ws/INSTRU~1/keys/secret.txt",
+      "/ws/instru~1/keys/secret.txt",
+      "/ws/INSTRU~1/keys/not-yet.txt",
+    ])("closes %s as the app's own data", (spelled) => {
+    expect(reachOf(rules, spelled, "read")).toMatchObject({
+      level: "never",
+      rule: { appData: true },
+    });
+  });
+
+  it.each([
+    "/ws/.instrument::$INDEX_ALLOCATION/keys/secret.txt",
+    String.raw`C:\ws\.instrument::$INDEX_ALLOCATION\keys\secret.txt`,
+    String.raw`\\?\C:\ws\notes.txt:hidden`,
+    "/ws/notes.txt:Zone.Identifier",
+  ])("closes %s, a path through a stream", (spelled) => {
+    expect(reachOf(rules, spelled, "read")).toEqual({
+      level: "never",
+      stream: true,
+    });
+  });
+
+  it.each([String.raw`C:\ws\notes.txt`, String.raw`\\?\C:\ws\notes.txt`])(
+    "takes the drive's own colon in %s for no stream",
+    (spelled) => {
+      expect(reachOf(rules, spelled, "read").stream).toBeUndefined();
+    },
+  );
+
+  it("leaves the folder's own files open", () => {
+    expect(reachOf(rules, "/ws/notes.txt", "read").level).toBe("allow");
+  });
+});
+
+it.runIf(process.platform === "win32")(
+  "closes every spelling NTFS opens a closed folder by, on a real disk",
+  ({ skip }) => {
+    const ws = fs.mkdtempSync(nodePath.join(os.tmpdir(), "second-names-"));
+    try {
+      fs.mkdirSync(nodePath.join(ws, ".instrument", "keys"), {
+        recursive: true,
+      });
+      fs.writeFileSync(nodePath.join(ws, ".instrument", "keys", "a.txt"), "");
+      fs.writeFileSync(nodePath.join(ws, "notes.txt"), "");
+      // A second name of the 8.3 kind is what this case is about, and a
+      // volume can be set up without them: Windows leaves them off on a
+      // drive added after the system one, which is where a CI runner puts
+      // its temp folder. There the folder has only its own name and there is
+      // no second spelling to close.
+      if (!fs.existsSync(nodePath.join(ws, "INSTRU~1"))) {
+        skip();
+      }
+      const rules: Rules = {
+        home,
+        rules: [
+          { level: "allow", path: ws, source: "folder" },
+          {
+            appData: true,
+            level: "never",
+            path: nodePath.join(ws, ".instrument"),
+            source: "system",
+          },
+        ],
+        dangerouslyAllowEveryFolder: false,
+      };
+      const levelOf = (...segments: string[]) =>
+        reachOf(rules, nodePath.join(ws, ...segments), "read").level;
+
+      expect({
+        short: levelOf("INSTRU~1", "keys", "a.txt"),
+        shortLower: levelOf("instru~1", "keys", "a.txt"),
+        shortNotYet: levelOf("INSTRU~1", "keys", "not-yet.txt"),
+        stream: levelOf(".instrument::$INDEX_ALLOCATION", "keys", "a.txt"),
+        trailingDot: levelOf(".instrument.", "keys", "a.txt"),
+        upper: levelOf(".INSTRUMENT", "keys", "a.txt"),
+        open: levelOf("notes.txt"),
+      }).toEqual({
+        short: "never",
+        shortLower: "never",
+        shortNotYet: "never",
+        stream: "never",
+        trailingDot: "never",
+        upper: "never",
+        open: "allow",
+      });
+    } finally {
+      fs.rmSync(ws, { force: true, recursive: true });
+    }
+  },
+);
+
+describe("a skill source the shell mounts", () => {
+  // The app's prepared skills, where they are: a hidden folder in the home
+  // folder, which no place and no sign-in list names.
+  const skills = inHome(".instrument-runtime/skills");
+
+  it("is read from a hidden folder in the home folder without being named", () => {
+    const rules = rulesFor({ home, settings });
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "read").level,
+    ).toBe("allow");
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "write").level,
+    ).toBe("ask");
+  });
+
+  it("is read without asking once it is", () => {
+    const rules = rulesFor({ extraReadOnly: [skills], home, settings });
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "read").level,
+    ).toBe("allow");
+  });
+
+  it("is still never changed", () => {
+    const rules = rulesFor({ extraReadOnly: [skills], home, settings });
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "write").level,
+    ).not.toBe("allow");
+  });
 });

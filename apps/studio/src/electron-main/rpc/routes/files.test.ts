@@ -22,6 +22,17 @@ vi.mock("@/electron-main/lib/mac-native", () => ({
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),
 }));
+// The app's own data, which `refused-files.ts` rules on, stood in for by
+// whatever folders `closedFolders` names.
+const closedFolders: string[] = [];
+const isClosed = (filePath: string) =>
+  closedFolders.some(
+    (folder) => filePath === folder || filePath.startsWith(`${folder}/`),
+  );
+vi.mock("@/electron-main/lib/refused-files", () => ({
+  isRefusedByName: (filePath: string) => isClosed(filePath),
+  isRefusedFile: (filePath: string) => Promise.resolve(isClosed(filePath)),
+}));
 // The journal kept in memory rather than in the machine's store.
 vi.mock("@/electron-main/stores/machine/file-journal", async () => {
   const { createFileJournal } =
@@ -45,7 +56,24 @@ beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(tmpdir(), "files-route-"));
 });
 afterEach(async () => {
+  closedFolders.length = 0;
   await fs.rm(dir, { force: true, recursive: true });
+});
+
+it("neither reads nor writes the app's own data", async () => {
+  const keys = path.join(dir, "keys");
+  const file = path.join(keys, "session.json");
+  await fs.mkdir(keys);
+  await fs.writeFile(file, "secret");
+  closedFolders.push(keys);
+
+  await expect(call(files.read, { path: file }, options)).rejects.toMatchObject(
+    { code: "FORBIDDEN" },
+  );
+  await expect(
+    call(files.write, { content: "replaced", path: file }, options),
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  expect(await fs.readFile(file, "utf8")).toBe("secret");
 });
 
 it("lets only one of two writers holding the same version write", async () => {

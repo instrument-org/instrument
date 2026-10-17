@@ -60,7 +60,6 @@ interface PublisherEvents {
   // What the Claude Code CLI on this computer says about its sign-in changed.
   "claude-account.updated": null;
   "debug.browser-view-manager.updated": null;
-  "features.updated": null;
   // Whether the platform API answers changed (development builds only).
   "platform-api.reachability.updated": null;
   "preferences.updated": null;

@@ -1,8 +1,4 @@
-import {
-  APP_PROTOCOL,
-  isWindowsPath,
-  PRIVATE_FOLDER_NAME,
-} from "@instrument-org/shared";
+import { APP_PROTOCOL, isWindowsPath } from "@instrument-org/shared";
 import {
   resolveThroughAliases,
   serveStaticFile,
@@ -13,6 +9,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { resolveAlias } from "./mac-native";
+import { isRecordPath, isRefusedByName, isRefusedFile } from "./refused-files";
 import {
   fileThumbnail,
   fileThumbnailDeps,
@@ -42,10 +39,14 @@ import {
  *   its own location: a page's file is shown in a browser guest at its
  *   `file://` address instead. The check is unconditional so development
  *   exercises the same path the packaged build does.
- * - The task's private directory is refused as a segment anywhere, the way
- *   every other road to a file refuses it, and only GET and HEAD are answered.
- *   A Finder alias on the path is followed, as a symbolic link is, and where
- *   it leads is held to the same refusal.
+ * - A workspace's records are refused under a `.instrument` segment
+ *   anywhere but in the folders there that hold the person's own files (what
+ *   they attached to a chat, their drafts), the way every other road to a
+ *   file refuses them, and so is the machine folder but the workspaces kept
+ *   in it (`refused-files.ts`), since its keys and browser profiles carry no
+ *   such segment. Only GET and HEAD are answered. A Finder alias on the path
+ *   is followed, as a symbolic link is, and where either leads is held to
+ *   the same refusal.
  */
 const HOST_PREFIX = "computer-";
 
@@ -60,11 +61,6 @@ const UNSAFE_POSIX_PATH_REGEX = /(?:^|\/)\.{1,2}(?:$|\/)|\/{2,}/;
  */
 const UNSAFE_WINDOWS_PATH_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
 
-const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
-  `(?:^|/)${PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:/|$)`,
-  "i",
-);
-
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
 /** The origin the renderer builds file URLs on; the token is the whole secret. */
@@ -75,7 +71,7 @@ export function computerFileBase() {
 /**
  * The host path a channel URL names, or nothing when the URL is not one this
  * launch answers: a wrong token, a path that is not absolute, a traversal, or
- * the private directory.
+ * a workspace's records.
  *
  * The path travels percent-encoded per segment and is decoded once here. A
  * Windows path keeps its drive letter as the first segment (`/C:/Users/...`),
@@ -106,7 +102,7 @@ export function hostPathOfComputerFileUrl(
   if (unsafe.test(decoded)) {
     return;
   }
-  if (PRIVATE_DIR_SEGMENT_REGEX.test(decoded)) {
+  if (isRecordPath(decoded)) {
     return;
   }
   if (!hostPaths.isAbsolute(hostPath)) {
@@ -131,15 +127,17 @@ app.all("/*", async (c) => {
     return c.notFound();
   }
   const hostPath = await resolveThroughAliases(asked, resolveAlias);
-  if (PRIVATE_DIR_SEGMENT_REGEX.test(hostPath)) {
-    return c.notFound();
-  }
   // The renderer's own origin is never this scheme, so every read is
   // cross-origin and `fetch()` needs the grant; the token is what gates the
   // channel, not the origin. The two range headers are what a partial reader
   // needs to see to know slices are answered and how long the whole is.
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Expose-Headers", "Accept-Ranges, Content-Range");
+  // Forbidden rather than not found, and readable by the renderer, so the
+  // file tab that asked can say the file is kept closed rather than gone.
+  if (isRefusedByName(asked) || (await isRefusedFile(hostPath))) {
+    return c.body(null, 403);
+  }
   // `?thumbnail=<px>`: the file drawn small rather than the file itself (see
   // `file-thumbnails.ts`), for a grid or a row that would otherwise decode
   // the whole file to show an inch of it. A 404 is the system having no

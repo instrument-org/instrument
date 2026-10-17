@@ -1,0 +1,7 @@
+# Every text file is checked out with the line endings it was committed with.
+# Git for Windows otherwise turns them into CRLF on checkout, and a test that
+# regenerates a file and compares it with what is on disk then fails there
+# for a reason that has nothing to do with the file's content: the generated
+# section is joined with "\n" while the rest of the file carries "\r\n".
+# Binary files are left alone, as `text=auto` detects them.
+* text=auto eol=lf

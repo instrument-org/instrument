@@ -15,26 +15,26 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { detectDateChange } from "./date-change";
-
+import { detectEnvironmentChange } from "./environment";
+import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
 import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
-import { Store } from "./store";
-import { resolveChat } from "./record-folders";
+import { chatDir, resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
-import { grantFolder } from "./chat/grants";
+import { grantFile } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
-import { workDir } from "./work-dir";
 
 export async function newMessage({
   asks,
   files,
   folders,
   fromChat,
+  fromDraft,
   intent,
   modelURI,
   prompt,
@@ -45,6 +45,7 @@ export async function newMessage({
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
+  /** Files the user sent with the message, each from the disk granted to the chat where it is. */
   files?: FileUpload.Type[];
   /** Folders the user sent with the message, each granted to the chat. */
   folders?: { path: string }[];
@@ -53,6 +54,8 @@ export async function newMessage({
    * from-chat part.
    */
   fromChat?: SessionMessageDataPart.FromChatDataPart;
+  /** The draft this was sent from, by its id; see the message's metadata. */
+  fromDraft?: string;
   intent?: string;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
@@ -158,20 +161,22 @@ export async function newMessage({
     });
   }
 
-  for (const folder of folders ?? []) {
-    await grantFolder({ chatId, path: folder.path, source: "attached" });
-  }
-
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: workDir(chatId),
       files,
       messageId,
+      recordDir: chatDir(chatId),
       sessionId,
     });
 
     if (uploadResult.isErr()) {
       return uploadResult;
+    }
+
+    for (const file of files ?? []) {
+      if ("path" in file) {
+        await grantFile({ chatId, path: file.path });
+      }
     }
 
     const { part } = uploadResult.value;
@@ -226,6 +231,21 @@ export async function newMessage({
     parts.push(dateChange.value);
   }
 
+  // The session context names the computer it started on and is never
+  // rewritten, so a chat that moved to another computer, or whose computer
+  // changed under it, is told here instead.
+  const environmentChange = await detectEnvironmentChange({
+    chatId,
+    messageId,
+    sessionId,
+  });
+  if (environmentChange.isErr()) {
+    // Awareness of the computer is best-effort; never block sending.
+    getWorkspaceConfig().captureException(environmentChange.error);
+  } else if (environmentChange.value) {
+    parts.push(environmentChange.value);
+  }
+
   // Nothing in the context says what time it is, so a message sent a day after
   // the one before it is otherwise indistinguishable from one sent a moment
   // later.
@@ -250,14 +270,14 @@ export async function newMessage({
 
     // The chat's topics ride on every message sent in it, and the model
     // note is rendered only when they changed since the last one.
-    const chatTopicsPart = await createChatTopicsPart({
+    const topicsPart = await createTopicsPart({
       createdAt,
       messageId,
       sessionId,
       chatId,
     });
-    if (chatTopicsPart) {
-      parts.push(chatTopicsPart);
+    if (topicsPart) {
+      parts.push(topicsPart);
     }
 
     // What the agent remembers about the user, told once and again only when
@@ -305,7 +325,11 @@ export async function newMessage({
 
   const message: SessionMessage.UserWithParts = {
     id: messageId,
-    metadata: { createdAt, sessionId },
+    metadata: {
+      createdAt,
+      ...(fromDraft ? { fromDraft } : {}),
+      sessionId,
+    },
     parts,
     role: "user",
   };
@@ -327,7 +351,7 @@ export async function newMessage({
  * none and never has: a chat untagged since its last message gets an empty
  * part, so the note can say the topics are gone.
  */
-async function createChatTopicsPart({
+async function createTopicsPart({
   createdAt,
   messageId,
   sessionId,
@@ -338,17 +362,17 @@ async function createChatTopicsPart({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr()) {
     return undefined;
   }
   const tagged = session.value.topics ?? [];
   if (tagged.length === 0) {
-    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
+    const messages = await ChatReads.modelHistory({ chatId, sessionId });
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>
-        message.parts.some((part) => part.type === "data-chatTopics"),
+        message.parts.some((part) => part.type === "data-topics"),
       );
     if (!toldBefore) {
       return undefined;
@@ -374,7 +398,7 @@ async function createChatTopicsPart({
   return {
     data: { topics },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
-    type: "data-chatTopics",
+    type: "data-topics",
   };
 }
 

@@ -97,7 +97,7 @@ describe("WebFetch model output", () => {
 
   it("returns the first 20,000 characters when no size was asked for", async () => {
     const page = "p".repeat(60_000);
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -126,7 +126,7 @@ describe("WebFetch model output", () => {
     const page = `visible start ${"x".repeat(100)} full tail`;
     const partId = StoreId.newPartId();
     mockFs({
-      [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} },
     });
     vi.stubGlobal(
       "fetch",
@@ -155,7 +155,7 @@ describe("WebFetch model output", () => {
 
     expect(output.text).toBe(page.slice(0, 20));
     const spill = await fs.readFile(
-      `${MOCK_WORKSPACE_DIRS.chats}/${chatId}/${output.spillFilePath}`,
+      `${MOCK_WORKSPACE_DIRS.work}/${chatId}/${output.spillFilePath}`,
       "utf8",
     );
     expect(spill).toContain(page);
@@ -173,7 +173,7 @@ describe("WebFetch failures", () => {
   });
 
   async function fetchFailing(response: Response): Promise<string> {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
     vi.stubGlobal(
       "fetch",
       vi.fn(() => response),
@@ -264,7 +264,7 @@ describe("WebFetch page cache", () => {
       maxCharacters?: number;
     } = {},
   ) {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
     const fetchSpy = vi.fn(response);
     vi.stubGlobal("fetch", fetchSpy);
     const run = async (input: Record<string, unknown>) => {
@@ -375,7 +375,7 @@ describe("WebFetch addresses", () => {
   });
 
   async function fetchFrom(url: string, fetchSpy: ReturnType<typeof vi.fn>) {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
     vi.stubGlobal("fetch", fetchSpy);
     const result = await runTool(WebFetch, {
       input: { url },

@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { type Rules } from "../permissions/rules";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
@@ -78,7 +79,7 @@ const CANARY_TIMEOUT_MS = 20_000;
  * that turns the sandbox off.
  */
 export function sandboxStateDir(): string {
-  return path.join(path.dirname(getWorkspaceConfig().uvDataDir), "sandbox");
+  return runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox;
 }
 
 const verdicts = new Map<string, MxcVerdict>();
@@ -212,7 +213,7 @@ export function runMxcCanary(
     return probe;
   }
   const root = path.join(
-    path.dirname(getWorkspaceConfig().uvDataDir),
+    getWorkspaceConfig().runtimeDir,
     "mxc-canary",
     randomUUID(),
   );
@@ -283,7 +284,7 @@ function runInFolder(
       { level: "allow", path: granted, source: "grant" },
       { denied: true, level: "never", path: closed, source: "grant" },
     ],
-    withoutAsking: false,
+    dangerouslyAllowEveryFolder: false,
   };
   const spawned = launch(
     { readOnly: [], readWrite: [], rules },

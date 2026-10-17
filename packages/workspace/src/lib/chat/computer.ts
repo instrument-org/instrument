@@ -110,9 +110,9 @@ const ComputerListingSchema = z.object({
 export type ComputerListing = z.output<typeof ComputerListingSchema>;
 
 /**
- * A folder the operating system would not let this app read, and who
- * refused (`ReadRefusal`), since only a refusal by the Mac's privacy controls
- * is one the person can undo from here.
+ * A folder this app does not list, and who refused: the operating system
+ * (`ReadRefusal`), since only a refusal by the Mac's privacy controls is one
+ * the person can undo from here, or the app itself, for its own data.
  */
 const ComputerRefusalSchema = z.object({
   /** The path as a person writes it, the home folder as `~`. */
@@ -125,7 +125,13 @@ const ComputerRefusalSchema = z.object({
   package: z.literal(true).optional(),
   /** The host path asked for, `~` expanded. */
   path: z.string(),
-  reason: z.enum(["account", "system"]) satisfies z.ZodType<ReadRefusal>,
+  /**
+   * `app` is the app's own data (`WorkspaceConfig.isRefusedFile`), which it
+   * keeps closed whatever the system allows; the rest are the system's.
+   */
+  reason: z.enum(["account", "app", "system"]) satisfies z.ZodType<
+    "app" | ReadRefusal
+  >,
   /**
    * The folder above the one asked for whose permissions keep the account
    * from passing through it, which refuses everything under it whether it
@@ -189,7 +195,9 @@ export function accessIn(
 /**
  * One folder of the computer: files and subfolders, folders first. Read as the
  * app's own user, which is what the person browsing is; whether the agent may
- * read it is a separate question, answered by `access`.
+ * read it is a separate question, answered by `access`. The app's own data is
+ * the exception: a folder of it is refused, and an entry of it left out, as
+ * the viewers' file channel refuses its files.
  *
  * Dotfiles are listed. Whether they are *shown* is the browser's to decide,
  * because it is the browser that offers the switch: answering it here would mean
@@ -203,10 +211,19 @@ export async function listComputerFolder({
   path: string;
   chatId: ChatId;
 }): Promise<ComputerFolder> {
+  const asked = await resolveICloudPath(expandHomePath(input), exists);
   const hostPath = await resolveThroughAliases(
-    await resolveICloudPath(expandHomePath(input), exists),
+    asked,
     getWorkspaceConfig().resolveAlias,
   );
+  if ((await isAppData(asked)) || (await isAppData(hostPath))) {
+    return {
+      display: displayHostPath(hostPath),
+      kind: "refused",
+      path: hostPath,
+      reason: "app",
+    };
+  }
   let dirents: Dirent[];
   let hiddenNames: ReadonlySet<string>;
   let finder: ReadonlyMap<string, FinderEntry>;
@@ -271,12 +288,15 @@ export async function listComputerFolder({
     );
   }
   entries.sort(compareEntries);
+  const refused = await Promise.all(
+    entries.map((entry) => isAppData(entry.path)),
+  );
 
   return {
     access: await computerAccess(chatId, hostPath),
     ...(appFolders?.access === "refused" ? { appFoldersLocked: true } : {}),
     display: displayHostPath(hostPath),
-    entries,
+    entries: entries.filter((_entry, index) => !refused[index]),
     kind: "listing",
     path: hostPath,
     truncated,
@@ -310,9 +330,9 @@ async function iCloudAppEntries(
 /**
  * Files of the computer by host path, each as the browser shows it and with
  * whether the chat `chatId` can reach it, in the order asked. A path that is
- * no longer there, or is no longer a file, is left out: the caller keeps a
- * list of paths from all over (what the user opened), and a row that opens
- * nothing is worse than a shorter list.
+ * no longer there, is no longer a file, or is the app's own data is left
+ * out: the caller keeps a list of paths from all over (what the user
+ * opened), and a row that opens nothing is worse than a shorter list.
  */
 export async function describeComputerFiles({
   paths,
@@ -325,7 +345,7 @@ export async function describeComputerFiles({
   const described = await Promise.all(
     paths.map(async (hostPath) => {
       const entry = await describeFile(hostPath);
-      if (!entry) {
+      if (!entry || (await isAppData(entry.path))) {
         return;
       }
       const access = accessIn(roots, entry.path);
@@ -480,6 +500,11 @@ function expandHomePath(input: string): string {
     throw new Error(`Not a path on this computer: ${input}`);
   }
   return path.resolve(trimmed);
+}
+
+/** Whether a path is the app's own data, which the person's views keep closed. */
+async function isAppData(hostPath: string): Promise<boolean> {
+  return (await getWorkspaceConfig().isRefusedFile?.(hostPath)) ?? false;
 }
 
 async function exists(hostPath: string) {

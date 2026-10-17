@@ -12,12 +12,16 @@
     "**/.tmp",
     "**/.turbo",
     "**/fixtures",
-    "**/templates",
     "registry",
     "**/*.snap",
     "**/*.gen.ts",
     "**/routeTree.gen.ts",
     ".claude/worktrees",
+    // A probe the root tsconfig leaves out, because node strips its types and
+    // it imports workspace sources by their .ts paths. Type-aware rules read
+    // every value in a file outside the project as `any`, so linting it says
+    // only that, 62 times over.
+    "scripts/sandbox-bakeoff",
     "**/bin",
     "**/tailwind-browser.js",
     // Script fragments build.mjs concatenates into one page script, so each

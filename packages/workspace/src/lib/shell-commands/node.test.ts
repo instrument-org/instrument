@@ -4,6 +4,7 @@ import {
   InMemoryFs,
   unsafeBytesFromLatin1,
 } from "just-bash";
+import path from "node:path";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -165,6 +166,8 @@ describe("nodeCommand", () => {
     );
   });
 
+  // Unchanged but for its spelling, which on Windows turns from the shell's
+  // (`/c/...`) to the host's, as node.exe reads it.
   it("passes an absolute path in a forwarded flag value unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
@@ -179,7 +182,10 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      [`--env-file=${chatRoot}/work/.env`, "./work/a.js"],
+      [
+        `--env-file=${path.join(layout.chat.hostRoot, "work", ".env")}`,
+        "./work/a.js",
+      ],
       expect.any(Object),
     );
   });
@@ -355,6 +361,7 @@ describe("nodeCommand", () => {
     );
   });
 
+  // Unchanged but for its spelling on Windows, as with a flag's value.
   it("passes the script file path unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
@@ -366,6 +373,8 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).toBe(`${chatRoot}/scripts/run.js`);
+    expect(calledArgs[0]).toBe(
+      path.join(layout.chat.hostRoot, "scripts", "run.js"),
+    );
   });
 });

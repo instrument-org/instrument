@@ -26,6 +26,7 @@ import {
 } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { listChatBackgroundProcesses } from "../src/lib/background-processes";
@@ -35,7 +36,7 @@ import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/asks";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
@@ -52,6 +53,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
+import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { startRun } from "./lib/start-run";
 import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
@@ -69,7 +71,8 @@ import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
-import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
+import { makeToolBinIn } from "../scripts/lib/tool-bin-dir";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 /** The Seatbelt launcher the same build makes, which native commands start through. */
@@ -131,8 +134,16 @@ function evalPrefix(name: string): string {
  * in the error a bare `run` produces so the cheapest reasonable choice is one
  * copy away. Nothing reads it otherwise, so it going stale costs a sentence in
  * an error message rather than a run against a model nobody chose.
+ *
+ * It is metered, which the free Workers AI models it replaced were not, and
+ * that is the price of a floor that passes the behavior the prompts are
+ * written to produce. Measured 2026-10-15 across ten models on five cases:
+ * every Workers AI and lite model, our own floor among them, left finished
+ * work in the chat's folder instead of the person's output folder, and this
+ * one did not. A floor that fails the product's own central rule reports a
+ * prompt change as working when it is not. Five cases cost about two cents.
  */
-export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
+export const HOUSE_FLOOR = "anthropic/claude-haiku-5.5";
 
 export interface CompletedRun {
   /** Every task this run's chat started, by its session. Empty unless it forked. */
@@ -584,6 +595,9 @@ export async function runEvals(
   // Shells run in the bash worker, as they do in Studio.
   setBashWorkerFactory(createTsxBashWorker);
 
+  const runtimeDir = path.join(workspaceRootDir, "runtime");
+  makeToolBinIn(runtimeDir);
+
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();
   const stopStandInWindow = standInWindow.listen();
@@ -601,15 +615,12 @@ export async function runEvals(
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
-      chatTemplateDir: path.resolve(
-        import.meta.dirname,
-        "../templates/default",
-      ),
+      deviceId: newDeviceId(),
       getAIProviderConfigs: () => providerConfigs,
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
-      // it the agent falls back to osascript, as a build without it would.
+      // it the agent has no way into them, as a build without it has none.
       ...(process.platform === "darwin" && fs.existsSync(SEATBELT_LAUNCHER)
         ? { seatbeltHelperPath: SEATBELT_LAUNCHER }
         : {}),
@@ -618,17 +629,25 @@ export async function runEvals(
         : {}),
       modelCache: noopModelCache,
       nodeExecEnv: {},
+      // A workspace the person picked, which is what makes its top level
+      // theirs: each chat's own folder under `Chats/` is then where its
+      // finished work goes, as it is for anyone who picked where their
+      // Instrument folder is kept. Without this a run measures the
+      // fallback, and nothing measures what the prompt tells the agent.
+      outputDir: workspaceRootDir,
       pnpmBinPath: PNPM_BIN,
-      preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
+      runtimeDir,
+      // Inside the run's own folder, so a saved run keeps the chats' work
+      // folders beside their records (`buildReportWorkspaceConfig`).
+      machineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
+      workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(
         (result) => result.stdout.trim() || "uv",
       ),
-      toolBinDir: toolBinDirIn(workspaceRootDir),
-      uvDataDir: path.join(workspaceRootDir, "uv-data"),
       // The uutils Studio vendors, so the shell's GNU text commands are the
       // app's; EVAL_BUILTINS_ONLY=1 leaves them the shell's own, to compare.
       ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
@@ -678,7 +697,7 @@ export async function runEvals(
   );
   const appFixtures = await seedConnectedApps(declaredApps, {
     apps: appsConfig,
-    appsDir: path.join(workspaceRootDir, "apps"),
+    appsDir: workspaceLayout(workspaceRootDir).appsDir,
   });
   for (const app of declaredApps) {
     write(
@@ -744,6 +763,14 @@ export async function runEvals(
       // every run behind it.
       creating = created.then(_.noop, _.noop);
       const { id, sessionId } = await created;
+      await recordRun(workspaceRootDir, {
+        chatId: id,
+        home: os.homedir(),
+        modelLabel,
+        name: evalCase.name,
+        sessionId,
+        trial,
+      });
 
       // Written straight onto the task rather than passed through `create`,
       // which has no input for it: every turn of this run then reads it, the
@@ -816,10 +843,10 @@ export async function runEvals(
         if (known) {
           return known;
         }
-        const stored = await Store.getMessages({
-          messageIds: [messageId],
-          sessionId: partSessionId,
+        const stored = await ChatReads.transcript({
           chatId: id,
+          only: new Set([messageId]),
+          sessionId: partSessionId,
         });
         const role = stored.isOk() ? stored.value[0]?.role : undefined;
         if (role) {
@@ -891,10 +918,10 @@ export async function runEvals(
               part.text.trim() !== ""
             ) {
               const seenAt = Date.now();
-              const stored = await Store.getMessages({
-                messageIds: [part.metadata.messageId],
-                sessionId: part.metadata.sessionId,
+              const stored = await ChatReads.transcript({
                 chatId: id,
+                only: new Set([part.metadata.messageId]),
+                sessionId: part.metadata.sessionId,
               });
               const role = stored.isOk() ? stored.value[0]?.role : undefined;
               if (role === undefined || role === "assistant") {
@@ -1399,7 +1426,7 @@ export async function sessionsFor(
 ): Promise<Session.WithMessagesAndParts[]> {
   const ids = sessionId
     ? [sessionId]
-    : (await Store.getSessions(chatId)).map((list) =>
+    : (await ChatReads.sessions({ chatId })).map((list) =>
         list.map((session) => session.id),
       );
   if (!Array.isArray(ids) && ids.isErr()) {
@@ -1407,11 +1434,12 @@ export async function sessionsFor(
   }
   const sessions: Session.WithMessagesAndParts[] = [];
   for (const id of Array.isArray(ids) ? ids : ids.value) {
-    const session = await Store.getSession(id, chatId);
-    const messages = await Store.getMessagesWithParts({
+    const session = await ChatReads.session({ chatId, sessionId: id });
+    const messages = await ChatReads.transcript({
+      bytes: true,
+      chatId,
       inherited: false,
       sessionId: id,
-      chatId,
     });
     if (session.isOk() && messages.isOk()) {
       sessions.push({ ...session.value, messages: messages.value });

@@ -23,6 +23,10 @@ const PROFILE_KEYS = {
 const PREVIEW_INSTALLER_PATTERN =
   /^Instrument Preview \(([\da-z-]+)\)-win-.*\.exe$/u;
 const PREVIEW_NAME_PATTERN = /^[\da-z-]+$/u;
+const ISO_TIME_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/iu;
+// Milliseconds from 1601-01-01, where a Windows file time starts, to 1970-01-01.
+const FILETIME_EPOCH_OFFSET_MS = 11_644_473_600_000n;
 const TARGETS = new Set(Object.keys(PROFILE_KEYS));
 // Written by `pnpm workspace:seed` at the root of the workspace it built. It is
 // how a fixture name gets from that run to this one.
@@ -168,6 +172,24 @@ function cdpFunction() {
 }`;
 }
 
+/**
+ * PowerShell that names the window a launch is showing: `app` once a page
+ * under the renderer URL is up, `refusal` when the launch refused its
+ * workspace and shows only its own window in place of everything else (a
+ * data: page with no renderer behind it, workspace-refusal-window.ts), and
+ * nothing while neither is up yet. studio-drive tells the two apart the same
+ * way and drives the second with `--page refusal`.
+ */
+function launchedPageFunction() {
+  return `function Get-LaunchedPage($cdp, [string] $rendererUrl) {
+  if (-not $cdp.live) { return $null }
+  $pages = @($cdp.targets | Where-Object { $_.type -eq 'page' })
+  if (@($pages | Where-Object { $_.url -like $rendererUrl }).Count -gt 0) { return 'app' }
+  if (@($pages | Where-Object { $_.url -like 'data:text/html*' }).Count -gt 0) { return 'refusal' }
+  return $null
+}`;
+}
+
 function fail(message) {
   throw new CliError(message);
 }
@@ -213,9 +235,24 @@ async function main() {
     }
     case "purge-recycled": {
       const folder = takeFlag("--path");
+      const since = takeFlag("--since");
       assertNoArguments();
       if (!folder) fail("Pass --path <the folder the deleted items were in>.");
-      report(runPowerShellJson(host, purgeRecycledScript(folder)));
+      if (!since) {
+        fail(
+          "Pass --since <ISO time from before the test deleted anything>. Only what was deleted from the folder at or after it is purged.",
+        );
+      }
+      // A zone is required: the host compares against deletion times it keeps
+      // in UTC, and a bare local time would be read in the driving machine's.
+      if (!ISO_TIME_PATTERN.test(since) || Number.isNaN(Date.parse(since))) {
+        fail(
+          `Invalid --since ${JSON.stringify(since)}. Use an ISO time with a zone, such as 2026-10-14T12:00:00Z.`,
+        );
+      }
+      report(
+        runPowerShellJson(host, purgeRecycledScript(folder, Date.parse(since))),
+      );
       break;
     }
     case "profile": {
@@ -251,7 +288,7 @@ async function main() {
         if (name && !PREVIEW_NAME_PATTERN.test(name)) {
           fail(`Invalid preview name ${JSON.stringify(name)}.`);
         }
-        report(runPowerShellJson(host, previewStartScript(name, timeout)));
+        reportStart(runPowerShellJson(host, previewStartScript(name, timeout)));
         break;
       }
       assertNoArguments();
@@ -260,7 +297,7 @@ async function main() {
           `--workspace and --fresh only apply to --target ${SEEDED_TARGET}.`,
         );
       }
-      report(
+      reportStart(
         runPowerShellJson(
           host,
           startScript(target, timeout, {
@@ -444,6 +481,7 @@ function previewExecutableFunction() {
 function previewStartScript(name, timeoutSeconds) {
   return `${baseScript()}
 ${cdpFunction()}
+${launchedPageFunction()}
 ${previewExecutableFunction()}
 $target = $profile.${PROFILE_KEYS[PREVIEW_TARGET]}
 if (-not $target -or -not $target.cdpPort -or -not $target.taskName) {
@@ -480,11 +518,13 @@ if (-not $existing.live) {
 $deadline = (Get-Date).AddSeconds(${timeoutSeconds})
 do {
   $cdp = Get-CdpStatus -port $target.cdpPort
-  if ($cdp.live -and @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0) {
+  $page = Get-LaunchedPage $cdp 'file:///*/resources/app.asar/out/renderer/*'
+  if ($page) {
     [ordered]@{
       cdp = $cdp
       executable = $executable.FullName
       port = $target.cdpPort
+      refusal = $page -eq 'refusal'
       reused = [bool] $existing.live
       target = '${PREVIEW_TARGET}'
       version = $executable.VersionInfo.ProductVersion
@@ -505,23 +545,50 @@ throw "The preview's CDP did not become ready on port $($target.cdpPort) within 
 function removePreviewScript(names, keepLatest) {
   const literal = names.map((name) => `'${name}'`).join(",");
   return `$ErrorActionPreference = 'Stop'
+${removeTreeFunction()}
 $programs = Join-Path $env:LOCALAPPDATA 'Programs'
 $dirs = @(Get-ChildItem -LiteralPath $programs -Directory -Filter 'instrument-preview-*' | Sort-Object LastWriteTime -Descending)
 $names = @(${literal || "@()"})
 if (${keepLatest ? "$true" : "$false"}) { $names = @($dirs | Select-Object -Skip 1 | ForEach-Object { $_.Name.Substring('instrument-preview-'.Length) }) }
-$removed = @(); $skipped = @()
+$removed = @(); $skipped = @(); $notRemoved = @()
 foreach ($name in $names) {
   $dir = Join-Path $programs "instrument-preview-$name"
   if (-not (Test-Path -LiteralPath $dir)) { $skipped += "$name (not installed)"; continue }
   if (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir + '\\', [StringComparison]::OrdinalIgnoreCase) }) { $skipped += "$name (running)"; continue }
   $uninstaller = Get-ChildItem -LiteralPath $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
   if ($uninstaller) { Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait }
-  if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
-  $data = Join-Path $env:APPDATA "Instrument Preview ($name)"
-  if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
+  $left = @(Remove-Tree $dir) + @(Remove-Tree (Join-Path $env:APPDATA "Instrument Preview ($name)"))
+  if ($left.Count -gt 0) { $notRemoved += $left; continue }
   $removed += $name
 }
-[ordered]@{ removed = $removed; skipped = $skipped; freeGB = [int]((Get-PSDrive C).Free / 1GB) } | ConvertTo-Json -Compress`;
+[ordered]@{ removed = $removed; skipped = $skipped; notRemoved = $notRemoved; freeGB = [int]((Get-PSDrive C).Free / 1GB) } | ConvertTo-Json -Compress`;
+}
+
+/**
+ * PowerShell that deletes a folder and everything in it, and returns what it
+ * could not delete rather than stopping. Win32 path parsing drops a trailing
+ * dot or space from a name, so a file a test left named `trailing-dot.` is not
+ * found at its plain path and Remove-Item gives up on the whole tree; rd given
+ * the folder's `\\?\` form passes every name through as it is. rd also removes
+ * a junction inside the tree without following it.
+ */
+function removeTreeFunction() {
+  return `function Remove-Tree([string] $path) {
+  if (-not (Test-Path -LiteralPath $path)) { return }
+  $long = '\\\\?\\' + $path
+  # Redirected inside cmd, since under 'Stop' a native command's stderr reaching
+  # PowerShell would end the script.
+  & cmd.exe /d /c "rd /s /q \`"$long\`" >nul 2>&1"
+  if (-not (Test-Path -LiteralPath $path)) { return }
+  # What is left, up to a sample: the folder itself when nothing in it remains.
+  try {
+    $entries = @([IO.Directory]::EnumerateFileSystemEntries($long, '*', [IO.SearchOption]::AllDirectories) | Select-Object -First 20 | ForEach-Object { $_.Substring(4) })
+  } catch {
+    $entries = @()
+  }
+  if ($entries.Count -eq 0) { return $path }
+  return $entries
+}`;
 }
 
 /** PowerShell that stops every installed preview, whichever build it is. */
@@ -547,32 +614,42 @@ foreach ($root in $roots) {
 
 /**
  * PowerShell that empties from the Recycle Bin only what was deleted from
- * inside one folder, so a test that deletes files can clean up after itself
- * without touching anything else there. Each deleted item is a `$R` file with
- * a `$I` record beside it, and the record holds the item's original path: an
- * 8-byte version, 8-byte size, 8-byte deletion time, then the path's length
- * in characters and the path in UTF-16. Nothing goes through Explorer, so no
- * confirmation dialog comes up on the person's screen.
+ * inside one folder at or after a given time, so a test that deletes files can
+ * clean up after itself without touching anything else there, including what
+ * was deleted from that same folder before the test began. Each deleted item
+ * is a `$R` file with a `$I` record beside it, and the record holds the item's
+ * original path: an 8-byte version, 8-byte size, 8-byte deletion time (a UTC
+ * file time), then the path's length in characters and the path in UTF-16.
+ * Nothing goes through Explorer, so no confirmation dialog comes up on the
+ * person's screen.
  */
-function purgeRecycledScript(folder) {
+function purgeRecycledScript(folder, sinceMs) {
   const literal = folder.replaceAll("'", "''");
+  const sinceFileTime = (BigInt(sinceMs) + FILETIME_EPOCH_OFFSET_MS) * 10_000n;
   return `$ErrorActionPreference = 'Stop'
 $folder = [IO.Path]::GetFullPath('${literal}').TrimEnd('\\')
 $segments = @($folder.Split('\\') | Where-Object { $_ })
 if ($segments.Count -lt 3 -or $folder -ieq $HOME.TrimEnd('\\')) {
   throw "Refusing to purge everything deleted from $($folder). Name the folder the test created."
 }
+$since = [long] '${sinceFileTime}'
 $prefix = $folder + '\\'
 $sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
 $bin = Join-Path ($folder.Substring(0, 3)) ('$Recycle.Bin\\' + $sid)
 $purged = @()
+$kept = @()
 if (Test-Path -LiteralPath $bin) {
   foreach ($record in @(Get-ChildItem -LiteralPath $bin -Force -Filter '$I*')) {
     $bytes = [IO.File]::ReadAllBytes($record.FullName)
     if ($bytes.Length -lt 28) { continue }
+    $deleted = [BitConverter]::ToInt64($bytes, 16)
     $length = [BitConverter]::ToInt32($bytes, 24)
     $original = [Text.Encoding]::Unicode.GetString($bytes, 28, [Math]::Min($length * 2, $bytes.Length - 28)).TrimEnd([char]0)
     if ($original -ieq $folder -or $original.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+      if ($deleted -lt $since) {
+        $kept += $original
+        continue
+      }
       $item = Join-Path $bin ('$R' + $record.Name.Substring(2))
       if (Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item -Force -Recurse }
       Remove-Item -LiteralPath $record.FullName -Force
@@ -580,7 +657,7 @@ if (Test-Path -LiteralPath $bin) {
     }
   }
 }
-[ordered]@{ folder = $folder; purged = $purged } | ConvertTo-Json -Compress`;
+[ordered]@{ folder = $folder; kept = $kept; purged = $purged; since = [DateTime]::FromFileTimeUtc($since).ToString('o') } | ConvertTo-Json -Compress`;
 }
 
 /**
@@ -627,24 +704,23 @@ $profile | ConvertTo-Json -Depth 8 -Compress`;
 }
 
 /**
- * PowerShell that drops installed dependencies left inside a task by a live agent
- * run. Nothing else in a seeded workspace grows: a seeded transcript never
- * installs anything, and a reseed rebuilds the rest anyway.
+ * PowerShell that drops installed dependencies a live agent run left at the top
+ * of a chat's work folder, `workspaces-data\<local id>\work\<chat id>\` in the
+ * application data. Nothing else in a seeded workspace grows: a seeded
+ * transcript never installs anything, and a reseed rebuilds the rest anyway.
  */
 function reapFunction() {
   return `function Remove-StaleWorkArtifacts([string] $dir) {
   $removed = @()
-  $workspace = Join-Path $dir 'workspace'
-  # Tasks no chat owns, chats, and each chat's own tasks.
-  $chats = @(Get-ChildItem -LiteralPath (Join-Path $workspace 'chats') -Directory -ErrorAction SilentlyContinue)
-  $records = @(Get-ChildItem -LiteralPath (Join-Path $workspace 'tasks') -Directory -ErrorAction SilentlyContinue) + $chats
-  foreach ($chat in $chats) {
-    $records += @(Get-ChildItem -LiteralPath (Join-Path $chat.FullName 'tasks') -Directory -ErrorAction SilentlyContinue)
+  # Every workspace's machine folder, and each chat's work folder in it.
+  $workDirs = @()
+  foreach ($machine in @(Get-ChildItem -LiteralPath (Join-Path $dir 'workspaces-data') -Directory -ErrorAction SilentlyContinue)) {
+    $workDirs += @(Get-ChildItem -LiteralPath (Join-Path $machine.FullName 'work') -Directory -ErrorAction SilentlyContinue)
   }
   $cutoff = (Get-Date).AddDays(-${WORK_ARTIFACT_MAX_AGE_DAYS})
-  foreach ($task in $records) {
+  foreach ($work in $workDirs) {
     foreach ($name in @('.venv', 'node_modules')) {
-      $artifact = Join-Path $task.FullName (Join-Path 'work' $name)
+      $artifact = Join-Path $work.FullName $name
       if ((Test-Path -LiteralPath $artifact) -and (Get-Item -LiteralPath $artifact -Force).LastWriteTime -lt $cutoff) {
         Remove-Item -LiteralPath $artifact -Recurse -Force -ErrorAction SilentlyContinue
         $removed += $artifact
@@ -659,6 +735,20 @@ function reapFunction() {
 
 function report(value) {
   console.log(JSON.stringify(value, undefined, 2));
+}
+
+/**
+ * A launch that refused its workspace is up, so start succeeds, but the
+ * window it shows is not the app's, which the result's `refusal` says and
+ * this line says in words.
+ */
+function reportStart(result) {
+  report(result);
+  if (result.refusal) {
+    console.error(
+      "The launch refused its workspace and shows only that window. Drive it with studio-drive's --page refusal.",
+    );
+  }
 }
 
 function requireWorkspaceName(value) {
@@ -838,8 +928,8 @@ function startScript(selectedTarget, timeoutSeconds, { fixture, fresh }) {
     throw "CDP port $($target.cdpPort) is not bound to loopback: $($cdp.owner.localAddress)"
   }
 }
-function Test-TargetReady($cdp) {
-  return @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0
+function Get-TargetPage($cdp) {
+  return Get-LaunchedPage $cdp 'file:///*/resources/app.asar/out/renderer/*'
 }`
       : `function Assert-TargetCdp($cdp) {
   if (-not $cdp.live) { return }
@@ -858,8 +948,8 @@ function Test-TargetReady($cdp) {
     throw "CDP port $($target.cdpPort) is not bound to loopback: $($cdp.owner.localAddress)"
   }
 }
-function Test-TargetReady($cdp) {
-  return @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http://localhost:*/renderer/*' }).Count -gt 0
+function Get-TargetPage($cdp) {
+  return Get-LaunchedPage $cdp 'http://localhost:*/renderer/*'
 }`;
   // A seeded workspace has no provider credentials and must not have any, so
   // without SKIP_ONBOARDING the app opens the onboarding window and never
@@ -918,7 +1008,8 @@ ${reuseSeeded}
 }`;
   const reportedWorkspace = isSeeded ? "; workspace = $workspace" : "";
   return `${baseScript()}
-${cdpFunction()}${isSeeded ? `\n${markerFunction()}\n${reapFunction()}\n${seedFunction()}` : ""}
+${cdpFunction()}
+${launchedPageFunction()}${isSeeded ? `\n${markerFunction()}\n${reapFunction()}\n${seedFunction()}` : ""}
 ${targetSetup}
 ${identityFunction}
 $task = Get-ScheduledTask -TaskName $target.taskName -ErrorAction SilentlyContinue
@@ -936,8 +1027,9 @@ do {
   $cdp = Get-CdpStatus -port $target.cdpPort
   if ($cdp.live) {
     Assert-TargetCdp $cdp
-    if (Test-TargetReady $cdp) {
-      [ordered]@{ cdp = $cdp; port = $target.cdpPort; reused = $existing.live; target = '${selectedTarget}'; taskName = $target.taskName${reportedWorkspace} } | ConvertTo-Json -Depth 8 -Compress
+    $page = Get-TargetPage $cdp
+    if ($page) {
+      [ordered]@{ cdp = $cdp; port = $target.cdpPort; refusal = $page -eq 'refusal'; reused = $existing.live; target = '${selectedTarget}'; taskName = $target.taskName${reportedWorkspace} } | ConvertTo-Json -Depth 8 -Compress
       exit 0
     }
   }

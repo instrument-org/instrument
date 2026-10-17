@@ -1,3 +1,4 @@
+import os from "node:os";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -287,6 +288,21 @@ describe("shouldContinueAfterHandingOff", () => {
 describe("instrumentAgent", () => {
   const prompt = instrumentAgent.systemPrompt();
 
+  it("writes the same system prompt on every computer", () => {
+    // A synced chat keeps the prompt it started with, so one naming this
+    // computer's folders or platform would be wrong everywhere else.
+    expect(prompt).not.toContain(os.homedir());
+    const platform = process.platform;
+    try {
+      for (const other of ["darwin", "linux", "win32"] as const) {
+        Object.defineProperty(process, "platform", { value: other });
+        expect(instrumentAgent.systemPrompt()).toBe(prompt);
+      }
+    } finally {
+      Object.defineProperty(process, "platform", { value: platform });
+    }
+  });
+
   it("does the work with every tool, the chat's and a worker's alike", () => {
     expect(
       Object.values(instrumentAgent.agentTools)
@@ -318,6 +334,28 @@ describe("instrumentAgent", () => {
     );
   });
 
+  it("names its folders by the variables the shell sets", () => {
+    for (const named of [
+      "Every command starts in your work folder, `$INSTRUMENT_WORK`",
+      "`$INSTRUMENT_OUTPUT`",
+      "Throwaway files go in `$TMPDIR`",
+      "`$INSTRUMENT_SKILL_DIR` is its folder",
+    ]) {
+      expect(prompt).toContain(named);
+    }
+    // A sent file is read where the person keeps it, so the prompt must not
+    // send the agent to a folder of copies that no longer holds one.
+    for (const gone of [
+      "package root",
+      "virtualenv",
+      "`work/",
+      "`skills/`",
+      "INSTRUMENT_ATTACHMENTS",
+    ]) {
+      expect(prompt).not.toContain(gone);
+    }
+  });
+
   it("names no flag or mount the task command does not have", () => {
     for (const gone of [
       "--fresh",
@@ -339,7 +377,7 @@ describe("instrumentAgent", () => {
       "the save and the start go in one command, the save first",
       "name scratch files and folders after the job",
       "Nothing of theirs is deleted or overwritten unless they said so",
-      "in a subfolder named for the job",
+      "put the finished thing in it by its own name rather than in a subfolder",
       "IMPORTANT: Never fabricate a URL.",
       "links it the first time",
       "Every call carries an `activity`",

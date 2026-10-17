@@ -1,9 +1,8 @@
-import fs from "node:fs";
-import path from "node:path";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { type DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { ulid } from "ulid";
 
-import { getWorkspaceConfig, hasWorkspaceConfig } from "../workspace-config";
+import { getWorkspaceConfig } from "../workspace-config";
+import { versionMatches, workspaceTables } from "../workspace-db";
 import {
   AI_USAGE_FACETS,
   type AIUsageEntry,
@@ -15,11 +14,12 @@ import {
 } from "./schema";
 
 /**
- * The record of every model request the app made, one SQLite file per
- * workspace. Unlike the workspace index this is the only copy of what it
- * holds, so a schema change migrates it rather than starting over.
+ * The activity log: every model request the app made for the workspace, in
+ * the `activity` table of its `workspace.db` on this computer. Unlike the
+ * index beside it this is the only copy of what it holds, so a change to the
+ * table migrates it rather than starting over.
  */
-const SCHEMA_VERSION = 1;
+const ACTIVITY_VERSION = 1;
 
 const COLUMNS = {
   cacheReadTokens: "cache_read_tokens",
@@ -83,98 +83,67 @@ const SORT_EXPRESSIONS: Record<AIUsageSort["column"], string> = {
   totalTokens: "total_tokens",
 };
 
-let opened: { database: DatabaseSync; file: string } | null | undefined;
 let reported = false;
 
-/** Closes the record, so the next use opens it again: a workspace switched, or a test done. */
-export function closeAIUsageStore() {
-  opened?.database.close();
-  opened = undefined;
-  reported = false;
-}
-
-function migrate(database: DatabaseSync) {
-  database.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
-  const { user_version: version } = database
-    .prepare("PRAGMA user_version")
-    .get() as { user_version: number }; // node:sqlite types every row as unknown values
-  if (version >= SCHEMA_VERSION) {
-    return;
+/**
+ * Makes the activity table in a workspace's database where it is missing:
+ * at first use, and before the activity an earlier build kept in its own
+ * file moves in.
+ */
+export function makeActivityTable(database: DatabaseSync): void {
+  database.exec("BEGIN");
+  try {
+    versionMatches(database, "activity", ACTIVITY_VERSION);
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS activity (
+        id TEXT PRIMARY KEY,
+        started_at INTEGER NOT NULL,
+        duration_ms INTEGER,
+        status TEXT NOT NULL,
+        error TEXT,
+        finish_reason TEXT,
+        kind TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        session_id TEXT,
+        chat_id TEXT,
+        surface TEXT,
+        connection_id TEXT,
+        connection_type TEXT,
+        connection_name TEXT,
+        model_requested TEXT,
+        model_served TEXT,
+        response_id TEXT,
+        input_tokens INTEGER,
+        cache_read_tokens INTEGER,
+        cache_write_tokens INTEGER,
+        output_tokens INTEGER,
+        reasoning_tokens INTEGER,
+        total_tokens INTEGER
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS activity_started ON activity (started_at, id);
+      CREATE INDEX IF NOT EXISTS activity_kind ON activity (kind, started_at);
+      CREATE INDEX IF NOT EXISTS activity_purpose ON activity (purpose, started_at);
+      CREATE INDEX IF NOT EXISTS activity_connection ON activity (connection_type, started_at);
+      CREATE INDEX IF NOT EXISTS activity_chat ON activity (chat_id, started_at);
+    `);
+    database.exec("COMMIT");
+  } catch (error) {
+    if (database.isTransaction) {
+      database.exec("ROLLBACK");
+    }
+    throw error;
   }
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS requests (
-      id TEXT PRIMARY KEY,
-      started_at INTEGER NOT NULL,
-      duration_ms INTEGER,
-      status TEXT NOT NULL,
-      error TEXT,
-      finish_reason TEXT,
-      kind TEXT NOT NULL,
-      purpose TEXT NOT NULL,
-      session_id TEXT,
-      chat_id TEXT,
-      surface TEXT,
-      connection_id TEXT,
-      connection_type TEXT,
-      connection_name TEXT,
-      model_requested TEXT,
-      model_served TEXT,
-      response_id TEXT,
-      input_tokens INTEGER,
-      cache_read_tokens INTEGER,
-      cache_write_tokens INTEGER,
-      output_tokens INTEGER,
-      reasoning_tokens INTEGER,
-      total_tokens INTEGER
-    ) STRICT;
-    CREATE INDEX IF NOT EXISTS requests_started ON requests (started_at, id);
-    CREATE INDEX IF NOT EXISTS requests_kind ON requests (kind, started_at);
-    CREATE INDEX IF NOT EXISTS requests_purpose ON requests (purpose, started_at);
-    CREATE INDEX IF NOT EXISTS requests_connection ON requests (connection_type, started_at);
-    CREATE INDEX IF NOT EXISTS requests_chat ON requests (chat_id, started_at);
-    PRAGMA user_version = ${SCHEMA_VERSION};
-  `);
 }
 
 /**
- * The open record, or undefined where there is nowhere to keep one (tests and
- * scripts with no `aiUsageFile`) or opening it failed, which is reported once
- * and leaves recording off for the rest of the process.
+ * The served workspace's database with its activity table, or undefined
+ * where there is nowhere to keep one (tests and scripts with no
+ * `workspaceDbFile`) or it could not be opened, which leaves recording off.
  */
-function openStore(): DatabaseSync | undefined {
-  if (!hasWorkspaceConfig()) {
-    return undefined;
-  }
-  const { aiUsageFile: file } = getWorkspaceConfig();
-  if (!file) {
-    return undefined;
-  }
-  if (opened && opened.file !== file) {
-    closeAIUsageStore();
-  }
-  if (opened === null) {
-    return undefined;
-  }
-  if (opened) {
-    return opened.database;
-  }
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const db = new DatabaseSync(file);
-    try {
-      migrate(db);
-    } catch (error) {
-      db.close();
-      throw error;
-    }
-    opened = { database: db, file };
-    return db;
-  } catch (error) {
-    report(error);
-    opened = null;
-    return undefined;
-  }
-}
+const openStore = workspaceTables((database) => {
+  makeActivityTable(database);
+  return database;
+});
 
 function report(error: unknown) {
   if (reported) {
@@ -182,7 +151,7 @@ function report(error: unknown) {
   }
   reported = true;
   getWorkspaceConfig().captureException(
-    new Error("The AI usage record could not be written", { cause: error }),
+    new Error("The activity log could not be written", { cause: error }),
   );
 }
 
@@ -231,7 +200,7 @@ export function insertAIUsage(entry: AIUsageEntry): void {
   const keys = Object.keys(COLUMNS) as (keyof AIUsageRow)[]; // Object.keys widens to string[]
   try {
     db.prepare(
-      `INSERT INTO requests (${keys.map((key) => COLUMNS[key]).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
+      `INSERT INTO activity (${keys.map((key) => COLUMNS[key]).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
     ).run(...keys.map((key) => row[key]));
   } catch (error) {
     report(error);
@@ -290,7 +259,7 @@ export function listAIUsage({
   // so a page boundary never repeats or skips a row.
   const rows = db
     .prepare(
-      `SELECT ${SELECT_ROW} FROM requests ${sql} ORDER BY ${SORT_EXPRESSIONS[sort.column]} IS NULL, ${SORT_EXPRESSIONS[sort.column]} ${direction}, id ${direction} LIMIT ? OFFSET ?`,
+      `SELECT ${SELECT_ROW} FROM activity ${sql} ORDER BY ${SORT_EXPRESSIONS[sort.column]} IS NULL, ${SORT_EXPRESSIONS[sort.column]} ${direction}, id ${direction} LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset);
   return rows.map((row) => AIUsageRowSchema.parse(row));
@@ -299,7 +268,7 @@ export function listAIUsage({
 /** One request by its id. */
 export function getAIUsage(id: string): AIUsageRow | undefined {
   const row = openStore()
-    ?.prepare(`SELECT ${SELECT_ROW} FROM requests WHERE id = ?`)
+    ?.prepare(`SELECT ${SELECT_ROW} FROM activity WHERE id = ?`)
     .get(id);
   return row ? AIUsageRowSchema.parse(row) : undefined;
 }
@@ -327,7 +296,7 @@ export function summarizeAIUsage(filter: AIUsageFilter) {
   const { params, sql } = where(filter);
   const totals = db
     .prepare(
-      `SELECT COUNT(*) AS requests, COALESCE(SUM(total_tokens), 0) AS tokens FROM requests ${sql}`,
+      `SELECT COUNT(*) AS requests, COALESCE(SUM(total_tokens), 0) AS tokens FROM activity ${sql}`,
     )
     .get(...params) as { requests: number; tokens: number }; // an aggregate always returns its row
   for (const facet of AI_USAGE_FACETS) {
@@ -338,7 +307,7 @@ export function summarizeAIUsage(filter: AIUsageFilter) {
       : `WHERE ${expression} IS NOT NULL`;
     facets[facet] = db
       .prepare(
-        `SELECT ${expression} AS value, COUNT(*) AS count${FACETS_WITH_CONNECTION_TYPE.has(facet) ? ", MAX(connection_type) AS connectionType" : ""} FROM requests ${scopedWhere} GROUP BY value ORDER BY count DESC, value LIMIT 50`,
+        `SELECT ${expression} AS value, COUNT(*) AS count${FACETS_WITH_CONNECTION_TYPE.has(facet) ? ", MAX(connection_type) AS connectionType" : ""} FROM activity ${scopedWhere} GROUP BY value ORDER BY count DESC, value LIMIT 50`,
       )
       .all(...scoped.params) as FacetEntry[]; // the columns selected above
   }
@@ -388,7 +357,7 @@ export function aiUsageCsv(filter: AIUsageFilter): string {
     const { params, sql } = where(filter);
     for (const row of db
       .prepare(
-        `SELECT ${SELECT_ROW} FROM requests ${sql} ORDER BY started_at DESC, id DESC`,
+        `SELECT ${SELECT_ROW} FROM activity ${sql} ORDER BY started_at DESC, id DESC`,
       )
       .iterate(...params)) {
       const parsed = AIUsageRowSchema.parse(row);

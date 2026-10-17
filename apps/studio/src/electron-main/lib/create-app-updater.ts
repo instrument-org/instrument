@@ -52,9 +52,19 @@ export interface UpdaterPort {
   // that ran with `download: false`.
   downloadUpdate: () => Promise<unknown>;
   // Quits and applies the staged build. Never returns on the happy path.
+  // Throws StagedUpdateRejectedError when the staged artifact is not the one
+  // the feed published, which the next check downloads again.
   install: () => void;
   isActive: () => boolean;
   subscribe: (handlers: UpdaterEvents) => void;
+}
+
+/**
+ * The staged artifact failed the check made right before installing it, and is
+ * gone: what was staged is no longer there to install.
+ */
+export class StagedUpdateRejectedError extends Error {
+  override name = "StagedUpdateRejectedError";
 }
 
 // Why a parked install request stopped waiting. Carried out of the event rather
@@ -480,6 +490,12 @@ export function createAppUpdater({
       updater.install();
     } catch (error) {
       // Only a genuine throw lands here; the `failed` event is the usual path.
+      // A rejected artifact has been removed, so nothing is staged any more,
+      // and the next check downloads the build again rather than holding back
+      // for one already on disk.
+      if (error instanceof StagedUpdateRejectedError) {
+        phase.staged = null;
+      }
       return reportInstallFailure(
         error instanceof Error ? error.message : String(error),
       );

@@ -45,13 +45,13 @@ const { layoutsReadFor } = vi.hoisted(() => ({
 vi.mock("../../../lib/session-layout", async () => {
   const { buildWorkspaceFsLayout } =
     await import("../../../lib/workspace-fs-layout");
-  const { ChatDirSchema } = await import("../../../schemas/paths");
+  const { WorkDirSchema } = await import("../../../schemas/paths");
   return {
     sessionLayout: ({ chatId }: { chatId: string }) => {
       layoutsReadFor.push(chatId);
       return Promise.resolve(
         buildWorkspaceFsLayout({
-          chatHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
+          chatHostRoot: WorkDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
       );
     },

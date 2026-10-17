@@ -12,7 +12,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { updateChatSettings } from "../chat-settings";
 import { listChildTasks } from "../chat/children";
 import { openAsks, recordAsk } from "../chat/asks";
@@ -23,6 +23,7 @@ import { stopSubcommand } from "./task/stop";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runSend = subcommandRunner(sendSubcommand, "task send");
 const runStop = subcommandRunner(stopSubcommand, "task stop");
@@ -80,15 +81,12 @@ beforeEach(async () => {
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../../templates/default"),
-    ),
     chatsDir: AbsolutePathSchema.parse(
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  chatFor(StoreId.newSessionId(), CHAT_ID);
+  await chatFor(StoreId.newSessionId(), CHAT_ID);
   await updateChatSettings(CHAT_ID, {
     modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
@@ -98,7 +96,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 function send(args: string[]) {
@@ -207,7 +205,7 @@ describe("task send", () => {
     working.value = () => false;
     await send([]);
     const own = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         inherited: false,
         sessionId: CHILD_ID,
         chatId: CHAT_ID,

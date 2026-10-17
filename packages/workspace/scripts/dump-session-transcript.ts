@@ -4,14 +4,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { getChatSettings } from "../src/lib/chat-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { ChatDirSchema } from "../src/schemas/paths";
 import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
+import { workspaceOfRecord } from "./lib/workspace-of-record";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -38,14 +39,8 @@ if (!inputPath) {
 
 const dir = ChatDirSchema.parse(path.resolve(inputPath));
 
-// The workspace root is above `chats/<chat>` or a 1.x `tasks/<id>`, and
-// chats are found by scanning its `chats/`.
-const parts = dir.split(path.sep);
-const chatsAt = parts.lastIndexOf(CHATS_DIR_NAME);
-const rootDir =
-  chatsAt > 0
-    ? parts.slice(0, chatsAt).join(path.sep)
-    : path.dirname(path.dirname(dir));
+// Chats are found by scanning the workspace's `.instrument/chats/`.
+const rootDir = workspaceOfRecord(dir);
 
 const settings = await getChatSettings(dir);
 const folderName = path.basename(dir);
@@ -58,12 +53,13 @@ setWorkspaceConfig(
 );
 const chatId = id;
 
-const sessionsResult = await Store.getSessions(chatId, {
+const sessionsResult = await ChatReads.sessions({
+  chatId,
   includeChildSessions: true,
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(dir, ".instrument", "chat.db")}: ${sessionsResult.error.message}`,
+    `Failed to read the sessions of ${dir}: ${sessionsResult.error.message}`,
   );
 }
 

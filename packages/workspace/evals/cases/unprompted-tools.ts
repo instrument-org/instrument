@@ -18,8 +18,8 @@ import path from "node:path";
 import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { chatDir } from "../../src/lib/record-folders";
-import { Store } from "../../src/lib/store";
+import { workDir } from "../../src/lib/work-dir";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { shellPath } from "../../src/lib/workspace-fs-layout";
 import { type Session } from "../../src/schemas/session";
 import { StoreId } from "../../src/schemas/store-id";
@@ -145,7 +145,7 @@ async function filesWritten(
         ),
     ) + 2000;
   const files = new Set(
-    [HOME, chatDir(ctx.chatId), ...extra].flatMap((dir) =>
+    [HOME, workDir(ctx.chatId), ...extra].flatMap((dir) =>
       recentFilesUnder(dir, since),
     ),
   );
@@ -361,7 +361,7 @@ async function saveSeeded(
           parts,
           role: "assistant" as const,
         };
-  (await Store.saveMessageWithParts(message, chatId))._unsafeUnwrap();
+  (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
 }
 
 /** The lease, the summary so far, and yesterday's chat that made it. */

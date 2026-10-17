@@ -1,3 +1,4 @@
+import { app } from "electron";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +20,8 @@ vi.mock(import("./file-thumbnails"), async (importOriginal) => ({
 let folder: string;
 let file: string;
 let mtimeMs: number;
+/** This computer's folder, Electron's userData. */
+let machine: string;
 
 const urlFor = (hostPath: string, query = "") =>
   `${computerFileBase()}${hostPath.split("/").map(encodeURIComponent).join("/")}${query}`;
@@ -34,6 +37,28 @@ beforeAll(async () => {
   await fs.writeFile(path.join(folder, ".instrument", "chat.db"), "secret");
   const stats = await fs.stat(file);
   mtimeMs = stats.mtimeMs;
+
+  machine = path.join(folder, "machine");
+  vi.spyOn(app, "getPath").mockImplementation((name) =>
+    name === "userData" ? machine : "/mock/path",
+  );
+  const machineFiles = {
+    attachment: "workspace/.instrument/chats/2026-10-01-chat/attachments/a.png",
+    "browser-cookies": "workspaces-data/default/browser/app-session/Cookies",
+    "chat-db": "workspace/.instrument/chats/2026-10-01-chat/chat.db",
+    keys: "workspaces-data/default/keys/providers.json",
+    note: "workspace/Reports/notes.md",
+  };
+  for (const relative of Object.values(machineFiles)) {
+    await fs.mkdir(path.dirname(path.join(machine, relative)), {
+      recursive: true,
+    });
+    await fs.writeFile(path.join(machine, relative), relative);
+  }
+  await fs.symlink(
+    path.join(machine, machineFiles.keys),
+    path.join(folder, "leads-to-keys.json"),
+  );
 });
 
 afterAll(async () => {
@@ -61,6 +86,21 @@ describe("handleComputerFileRequest", () => {
       const response = await request(urlFor(named));
       expect(response.status).toBe(200);
       expect(await response.text()).toBe("<p>a or b</p>");
+    },
+  );
+
+  it.each([
+    ["the person's own file", "workspace/Reports/notes.md"],
+    [
+      "what a chat was sent, in the workspace's .instrument/",
+      "workspace/.instrument/chats/2026-10-01-chat/attachments/a.png",
+    ],
+  ])(
+    "serves %s in a workspace the machine folder keeps",
+    async (_name, relative) => {
+      const response = await request(urlFor(path.join(machine, relative)));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(relative);
     },
   );
 
@@ -119,6 +159,20 @@ describe("handleComputerFileRequest", () => {
       "the private directory in another case",
       () => urlFor(path.join(folder, ".INSTRUMENT", "chat.db")),
     ],
+    [
+      "a chat's database beside what it was sent",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "workspace",
+            ".instrument",
+            "chats",
+            "2026-10-01-chat",
+            "chat.db",
+          ),
+        ),
+    ],
     // A literal `..` never reaches the handler: URL parsing collapses it, so
     // the request names whatever the collapsed path is. The encoded spelling
     // survives parsing and is the one the decode has to catch.
@@ -130,6 +184,61 @@ describe("handleComputerFileRequest", () => {
   ])("refuses %s", async (_name, url) => {
     const response = await request(url());
     expect(response.status).toBe(404);
+  });
+
+  // The machine folder's names carry no private segment. Its files are
+  // forbidden rather than missing, in an answer the renderer may read, so a
+  // file tab can say why it shows nothing.
+  it.each([
+    [
+      "a workspace's keys",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "workspaces-data",
+            "default",
+            "keys",
+            "providers.json",
+          ),
+        ),
+    ],
+    [
+      "a browser profile's cookies",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "workspaces-data",
+            "default",
+            "browser",
+            "app-session",
+            "Cookies",
+          ),
+        ),
+    ],
+    [
+      "the machine folder in another case",
+      () =>
+        urlFor(
+          path.join(
+            machine,
+            "WORKSPACES-DATA",
+            "default",
+            "keys",
+            "providers.json",
+          ),
+        ),
+    ],
+    [
+      "a symlink into the machine folder",
+      () => urlFor(path.join(folder, "leads-to-keys.json")),
+    ],
+  ])("forbids %s", async (_name, url) => {
+    const response = await request(url());
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(await response.text()).toBe("");
   });
 
   it("refuses every method but GET and HEAD", async () => {

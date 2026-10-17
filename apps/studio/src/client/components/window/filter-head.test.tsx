@@ -14,7 +14,7 @@ import { FilterHead } from "./filter-head";
 
 const HOUSE: Topic = {
   color: "#0f9d6e",
-  createdAt: 1,
+  created: new Date(1),
   emoji: "🏠",
   id: "house",
   name: "House",
@@ -22,7 +22,7 @@ const HOUSE: Topic = {
 
 const MONEY: Topic = {
   color: "#d4a017",
-  createdAt: 2,
+  created: new Date(2),
   emoji: "💸",
   id: "money",
   name: "Money",

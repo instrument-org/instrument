@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { ChatWrites } from "../chat-writes";
 import { recordChanged } from "../record-changes";
 import { type Ask } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -24,7 +25,7 @@ import { openAsksOf } from "./asks";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
@@ -372,8 +373,9 @@ async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
     if (!isOpenCall(part)) {
       continue;
     }
-    const written = await Store.updatePart(
+    const written = await ChatWrites.updatePart(
       {
+        chatId: task.chatId,
         messageId: part.metadata.messageId,
         partId: part.metadata.id,
         sessionId: part.metadata.sessionId,
@@ -390,7 +392,6 @@ async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
               state: "output-error",
             } as SessionMessagePart.Type)
           : current,
-      task.chatId,
     );
     if (written.isErr()) {
       getWorkspaceConfig().captureException(written.error);
@@ -522,7 +523,7 @@ async function onSessionDone(
     ...(said === undefined ? [] : needsNamedIn(said)),
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
-  await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
+  await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
   const tabs = await openTabsOf(ref);
@@ -536,8 +537,9 @@ async function onSessionDone(
     return;
   }
   // A chat nobody has written in has no conversation to report to: the eval
-  // harness runs a task case in one (`evals/lib/start-run.ts`).
-  if (!(await chatModelURI(chatId))) {
+  // harness runs a task case in one (`evals/lib/start-run.ts`), with the
+  // model its task runs on and nothing said.
+  if (!(await hasConversation(chatId))) {
     return;
   }
 
@@ -583,6 +585,19 @@ async function onSessionDone(
     return;
   }
   schedule(chatId, event, workspaceRef);
+}
+
+/**
+ * Whether anything has been said in a chat's own session. A store that
+ * cannot be read counts as said, so a hiccup does not swallow a task's news.
+ */
+async function hasConversation(chatId: ChatId): Promise<boolean> {
+  const sessionId = sessionOfChat(chatId);
+  if (sessionId === undefined) {
+    return false;
+  }
+  const ids = await ChatReads.messageIds({ chatId, sessionId });
+  return ids.isErr() || ids.value.length > 0;
 }
 
 /**
@@ -798,7 +813,7 @@ async function saveNote(
 
   // Written now, so the note shows in the conversation the moment it fires,
   // whatever the chat is in the middle of.
-  const written = await Store.saveMessageWithParts(message, chatId);
+  const written = await ChatWrites.saveMessageWithParts(message, chatId);
   if (written.isErr()) {
     throw new Error(written.error.message);
   }

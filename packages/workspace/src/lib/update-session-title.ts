@@ -1,7 +1,9 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { cappedTitle } from "./chat-folders/folder-name";
+import { ChatWrites } from "./chat-writes";
 import { isUntitledChatSessionTitle } from "./generate-session-title";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function updateSessionTitle({
@@ -18,7 +20,7 @@ export async function updateSessionTitle({
   chatId: ChatId;
   title: string;
 }): Promise<boolean> {
-  const storedSession = await Store.getSession(sessionId, chatId);
+  const storedSession = await ChatReads.session({ chatId, sessionId });
   if (storedSession.isErr()) {
     return false;
   }
@@ -29,10 +31,10 @@ export async function updateSessionTitle({
   if (!canReplace) {
     return false;
   }
-  const renameResult = await Store.saveSession(
+  const renameResult = await ChatWrites.saveSession(
     {
       ...storedSession.value,
-      title,
+      title: cappedTitle(title),
       updatedAt: new Date(),
     },
     chatId,

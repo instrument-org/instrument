@@ -1,8 +1,7 @@
-import fs from "node:fs/promises";
 import http from "node:http";
-import path from "node:path";
 
-import { loadApp } from "../../src/lib/apps/store";
+import { AppManifestSchema, AppSlugSchema } from "../../src/lib/apps/manifest";
+import { loadApp, writeAppFolder } from "../../src/lib/apps/store";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type WorkspaceAppsConfig } from "../../src/types";
 import { startMcpTracker } from "./mcp-tracker";
@@ -59,25 +58,16 @@ export async function seedConnectedApps(
   const servers: http.Server[] = [];
   const closers: (() => Promise<void>)[] = [];
   for (const fixture of fixtures) {
-    const dir = path.join(appsDir, fixture.slug);
-    await fs.mkdir(dir, { recursive: true });
     if (fixture.kind === "web") {
-      await fs.writeFile(
-        path.join(dir, "app.json"),
-        `${JSON.stringify(
-          {
-            ...(fixture.account ? { account: fixture.account } : {}),
-            name: fixture.name,
-            type: "web",
-            url: fixture.url,
-          },
-          null,
-          2,
-        )}\n`,
-      );
-      await fs.writeFile(
-        path.join(dir, "guide.md"),
-        `# ${fixture.name}\n\nWorked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
+      await writeApp(
+        appsDir,
+        fixture,
+        {
+          ...(fixture.account ? { account: fixture.account } : {}),
+          type: "web",
+          url: fixture.url ?? "https://example.invalid",
+        },
+        `Worked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
       );
       await recordConnected(fixture.slug, { apps, appsDir });
       continue;
@@ -85,22 +75,15 @@ export async function seedConnectedApps(
     if (fixture.kind === "mcp") {
       const tracker = await startMcpTracker();
       closers.push(tracker.close);
-      await fs.writeFile(
-        path.join(dir, "app.json"),
-        `${JSON.stringify(
-          {
-            auth: { kind: "none" },
-            name: fixture.name,
-            type: "mcp",
-            url: tracker.url,
-          },
-          null,
-          2,
-        )}\n`,
-      );
-      await fs.writeFile(
-        path.join(dir, "guide.md"),
-        `# ${fixture.name}\n\n${fixture.name} tracks the team's issues.\n`,
+      await writeApp(
+        appsDir,
+        fixture,
+        {
+          auth: { kind: "none" },
+          type: "mcp",
+          url: tracker.url,
+        },
+        `${fixture.name} tracks the team's issues.\n`,
       );
       await recordConnected(fixture.slug, { apps, appsDir });
       continue;
@@ -128,25 +111,16 @@ export async function seedConnectedApps(
       throw new Error(`${fixture.slug}: the fixture server has no port`);
     }
 
-    await fs.writeFile(
-      path.join(dir, "app.json"),
-      `${JSON.stringify(
-        {
-          auth: { kind: "none" },
-          baseUrl: `http://127.0.0.1:${address.port}`,
-          name: fixture.name,
-          test: { path: "/health" },
-          type: "api",
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    await fs.writeFile(
-      path.join(dir, "guide.md"),
+    await writeApp(
+      appsDir,
+      fixture,
+      {
+        auth: { kind: "none" },
+        test: { path: "/health" },
+        type: "api",
+        url: `http://127.0.0.1:${address.port}`,
+      },
       [
-        `# ${fixture.name}`,
-        "",
         service?.about ?? `${fixture.name} tracks the team's issues.`,
         "",
         "## Endpoints",
@@ -178,6 +152,26 @@ export async function seedConnectedApps(
       ]);
     },
   };
+}
+
+/**
+ * Writes the app's folder the way the product writes one, so a case runs
+ * against a real `APP.md` in a folder named for the app rather than a layout
+ * of the fixture's own.
+ */
+async function writeApp(
+  appsDir: string,
+  fixture: AppFixture,
+  manifest: unknown,
+  guide: string,
+): Promise<void> {
+  await writeAppFolder({
+    appsDir: AbsolutePathSchema.parse(appsDir),
+    guide,
+    manifest: AppManifestSchema.parse(manifest),
+    name: fixture.name,
+    slug: AppSlugSchema.parse(fixture.slug),
+  });
 }
 
 /**

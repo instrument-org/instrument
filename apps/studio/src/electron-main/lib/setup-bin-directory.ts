@@ -1,3 +1,4 @@
+import { runtimeLayout } from "@instrument-org/workspace/electron";
 import { rgPath } from "@vscode/ripgrep";
 import { app } from "electron";
 import { existsSync } from "node:fs";
@@ -6,8 +7,7 @@ import path from "node:path";
 
 import { captureServerException } from "./capture-server-exception";
 import { getAppUnpackedPath, getResourcePath } from "./resource-path";
-
-const BIN_DIR_NAME = "bin";
+import { getRuntimeDir } from "./runtime-dir";
 
 interface BinaryConfig {
   getTargetPath: () => string;
@@ -50,7 +50,7 @@ export function getMxcExecPath(): string | undefined {
 // as if they were installed globally. We don't use these ourselves due to issues
 // with orphaned processes on Windows.
 export async function setupBinDirectory(): Promise<string> {
-  const binDir = getBinDirectoryPath();
+  const binDir = runtimeLayout(getRuntimeDir()).bin;
 
   await ensureDirectoryExists(binDir);
   await cleanBinDirectory(binDir);
@@ -149,11 +149,13 @@ function getBinaryConfigs(): BinaryConfig[] {
       getTargetPath: () => getRipgrepBinaryPath(),
       name: "rg",
     },
+    // A chat's own commands put the bundled uv on PATH themselves; this is
+    // for what runs without them, such as a package script `pnpm` runs.
+    {
+      getTargetPath: getUvBinPath,
+      name: "uv",
+    },
   ];
-}
-
-export function getBinDirectoryPath(): string {
-  return path.join(app.getPath("userData"), BIN_DIR_NAME);
 }
 
 function getNodeModulePath(...parts: string[]): string {

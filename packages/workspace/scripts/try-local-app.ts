@@ -90,14 +90,14 @@ async function main(): Promise<number> {
 
   await writeAppFolder({
     appsDir: config.appsDir,
-    guide: `# ${slug}\n\nA local MCP server, for checking that it runs.\n`,
+    guide: "A local MCP server, for checking that it runs.\n",
     manifest: AppManifestSchema.parse({
       auth: { kind: "none" },
-      name: slug,
       package: packageSpec,
       runtime,
       type: "mcp-local",
     }),
+    name: slug,
     slug,
   });
 

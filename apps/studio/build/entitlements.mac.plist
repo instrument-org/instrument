@@ -17,8 +17,8 @@
     <true/>
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
-    <!-- Lets a task's osascript control another app (Reminders, Calendar,
-         Notes). Under the hardened runtime, Apple Events the app is
+    <!-- Lets the app's own scripts control Mail, Notes and Messages for a
+         task. Under the hardened runtime, Apple Events the app is
          responsible for are refused without asking unless this is claimed;
          with it, macOS asks the user once per app. A hardened-runtime key,
          not one the provisioning profile grants, so it sits above them. -->

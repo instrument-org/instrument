@@ -10,7 +10,8 @@ import {
 import path from "node:path";
 
 import { hostPathWithin } from "../host-path";
-import { levelWithoutAsking, ruleRank } from "../permissions/rules";
+import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
+import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appEnv, canWrite, depthOf, resolveReal, toolCaches } from "./host";
 import { probeSandbox, type ProbeResult } from "./probe";
@@ -18,6 +19,7 @@ import { type NativeReach, reachesSshKeys } from "./reach";
 import {
   dotEntriesIn,
   namesThatRunCode,
+  runsCodeByName,
   WALK_LIMITS,
   type WalkLimits,
 } from "./walk";
@@ -84,7 +86,9 @@ export function bwrapAvailable(): boolean {
  * folder read-only, then each rule's folder bound over it from shallow to
  * deep, the way the Seatbelt profile orders its rules. A closed folder is an
  * empty one in its place and a closed file is empty; a folder that opens
- * inside a closed one is bound back over the empty one.
+ * inside a closed one is bound back over the empty one. Nothing a closed
+ * folder holds is listed, so the arguments stay as many however much it
+ * holds: bubblewrap refuses more than 9,000, and a workspace's chats add up.
  *
  * Hidden entries in the home folder have no pattern form here, so the home
  * folder is listed and each one is closed by name.
@@ -103,7 +107,7 @@ export function bwrapArgs(
       appEnv.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.() ?? 0}`,
   },
 ): string[] {
-  const { home, rules, withoutAsking } = reach.rules;
+  const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   /** "empty" is a read-only empty folder made where nothing is yet. */
   type Access = "empty" | "none" | "read" | "write";
   const entries: {
@@ -117,7 +121,15 @@ export function bwrapArgs(
     const key = `${access}:${target}`;
     if (!added.has(key)) {
       added.add(key);
-      entries.push({ access, depth: depthOf(target), path: target, rank });
+      // Ordered by where the folder really is, which is where it is bound:
+      // a folder named deep through a link that leads somewhere shallow
+      // binds there before the deeper rules that close what is inside.
+      entries.push({
+        access,
+        depth: depthOf(resolveReal(target)),
+        path: target,
+        rank,
+      });
     }
   };
   add(home, "read", -1);
@@ -126,9 +138,19 @@ export function bwrapArgs(
   const standIn = unreadableFile();
   add(path.dirname(standIn), "read", 3);
   for (const rule of rules) {
-    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
+    const level = levelAllowingEveryFolder(
+      rule.level,
+      rule,
+      dangerouslyAllowEveryFolder,
+    );
+    // A file the user sent that runs code when its folder is used (an
+    // `.envrc`) opens to reading alone, as the rules have it.
     const access =
-      level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
+      level === "allow" && !(rule.file && runsCodeByName(rule.path))
+        ? "write"
+        : level === "allow" || level === "readOnly"
+          ? "read"
+          : "none";
     const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];
     for (const target of targets) {
       add(target, access, ruleRank(rule));
@@ -153,14 +175,35 @@ export function bwrapArgs(
     own.some((folder) => hostPathWithin(folder, target) !== null);
   const stops = new Set([
     ...own,
-    ...rules.flatMap((rule) =>
-      rule.dotEntries ? [] : [resolveReal(rule.path)],
-    ),
+    // A rule over hidden entries stops the walk at each entry it closes
+    // rather than at the folder holding them, which is the whole home
+    // folder. Without them the walk descended into a hidden folder the
+    // rules hold at ask, and the write it binds every folder between a name
+    // and its root with outranks the rule that closed it: the file tools
+    // refused `~/.config` while a native command was handed it read-write,
+    // where the Mac's own profile closes it. An allow keeps its names bound,
+    // since there the walk is reaching what the person opened.
+    ...rules.flatMap((rule) => {
+      if (!rule.dotEntries) {
+        return [resolveReal(rule.path)];
+      }
+      return levelAllowingEveryFolder(
+        rule.level,
+        rule,
+        dangerouslyAllowEveryFolder,
+      ) === "allow"
+        ? []
+        : dotEntriesIn(rule.path).map(resolveReal);
+    }),
   ]);
   const guarded = new Set<string>();
   for (const rule of rules) {
     if (
-      levelWithoutAsking(rule.level, rule, withoutAsking) !== "allow" ||
+      levelAllowingEveryFolder(
+        rule.level,
+        rule,
+        dangerouslyAllowEveryFolder,
+      ) !== "allow" ||
       rule.source === "system"
     ) {
       continue;
@@ -276,21 +319,51 @@ export function bwrapArgs(
       ours.add(closed);
     }
   }
+  // A file the user sent that is gone is not a folder to make.
   const allowedByName = new Set(
     rules
       .filter(
         (rule) =>
           rule.level === "allow" &&
           !rule.dotEntries &&
+          !rule.file &&
           (rule.source === "grant" || rule.source === "folder"),
       )
       .map((rule) => rule.path),
   );
   const remountLater: string[] = [];
+  const mounted = new Set<string>();
+  const passedThrough = new Set<string>();
+  const madeOnTheWay = new Set<string>();
+  // The folders between `real` and a closed folder passed through around it,
+  // made searchable and no more where bubblewrap would make them listable.
+  // They come from the path of what opens there, so they cost the same
+  // however much the closed folder holds.
+  const onTheWay = (real: string): string[] => {
+    const between: string[] = [];
+    for (
+      let folder = path.dirname(real);
+      folder !== path.dirname(folder);
+      folder = path.dirname(folder)
+    ) {
+      if (madeOnTheWay.has(folder) || mounted.has(folder)) {
+        if (!madeOnTheWay.has(folder) && !passedThrough.has(folder)) {
+          return [];
+        }
+        return between.toReversed().flatMap((made) => {
+          madeOnTheWay.add(made);
+          return ["--perms", "0111", "--dir", made];
+        });
+      }
+      between.push(folder);
+    }
+    return [];
+  };
   for (const entry of ordered) {
     const real = resolveReal(entry.path);
     if (entry.access === "empty") {
-      args.push("--tmpfs", real, "--remount-ro", real);
+      args.push(...onTheWay(real), "--tmpfs", real, "--remount-ro", real);
+      mounted.add(real);
       continue;
     }
     if (
@@ -307,6 +380,8 @@ export function bwrapArgs(
     if (!existsSync(real)) {
       continue;
     }
+    args.push(...onTheWay(real));
+    mounted.add(real);
     if (entry.access === "write") {
       args.push("--bind", real, real);
     } else if (entry.access === "read") {
@@ -315,7 +390,9 @@ export function bwrapArgs(
       // An empty folder that refuses to be listed or read, so a program
       // meets "permission denied" there rather than an empty or missing
       // folder it would take at face value. A folder opened inside it keeps
-      // search permission, which reaching that folder needs.
+      // search permission, which reaching that folder needs, and holds only
+      // what opens in it: a program naming anything else there finds it
+      // missing, and `refusedPathIn` reads that as the refusal it is.
       const opensInside = ordered.some(
         (other) =>
           other.access !== "none" &&
@@ -328,6 +405,7 @@ export function bwrapArgs(
       // folder to bind it to, and a remount leaves the binds inside it be.
       args.push("--perms", opensInside ? "0111" : "0000", "--tmpfs", real);
       if (opensInside) {
+        passedThrough.add(real);
         remountLater.push("--remount-ro", real);
       } else {
         args.push("--remount-ro", real);
@@ -343,15 +421,14 @@ export function bwrapArgs(
 
 /**
  * An empty file with no permissions, bound over a closed file. It lives in
- * the app's own data folder, which no sandboxed command may change, and is
- * looked at without following a link: anything there that is not that
- * file is removed and the file made anew, never changed in place, so a
+ * the runtime folder's `sandbox/`, which no sandboxed command may change,
+ * and is looked at without following a link: anything there that is not
+ * that file is removed and the file made anew, never changed in place, so a
  * link planted there can lead nowhere.
  */
 function unreadableFile(): string {
   const file = path.join(
-    path.dirname(getWorkspaceConfig().uvDataDir),
-    "sandbox",
+    runtimeLayout(getWorkspaceConfig().runtimeDir).sandbox,
     "closed-file",
   );
   let found: Stats | undefined;
@@ -374,7 +451,6 @@ function unreadableFile(): string {
   }
   return file;
 }
-
 
 /** `file` run in a bubblewrap sandbox made from the reach. */
 export function bwrapCommand(

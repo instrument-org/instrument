@@ -24,7 +24,7 @@ import { AGENT_MESSAGE_LANGUAGE } from "../../src/constants";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
 import { isToolPart } from "../../src/lib/is-tool-part";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { chatGrants } from "../../src/lib/chat/grants";
 import { type Session } from "../../src/schemas/session";
 import { type ChatId } from "../../src/schemas/chat-id";
@@ -105,7 +105,7 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
 
 /** The run's working folder, which the chat's tasks work in too. */
 function treeDirs({ chatId }: Context): string[] {
-  return [chatDir(chatId)];
+  return [workDir(chatId)];
 }
 
 /**

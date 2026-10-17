@@ -4,9 +4,9 @@ import { alphabetical } from "radashi";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { ChatReads } from "./chat-reads";
 import { contextDateKey } from "./context-date";
 import { getCurrentDate } from "./get-current-date";
-import { Store } from "./store";
 
 /**
  * Reports the local date on the first message of a day the session has not seen
@@ -25,20 +25,18 @@ import { Store } from "./store";
 export function detectDateChange({
   messageId,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const messages = yield* Store.getMessagesWithParts(
-        { sessionId, chatId },
-        { signal },
-      );
+      const messages = yield* ChatReads.modelHistory({
+        chatId,
+        sessionId,
+      });
 
       // ulid sorts oldest to newest, and the store makes no ordering promise.
       const baseline = alphabetical(

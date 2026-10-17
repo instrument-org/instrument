@@ -8,6 +8,8 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { getCurrentFileInfo } from "./get-file-info";
 import { grantFolder } from "./chat/grants";
+import { shellPath } from "./workspace-fs-layout";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
@@ -34,7 +36,7 @@ describe("getCurrentFileInfo", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(root, { force: true, recursive: true });
+    await removeChatsDir(root);
   });
 
   it.each([
@@ -48,7 +50,7 @@ describe("getCurrentFileInfo", () => {
     ],
     [
       "a file in a granted folder",
-      (): string => path.join(root, "Photos", "cat.png"),
+      (): string => shellPath(path.join(root, "Photos", "cat.png")),
       "cat.png",
       "image/png",
       (): number => mountedModifiedAt,
@@ -80,7 +82,7 @@ describe("getCurrentFileInfo", () => {
   );
 
   it("rejects a missing file", async () => {
-    const missing = path.join(root, "Photos", "missing.png");
+    const missing = shellPath(path.join(root, "Photos", "missing.png"));
     const result = await getCurrentFileInfo({
       filePath: WorkspaceFilePathSchema.parse(missing),
       chatId,

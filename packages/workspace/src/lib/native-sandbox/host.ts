@@ -2,7 +2,7 @@ import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { canonicalizeThroughMissing } from "../host-path";
+import { realHostPath } from "../host-path";
 
 /** The app's own environment, read live, as any process's. */
 export const appEnv: NodeJS.ProcessEnv = process.env;
@@ -39,7 +39,7 @@ export function depthOf(hostPath: string): number {
 }
 
 export function resolveReal(target: string): string {
-  return canonicalizeThroughMissing(target) ?? target;
+  return realHostPath(target);
 }
 
 /**

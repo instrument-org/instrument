@@ -4,7 +4,8 @@ import { z } from "zod";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import {
   listMemories,
   type Memory,
@@ -12,9 +13,6 @@ import {
   memoryDir,
   memoryHeadline,
 } from "./memory/store";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /** How many memories a whole note lists before the rest are counted. */
@@ -53,28 +51,20 @@ export async function createMemoryPart({
     const memories = await listMemories(memoryDir());
     const digests = memoryDigests(memories);
 
-    const storage = await getSessionsStoreStorage(chatId);
-    if (storage.isErr()) {
-      return undefined;
-    }
-    const reported = await getParsedStorageItem(
-      StorageKey.memoryReported(sessionId),
-      ToldSchema,
-      storage.value,
-    );
+    const reported = await ChatReads.state({
+      chatId,
+      schema: ToldSchema,
+      sessionId,
+      what: "memory",
+    });
     // Nothing recorded reads as told nothing, which is what an empty memory
     // also reads as: a fresh chat with nothing to remember gets no note.
-    const told = reported.isOk() ? reported.value : {};
-    if (isEqual(told, digests)) {
+    const state = reported.isOk() ? (reported.value ?? {}) : {};
+    if (isEqual(state, digests)) {
       return undefined;
     }
 
-    await setParsedStorageItem(
-      StorageKey.memoryReported(sessionId),
-      digests,
-      ToldSchema,
-      storage.value,
-    );
+    await ChatWrites.state(chatId, sessionId, "memory", digests);
 
     const metadata = {
       createdAt,
@@ -85,7 +75,7 @@ export async function createMemoryPart({
     const sentAt = createdAt.getTime();
     // A chat told nothing yet hears the whole; so does one whose memory is
     // gone, since "empty now" says more than a list of every name forgotten.
-    if (Object.keys(told).length === 0 || memories.length === 0) {
+    if (Object.keys(state).length === 0 || memories.length === 0) {
       return {
         data: {
           forgotten: [],
@@ -100,9 +90,9 @@ export async function createMemoryPart({
     }
     return {
       data: {
-        forgotten: Object.keys(told).filter((name) => !(name in digests)),
+        forgotten: Object.keys(state).filter((name) => !(name in digests)),
         memories: memories
-          .filter((memory) => told[memory.name] !== digests[memory.name])
+          .filter((memory) => state[memory.name] !== digests[memory.name])
           .map(noteRow),
         more: 0,
         sentAt,
@@ -134,22 +124,15 @@ export async function recordMemoryReported({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<void> {
-  const storage = await getSessionsStoreStorage(chatId);
-  if (storage.isErr()) {
-    return;
-  }
-  const reported = await getParsedStorageItem(
-    StorageKey.memoryReported(sessionId),
-    ToldSchema,
-    storage.value,
-  );
-  const told = omit(reported.isOk() ? reported.value : {}, [name]);
-  await setParsedStorageItem(
-    StorageKey.memoryReported(sessionId),
-    memory ? { ...told, ...memoryDigests([memory]) } : told,
-    ToldSchema,
-    storage.value,
-  );
+  const reported = await ChatReads.state({
+    chatId,
+    schema: ToldSchema,
+    sessionId,
+    what: "memory",
+  });
+  const state = omit(reported.isOk() ? (reported.value ?? {}) : {}, [name]);
+  const digests = memory ? { ...state, ...memoryDigests([memory]) } : state;
+  await ChatWrites.state(chatId, sessionId, "memory", digests);
 }
 
 /**
@@ -164,11 +147,7 @@ export async function resetMemoryReported({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<void> {
-  const storage = await getSessionsStoreStorage(chatId);
-  if (storage.isErr()) {
-    return;
-  }
-  await storage.value.removeItem(StorageKey.memoryReported(sessionId));
+  await ChatWrites.state(chatId, sessionId, "memory", undefined);
 }
 
 function noteRow(memory: Memory) {

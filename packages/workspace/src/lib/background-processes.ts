@@ -14,6 +14,7 @@ import { BoundedLogWriter } from "./bounded-log-writer";
 import { BoundedText } from "./bounded-text";
 import { filterShellOutput } from "./filter-shell-output";
 import { getCurrentDate } from "./get-current-date";
+import { openOwnFile } from "./own-file";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   type ShellOutputSink,
@@ -569,11 +570,11 @@ export function promoteBackgroundProcess({
   if ("error" in log) {
     return { error: log.error };
   }
-  const { logFileAbsolutePath, logFilePath } = log;
+  const { fd, logFilePath } = log;
 
   const logWriter = new BoundedLogWriter({
     maxContentBytes: LOG_CONTENT_CAP_BYTES,
-    path: logFileAbsolutePath,
+    fd,
   });
   const record: BackgroundProcessRecord = {
     buffer: handle.buffer,
@@ -991,16 +992,24 @@ function notify(record: BackgroundProcessRecord) {
 function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
   | { error: string }
   | {
-      logFileAbsolutePath: ReturnType<typeof absolutePathJoin>;
+      fd: number;
       logFilePath: ReturnType<typeof RelativePathSchema.parse>;
     } {
   try {
     const logFilePath = RelativePathSchema.parse(
       path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${id}.log`),
     );
-    const logFileAbsolutePath = absolutePathJoin(workDir(chatId), logFilePath);
-    fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });
-    return { logFileAbsolutePath, logFilePath };
+    // The work folder is the agent's, so a program it ran may have put a
+    // link where the log goes, which this process, outside every sandbox,
+    // would write through.
+    const fd = openOwnFile({
+      file: absolutePathJoin(workDir(chatId), logFilePath),
+      flags:
+        fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
+      folder: workDir(chatId),
+      make: true,
+    });
+    return { fd, logFilePath };
   } catch (error) {
     return {
       error: `Could not open a log file for the background process: ${error instanceof Error ? error.message : String(error)}`,

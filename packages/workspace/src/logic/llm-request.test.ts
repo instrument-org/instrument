@@ -11,7 +11,19 @@ import {
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { errAsync } from "neverthrow";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   type ActorRefFrom,
   type AnyActorRef,
@@ -20,19 +32,25 @@ import {
   waitFor,
 } from "xstate";
 
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { TypedError } from "../lib/errors";
+import { isToolPart } from "../lib/is-tool-part";
+import { type ChatRead } from "../lib/records/chat-records";
+import { logFileName } from "../lib/records/file-names";
+import { liveView } from "../lib/records/views";
 import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
-import { Store } from "../lib/store";
+import { SESSION_CONTEXT_VERSION } from "../lib/session-baseline";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { withRecordsInPlace } from "../test/helpers/with-test-records";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 
@@ -46,8 +64,27 @@ vi.mock(import("../lib/turn-note"), async (importOriginal) => {
   return { ...original, turnNoteFor: vi.fn(original.turnNoteFor) };
 });
 
+/** A message's parts, written one after another. */
+async function saveParts(
+  parts: SessionMessagePart.Type[],
+  chatId: ChatId,
+): Promise<void> {
+  for (const part of parts) {
+    (await ChatWrites.savePart(part, chatId))._unsafeUnwrap();
+  }
+}
+
 describe("llmRequestLogic", () => {
   const sessionId = StoreId.newSessionId();
+  /** Numbers each case's chat. */
+  let chats = 0;
+  /**
+   * A chats folder of this run's own. The mock config's is a fixed folder
+   * under the system temp directory, where the logs of every past run are
+   * still there to be folded, so a case taking its chat by number would be
+   * handed whatever the run before it wrote under that name.
+   */
+  let chatsDir = "";
   const mockUsage = {
     inputTokens: {
       cacheRead: 1,
@@ -103,6 +140,16 @@ describe("llmRequestLogic", () => {
     },
   ];
 
+  beforeAll(async () => {
+    chatsDir = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "llm-request-chats-")),
+    );
+  });
+
+  afterAll(async () => {
+    await fs.rm(chatsDir, { force: true, recursive: true });
+  });
+
   beforeEach(() => {
     prompts = [];
   });
@@ -111,6 +158,7 @@ describe("llmRequestLogic", () => {
     beforeStream,
     catalog,
     chunks,
+    finishReason = "stop",
     getMessages = () => Promise.resolve(mockMessages),
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
@@ -118,6 +166,7 @@ describe("llmRequestLogic", () => {
     beforeStream?: () => Promise<void>;
     catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV4StreamPart[];
+    finishReason?: "length" | "stop";
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
@@ -133,7 +182,7 @@ describe("llmRequestLogic", () => {
             chunks: [
               ...chunks,
               {
-                finishReason: { raw: "stop", unified: "stop" },
+                finishReason: { raw: finishReason, unified: finishReason },
                 logprobs: undefined,
                 type: "finish",
                 usage: {
@@ -162,12 +211,18 @@ describe("llmRequestLogic", () => {
         provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
-    const taskConfig = createMockChatConfig(ChatIdSchema.parse(`mock`), {
-      aiSDKModel: mockLanguageModel,
-      catalog,
-      model,
-    });
-    await Store.saveSession(
+    // A chat of this case's own: every case writes into the same session, and
+    // a chat's records are read back whole, so a shared chat would hand a case
+    // the one before it as well.
+    const taskConfig = createMockChatConfigForDir(
+      path.join(chatsDir, `mock-${++chats}`),
+      {
+        aiSDKModel: mockLanguageModel,
+        catalog,
+        model,
+      },
+    );
+    await ChatWrites.saveSession(
       {
         createdAt: mockDate,
         id: sessionId,
@@ -244,10 +299,10 @@ describe("llmRequestLogic", () => {
     const actor = createActor(machine);
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    const sessionResult = await Store.getSessionWithMessagesAndParts(
-      sessionId,
+    const sessionResult = await ChatReads.sessionWithMessages({
       chatId,
-    );
+      sessionId,
+    });
     return sessionResult._unsafeUnwrap();
   }
 
@@ -333,14 +388,14 @@ describe("llmRequestLogic", () => {
         {
           "id": "msg_00000000Z88888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.4285714285714286,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
+                "createdAt": 2013-08-31T12:00:07.000Z,
                 "id": "prt_00000000Z88888888888888889",
                 "messageId": "msg_00000000Z88888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -350,8 +405,8 @@ describe("llmRequestLogic", () => {
             },
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:11.000Z,
                 "id": "prt_00000000Z8888888888888888A",
                 "messageId": "msg_00000000Z88888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -416,14 +471,14 @@ describe("llmRequestLogic", () => {
         {
           "id": "msg_00000000Z98888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2.5,
+            "completionTokensPerSecond": 1.6666666666666667,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
+                "createdAt": 2013-08-31T12:00:07.000Z,
                 "id": "prt_00000000Z98888888888888889",
                 "messageId": "msg_00000000Z98888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -436,12 +491,11 @@ describe("llmRequestLogic", () => {
                 "filePath": "test-file.txt",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
+                "createdAt": 2013-08-31T12:00:10.000Z,
                 "id": "prt_00000000Z9888888888888888A",
                 "messageId": "msg_00000000Z98888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "input-available",
               "toolCallId": "test-call-1",
               "type": "tool-read_file",
@@ -501,14 +555,14 @@ describe("llmRequestLogic", () => {
         {
           "id": "msg_00000000ZA8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.4285714285714286,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
+                "createdAt": 2013-08-31T12:00:07.000Z,
                 "id": "prt_00000000ZA8888888888888889",
                 "messageId": "msg_00000000ZA8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -518,8 +572,8 @@ describe("llmRequestLogic", () => {
             },
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:11.000Z,
                 "id": "prt_00000000ZA888888888888888A",
                 "messageId": "msg_00000000ZA8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -588,14 +642,14 @@ describe("llmRequestLogic", () => {
         {
           "id": "msg_00000000ZB8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
+                "createdAt": 2013-08-31T12:00:07.000Z,
                 "id": "prt_00000000ZB8888888888888889",
                 "messageId": "msg_00000000ZB8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -605,7 +659,7 @@ describe("llmRequestLogic", () => {
             },
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
+                "createdAt": 2013-08-31T12:00:10.000Z,
                 "id": "prt_00000000ZB888888888888888A",
                 "messageId": "msg_00000000ZB8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -619,7 +673,7 @@ describe("llmRequestLogic", () => {
               "filename": "test-document.pdf",
               "mediaType": "application/pdf",
               "metadata": {
-                "createdAt": 2013-08-31T12:00:05.000Z,
+                "createdAt": 2013-08-31T12:00:12.000Z,
                 "id": "prt_00000000ZB888888888888888B",
                 "messageId": "msg_00000000ZB8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -679,14 +733,14 @@ describe("llmRequestLogic", () => {
         {
           "id": "msg_00000000ZC8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
+                "createdAt": 2013-08-31T12:00:07.000Z,
                 "id": "prt_00000000ZC8888888888888889",
                 "messageId": "msg_00000000ZC8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -710,13 +764,12 @@ describe("llmRequestLogic", () => {
                 "invalid": "params",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:12.000Z,
                 "id": "prt_00000000ZC888888888888888A",
                 "messageId": "msg_00000000ZC8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -772,14 +825,14 @@ describe("llmRequestLogic", () => {
         {
           "id": "msg_00000000ZD8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
+                "createdAt": 2013-08-31T12:00:07.000Z,
                 "id": "prt_00000000ZD8888888888888889",
                 "messageId": "msg_00000000ZD8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
@@ -792,19 +845,79 @@ describe("llmRequestLogic", () => {
       Error message: Unexpected token 'i', "invalid json" is not valid JSON",
               "input": "invalid json",
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:12.000Z,
                 "id": "prt_00000000ZD888888888888888A",
                 "messageId": "msg_00000000ZD8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
             },
           ],
           "role": "assistant",
+        },
+      ]
+    `);
+  });
+
+  it("tells the model a call was cut off rather than that its input was invalid", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        {
+          id: "1",
+          toolName: "read_file",
+          type: "tool-input-start",
+        },
+        {
+          input: '{"filePath": "./lease',
+          toolCallId: "1",
+          toolName: "read_file",
+          type: "tool-call",
+        },
+      ],
+      finishReason: "length",
+    });
+    const toolParts = messages
+      .flatMap((message) => ("parts" in message ? message.parts : []))
+      .filter(isToolPart)
+      .map((part) => ({ errorText: part.errorText, state: part.state }));
+    expect(toolParts).toMatchInlineSnapshot(`
+      [
+        {
+          "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+          "state": "output-error",
+        },
+      ]
+    `);
+  });
+
+  it("settles a call the output limit stopped mid-input, rather than leaving it arriving", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        {
+          id: "1",
+          toolName: "read_file",
+          type: "tool-input-start",
+        },
+        {
+          delta: '{"filePath": "./le',
+          id: "1",
+          type: "tool-input-delta",
+        },
+      ],
+      finishReason: "length",
+    });
+    const toolParts = messages
+      .flatMap((message) => ("parts" in message ? message.parts : []))
+      .filter(isToolPart)
+      .map((part) => ({ errorText: part.errorText, state: part.state }));
+    expect(toolParts).toMatchInlineSnapshot(`
+      [
+        {
+          "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+          "state": "output-error",
         },
       ]
     `);
@@ -847,18 +960,18 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZE8888888888888888",
+          "id": "msg_00000000ZG8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZE8888888888888889",
-                "messageId": "msg_00000000ZE8888888888888888",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZG8888888888888889",
+                "messageId": "msg_00000000ZG8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -880,13 +993,12 @@ describe("llmRequestLogic", () => {
                 "invalid": "params",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
-                "id": "prt_00000000ZE888888888888888A",
-                "messageId": "msg_00000000ZE8888888888888888",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:12.000Z,
+                "id": "prt_00000000ZG888888888888888A",
+                "messageId": "msg_00000000ZG8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -934,33 +1046,33 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZF8888888888888888",
+          "id": "msg_00000000ZH8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2.5,
+            "completionTokensPerSecond": 2,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZF8888888888888889",
-                "messageId": "msg_00000000ZF8888888888888888",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZH8888888888888889",
+                "messageId": "msg_00000000ZH8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
               "type": "step-start",
             },
             {
-              "input": undefined,
+              "errorText": "This action was cut off before it could run.",
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "id": "prt_00000000ZF888888888888888A",
-                "messageId": "msg_00000000ZF8888888888888888",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:14.000Z,
+                "id": "prt_00000000ZH888888888888888A",
+                "messageId": "msg_00000000ZH8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
-              "state": "input-streaming",
+              "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",
             },
@@ -1013,18 +1125,18 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZG8888888888888888",
+          "id": "msg_00000000ZJ8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZG8888888888888889",
-                "messageId": "msg_00000000ZG8888888888888888",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZJ8888888888888889",
+                "messageId": "msg_00000000ZJ8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1036,13 +1148,12 @@ describe("llmRequestLogic", () => {
                 "unknown": "params",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
-                "id": "prt_00000000ZG888888888888888A",
-                "messageId": "msg_00000000ZG8888888888888888",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:12.000Z,
+                "id": "prt_00000000ZJ888888888888888A",
+                "messageId": "msg_00000000ZJ8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",
@@ -1096,18 +1207,18 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZH8888888888888888",
+          "id": "msg_00000000ZK8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZH8888888888888889",
-                "messageId": "msg_00000000ZH8888888888888888",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZK8888888888888889",
+                "messageId": "msg_00000000ZK8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1119,16 +1230,15 @@ describe("llmRequestLogic", () => {
                 "filePath": "test.txt",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
-                "id": "prt_00000000ZH888888888888888A",
-                "messageId": "msg_00000000ZH8888888888888888",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:12.000Z,
+                "id": "prt_00000000ZK888888888888888A",
+                "messageId": "msg_00000000ZK8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "output-error",
               "toolCallId": "1",
-              "type": "tool-read_file",
+              "type": "tool-unavailable",
             },
           ],
           "role": "assistant",
@@ -1174,18 +1284,18 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZJ8888888888888888",
+          "id": "msg_00000000ZM8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2,
+            "completionTokensPerSecond": 1.25,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZJ8888888888888889",
-                "messageId": "msg_00000000ZJ8888888888888888",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZM8888888888888889",
+                "messageId": "msg_00000000ZM8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1197,13 +1307,12 @@ describe("llmRequestLogic", () => {
                 "filePath": "test.txt",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
-                "id": "prt_00000000ZJ888888888888888A",
-                "messageId": "msg_00000000ZJ8888888888888888",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:12.000Z,
+                "id": "prt_00000000ZM888888888888888A",
+                "messageId": "msg_00000000ZM8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",
@@ -1268,18 +1377,18 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZK8888888888888888",
+          "id": "msg_00000000ZN8888888888888888",
           "metadata": {
-            "completionTokensPerSecond": 2.5,
+            "completionTokensPerSecond": 1.6666666666666667,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZK8888888888888889",
-                "messageId": "msg_00000000ZK8888888888888888",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZN8888888888888889",
+                "messageId": "msg_00000000ZN8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -1296,12 +1405,11 @@ describe("llmRequestLogic", () => {
                 "filePath": "test-file.txt",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "id": "prt_00000000ZK888888888888888A",
-                "messageId": "msg_00000000ZK8888888888888888",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "id": "prt_00000000ZN888888888888888A",
+                "messageId": "msg_00000000ZN8888888888888888",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "input-available",
               "toolCallId": "test-call-1",
               "type": "tool-read_file",
@@ -1356,14 +1464,13 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZM8888888888888888",
+            "id": "msg_00000000ZP8888888888888888",
             "metadata": {
               "error": {
                 "classification": "transient",
                 "kind": "api-call",
                 "message": "Failed to process error response",
                 "name": "AI_APICallError",
-                "responseBody": undefined,
                 "statusCode": 500,
                 "url": "https://api.openai.com/v1/chat/completions",
               },
@@ -1373,9 +1480,9 @@ describe("llmRequestLogic", () => {
             "parts": [
               {
                 "metadata": {
-                  "createdAt": 2013-08-31T12:00:02.000Z,
-                  "id": "prt_00000000ZM8888888888888889",
-                  "messageId": "msg_00000000ZM8888888888888888",
+                  "createdAt": 2013-08-31T12:00:07.000Z,
+                  "id": "prt_00000000ZP8888888888888889",
+                  "messageId": "msg_00000000ZP8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -1401,10 +1508,10 @@ describe("llmRequestLogic", () => {
       actor = createActor(testMachine.machine);
       actor.start();
       await waitFor(actor, (state) => state.status === "done");
-      const sessionResult = await Store.getSessionWithMessagesAndParts(
+      const sessionResult = await ChatReads.sessionWithMessages({
+        chatId: testMachine.chatId,
         sessionId,
-        testMachine.chatId,
-      );
+      });
       const messages = sessionResult._unsafeUnwrap().messages;
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
@@ -1432,7 +1539,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZN8888888888888888",
+            "id": "msg_00000000ZQ8888888888888888",
             "metadata": {
               "error": {
                 "kind": "aborted",
@@ -1445,9 +1552,9 @@ describe("llmRequestLogic", () => {
             "parts": [
               {
                 "metadata": {
-                  "createdAt": 2013-08-31T12:00:02.000Z,
-                  "id": "prt_00000000ZN8888888888888889",
-                  "messageId": "msg_00000000ZN8888888888888888",
+                  "createdAt": 2013-08-31T12:00:07.000Z,
+                  "id": "prt_00000000ZQ8888888888888889",
+                  "messageId": "msg_00000000ZQ8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -1464,7 +1571,7 @@ describe("llmRequestLogic", () => {
       const aborted = messages.at(-1);
       expect(
         aborted?.role === "assistant" ? aborted.metadata.msToFinish : undefined,
-      ).toMatchInlineSnapshot(`3000`);
+      ).toMatchInlineSnapshot(`4000`);
     });
 
     it("should handle unknown errors", async () => {
@@ -1500,7 +1607,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZP8888888888888888",
+            "id": "msg_00000000ZR8888888888888888",
             "metadata": {
               "error": {
                 "classification": "unknown",
@@ -1513,9 +1620,9 @@ describe("llmRequestLogic", () => {
             "parts": [
               {
                 "metadata": {
-                  "createdAt": 2013-08-31T12:00:02.000Z,
-                  "id": "prt_00000000ZP8888888888888889",
-                  "messageId": "msg_00000000ZP8888888888888888",
+                  "createdAt": 2013-08-31T12:00:07.000Z,
+                  "id": "prt_00000000ZR8888888888888889",
+                  "messageId": "msg_00000000ZR8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -1601,7 +1708,7 @@ describe("llmRequestLogic", () => {
         chunks: [],
       });
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: userMessageId,
           metadata: {
@@ -1612,7 +1719,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -1629,7 +1736,7 @@ describe("llmRequestLogic", () => {
         testMachine.chatId,
       );
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: assistantMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -1678,7 +1785,7 @@ describe("llmRequestLogic", () => {
 
     it("handles one tool call", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.savePart(
+      await ChatWrites.savePart(
         SessionMessagePart.coerce(readFilePart),
         testMachine.chatId,
       );
@@ -1754,7 +1861,7 @@ describe("llmRequestLogic", () => {
 
     it("handles two tool calls", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.saveParts(
+      await saveParts(
         [
           readFilePart,
           {
@@ -1872,7 +1979,7 @@ describe("llmRequestLogic", () => {
 
     it("handles tool call with diagnostics reminder", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.saveParts(
+      await saveParts(
         [
           {
             input: {
@@ -1966,7 +2073,7 @@ describe("llmRequestLogic", () => {
 
     it("handles tool call errors", async () => {
       const testMachine = await setupPromptMessagesTest();
-      await Store.saveParts(
+      await saveParts(
         [
           {
             errorText:
@@ -2056,7 +2163,7 @@ describe("llmRequestLogic", () => {
         provider: "anthropic",
       });
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: userMessageId,
           metadata: {
@@ -2067,7 +2174,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -2084,7 +2191,7 @@ describe("llmRequestLogic", () => {
         testMachine.chatId,
       );
 
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: assistantMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -2094,7 +2201,7 @@ describe("llmRequestLogic", () => {
       );
 
       const secondMessageId = StoreId.newMessageId();
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: secondMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -2102,7 +2209,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -2119,7 +2226,7 @@ describe("llmRequestLogic", () => {
         testMachine.chatId,
       );
       const thirdMessageId = StoreId.newMessageId();
-      await Store.saveMessage(
+      await ChatWrites.saveMessage(
         {
           id: thirdMessageId,
           metadata: mockAssistantMessageMetadata,
@@ -2127,7 +2234,7 @@ describe("llmRequestLogic", () => {
         },
         testMachine.chatId,
       );
-      await Store.saveParts(
+      await saveParts(
         [
           {
             metadata: {
@@ -2282,7 +2389,7 @@ describe("llmRequestLogic", () => {
       const staleMessageId = StoreId.newMessageId();
       const oldText = "You are an assistant from two hours ago.";
 
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: staleMessageId,
           metadata: {
@@ -2324,54 +2431,7 @@ describe("llmRequestLogic", () => {
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
           {
-            "id": "msg_0000000001888888888888888B",
-            "metadata": {
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:00.000Z,
-                  "id": "prt_00000000ZV8888888888888888",
-                  "messageId": "msg_0000000001888888888888888B",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "state": "done",
-                "text": "Do something",
-                "type": "text",
-              },
-            ],
-            "role": "user",
-          },
-          {
-            "id": "msg_0000000001888888888888888C",
-            "metadata": {
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "finishReason": "stop",
-              "modelId": "mock-model-id",
-              "providerId": "mock-provider",
-              "sessionId": "ses_00000000018888888888888888",
-              "usage": {
-                "inputTokenDetails": {
-                  "cacheReadTokens": 1,
-                  "cacheWriteTokens": undefined,
-                  "noCacheTokens": undefined,
-                },
-                "inputTokens": 2,
-                "outputTokenDetails": {
-                  "reasoningTokens": 4,
-                  "textTokens": undefined,
-                },
-                "outputTokens": 3,
-                "totalTokens": 5,
-              },
-            },
-            "parts": [],
-            "role": "assistant",
-          },
-          {
-            "id": "msg_00000000ZV8888888888888889",
+            "id": "msg_00000000ZX8888888888888889",
             "metadata": {
               "agentName": "main",
               "contextVersion": "current",
@@ -2383,8 +2443,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T10:00:00.000Z,
-                  "id": "prt_00000000ZV888888888888888A",
-                  "messageId": "msg_00000000ZV8888888888888889",
+                  "id": "prt_00000000ZX888888888888888A",
+                  "messageId": "msg_00000000ZX8888888888888889",
                   "sessionId": "ses_00000000018888888888888888",
                 },
                 "text": "You are an assistant from two hours ago.",
@@ -2394,18 +2454,18 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZV888888888888888B",
+            "id": "msg_00000000ZX888888888888888B",
             "metadata": {
-              "completionTokensPerSecond": 2,
+              "completionTokensPerSecond": 1.4285714285714286,
               "finishReason": "stop",
               "sessionId": "ses_00000000018888888888888888",
             },
             "parts": [
               {
                 "metadata": {
-                  "createdAt": 2013-08-31T12:00:02.000Z,
-                  "id": "prt_00000000ZV888888888888888C",
-                  "messageId": "msg_00000000ZV888888888888888B",
+                  "createdAt": 2013-08-31T12:00:12.000Z,
+                  "id": "prt_00000000ZX888888888888888C",
+                  "messageId": "msg_00000000ZX888888888888888B",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -2413,10 +2473,10 @@ describe("llmRequestLogic", () => {
               },
               {
                 "metadata": {
-                  "createdAt": 2013-08-31T12:00:04.000Z,
-                  "endedAt": 2013-08-31T12:00:05.000Z,
-                  "id": "prt_00000000ZV888888888888888D",
-                  "messageId": "msg_00000000ZV888888888888888B",
+                  "createdAt": 2013-08-31T12:00:15.000Z,
+                  "endedAt": 2013-08-31T12:00:16.000Z,
+                  "id": "prt_00000000ZX888888888888888D",
+                  "messageId": "msg_00000000ZX888888888888888B",
                   "sessionId": "ses_00000000018888888888888888",
                 },
                 "state": "done",
@@ -2500,18 +2560,18 @@ describe("llmRequestLogic", () => {
           "role": "session-context",
         },
         {
-          "id": "msg_00000000ZV888888888888888H",
+          "id": "msg_00000000ZX888888888888888H",
           "metadata": {
-            "completionTokensPerSecond": 1.6666666666666667,
+            "completionTokensPerSecond": 1,
             "finishReason": "stop",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:02.000Z,
-                "id": "prt_00000000ZV888888888888888J",
-                "messageId": "msg_00000000ZV888888888888888H",
+                "createdAt": 2013-08-31T12:00:07.000Z,
+                "id": "prt_00000000ZX888888888888888J",
+                "messageId": "msg_00000000ZX888888888888888H",
                 "sessionId": "ses_00000000018888888888888888",
                 "stepCount": 1,
               },
@@ -2519,10 +2579,10 @@ describe("llmRequestLogic", () => {
             },
             {
               "metadata": {
-                "createdAt": 2013-08-31T12:00:04.000Z,
-                "endedAt": 2013-08-31T12:00:05.000Z,
-                "id": "prt_00000000ZV888888888888888K",
-                "messageId": "msg_00000000ZV888888888888888H",
+                "createdAt": 2013-08-31T12:00:10.000Z,
+                "endedAt": 2013-08-31T12:00:11.000Z,
+                "id": "prt_00000000ZX888888888888888K",
+                "messageId": "msg_00000000ZX888888888888888H",
                 "sessionId": "ses_00000000018888888888888888",
               },
               "state": "done",
@@ -2534,12 +2594,11 @@ describe("llmRequestLogic", () => {
                 "filePath": "test-file.txt",
               },
               "metadata": {
-                "createdAt": 2013-08-31T12:00:06.000Z,
-                "id": "prt_00000000ZV888888888888888M",
-                "messageId": "msg_00000000ZV888888888888888H",
+                "createdAt": 2013-08-31T12:00:13.000Z,
+                "id": "prt_00000000ZX888888888888888M",
+                "messageId": "msg_00000000ZX888888888888888H",
                 "sessionId": "ses_00000000018888888888888888",
               },
-              "providerExecuted": undefined,
               "state": "input-available",
               "toolCallId": "test-call-1",
               "type": "tool-read_file",
@@ -2688,111 +2747,19 @@ describe("llmRequestLogic", () => {
     });
   });
 
-  // Streaming saves are coalesced: a delta only writes through when enough
-  // time or unsaved text has built up since the part's last save, and any
-  // unsaved tail is flushed before parts are read back from the store.
+  // A reply is held in the turn's memory while it arrives and written as it
+  // settles, so what these cases watch is the cadence a call's input is
+  // parsed on, and what the turn's end writes of a reply that never settled.
   // performance.now is pinned so no time ever appears to pass, which makes
-  // every save after a part's first attributable to the character threshold,
-  // an end event, or the flush.
-  describe("delta save coalescing", () => {
+  // every parse after a call's first attributable to the character threshold.
+  describe("a reply still arriving", () => {
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    it("coalesces text delta saves", async () => {
-      vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
-      const deltaTexts = Array.from(
-        { length: 200 },
-        (_, index) => `word-${index} `,
-      );
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { id: "1", type: "text-start" },
-          ...deltaTexts.map((delta) => ({
-            delta,
-            id: "1",
-            type: "text-delta" as const,
-          })),
-          { id: "1", type: "text-end" },
-        ],
-      });
-
-      const assistant = messages.findLast(
-        (message) => message.role === "assistant",
-      );
-      const textPart = assistant?.parts.find((part) => part.type === "text");
-      expect(textPart?.text).toBe(deltaTexts.join("").trimEnd());
-      expect(savePartSpy.mock.calls.length).toBeLessThan(
-        deltaTexts.length / 10,
-      );
-      // The step-start part, the first delta, and the text-end save.
-      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`3`);
-    });
-
-    it("coalesces reasoning delta saves", async () => {
-      vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
-      const deltaTexts = Array.from(
-        { length: 200 },
-        (_, index) => `thought-${index} `,
-      );
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { id: "1", type: "reasoning-start" },
-          ...deltaTexts.map((delta) => ({
-            delta,
-            id: "1",
-            type: "reasoning-delta" as const,
-          })),
-          { id: "1", type: "reasoning-end" },
-        ],
-      });
-
-      const assistant = messages.findLast(
-        (message) => message.role === "assistant",
-      );
-      const reasoningPart = assistant?.parts.find(
-        (part) => part.type === "reasoning",
-      );
-      expect(reasoningPart?.text).toBe(deltaTexts.join("").trimEnd());
-      expect(savePartSpy.mock.calls.length).toBeLessThan(
-        deltaTexts.length / 10,
-      );
-      // The step-start part, the empty part saved at reasoning-start, the
-      // first delta, and the reasoning-end save.
-      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`4`);
-    });
-
-    it("writes through when enough unsaved text accumulates", async () => {
-      vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
-      const deltaTexts = Array.from({ length: 100 }, () => "x".repeat(100));
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { id: "1", type: "text-start" },
-          ...deltaTexts.map((delta) => ({
-            delta,
-            id: "1",
-            type: "text-delta" as const,
-          })),
-          { id: "1", type: "text-end" },
-        ],
-      });
-
-      const assistant = messages.findLast(
-        (message) => message.role === "assistant",
-      );
-      const textPart = assistant?.parts.find((part) => part.type === "text");
-      expect(textPart?.text).toBe(deltaTexts.join(""));
-      // The step-start part, the first delta, the writes where the unsaved
-      // text crossed the character threshold, and the text-end save.
-      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`5`);
-    });
-
     it("coalesces tool input delta saves", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
-      const savePartSpy = vi.spyOn(Store, "savePart");
+      const savePartSpy = vi.spyOn(ChatWrites, "savePart");
       const input = JSON.stringify({ filePath: `${"a".repeat(1000)}.txt` });
       const deltas = Array.from(
         { length: Math.ceil(input.length / 5) },
@@ -2833,7 +2800,7 @@ describe("llmRequestLogic", () => {
       expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`4`);
     });
 
-    it("flushes the partial tool input when the stream errors", async () => {
+    it("records a call whose input never arrived as interrupted", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
       const input = JSON.stringify({ filePath: "flushed.txt" });
       const deltas = Array.from(
@@ -2858,12 +2825,22 @@ describe("llmRequestLogic", () => {
       const toolPart = assistant?.parts.find(
         (part) => part.type === "tool-read_file",
       );
+      // The turn's end settles the call it was still being told about, so a
+      // reader sees a call that was cut off rather than one still arriving,
+      // carrying everything the model had typed: the fragments that arrived
+      // after the last parse are parsed once more on the way out.
       expect(
-        toolPart?.type === "tool-read_file" &&
-          toolPart.state === "input-streaming"
-          ? toolPart.input
+        toolPart?.type === "tool-read_file" && toolPart.state === "output-error"
+          ? { errorText: toolPart.errorText, input: toolPart.input }
           : undefined,
-      ).toEqual({ filePath: "flushed.txt" });
+      ).toMatchInlineSnapshot(`
+        {
+          "errorText": "This action was cut off before it could run.",
+          "input": {
+            "filePath": "flushed.txt",
+          },
+        }
+      `);
     });
 
     it("does not overwrite a tool error with a stale streaming save", async () => {
@@ -2919,14 +2896,16 @@ describe("llmRequestLogic", () => {
       );
       expect(assistant?.metadata.error?.kind).toBe("unknown");
       const textPart = assistant?.parts.find((part) => part.type === "text");
-      expect(textPart?.text).toBe(deltaTexts.join(""));
+      // Every delta of it, done where the stream left off: the words a reply
+      // reached are written trimmed, since what it stopped mid-way through is
+      // a word rather than a space.
+      expect(textPart?.text).toBe(deltaTexts.join("").trimEnd());
     });
 
     it("flushes the unsaved tail when a delta save failed", async () => {
-      // Time advances past the coalescing interval on every delta, so each one
-      // writes through and the failing write is the last one before the stream
-      // errors. The store rejects that write once, which leaves the delta's
-      // text unsaved for the flush to write.
+      // The last delta before the stream errors is refused once, so the words
+      // it carried reach the records only through what the turn's end writes
+      // of what it was holding.
       let nowMs = 0;
       vi.spyOn(performance, "now").mockImplementation(() => {
         nowMs += 1000;
@@ -2934,21 +2913,15 @@ describe("llmRequestLogic", () => {
       });
       const deltaTexts = ["first ", "second ", "third"];
       const fullText = deltaTexts.join("");
-      const savePart = Store.savePart;
+      const savePart = ChatWrites.savePart;
       let rejectedWrite = false;
-      vi.spyOn(Store, "savePart").mockImplementation(
-        (part, chatId, options) => {
-          if (
-            !rejectedWrite &&
-            part.type === "text" &&
-            part.text === fullText
-          ) {
-            rejectedWrite = true;
-            return errAsync(new TypedError.Storage("Write failed"));
-          }
-          return savePart(part, chatId, options);
-        },
-      );
+      vi.spyOn(ChatWrites, "savePart").mockImplementation((part, chatId) => {
+        if (!rejectedWrite && part.type === "text" && part.text === fullText) {
+          rejectedWrite = true;
+          return errAsync(new TypedError.Storage("Write failed"));
+        }
+        return savePart(part, chatId);
+      });
 
       const { messages } = await createAndRunTestMachine({
         chunks: [
@@ -2976,10 +2949,10 @@ describe("llmRequestLogic", () => {
         nowMs += 1000;
         return nowMs;
       });
-      const savePart = Store.savePart;
+      const savePart = ChatWrites.savePart;
       const savePartSpy = vi
-        .spyOn(Store, "savePart")
-        .mockImplementation((part, chatId, options) =>
+        .spyOn(ChatWrites, "savePart")
+        .mockImplementation((part, chatId) =>
           part.type === "text"
             ? errAsync(
                 new TypedError.Storage("unable to open database file", {
@@ -2989,7 +2962,7 @@ describe("llmRequestLogic", () => {
                   ),
                 }),
               )
-            : savePart(part, chatId, options),
+            : savePart(part, chatId),
         );
       const testMachine = await createTestMachine({
         chunks: [
@@ -3044,8 +3017,8 @@ describe("llmRequestLogic", () => {
         onChunkReceived: () => {
           chunksReceived += 1;
           // "start", "start-step", and "text-start" arrive first, then the
-          // deltas: abort while the last delta is being processed, so its text
-          // is accumulated but the coalesced save for it never runs.
+          // deltas: abort while the last delta is being processed, so the
+          // reply is still arriving when the turn is let go.
           if (chunksReceived === deltaTexts.length + 3) {
             actor?.send({ type: "stop" });
           }
@@ -3057,18 +3030,18 @@ describe("llmRequestLogic", () => {
       await waitFor(actor, (state) => state.status === "done");
 
       // The aborted request keeps running detached from the machine, so poll
-      // until its flush lands in the store.
+      // until what it was holding has been written.
       await vi.waitFor(async () => {
-        const sessionResult = await Store.getSessionWithMessagesAndParts(
+        const sessionResult = await ChatReads.sessionWithMessages({
+          chatId: testMachine.chatId,
           sessionId,
-          testMachine.chatId,
-        );
+        });
         const assistant = sessionResult
           ._unsafeUnwrap()
           .messages.findLast((message) => message.role === "assistant");
         expect(assistant?.metadata.finishReason).toBe("aborted");
         const textPart = assistant?.parts.find((part) => part.type === "text");
-        expect(textPart?.text).toBe(deltaTexts.join(""));
+        expect(textPart?.text).toBe(deltaTexts.join("").trimEnd());
       });
     });
   });
@@ -3116,7 +3089,7 @@ describe("llmRequestLogic", () => {
   it("sends the turn note as transient", async () => {
     const testMachine = await createTestMachine({ chunks: [] });
     const messageId = StoreId.newMessageId();
-    await Store.saveMessage(
+    await ChatWrites.saveMessage(
       {
         id: messageId,
         metadata: { createdAt: mockDate, sessionId },
@@ -3124,7 +3097,7 @@ describe("llmRequestLogic", () => {
       },
       testMachine.chatId,
     );
-    await Store.saveParts(
+    await saveParts(
       [
         {
           metadata: {
@@ -3163,5 +3136,66 @@ describe("llmRequestLogic", () => {
         "role": "user",
       }
     `);
+  });
+
+  it("holds a reply still arriving in the turn's memory, and records none of it", async () => {
+    const input = JSON.stringify({
+      activity: "Reading the list",
+      command: "cat list.md",
+    });
+    await withRecordsInPlace(async (records, dir) => {
+      const held: Promise<ChatRead>[] = [];
+      const testMachine = await createTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          { delta: "Looking.", id: "1", type: "text-delta" },
+          { id: "call-1", toolName: "bash", type: "tool-input-start" },
+          { delta: input, id: "call-1", type: "tool-input-delta" },
+          { id: "1", type: "text-end" },
+          {
+            input,
+            toolCallId: "call-1",
+            toolName: "bash",
+            type: "tool-call",
+          },
+          {
+            finishReason: { raw: "stop", unified: "stop" },
+            type: "finish",
+            usage: mockUsage,
+          },
+        ],
+        // Read as each chunk arrives, so what the turn held along the way is
+        // what is checked, not only where it ended.
+        onChunkReceived: () => {
+          held.push(records.read(testMachine.chatId));
+        },
+      });
+
+      await runTestMachine(testMachine);
+      // The turn has ended, so it holds nothing.
+      expect((await records.read(testMachine.chatId)).live.size).toBe(0);
+      // Every append the turn queued, landed: a read of the file is a read
+      // of the whole turn.
+
+      const arriving = (await Promise.all(held)).flatMap((read) =>
+        liveView(read, sessionId).flatMap((message) => message.parts),
+      );
+      expect(
+        arriving.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+      ).toContain("Looking.");
+      expect(
+        arriving.some(
+          (part) => isToolPart(part) && part.state === "input-streaming",
+        ),
+      ).toBe(true);
+      const log = await fs.readFile(
+        path.join(dir, logFileName(sessionId, records.device)),
+        "utf8",
+      );
+      expect(log).not.toContain("input-streaming");
+      expect(log).not.toContain('"state":"streaming"');
+      expect(log).toContain('"state":"input-available"');
+      expect(log).toContain("Looking.");
+    });
   });
 });

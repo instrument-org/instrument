@@ -134,7 +134,7 @@ describe("shimOutput", () => {
 
     const output = shimOutput(result, "node");
     expect(output.stderr).toContain("node could not start.");
-    expect(output.stderr).toContain("/no/such/directory");
+    expect(output.stderr).toContain(path.resolve("/no/such/directory"));
     expect(output.stdout).toBe("");
   });
 
@@ -154,7 +154,11 @@ describe("shimOutput", () => {
   it("substitutes a diagnostic when the binary is missing", async () => {
     const result = await execShim("instrument-no-such-binary", [], {});
 
-    expect(shimOutput(result, "nope").stderr).toContain("ENOENT");
+    // On Windows execa runs a command it finds nowhere through cmd.exe,
+    // which says so itself.
+    expect(shimOutput(result, "nope").stderr).toMatch(
+      process.platform === "win32" ? /is not recognized/ : /ENOENT/,
+    );
   });
 
   // rg reports no matches this way, and git diff --quiet reports a difference

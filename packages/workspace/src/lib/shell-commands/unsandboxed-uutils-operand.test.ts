@@ -14,9 +14,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { CHAT_FOLDER_NAMES } from "../../constants";
-import { ChatDirSchema } from "../../schemas/paths";
+import { ChatDirSchema, WorkDirSchema } from "../../schemas/paths";
+import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
+import { workspaceLayout } from "../workspace-layout";
 import {
   openOperandForStdin,
   shellSpellingOf,
@@ -27,10 +28,17 @@ const base = realpathSync(
 );
 const chat = path.join(base, "chat");
 const outside = path.join(base, "outside");
+// The chat's record folder, in the workspace's own data, which is closed but
+// for what the rules open in it.
+const record = path.join(
+  workspaceLayout(getWorkspaceConfig().rootDir).dataDir,
+  "chats",
+  path.basename(base),
+);
 for (const dir of [
   chat,
   outside,
-  path.join(chat, CHAT_FOLDER_NAMES.private),
+  record,
   path.join(chat, "closed"),
   path.join(chat, "asks"),
 ]) {
@@ -40,7 +48,7 @@ writeFileSync(path.join(chat, "a.txt"), "one\ntwo\n");
 writeFileSync(path.join(chat, "two-names.txt"), "x\n");
 linkSync(path.join(chat, "two-names.txt"), path.join(chat, "second-name.txt"));
 writeFileSync(path.join(outside, "secret.txt"), "secret\n");
-writeFileSync(path.join(chat, CHAT_FOLDER_NAMES.private, "s.txt"), "s\n");
+writeFileSync(path.join(record, "s.txt"), "s\n");
 writeFileSync(path.join(chat, "closed", "c.txt"), "c\n");
 writeFileSync(path.join(chat, "asks", "q.txt"), "q\n");
 symlinkSync(path.join(outside, "secret.txt"), path.join(chat, "out-link"));
@@ -48,17 +56,21 @@ symlinkSync(path.join(chat, "a.txt"), path.join(chat, "in-link"));
 if (process.platform !== "win32") {
   execFileSync("mkfifo", [path.join(chat, "fifo")]);
 }
-afterAll(() => rmSync(base, { force: true, recursive: true }));
+afterAll(() => {
+  rmSync(base, { force: true, recursive: true });
+  rmSync(record, { force: true, recursive: true });
+});
 
 const layout = buildWorkspaceFsLayout({
-  chatHostRoot: ChatDirSchema.parse(chat),
+  chatHostRoot: WorkDirSchema.parse(chat),
+  recordHostRoot: ChatDirSchema.parse(record),
   rules: {
     home: os.homedir(),
     rules: [
       { level: "never", path: path.join(chat, "closed"), source: "folder" },
       { level: "ask", path: path.join(chat, "asks"), source: "folder" },
     ],
-    withoutAsking: false,
+    dangerouslyAllowEveryFolder: false,
   },
 });
 
@@ -94,7 +106,7 @@ describe("openOperandForStdin", () => {
     ["a file outside them", path.join(outside, "secret.txt")],
     ["a file with a second name", "second-name.txt"],
     ["a FIFO", "fifo"],
-    ["the app's own folder", `${CHAT_FOLDER_NAMES.private}/s.txt`],
+    ["the app's own folder", path.join(record, "s.txt")],
     ["a folder the rules close", "closed/c.txt"],
     ["a folder that asks first", "asks/q.txt"],
     ["a folder", "."],

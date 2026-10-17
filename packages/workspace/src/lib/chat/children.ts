@@ -3,9 +3,10 @@ import { z } from "zod";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";
 import { resolveChat, sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 
 /**
  * A task: a session in its chat's store, started from the chat's own
@@ -54,7 +55,7 @@ export function addChildTask(
       handle: `t${Math.max(0, ...given) + 1}`,
       parentId,
     };
-    const saved = await Store.saveSession(session, chatId);
+    const saved = await ChatWrites.saveSession(session, chatId);
     if (saved.isErr()) {
       throw saved.error;
     }
@@ -74,7 +75,8 @@ export async function listChildTasks(
   if (!chatSession) {
     return [];
   }
-  const sessions = await Store.getSessions(chatId, {
+  const sessions = await ChatReads.sessions({
+    chatId,
     includeChildSessions: true,
   });
   if (sessions.isErr()) {
@@ -92,7 +94,7 @@ export async function childTask(
   sessionId: StoreId.Session,
 ): Promise<ChatTask | undefined> {
   const chatSession = sessionOfChat(chatId);
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   return chatSession && session.isOk() && session.value.parentId === chatSession
     ? taskOf(chatId, session.value)
     : undefined;
@@ -118,6 +120,9 @@ export function sessionRole(
  * Writes what the task list reads onto a task's session: who stopped its
  * last turn, and that something happened in it now. Queued per task, so two
  * landing together each build on the other.
+ *
+ * A stop is never taken off here: it is a record of something that happened,
+ * and what retires it is a message starting a turn after it (`session-of.ts`).
  */
 export function touchTask(
   chatId: ChatId,
@@ -125,11 +130,11 @@ export function touchTask(
   changes: Pick<Session.Type, "stoppedBy"> = {},
 ): Promise<void> {
   return taskWrites(sessionId, async () => {
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return;
     }
-    const saved = await Store.saveSession(
+    const saved = await ChatWrites.saveSession(
       { ...session.value, ...changes, updatedAt: new Date() },
       chatId,
     );

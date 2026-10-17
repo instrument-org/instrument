@@ -2,22 +2,48 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// Depends on nothing of the workspace's, so the sandbox bake-off probe runs
-// the same isolation the app does.
+import { runtimeLayout } from "./runtime-dir";
+
+// Depends on nothing of the workspace's but the runtime layout, which
+// depends on nothing either, so the sandbox bake-off probe runs the same
+// isolation the app does.
 
 /**
- * The environment that pins pnpm, npm and node-gyp to `dir` and its own
- * config, whatever the person's setup holds: their `~/.npmrc` (a registry,
- * `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global store and
- * caches are never read or written. The config files are the app's own and
- * empty; what a chat's install needs comes from its own
- * `pnpm-workspace.yaml`.
+ * The environment that pins pnpm, npm and node-gyp to the chats' caches and
+ * config in `runtimeDir`, whatever the person's setup holds: their `~/.npmrc`
+ * (a registry, `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global
+ * store and caches are never read or written. Each is pinned by name rather
+ * than by moving the folders a tool looks in, since every program on the PATH
+ * gets this environment and one that keeps its own settings under `~/.config`
+ * would have found an empty folder instead of the person's. The config files
+ * are the app's own and empty. pnpm's settings for every install the agent
+ * makes, wherever it makes it, are the `pnpm_config_*` variables here, which
+ * a project's own `pnpm-workspace.yaml` can still change for that project.
  */
-export function nodeToolsEnvFor(dir: string): Record<string, string> {
-  const userConfig = path.join(dir, "npmrc");
-  const globalConfig = path.join(dir, "npmrc-global");
+export function nodeToolsEnvFor(runtimeDir: string): Record<string, string> {
+  const { caches, config } = runtimeLayout(runtimeDir);
+  return nodeToolsEnvIn(caches, config);
+}
+
+/**
+ * {@link nodeToolsEnvFor} for the app's build of a skill it ships: the same
+ * settings, with the store, caches and config in the build folders, which no
+ * chat reaches, so no chat's install or setting reaches what every chat
+ * then runs.
+ */
+export function nodeBuildEnvFor(runtimeDir: string): Record<string, string> {
+  const { buildCaches, buildConfig } = runtimeLayout(runtimeDir);
+  return nodeToolsEnvIn(buildCaches, buildConfig);
+}
+
+function nodeToolsEnvIn(
+  caches: string,
+  config: string,
+): Record<string, string> {
+  const userConfig = path.join(config, "npmrc");
+  const globalConfig = path.join(config, "npmrc-global");
   if (!existsSync(userConfig) || !existsSync(globalConfig)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(config, { recursive: true });
     for (const file of [userConfig, globalConfig]) {
       if (!existsSync(file)) {
         writeFileSync(file, "");
@@ -25,38 +51,40 @@ export function nodeToolsEnvFor(dir: string): Record<string, string> {
     }
   }
   return {
-    PNPM_HOME: path.join(dir, "pnpm-home"),
+    PNPM_HOME: path.join(caches, "pnpm-home"),
     // npm, node-gyp and anything else that reads npm's own settings.
-    npm_config_cache: path.join(dir, "npm-cache"),
-    npm_config_devdir: path.join(dir, "node-gyp"),
+    npm_config_cache: path.join(caches, "npm"),
+    npm_config_devdir: path.join(caches, "node-gyp"),
     npm_config_globalconfig: globalConfig,
     npm_config_userconfig: userConfig,
     // pnpm 11 reads its settings from `pnpm_config_*` alone.
-    pnpm_config_cache_dir: path.join(dir, "pnpm-cache"),
+    pnpm_config_cache_dir: path.join(caches, "pnpm"),
     // A chat folder installed against an earlier store is reinstalled
     // against this one without asking, since nobody answers a prompt here.
     pnpm_config_confirm_modules_purge: "false",
-    pnpm_config_global_bin_dir: path.join(dir, "global-bin"),
-    pnpm_config_global_dir: path.join(dir, "global"),
+    // What `pnpx` fetched stays for 180 days, so it is warm in every chat.
+    pnpm_config_dlx_cache_max_age: String(180 * 24 * 60),
+    pnpm_config_global_bin_dir: path.join(caches, "pnpm-global-bin"),
+    pnpm_config_global_dir: path.join(caches, "pnpm-global"),
     pnpm_config_globalconfig: globalConfig,
+    // A release younger than a week is not installed, in minutes.
+    pnpm_config_minimum_release_age: String(RELEASE_AGE_DAYS * 24 * 60),
     pnpm_config_npmrc_auth_file: userConfig,
-    pnpm_config_state_dir: path.join(dir, "pnpm-state"),
-    pnpm_config_store_dir: path.join(dir, "pnpm-store"),
+    pnpm_config_state_dir: path.join(caches, "pnpm-state"),
+    pnpm_config_store_dir: path.join(caches, "pnpm-store"),
+    // A dependency's install script nobody allowed is skipped with a warning
+    // rather than failing the install, so a package the agent adds cannot
+    // dead-end it; the bash tool says how to allow one
+    // (`ignoredBuildsNote`).
+    pnpm_config_strict_dep_builds: "false",
+    pnpm_config_update_notifier: "false",
     pnpm_config_userconfig: userConfig,
+    // pnpm 11 has every `pnpm run` and `pnpm exec` check the install first
+    // and start one of its own when it looks stale, which races the agent's
+    // own installs against the shared store and deadlocks. It installs when
+    // the agent installs.
+    pnpm_config_verify_deps_before_run: "false",
   };
-}
-
-/** Where uv keeps the Pythons it installs, in `uvDataDir`. */
-export function uvPythonInstallDir(uvDataDir: string): string {
-  return path.join(uvDataDir, "python");
-}
-
-/**
- * Where the app installs the packages every chat's `python` starts with
- * (`python-base.ts`), in `uvDataDir`.
- */
-export function uvPythonBaseDir(uvDataDir: string): string {
-  return path.join(uvDataDir, "python-base");
 }
 
 /**
@@ -67,23 +95,46 @@ export const RELEASE_AGE_DAYS = 7;
 
 /**
  * The environment that pins uv (and anything that runs the real pip) to
- * `uvDataDir`: its cache, the Pythons it installs and the tools it puts on a
- * PATH, with no config of the person's read (`uv.toml` in their home or a
- * parent folder, `pip.conf`), and none of their Pythons used. A release
- * younger than a week is not
- * installed, the gate a chat's `pnpm-workspace.yaml` holds npm packages to.
+ * `runtimeDir`: its cache and the tools it puts on a PATH in the caches, the
+ * Pythons it installs in their own folder, with no config of the person's
+ * read (`uv.toml` in their home or a parent folder, `pip.conf`), and none of
+ * their Pythons used. A release younger than a week is not installed, the
+ * gate pnpm holds npm packages to.
  */
 export function uvToolsEnvFor(
-  uvDataDir: string,
+  runtimeDir: string,
   now = new Date(),
+): Record<string, string> {
+  const { caches, python } = runtimeLayout(runtimeDir);
+  return uvToolsEnvIn(caches, python, now);
+}
+
+/**
+ * {@link uvToolsEnvFor} for what the app builds or runs from uv's cache that
+ * every chat then runs (a shipped skill's environment, the managed Python,
+ * a connected app's local server): the same settings, with the cache and
+ * tools in the build folders, which no chat reaches.
+ */
+export function uvBuildEnvFor(
+  runtimeDir: string,
+  now = new Date(),
+): Record<string, string> {
+  const { buildCaches, python } = runtimeLayout(runtimeDir);
+  return uvToolsEnvIn(buildCaches, python, now);
+}
+
+function uvToolsEnvIn(
+  caches: string,
+  python: string,
+  now: Date,
 ): Record<string, string> {
   return {
     // matplotlib keeps its font cache in ~/.matplotlib on macOS, which the
     // sandbox keeps from changes, so without its own folder every chart
     // rebuilt the cache (about ten seconds).
-    MPLCONFIGDIR: path.join(uvDataDir, "matplotlib"),
+    MPLCONFIGDIR: path.join(caches, "matplotlib"),
     PIP_CONFIG_FILE: os.devNull,
-    UV_CACHE_DIR: path.join(uvDataDir, "cache"),
+    UV_CACHE_DIR: path.join(caches, "uv"),
     UV_EXCLUDE_NEWER: new Date(
       now.getTime() - RELEASE_AGE_DAYS * 24 * 60 * 60 * 1000,
     ).toISOString(),
@@ -91,10 +142,10 @@ export function uvToolsEnvFor(
     // uv's own Pythons alone, so neither `uv venv` nor anything it runs
     // picks up a python3 the person has earlier on their PATH.
     UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_INSTALL_DIR: uvPythonInstallDir(uvDataDir),
+    UV_PYTHON_INSTALL_DIR: python,
     UV_PYTHON_PREFERENCE: "only-managed",
-    UV_TOOL_BIN_DIR: path.join(uvDataDir, "tools", "bin"),
-    UV_TOOL_DIR: path.join(uvDataDir, "tools"),
-    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
+    UV_TOOL_BIN_DIR: path.join(caches, "uv-tools", "bin"),
+    UV_TOOL_DIR: path.join(caches, "uv-tools"),
+    XDG_CACHE_HOME: caches,
   };
 }

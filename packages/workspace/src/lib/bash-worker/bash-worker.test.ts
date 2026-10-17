@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { createTsxBashWorker } from "../../test/helpers/tsx-bash-worker";
@@ -18,10 +18,13 @@ import {
   createLocalBashEnv,
 } from "../create-bash-env";
 import { resolveChat, chatDir } from "../record-folders";
+import { workDir } from "../work-dir";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
+import { workspaceLayout } from "../workspace-layout";
 import { getWorkspaceSkillsDir } from "../workspace-skills-dir";
 import {
   beginSkillChangeTracking,
@@ -40,21 +43,30 @@ let chatId: ChatId;
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-worker-"));
-  const chatRoot = path.join(root, "chats", `01k${"worker".padEnd(23, "0")}`);
-  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  const chatRoot = path.join(
+    workspaceLayout(root).chatsDir,
+    `01k${"worker".padEnd(23, "0")}`,
+  );
   // Its settings name a session, so the chat is found again on disk after a
   // test below reads the index afresh.
-  await fs.mkdir(path.join(chatRoot, ".instrument"));
+  await fs.mkdir(chatRoot, { recursive: true });
   await fs.writeFile(
-    path.join(chatRoot, ".instrument", "settings.json"),
+    path.join(chatRoot, "settings.json"),
     JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
   );
   chatId = createMockChatConfigForDir(chatRoot);
+  // Each chat works in a folder of its own in the machine folder, apart from
+  // its records, as the app keeps them.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
-    rootDir: WorkspaceDirSchema.parse(root),
+    chatsDir: AbsolutePathSchema.parse(workspaceLayout(root).chatsDir),
+    rootDir: WorkspaceDirSchema.parse(path.join(root)),
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(root, "machine", "work"),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
   });
+  await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
   setBashWorkerFactory((workerOptions) => {
     const worker = createTsxBashWorker(workerOptions);
     workers.push(worker);
@@ -79,8 +91,17 @@ function currentWorker() {
 /**
  * Whether the process is still running. A child whose worker died is never
  * reaped, so it lingers as a zombie that `kill(pid, 0)` still reports.
+ * Windows keeps no zombies, so there `kill(pid, 0)` answers.
  */
 function isAlive(pid: number) {
+  if (process.platform === "win32") {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const state = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], {
     encoding: "utf8",
   }).stdout.trim();
@@ -129,7 +150,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     );
     expect(result).toMatchObject({
       exitCode: 0,
-      stdout: `hi\n${chatDir(chatId)}/work\n`,
+      stdout: `hi\n${shellPath(workDir(chatId))}/work\n`,
     });
     expect(result.metadata?.commands).toEqual(["cd", "echo", "cat", "pwd"]);
   });
@@ -162,7 +183,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     const bashOptions = options();
     const turn = { id: chatId, sessionId: bashOptions.sessionId };
     await beginSkillChangeTracking(turn);
-    const skill = `${getWorkspaceSkillsDir()}/tracked`;
+    const skill = `${shellPath(getWorkspaceSkillsDir())}/tracked`;
 
     await withTurnContext(turn, () =>
       remoteBash(bashOptions).exec(
@@ -176,8 +197,8 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   });
 
   it("finds a chat made after the worker started", async () => {
-    const made = chatFor();
-    const dir = chatDir(made);
+    const made = await chatFor();
+    const dir = workDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
 
@@ -189,14 +210,14 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   });
 
   it("runs in the record main resolved, without reading the index itself", async () => {
-    const made = chatFor();
-    const dir = chatDir(made);
+    const made = await chatFor();
+    const dir = workDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
     // A scan of the disk now skips the chat, whose settings name no session;
     // only main's index, read before they went, still knows where it is.
     expect(resolveChat(made)).toBe(made);
-    await fs.rm(path.join(dir, ".instrument", "settings.json"));
+    await fs.rm(path.join(chatDir(made), "settings.json"));
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
@@ -205,126 +226,84 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     expect(result.stdout).toBe("handed\n");
   });
 
-  // A `tasks/` folder an earlier version left inside a chat's own folder,
-  // which is writable: nothing of it is the chat's, and the chat must not
-  // reach it through its own folder's tasks/<id>. `<chat>` stands for the
-  // chat's folder.
-  describe("a chat's tasks", () => {
-    const childId = ChatIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
-    let nestedChat: ChatId;
-    let childDir: string;
-    let chatFolder: string;
+  // A chat's records sit in the workspace, apart from the work folder its
+  // shell starts in: the agent reads what the person sent and writes its
+  // handoff notes there, and meets nothing else of them. `<record>` stands for
+  // the chat's record folder.
+  describe("a chat's records", () => {
+    let recordChat: ChatId;
+    let record: string;
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
 
-    const childSettings = () =>
-      fs.readFile(path.join(childDir, ".instrument", "settings.json"), "utf8");
-
     beforeAll(async () => {
-      nestedChat = chatFor();
-      chatFolder = chatDir(nestedChat);
-      childDir = path.join(chatFolder, "tasks", childId);
-      await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
+      recordChat = await chatFor();
+      record = chatDir(recordChat);
+      await fs.writeFile(path.join(record, "chat.db"), "the conversation");
+      await fs.mkdir(path.join(record, "attachments"), { recursive: true });
       await fs.writeFile(
-        path.join(childDir, ".instrument", "settings.json"),
-        '{"private":"sentinel"}',
+        path.join(record, "attachments", "sent.json"),
+        '{"sent":"by the person"}',
       );
-      await fs.mkdir(path.join(childDir, "output"), { recursive: true });
-      await fs.writeFile(path.join(childDir, "output", "report.md"), "made\n");
-      await fs.mkdir(path.join(chatFolder, "attachments"), { recursive: true });
-      await fs.mkdir(path.join(chatFolder, "work"), { recursive: true });
-      await fs.writeFile(
-        path.join(chatFolder, "attachments", "replacement.json"),
-        '{"private":"overwritten"}',
-      );
+      await fs.mkdir(path.join(workDir(recordChat), "work"), {
+        recursive: true,
+      });
       const bashOptions: BashEnvOptions = {
         role: "chat",
         sessionId: StoreId.newSessionId(),
-        chatId: nestedChat,
+        chatId: recordChat,
       };
       const bash = remoteBash(bashOptions);
       chatBash = (command) =>
-        bash.exec(command.replaceAll("<chat>", chatFolder));
+        bash.exec(command.replaceAll("<record>", shellPath(record)));
     });
 
-    it.each([
-      `<chat>/tasks/${childId}/.instrument/settings.json`,
-      `tasks/${childId}/.instrument/settings.json`,
-      `<chat>/TASKS/${childId}/.instrument/settings.json`,
-      `<chat>/tasks/${childId}/output/report.md`,
-    ])("refuses to read %s", async (target) => {
-      const result = await chatBash(`cat ${target}`);
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stdout).toBe("");
+    it("starts in the work folder", async () => {
+      const result = await chatBash("pwd");
+      expect(result.stdout).toBe(`${shellPath(workDir(recordChat))}\n`);
     });
 
-    it.each([
-      `cp <chat>/attachments/replacement.json <chat>/tasks/${childId}/.instrument/settings.json`,
-      `cp attachments/replacement.json tasks/${childId}/.instrument/settings.json`,
-      `cp -r <chat>/attachments <chat>/tasks/${childId}/.instrument`,
-      `mv <chat>/attachments/replacement.json <chat>/tasks/${childId}/.instrument/settings.json`,
-      `echo '{}' > <chat>/tasks/${childId}/.instrument/settings.json`,
-      `rm -rf <chat>/tasks`,
-      `rm -f <chat>/tasks/${childId}/output/report.md`,
-      `mkdir -p <chat>/tasks/${childId}/output/more`,
-      `ln -s <chat>/tasks/${childId} <chat>/work/child && cp <chat>/attachments/replacement.json <chat>/work/child/.instrument/settings.json`,
-    ])("leaves the task untouched by %s", async (command) => {
-      // A refused redirection rejects rather than reporting an exit code.
-      await chatBash(command).catch(noop);
-      await expect(childSettings()).resolves.toBe('{"private":"sentinel"}');
-      await expect(
-        fs.readFile(path.join(childDir, "output", "report.md"), "utf8"),
-      ).resolves.toBe("made\n");
-      await expect(
-        fs.stat(path.join(childDir, "output", "more")),
-      ).rejects.toThrow();
-      await expect(
-        fs.stat(path.join(chatFolder, "attachments", "replacement.json")),
-      ).resolves.toBeDefined();
-    });
-
-    // Each of these also reaches the chat's own attachment, so a command that
-    // failed outright cannot pass for one that left the tasks dir alone.
-    it.each([
-      `ls -aR <chat>`,
-      `find <chat>`,
-      `grep -r private <chat>`,
-      `rg -uu private <chat>`,
-      `rg -uu --files`,
-      `cd <chat>/work && rg -uu private <chat>`,
-      `cd <chat>/work && rg -uu private ..`,
-      `du -a <chat>`,
-    ])("keeps %s out of the tasks dir", async (command) => {
-      const result = await chatBash(command);
-      expect(result.stdout).toMatch(/replacement\.json|overwritten/);
-      expect(result.stdout).not.toMatch(/sentinel|report\.md|\btasks\b/);
-    });
-
-    it.each([
-      `rg -uu private tasks`,
-      `rg -uu private tasks/${childId}`,
-      `rg -uu private <chat>/tasks/${childId}/.instrument`,
-    ])("finds nothing with %s", async (command) => {
-      const result = await chatBash(command);
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stdout).toBe("");
-    });
-
-    it("copies nothing out of the tasks dir", async () => {
-      const result = await chatBash(`cp -r <chat>/tasks <chat>/work/copy`);
-      expect(result.exitCode).not.toBe(0);
-      await expect(
-        fs.stat(path.join(chatFolder, "work", "copy")),
-      ).rejects.toThrow();
-    });
-
-    it("leaves the chat's own files writable", async () => {
+    it("reads what the person sent, and copies it into the work folder", async () => {
       const result = await chatBash(
-        `cp attachments/replacement.json work/kept.json && mkdir -p work/tasks && echo note > work/tasks/todo.md && cat work/kept.json work/tasks/todo.md`,
+        "cat <record>/attachments/sent.json && cp <record>/attachments/sent.json work/kept.json && cat work/kept.json",
       );
       expect(result).toMatchObject({
         exitCode: 0,
-        stdout: '{"private":"overwritten"}note\n',
+        stdout: '{"sent":"by the person"}{"sent":"by the person"}',
       });
+    });
+
+    it.each([
+      `echo '{}' > <record>/attachments/sent.json`,
+      `rm -f <record>/attachments/sent.json`,
+      `mv <record>/attachments/sent.json work/moved.json`,
+    ])("leaves what the person sent untouched by %s", async (command) => {
+      // A refused redirection rejects rather than reporting an exit code.
+      await chatBash(command).catch(noop);
+      await expect(
+        fs.readFile(path.join(record, "attachments", "sent.json"), "utf8"),
+      ).resolves.toBe('{"sent":"by the person"}');
+    });
+
+    it.each([`<record>/settings.json`, `<record>/chat.db`])(
+      "refuses to read %s",
+      async (target) => {
+        const result = await chatBash(`cat ${target}`);
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stdout).toBe("");
+      },
+    );
+
+    it("writes its handoff notes beside the records", async () => {
+      const result = await chatBash(
+        "echo 'the goal, and what is left' > <record>/handoff-notes.md && cat <record>/handoff-notes.md",
+      );
+      expect(result).toMatchObject({
+        exitCode: 0,
+        stdout: "the goal, and what is left\n",
+      });
+      await expect(
+        fs.readFile(path.join(record, "handoff-notes.md"), "utf8"),
+      ).resolves.toBe("the goal, and what is left\n");
     });
   });
 
@@ -376,7 +355,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("ends a dead worker's process trees and starts a fresh worker", async () => {
     await fs.writeFile(
-      path.join(root, "chats", chatId, "work", "idle.js"),
+      path.join(workDir(chatId), "work", "idle.js"),
       "setInterval(() => {}, 1000);\n",
     );
     const treePid = nextTreePid();

@@ -1,35 +1,11 @@
 import { z } from "zod";
 
+import { EnvironmentChangeSchema } from "../environment";
 import { MountedFolder } from "../mounted-folder";
-import { RelativePathSchema } from "../paths";
+import { AbsolutePathSchema, RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 
 export namespace SessionMessageDataPart {
-  /**
-   * Every part below is one of three cadences, and which one it is decides
-   * whether it needs to guard against repeating itself.
-   *
-   * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `fromChat`, `intent`, `jobEvent`,
-   *   `maxSteps`, `reply`,
-   *   `skillChanges`, and `skillMentions`. A repeat is impossible by
-   *   construction; nothing to guard.
-   * - **Diff**: what changed since last time -- `folderChanges`,
-   *   `modelChange`. Self-limiting: no change, no part.
-   * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
-   *   These are the ones that will restate an unchanged fact on every single
-   *   turn unless their producer compares against what this session was last
-   *   told. `createBrowserStatusPart` and `createMemoryPart` each do, and
-   *   `toModelMessages` skips a topics or view note that
-   *   reads the same as the last one; a new state part that forgets is not a
-   *   failure anyone sees, it just quietly spends context.
-   *
-   * Adding a part? Decide which of the three it is first.
-   *
-   * Two members below are none of the three, because nothing writes them:
-   * see `fileChanges` and `chatContext`.
-   */
   export const NameSchema = z.enum([
     "appEvent",
     "asks",
@@ -41,6 +17,7 @@ export namespace SessionMessageDataPart {
     "browserStatus",
     "contextRollover",
     "dateChange",
+    "environmentChange",
     "fileChanges",
     "fromChat",
     "intent",
@@ -51,15 +28,69 @@ export namespace SessionMessageDataPart {
     "memory",
     "messageGap",
     "modelChange",
+    "outputLimit",
     "reply",
     "taskEvent",
     "chatContext",
-    "chatTopics",
+    "topics",
     "unknown",
     "viewContext",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
+
+  /**
+   * How often a part says something new, which is what decides whether
+   * sending it again can repeat a fact the session already has.
+   *
+   * - `event`: something that happened on this turn. A repeat is impossible
+   *   by construction.
+   * - `diff`: what changed since last time. Self-limiting: no change, no
+   *   part.
+   * - `state`: the whole current picture, which reads the same on every turn
+   *   the picture did not change. Assembly compares each one against the last
+   *   note it sent for that part and sends nothing when they match, so this
+   *   is the declaration that keeps a standing fact from being restated.
+   * - `unwritten`: nothing writes it. `fileChanges` and `chatContext` are
+   *   retired, and `unknown` is what an unreadable payload becomes.
+   */
+  export type Cadence = "diff" | "event" | "state" | "unwritten";
+
+  /**
+   * Every part's cadence, which assembly reads rather than each note's author
+   * remembering: a part declared `state` here cannot restate itself, and one
+   * added without a line here does not compile.
+   */
+  export const CADENCE = {
+    appEvent: "event",
+    asks: "event",
+    attachments: "event",
+    backgroundProcesses: "state",
+    browserStatus: "state",
+    chatContext: "unwritten",
+    contextRollover: "event",
+    dateChange: "event",
+    environmentChange: "diff",
+    fileChanges: "unwritten",
+    folderChanges: "diff",
+    fromChat: "event",
+    intent: "event",
+    jobEvent: "event",
+    maxSteps: "event",
+    memory: "state",
+    messageGap: "event",
+    modelChange: "diff",
+    outputLimit: "event",
+    permissionAnswer: "event",
+    questionAnswer: "event",
+    reply: "event",
+    skillChanges: "event",
+    skillMentions: "event",
+    taskEvent: "event",
+    topics: "state",
+    unknown: "unwritten",
+    viewContext: "state",
+  } satisfies Record<Name, Cadence>;
 
   // Folders granted in the chat or taken back since the session last heard --
   // attached to the user message that starts the next turn so the model knows
@@ -83,7 +114,11 @@ export namespace SessionMessageDataPart {
 
   const FileAttachmentDataPartSchema = z.object({
     filename: z.string(),
-    filePath: RelativePathSchema,
+    // A file the person attached is the file itself, at its own absolute path,
+    // so the agent reads and edits what they pointed at. A relative path is a
+    // copy in the record folder's `attachments/`, which is where pasted bytes
+    // land and where every attachment written before this lives.
+    filePath: z.union([AbsolutePathSchema, RelativePathSchema]),
     mimeType: z.string(),
     // Attachments written before this field existed have none, and it is a
     // cache-buster for the asset URL: 0 costs those files nothing, since they
@@ -339,6 +374,18 @@ export namespace SessionMessageDataPart {
   });
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
+
+  /**
+   * A turn that ran out of room to write, as many times in a row as it was
+   * given. `continuations` is how many replies the turn spent before it
+   * stopped, so the note the next turn carries can say the model was cut off
+   * again rather than once.
+   */
+  const OutputLimitDataPartSchema = z.object({
+    continuations: z.number(),
+  });
+
+  export type OutputLimitDataPart = z.output<typeof OutputLimitDataPartSchema>;
 
   /**
    * Tasks a chat created that finished a turn since it last heard.
@@ -790,6 +837,18 @@ export namespace SessionMessageDataPart {
   export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
+   * The facts about the computer that differ from what the session was last
+   * told, each at its new value, written to the user message sent after the
+   * change: the chat moved to another computer, the OS updated, the time zone
+   * or a folder moved. Never rewrites the baseline that told the old values.
+   */
+  const EnvironmentChangeDataPartSchema = EnvironmentChangeSchema;
+
+  export type EnvironmentChangeDataPart = z.output<
+    typeof EnvironmentChangeDataPartSchema
+  >;
+
+  /**
    * Whole minutes since the user last wrote in this chat, written to a
    * message they sent after a long enough silence to mean they went away and
    * came back.
@@ -880,7 +939,7 @@ export namespace SessionMessageDataPart {
    * there. State cadence: rendered only when it differs from the note before
    * it, so a chat tagged once is told once.
    */
-  const ChatTopicsDataPartSchema = z.object({
+  const TopicsDataPartSchema = z.object({
     topics: z.array(
       z.object({
         about: z.string().optional(),
@@ -894,7 +953,7 @@ export namespace SessionMessageDataPart {
     ),
   });
 
-  export type ChatTopicsDataPart = z.output<typeof ChatTopicsDataPartSchema>;
+  export type TopicsDataPart = z.output<typeof TopicsDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -970,9 +1029,10 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
-    [NameSchema.enum.chatTopics]: ChatTopicsDataPartSchema,
+    [NameSchema.enum.topics]: TopicsDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
+    [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
@@ -981,6 +1041,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
+    [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,

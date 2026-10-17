@@ -10,12 +10,13 @@ documents/
                        the settings │
   chats/                            │
     red-and-blue-squares/           ├──▶  <userDataDir>/
-      session.json  ── the chat     │       workspace/chats/red-and-blue-squares/
-      files/        ── its folders' │         .instrument/task.db
-      tasks/                        │         tasks/generated-pdf/
-        generated-pdf/              │           .instrument/task.db
-          session.json ── the task  │           work/red-blue-squares.pdf
-          files/                  ──┘       folders/Instrument/…
+      session.json  ── the chat     │       workspace/.instrument/chats/red-and-blue-squares/
+      files/        ── its folders' │         chat.db  (the chat and its tasks)
+      tasks/                        │         settings.json
+        generated-pdf/              │       workspaces-data/default/work/
+          session.json ── the task  │         red-and-blue-squares/
+          files/                  ──┘           work/red-blue-squares.pdf
+                                            folders/Instrument/…
                                             preferences.json
 ```
 

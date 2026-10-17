@@ -9,7 +9,13 @@ import { asksWritten, cardLine, closeAsk, openAsks } from "./asks";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { rulesFor } from "../permissions/rules";
 
-const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
+const settings = {
+  apps: [],
+  chats: {},
+  folders: [],
+  places: {},
+  dangerouslyAllowEveryFolder: false,
+};
 
 it("asks once for a folder a call runs into, under that call", async () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("asks-test"));

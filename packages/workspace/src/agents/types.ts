@@ -36,9 +36,10 @@ export interface Agent<T extends AgentTools> {
     messages: SessionMessage.WithParts[];
   }) => Promise<boolean>;
   /**
-   * The system prompt `getMessages` puts in the baseline. Built from code and
-   * settings alone, never from the task, so a stored baseline whose system
-   * message differs was written by an earlier build and is rebuilt.
+   * The system prompt `getMessages` puts in the baseline. Built from code
+   * alone, never from the task or the computer, so it reads the same in every
+   * chat on every computer. A chat keeps the one it started with until its
+   * window rolls over; see `session-baseline.ts`.
    */
   systemPrompt: () => string;
 }
@@ -46,8 +47,8 @@ export interface Agent<T extends AgentTools> {
 /**
  * The agent's name, as written on a session's baseline. A session stored
  * under an earlier name (`main`, `instrument-one`) is read and continued by
- * this agent all the same: its baseline's system prompt differs from
- * `systemPrompt()`, so it is rebuilt on the next turn.
+ * this agent all the same: its baseline predates the current
+ * `SESSION_CONTEXT_VERSION`, so it is written again on the next turn.
  */
 export type AgentName = "instrument";
 export type AgentTools = Partial<Record<InternalToolName, AnyAgentTool>>;

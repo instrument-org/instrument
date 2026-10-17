@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { getChatPrivateDir } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getChatState, setChatState } from "./chat-record";
 import { getChatSettings, updateChatSettings } from "./chat-settings";
@@ -28,12 +27,11 @@ afterEach(async () => {
 });
 
 function recordFilePath(): string {
-  return path.join(getChatPrivateDir(chatDir(chatId)), "settings.json");
+  return path.join(chatDir(chatId), "settings.json");
 }
 
 async function writeStateFile(state: unknown): Promise<void> {
-  const privateDir = getChatPrivateDir(chatDir(chatId));
-  await fs.mkdir(privateDir, { recursive: true });
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   await fs.writeFile(
     recordFilePath(),
     JSON.stringify({ createdWithAppVersion: "2.0.0", state }, null, 2),

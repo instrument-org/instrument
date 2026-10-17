@@ -5,7 +5,7 @@ import { RelativePathSchema, ChatDirSchema } from "../schemas/paths";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 
 describe("resolvePathWithinChatDir", () => {
-  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
+  const dir = ChatDirSchema.parse(path.resolve("/tmp", "task"));
 
   it.each([
     {

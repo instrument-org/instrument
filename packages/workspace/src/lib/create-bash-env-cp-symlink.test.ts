@@ -16,7 +16,9 @@ import { createBashEnv } from "./create-bash-env";
  * Without the patch `cp` hands the link to `fs.cp`, which copies a link as a
  * link, and no mount we build accepts one: copying macOS's
  * `/System/Library/CoreServices/DefaultDesktop.heic` into the chat's folder
- * failed with `EPERM: operation not permitted, symlink`.
+ * failed with `EPERM: operation not permitted, symlink`. Windows has no disk
+ * under the mounts for the shell to read a link from, and a folder mount
+ * refuses links, so there is nothing of this to run there.
  */
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
@@ -64,7 +66,7 @@ afterEach(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-it.each(["relative", "absolute"])(
+it.skipIf(process.platform === "win32").each(["relative", "absolute"])(
   "cp copies the file behind a link with a %s target into the chat's folder",
   async (link) => {
     const result = await run(
@@ -83,8 +85,10 @@ it.each(["relative", "absolute"])(
   },
 );
 
-it("names a link to nothing as missing", async () => {
-  expect(await run(`cp ${outside}/dangling copy`)).toMatchInlineSnapshot(`
+it.skipIf(process.platform === "win32")(
+  "names a link to nothing as missing",
+  async () => {
+    expect(await run(`cp ${outside}/dangling copy`)).toMatchInlineSnapshot(`
     {
       "exitCode": 1,
       "stderr": "cp: cannot stat '<tmp>/outside/dangling': No such file or directory
@@ -92,4 +96,5 @@ it("names a link to nothing as missing", async () => {
       "stdout": "",
     }
   `);
-});
+  },
+);

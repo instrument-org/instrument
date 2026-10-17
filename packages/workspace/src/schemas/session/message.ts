@@ -16,6 +16,7 @@ import {
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { permissionAnswerModelNote } from "../../lib/permission-answer-model-text";
 import { questionAnswerModelNote } from "../../lib/question-answer-model-text";
@@ -23,13 +24,15 @@ import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
-import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
+import { topicsModelNote } from "../../lib/topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
+import { environmentChangeModelNote } from "../../lib/environment-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
 import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { outputLimitModelNote } from "../../lib/output-limit-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
@@ -38,7 +41,9 @@ import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
+import { EnvironmentSchema } from "../environment";
 import { StoreId } from "../store-id";
+import { SessionMessageDataPart } from "./message-data-part";
 import { SessionMessagePart } from "./message-part";
 
 export namespace SessionMessage {
@@ -150,10 +155,27 @@ export namespace SessionMessage {
      * older than any shape a build names and so is rebuilt once.
      */
     contextVersion: z.number().optional(),
+    /**
+     * The computer the baseline told the model about, on the message that
+     * tells it. What a later environment note is measured against. Absent on
+     * a baseline from before it was recorded.
+     */
+    environment: EnvironmentSchema.optional(),
     realRole: z.enum(["system", "user", "assistant"]),
   });
+  const UserMetadataSchema = BaseMetadataSchema.extend({
+    /**
+     * The draft this message was sent from, by its id. What makes a send
+     * crash-safe: the draft's folder is taken away after the message is
+     * written, so a launch that finds a message naming a draft still on disk
+     * finishes that send rather than sending it again.
+     *
+     * Absent on a message sent from no draft: a task's, a retry, a line a
+     * card asked for.
+     */
+    fromDraft: z.string().optional(),
+  });
   const SystemMetadataSchema = BaseMetadataSchema;
-  const UserMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({
     // What a past turn ran on, kept for display. A record this build cannot
     // parse (a provider since renamed or removed) reads as unknown rather
@@ -297,11 +319,33 @@ export namespace SessionMessage {
     parts: SessionMessagePart.Type[];
   };
 
+  /**
+   * Where the chat's record folder keeps what the person sent, as the agent
+   * spells it: an upload stored as `attachments/<name>` is named to the model
+   * at its full path there, since the agent's shell starts in the work
+   * folder, apart from the records.
+   */
+  export interface ModelNoteOptions {
+    attachmentsDir?: string;
+    /**
+     * How a host path is spelled where the agent's shell will read it,
+     * which is the same path on macOS and Linux and `/c/Users/...` for
+     * `C:\Users\...` on Windows.
+     *
+     * Passed in rather than imported: this module is shared with the
+     * renderer, which has no business knowing about shells, and a file the
+     * person sent is now named to the model at its own absolute path
+     * rather than at a copy inside the workspace.
+     */
+    shellPath?: (hostPath: string) => string;
+  }
+
   export async function toModelMessages(
     messages: WithParts[],
     tools: ToolSet,
+    options: ModelNoteOptions = {},
   ): Promise<ModelMessage[]> {
-    return convertToModelMessages(toUIMessages(messages), { tools });
+    return convertToModelMessages(toUIMessages(messages, options), { tools });
   }
 
   /**
@@ -309,22 +353,27 @@ export namespace SessionMessage {
    * user turn carries. The notes depend on the turns before them, so a caller
    * converting messages one at a time maps the whole list here first.
    */
-  export function toUIMessages(messages: WithParts[]): UIMessage[] {
-    let previousBackgroundProcessesNote: string | undefined;
-    let previousBrowserStatusNote: string | undefined;
-    // What the user had on screen, told again only when it differs from the
-    // last time: the same page with the same words in front of it, or the
-    // same folder, is a note the agent already read and has no reason to
-    // doubt, and a page's excerpt is the longest thing a message carries.
-    let previousViewContextNote: string | undefined;
-    // The chat's topics, told again only when they changed.
-    let previousChatTopicsNote: string | undefined;
-    // What the agent remembers, told again only when it changed.
-    let previousMemoryNote: string | undefined;
+  export function toUIMessages(
+    messages: WithParts[],
+    { attachmentsDir, shellPath }: ModelNoteOptions = {},
+  ): UIMessage[] {
+    // The last note sent for each part that carries a whole standing picture
+    // rather than something that happened: what the user had on screen, the
+    // chat's topics, what the agent remembers, its browser, its processes.
+    // The same page with the same words in front of it is a note the agent
+    // already read and has no reason to doubt, and a page's excerpt is the
+    // longest thing a message carries. `noteOnce` below compares against
+    // this for every part the taxonomy calls `state`, so a part is kept from
+    // restating itself by its own declaration rather than by its note's
+    // author remembering to compare.
+    const lastStateNote = new Map<SessionMessageDataPart.Name, string>();
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
     let pendingMaxStepsNote: string | undefined;
+    // A run that kept running out of room to write is recorded the same way,
+    // and carried forward for the same reason.
+    let pendingOutputLimitNote: string | undefined;
     // Skills the agent wrote are recorded the same way, on the assistant
     // message of the turn that wrote them. Several turns can run before the
     // user speaks again, so these accumulate rather than replace: each skill is
@@ -343,6 +392,17 @@ export namespace SessionMessage {
       );
       if (maxStepsPart) {
         pendingMaxStepsNote = maxStepsModelNote(maxStepsPart.data);
+      }
+
+      const outputLimitPart = message.parts.find(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & {
+          type: "data-outputLimit";
+        } => part.type === "data-outputLimit",
+      );
+      if (outputLimitPart) {
+        pendingOutputLimitNote = outputLimitModelNote(outputLimitPart.data);
       }
 
       const skillChangesPart = message.parts.find(
@@ -405,6 +465,22 @@ export namespace SessionMessage {
 
         const injectedParts: { text: string; type: "text" }[] = [];
 
+        /**
+         * Sends a part's note, unless that part carries a whole standing
+         * picture and this note reads the same as the last one sent for it.
+         * Which parts those are comes from `CADENCE`, so a part added as
+         * `state` is guarded here without its note's author doing anything.
+         */
+        const noteOnce = (name: SessionMessageDataPart.Name, text: string) => {
+          if (SessionMessageDataPart.CADENCE[name] === "state") {
+            if (lastStateNote.get(name) === text) {
+              return;
+            }
+            lastStateNote.set(name, text);
+          }
+          injectedParts.push({ text, type: "text" });
+        };
+
         const attachmentsPart = message.parts.find(
           (part) => part.type === "data-attachments",
         );
@@ -414,18 +490,18 @@ export namespace SessionMessage {
             const attachmentDescriptions = attachmentsPart.data.files
               .map((file) => {
                 const formattedSize = formatBytes(file.size);
-                return `- ${file.filePath} (${formattedSize})`;
+                return `- ${attachmentPathForModel(file.filePath, attachmentsDir, shellPath)} (${formattedSize})`;
               })
               .join("\n");
 
             const attachmentText = dedent`
                   <uploaded_files>
-                  The user uploaded these files with this message. They are now available in the chat's folder at the paths listed below. Assume they are directly relevant to the user's request.
+                  The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
                   ${attachmentDescriptions}
                   </uploaded_files>
                 `;
 
-            injectedParts.push({ text: attachmentText, type: "text" });
+            noteOnce("attachments", attachmentText);
           }
         }
 
@@ -437,10 +513,21 @@ export namespace SessionMessage {
           } => part.type === "data-dateChange",
         );
         if (dateChangePart) {
-          injectedParts.push({
-            text: dateChangeModelNote(dateChangePart.data),
-            type: "text",
-          });
+          noteOnce("dateChange", dateChangeModelNote(dateChangePart.data));
+        }
+
+        const environmentChangePart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-environmentChange";
+          } => part.type === "data-environmentChange",
+        );
+        if (environmentChangePart) {
+          const note = environmentChangeModelNote(environmentChangePart.data);
+          if (note) {
+            noteOnce("environmentChange", note);
+          }
         }
 
         const messageGapPart = message.parts.find(
@@ -451,34 +538,27 @@ export namespace SessionMessage {
           } => part.type === "data-messageGap",
         );
         if (messageGapPart) {
-          injectedParts.push({
-            text: messageGapModelNote(messageGapPart.data),
-            type: "text",
-          });
+          noteOnce("messageGap", messageGapModelNote(messageGapPart.data));
         }
 
         const backgroundProcessesPart = message.parts.find(
           (part) => part.type === "data-backgroundProcesses",
         );
         if (backgroundProcessesPart) {
-          const note = backgroundProcessesModelNote(
-            backgroundProcessesPart.data,
+          noteOnce(
+            "backgroundProcesses",
+            backgroundProcessesModelNote(backgroundProcessesPart.data),
           );
-          if (note !== previousBackgroundProcessesNote) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-          previousBackgroundProcessesNote = note;
         }
 
         const browserStatusPart = message.parts.find(
           (part) => part.type === "data-browserStatus",
         );
         if (browserStatusPart) {
-          const note = browserStatusModelNote(browserStatusPart.data);
-          if (note !== previousBrowserStatusNote) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-          previousBrowserStatusNote = note;
+          noteOnce(
+            "browserStatus",
+            browserStatusModelNote(browserStatusPart.data),
+          );
         }
 
         const folderChangesPart = message.parts.find(
@@ -491,7 +571,7 @@ export namespace SessionMessage {
         if (folderChangesPart) {
           const note = folderChangesModelNote(folderChangesPart.data);
           if (note) {
-            injectedParts.push({ text: note, type: "text" });
+            noteOnce("folderChanges", note);
           }
         }
 
@@ -514,10 +594,10 @@ export namespace SessionMessage {
           const loadLine = plural
             ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
             : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
-          injectedParts.push({
-            text: `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
-            type: "text",
-          });
+          noteOnce(
+            "skillMentions",
+            `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
+          );
         }
 
         const intentPart = message.parts.find(
@@ -528,7 +608,7 @@ export namespace SessionMessage {
           } => part.type === "data-intent",
         );
         if (intentPart) {
-          injectedParts.push({ text: intentPart.data.text, type: "text" });
+          noteOnce("intent", intentPart.data.text);
         }
 
         const taskEventPart = message.parts.find(
@@ -539,10 +619,7 @@ export namespace SessionMessage {
           } => part.type === "data-taskEvent",
         );
         if (taskEventPart) {
-          injectedParts.push({
-            text: taskEventModelNote(taskEventPart.data),
-            type: "text",
-          });
+          noteOnce("taskEvent", taskEventModelNote(taskEventPart.data));
         }
 
         const jobEventPart = message.parts.find(
@@ -553,10 +630,7 @@ export namespace SessionMessage {
           } => part.type === "data-jobEvent",
         );
         if (jobEventPart) {
-          injectedParts.push({
-            text: jobEventModelNote(jobEventPart.data),
-            type: "text",
-          });
+          noteOnce("jobEvent", jobEventModelNote(jobEventPart.data));
         }
 
         const appEventPart = message.parts.find(
@@ -567,10 +641,7 @@ export namespace SessionMessage {
           } => part.type === "data-appEvent",
         );
         if (appEventPart) {
-          injectedParts.push({
-            text: appEventModelNote(appEventPart.data),
-            type: "text",
-          });
+          noteOnce("appEvent", appEventModelNote(appEventPart.data));
         }
 
         const permissionAnswerPart = message.parts.find(
@@ -581,10 +652,10 @@ export namespace SessionMessage {
           } => part.type === "data-permissionAnswer",
         );
         if (permissionAnswerPart) {
-          injectedParts.push({
-            text: permissionAnswerModelNote(permissionAnswerPart.data),
-            type: "text",
-          });
+          noteOnce(
+            "permissionAnswer",
+            permissionAnswerModelNote(permissionAnswerPart.data),
+          );
         }
 
         const questionAnswerPart = message.parts.find(
@@ -595,10 +666,10 @@ export namespace SessionMessage {
           } => part.type === "data-questionAnswer",
         );
         if (questionAnswerPart) {
-          injectedParts.push({
-            text: questionAnswerModelNote(questionAnswerPart.data),
-            type: "text",
-          });
+          noteOnce(
+            "questionAnswer",
+            questionAnswerModelNote(questionAnswerPart.data),
+          );
         }
 
         const viewContextPart = message.parts.find(
@@ -609,11 +680,7 @@ export namespace SessionMessage {
           } => part.type === "data-viewContext",
         );
         if (viewContextPart) {
-          const note = viewContextModelNote(viewContextPart.data);
-          if (note !== previousViewContextNote) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-          previousViewContextNote = note;
+          noteOnce("viewContext", viewContextModelNote(viewContextPart.data));
         }
 
         const asksPart = message.parts.find(
@@ -624,10 +691,7 @@ export namespace SessionMessage {
           } => part.type === "data-asks",
         );
         if (asksPart) {
-          injectedParts.push({
-            text: asksModelNote(asksPart.data),
-            type: "text",
-          });
+          noteOnce("asks", asksModelNote(asksPart.data));
         }
 
         const replyPart = message.parts.find(
@@ -638,25 +702,18 @@ export namespace SessionMessage {
           } => part.type === "data-reply",
         );
         if (replyPart) {
-          injectedParts.push({
-            text: replyModelNote(replyPart.data),
-            type: "text",
-          });
+          noteOnce("reply", replyModelNote(replyPart.data));
         }
 
-        const chatTopicsPart = message.parts.find(
+        const topicsPart = message.parts.find(
           (
             part,
           ): part is SessionMessagePart.DataPart & {
-            type: "data-chatTopics";
-          } => part.type === "data-chatTopics",
+            type: "data-topics";
+          } => part.type === "data-topics",
         );
-        if (chatTopicsPart) {
-          const note = chatTopicsModelNote(chatTopicsPart.data);
-          if (note !== previousChatTopicsNote) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-          previousChatTopicsNote = note;
+        if (topicsPart) {
+          noteOnce("topics", topicsModelNote(topicsPart.data));
         }
 
         const memoryPart = message.parts.find(
@@ -667,16 +724,17 @@ export namespace SessionMessage {
           } => part.type === "data-memory",
         );
         if (memoryPart) {
-          const note = memoryModelNote(memoryPart.data);
-          if (note !== previousMemoryNote) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-          previousMemoryNote = note;
+          noteOnce("memory", memoryModelNote(memoryPart.data));
         }
 
         if (pendingMaxStepsNote) {
-          injectedParts.push({ text: pendingMaxStepsNote, type: "text" });
+          noteOnce("maxSteps", pendingMaxStepsNote);
           pendingMaxStepsNote = undefined;
+        }
+
+        if (pendingOutputLimitNote) {
+          noteOnce("outputLimit", pendingOutputLimitNote);
+          pendingOutputLimitNote = undefined;
         }
 
         const skillChangesNote = skillChangesModelNote({
@@ -684,7 +742,7 @@ export namespace SessionMessage {
           updated: [...pendingSkillChanges.updated],
         });
         if (skillChangesNote) {
-          injectedParts.push({ text: skillChangesNote, type: "text" });
+          noteOnce("skillChanges", skillChangesNote);
           pendingSkillChanges.created.clear();
           pendingSkillChanges.updated.clear();
         }
@@ -721,4 +779,25 @@ export namespace SessionMessage {
       };
     });
   }
+}
+
+/**
+ * A stored attachment path as the model reads it: an upload, stored relative
+ * to the chat as `attachments/<name>`, at its full path in the record folder
+ * when that folder is given; a file attached where it lay in the work folder
+ * as stored, relative to where the shell starts.
+ */
+function attachmentPathForModel(
+  filePath: string,
+  attachmentsDir: string | undefined,
+  shellPath: ((hostPath: string) => string) | undefined,
+): string {
+  const bare = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+  const prefix = `${CHAT_FOLDER_NAMES.attachments}/`;
+  if (attachmentsDir !== undefined && bare.startsWith(prefix)) {
+    return `${attachmentsDir}/${bare.slice(prefix.length)}`;
+  }
+  // A file read where the person keeps it is named at its own path, which
+  // on Windows is theirs to spell rather than the shell's.
+  return shellPath === undefined ? filePath : shellPath(filePath);
 }

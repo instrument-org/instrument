@@ -40,12 +40,12 @@ function reachOver(
   at: string,
   rules: Rule[],
   own: Partial<Pick<NativeReach, "readOnly" | "readWrite">> = {},
-  withoutAsking = false,
+  dangerouslyAllowEveryFolder = false,
 ): NativeReach {
   return {
     readOnly: own.readOnly ?? [],
     readWrite: own.readWrite ?? [],
-    rules: { home: at, rules, withoutAsking },
+    rules: { home: at, rules, dangerouslyAllowEveryFolder },
   };
 }
 

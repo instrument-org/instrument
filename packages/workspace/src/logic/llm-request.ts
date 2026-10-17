@@ -32,12 +32,14 @@ import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
+import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { cacheSessionFor } from "../lib/fork-cache-session";
-import { Store } from "../lib/store";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { turnNoteFor } from "../lib/turn-note";
 import { chatDir } from "../lib/record-folders";
 import { getChatSettings } from "../lib/chat-settings";
@@ -49,14 +51,14 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
 
-// A streaming save writes the part's entire accumulated text through a full
-// schema parse, serialization, and synchronous SQLite write, and publishes a
-// part.updated event, so saving on every delta makes per-turn store work
-// quadratic in part size. Delta saves are coalesced instead: a part is only
-// written when this much time has passed or this much text has accumulated
-// since its last save, whichever comes first.
-const DELTA_SAVE_INTERVAL_MS = 100;
-const DELTA_SAVE_MAX_UNSAVED_CHARS = 4096;
+// A call's input arrives as fragments of JSON, and each one is parsed over
+// the whole text so far for the window to draw the call as it is typed, so
+// parsing on every fragment makes the work quadratic in the input's size.
+// The parse is coalesced instead: it runs on the call's first fragment and
+// after that only when this much time has passed or this much text has
+// arrived since the last one, whichever comes first.
+const INPUT_PARSE_INTERVAL_MS = 100;
+const INPUT_PARSE_MAX_UNPARSED_CHARS = 4096;
 
 interface LLMRequestInput {
   /**
@@ -98,78 +100,60 @@ export const llmRequestLogic = fromPromise<
     });
   };
 
-  const scopedStore = {
-    saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
-      Store.saveMessage(message, input.chatId, { signal }).then((result) => {
-        if (result.isErr()) {
-          reportStorageError(result.error);
-          return;
-        }
-        return result.value;
-      }),
-    // Resolves true when the store took the write, which is what the coalesced
-    // delta bookkeeping needs to know before it forgets the characters it just
-    // handed over.
-    savePart: async (part: Parameters<typeof Store.savePart>[0]) => {
+  const writes = {
+    saveMessage: (message: SessionMessage.Type) =>
+      ChatWrites.saveMessage(message, input.chatId).match(
+        (saved) => saved,
+        (error) => {
+          reportStorageError(error);
+          return undefined;
+        },
+      ),
+    savePart: async (part: SessionMessagePart.Type) => {
       if (storageFullError !== undefined) {
-        return false;
+        return;
       }
-      const result = await Store.savePart(part, input.chatId, { signal });
-      if (result.isErr()) {
-        reportStorageError(result.error);
-        return false;
+      const saved = await ChatWrites.savePart(part, input.chatId);
+      if (saved.isErr()) {
+        reportStorageError(saved.error);
       }
-      return true;
     },
   };
 
-  // Bookkeeping for coalesced delta saves, keyed by part id. `save` persists
-  // the part's current accumulated state and is refreshed on every delta, so
-  // a flush always writes the latest text. An entry with unsaved characters
-  // means the store is behind the in-memory part. The clock is
+  // Where a call's input stands between parses, keyed by part id, so the
+  // fragments that have arrived since the last one are known. The clock is
   // performance.now rather than getCurrentDate because the cadence should
   // follow real elapsed time, not the mockable timestamp source.
-  const pendingDeltaSaves = new Map<
+  const pendingInputParses = new Map<
     string,
-    {
-      lastSavedAtMs?: number;
-      save: () => PromiseLike<boolean>;
-      unsavedChars: number;
-    }
+    { lastParsedAtMs?: number; unparsedChars: number }
   >();
 
-  // Saves a part that accumulates streamed deltas, writing through on the
-  // part's first delta and after that only when DELTA_SAVE_INTERVAL_MS or
-  // DELTA_SAVE_MAX_UNSAVED_CHARS has built up since its last save. The
-  // part-end handlers save the complete part unconditionally and drop the
-  // entry; the flush in getCurrentParts covers parts that never get an end
-  // event before parts are read back. A write the store does not take leaves
-  // its characters unsaved, so the next delta or the flush writes them again.
-  const savePartCoalesced = async (
-    partId: string,
-    deltaLength: number,
-    save: () => PromiseLike<boolean>,
-  ) => {
-    let entry = pendingDeltaSaves.get(partId);
+  // Whether a call's input is parsed again for this fragment: on the first
+  // one, and after that on the cadence above.
+  const inputParseDue = (partId: string, deltaLength: number) => {
+    let entry = pendingInputParses.get(partId);
     if (!entry) {
-      entry = { save, unsavedChars: 0 };
-      pendingDeltaSaves.set(partId, entry);
+      entry = { unparsedChars: 0 };
+      pendingInputParses.set(partId, entry);
     }
-    entry.save = save;
-    entry.unsavedChars += deltaLength;
+    entry.unparsedChars += deltaLength;
     const nowMs = performance.now();
     if (
-      entry.lastSavedAtMs !== undefined &&
-      nowMs - entry.lastSavedAtMs < DELTA_SAVE_INTERVAL_MS &&
-      entry.unsavedChars < DELTA_SAVE_MAX_UNSAVED_CHARS
+      entry.lastParsedAtMs !== undefined &&
+      nowMs - entry.lastParsedAtMs < INPUT_PARSE_INTERVAL_MS &&
+      entry.unparsedChars < INPUT_PARSE_MAX_UNPARSED_CHARS
     ) {
-      return;
+      return false;
     }
-    if (await save()) {
-      entry.lastSavedAtMs = nowMs;
-      entry.unsavedChars = 0;
-    }
+    entry.lastParsedAtMs = nowMs;
+    entry.unparsedChars = 0;
+    return true;
   };
+
+  // The reply as the window reads it while it streams, which the turn holds
+  // and lets go of when it ends.
+  const live = writingChatRecords()?.live(input.chatId, input.sessionId);
 
   const providerId = input.model.params.provider;
   const modelId = input.model.canonicalId;
@@ -206,32 +190,24 @@ export const llmRequestLogic = fromPromise<
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
     assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
-    void scopedStore.saveMessage(assistantMessage);
+    void writes.saveMessage(assistantMessage);
   }
 
   async function getCurrentParts() {
-    // Delta saves are coalesced, so an in-memory part can hold text the store
-    // has not seen; write those tails through before reading parts back, or
-    // they would be missing from the returned parts. A full disk would refuse
-    // them all, so they are dropped.
-    for (const entry of pendingDeltaSaves.values()) {
-      if (storageFullError === undefined && entry.unsavedChars > 0) {
-        await entry.save();
-      }
-    }
-    pendingDeltaSaves.clear();
-    const partsResult = await Store.getParts(
-      input.sessionId,
-      assistantMessage.id,
-      input.chatId,
-      { signal },
-    );
-    if (partsResult.isErr()) {
-      getWorkspaceConfig().captureException(partsResult.error, {
+    const readBack = await ChatReads.transcript({
+      chatId: input.chatId,
+      only: new Set([assistantMessage.id]),
+      sessionId: input.sessionId,
+    });
+    if (readBack.isErr()) {
+      getWorkspaceConfig().captureException(readBack.error, {
         scopes: ["workspace", "llm-request"],
       });
     }
-    return partsResult.isOk() ? partsResult.value : [];
+    return readBack.isOk()
+      ? (readBack.value.find(({ id }) => id === assistantMessage.id)?.parts ??
+          [])
+      : [];
   }
 
   const agentTools = await input.agent.getTools();
@@ -262,7 +238,6 @@ export const llmRequestLogic = fromPromise<
   // the steps already taken. See `lib/turn-note.ts`.
   const turnNote = await turnNoteFor({
     sessionId: input.sessionId,
-    signal,
     chatId: input.chatId,
   });
   if (turnNote !== undefined) {
@@ -281,7 +256,8 @@ export const llmRequestLogic = fromPromise<
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
-  await scopedStore.saveMessage(assistantMessage);
+  await writes.saveMessage(assistantMessage);
+  live?.setMessage(assistantMessage);
 
   const abortListener = () => {
     saveAbortMessage();
@@ -316,13 +292,13 @@ export const llmRequestLogic = fromPromise<
         text: reasoningPart.text.trimEnd(),
       };
       reasoningMap[id] = updatedPart;
-      await scopedStore.savePart(updatedPart);
-      pendingDeltaSaves.delete(updatedPart.metadata.id);
+      await writes.savePart(updatedPart);
     }
   };
 
   if (isSignalAborted()) {
     saveAbortMessage();
+    await live?.clear();
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
@@ -482,7 +458,7 @@ export const llmRequestLogic = fromPromise<
           assistantMessage.metadata.msToFirstChunk = msToFirstChunk;
           assistantMessage.metadata.completionTokensPerSecond =
             completionTokensPerSecond;
-          await scopedStore.saveMessage(assistantMessage);
+          await writes.saveMessage(assistantMessage);
           break;
         }
         case "file": {
@@ -532,13 +508,7 @@ export const llmRequestLogic = fromPromise<
             // wherever it ends up ending.
             reasoningPart.state = "streaming";
             reasoningPart.metadata.endedAt = undefined;
-            if (reasoningPart.text) {
-              await savePartCoalesced(
-                reasoningPart.metadata.id,
-                part.text.length,
-                () => scopedStore.savePart(reasoningPart),
-              );
-            }
+            await writes.savePart(reasoningPart);
           }
           break;
         }
@@ -559,8 +529,7 @@ export const llmRequestLogic = fromPromise<
               state: "done",
               text: reasoningPart.text.trimEnd(),
             };
-            await scopedStore.savePart(updatedPart);
-            pendingDeltaSaves.delete(updatedPart.metadata.id);
+            await writes.savePart(updatedPart);
             delete reasoningMap[part.id];
           }
           break;
@@ -591,13 +560,13 @@ export const llmRequestLogic = fromPromise<
             type: "reasoning",
           };
           reasoningMap[part.id] = newReasoningPart;
-          await scopedStore.savePart(newReasoningPart);
+          await writes.savePart(newReasoningPart);
           break;
         }
 
         case "source": {
           if (part.sourceType === "url") {
-            await scopedStore.savePart({
+            await writes.savePart({
               metadata: {
                 createdAt: getCurrentDate(),
                 id: StoreId.newPartId(),
@@ -610,7 +579,7 @@ export const llmRequestLogic = fromPromise<
               url: part.url,
             });
           } else {
-            await scopedStore.savePart({
+            await writes.savePart({
               filename: part.filename,
               mediaType: part.mediaType,
               metadata: {
@@ -627,7 +596,7 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "start": {
-          await scopedStore.savePart({
+          await writes.savePart({
             metadata: {
               createdAt: getCurrentDate(),
               id: StoreId.newPartId(),
@@ -651,13 +620,7 @@ export const llmRequestLogic = fromPromise<
             if (part.providerMetadata !== undefined) {
               textPart.providerMetadata = part.providerMetadata;
             }
-            if (textPart.text) {
-              await savePartCoalesced(
-                textPart.metadata.id,
-                part.text.length,
-                () => scopedStore.savePart(textPart),
-              );
-            }
+            await writes.savePart(textPart);
           }
           break;
         }
@@ -675,8 +638,7 @@ export const llmRequestLogic = fromPromise<
               state: "done",
               text: currentTextPart.text.trimEnd(),
             };
-            await scopedStore.savePart(updatedPart);
-            pendingDeltaSaves.delete(updatedPart.metadata.id);
+            await writes.savePart(updatedPart);
           }
           currentTextPart = undefined;
           break;
@@ -729,8 +691,9 @@ export const llmRequestLogic = fromPromise<
               providerExecuted: part.providerExecuted,
               state: "input-available",
             };
-            await scopedStore.savePart(updatedPart);
-            pendingDeltaSaves.delete(existingPart.metadata.id);
+            toolCalls[part.toolCallId] = updatedPart;
+            await writes.savePart(updatedPart);
+            pendingInputParses.delete(existingPart.metadata.id);
           } else if (existingPart) {
             // Unexpected state, but don't throw - just log
             getWorkspaceConfig().captureException(
@@ -765,7 +728,7 @@ export const llmRequestLogic = fromPromise<
                 : "tool-unavailable",
             };
             toolCalls[part.toolCallId] = newPart;
-            await scopedStore.savePart(newPart);
+            await writes.savePart(newPart);
           }
           break;
         }
@@ -805,8 +768,9 @@ export const llmRequestLogic = fromPromise<
                 providerExecuted: part.providerExecuted,
                 state: "output-error",
               };
-              await scopedStore.savePart(updatedPart);
-              pendingDeltaSaves.delete(toolCall.metadata.id);
+              toolCalls[part.toolCallId] = updatedPart;
+              await writes.savePart(updatedPart);
+              pendingInputParses.delete(toolCall.metadata.id);
               continue;
             } else {
               // Unexpected state, capture exception
@@ -819,7 +783,7 @@ export const llmRequestLogic = fromPromise<
               );
             }
           } else {
-            await scopedStore.savePart({
+            await writes.savePart({
               ...providerMetadataProps,
               errorText,
               input: part.input as never,
@@ -842,29 +806,17 @@ export const llmRequestLogic = fromPromise<
           if (toolCall?.state === "input-streaming") {
             toolCallInputText[part.id] =
               (toolCallInputText[part.id] || "") + part.delta;
-            await savePartCoalesced(
-              toolCall.metadata.id,
-              part.delta.length,
-              async () => {
-                // Runs from the flush as well as from a delta, so the call
-                // may have completed or errored in the meantime; that part
-                // was already saved in its final state and must stay, so
-                // there is nothing left for a retry to write.
-                const streamingCall = toolCalls[part.id];
-                if (streamingCall?.state !== "input-streaming") {
-                  return true;
-                }
-                const { value: partialArgs } = await parsePartialJson(
-                  toolCallInputText[part.id] ?? "",
-                );
-                const updatedPart: SessionMessagePart.ToolPart = {
-                  ...streamingCall,
-                  input: partialArgs as never,
-                };
-                toolCalls[part.id] = updatedPart;
-                return scopedStore.savePart(updatedPart);
-              },
-            );
+            if (inputParseDue(toolCall.metadata.id, part.delta.length)) {
+              const { value: partialArgs } = await parsePartialJson(
+                toolCallInputText[part.id] ?? "",
+              );
+              const updatedPart: SessionMessagePart.ToolPart = {
+                ...toolCall,
+                input: partialArgs as never,
+              };
+              toolCalls[part.id] = updatedPart;
+              await writes.savePart(updatedPart);
+            }
           }
           break;
         }
@@ -893,7 +845,7 @@ export const llmRequestLogic = fromPromise<
               : "tool-unavailable",
           };
           toolCalls[part.id] = newPart;
-          await scopedStore.savePart(newPart);
+          await writes.savePart(newPart);
           break;
         }
         case "tool-output-denied": {
@@ -1012,44 +964,91 @@ export const llmRequestLogic = fromPromise<
       }
     }
 
-    // Detection only. The agent machine finalizes this run's dangling
-    // `input-*` parts on its way into `Finishing` (stops included), so a part
-    // reported here points at a leftover that sweep does not cover, or a race
-    // with it. Repairing here would hide whatever produced the leftover.
-    const parts = await getCurrentParts();
-    for (const part of parts) {
-      if (isToolPart(part) && part.state === "input-streaming") {
-        const inputStreamText = toolCallInputText[part.toolCallId];
-        getWorkspaceConfig().captureException(
-          new Error("Unhandled tool input streaming part"),
-          {
-            assistant_error_kind: assistantMessage.metadata.error.kind,
-            input_stream_char_count: inputStreamText?.length,
-            message_id: assistantMessage.id,
-            modelId,
-            part_has_input: part.input !== undefined,
-            part_id: part.metadata.id,
-            provider_executed: part.providerExecuted,
-            providerId,
-            scopes: ["workspace", "llm-request"],
-            session_id: input.sessionId,
-            tool_call_id: part.toolCallId,
-            tool_type: part.type,
-          },
-        );
-      }
-    }
-
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
-    await scopedStore.saveMessage(assistantMessage);
+    await writes.saveMessage(assistantMessage);
   }
 
   // Remove abort listener since we've completed
   signal.removeEventListener("abort", abortListener);
+  const ranOutOfRoom = assistantMessage.metadata.finishReason === "length";
+  // The fragments that arrived since the last parse, so a call the turn is
+  // about to let go of carries everything the model typed rather than
+  // whatever the cadence last read. A call the output limit stopped in the
+  // middle of is settled here rather than left arriving: nothing is coming,
+  // and a result is what the next step reads.
+  for (const [id, call] of Object.entries(toolCalls)) {
+    if (call.state !== "input-streaming") {
+      continue;
+    }
+    const { value: typed } = await parsePartialJson(
+      toolCallInputText[id] ?? "",
+    );
+    await writes.savePart(
+      ranOutOfRoom
+        ? {
+            ...call,
+            errorText: CUT_OFF_CALL_TEXT,
+            input: typed as never,
+            metadata: { ...call.metadata, endedAt: getCurrentDate() },
+            state: "output-error",
+          }
+        : { ...call, input: typed as never },
+    );
+  }
+  if (ranOutOfRoom) {
+    // A call the output limit cut off part way through its arguments reaches
+    // the provider as malformed JSON, and the SDK's own message for that says
+    // the input was invalid. The next step reads that as its own mistake and
+    // rewrites arguments that were right. Say what happened instead.
+    for (const part of await getCurrentParts()) {
+      if (
+        isToolPart(part) &&
+        part.state === "output-error" &&
+        invalidToolCallErrors.has(part.toolCallId)
+      ) {
+        await writes.savePart({ ...part, errorText: CUT_OFF_CALL_TEXT });
+      }
+    }
+  }
+  // The turn is over, so what it was holding is written: every part that
+  // settled is in the records already, since each write here was waited for,
+  // and whatever was still arriving is written as the turn left it, which is
+  // how a reply cut off mid-word is still a reply the person can read.
+  await live?.clear();
 
-  return { message: assistantMessage, parts: await getCurrentParts() };
+  const parts = await getCurrentParts();
+  // Detection only, and after the turn has let go: a call still arriving at
+  // this point was settled as cut off, so one that reads `input-streaming`
+  // here is a leftover the turn's own ending did not cover.
+  for (const part of parts) {
+    if (isToolPart(part) && part.state === "input-streaming") {
+      getWorkspaceConfig().captureException(
+        new Error("Unhandled tool input streaming part"),
+        {
+          assistant_error_kind: assistantMessage.metadata.error?.kind,
+          input_stream_char_count: toolCallInputText[part.toolCallId]?.length,
+          message_id: assistantMessage.id,
+          modelId,
+          part_has_input: part.input !== undefined,
+          part_id: part.metadata.id,
+          provider_executed: part.providerExecuted,
+          providerId,
+          scopes: ["workspace", "llm-request"],
+          session_id: input.sessionId,
+          tool_call_id: part.toolCallId,
+          tool_type: part.type,
+        },
+      );
+    }
+  }
+
+  return { message: assistantMessage, parts };
 });
+
+/** What a tool call stopped part way through by the output limit answers with. */
+const CUT_OFF_CALL_TEXT =
+  "The output limit cut this call off before its input was complete, so it did not run. Call it again.";
 
 /**
  * An error's message with every cause it embeds reduced to that cause's own

@@ -17,11 +17,16 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { Store } from "../lib/store";
+import {
+  MAX_OUTPUT_LIMIT_REPLIES,
+  outputLimitRun,
+} from "../lib/output-limit-run";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
 import { type SessionMessage } from "../schemas/session/message";
@@ -34,6 +39,16 @@ import {
   saveStoppedToolCallPart,
   type StopReason,
 } from "./execute-tool-call";
+
+/**
+ * Whether the turn goes on, and how many replies it has already spent
+ * continuing one the output limit cut off, which is what the message that ends
+ * such a turn records.
+ */
+export type ShouldContinueResult = {
+  continue: boolean;
+  outputLimitContinuations: number;
+};
 
 export type AgentParentEvent =
   | {
@@ -108,12 +123,11 @@ export const agentMachine = setup({
         stopReason?: StopReason;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
-      const messageIdsResult = await Store.getMessageIds(
-        input.sessionId,
-        input.chatId,
-        { signal },
-      );
+    >(async ({ input }) => {
+      const messageIdsResult = await ChatReads.messageIds({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+      });
 
       if (messageIdsResult.isErr()) {
         throw new Error(
@@ -130,20 +144,23 @@ export const agentMachine = setup({
         (messageId) => messageId > input.parentMessageId,
       );
 
-      const partsResults = await Promise.all(
-        runMessageIds.map((messageId) =>
-          Store.getParts(input.sessionId, messageId, input.chatId, { signal }),
-        ),
-      );
+      // A call still arriving is the turn's own memory rather than anything
+      // written, so the read has to carry what the turn holds: the part this
+      // sweep is here to finish is often one of those.
+      const runMessages = await ChatReads.transcript({
+        chatId: input.chatId,
+        only: new Set(runMessageIds),
+        sessionId: input.sessionId,
+      });
+      if (runMessages.isErr()) {
+        throw new Error(
+          `Error loading parts: ${JSON.stringify(runMessages.error)}`,
+        );
+      }
 
       const danglingParts: SessionMessagePart.ToolPart[] = [];
-      for (const partsResult of partsResults) {
-        if (partsResult.isErr()) {
-          throw new Error(
-            `Error loading parts: ${JSON.stringify(partsResult.error)}`,
-          );
-        }
-        for (const part of partsResult.value) {
+      for (const message of runMessages.value) {
+        for (const part of message.parts) {
           if (
             isToolPart(part) &&
             (part.state === "input-available" ||
@@ -158,14 +175,11 @@ export const agentMachine = setup({
       // write, which is what keeps the sweep inside a stop's deadline.
       await Promise.all(
         danglingParts.map((part) =>
-          saveStoppedToolCallPart(
-            {
-              part,
-              reason: input.stopReason ?? "unknown",
-              chatId: input.chatId,
-            },
-            { signal },
-          ),
+          saveStoppedToolCallPart({
+            part,
+            reason: input.stopReason ?? "unknown",
+            chatId: input.chatId,
+          }),
         ),
       );
     }),
@@ -213,11 +227,11 @@ export const agentMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const now = getCurrentDate();
       const messageId = StoreId.newMessageId();
 
-      const result = await Store.saveMessageWithParts(
+      const result = await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: {
@@ -248,12 +262,62 @@ export const agentMachine = setup({
           role: "assistant",
         },
         input.chatId,
-        { signal },
       );
 
       if (result.isErr()) {
         throw new Error(
           `Failed to save max steps message: ${JSON.stringify(result.error)}`,
+        );
+      }
+    }),
+
+    saveOutputLimitMessage: fromPromise<
+      void,
+      {
+        continuations: number;
+        sessionId: StoreId.Session;
+        chatId: ChatId;
+      }
+    >(async ({ input }) => {
+      const now = getCurrentDate();
+      const messageId = StoreId.newMessageId();
+
+      const result = await ChatWrites.saveMessageWithParts(
+        {
+          id: messageId,
+          metadata: {
+            createdAt: now,
+            finishReason: "length",
+            modelId: SYNTHETIC_MODEL_ID,
+            providerId: "system",
+            sessionId: input.sessionId,
+            synthetic: true,
+          },
+          // The same shape as the max-steps stop, and for the same reason: the
+          // reply above is the model's own words and this is not, so it is a
+          // hidden data part the transcript draws as a card, and the model
+          // reads it as a system note on the next user turn (see
+          // `outputLimitModelNote`).
+          parts: [
+            {
+              data: { continuations: input.continuations },
+              metadata: {
+                createdAt: now,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: input.sessionId,
+              },
+              type: "data-outputLimit",
+            },
+          ],
+          role: "assistant",
+        },
+        input.chatId,
+      );
+
+      if (result.isErr()) {
+        throw new Error(
+          `Failed to save output limit message: ${JSON.stringify(result.error)}`,
         );
       }
     }),
@@ -270,16 +334,17 @@ export const agentMachine = setup({
         savedIds: StoreId.Message[];
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const ids: StoreId.Message[] = [];
       for (const message of input.messages) {
         if (input.savedIds.includes(message.id)) {
           ids.push(message.id);
           continue;
         }
-        const saved = await Store.saveMessageWithParts(message, input.chatId, {
-          signal,
-        });
+        const saved = await ChatWrites.saveMessageWithParts(
+          message,
+          input.chatId,
+        );
         if (saved.isErr()) {
           throw new Error(saved.error.message);
         }
@@ -288,21 +353,27 @@ export const agentMachine = setup({
       return ids;
     }),
 
+    /**
+     * Whether the turn goes on, and if it stops, whether it stopped because
+     * the model kept running out of room to write.
+     *
+     * A reply cut off at the output limit is text with no tool call, which the
+     * agent's own answer reads as a turn that finished, so the run of `length`
+     * finishes is counted here and overrides it: the turn carries on until the
+     * reply is whole or the bound is reached.
+     */
     shouldContinue: fromPromise<
-      boolean,
+      ShouldContinueResult,
       {
         agent: AnyAgent;
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
-      const messageResults = await Store.getMessagesWithParts(
-        {
-          sessionId: input.sessionId,
-          chatId: input.chatId,
-        },
-        { signal },
-      );
+    >(async ({ input }) => {
+      const messageResults = await ChatReads.modelHistory({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+      });
 
       if (messageResults.isErr()) {
         throw new Error(
@@ -310,9 +381,20 @@ export const agentMachine = setup({
         );
       }
 
-      return input.agent.shouldContinue({
-        messages: messageResults.value,
-      });
+      const run = outputLimitRun(messageResults.value);
+      if (run >= MAX_OUTPUT_LIMIT_REPLIES) {
+        return { continue: false, outputLimitContinuations: run - 1 };
+      }
+      if (run > 0) {
+        return { continue: true, outputLimitContinuations: run - 1 };
+      }
+
+      return {
+        continue: await input.agent.shouldContinue({
+          messages: messageResults.value,
+        }),
+        outputLimitContinuations: 0,
+      };
     }),
   },
 
@@ -332,6 +414,8 @@ export const agentMachine = setup({
       maxAttemptCount: number;
       maxStepCount: number;
       model: AIGatewayModel.Type;
+      /** Replies the turn spent continuing one the output limit cut off, when that is why it stopped. */
+      outputLimitContinuations: number;
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
       /** The request in flight went past its chunk timeout, which lets it go; cleared as each starts. */
@@ -379,6 +463,7 @@ export const agentMachine = setup({
     maxAttemptCount: 3,
     maxStepCount: input.maxStepCount || 1,
     model: input.model,
+    outputLimitContinuations: 0,
     parentMessageId: input.parentMessageId,
     parentRef: input.parentRef,
     requestTimedOut: false,
@@ -678,9 +763,19 @@ export const agentMachine = setup({
         onDone: [
           {
             guard: ({ event: { output } }) => {
-              return output;
+              return output.continue;
             },
             target: "MaybeStartingLLMRequest",
+          },
+          {
+            actions: assign({
+              outputLimitContinuations: ({ event: { output } }) =>
+                output.outputLimitContinuations,
+            }),
+            guard: ({ event: { output } }) => {
+              return output.outputLimitContinuations > 0;
+            },
+            target: "SavingOutputLimitMessage",
           },
           { target: "Finishing" },
         ],
@@ -761,6 +856,19 @@ export const agentMachine = setup({
         onDone: "Finishing",
         onError: { actions: "assignEventError", target: "Finishing" },
         src: "saveMaxStepsMessage",
+      },
+    },
+
+    SavingOutputLimitMessage: {
+      invoke: {
+        input: ({ context }) => ({
+          continuations: context.outputLimitContinuations,
+          sessionId: context.sessionId,
+          chatId: context.chatId,
+        }),
+        onDone: "Finishing",
+        onError: { actions: "assignEventError", target: "Finishing" },
+        src: "saveOutputLimitMessage",
       },
     },
 

@@ -14,6 +14,31 @@ Instrument keeps what it makes in one folder every chat reaches, mounted as `Ins
 - **Existing workspaces keep `~/Documents/Instrument`**, recorded as their chosen location by a settings migration, so no one's files move.
 - Windows and Linux take the same step, or the default, since neither has a prompt to avoid.
 
+## Where the step lives
+
+The folder step belongs to the onboarding screens rather than beside them: the screen it sits on is the one that explains what Instrument keeps and where, and getting past it is what says the person agreed to the location. So it lands with that larger onboarding flow, and the two are built together rather than one waiting on the other.
+
+Two things can ship before it, and are worth shipping before it, since they are what a tester and a first launch run into:
+
+- **The unchosen location moves to `~/Instrument`.** Nothing macOS guards is touched then, so a first launch raises no prompt at all, and the folder a person is told about is the one they can see in their home folder. An install that already made `~/Documents/Instrument` keeps it, recorded as its location by a settings migration, so no finished work is left behind in a folder nothing writes to any more. This is worth doing on its own because the prompt is in the way of every fresh-install test, including a preview build's.
+- **Settings shows the location**, read-only, so a tester can see which folder an install settled on without reading the registry.
+
+## When the folder is not there, or cannot be read
+
+The location is a folder on someone's disk, so every way a folder goes wrong is a state the app has to have an answer for. What each one does today:
+
+| What happened | What the person gets | Built |
+|---|---|---|
+| The folder cannot be read (the grant was taken back, or macOS refused it) | The refusal window, before anything else opens: pick the folder again, which is also how macOS gives access back, or start over with a new one | yes |
+| The folder is gone (deleted, or moved away by hand) | The same window. The entry keeps the folder it was given rather than quietly opening another one | yes |
+| The folder was made by a newer build | The same window, offering to update, which runs the updater with no workspace open | yes |
+| A folder inside it is gone (`Chats/`, `Drafts/`, `Topics/`, ...) | A notice in the bell naming which, saying nothing is lost, and the list says the folder is gone rather than offering to start a chat | yes |
+| The folder was moved by hand and the person points the app at it again | It is recognized as the same workspace and keeps its rules, topics and drafts; the window's tabs and the recent files do not follow | partly |
+| The person declines the panel, or picks a folder that cannot be written | The fallback, `~/Instrument`, decided by a failed write rather than by a check up front | no |
+| A write fails later (the disk filled, the volume was unplugged, the folder went read-only) | Nothing of its own: the failure surfaces wherever it happened | no |
+
+The last two are what this plan still owes. The last one matters most for a folder on a network or external volume, which is exactly the kind of folder someone picks on purpose.
+
 ## Changing the location later
 
 Settings › Storage moves the Instrument folder: the app restarts and moves it before anything opens, and a path stored into the old place is read back in the new one (`moved-paths.json`). Finished work the old output folder holds stays where it is.
@@ -29,3 +54,4 @@ Settings › Storage moves the Instrument folder: the app restarts and moves it 
 - A fresh install shows no Documents prompt before the user picks a folder, and the step decides the location.
 - Settings shows the location.
 - First run reports no exception from the folder-icon step.
+- Every row in the table above says yes, or says why it never will.

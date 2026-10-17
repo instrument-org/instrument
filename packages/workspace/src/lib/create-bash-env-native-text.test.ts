@@ -170,10 +170,12 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
 
   it("answers cmp, which the shell has no builtin for", async () => {
     const result = await run("cmp a.txt b.txt");
-    expect(result).toMatchObject({
-      exitCode: 1,
-      stdout: "a.txt b.txt differ: byte 5, line 2\n",
-    });
+    expect(result.exitCode).toBe(1);
+    // The bundled diffutils names the place they differ "byte" on macOS and
+    // Linux and "char" on Windows, from the same build.
+    expect(result.stdout).toMatch(
+      /^a\.txt b\.txt differ: (byte|char) 5, line 2\n$/,
+    );
   });
 
   it.each([

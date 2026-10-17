@@ -137,30 +137,35 @@ describe("listComputerFolder", () => {
   // A folder the account cannot pass through refuses everything under it,
   // there or not, so the refusal names that folder rather than the name
   // asked for.
-  it("names the folder above that kept the account out", async () => {
-    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
-    const shut = path.join(folder, "shut");
-    await fs.mkdir(path.join(shut, "inner"), { recursive: true });
-    await fs.chmod(shut, 0o000);
+  // Windows has no mode to take away: chmod there only sets the read-only
+  // flag, so the folder stays open and there is nothing to refuse.
+  it.skipIf(process.platform === "win32")(
+    "names the folder above that kept the account out",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+      const shut = path.join(folder, "shut");
+      await fs.mkdir(path.join(shut, "inner"), { recursive: true });
+      await fs.chmod(shut, 0o000);
 
-    try {
-      for (const asked of [
-        path.join(shut, "inner"),
-        path.join(shut, "nothing", "here"),
-      ]) {
-        expect(await listComputerFolder({ path: asked, chatId })).toMatchObject(
-          {
+      try {
+        for (const asked of [
+          path.join(shut, "inner"),
+          path.join(shut, "nothing", "here"),
+        ]) {
+          expect(
+            await listComputerFolder({ path: asked, chatId }),
+          ).toMatchObject({
             kind: "refused",
             path: asked,
             reason: "account",
             refusedBy: shut,
-          },
-        );
+          });
+        }
+      } finally {
+        await fs.chmod(shut, 0o700);
       }
-    } finally {
-      await fs.chmod(shut, 0o700);
-    }
-  });
+    },
+  );
 
   // The app folders iCloud Drive shows live in each app's own container; the
   // Mac helper is what names them, stood in for here by a script.

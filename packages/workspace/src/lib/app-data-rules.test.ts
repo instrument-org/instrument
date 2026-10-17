@@ -127,6 +127,8 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     data,
     otherRecord: path.join(data.chatsDir, "2026-10-13-other"),
     otherWork: path.join(workspaceMachine, "work", "2026-10-13-other"),
+    /** Where the person picked their workspace, in their home folder. */
+    pickedIn: workspaceIn,
     record: path.join(data.chatsDir, "2026-10-13-chat"),
     runtime: path.join(machine, "runtime"),
     work: path.join(workspaceMachine, "work", "2026-10-13-chat"),
@@ -192,6 +194,17 @@ function useApp(paths: Paths) {
     appsDir: AbsolutePathSchema.parse(paths.data.appsDir),
     chatsDir: AbsolutePathSchema.parse(paths.data.chatsDir),
     machineDir: AbsolutePathSchema.parse(paths.machine),
+    // A folder the person picked is where their finished work goes too,
+    // which the app says through the config. Spelled from this account's
+    // home, as every path in the config is, so the output place carries it
+    // over to the planted home the way it carries every fixed place.
+    ...(paths.pickedIn === undefined
+      ? {}
+      : {
+          outputDir: AbsolutePathSchema.parse(
+            path.join(os.homedir(), paths.pickedIn),
+          ),
+        }),
     rootDir: WorkspaceDirSchema.parse(paths.workspace),
     runtimeDir: AbsolutePathSchema.parse(paths.runtime),
     tempFolders: [],

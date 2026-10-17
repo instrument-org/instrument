@@ -68,7 +68,10 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     ["write", `${home}/.config/uv/uv.toml`, "ask"],
     ["read", `${home}/.m2/settings.xml`, "ask"],
     ["read", `${home}/Library/Preferences/x.plist`, "ask"],
-    ["write", `${home}/Documents/Instrument/out.png`, "allow"],
+    // The output folder, which is the home folder's `Instrument` while
+    // nobody has picked one; Documents around it still asks.
+    ["write", `${home}/Instrument/out.png`, "allow"],
+    ["write", `${home}/Documents/Instrument/out.png`, "ask"],
     ["read", "/Volumes/Backup/photos", "ask"],
     ["read", "/usr/bin/env", "allow"],
     ["write", "/opt/thing", "ask"],

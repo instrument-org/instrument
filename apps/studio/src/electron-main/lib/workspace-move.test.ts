@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { startLiveProcess } from "../../tests/live-process";
 import { createHistoryStore } from "../browser-view/history-store";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
@@ -266,6 +267,13 @@ describe("checkMoveTarget", () => {
 describe("finishPendingMove", () => {
   const machineDir = () => workspaceMachineDirOf(userDataDir, "default");
   const registryFile = () => path.join(userDataDir, "workspaces.json");
+  /** The process `holdOpen` marks the workspace open in. */
+  let holder: undefined | ReturnType<typeof startLiveProcess>;
+
+  afterEach(() => {
+    holder?.stop();
+    holder = undefined;
+  });
 
   function finish() {
     return finishPendingMove({
@@ -968,10 +976,11 @@ describe("finishPendingMove", () => {
 
   /** Mark the workspace open in a live process of this program. */
   function holdOpen() {
+    holder ??= startLiveProcess();
     fs.mkdirSync(machineDir(), { recursive: true });
     fs.writeFileSync(
       path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.openMark),
-      process.ppid.toString(),
+      holder.pid.toString(),
     );
   }
 });

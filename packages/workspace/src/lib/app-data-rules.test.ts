@@ -619,20 +619,31 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
 
   describe("a card for something beside the app's own data", () => {
     const layout = layoutUnder(paths, {});
+    // A card asks for a folder a place covers, and which place holds the
+    // folder other apps' data goes in is the platform's own: macOS has one
+    // for `Library`, Windows one for `AppData`, which holds the temp folder
+    // this home is planted in. Linux has neither, so a folder beside the
+    // app's own data is read without asking and there is no card to check.
+    const asksBeside =
+      reachOf(layout.rules, path.join(paths.appFiles, "Other"), "read")
+        .level === "ask";
 
-    it("names the folder beside it, never the one that holds it", () => {
-      ruleRefusal({
-        hostPath: `${paths.appFiles}/Other/state.json`,
-        op: "read",
-        rules: layout.rules,
-        spell: (spelled) => spelled,
-      });
-      expect(vi.mocked(raiseAsk).mock.calls).toEqual([
-        [expect.anything(), "folder", path.join(paths.appFiles, "Other")],
-      ]);
-    });
+    it.runIf(asksBeside)(
+      "names the folder beside it, never the one that holds it",
+      () => {
+        ruleRefusal({
+          hostPath: `${paths.appFiles}/Other/state.json`,
+          op: "read",
+          rules: layout.rules,
+          spell: (spelled) => spelled,
+        });
+        expect(vi.mocked(raiseAsk).mock.calls).toEqual([
+          [expect.anything(), "folder", path.join(paths.appFiles, "Other")],
+        ]);
+      },
+    );
 
-    it("raises none for the folder that holds it", () => {
+    it.runIf(asksBeside)("raises none for the folder that holds it", () => {
       expect(
         ruleRefusal({
           hostPath: paths.appFiles,

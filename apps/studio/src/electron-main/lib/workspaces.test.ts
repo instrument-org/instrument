@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { startLiveProcess } from "../../tests/live-process";
 import {
   defaultWorkspacePath,
   machineDirOwnedBy,
@@ -542,11 +543,16 @@ describe("open marks", () => {
   const markDir = () => workspaceMachineDirOf(userDataDir, "default");
 
   it("leaves a live process's mark alone", () => {
-    fs.mkdirSync(markDir(), { recursive: true });
-    const mark = path.join(markDir(), "open.pid");
-    fs.writeFileSync(mark, process.ppid.toString());
-    markWorkspaceOpen(markDir());
-    expect(fs.readFileSync(mark, "utf8")).toBe(process.ppid.toString());
+    const other = startLiveProcess();
+    try {
+      fs.mkdirSync(markDir(), { recursive: true });
+      const mark = path.join(markDir(), "open.pid");
+      fs.writeFileSync(mark, other.pid.toString());
+      markWorkspaceOpen(markDir());
+      expect(fs.readFileSync(mark, "utf8")).toBe(other.pid.toString());
+    } finally {
+      other.stop();
+    }
   });
 
   it("reports no other process for this one's own mark, or after release", () => {
@@ -563,9 +569,14 @@ describe("open marks", () => {
   });
 
   it("reports a live process holding the workspace", () => {
-    fs.mkdirSync(markDir(), { recursive: true });
-    fs.writeFileSync(path.join(markDir(), "open.pid"), process.ppid.toString());
-    expect(openElsewhereBy(markDir())).toBe(process.ppid);
+    const other = startLiveProcess();
+    try {
+      fs.mkdirSync(markDir(), { recursive: true });
+      fs.writeFileSync(path.join(markDir(), "open.pid"), other.pid.toString());
+      expect(openElsewhereBy(markDir())).toBe(other.pid);
+    } finally {
+      other.stop();
+    }
   });
 
   describe("a live process at the marked pid", () => {

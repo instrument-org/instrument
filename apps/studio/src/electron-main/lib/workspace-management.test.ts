@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { startLiveProcess } from "../../tests/live-process";
 import { workspaceSettingsDirOf } from "./settings-migration";
 import {
   createWorkspace,
@@ -320,20 +321,25 @@ describe("where a workspace's own data is", () => {
       name: "Busy",
       userDataDir,
     });
-    fs.writeFileSync(
-      path.join(machineDirOf(busy), "open.pid"),
-      process.ppid.toString(),
-    );
-    const heldBy = () =>
-      listWorkspaces({ resolved, userDataDir }).find(
-        (listing) => listing.path === busy.path,
-      )?.openElsewhereBy;
-    expect(heldBy()).toBe(process.ppid);
+    const other = startLiveProcess();
+    try {
+      fs.writeFileSync(
+        path.join(machineDirOf(busy), "open.pid"),
+        other.pid.toString(),
+      );
+      const heldBy = () =>
+        listWorkspaces({ resolved, userDataDir }).find(
+          (listing) => listing.path === busy.path,
+        )?.openElsewhereBy;
+      expect(heldBy()).toBe(other.pid);
 
-    fs.rmSync(path.join(machineDirOf(busy), "open.pid"));
-    markWorkspaceOpen(machineDirOf(busy));
-    expect(heldBy()).toBeNull();
-    releaseOpenMark(machineDirOf(busy));
+      fs.rmSync(path.join(machineDirOf(busy), "open.pid"));
+      markWorkspaceOpen(machineDirOf(busy));
+      expect(heldBy()).toBeNull();
+      releaseOpenMark(machineDirOf(busy));
+    } finally {
+      other.stop();
+    }
   });
 });
 

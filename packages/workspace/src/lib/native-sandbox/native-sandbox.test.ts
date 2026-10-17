@@ -70,26 +70,41 @@ function reachOver(home: string, rules: Rule[]): NativeReach {
 }
 
 describe.skipIf(onWindows)("seatbeltProfile", () => {
-  it("closes the disk and home to changes, then applies rules shallow to deep", () => {
-    const profile = seatbeltProfile(
-      reachOver("/nope/home", [
-        { level: "allow", path: "/nope/home/Documents/Acme", source: "grant" },
-        { level: "ask", path: "/nope/home/Documents", source: "place" },
-        { dotEntries: true, level: "ask", path: "/nope/home", source: "place" },
-        { level: "never", path: '/nope/home/with "quote"', source: "place" },
-      ]),
-    );
-    expect(
-      profile
-        .split("\n")
-        .filter(
-          (line) =>
-            !line.includes("/.cache") &&
-            !line.includes("Library/") &&
-            !line.includes("/var/folders") &&
-            !/\/\.(npm|local|config|gitconfig)/.test(line),
-        ),
-    ).toMatchInlineSnapshot(`
+  // The profile opens the way to this computer's own temp folder for
+  // metadata, which is `/private/var/folders/...` on a Mac and `/tmp`
+  // elsewhere, so the lines around the filtered ones are the Mac's. Seatbelt
+  // holds a program on a Mac alone, so that is the profile worth pinning.
+  it.runIf(process.platform === "darwin")(
+    "closes the disk and home to changes, then applies rules shallow to deep",
+    () => {
+      const profile = seatbeltProfile(
+        reachOver("/nope/home", [
+          {
+            level: "allow",
+            path: "/nope/home/Documents/Acme",
+            source: "grant",
+          },
+          { level: "ask", path: "/nope/home/Documents", source: "place" },
+          {
+            dotEntries: true,
+            level: "ask",
+            path: "/nope/home",
+            source: "place",
+          },
+          { level: "never", path: '/nope/home/with "quote"', source: "place" },
+        ]),
+      );
+      expect(
+        profile
+          .split("\n")
+          .filter(
+            (line) =>
+              !line.includes("/.cache") &&
+              !line.includes("Library/") &&
+              !line.includes("/var/folders") &&
+              !/\/\.(npm|local|config|gitconfig)/.test(line),
+          ),
+      ).toMatchInlineSnapshot(`
       [
         "(version 1)",
         "(allow default)",
@@ -115,7 +130,8 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
         "(deny mach-lookup (global-name "com.apple.dt.CommandLineTools.installondemand"))",
       ]
     `);
-  });
+    },
+  );
 });
 
 describe.skipIf(onWindows)(

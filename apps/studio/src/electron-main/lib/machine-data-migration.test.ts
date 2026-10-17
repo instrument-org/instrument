@@ -3,8 +3,17 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
+import { startLiveProcess } from "../../tests/live-process";
 import { moveMachineData } from "./machine-data-migration";
 import { migrateWorkspaceSettings } from "./settings-migration";
 import {
@@ -544,7 +553,9 @@ describe("moveMachineData", () => {
     seedBeta();
     const root = defaultWorkspacePath(userDataDir);
     const mark = path.join(root, ".instrument", "open.pid");
-    write(mark, process.ppid.toString());
+    const older = startLiveProcess();
+    onTestFinished(older.stop);
+    write(mark, older.pid.toString());
     const before = tree(root);
 
     const { done, machineDir } = moveMachineData({
@@ -553,7 +564,7 @@ describe("moveMachineData", () => {
     });
 
     expect(done).toEqual([
-      `left the machine data where it is while process ${process.ppid.toString()} has the workspace open`,
+      `left the machine data where it is while process ${older.pid.toString()} has the workspace open`,
     ]);
     expect(tree(root)).toEqual(before);
     expect(readWorkspaceIdentity(root).formatVersion).toBe(0);

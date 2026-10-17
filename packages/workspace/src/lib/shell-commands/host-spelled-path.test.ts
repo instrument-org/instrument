@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { bwrapAvailable, seatbeltAvailable } from "../native-sandbox";
 import { MountedFolder } from "../../schemas/mounted-folder";
 import {
   AbsolutePathSchema,
@@ -38,6 +39,13 @@ const BRIDGING_COMMANDS = [
   {
     command: (named: string) => `rg --file='${named}' .`,
     name: "rg, in a flag's value",
+    // A flag's value is taken for a path only where it is spelled the way
+    // this computer spells one and the shell spells one differently, since
+    // `-e /etc/passwd` is a pattern rather than a file. Where the two
+    // spellings are the same, as on macOS and Linux, the shim hands the
+    // value to the binary and the sandbox is what refuses the read, so
+    // there has to be one for this case to refuse anything.
+    needsSandbox: true,
     under: "secret.txt",
   },
   {
@@ -51,6 +59,14 @@ const BRIDGING_COMMANDS = [
     under: "repo",
   },
 ] as const;
+
+/**
+ * Whether this computer holds a program the agent starts inside a sandbox.
+ * A Linux machine without user namespaces has none, which is the shape of a
+ * CI runner.
+ */
+const sandboxHere = () =>
+  process.platform === "win32" || seatbeltAvailable() || bwrapAvailable();
 
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
@@ -111,16 +127,17 @@ afterEach(async () => {
 });
 
 describe("a path spelled the way this computer spells it", () => {
-  it.each(BRIDGING_COMMANDS)(
-    "$name refuses one the rules close",
-    async ({ command, under }) => {
-      const result = await run(command(path.join(closed, under)));
+  it.each(
+    BRIDGING_COMMANDS.filter(
+      (bridging) => !("needsSandbox" in bridging) || sandboxHere(),
+    ),
+  )("$name refuses one the rules close", async ({ command, under }) => {
+    const result = await run(command(path.join(closed, under)));
 
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stderr).not.toBe("");
-      expect(result.stdout).not.toContain("NEEDLE");
-    },
-  );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).not.toBe("");
+    expect(result.stdout).not.toContain("NEEDLE");
+  });
 
   it("writes nothing where git was refused", async () => {
     const named = path.join(closed, "repo");

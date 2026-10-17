@@ -740,13 +740,12 @@ describe("agent-browser routing", () => {
       "5000",
     ]);
 
-    const { execa } = await import("execa");
-    vi.mocked(execa).mockResolvedValue({
+    await answerAgentBrowser({
       exitCode: 1,
       stderr:
         "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
       stdout: "",
-    } as never);
+    });
     const result = await command.execute(
       ["wait", "--load", "networkidle"],
       commandCtx,
@@ -760,18 +759,15 @@ describe("agent-browser routing", () => {
   });
 
   it("keeps a named wait's timeout a failure through a chain and says what to do next", async () => {
-    const { execa } = await import("execa");
-    vi.mocked(execa)
-      .mockResolvedValueOnce({
-        exitCode: 0,
-        stderr: "",
-        stdout: "✓ Done\n",
-      } as never)
-      .mockResolvedValueOnce({
-        exitCode: 1,
-        stderr: "✗ Wait timed out after 10000ms\n",
-        stdout: "",
-      } as never);
+    await answerAgentBrowser((args) =>
+      args.includes("wait")
+        ? {
+            exitCode: 1,
+            stderr: "✗ Wait timed out after 10000ms\n",
+            stdout: "",
+          }
+        : { exitCode: 0, stderr: "", stdout: "✓ Done\n" },
+    );
     const bash = new Bash({
       customCommands: [
         createAgentBrowserCommand({
@@ -780,7 +776,7 @@ describe("agent-browser routing", () => {
           sessionId,
         }),
       ],
-      cwd: "/Users/sam/chat",
+      cwd: commandCtx.cwd,
       fs: commandCtx.fs,
     });
 
@@ -788,10 +784,7 @@ describe("agent-browser routing", () => {
       'agent-browser click @e197 && agent-browser wait --url "**/wiki/MOSFET" && agent-browser get title',
     );
 
-    const spawned = vi
-      .mocked(execa)
-      .mock.calls.map((call) => [...call][1])
-      .map((args) => (Array.isArray(args) ? args.map(String) : []));
+    const spawned = (await agentBrowserRuns()).map((run) => run.args);
     expect(spawned).toHaveLength(2);
     expect(spawned[1]?.slice(-5)).toEqual([
       "wait",

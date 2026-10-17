@@ -39,8 +39,10 @@ function draft(more: Partial<DraftFile> = {}): DraftFile {
 }
 
 /** Where a draft ended up, as a path under the workspace. */
+// Spelled with "/" between the names, so the snapshots below read the same
+// whatever this computer writes between the names of its own.
 function at({ file }: DraftOnDisk): string {
-  return path.relative(rootDir, file);
+  return path.relative(rootDir, file).split(path.sep).join("/");
 }
 
 describe("the drafts folder", () => {

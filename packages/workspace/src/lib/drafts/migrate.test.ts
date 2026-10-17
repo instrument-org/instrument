@@ -62,7 +62,9 @@ function tree(): string[] {
       const where = path.join(dir, entry.name);
       return entry.isDirectory()
         ? walk(where)
-        : [path.relative(rootDir, where)];
+        : // Spelled with "/" between the names, so the snapshots below read
+          // the same whatever this computer writes between its own.
+          [path.relative(rootDir, where).split(path.sep).join("/")];
     });
   const drafts = path.join(rootDir, "Drafts");
   return fs.existsSync(drafts) ? walk(drafts).toSorted() : [];

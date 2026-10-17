@@ -47,6 +47,14 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let chatId: ChatId;
 
+/**
+ * A file whose name holds a newline, which the operand check has to quote
+ * rather than split. Windows has no way to make one, so there it is left out
+ * of the fixture and of the cases that name it.
+ */
+const namedWithNewline =
+  process.platform === "win32" ? undefined : "two\nlines.txt";
+
 async function run(command: string, outside: boolean) {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -82,7 +90,9 @@ beforeAll(async () => {
   await fs.writeFile(path.join(chatRoot, "dupes.txt"), "a\na\nb\nc\nc\n");
   await fs.writeFile(path.join(chatRoot, "nums.txt"), "10\n1e3\n2.5\n-1\n");
   await fs.writeFile(path.join(chatRoot, "bin.dat"), Buffer.from("a\0b\n"));
-  await fs.writeFile(path.join(chatRoot, "two\nlines.txt"), "x\n");
+  if (namedWithNewline !== undefined) {
+    await fs.writeFile(path.join(chatRoot, namedWithNewline), "x\n");
+  }
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -107,61 +117,65 @@ afterAll(async () => {
 });
 
 describe.runIf(vendored)("uutils outside the sandbox", () => {
-  it.each([
-    "head -n 2 a.txt",
-    "head -2 words.txt",
-    "head -c 7 a.txt",
-    "tail -n 3 words.txt",
-    "tail -n +2 a.txt",
-    "tail -c 20 words.txt",
-    'for f in a.txt b.txt; do head -1 "$f"; done',
-    "sort -u nums.txt",
-    "sort -g nums.txt",
-    "sort -t' ' -k2,2n words.txt | tail -2",
-    "sort words.txt | md5sum",
-    "uniq -c dupes.txt",
-    "uniq -d dupes.txt",
-    "cut -d' ' -f1 words.txt | sort | uniq -c | sort -rn | head -3",
-    "cut -c1-2 a.txt",
-    "wc -l words.txt",
-    "wc -c a.txt",
-    "wc -w a.txt",
-    "wc -m a.txt",
-    "wc -L a.txt",
-    "wc -l < a.txt",
-    "wc -lw a.txt",
-    "wc -l a.txt b.txt",
-    "wc -l a.txt | cat",
-    "wc -l 'two\nlines.txt'",
-    "cat a.txt | wc -l",
-    "grep -n two a.txt",
-    "grep -c w1 words.txt",
-    "grep -H one a.txt",
-    "grep -l one a.txt",
-    "grep -L zzz a.txt",
-    "grep -o 'w9[0-9]*' words.txt | head -2",
-    "grep a bin.dat",
-    "grep -m1 -b 'w5 ' words.txt",
-    "grep two a.txt b.txt",
-    "grep zzz a.txt; echo $?",
-    "grep -q one a.txt; echo $?",
-    "grep -e one -e two a.txt",
-    "od -c a.txt | head -2",
-    "base32 a.txt",
-    "fmt -w 5 a.txt",
-    "date -u -d @0 +%Y-%m-%dT%H:%M",
-    "date -d @86400 +%F",
-    "seq 1 5 | sort -rn",
-    "seq -s, 3",
-    "factor 12",
-    "numfmt --to=iec 2048",
-    "sha256sum < a.txt",
-    "md5sum < a.txt",
-    "head -n 1 missing.txt",
-    "head -n 1 .instrument/x",
-    "tail -n 1 a.txt nope.txt",
-    "sort --bogus a.txt",
-  ])("prints what the sandboxed run prints: %s", async (command) => {
+  it.each(
+    [
+      "head -n 2 a.txt",
+      "head -2 words.txt",
+      "head -c 7 a.txt",
+      "tail -n 3 words.txt",
+      "tail -n +2 a.txt",
+      "tail -c 20 words.txt",
+      'for f in a.txt b.txt; do head -1 "$f"; done',
+      "sort -u nums.txt",
+      "sort -g nums.txt",
+      "sort -t' ' -k2,2n words.txt | tail -2",
+      "sort words.txt | md5sum",
+      "uniq -c dupes.txt",
+      "uniq -d dupes.txt",
+      "cut -d' ' -f1 words.txt | sort | uniq -c | sort -rn | head -3",
+      "cut -c1-2 a.txt",
+      "wc -l words.txt",
+      "wc -c a.txt",
+      "wc -w a.txt",
+      "wc -m a.txt",
+      "wc -L a.txt",
+      "wc -l < a.txt",
+      "wc -lw a.txt",
+      "wc -l a.txt b.txt",
+      "wc -l a.txt | cat",
+      "wc -l 'two\nlines.txt'",
+      "cat a.txt | wc -l",
+      "grep -n two a.txt",
+      "grep -c w1 words.txt",
+      "grep -H one a.txt",
+      "grep -l one a.txt",
+      "grep -L zzz a.txt",
+      "grep -o 'w9[0-9]*' words.txt | head -2",
+      "grep a bin.dat",
+      "grep -m1 -b 'w5 ' words.txt",
+      "grep two a.txt b.txt",
+      "grep zzz a.txt; echo $?",
+      "grep -q one a.txt; echo $?",
+      "grep -e one -e two a.txt",
+      "od -c a.txt | head -2",
+      "base32 a.txt",
+      "fmt -w 5 a.txt",
+      "date -u -d @0 +%Y-%m-%dT%H:%M",
+      "date -d @86400 +%F",
+      "seq 1 5 | sort -rn",
+      "seq -s, 3",
+      "factor 12",
+      "numfmt --to=iec 2048",
+      "sha256sum < a.txt",
+      "md5sum < a.txt",
+      "head -n 1 missing.txt",
+      "head -n 1 .instrument/x",
+      "tail -n 1 a.txt nope.txt",
+      "sort --bogus a.txt",
+    ].filter(
+      (command) => namedWithNewline !== undefined || !command.includes("\n"),
+    ),
+  )("prints what the sandboxed run prints: %s", async (command) => {
     const sandboxed = await run(command, false);
     const kinds = vi
       .mocked(wrapNativeCommand)

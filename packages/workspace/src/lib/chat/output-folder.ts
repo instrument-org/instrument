@@ -13,9 +13,24 @@ export async function ensureOutputFolder(): Promise<boolean> {
 }
 
 /**
- * `Instrument` in the person's Documents: where finished work goes while the
+ * `Instrument` in the home folder: where finished work goes while the
  * workspace is kept in the app's own data, and the folder suggested when the
  * person picks where to keep their Instrument folder.
+ *
+ * The home folder rather than Documents, which macOS asks the person about
+ * before any program reads or writes in it. That question used to arrive on
+ * the first launch's first screen, before anything had said what the folder
+ * was for, and the folder-icon step waited behind it.
+ */
+export function instrumentFolderUnchosen(): string {
+  return path.join(os.homedir(), "Instrument");
+}
+
+/**
+ * Where finished work went before the home folder: `Instrument` in
+ * Documents. An install that has this folder keeps using it, so its finished
+ * work does not split across two folders; the app decides that where it can
+ * tell this is not a first launch (`unchosenOutputFolder`).
  */
 export function instrumentFolderInDocuments(): string {
   return path.join(os.homedir(), "Documents", "Instrument");
@@ -26,13 +41,14 @@ export function instrumentFolderInDocuments(): string {
  * first use and reached by every chat (see folder-reach.ts), so a task can be
  * handed it like any other folder and the user can find it in the Finder
  * like any other folder: the workspace's own folder once the person picked
- * one (the config's `outputDir`), and otherwise
- * {@link instrumentFolderInDocuments}.
+ * one, or the folder the app names for a workspace in its own data (the
+ * config's `outputDir` in both cases), and otherwise
+ * {@link instrumentFolderUnchosen}.
  */
 export function outputFolderPath(): string {
   return (
     (hasWorkspaceConfig() ? getWorkspaceConfig().outputDir : undefined) ??
-    instrumentFolderInDocuments()
+    instrumentFolderUnchosen()
   );
 }
 

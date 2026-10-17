@@ -165,6 +165,7 @@ export {
 } from "./lib/rewrite-stored-paths";
 export {
   instrumentFolderInDocuments,
+  instrumentFolderUnchosen,
   outputFolderPath,
 } from "./lib/chat/output-folder";
 export { placePaths, startupPaths } from "./lib/permissions/places";

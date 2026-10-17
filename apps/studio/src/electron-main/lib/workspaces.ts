@@ -1,5 +1,7 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
+  instrumentFolderInDocuments,
+  instrumentFolderUnchosen,
   isDirectorySync,
   type LayoutMarkStore,
   rewriteStoredPaths,
@@ -211,6 +213,27 @@ export function createdWorkspacesDir(userDataDir: string): string {
 
 export function defaultWorkspacePath(userDataDir: string): string {
   return path.join(userDataDir, DEFAULT_WORKSPACE_DIR_NAME);
+}
+
+/**
+ * Where finished work goes while the workspace is the app's own: `Instrument`
+ * in the home folder, which macOS asks nothing about, so a first launch
+ * raises no prompt over it.
+ *
+ * An install that already made the older folder in Documents keeps that one,
+ * so its finished work does not end up split across two folders. That folder
+ * is only looked for once this computer has a workspace of its own, since
+ * looking inside Documents is the one thing a first launch must not do: a
+ * launch that has a workspace has been through whatever macOS asked long
+ * ago, and a refused look reads as the folder not being there, which sends
+ * new work to the home folder.
+ */
+export function unchosenOutputFolder(userDataDir: string): string {
+  const older = instrumentFolderInDocuments();
+  return hasWorkspaceIdentity(defaultWorkspacePath(userDataDir)) &&
+    isDirectorySync(older)
+    ? older
+    : instrumentFolderUnchosen();
 }
 
 export function hasWorkspaceIdentity(workspacePath: string): boolean {

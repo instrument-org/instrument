@@ -46,17 +46,15 @@ async function ensure() {
   await call(window.ensure, undefined, { context });
 }
 
-it("leaves Instrument in Documents undecorated when it was already there", async () => {
-  fs.mkdirSync(path.join(home, "Documents", "Instrument"), {
-    recursive: true,
-  });
+it("leaves the Instrument folder undecorated when it was already there", async () => {
+  fs.mkdirSync(path.join(home, "Instrument"), { recursive: true });
   await ensure();
   expect(decorated).toEqual([]);
 });
 
-it("decorates Instrument in Documents once it has made it", async () => {
+it("decorates the Instrument folder once it has made it", async () => {
   await ensure();
-  expect(decorated).toEqual([path.join(home, "Documents", "Instrument")]);
+  expect(decorated).toEqual([path.join(home, "Instrument")]);
 });
 
 it("decorates the folder the person picked for their workspace", async () => {

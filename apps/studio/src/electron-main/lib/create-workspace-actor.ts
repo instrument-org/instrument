@@ -76,7 +76,11 @@ import {
   workspaceInAppData,
   workspaceMachineDir,
 } from "./get-workspace-folder";
-import { workspaceDbFileOf, workspaceLayoutMarks } from "./workspaces";
+import {
+  unchosenOutputFolder,
+  workspaceDbFileOf,
+  workspaceLayoutMarks,
+} from "./workspaces";
 import { storedPathRewrites } from "./workspace-move";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
@@ -217,7 +221,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       },
       // A folder the person picked is where their finished work goes too,
       // and only the app's own data ever held 1.x tasks.
-      ...(inAppData ? { legacyTasks: true } : { outputDir: rootDir }),
+      ...(inAppData
+        ? {
+            legacyTasks: true,
+            outputDir: unchosenOutputFolder(machineDir()),
+          }
+        : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),

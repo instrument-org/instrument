@@ -35,7 +35,7 @@ import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
-import { instrumentFolderInDocuments } from "@instrument-org/workspace/electron";
+import { instrumentFolderUnchosen } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { shell } from "electron";
 import { execFile } from "node:child_process";
@@ -288,7 +288,7 @@ const folder = base
       inAppData: workspaceInAppData(),
       path: workspace.path,
       pinned: workspace.pinned,
-      suggested: instrumentFolderInDocuments(),
+      suggested: instrumentFolderUnchosen(),
     };
   });
 

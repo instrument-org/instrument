@@ -1,8 +1,8 @@
 # Plan: the user chooses where Instrument keeps files
 
-Status: agreed, not started. Tracked in Linear FP-1351. Until it lands, the location stays `~/Documents/Instrument`, unchosen.
+Status: agreed, the step not started. Tracked in Linear FP-1351. The unchosen location has moved to `~/Instrument` ahead of the step, so the prompt below is out of the way of a first launch; an install that already made `~/Documents/Instrument` keeps using it.
 
-Instrument keeps what it makes in one folder every chat reaches, mounted as `Instrument`. Today that folder is `~/Documents/Instrument`, created without asking. On a fresh macOS install the first touch raises the system's "access files in your Documents folder" prompt, and since the app window loads behind onboarding, that prompt lands on the first onboarding screen before anything has said why. The folder-icon step then waits behind the prompt and times out after 5 seconds. A preview build (Actions › Preview Build) shows all of this, because its first launch is a real one.
+Instrument keeps what it makes in one folder every chat reaches, mounted as `Instrument`. That folder was `~/Documents/Instrument`, created without asking. On a fresh macOS install the first touch raised the system's "access files in your Documents folder" prompt, and since the app window loads behind onboarding, that prompt landed on the first onboarding screen before anything had said why. The folder-icon step then waited behind the prompt and timed out after 5 seconds. A preview build (Actions › Preview Build) showed all of this, because its first launch is a real one. The home folder is guarded by nothing, which is why the unchosen location is there now; what is still to build is the person choosing it.
 
 ## What ships
 
@@ -11,7 +11,7 @@ Instrument keeps what it makes in one folder every chat reaches, mounted as `Ins
 - **The location is the workspace's.** The step moves the workspace to the folder picked (or opens the one already there) through the routes Settings › Storage uses, and the folder is then where finished work goes too (`outputFolderPath()`); it keeps no setting of its own. What it calls and what each answers: [workspace-layout.md](workspace-layout.md), "The onboarding folder step".
 - **Nothing touches the folder before the step.** `workspace.window.ensure` stops creating the folder and setting its icon while onboarding is still on screen.
 - **Settings shows the location**, with Show in Finder. Read-only at first.
-- **Existing workspaces keep `~/Documents/Instrument`**, recorded as their chosen location by a settings migration, so no one's files move.
+- **Existing workspaces keep `~/Documents/Instrument`**, so no one's files move. Already true: the app answers with that folder for a computer that has a workspace of its own and that folder on disk.
 - Windows and Linux take the same step, or the default, since neither has a prompt to avoid.
 
 ## Where the step lives
@@ -20,7 +20,7 @@ The folder step belongs to the onboarding screens rather than beside them: the s
 
 Two things can ship before it, and are worth shipping before it, since they are what a tester and a first launch run into:
 
-- **The unchosen location moves to `~/Instrument`.** Nothing macOS guards is touched then, so a first launch raises no prompt at all, and the folder a person is told about is the one they can see in their home folder. An install that already made `~/Documents/Instrument` keeps it, recorded as its location by a settings migration, so no finished work is left behind in a folder nothing writes to any more. This is worth doing on its own because the prompt is in the way of every fresh-install test, including a preview build's.
+- **The unchosen location moves to `~/Instrument`.** Done. Nothing macOS guards is touched, so a first launch raises no prompt at all, and the folder a person is told about is the one they can see in their home folder. An install that already made `~/Documents/Instrument` keeps it (`unchosenOutputFolder`), which is decided from the app's own data rather than by looking inside Documents, since looking is the thing a first launch must not do.
 - **Settings shows the location**, read-only, so a tester can see which folder an install settled on without reading the registry.
 
 ## When the folder is not there, or cannot be read

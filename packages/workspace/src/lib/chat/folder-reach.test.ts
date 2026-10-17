@@ -48,7 +48,9 @@ vi.mock(import("../path-exists"), () => ({
 
 const chatId = ChatIdSchema.parse("chat-reach");
 const home = os.homedir();
-const workspace = path.join(home, "Documents", "Instrument");
+// The folder the app names itself while nobody has picked one, which is what
+// the standing folders below carry.
+const workspace = path.join(home, "Instrument");
 const elsewhere = path.resolve(path.sep, "Volumes", "Archive");
 
 function granted(...grants: { at: number; path: string }[]): ChatGrant[] {

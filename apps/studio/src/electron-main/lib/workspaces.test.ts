@@ -3,7 +3,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startLiveProcess } from "../../tests/live-process";
 import {
@@ -17,6 +17,7 @@ import {
   releaseOpenMark,
   resolveWorkspace,
   settleWorkspace,
+  unchosenOutputFolder,
   updateRegistry,
   workspaceLayoutMarks,
   workspaceMachineDirOf,
@@ -613,5 +614,58 @@ describe("open marks", () => {
 
       expect(openElsewhereBy(markDir())).toBe(holds ? pid : null);
     });
+  });
+});
+
+describe("where finished work goes while the workspace is the app's own", () => {
+  let home: string;
+
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), "unchosen-home-"));
+    vi.spyOn(os, "homedir").mockReturnValue(home);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(home, { force: true, recursive: true });
+  });
+
+  const inHome = (...names: string[]) => path.join(home, ...names);
+
+  function plantWorkspace() {
+    writeWorkspaceIdentity(defaultWorkspacePath(userDataDir), {
+      color: "gray",
+      createdBy: { kind: "person" },
+      formatVersion: 1,
+      name: "Instrument",
+      settingsVersion: 2,
+    });
+  }
+
+  it("names the Instrument folder in the home folder", () => {
+    expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
+  });
+
+  // A first launch has no workspace of its own yet, so nothing has been
+  // through what macOS asks about Documents, and nothing here looks there.
+  it("leaves a first launch's Documents alone, whatever is in it", () => {
+    fs.mkdirSync(inHome("Documents", "Instrument"), { recursive: true });
+
+    expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
+  });
+
+  it("keeps the older folder in Documents where an install made one", () => {
+    fs.mkdirSync(inHome("Documents", "Instrument"), { recursive: true });
+    plantWorkspace();
+
+    expect(unchosenOutputFolder(userDataDir)).toBe(
+      inHome("Documents", "Instrument"),
+    );
+  });
+
+  it("names the home folder for an install that never made one", () => {
+    plantWorkspace();
+
+    expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
   });
 });

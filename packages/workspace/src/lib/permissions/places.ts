@@ -54,6 +54,12 @@ export const PLACE_DEFAULTS = {
  * in it the agent ran into, and "Use folders without asking" leaves them
  * asking: the switch is for folders of work.
  *
+ * This is the list that asks, rather than a list of what may be read: every
+ * other hidden folder in the home folder is read without a card, since a
+ * person cannot say whether a chat should reach `.cache` or `.claude` and
+ * being asked teaches them to say yes to everything. So a folder belongs
+ * here when a program keeps a sign-in in it under a name people know.
+ *
  * `~/.npmrc` and `~/.gitconfig` are left out: pnpm and uv read them for
  * registry and proxy settings, and git's own env already ignores the config.
  */
@@ -70,6 +76,13 @@ const SIGN_IN_PLACES = [
   ".config/gh",
   ".config/op",
   ".password-store",
+  // The same thing under a build tool's or a registry's own name.
+  ".m2/settings.xml",
+  ".gradle/gradle.properties",
+  ".pypirc",
+  ".cargo/credentials.toml",
+  ".gem/credentials",
+  ".terraform.d/credentials.tfrc.json",
 ];
 
 /**
@@ -189,14 +202,11 @@ export const DANGEROUS_NAMES = [
 ];
 
 /**
- * A place as paths on this computer. `homeDotEntries` stands for every
- * hidden entry directly in the home folder, which no single path covers.
- * `closedUnlessAllowed` are paths in the place that stay Not allowed while
- * the place asks first.
+ * A place as paths on this computer. `closedUnlessAllowed` are paths in the
+ * place that stay Not allowed while the place asks first.
  */
 export interface PlacePaths {
   closedUnlessAllowed?: string[];
-  homeDotEntries?: true;
   id: PlaceId;
   paths: string[];
 }
@@ -225,7 +235,7 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     places.push(
       { id: "icloud", paths: [inOwnHome(iCloudDrivePath())] },
       { id: "drives", paths: ["/Volumes"] },
-      { homeDotEntries: true, id: "appFiles", paths: inHome("Library") },
+      { id: "appFiles", paths: inHome("Library") },
       // The Photos, Music and TV libraries are folders macOS asks the
       // person about before any program reads them, in a dialog the program
       // waits on. Closed here, the sandbox refuses a native walk over the
@@ -241,7 +251,10 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     places.push(
       // The system's own /mnt, where Linux mounts a drive by hand.
       { id: "drives", paths: ["/media", "/run/media", "/mnt"] },
-      { homeDotEntries: true, id: "appFiles", paths: [] },
+      // Where a Linux program keeps its settings and its data, which is what
+      // `Library` is on a Mac and `AppData` on Windows. `.cache` is left
+      // out: what is in it is made again from something else.
+      { id: "appFiles", paths: inHome(".config", ".local/share") },
     );
   } else {
     places.push(

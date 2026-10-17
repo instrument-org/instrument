@@ -52,7 +52,11 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     ["read", `${home}/.netrc`, "ask"],
     ["read", `${home}/Library/Keychains/login.keychain-db`, "never"],
     ["read", `${home}/Library/Application Support/Arc/User Data`, "never"],
-    ["read", `${home}/.config/uv/uv.toml`, "ask"],
+    // A hidden folder in the home folder that no sign-in list names is read
+    // without a card, and changed only after one.
+    ["read", `${home}/.config/uv/uv.toml`, "allow"],
+    ["write", `${home}/.config/uv/uv.toml`, "ask"],
+    ["read", `${home}/.m2/settings.xml`, "ask"],
     ["read", `${home}/Library/Preferences/x.plist`, "ask"],
     ["write", `${home}/Documents/Instrument/out.png`, "allow"],
     ["read", "/Volumes/Backup/photos", "ask"],
@@ -523,13 +527,16 @@ it.runIf(process.platform === "win32")(
 
 describe("a skill source the shell mounts", () => {
   // The app's prepared skills, where they are: a hidden folder in the home
-  // folder, which the app-files place holds and asks about.
+  // folder, which no place and no sign-in list names.
   const skills = inHome(".instrument-runtime/skills");
 
-  it("asks about a hidden folder in the home folder without being named", () => {
+  it("is read from a hidden folder in the home folder without being named", () => {
     const rules = rulesFor({ home, settings });
     expect(
       reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "read").level,
+    ).toBe("allow");
+    expect(
+      reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "write").level,
     ).toBe("ask");
   });
 

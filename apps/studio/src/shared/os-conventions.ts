@@ -98,7 +98,7 @@ export interface OsConventions {
 
 export const OS_CONVENTIONS = {
   linux: {
-    appFiles: "Hidden folders like .config",
+    appFiles: ".config and .local/share",
     commandKey: "ctrlKey",
     computer: "This Computer",
     computerKind: "computer",
@@ -132,7 +132,7 @@ export const OS_CONVENTIONS = {
     trash: "Trash",
   },
   mac: {
-    appFiles: "Library and hidden folders",
+    appFiles: "Library",
     commandKey: "metaKey",
     computer: "This Mac",
     computerKind: "Mac",

@@ -370,15 +370,6 @@ function placeRules(home: string, settings: PermissionSettings): Rule[] {
         source: "place",
       });
     }
-    if (place.homeDotEntries) {
-      rules.push({
-        dotEntries: true,
-        level,
-        path: home,
-        place: place.id,
-        source: "place",
-      });
-    }
   }
   return rules;
 }

@@ -114,7 +114,6 @@ function withFolderLevel(
       place.id !== "output" &&
       only !== undefined &&
       others.length === 0 &&
-      !place.homeDotEntries &&
       !place.closedUnlessAllowed &&
       hostPathWithin(only, folder) === "/"
     ) {

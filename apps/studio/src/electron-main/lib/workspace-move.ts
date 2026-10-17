@@ -605,6 +605,24 @@ function atEntry(
  * from under it; one that ended without removing it no longer counts.
  * Where the lock cannot be written at all, `run` goes ahead without it.
  */
+/**
+ * Take `lock` for this process, failing with EEXIST where another launch
+ * holds it. The pid goes into a file of its own and that file is linked into
+ * place, so the lock is never there with nothing in it yet: a launch that
+ * read it in that moment would find no pid, take it for a lock whose process
+ * had ended, remove it, and move the records from under the launch that holds
+ * it.
+ */
+function takeMoveLock(lock: string): void {
+  const staged = `${lock}.${process.pid.toString()}`;
+  fs.writeFileSync(staged, process.pid.toString());
+  try {
+    fs.linkSync(staged, lock);
+  } finally {
+    fs.rmSync(staged, { force: true });
+  }
+}
+
 function withMoveLock<T>(machineDir: string, run: () => T): T {
   const lock = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.moveLock);
   let held = false;
@@ -612,7 +630,7 @@ function withMoveLock<T>(machineDir: string, run: () => T): T {
     fs.mkdirSync(machineDir, { recursive: true });
     for (;;) {
       try {
-        fs.writeFileSync(lock, process.pid.toString(), { flag: "wx" });
+        takeMoveLock(lock);
         held = true;
         break;
       } catch (error) {

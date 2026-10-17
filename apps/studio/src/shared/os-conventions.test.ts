@@ -16,7 +16,7 @@ describe("OS_CONVENTIONS", () => {
     expect(OS_CONVENTIONS).toMatchInlineSnapshot(`
       {
         "linux": {
-          "appFiles": "Hidden folders like .config",
+          "appFiles": ".config and .local/share",
           "commandKey": "ctrlKey",
           "computer": "This Computer",
           "computerKind": "computer",
@@ -48,7 +48,7 @@ describe("OS_CONVENTIONS", () => {
           "trash": "Trash",
         },
         "mac": {
-          "appFiles": "Library and hidden folders",
+          "appFiles": "Library",
           "commandKey": "metaKey",
           "computer": "This Mac",
           "computerKind": "Mac",

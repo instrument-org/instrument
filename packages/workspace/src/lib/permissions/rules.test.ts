@@ -4,11 +4,21 @@ import nodePath from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
+import { SYSTEM_DRIVE } from "../disk-root";
 import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
 
-// A home on this disk's root, spelled as node:path spells it here
-// (`C:\Users\someone` on Windows), so a folder the rules name compares as is.
-const home = nodePath.resolve("/Users/someone");
+// A home folder on the drive this computer runs from, spelled as node:path
+// spells one here (`C:\Users\someone` on Windows), so a folder the rules name
+// compares as is. The drive is named rather than left to `resolve`, which
+// takes the drive the run happens to be on: a machine whose temp folder or
+// checkout is on another drive would put this home inside the drives place,
+// which asks, and every case below that reads a path no rule covers would
+// read as asking instead.
+const home = nodePath.join(
+  process.platform === "win32" ? `${SYSTEM_DRIVE}\\` : "/",
+  "Users",
+  "someone",
+);
 const inHome = (relative: string) => nodePath.join(home, relative);
 const settings = {
   apps: [],
@@ -478,7 +488,7 @@ describe("reachOf on Windows, where a folder has second names", () => {
 
 it.runIf(process.platform === "win32")(
   "closes every spelling NTFS opens a closed folder by, on a real disk",
-  () => {
+  ({ skip }) => {
     const ws = fs.mkdtempSync(nodePath.join(os.tmpdir(), "second-names-"));
     try {
       fs.mkdirSync(nodePath.join(ws, ".instrument", "keys"), {
@@ -486,6 +496,14 @@ it.runIf(process.platform === "win32")(
       });
       fs.writeFileSync(nodePath.join(ws, ".instrument", "keys", "a.txt"), "");
       fs.writeFileSync(nodePath.join(ws, "notes.txt"), "");
+      // A second name of the 8.3 kind is what this case is about, and a
+      // volume can be set up without them: Windows leaves them off on a
+      // drive added after the system one, which is where a CI runner puts
+      // its temp folder. There the folder has only its own name and there is
+      // no second spelling to close.
+      if (!fs.existsSync(nodePath.join(ws, "INSTRU~1"))) {
+        skip();
+      }
       const rules: Rules = {
         home,
         rules: [

@@ -647,7 +647,10 @@ describe("finishPendingMove", () => {
           `
           const fs = require("node:fs");
           const [lock, registry, from, to] = process.argv.slice(1);
-          fs.writeFileSync(lock, String(process.pid));
+          // Named and then moved into place, the way a launch takes the lock,
+          // so this launch never finds it there with no pid in it.
+          fs.writeFileSync(lock + ".staged", String(process.pid));
+          fs.renameSync(lock + ".staged", lock);
           setTimeout(() => {
             fs.renameSync(from + "/.instrument", to + "/.instrument");
             const value = JSON.parse(fs.readFileSync(registry, "utf8"));

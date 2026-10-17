@@ -100,15 +100,22 @@ export function moveMachineData({
   }
 
   try {
+    const marker = path.join(machineDir, UNFINISHED_MARKER);
+    // The format alone does not say this finished. A move that failed leaves
+    // the format where it was and this marker behind, for the next launch to
+    // pick up; the chat conversion that runs later in the same launch then
+    // raises the format past this one whether or not the move finished, so
+    // without the marker a workspace whose credentials or profiles were
+    // left behind would never try again.
     if (
       readWorkspaceIdentity(workspace.path).formatVersion >=
-      MACHINE_DATA_FORMAT_VERSION
+        MACHINE_DATA_FORMAT_VERSION &&
+      !fs.existsSync(marker)
     ) {
       removeTakenInRootKeys({ done, machineDir, userDataDir, workspace });
       removeLegacyIndexes({ done, userDataDir });
       return { done, machineDir };
     }
-    const marker = path.join(machineDir, UNFINISHED_MARKER);
     const overwrite = fs.existsSync(marker);
     writeJsonAtomic(marker, { pid: process.pid });
     // An older build still running on this workspace has its stores and
@@ -145,9 +152,17 @@ export function moveMachineData({
     removeLeftovers({ done, workspacePath: workspace.path });
 
     if (failed === 0) {
+      const identity = readWorkspaceIdentity(workspace.path);
       writeWorkspaceIdentity(workspace.path, {
-        ...readWorkspaceIdentity(workspace.path),
-        formatVersion: MACHINE_DATA_FORMAT_VERSION,
+        ...identity,
+        // Never backwards: a move that finishes on a later launch runs after
+        // the chat conversion has raised the format past this one, and
+        // putting it back would offer the workspace to a build that cannot
+        // read it.
+        formatVersion: Math.max(
+          identity.formatVersion,
+          MACHINE_DATA_FORMAT_VERSION,
+        ),
       });
       fs.rmSync(marker, { force: true });
       done.push(

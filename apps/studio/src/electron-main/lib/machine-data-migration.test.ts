@@ -583,4 +583,55 @@ describe("moveMachineData", () => {
     ).toBe("providers.json.enc as it was");
     expect(readWorkspaceIdentity(root).formatVersion).toBe(1);
   });
+
+  // The chat conversion runs later in the same launch and raises the format
+  // past this migration's whether or not the move finished, so the format
+  // cannot be what says this is done.
+  it("moves what a failed launch left even after the conversion raised the format", () => {
+    seedBeta();
+    const root = defaultWorkspacePath(userDataDir);
+    const old = path.join(root, ".instrument", "settings", "providers.json.enc");
+    const rename = fs.renameSync.bind(fs);
+    const once = vi
+      .spyOn(fs, "renameSync")
+      .mockImplementation((from, to) => {
+        if (String(from) === old) {
+          once.mockImplementation(rename);
+          throw Object.assign(new Error("in use"), { code: "EACCES" });
+        }
+        rename(from, to);
+      });
+
+    const { machineDir } = moveMachineData({
+      userDataDir,
+      workspace: workspace(),
+    });
+
+    expect(fs.existsSync(old)).toBe(true);
+    expect(readWorkspaceIdentity(root).formatVersion).toBe(0);
+
+    // What the chat conversion writes once it has finished, which says
+    // nothing about the move above.
+    writeWorkspaceIdentity(root, {
+      ...readWorkspaceIdentity(root),
+      chatRecordsConverted: true,
+      formatVersion: WORKSPACE_FORMAT_VERSION,
+    });
+
+    moveMachineData({ userDataDir, workspace: workspace() });
+
+    expect(
+      fs.readFileSync(
+        path.join(machineDir, "keys", "providers.json.enc"),
+        "utf8",
+      ),
+    ).toBe("providers.json.enc as it was");
+    expect(fs.existsSync(old)).toBe(false);
+    // Raised by the conversion and left there: a finished move never puts
+    // the format back.
+    expect(readWorkspaceIdentity(root).formatVersion).toBe(
+      WORKSPACE_FORMAT_VERSION,
+    );
+    expect(tree(machineDir)).not.toContain(".move-unfinished");
+  });
 });

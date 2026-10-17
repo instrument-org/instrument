@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   type BigIntStats,
   type Dirent,
@@ -46,9 +47,9 @@ export const liveDisk: Disk = {
  * it is there depend only on what each part of the way is: the same file,
  * folder or link (same device, inode, mode and birth time, and a link's
  * same target) or missing still. What a folder lists depends on its
- * entries too, whose making, removal, renaming or replacing moves its
- * change time, so a listed folder's stamp carries its times. While every
- * stamp is what it was, the disk gives every answer it gave.
+ * entries too, so a listed folder's stamp carries the names it holds, with
+ * its times beside them. While every stamp is what it was, the disk gives
+ * every answer it gave.
  */
 export type DiskProof = ReadonlyMap<string, { listed: boolean; stamp: string }>;
 
@@ -84,6 +85,24 @@ function linkTarget(link: string): string | undefined {
   }
 }
 
+/**
+ * The names a folder holds, in one string. What a listing answers is the
+ * names themselves, and a folder's times do not always follow them: on
+ * Windows, making an entry in a folder moves neither its modification nor
+ * its change time, so times alone hold a stamp while the entries move under
+ * it, and a built policy would keep saying that the `.git` just made is not
+ * there. "-" where the folder cannot be listed, as the stats are "-".
+ */
+function namesIn(folder: string): string {
+  try {
+    return createHash("sha1")
+      .update(readdirSync(folder).toSorted().join("\0"))
+      .digest("base64");
+  } catch {
+    return "-";
+  }
+}
+
 function stampOf(
   target: string,
   stats: BigIntStats | undefined,
@@ -94,8 +113,10 @@ function stampOf(
   }
   const what = `${stats.dev}:${stats.ino}:${stats.mode}:${stats.birthtimeNs}`;
   const leads = stats.isSymbolicLink() ? `>${linkTarget(target) ?? ""}` : "";
-  const times = listed ? `:${stats.mtimeNs}:${stats.ctimeNs}` : "";
-  return `${what}${leads}${times}`;
+  const entries = listed
+    ? `:${stats.mtimeNs}:${stats.ctimeNs}:${namesIn(target)}`
+    : "";
+  return `${what}${leads}${entries}`;
 }
 
 /** Whether every path in `proof` is as it was stamped. */

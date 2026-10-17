@@ -636,7 +636,10 @@ describe("finishPendingMove", () => {
       requestWorkspaceMove({ target: picked, userDataDir, workspace });
       fs.mkdirSync(machineDir(), { recursive: true });
       // Another launch of this program holds the lock while it moves the
-      // records and points the entry at the target, then lets go.
+      // records and points the entry at the target, then lets go. It holds
+      // for two seconds rather than a few hundred milliseconds: the lock has
+      // to still be there when this launch looks, and on a loaded machine
+      // the wait below can notice it appear a few hundred milliseconds late.
       const other = spawn(
         process.execPath,
         [
@@ -656,7 +659,7 @@ describe("finishPendingMove", () => {
             }
             fs.writeFileSync(registry, JSON.stringify(value));
             fs.rmSync(lock);
-          }, 400);
+          }, 2000);
           `,
           lockFile(),
           registryFile(),

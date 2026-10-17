@@ -358,7 +358,10 @@ describe("buildBashFs", () => {
     const bash = await makeBash();
     const result = await bash.exec("mkdir -p /tmp && echo scratch > /tmp/x");
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain("EROFS");
+    // The code where the write is refused outside a mount, and the sentence
+    // a redirect turns it into, which is what a Linux host reports for the
+    // same refusal since `/tmp` is a path of its own there.
+    expect(result.stderr).toMatch(/EROFS|Read-only file system/);
   });
 
   it("lists the device files at the root beside the folders' parents", async () => {

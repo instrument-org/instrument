@@ -165,9 +165,15 @@ describe("a path spelled the way this computer spells it", () => {
   describe.runIf(process.platform === "win32")(
     "naming the drive and hanging off the folder the program runs in",
     () => {
-      /** The closed file as `C:` plus the hops a program in the shell's folder takes to it. */
+      /**
+       * The closed file as its drive plus the hops a program in the shell's
+       * folder takes to it. The drive is the one the fixture is on rather
+       * than `C:`, since a machine can put its temp folder on another (a CI
+       * runner does), and naming a drive the fixture is not on makes the
+       * path reach nothing and the refusal nothing to read.
+       */
       const driveRelative = (under: string) =>
-        `C:${path.relative(
+        `${path.parse(tmpDir).root.slice(0, 2)}${path.relative(
           path.join(tmpDir, "chats", "test"),
           path.join(closed, under),
         )}`;

@@ -13,7 +13,7 @@ function programOf(pid: number): string | undefined {
   try {
     switch (process.platform) {
       case "linux":
-        return fs.readFileSync(`/proc/${pid.toString()}/comm`, "utf8").trim();
+        return path.basename(fs.readlinkSync(`/proc/${pid.toString()}/exe`));
       case "win32":
         return undefined;
       default:
@@ -76,13 +76,7 @@ export function startLiveProcess(): { pid: number; stop: () => void } {
   }
   const program = programOf(pid);
   const own = path.basename(process.execPath);
-  // The kernel keeps a process's name to its first 15 bytes on Linux, as the
-  // app's own check allows for.
-  const expected =
-    process.platform === "linux"
-      ? Buffer.from(own).subarray(0, 15).toString()
-      : own;
-  if (program !== undefined && program !== expected) {
+  if (program !== undefined && program !== own) {
     stop();
     throw new Error(
       `a stand-in process at ${pid.toString()} runs ${program}, which is not this program (${own}), so a mark naming it would not count`,

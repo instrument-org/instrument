@@ -942,15 +942,9 @@ function runsThisApp(pid: number): boolean {
     return true;
   }
   const own = path.basename(process.execPath);
-  switch (process.platform) {
-    // The kernel keeps a process's name to its first 15 bytes.
-    case "linux":
-      return name === Buffer.from(own).subarray(0, 15).toString();
-    case "win32":
-      return name.toLowerCase() === own.toLowerCase();
-    default:
-      return name === own;
-  }
+  return process.platform === "win32"
+    ? name.toLowerCase() === own.toLowerCase()
+    : name === own;
 }
 
 /**
@@ -958,6 +952,13 @@ function runsThisApp(pid: number): boolean {
  * process has that pid any more, and undefined when the system would not
  * say. Read from `/proc` on Linux and asked of `ps` on a Mac and `tasklist`
  * on Windows, each part of the system.
+ *
+ * On Linux it is the program `/proc/<pid>/exe` leads to rather than
+ * `/proc/<pid>/comm`, which is the name of the process's first thread: Node
+ * calls that one "MainThread" and Chromium calls the browser process's
+ * "CrBrowserMain", so comm never names the program for anything this app
+ * runs. A link this account cannot read answers undefined, which counts the
+ * process as this app's, as a system that will not say does.
  */
 function executableNameOf(pid: number): string | undefined {
   const ask = (file: string, args: string[]) =>
@@ -970,7 +971,7 @@ function executableNameOf(pid: number): string | undefined {
   try {
     switch (process.platform) {
       case "linux":
-        return fs.readFileSync(`/proc/${pid.toString()}/comm`, "utf8").trim();
+        return path.basename(fs.readlinkSync(`/proc/${pid.toString()}/exe`));
       case "win32": {
         const row = /^"([^"]*)","(\d+)"/m.exec(
           ask("tasklist", [

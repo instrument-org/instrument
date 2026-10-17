@@ -36,6 +36,14 @@ import {
 import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
 
+/**
+ * How many steps a session takes in one run before it stops and offers to
+ * carry on. A backstop against a run that never ends rather than a budget
+ * for work: a run that goes this far has nothing left to finish on its own,
+ * and the person's yes is cheaper than another thousand steps.
+ */
+const UNATTENDED_STEPS = 500;
+
 export type SessionMachineParentEvent = {
   type: "session.done";
   value: {
@@ -273,7 +281,7 @@ export const sessionMachine = setup({
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
       heldMessageIds: [],
       llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
-      maxStepCount: input.maxStepCount ?? 200,
+      maxStepCount: input.maxStepCount ?? UNATTENDED_STEPS,
       model: input.model,
       parentRef: input.parentRef,
       queuedMessages: input.queuedMessages,

@@ -86,7 +86,7 @@ export async function saveStoppedToolCallPart(input: {
 }
 
 const executeToolLogic = fromPromise<
-  { preliminarySaved: boolean },
+  void,
   {
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
@@ -187,15 +187,7 @@ export const executeToolCallMachine = setup({
           sessionId: context.sessionId,
           chatId: context.chatId,
         }),
-        onDone: [
-          {
-            guard: ({ context, event }) =>
-              context.cancellationReason !== "unknown" &&
-              !event.output.preliminarySaved,
-            target: "Cancelling",
-          },
-          { target: "Done" },
-        ],
+        onDone: "Done",
         onError: { actions: log(({ event }) => event.error), target: "Done" },
         src: "executeToolLogic",
       },

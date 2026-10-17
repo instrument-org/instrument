@@ -68,7 +68,7 @@ describe("agentMachine", () => {
                 return Promise.resolve();
               }),
               executeToolLogic: fromPromise(
-                () => new Promise<{ preliminarySaved: boolean }>(noop),
+                () => new Promise<void>(noop),
               ),
             },
           }),
@@ -233,7 +233,6 @@ describe("agentMachine", () => {
                 log.push(`start ${input.part.toolCallId}`);
                 await new Promise((resolve) => setTimeout(resolve, 10));
                 log.push(`end ${input.part.toolCallId}`);
-                return { preliminarySaved: false };
               }),
             },
           }),
@@ -304,13 +303,12 @@ describe("agentMachine", () => {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
               executeToolLogic: fromPromise(
-                async (): Promise<{ preliminarySaved: boolean }> => {
+                async (): Promise<void> => {
                   running++;
                   mostRunning = Math.max(mostRunning, running);
                   await new Promise((resolve) => setTimeout(resolve, 10));
                   running--;
                   finished++;
-                  return { preliminarySaved: false };
                 },
               ),
             },
@@ -368,7 +366,7 @@ describe("agentMachine", () => {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
               executeToolLogic: fromPromise(
-                () => new Promise<{ preliminarySaved: boolean }>(noop),
+                () => new Promise<void>(noop),
               ),
             },
           }),
@@ -449,7 +447,7 @@ describe("agentMachine", () => {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
               executeToolLogic: fromPromise(
-                () => new Promise<{ preliminarySaved: boolean }>(noop),
+                () => new Promise<void>(noop),
               ),
             },
           }),

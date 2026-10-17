@@ -22,9 +22,6 @@ export async function runToolCall({
   chatId: ChatId;
 }) {
   const tool = getToolByType(part.type);
-  // An output the call offered before its own is the window's to show and
-  // never a record, which is `ChatWrites`' to tell apart.
-  let preliminarySaved = false;
 
   try {
     // Marks the call as executing rather than waiting its turn. Written before
@@ -57,7 +54,7 @@ export async function runToolCall({
       },
     })) {
       if (signal.aborted) {
-        return { preliminarySaved };
+        return;
       }
 
       const ids = {
@@ -80,7 +77,6 @@ export async function runToolCall({
                 state: "output-available",
               }) as SessionMessagePart.Type,
           );
-          preliminarySaved = true;
         }
       } else {
         await (output.isOk()
@@ -115,7 +111,7 @@ export async function runToolCall({
     }
   } catch (error) {
     if (signal.aborted) {
-      return { preliminarySaved };
+      return;
     }
     await ChatWrites.updatePart(
       {
@@ -136,6 +132,4 @@ export async function runToolCall({
         }) as SessionMessagePart.Type,
     );
   }
-
-  return { preliminarySaved };
 }

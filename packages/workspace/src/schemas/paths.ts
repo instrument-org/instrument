@@ -19,9 +19,9 @@ export const WorkspaceDirSchema = AbsolutePathSchema.brand("WorkspaceDir");
 export type WorkspaceDir = z.output<typeof WorkspaceDirSchema>;
 
 /**
- * A chat's record folder in the workspace, `chats/<id>/`: its `chat.db`,
- * `settings.json`, `attachments/` and handoff notes. The window's, which is
- * scoped like one, is `.instrument/window/`.
+ * A chat's record folder in the workspace, `chats/<id>/`: its records, one
+ * log per session per device, its `settings.json`, `attachments/` and handoff
+ * notes. The window's, which is scoped like one, is `.instrument/window/`.
  */
 export const ChatDirSchema = AbsolutePathSchema.brand("ChatDir");
 export type ChatDir = z.output<typeof ChatDirSchema>;

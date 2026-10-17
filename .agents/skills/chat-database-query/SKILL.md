@@ -1,9 +1,29 @@
 ---
 name: chat-database-query
-description: Read a chat's chat.db with safe read-only SQL. Use when an Instrument chat or task investigation needs raw messages, parts, sessions, or any other stored records.
+description: Read a chat database with safe read-only SQL, and read a chat's records where there is no database. Use when an Instrument chat or task investigation needs raw messages, parts, sessions, or any other stored records.
 ---
 
 # Chat Database Query
+
+A chat keeps its conversation in records now: one append-only JSONL file per session per device in its record folder. There is a database to query only where one still exists, which is a chat the converter has not reached, the copy it set aside when it did (`set-aside/chat-db/<chat>.db` in the workspace's machine folder), or a task store a 1.x install left. For a chat on this build, read the records (below) or render a transcript with the `session-transcript` skill.
+
+## A chat's records
+
+Each file is `<session>.<device>.jsonl`, one line per record, and the first line is the session's header (`t: "session"`, with `parent` and `handle` on a task's). After it come `message`, `part`, `state`, `retract`, `rollover` and `stopped` records, and a chat's marks (starred, archived, unread) are in `marks.<device>.jsonl` beside them. So `jq` answers most questions without any tool of ours:
+
+```bash
+# The sessions in a chat: the chat's own has no parent, each task names it.
+head -qn 1 <workspace>/.instrument/chats/<chat-id>/*.jsonl \
+  | jq -c 'select(.t == "session") | {id, parent, handle, createdAt}'
+
+# What the model and the person said, in order, from one session's log.
+jq -c 'select(.t == "message") | {at, role: .message.role}' \
+  <workspace>/.instrument/chats/<chat-id>/<session>.<device>.jsonl
+```
+
+A line is the record as it was written, so nothing has to be decoded first, and reading one never changes a chat.
+
+## Where a database is still there
 
 Run the generic query tool, which lives in `packages/workspace`. The filter is what lets the command run from anywhere in the monorepo rather than only from that package:
 
@@ -13,7 +33,7 @@ pnpm --filter @instrument-org/workspace run script:query-chat-db <workspace>/.in
   --format table
 ```
 
-The first argument can be a chat's folder or the database itself. A chat's record folder (`.instrument/chats/<id>/` in the workspace) resolves to its `chat.db`, or for a folder an earlier build left, to `.instrument/chat.db`. A chat's tasks have no folder or database of their own: each is a session in its chat's store, so query the chat's.
+The first argument can be a chat's folder or the database itself. A chat's record folder (`.instrument/chats/<id>/` in the workspace) resolves to its `chat.db`, or for a folder an earlier build left, to `.instrument/chat.db`; a set-aside copy is named by its path. A chat's tasks have no database of their own: each is a session in its chat's store, so query the chat's.
 
 The tool accepts one read-only `SELECT`, `WITH`, `EXPLAIN`, or `PRAGMA` statement. It opens the database read-only and denies SQLite operations other than reads. Use `--file query.sql` for a multi-line query, `--format json` for machine-readable output, or `--schema` to inspect available tables and indexes.
 

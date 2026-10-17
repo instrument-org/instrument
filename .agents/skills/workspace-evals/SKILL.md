@@ -51,7 +51,7 @@ The workspace a run used is a temp directory, so `report <dir>` is only good unt
 
 ## Chat evals
 
-`kind: "chat"` (or `--chat` with `--prompt`) runs a case through the agent the user talks to, which does quick work itself and hands the rest to tasks with `task new`, each a child session in the chat's `chat.db`. Write assertions that pass either way: score what landed and what the user was told, reading the chat's own session beside its tasks'. These things differ from an ordinary case:
+`kind: "chat"` (or `--chat` with `--prompt`) runs a case through the agent the user talks to, which does quick work itself and hands the rest to tasks with `task new`, each a child session in the chat's records. Write assertions that pass either way: score what landed and what the user was told, reading the chat's own session beside its tasks'. These things differ from an ordinary case:
 
 - The run is not over when the conversation's turn ends. If it started tasks, they are still running and the wake that carries their results back is 1.5s behind them. The harness waits for the whole tree to go quiet, so `usage` is the conversation alone and `treeUsage` is what the run actually cost.
 - The harness makes the `~/Documents/Instrument` output folder the way `window.ensure` does in the app, and the chat reaches it and the home folder without being sent either. Without them it cannot read back what its own tasks wrote: measured, that is ten tool calls and 240K tokens hunting a file, against two and 96K when it can see it.

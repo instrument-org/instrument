@@ -1,11 +1,10 @@
-// Tasks a chat started, read from the chat's own chat.db, where each is a
-// session whose parentId is the chat's, and exported with the repo's
-// exporter. The only part of the digest that needs this machine's chat
-// folders.
+// Tasks a chat started, read from the chat's own records, where each is a
+// session whose header names the session it was started from, and exported
+// with the repo's exporter. The only part of the digest that needs this
+// machine's chat folders.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
 import { analyze, parseTranscript } from "./parse.mjs";
 
@@ -14,18 +13,31 @@ const REPO = path.resolve(
   "../../../..",
 );
 
-// The store keeps every record in one key/value table; a session's row is
-// keyed `sessions:<id>` and its value is superjson text in `blob`.
-function readSessions(dbPath) {
-  const db = new DatabaseSync(dbPath, { readOnly: true });
-  try {
-    return db
-      .prepare("select blob from sessions where key like 'sessions:%'")
-      .all()
-      .map((row) => JSON.parse(String(row.blob)).json);
-  } finally {
-    db.close();
+/**
+ * Every session in the chat's record folder, from the first line of each
+ * log: one file per session per device, named `<session>.<device>.jsonl`,
+ * whose first line is the session's header (`t: "session"`). A session
+ * carried on by another device has a file per device, so the headers are
+ * keyed by session id and the first one read wins.
+ */
+function readSessions(chatDir) {
+  const sessions = new Map();
+  for (const name of fs.readdirSync(chatDir).toSorted()) {
+    if (!name.endsWith(".jsonl") || name.startsWith("marks.")) {
+      continue;
+    }
+    let header;
+    try {
+      const text = fs.readFileSync(path.join(chatDir, name), "utf8");
+      header = JSON.parse(text.slice(0, text.indexOf("\n")));
+    } catch {
+      continue;
+    }
+    if (header?.t === "session" && !sessions.has(header.id)) {
+      sessions.set(header.id, header);
+    }
   }
+  return [...sessions.values()];
 }
 
 export function loadChildren(root) {
@@ -33,20 +45,17 @@ export function loadChildren(root) {
   // script:dump-session-transcript's.
   const chatDir =
     root.p.meta.chatDir ?? root.p.meta.taskDir ?? root.p.meta.source ?? "";
-  // In the chat's record folder, or in its `.instrument/` for a folder a
-  // build from before records moved apart from work left.
-  const flat = path.join(chatDir, "chat.db");
-  const db = fs.existsSync(flat)
-    ? flat
-    : path.join(chatDir, ".instrument", "chat.db");
-  if (!chatDir || !fs.existsSync(db)) {
-    return [{ id: "(the chat's tasks)", missing: db }];
+  if (!chatDir || !fs.existsSync(chatDir)) {
+    return [{ id: "(the chat's tasks)", missing: chatDir || "no chat folder" }];
   }
-  const sessions = readSessions(db);
+  const sessions = readSessions(chatDir);
+  if (sessions.length === 0) {
+    return [{ id: "(the chat's tasks)", missing: `records in ${chatDir}` }];
+  }
   const chatSession =
-    root.p.meta.sessionId ?? sessions.find((s) => !s.parentId)?.id;
+    root.p.meta.sessionId ?? sessions.find((s) => !s.parent)?.id;
   const tasks = sessions
-    .filter((s) => s.parentId && s.parentId === chatSession)
+    .filter((s) => s.parent && s.parent === chatSession)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   // One cached export per task, overwritten on each run, so the path the
   // digest prints stays valid for reading the child's transcript directly.

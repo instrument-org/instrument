@@ -191,9 +191,11 @@ function withOthersKept(file: string, draft: DraftFile): DraftFile {
  * anything the person put there themselves.
  */
 export function removeDraft({ dir, draft, file }: DraftOnDisk): void {
+  const otherDrafts = pastedIntoOthers(dir, file);
   for (const item of draft.attached ?? []) {
-    if (!path.isAbsolute(item.path)) {
-      fs.rmSync(path.join(dir, item.path), { force: true, recursive: true });
+    const pasted = pastedIntoThisDraft(dir, item.path);
+    if (pasted !== undefined && !otherDrafts.has(pasted)) {
+      fs.rmSync(pasted, { force: true, recursive: true });
     }
   }
   fs.rmSync(file, { force: true });
@@ -203,6 +205,83 @@ export function removeDraft({ dir, draft, file }: DraftOnDisk): void {
     // Something else is in the folder: another draft, or the person's own
     // file. Theirs to keep.
   }
+}
+
+/**
+ * Where a file this draft holds really is, when the draft is the one that
+ * pasted it: a name inside the draft's own folder. Nothing for a file of the
+ * person's own, which a draft names by its whole path and reads where it
+ * lies, and nothing for a name that leads anywhere else.
+ *
+ * A draft file is a document someone can edit, so `../../their-work` is a
+ * path it can hold, and a folder on the way can be a link out. Taking the
+ * draft away must not take anything but the draft's with it, so both are
+ * read as naming something that is not the draft's to remove.
+ */
+function pastedIntoThisDraft(dir: string, named: string): string | undefined {
+  if (path.isAbsolute(named)) {
+    return undefined;
+  }
+  const target = path.resolve(dir, named);
+  if (!inFolder(dir, target)) {
+    return undefined;
+  }
+  // Where the folder holding it really is, so a link on the way out is seen
+  // for what it is. The entry itself is left as it is: removing a link
+  // removes the link.
+  const holder = realPathOf(path.dirname(target));
+  const folder = realPathOf(dir);
+  if (
+    holder === undefined ||
+    folder === undefined ||
+    (holder !== folder && !inFolder(folder, holder))
+  ) {
+    return undefined;
+  }
+  return path.join(holder, path.basename(target));
+}
+
+/** Whether `target` is something inside `folder` rather than the folder itself. */
+function inFolder(folder: string, target: string): boolean {
+  const within = path.relative(folder, target);
+  return within !== "" && !within.startsWith("..") && !path.isAbsolute(within);
+}
+
+function realPathOf(target: string): string | undefined {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The pasted files the folder's other drafts hold, which this one shares
+ * rather than owns: a folder can hold several drafts, and a sync engine's
+ * conflict copy of one names everything the original does. Taking one draft
+ * away leaves what another still names.
+ */
+function pastedIntoOthers(dir: string, file: string): Set<string> {
+  const shared = new Set<string>();
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((name) => isDraftFileName(name));
+  } catch {
+    return shared;
+  }
+  for (const name of names) {
+    const other = path.join(dir, name);
+    if (other === file) {
+      continue;
+    }
+    for (const item of readDraftFile(other)?.attached ?? []) {
+      const pasted = pastedIntoThisDraft(dir, item.path);
+      if (pasted !== undefined) {
+        shared.add(pasted);
+      }
+    }
+  }
+  return shared;
 }
 
 /** The day a draft was started, as its folder is named for it. */

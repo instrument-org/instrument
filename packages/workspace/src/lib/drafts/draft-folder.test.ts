@@ -224,6 +224,87 @@ describe("the drafts folder", () => {
     expect(fs.existsSync(made.dir)).toBe(false);
   });
 
+  it("leaves a folder of the person's that a draft names above its own", () => {
+    const victim = path.join(rootDir, "valuable-work");
+    fs.mkdirSync(victim, { recursive: true });
+    fs.writeFileSync(path.join(victim, "report.txt"), "the person's");
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const with_ = {
+      ...made.draft,
+      attached: [
+        {
+          kind: "folder" as const,
+          path: path.join("..", "..", "valuable-work"),
+        },
+      ],
+    };
+    writeDraftFile(made.file, with_);
+
+    removeDraft({ ...made, draft: with_ });
+
+    expect(fs.existsSync(path.join(victim, "report.txt"))).toBe(true);
+    expect(fs.existsSync(made.file)).toBe(false);
+  });
+
+  // "." is the draft's own folder and ".." the folder of every draft
+  // started that day, neither of which is a file the draft pasted.
+  it.each([".", ".."])(
+    "leaves another draft alone where one names %s",
+    (named) => {
+      const made = ensureDraftFolder({
+        draft: draft(),
+        rootDir,
+        timeZone: ZONE,
+      });
+      const other = path.join(made.dir, "DRAFT 2.md");
+      writeDraftFile(other, draft({ id: "d2" }));
+      const with_ = {
+        ...made.draft,
+        attached: [{ kind: "folder" as const, path: named }],
+      };
+      writeDraftFile(made.file, with_);
+
+      removeDraft({ ...made, draft: with_ });
+
+      expect(fs.existsSync(other)).toBe(true);
+    },
+  );
+
+  it("leaves what a draft names through a link out of its folder", () => {
+    const victim = path.join(rootDir, "valuable-work");
+    fs.mkdirSync(victim, { recursive: true });
+    fs.writeFileSync(path.join(victim, "report.txt"), "the person's");
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.symlinkSync(victim, path.join(made.dir, "out"));
+    const with_ = {
+      ...made.draft,
+      attached: [{ kind: "file" as const, path: path.join("out", "report.txt") }],
+    };
+    writeDraftFile(made.file, with_);
+
+    removeDraft({ ...made, draft: with_ });
+
+    expect(fs.existsSync(path.join(victim, "report.txt"))).toBe(true);
+  });
+
+  it("keeps a pasted file another draft in the folder still names", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const pasted = path.join(made.dir, "pasted-image.png");
+    fs.writeFileSync(pasted, "bytes");
+    const attached = [{ kind: "file" as const, path: "pasted-image.png" }];
+    const mine = { ...made.draft, attached };
+    writeDraftFile(made.file, mine);
+    // A sync engine's conflict copy of the same draft, naming the same file.
+    writeDraftFile(path.join(made.dir, "DRAFT 2.md"), {
+      ...draft({ id: "d2" }),
+      attached,
+    });
+
+    removeDraft({ ...made, draft: mine });
+
+    expect(fs.existsSync(pasted)).toBe(true);
+  });
+
   it("leaves the folder where another draft is still in it", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), draft({ id: "d2" }));

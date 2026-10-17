@@ -282,16 +282,27 @@ describe("mxcFilesystemPolicy", () => {
       closed: [],
       root: ROOT,
     });
+    // What the deepest listed folder at or above `folder` gives it.
+    const listedAt = (folder: string): string => {
+      for (let above = folder; ; above = path.dirname(above)) {
+        if (policy.readwritePaths.includes(above)) {
+          return "write";
+        }
+        if (policy.readonlyPaths.includes(above)) {
+          return "read";
+        }
+        if (
+          policy.deniedPaths.includes(above) ||
+          above === path.dirname(above)
+        ) {
+          return "deny";
+        }
+      }
+    };
     for (const rule of rules) {
       const read = reachOf(reach.rules, rule.path, "read").level === "allow";
       const write = reachOf(reach.rules, rule.path, "write").level === "allow";
-      const listed = policy.readwritePaths.includes(rule.path)
-        ? "write"
-        : policy.readonlyPaths.includes(rule.path)
-          ? "read"
-          : policy.deniedPaths.includes(rule.path)
-            ? "deny"
-            : "missing";
+      const listed = listedAt(rule.path);
       expect([rule.path, listed]).toEqual([
         rule.path,
         write ? "write" : read ? "read" : "deny",
@@ -325,7 +336,7 @@ describe("mxcFilesystemPolicy's missing paths", () => {
 });
 
 describe("mxcFilesystemPolicy's folders to look at", () => {
-  it("are the closed folders above an open one, and no readable one", () => {
+  it("are the folders a deny above closes on the way to an open one", () => {
     const at = home("AppData/Local/Temp/chat");
     const appData = path.join(at, "AppData");
     const chat = path.join(appData, "Local", "Temp", "chat");
@@ -342,10 +353,64 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
     expect(
       policy.enumeratePaths.filter((folder) => folder.startsWith(at)),
     ).toEqual([
-      appData,
       path.join(appData, "Local"),
       path.join(appData, "Local", "Temp"),
     ]);
+  });
+
+  it("leave out a denied folder inside a denied one, and look through it", () => {
+    // The app's data folder under AppData, closed, with the runtime folder
+    // in it closed too and its caches open: MXC refuses lstat on a denied
+    // folder whose nearest listed folder above is denied as well.
+    const at = home("AppData/Roaming/Instrument/runtime/caches");
+    const appData = path.join(at, "AppData");
+    const data = path.join(appData, "Roaming", "Instrument");
+    const runtime = path.join(data, "runtime");
+    const appDataRule = (folder: string): Rule => ({
+      appData: true,
+      level: "never",
+      path: folder,
+      source: "system",
+    });
+    const policy = mxcFilesystemPolicy(
+      reachOver(
+        at,
+        [
+          { level: "ask", path: appData, place: "appFiles", source: "place" },
+          appDataRule(data),
+          appDataRule(runtime),
+        ],
+        { readWrite: [path.join(runtime, "caches")] },
+      ),
+      {
+        appFolders: [],
+        closed: [path.join(runtime, "sandbox")],
+        root: ROOT,
+      },
+    );
+    const spell = (listed: string[]) =>
+      listed
+        .filter((folder) => folder.startsWith(at))
+        .map((folder) => `~${folder.slice(at.length)}`.replaceAll("\\", "/"));
+    expect({
+      deniedPaths: spell(policy.deniedPaths),
+      enumeratePaths: spell(policy.enumeratePaths),
+      readwritePaths: spell(policy.readwritePaths),
+    }).toMatchInlineSnapshot(`
+      {
+        "deniedPaths": [
+          "~/AppData",
+        ],
+        "enumeratePaths": [
+          "~/AppData/Roaming",
+          "~/AppData/Roaming/Instrument",
+          "~/AppData/Roaming/Instrument/runtime",
+        ],
+        "readwritePaths": [
+          "~/AppData/Roaming/Instrument/runtime/caches",
+        ],
+      }
+    `);
   });
 });
 

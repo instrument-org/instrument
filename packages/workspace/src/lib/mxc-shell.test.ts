@@ -9,6 +9,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
+import { runtimeLayout } from "./runtime-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 // The uutils Studio's postinstall vendors, so the text commands are programs.
@@ -20,10 +21,12 @@ const UUTILS_DIR = path.resolve(
 /**
  * A chat's shell with MXC holding its native commands, on Windows only:
  * INSTRUMENT_TEST_MXC_EXEC names the launcher and INSTRUMENT_MXC=1 turns it
- * on. A file under `AppData` (outside its temp folder, which the rules open)
- * sits in a place that asks first, so a program reading it is refused by
- * the container, and each pipeline stage is told so on its own. Run it in
- * the interactive session, as the canary's test.
+ * on. The app's data folder is under `AppData\Roaming` with the runtime
+ * folder inside it, as the app lays it out (`mxcTestConfig`). A file under
+ * `AppData` (outside its temp folder, which the rules open) sits in a place
+ * that asks first, so a program reading it is refused by the container, and
+ * each pipeline stage is told so on its own. Run it in the interactive
+ * session, as the canary's test.
  */
 const held =
   process.platform === "win32" &&
@@ -87,6 +90,21 @@ describe.runIf(held)("a chat's shell under MXC", () => {
     expect(
       await fs.readFile(path.join(tmpDir, "chats", "mxc", "made.txt"), "utf8"),
     ).toBe("ok");
+  });
+
+  it("reaches the runtime's own folders inside the app's closed data folder", async () => {
+    // Node's JS realpath lstats every folder on the way, the runtime folder
+    // and the data folder holding it, both closed, included.
+    const caches = runtimeLayout(getWorkspaceConfig().runtimeDir).caches;
+    await fs.mkdir(caches, { recursive: true });
+    await fs.writeFile(path.join(caches, "probe.txt"), "cached");
+    const encoded = Buffer.from(path.join(caches, "probe.txt")).toString(
+      "base64",
+    );
+    const result = await run(
+      `node -e "const f = require('fs').realpathSync(Buffer.from('${encoded}', 'base64').toString()); process.stdout.write(require('fs').readFileSync(f, 'utf8'))"`,
+    );
+    expect(result).toMatchObject({ exitCode: 0, stdout: "cached" });
   });
 
   it("refuses a program reading a folder that asks first, and says why", async () => {

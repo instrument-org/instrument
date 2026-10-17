@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterAll, beforeAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
-import { mxcTestConfig } from "./helpers/mxc-test-config";
+import { mxcTestConfig, mxcTestDataDir } from "./helpers/mxc-test-config";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -117,11 +117,14 @@ afterAll(async () => {
   installChatRecords(undefined);
   await testRecords?.dispose();
   testRecords = undefined;
-  // The two folders this file made, which are a test file's each: left
+  // The folders this file made, which are a test file's each: left
   // behind, a run of the suite adds a few hundred to the machine's temporary
   // folder, and enough runs fill it to the point where nothing on the
   // machine can make another one.
-  for (const dir of [rootDir, machineDir]) {
+  for (const dir of [rootDir, machineDir, mxcTestDataDir()]) {
+    if (dir === undefined) {
+      continue;
+    }
     fs.rmSync(dir, { force: true, recursive: true });
   }
 });

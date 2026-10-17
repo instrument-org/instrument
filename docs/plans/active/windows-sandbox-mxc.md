@@ -25,7 +25,7 @@ What was believed to block Tier 1 turned out to be wrong or fixed:
 - A repository's `.git` can be renamed while `.git\hooks` is read-only, and hooks written into the moved copy: read-only grants hold a name, not the folder holding it.
 - The container does not inherit the launcher's environment or working folder: with none given, the program gets the user's default environment and starts in its own folder.
 - A path named in two lists gets the narrower access. A missing path is accepted and held (a denied one cannot be made), but a path whose folder is missing, or a Windows path with no drive, fails the whole request with `ERROR_PATH_NOT_FOUND`.
-- A denied folder that is also in `processContainer.filesystem.enumeratePaths` answers `lstat` but still refuses listing and reads, the counterpart of Seatbelt's metadata reads. Without it, Node's JS `realpath` (which lstats every folder on the way, and which ESM `--import` uses) fails for any file below a closed folder, such as a chat folder under `AppData`.
+- A folder named in `deniedPaths` answers `lstat` and `stat` on its own; a folder below it that the deny closes does not, unless it is in `processContainer.filesystem.enumeratePaths`, which answers `lstat` but still refuses listing and reads, the counterpart of Seatbelt's metadata reads. Without that, Node's JS `realpath` (which lstats every folder on the way, and which ESM `--import` uses) fails for any file below a closed folder, such as a chat folder under `AppData` (`EPERM, lstat ...\AppData\Local`). MXC drops an `enumeratePaths` entry that is also denied. A denied folder whose nearest listed folder above is denied as well (the runtime folder inside the app's data folder) refuses `lstat` even when it is named to look at.
 - Each denied path costs about a third of a millisecond at every start: 70 of them took a start from 71 to 95 ms.
 
 Cost, medians of 9 to 15 runs:
@@ -77,7 +77,8 @@ The command line is capped at 32,767 characters; the request is base64 of a few 
 - The app's sandbox folder (where the canary's verdict and any oversized request live) denied, so no wrapped program can forge a verdict that turns the sandbox off.
 - Names that run code: the walk bubblewrap already does (`namesThatRunCode`) finds each one in an allowed folder, and each is read-only. MXC has no mount points, so the rename that bubblewrap prevents is open here (see the gap below).
 - One entry per path; at an equal path the higher rank wins, as `ruleRank` orders.
-- Each closed folder above an open entry goes in `enumeratePaths`, so a program can `lstat` its way down to what it may read; a readable folder never does, since MXC would narrow it to looking.
+- A denied entry whose nearest listed folder above is denied too is left out: the deny above closes it already, and MXC would refuse it `lstat`.
+- Each folder a deny above closes on the way to an open entry goes in `enumeratePaths`, so a program can `lstat` its way down to what it may read. The denied folder itself does not, since it answers `lstat` already and MXC would drop it, and a readable folder never does, since MXC would narrow it to looking.
 - A rule's path that is missing is left out unless it sits in a folder that can be changed, where it could be made; a path with no drive, or whose folder is missing, is left out since MXC would refuse the whole request. The reach's own read-write folders are made first, as bubblewrap makes them.
 - The policy is reused until the rules change or a path it read does, so a name that runs code made by one command is held from the next.
 

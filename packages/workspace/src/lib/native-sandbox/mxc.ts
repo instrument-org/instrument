@@ -304,6 +304,28 @@ export function mxcFilesystemPolicy(
       entries.delete(key);
     }
   }
+  // A denied folder whose nearest listed folder above is denied too adds
+  // nothing to what the deny above closes, and MXC refuses it `lstat` even
+  // when it is named to look at, so a program cannot reach what is open
+  // below it (the runtime folder's own folders under the app's denied data
+  // folder). Left out, it is closed by the deny above like any folder on
+  // the way, and named to look at below.
+  const nearestListed = (folder: string) => {
+    for (let at = folder; ; at = path.dirname(at)) {
+      const held = entries.get(fold(at));
+      if (held || at === path.dirname(at)) {
+        return held;
+      }
+    }
+  };
+  for (const [key, entry] of entries) {
+    if (
+      entry.access === "deny" &&
+      nearestListed(path.dirname(entry.path))?.access === "deny"
+    ) {
+      entries.delete(key);
+    }
+  }
   const listed = (access: Access) =>
     [...entries.values()]
       .filter((entry) => entry.access === access)
@@ -314,8 +336,11 @@ export function mxcFilesystemPolicy(
   // that way answers what it is, as the Seatbelt profile's metadata reads
   // do; its deny still refuses listing it and reading anything in it. Only
   // a closed one: MXC gives a folder named for looking at that access and
-  // no more, so naming a readable one would take its reads away.
-  const closedAt = (folder: string) => accessAt(folder) === "deny";
+  // no more, so naming a readable one would take its reads away. And only
+  // one closed by a deny above it: a folder denied by name already answers
+  // lstat, and MXC drops a look entry that is denied as well.
+  const closedAt = (folder: string) =>
+    accessAt(folder) === "deny" && entries.get(fold(folder)) === undefined;
   const above = new Map<string, string>();
   for (const entry of entries.values()) {
     if (entry.access === "deny") {

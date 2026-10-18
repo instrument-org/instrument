@@ -81,6 +81,35 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return { ...command, acceptsPipeHandoff: true };
 }
 
+export const UVX_COMMAND = {
+  description:
+    "Runs a Python command-line tool from a package without installing it, as `uv tool run`.",
+  name: "uvx",
+} as const;
+
+/**
+ * `uvx` as the app's own uv runs it (`uv tool run`), with the same managed
+ * Python and folders, rather than whatever `uvx` is on the PATH, which
+ * looks for its own `uv` beside it.
+ */
+export function createUvxCommand(chatId: ChatId) {
+  const command = defineCommand(UVX_COMMAND.name, async (args, ctx) => {
+    const python = await ensureManagedPython();
+    if (python) {
+      return { exitCode: python.exitCode, stderr: python.output, stdout: "" };
+    }
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    return runUv({
+      args: ["tool", "run", ...hostPathArgs(args)],
+      ctx,
+      env,
+      hostCwd,
+      name: UVX_COMMAND.name,
+    });
+  });
+  return { ...command, acceptsPipeHandoff: true };
+}
+
 /**
  * For `uv run --project <skill folder>`, the skill's own environment, which
  * no chat may write, so uv runs in it as it stands (`UV_NO_SYNC`, which
@@ -173,6 +202,7 @@ export async function runUv({
   ctx,
   env,
   hostCwd,
+  name = UV_COMMAND.name,
 }: {
   args: string[];
   ctx: Pick<
@@ -181,6 +211,8 @@ export async function runUv({
   >;
   env: Record<string, string>;
   hostCwd: AbsolutePath;
+  /** The command the agent typed, which a diagnostic names. */
+  name?: string;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
   return runNative(
@@ -195,7 +227,7 @@ export async function runUv({
     },
     (result) => ({
       exitCode: result.exitCode ?? 1,
-      ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
+      ...mapStreams(shimOutput(result, name), (text) =>
         withPythonVersionNote(filterShellOutput(text)),
       ),
       ...binaryStdout(result),

@@ -1,6 +1,12 @@
 import { execaSync } from "execa";
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -13,7 +19,7 @@ import {
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
-import { createUvCommand } from "./uv";
+import { createUvCommand, createUvxCommand } from "./uv";
 import { chatLayout } from "../../test/helpers/chat-layout";
 
 const mockCtx = createCommandContext({
@@ -35,6 +41,30 @@ describe("createUvCommand", () => {
     );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("'uv self update' is not allowed");
+  });
+});
+
+describe.skipIf(process.platform === "win32")("createUvxCommand", () => {
+  it("runs the app's uv as `uv tool run`", async () => {
+    // A uv that prints what it was asked, standing in for the bundled one.
+    const stub = path.join(mkdtempSync(path.join(tmpdir(), "uvx-")), "uv");
+    writeFileSync(stub, '#!/bin/sh\necho "$@"\n');
+    chmodSync(stub, 0o755);
+    const chatId = createMockChatConfigForDir(
+      `${MOCK_WORKSPACE_DIRS.chats}/uvx`,
+    );
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      uvBinPath: AbsolutePathSchema.parse(stub),
+    });
+    const result = await createUvxCommand(chatId).execute(
+      ["--from", "cowsay", "cowsay", "-t", "hi"],
+      mockCtx,
+    );
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stdout: "tool run --from cowsay cowsay -t hi\n",
+    });
   });
 });
 

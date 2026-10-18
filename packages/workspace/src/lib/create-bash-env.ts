@@ -101,7 +101,12 @@ import { createTabCommand } from "./shell-commands/tab";
 import { TAB_COMMAND } from "./shell-commands/tab-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { createTaskCommand } from "./shell-commands/task/command";
-import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
+import {
+  createUvCommand,
+  createUvxCommand,
+  UV_COMMAND,
+  UVX_COMMAND,
+} from "./shell-commands/uv";
 import {
   createValidateSkillCommand,
   VALIDATE_SKILL_COMMAND,
@@ -505,6 +510,13 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: ({ layout, chatId }) => createUvCommand(chatId, layout),
     listInDescription: true,
     name: UV_COMMAND.name,
+  },
+  {
+    description: UVX_COMMAND.description,
+    factory: ({ chatId }) => createUvxCommand(chatId),
+    // `uv tool run`; omitted from the description, as `npx` is.
+    listInDescription: false,
+    name: UVX_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,

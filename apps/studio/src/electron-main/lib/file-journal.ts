@@ -278,6 +278,7 @@ async function trashFoldersFor({
       // the Finder shows merged into the home folder's.
       const folders = [
         path.join(home, ".Trash"),
+        // oxlint-disable-next-line studio/no-os-words -- a macOS path, never shown
         path.join(home, "Library", "Mobile Documents", ".Trash"),
       ];
       // A disk other than the home one keeps its own Trash at its root.

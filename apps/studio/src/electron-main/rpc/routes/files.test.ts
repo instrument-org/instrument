@@ -208,7 +208,7 @@ it("drops a move to the Trash it can never put back once it has said why", async
   });
 
   await expect(call(files.undo, undefined, options)).rejects.toThrow(
-    "Put “notes.txt” back from the",
+    "Instrument couldn't find “notes.txt” in the",
   );
   expect(await call(files.undo, undefined, options)).toMatchObject({
     kind: "new-folder",

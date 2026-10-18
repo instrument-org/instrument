@@ -27,6 +27,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 - Version bumps in release commits.
 - Documentation style, structure, or completeness. Do report factual claims that conflict with the implementation or with changes in the same PR.
 - General requests for more tests. Report a missing test only when the changed behavior is important and the existing test projects can observe it.
+- A program under MXC on Windows renaming a repository's `.git` to write its hooks: an accepted gap ([decision](docs/decisions/2026-10-17-accept-the-git-rename-gap.md)).
 
 ## Always check
 

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import { type AppService } from "../permissions/apps";
 import { placePaths } from "../permissions/places";
 import { reachOf, type Rules } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -15,10 +16,10 @@ export interface NativeReach {
   readWrite: readonly string[];
   rules: Rules;
   /**
-   * Whether the person allowed Shortcuts in the chat, which opens the
-   * services a shortcut runs in. Closed where absent.
+   * The services of the person's apps (`REACHABLE_APPS`) the command may not
+   * reach. Every one of them where absent.
    */
-  shortcutsAllowed?: boolean;
+  closedServices?: readonly AppService[];
 }
 
 const reachStorage = new AsyncLocalStorage<NativeReach>();

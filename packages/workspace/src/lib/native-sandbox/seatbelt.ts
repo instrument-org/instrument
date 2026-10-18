@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../command-line-tools-env";
+import { REACHABLE_APPS } from "../permissions/apps";
 import { DANGEROUS_NAMES } from "../permissions/places";
 import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -17,20 +18,6 @@ const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
  * administrator, so the folder as a whole is open.
  */
 const DEVICES = "/dev";
-
-/**
- * The services `/usr/bin/shortcuts` reaches Shortcuts through. `shortcuts
- * list` asks siriactionsd over VoiceShortcuts' service, and without it fails
- * with "Couldn't communicate with a helper application". The daemon's own
- * service, its runner, and the runner process WorkflowKit starts are closed
- * with it, so a program has no other way to have a shortcut run.
- */
-const SHORTCUTS_SERVICES = [
-  '(global-name "com.apple.siri.VoiceShortcuts.xpc")',
-  '(global-name "com.apple.siriactionsd.xpc")',
-  '(global-name "com.apple.shortcuts.systemshortcutservice.runner")',
-  '(xpc-service-name "com.apple.WorkflowKit.BackgroundShortcutRunner")',
-];
 
 /**
  * A Seatbelt profile from the rules. Allow-by-default keeps every system
@@ -250,11 +237,16 @@ export function seatbeltProfile(
     // asks, so nothing that works is lost.
     `(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
   );
-  // A shortcut runs in Apple's own services rather than in the program that
-  // asks for it, so it is closed with them until the person allows
-  // Shortcuts, as an app's Apple Events are.
-  if (!reach.shortcutsAllowed) {
-    texts.push(`(deny mach-lookup ${SHORTCUTS_SERVICES.join(" ")})`);
+  // Some apps' work runs in their own services rather than in the program
+  // that asks for it, so those are closed until the person allows the app,
+  // as an app's Apple Events are.
+  const closedServices =
+    reach.closedServices ?? REACHABLE_APPS.flatMap(({ services }) => services);
+  if (closedServices.length > 0) {
+    const filters = closedServices.map(
+      ({ kind, name }) => `(${kind} ${sbplString(name)})`,
+    );
+    texts.push(`(deny mach-lookup ${filters.join(" ")})`);
   }
   return ["(version 1)", "(allow default)", ...texts].join("\n");
 }

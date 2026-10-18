@@ -32,6 +32,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { inheritedEnv } from "../native-env";
 import { accountCanWrite } from "../permissions/account-can-write";
+import { REACHABLE_APPS } from "../permissions/apps";
 import { raiseAsk } from "../chat/asks";
 import { reachOf, type Rule } from "../permissions/rules";
 import { AbsolutePathSchema } from "../../schemas/paths";
@@ -178,7 +179,15 @@ describe.skipIf(onWindows)(
 
 describe.skipIf(onWindows)("Shortcuts in a profile", () => {
   const lines = (shortcutsAllowed?: boolean) =>
-    seatbeltProfile({ ...reachOver("/nope/home", []), shortcutsAllowed })
+    seatbeltProfile({
+      ...reachOver("/nope/home", []),
+      closedServices:
+        shortcutsAllowed === undefined
+          ? undefined
+          : REACHABLE_APPS.filter(
+              ({ app }) => app.name !== "Shortcuts" || !shortcutsAllowed,
+            ).flatMap(({ services }) => services),
+    })
       .split("\n")
       .filter((line) => line.includes("Shortcut"));
 

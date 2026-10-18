@@ -9,7 +9,7 @@ import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type Asker } from "../chat/asks";
-import { APP_PROGRAMS, appRefusal, type MacApp } from "../permissions/apps";
+import { appRefusal, type MacApp, REACHABLE_APPS } from "../permissions/apps";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { nodeToolsEnv } from "../tool-isolation";
@@ -209,7 +209,7 @@ export async function pathProgramsNamed(
 }
 
 /**
- * The app a program acts through (`APP_PROGRAMS`), by where it is or where
+ * The app a program acts through (`REACHABLE_APPS`), by where it is or where
  * a link to it leads, if it is one.
  */
 async function programApp(hostPath: string): Promise<MacApp | undefined> {
@@ -222,9 +222,8 @@ async function programApp(hostPath: string): Promise<MacApp | undefined> {
   } catch {
     // Left to fail as itself.
   }
-  return Object.hasOwn(APP_PROGRAMS, resolved)
-    ? APP_PROGRAMS[resolved]
-    : undefined;
+  return REACHABLE_APPS.find(({ programs }) => programs.includes(resolved))
+    ?.app;
 }
 
 /**

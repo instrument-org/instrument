@@ -67,7 +67,7 @@ import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./chat/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
-import { appAllowed, SHORTCUTS_APP } from "./permissions/apps";
+import { closedAppServices } from "./permissions/apps";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
@@ -963,12 +963,13 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
 
   // Every native command this shell spawns is held to the same rules, and
-  // reaches the services a shortcut runs in only once Shortcuts is allowed.
+  // reaches the services an app's work runs in only once the app is allowed.
   const reach = {
     ...nativeReachFor(layout.rules, layout),
-    shortcutsAllowed:
-      process.platform === "darwin" &&
-      (await appAllowed(chatId, SHORTCUTS_APP)),
+    closedServices:
+      process.platform === "darwin"
+        ? await closedAppServices(chatId)
+        : undefined,
   };
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {

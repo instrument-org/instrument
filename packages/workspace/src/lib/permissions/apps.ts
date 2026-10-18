@@ -72,21 +72,56 @@ export interface MacApp {
   name: string;
 }
 
-/**
- * Shortcuts, which macOS's `shortcuts` program reaches: a shortcut runs in
- * Apple's own services, outside every sandbox, so the program asks for the
- * app first and the Seatbelt profile closes those services until it is
- * allowed (`seatbelt.ts`).
- */
-export const SHORTCUTS_APP: MacApp = {
-  bundleId: "com.apple.shortcuts",
-  name: "Shortcuts",
-};
+/** A service macOS runs an app's work in, as Seatbelt names it. */
+export interface AppService {
+  kind: "global-name" | "xpc-service-name";
+  name: string;
+}
 
-/** The programs that act through one of the person's apps, by their path, with the app each asks for. */
-export const APP_PROGRAMS: Readonly<Record<string, MacApp>> = {
-  "/usr/bin/shortcuts": SHORTCUTS_APP,
-};
+/**
+ * The person's apps that something other than our commands can reach: each
+ * with the programs, by their path, that act through it and so ask for it
+ * first (`path-program.ts`), and the services its work runs in, outside
+ * every sandbox, which the Seatbelt profile closes until the chat may use it.
+ */
+export const REACHABLE_APPS: readonly {
+  app: MacApp;
+  programs: readonly string[];
+  services: readonly AppService[];
+}[] = [
+  {
+    app: { bundleId: "com.apple.shortcuts", name: "Shortcuts" },
+    programs: ["/usr/bin/shortcuts"],
+    // `shortcuts list` asks siriactionsd over VoiceShortcuts' service, and
+    // without it fails with "Couldn't communicate with a helper application".
+    // The daemon's own service, its runner, and the runner process
+    // WorkflowKit starts are closed with it, so a program has no other way to
+    // have a shortcut run.
+    services: [
+      { kind: "global-name", name: "com.apple.siri.VoiceShortcuts.xpc" },
+      { kind: "global-name", name: "com.apple.siriactionsd.xpc" },
+      {
+        kind: "global-name",
+        name: "com.apple.shortcuts.systemshortcutservice.runner",
+      },
+      {
+        kind: "xpc-service-name",
+        name: "com.apple.WorkflowKit.BackgroundShortcutRunner",
+      },
+    ],
+  },
+];
+
+/** The services of every app in `REACHABLE_APPS` that `chatId` may not use. */
+export async function closedAppServices(chatId: ChatId): Promise<AppService[]> {
+  const closed: AppService[] = [];
+  for (const { app, services } of REACHABLE_APPS) {
+    if (!(await appAllowed(chatId, app))) {
+      closed.push(...services);
+    }
+  }
+  return closed;
+}
 
 /** How far the agent may use `app` in this chat, by its name, or its bundle id where the name asks. */
 async function appLevel(chatId: ChatId, app: MacApp): Promise<Level> {
@@ -95,10 +130,7 @@ async function appLevel(chatId: ChatId, app: MacApp): Promise<Level> {
 }
 
 /** Whether the agent may use `app` in this chat without asking. */
-export async function appAllowed(
-  chatId: ChatId,
-  app: MacApp,
-): Promise<boolean> {
+async function appAllowed(chatId: ChatId, app: MacApp): Promise<boolean> {
   return (await appLevel(chatId, app)) === "allow";
 }
 

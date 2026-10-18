@@ -90,7 +90,12 @@ async function resolveExecutablePath(distPath: string): Promise<string> {
     return path.join(distPath, `win-unpacked/${APP_NAME}.exe`);
   }
   if (platform !== "darwin") {
-    return path.join(distPath, `linux-unpacked/${APP_EXECUTABLE}`);
+    // electron-builder names the folder by arch everywhere but x64.
+    const dir =
+      process.arch === "x64"
+        ? "linux-unpacked"
+        : `linux-${process.arch}-unpacked`;
+    return path.join(distPath, `${dir}/${APP_EXECUTABLE}`);
   }
 
   // Fall back to the last spelling so the caller's own access check reports
@@ -138,15 +143,23 @@ function runAsNode(
 describe("Studio Smoke Test", () => {
   let distPath: string;
   let tempUserDataDir: string;
+  // The release job packages the app itself and hands its output folder over,
+  // so the bytes tested are the signed ones that ship; that folder is the
+  // job's, and stays.
+  const packagedDist = process.env.SMOKE_TEST_DIST_DIR;
 
   beforeAll(async () => {
     await fs.mkdir(SCREENSHOTS_DIR, { recursive: true });
+    tempUserDataDir = await fs.mkdtemp(
+      path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-test-`),
+    );
+    if (packagedDist) {
+      distPath = packagedDist;
+      return;
+    }
     // Must run the app outside of the monorepo to avoid inheriting node modules
     distPath = await fs.mkdtemp(
       path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-app-`),
-    );
-    tempUserDataDir = await fs.mkdtemp(
-      path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-test-`),
     );
 
     await runPnpmScript("build:env:unsigned", {
@@ -162,7 +175,9 @@ describe("Studio Smoke Test", () => {
     // Windows keeps a handle on the packaged executable for a moment after the
     // app exits, so the unlink needs retries -- and cleanup of a temp directory
     // must never turn a passing suite red.
-    for (const dir of [distPath, tempUserDataDir]) {
+    for (const dir of packagedDist
+      ? [tempUserDataDir]
+      : [distPath, tempUserDataDir]) {
       try {
         await fs.rm(dir, {
           force: true,

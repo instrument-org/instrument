@@ -77,6 +77,8 @@ declare namespace NodeJS {
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;
+      /** Smoke test only: a packaged app's output folder to test instead of building one. */
+      SMOKE_TEST_DIST_DIR: string | undefined;
       /** Dev only: the DEV_INSTANCE_COLORS name studio-drive marked this instance with. */
       STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */

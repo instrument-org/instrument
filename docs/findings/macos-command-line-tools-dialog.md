@@ -73,7 +73,7 @@ shell boundary:
   ok   installer service from inside the sandbox: 1100 (0 outside it)
 ```
 
-Both passes run on the macOS leg of `smoke-test.yml`. Both exit non-zero on a failed install, an interpreter that cannot run, or a stub outside `EXPECTED_SHIMS`: a name no previous run reached is a new way for the dialog to appear, so it fails rather than scrolling past in a log. `sandboxed` also fails on a stub that had the installer service in reach, or a command the shell did not add the note to.
+Both passes run on the macOS legs of `release.yml` and on `smoke-test.yml`. Both exit non-zero on a failed install, an interpreter that cannot run, or a stub outside `EXPECTED_SHIMS`: a name no previous run reached is a new way for the dialog to appear, so it fails rather than scrolling past in a log. `sandboxed` also fails on a stub that had the installer service in reach, or a command the shell did not add the note to.
 
 `CLT_SHIM_NAMES` in `scripts/lib/clt-shims.ts` is the list of stubs the passes shadow: the binaries in macOS 27's `/usr/bin` that import `xcselect_invoke_xcrun`. Nothing re-derives it from the running OS, so a stub a later macOS adds is not shadowed until the list gains it.
 

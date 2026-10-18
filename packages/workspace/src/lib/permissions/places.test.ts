@@ -1,7 +1,8 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isClosedDiskRoot } from "../disk-root";
-import { windowsDrives } from "./places";
+import { windowsDrives, windowsProgramFolders } from "./places";
 import { reachOf, rulesFor } from "./rules";
 
 describe("windowsDrives", () => {
@@ -16,6 +17,66 @@ describe("windowsDrives", () => {
   it("leaves out a system drive that is not C:", () => {
     const present = new Set(["C:\\", "D:\\"]);
     expect(windowsDrives((root) => present.has(root), "d:")).toEqual(["C:\\"]);
+  });
+});
+
+describe("windowsProgramFolders", () => {
+  // As the layout adds them on Windows: the app's own, over the app-files
+  // place that holds AppData, with a browser profile in it closed.
+  const home = "/home/someone";
+  const programs = windowsProgramFolders(home);
+  const rules = {
+    dangerouslyAllowEveryFolder: false,
+    home,
+    rules: [
+      {
+        level: "ask" as const,
+        path: `${home}/AppData`,
+        place: "appFiles" as const,
+        source: "place" as const,
+      },
+      {
+        level: "never" as const,
+        path: `${home}/AppData/Local/Google/Chrome/User Data`,
+        place: "passwords" as const,
+        source: "place" as const,
+      },
+      ...programs.readWrite.map((folder) => ({
+        level: "allow" as const,
+        path: folder,
+        source: "system" as const,
+      })),
+      ...programs.readOnly.map((folder) => ({
+        level: "readOnly" as const,
+        path: folder,
+        source: "system" as const,
+      })),
+    ],
+  };
+
+  it("opens Packages, lets Programs be read, and leaves the rest asking", () => {
+    expect(
+      (
+        [
+          ["AppData/Local/Packages/PythonSoftwareFoundation/x", "write"],
+          ["AppData/Local/Programs/Python/python.exe", "read"],
+          ["AppData/Local/Programs/Python/python.exe", "write"],
+          ["AppData/Local/Other/x", "read"],
+          ["AppData/Local/Google/Chrome/User Data/x", "read"],
+        ] as const
+      ).map(
+        ([place, op]) =>
+          `${op} ${place}: ${reachOf(rules, path.join(home, place), op).level}`,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "write AppData/Local/Packages/PythonSoftwareFoundation/x: allow",
+        "read AppData/Local/Programs/Python/python.exe: allow",
+        "write AppData/Local/Programs/Python/python.exe: never",
+        "read AppData/Local/Other/x: ask",
+        "read AppData/Local/Google/Chrome/User Data/x: never",
+      ]
+    `);
   });
 });
 

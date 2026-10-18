@@ -1,4 +1,5 @@
 import { osConventionsFor } from "@/shared/os-conventions";
+import { APP_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -273,7 +274,12 @@ async function trashFoldersFor({
 }) {
   switch (platform) {
     case "darwin": {
-      const folders = [path.join(home, ".Trash")];
+      // What is trashed from iCloud Drive waits in a Trash of its own, which
+      // the Finder shows merged into the home folder's.
+      const folders = [
+        path.join(home, ".Trash"),
+        path.join(home, "Library", "Mobile Documents", ".Trash"),
+      ];
       // A disk other than the home one keeps its own Trash at its root.
       if ((await stat(home))?.dev !== identity.dev && uid !== null) {
         try {
@@ -532,11 +538,9 @@ export async function undoEntry(
         return { already: true, path: entry.from };
       }
       if (entry.trashed === null) {
+        const conventions = osConventionsFor(platform);
         throw new UndoRefusedError(
-          platform === "darwin"
-            ? // oxlint-disable-next-line studio/no-os-words -- this branch runs only on macOS
-              `Put ${nameOf(entry.from)} back from the Trash in the Finder.`
-            : `Put ${nameOf(entry.from)} back from the ${osConventionsFor(platform).trash}.`,
+          `${APP_NAME} couldn't find ${nameOf(entry.from)} in the ${conventions.trash}. You can put it back from there in ${conventions.inFileManager}.`,
           { permanent: true },
         );
       }

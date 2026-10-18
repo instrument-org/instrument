@@ -54,13 +54,15 @@ it("says why ⌘Z cannot put something back, outside developer mode", () => {
   fileActionFailed(
     "Couldn't undo that",
     new ORPCError("CANNOT_UNDO", {
-      message: "Put “notes.txt” back from the Trash in the Finder.",
+      message:
+        "Instrument couldn't find “notes.txt” in the Trash. You can put it back from there in Finder.",
     }),
   );
   expect(shown).toEqual([
     {
       data: expect.objectContaining({
-        description: "Put “notes.txt” back from the Trash in the Finder.",
+        description:
+          "Instrument couldn't find “notes.txt” in the Trash. You can put it back from there in Finder.",
       }),
       title: "Couldn't undo that",
     },

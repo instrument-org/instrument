@@ -168,9 +168,18 @@ describe("undoing a move to the Trash", () => {
   });
 
   it.each([
-    ["darwin", "Put “notes.txt” back from the Trash in the Finder."],
-    ["win32", "Put “notes.txt” back from the Recycle Bin."],
-    ["linux", "Put “notes.txt” back from the Trash."],
+    [
+      "darwin",
+      "Instrument couldn't find “notes.txt” in the Trash. You can put it back from there in Finder.",
+    ],
+    [
+      "win32",
+      "Instrument couldn't find “notes.txt” in the Recycle Bin. You can put it back from there in File Explorer.",
+    ],
+    [
+      "linux",
+      "Instrument couldn't find “notes.txt” in the Trash. You can put it back from there in your file manager.",
+    ],
   ] as const)(
     "on %s says where to look when the Trash could not be read",
     async (platform, reason) => {
@@ -305,6 +314,23 @@ describe("undoing a move to the Trash", () => {
       [at("home")],
       [at("home/.Trash/notes 12.00.00.txt")],
     ]);
+  });
+
+  it("looks in iCloud Drive's own Trash", async () => {
+    const icloudTrash = "home/Library/Mobile Documents/.Trash";
+    await fs.mkdir(at(icloudTrash), { recursive: true });
+    await fs.writeFile(at("notes.txt"), "trashed");
+    const before = await identity("notes.txt");
+    await fs.rename(at("notes.txt"), at(`${icloudTrash}/notes.txt`));
+
+    expect(
+      await findInTrash(before, {
+        from: at("notes.txt"),
+        home: at("home"),
+        platform: "darwin",
+        uid: 501,
+      }),
+    ).toBe(at(`${icloudTrash}/notes.txt`));
   });
 });
 

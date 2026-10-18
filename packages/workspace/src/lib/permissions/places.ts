@@ -87,6 +87,8 @@ const SIGN_IN_PLACES = [
   ".cargo/credentials.toml",
   ".gem/credentials",
   ".terraform.d/credentials.tfrc.json",
+  ".cache/huggingface/token",
+  ".cache/huggingface/stored_tokens",
 ];
 
 /**

@@ -86,7 +86,7 @@ function chatPartNode(
   } satisfies RenderPartContext;
 
   return renderChatPart({
-    browserStatusContextAdded: false,
+    stateNote: undefined,
     ctx,
     message,
     part,
@@ -117,7 +117,7 @@ function renderReasoning(parts: SessionMessagePart.Type[]) {
   renderWithProviders(
     <>
       {renderChatPart({
-        browserStatusContextAdded: false,
+        stateNote: undefined,
         ctx,
         message,
         part: reasoningPart,
@@ -188,7 +188,7 @@ describe("renderChatPart in the chat", () => {
       role: "assistant",
     } as SessionMessage.WithParts;
     const node = renderChatPart({
-      browserStatusContextAdded: false,
+      stateNote: undefined,
       ctx: {
         isAgentRunning: false,
         isDeveloperMode,

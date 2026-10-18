@@ -10,7 +10,6 @@ export {
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
-export { browserStatusModelNote } from "./lib/browser-status-model-text";
 export { topicModelNote } from "./lib/topic-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
 export { environmentChangeModelNote } from "./lib/environment-model-text";
@@ -45,6 +44,7 @@ export {
 } from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
+export { stateNotes } from "./lib/state-notes";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
@@ -57,7 +57,6 @@ export {
   getUsageSummaryFromMessages,
   type UsageSummary,
 } from "./lib/usage-summary-compute";
-export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
 export { FileUpload } from "./schemas/file-upload";
 export { MountedFolder } from "./schemas/mounted-folder";

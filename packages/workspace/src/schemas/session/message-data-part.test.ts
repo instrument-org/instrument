@@ -16,9 +16,7 @@ describe("CADENCE", () => {
       .toSorted();
     expect(state).toMatchInlineSnapshot(`
       [
-        "backgroundProcesses",
         "browserStatus",
-        "memory",
         "topic",
         "viewContext",
         "workspaceInstructions",

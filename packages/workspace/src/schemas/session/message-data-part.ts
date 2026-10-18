@@ -46,12 +46,14 @@ export namespace SessionMessageDataPart {
    *
    * - `event`: something that happened on this turn. A repeat is impossible
    *   by construction.
-   * - `diff`: what changed since last time. Self-limiting: no change, no
-   *   part.
-   * - `state`: the whole current picture, which reads the same on every turn
-   *   the picture did not change. Assembly compares each one against the last
-   *   note it sent for that part and sends nothing when they match, so this
-   *   is the declaration that keeps a standing fact from being restated.
+   * - `diff`: what changed since the session was last told. Self-limiting:
+   *   no change, no part.
+   * - `state`: the whole current picture, stored on every message whose
+   *   writer could read it, an empty picture included. `stateNotes` is the
+   *   one place that decides what of it the model hears: nothing when it
+   *   reads as the last note said, and nothing for an empty picture before
+   *   anything was said. Every message carrying the whole is what lets a fork
+   *   or a rollover read the picture from the messages it kept.
    * - `unwritten`: nothing writes it. `fileChanges` and `chatContext` are
    *   retired, and `unknown` is what an unreadable payload becomes.
    */
@@ -66,7 +68,7 @@ export namespace SessionMessageDataPart {
     appEvent: "event",
     asks: "event",
     attachments: "event",
-    backgroundProcesses: "state",
+    backgroundProcesses: "diff",
     browserStatus: "state",
     chatContext: "unwritten",
     contextRollover: "event",
@@ -78,7 +80,7 @@ export namespace SessionMessageDataPart {
     intent: "event",
     jobEvent: "event",
     maxSteps: "event",
-    memory: "state",
+    memory: "diff",
     messageGap: "event",
     modelChange: "diff",
     outputLimit: "event",
@@ -905,9 +907,8 @@ export namespace SessionMessageDataPart {
    * user message when memory changed since the chat was last told: the
    * whole of it the first time, and after that only what was saved,
    * corrected, or forgotten since. Each memory is its first line, the chat
-   * it was learned in, and when. State cadence: attached only on a change,
-   * and rendered only when it differs from the note before it. `sentAt` is
-   * what "when" is measured from.
+   * it was learned in, and when. Diff cadence: attached only on a change.
+   * `sentAt` is what "when" is measured from.
    */
   const MemoryDataPartSchema = z.object({
     /** Names forgotten since the chat was last told; only on a change. */
@@ -936,11 +937,9 @@ export namespace SessionMessageDataPart {
   export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;
 
   /**
-   * The topic the chat is filed under, on every user message sent in a chat
-   * that has one: its name, mark, and the line saying what goes there.
-   * `null` once the chat has none, after one it was told of. State cadence:
-   * rendered only when it differs from the note before it, so a chat filed
-   * once is told once.
+   * The topic the chat is filed under, on every user message sent in a chat:
+   * its name, mark, and the line saying what goes there, or `null` for none.
+   * State cadence, so a chat filed once is told once.
    */
   const TopicDataPartSchema = z.object({
     topic: z

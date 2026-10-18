@@ -1,6 +1,5 @@
 import {
   backgroundProcessesModelNote,
-  browserStatusModelNote,
   dateChangeModelNote,
   environmentChangeModelNote,
   isAddressableChatFilePath,
@@ -9,7 +8,6 @@ import {
   messageGapModelNote,
   outputLimitModelNote,
   type SessionMessagePart,
-  viewContextModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
@@ -126,12 +124,11 @@ export function isDataPart(
 }
 
 export function renderDataPart({
-  browserStatusContextAdded,
   ctx,
   part,
   pathsAlreadyShown,
+  stateNote,
 }: {
-  browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   part: SessionMessagePart.DataPart;
   /**
@@ -140,6 +137,11 @@ export function renderDataPart({
    * than per part.
    */
   pathsAlreadyShown?: ReadonlySet<string>;
+  /**
+   * What the model heard of a `state` part, from the stream's `stateNotes`:
+   * none when it heard nothing new, and then there is no card either.
+   */
+  stateNote: string | undefined;
 }): ReactNode {
   const visibility = dataPartVisibility(part);
   if (
@@ -194,16 +196,16 @@ export function renderDataPart({
         />
       );
     }
-    case "data-browserStatus": {
-      if (!browserStatusContextAdded) {
-        return null;
-      }
-      return (
+    case "data-browserStatus":
+    case "data-topic":
+    case "data-viewContext":
+    case "data-workspaceInstructions": {
+      return stateNote === undefined ? null : (
         <ModelContextDebugCard
           className={noteClassName}
           compact={compact}
           key={part.metadata.id}
-          text={browserStatusModelNote(part.data)}
+          text={stateNote}
         />
       );
     }
@@ -217,30 +219,6 @@ export function renderDataPart({
             part.data.chats.length === 0
               ? "The first chat"
               : `Other chats: ${part.data.chats.map((chat) => chat.title).join(" · ")}`
-          }
-        />
-      );
-    }
-    case "data-workspaceInstructions": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={part.data.instructions ?? "No workspace instructions"}
-        />
-      );
-    }
-    case "data-topic": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={
-            part.data.topic
-              ? `Topic: ${part.data.topic.name}`
-              : "No topic on this chat"
           }
         />
       );
@@ -433,16 +411,6 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
-        />
-      );
-    }
-    case "data-viewContext": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={viewContextModelNote(part.data)}
         />
       );
     }

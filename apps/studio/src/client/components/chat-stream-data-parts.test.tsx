@@ -39,7 +39,7 @@ describe("a data part this build has never heard of", () => {
   it("renders as nothing rather than as itself", () => {
     expect(
       renderDataPart({
-        browserStatusContextAdded: false,
+        stateNote: undefined,
         ctx: { isDeveloperMode: true } as unknown as RenderPartContext,
         part: retiredPart,
       }),
@@ -75,7 +75,7 @@ describe("a file-changes part from before the fence", () => {
     pathsAlreadyShown?: ReadonlySet<string>,
   ) =>
     renderDataPart({
-      browserStatusContextAdded: false,
+      stateNote: undefined,
       ctx: { isDeveloperMode: false } as unknown as RenderPartContext,
       part,
       pathsAlreadyShown,
@@ -144,7 +144,7 @@ describe("a task event in the chat", () => {
     }) as unknown as SessionMessagePart.DataPart;
   const rendered = (stoppedBy?: "app" | "user") =>
     renderDataPart({
-      browserStatusContextAdded: false,
+      stateNote: undefined,
       ctx: {
         isDeveloperMode: false,
         presentation: "chat",

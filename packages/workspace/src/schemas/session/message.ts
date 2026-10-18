@@ -23,9 +23,6 @@ import { questionAnswerModelNote } from "../../lib/question-answer-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
-import { browserStatusModelNote } from "../../lib/browser-status-model-text";
-import { topicModelNote } from "../../lib/topic-model-text";
-import { workspaceInstructionsModelNote } from "../../lib/workspace-instructions-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { environmentChangeModelNote } from "../../lib/environment-model-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -38,9 +35,9 @@ import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { stateNotes } from "../../lib/state-notes";
 import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
-import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { EnvironmentSchema } from "../environment";
 import { StoreId } from "../store-id";
@@ -358,16 +355,7 @@ export namespace SessionMessage {
     messages: WithParts[],
     { attachmentsDir, shellPath }: ModelNoteOptions = {},
   ): UIMessage[] {
-    // The last note sent for each part that carries a whole standing picture
-    // rather than something that happened: what the user had on screen, the
-    // chat's topic, what the agent remembers, its browser, its processes.
-    // The same page with the same words in front of it is a note the agent
-    // already read and has no reason to doubt, and a page's excerpt is the
-    // longest thing a message carries. `noteOnce` below compares against
-    // this for every part the taxonomy calls `state`, so a part is kept from
-    // restating itself by its own declaration rather than by its note's
-    // author remembering to compare.
-    const lastStateNote = new Map<SessionMessageDataPart.Name, string>();
+    const stateNote = stateNotes();
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -465,299 +453,27 @@ export namespace SessionMessage {
         }
 
         const injectedParts: { text: string; type: "text" }[] = [];
-
-        /**
-         * Sends a part's note, unless that part carries a whole standing
-         * picture and this note reads the same as the last one sent for it.
-         * Which parts those are comes from `CADENCE`, so a part added as
-         * `state` is guarded here without its note's author doing anything.
-         */
-        const noteOnce = (name: SessionMessageDataPart.Name, text: string) => {
-          if (SessionMessageDataPart.CADENCE[name] === "state") {
-            if (lastStateNote.get(name) === text) {
-              return;
-            }
-            lastStateNote.set(name, text);
+        const inject = (text: null | string | undefined) => {
+          if (text) {
+            injectedParts.push({ text, type: "text" });
           }
-          injectedParts.push({ text, type: "text" });
         };
 
-        const attachmentsPart = message.parts.find(
-          (part) => part.type === "data-attachments",
-        );
-
-        if (attachmentsPart) {
-          if (attachmentsPart.data.files.length > 0) {
-            const attachmentDescriptions = attachmentsPart.data.files
-              .map((file) => {
-                const formattedSize = formatBytes(file.size);
-                return `- ${attachmentPathForModel(file.filePath, attachmentsDir, shellPath)} (${formattedSize})`;
-              })
-              .join("\n");
-
-            const attachmentText = dedent`
-                  <uploaded_files>
-                  The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
-                  ${attachmentDescriptions}
-                  </uploaded_files>
-                `;
-
-            noteOnce("attachments", attachmentText);
-          }
+        for (const note of USER_TURN_NOTES) {
+          inject(note(message.parts, { attachmentsDir, shellPath, stateNote }));
         }
 
-        const dateChangePart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-dateChange";
-          } => part.type === "data-dateChange",
-        );
-        if (dateChangePart) {
-          noteOnce("dateChange", dateChangeModelNote(dateChangePart.data));
-        }
-
-        const environmentChangePart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-environmentChange";
-          } => part.type === "data-environmentChange",
-        );
-        if (environmentChangePart) {
-          const note = environmentChangeModelNote(environmentChangePart.data);
-          if (note) {
-            noteOnce("environmentChange", note);
-          }
-        }
-
-        const messageGapPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-messageGap";
-          } => part.type === "data-messageGap",
-        );
-        if (messageGapPart) {
-          noteOnce("messageGap", messageGapModelNote(messageGapPart.data));
-        }
-
-        const backgroundProcessesPart = message.parts.find(
-          (part) => part.type === "data-backgroundProcesses",
-        );
-        if (backgroundProcessesPart) {
-          noteOnce(
-            "backgroundProcesses",
-            backgroundProcessesModelNote(backgroundProcessesPart.data),
-          );
-        }
-
-        const browserStatusPart = message.parts.find(
-          (part) => part.type === "data-browserStatus",
-        );
-        if (browserStatusPart) {
-          noteOnce(
-            "browserStatus",
-            browserStatusModelNote(browserStatusPart.data),
-          );
-        }
-
-        const folderChangesPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-folderChanges";
-          } => part.type === "data-folderChanges",
-        );
-        if (folderChangesPart) {
-          const note = folderChangesModelNote(folderChangesPart.data);
-          if (note) {
-            noteOnce("folderChanges", note);
-          }
-        }
-
-        const skillMentionsPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-skillMentions";
-          } => part.type === "data-skillMentions",
-        );
-        if (skillMentionsPart) {
-          const names = skillMentionsPart.data.names;
-          const mentions = names
-            .map(
-              (name) =>
-                `\`${skillMentionLabel(name)}\` (the installed skill "${name}")`,
-            )
-            .join(", ");
-          const plural = names.length > 1;
-          const loadLine = plural
-            ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
-            : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
-          noteOnce(
-            "skillMentions",
-            `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
-          );
-        }
-
-        const intentPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-intent";
-          } => part.type === "data-intent",
-        );
-        if (intentPart) {
-          noteOnce("intent", intentPart.data.text);
-        }
-
-        const taskEventPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-taskEvent";
-          } => part.type === "data-taskEvent",
-        );
-        if (taskEventPart) {
-          noteOnce("taskEvent", taskEventModelNote(taskEventPart.data));
-        }
-
-        const jobEventPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-jobEvent";
-          } => part.type === "data-jobEvent",
-        );
-        if (jobEventPart) {
-          noteOnce("jobEvent", jobEventModelNote(jobEventPart.data));
-        }
-
-        const appEventPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-appEvent";
-          } => part.type === "data-appEvent",
-        );
-        if (appEventPart) {
-          noteOnce("appEvent", appEventModelNote(appEventPart.data));
-        }
-
-        const permissionAnswerPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-permissionAnswer";
-          } => part.type === "data-permissionAnswer",
-        );
-        if (permissionAnswerPart) {
-          noteOnce(
-            "permissionAnswer",
-            permissionAnswerModelNote(permissionAnswerPart.data),
-          );
-        }
-
-        const questionAnswerPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-questionAnswer";
-          } => part.type === "data-questionAnswer",
-        );
-        if (questionAnswerPart) {
-          noteOnce(
-            "questionAnswer",
-            questionAnswerModelNote(questionAnswerPart.data),
-          );
-        }
-
-        const viewContextPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-viewContext";
-          } => part.type === "data-viewContext",
-        );
-        if (viewContextPart) {
-          noteOnce("viewContext", viewContextModelNote(viewContextPart.data));
-        }
-
-        const asksPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-asks";
-          } => part.type === "data-asks",
-        );
-        if (asksPart) {
-          noteOnce("asks", asksModelNote(asksPart.data));
-        }
-
-        const replyPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-reply";
-          } => part.type === "data-reply",
-        );
-        if (replyPart) {
-          noteOnce("reply", replyModelNote(replyPart.data));
-        }
-
-        const workspaceInstructionsPart = message.parts.find(
-          (part) => part.type === "data-workspaceInstructions",
-        );
-        if (
-          workspaceInstructionsPart &&
-          (workspaceInstructionsPart.data.instructions ||
-            lastStateNote.has("workspaceInstructions"))
-        ) {
-          noteOnce(
-            "workspaceInstructions",
-            workspaceInstructionsModelNote(workspaceInstructionsPart.data),
-          );
-        }
-
-        const topicPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-topic";
-          } => part.type === "data-topic",
-        );
-        if (topicPart) {
-          noteOnce("topic", topicModelNote(topicPart.data));
-        }
-
-        const memoryPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-memory";
-          } => part.type === "data-memory",
-        );
-        if (memoryPart) {
-          noteOnce("memory", memoryModelNote(memoryPart.data));
-        }
-
-        if (pendingMaxStepsNote) {
-          noteOnce("maxSteps", pendingMaxStepsNote);
-          pendingMaxStepsNote = undefined;
-        }
-
-        if (pendingOutputLimitNote) {
-          noteOnce("outputLimit", pendingOutputLimitNote);
-          pendingOutputLimitNote = undefined;
-        }
+        inject(pendingMaxStepsNote);
+        pendingMaxStepsNote = undefined;
+        inject(pendingOutputLimitNote);
+        pendingOutputLimitNote = undefined;
 
         const skillChangesNote = skillChangesModelNote({
           created: [...pendingSkillChanges.created],
           updated: [...pendingSkillChanges.updated],
         });
         if (skillChangesNote) {
-          noteOnce("skillChanges", skillChangesNote);
+          inject(skillChangesNote);
           pendingSkillChanges.created.clear();
           pendingSkillChanges.updated.clear();
         }
@@ -795,6 +511,104 @@ export namespace SessionMessage {
     });
   }
 }
+
+type NamedDataPart<K extends SessionMessageDataPart.Name> =
+  SessionMessagePart.DataPart & {
+    data: SessionMessageDataPart.DataParts[K];
+    type: `data-${K}`;
+  };
+
+type NoteContext = SessionMessage.ModelNoteOptions & {
+  /** This session's `state` notes so far; see `stateNotes`. */
+  stateNote: (part: SessionMessagePart.DataPart) => string | undefined;
+};
+
+/**
+ * The note a message's part named `name` adds to its user turn; null or
+ * nothing when it has none to add.
+ */
+function noted<K extends SessionMessageDataPart.Name>(
+  name: K,
+  toText: (
+    part: NamedDataPart<K>,
+    context: NoteContext,
+  ) => null | string | undefined,
+) {
+  return (parts: readonly SessionMessagePart.Type[], context: NoteContext) => {
+    const part = parts.find(
+      (candidate): candidate is NamedDataPart<K> =>
+        candidate.type === `data-${name}`,
+    );
+    return part === undefined ? undefined : toText(part, context);
+  };
+}
+
+/** A `state` part says what its session's sequence of notes lets it say. */
+function stated(
+  part: SessionMessagePart.DataPart,
+  { stateNote }: NoteContext,
+): string | undefined {
+  return stateNote(part);
+}
+
+/**
+ * The notes a user turn carries after the user's words, in this order. The
+ * order is part of the text every earlier turn is sent as, and so of the
+ * prefix a provider caches: a new note is added where it reads best, and the
+ * others stay where they are.
+ */
+const USER_TURN_NOTES = [
+  noted("attachments", ({ data }, { attachmentsDir, shellPath }) => {
+    if (data.files.length === 0) {
+      return undefined;
+    }
+    const attachmentDescriptions = data.files
+      .map(
+        (file) =>
+          `- ${attachmentPathForModel(file.filePath, attachmentsDir, shellPath)} (${formatBytes(file.size)})`,
+      )
+      .join("\n");
+    return dedent`
+      <uploaded_files>
+      The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
+      ${attachmentDescriptions}
+      </uploaded_files>
+    `;
+  }),
+  noted("dateChange", ({ data }) => dateChangeModelNote(data)),
+  noted("environmentChange", ({ data }) => environmentChangeModelNote(data)),
+  noted("messageGap", ({ data }) => messageGapModelNote(data)),
+  noted("backgroundProcesses", ({ data }) =>
+    backgroundProcessesModelNote(data),
+  ),
+  noted("browserStatus", stated),
+  noted("folderChanges", ({ data }) => folderChangesModelNote(data)),
+  noted("skillMentions", ({ data: { names } }) => {
+    const mentions = names
+      .map(
+        (name) =>
+          `\`${skillMentionLabel(name)}\` (the installed skill "${name}")`,
+      )
+      .join(", ");
+    const plural = names.length > 1;
+    const loadLine = plural
+      ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
+      : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
+    return `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`;
+  }),
+  noted("intent", ({ data }) => data.text),
+  noted("taskEvent", ({ data }) => taskEventModelNote(data)),
+  noted("jobEvent", ({ data }) => jobEventModelNote(data)),
+  noted("appEvent", ({ data }) => appEventModelNote(data)),
+  noted("permissionAnswer", ({ data }) => permissionAnswerModelNote(data)),
+  noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
+  noted("viewContext", stated),
+  noted("asks", ({ data }) => asksModelNote(data)),
+  noted("reply", ({ data }) => replyModelNote(data)),
+  noted("workspaceInstructions", stated),
+  noted("topic", stated),
+  noted("memory", ({ data }) => memoryModelNote(data)),
+];
 
 /**
  * A stored attachment path as the model reads it: an upload, stored relative

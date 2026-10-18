@@ -24,7 +24,7 @@ export async function createBrowserStatusPart({
     const layout = await sessionLayout({ chatId, sessionId });
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
     const held = await heldTabsStatus({ sessionId, chatId }, spell);
-    return held !== null && held.length > 0
+    return held !== null
       ? createPart({
           createdAt,
           data: { status: "tabs", tabs: held },
@@ -65,10 +65,10 @@ function createPart({
 }
 
 /**
- * The tabs of its chat a task holds, open ones only, as the task names them;
- * null for a task that holds none yet. Where
- * there is no window (the eval harness) a task browses in a browser of its
- * own whatever it holds, so there is nothing true to tell it.
+ * The tabs of its chat a task holds, open ones only, as the task names them.
+ * Null where there is no window (the eval harness): a task browses in a
+ * browser of its own there whatever it holds, so there is nothing true to
+ * tell it.
  */
 async function heldTabsStatus(
   { sessionId, chatId }: { sessionId: StoreId.Session; chatId: ChatId },
@@ -78,9 +78,12 @@ async function heldTabsStatus(
   | { id: string; openedBy: "handed" | "task"; title?: string; url: string }[]
 > {
   const { browser } = getWorkspaceConfig();
-  const held = await heldTabs(chatId, sessionId);
-  if (held.length === 0 || browser.hasNoWindow) {
+  if (browser.hasNoWindow) {
     return null;
+  }
+  const held = await heldTabs(chatId, sessionId);
+  if (held.length === 0) {
+    return [];
   }
   const windowTargets = await browser.listTargets();
   const titles = new Map(

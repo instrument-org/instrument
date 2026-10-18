@@ -13,6 +13,12 @@ export function browserStatusModelNote(
     `;
   }
 
+  if (data.status === "tabs" && data.tabs.length === 0) {
+    return systemNote`
+      Your browser has no tabs of the user's chat now.
+    `;
+  }
+
   if (data.status === "tabs") {
     const tabs = data.tabs
       .map(

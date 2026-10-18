@@ -282,8 +282,8 @@ export async function newMessage({
       parts.push(messageGap.value);
     }
 
-    // The chat's topic rides on every message sent in it, and the model
-    // note is rendered only when it changed since the last one.
+    // The chat's topic, or none, rides on every message sent in it; see the
+    // `state` cadence for what the model hears of it.
     const topicPart = await createTopicPart({
       createdAt,
       messageId,
@@ -360,11 +360,7 @@ export async function newMessage({
   return ok(message);
 }
 
-/**
- * The topic the chat is filed under, named for the model. None when it has
- * none and never had: a chat taken off its topic since its last message
- * gets a part saying so, so the note can say the topic is gone.
- */
+/** The topic the chat is filed under, named for the model, or null for none. */
 async function createTopicPart({
   createdAt,
   messageId,
@@ -382,17 +378,6 @@ async function createTopicPart({
   }
   const known = await listTopics();
   const filed = known.find((entry) => entry.id === session.value.topic);
-  if (!filed) {
-    const messages = await ChatReads.modelHistory({ chatId, sessionId });
-    const toldBefore =
-      messages.isOk() &&
-      messages.value.some((message) =>
-        message.parts.some((part) => part.type === "data-topic"),
-      );
-    if (!toldBefore) {
-      return undefined;
-    }
-  }
   const folders = filed
     ? topicFolderPaths(await folderReach(chatId), filed.folders ?? [])
     : [];

@@ -16,8 +16,8 @@ type MemoryRow = SessionMessageDataPart.MemoryDataPart["memories"][number];
  *
  * Rows are grouped under the chat they came from and the day, so a chat
  * that saved thirty memories in a sitting names itself once rather than on
- * every row. Rendered only when it differs from the last note, so a chat
- * is told once and again only on a change.
+ * every row. The part is written only on a change, so a chat is told once
+ * and again only when memory changed.
  */
 export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
   if (data.tells === "whole" && data.memories.length === 0) {

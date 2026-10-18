@@ -59,14 +59,13 @@ function isCardReady(part: SessionMessagePart.ToolPart): boolean {
 // Returns null for parts that don't render inline. Data-part visibility comes
 // from `dataPartVisibility`, so this stays consistent with the utils.
 export function renderChatPart({
-  browserStatusContextAdded,
   ctx,
   isStandIn = false,
   message,
   part,
   partIndex,
+  stateNote,
 }: {
-  browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   /**
    * This is the copy a working group draws in its own slot rather than the row
@@ -78,6 +77,8 @@ export function renderChatPart({
   message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
   partIndex: number;
+  /** What the model heard of this part, when it is a `state` part; see `stateNotes`. */
+  stateNote: string | undefined;
 }): React.ReactNode {
   if (part.type === "text") {
     if (part.state === "done" && part.text.trim() === "") {
@@ -127,7 +128,6 @@ export function renderChatPart({
 
   if (isDataPart(part)) {
     return renderDataPart({
-      browserStatusContextAdded,
       ctx,
       part,
       // Only the retired file-changes grid needs this, and almost no message
@@ -136,6 +136,7 @@ export function renderChatPart({
         part.type === "data-fileChanges"
           ? pathsNamedInMessage(message)
           : undefined,
+      stateNote,
     });
   }
 

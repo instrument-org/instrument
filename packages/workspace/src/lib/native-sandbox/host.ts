@@ -8,9 +8,9 @@ export const appEnv: NodeJS.ProcessEnv = process.env;
 
 /**
  * The places native tools keep as their own: macOS's per-user cache folder,
- * which the frameworks a native tool loads write to. ~/Library/Caches stays
- * as the rules say: other apps keep code there they run later outside any
- * sandbox (Playwright's browsers, Go's builds).
+ * which the frameworks a native tool loads write to, whatever the rules say.
+ * ~/Library/Caches is not one: the app-files place opens it, so a person
+ * who sets that place to Not allowed closes it too.
  */
 export function toolCaches(): string[] {
   const userCache = darwinUserCacheDir();

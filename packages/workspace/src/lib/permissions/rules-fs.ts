@@ -56,7 +56,7 @@ export function ruleRefusal({
    * folder to mount.
    */
   onDisk?: boolean;
-  op: "read" | "write";
+  op: "list" | "read" | "write";
   /** What the rules make of the path, where the caller decided it already. */
   reach?: Reach;
   rules: Rules;
@@ -138,8 +138,9 @@ export interface Listings {
 
 /**
  * Wrap a folder mount so the rules decide what in it the agent may read and
- * change. Listings and file contents are reads; stat and exists answer, so a
- * listing of the folder around a closed one still shows it. Paths arrive
+ * change. File contents are reads and listings are lists, which a listed
+ * place allows; stat and exists answer, so a listing of the folder around a
+ * closed one still shows it. Paths arrive
  * already resolved and relative to the mount, as `MountableFs` routes them.
  */
 export function rulesFs({
@@ -175,7 +176,7 @@ export function rulesFs({
     return real === null || real === host ? [host] : [host, real];
   };
   const check = (
-    op: "read" | "write",
+    op: "list" | "read" | "write",
     syscall: string,
     mountPath: string,
     asks = true,
@@ -236,7 +237,7 @@ export function rulesFs({
           const dir = String(args[0]);
           const named = listings.count === 0;
           listings.count++;
-          check("read", key, dir, named);
+          check("list", key, dir, named);
           return call(...args);
         };
       }
@@ -271,7 +272,7 @@ export function rulesFs({
                 (entry) =>
                   typeof entry === "string" &&
                   hostsOf(entry).every(
-                    (host) => reachOf(rules, host, "read").level === "allow",
+                    (host) => reachOf(rules, host, "list").level === "allow",
                   ),
               )
             : all;

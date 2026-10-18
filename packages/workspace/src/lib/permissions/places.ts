@@ -1,3 +1,7 @@
+import {
+  APP_BUNDLE_ID,
+  APP_UPDATER_CACHE_DIR_NAME,
+} from "@instrument-org/shared";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -105,6 +109,18 @@ const PASSWORD_PLACES = [
   "Library/Safari",
   "Library/Containers/com.apple.Safari",
   "Library/Group Containers/2BUA8C4S2C.com.1password",
+  // The browsers' caches, which hold the pages the person visited, so they
+  // stay closed with the profiles while the rest of the caches are open.
+  "Library/Caches/Google/Chrome",
+  "Library/Caches/com.apple.Safari",
+  "Library/Caches/Firefox",
+  "Library/Caches/BraveSoftware",
+  "Library/Caches/Microsoft Edge",
+  "Library/Caches/Arc",
+  "Library/Caches/company.thebrowser.Browser",
+  "Library/Caches/Chromium",
+  "Library/Caches/Vivaldi",
+  "Library/Caches/com.operasoftware.Opera",
   // Linux browsers keep their profiles under ~/.config and ~/.mozilla.
   ".config/google-chrome",
   ".config/chromium",
@@ -112,6 +128,12 @@ const PASSWORD_PLACES = [
   ".config/microsoft-edge",
   ".config/vivaldi",
   ".mozilla",
+  ".cache/google-chrome",
+  ".cache/chromium",
+  ".cache/BraveSoftware",
+  ".cache/microsoft-edge",
+  ".cache/vivaldi",
+  ".cache/mozilla",
   // The same browsers installed as a snap (Ubuntu's Firefox) or a Flatpak.
   "snap/firefox",
   "snap/chromium",
@@ -207,26 +229,90 @@ export function windowsProgramFolders(home = os.homedir()): string[] {
   return [path.join(home, "AppData", "Local", "Programs")];
 }
 
+/**
+ * Where the app's updater keeps a download before installing it, in the
+ * caches the app-files place opens: electron-updater's folder, and on a Mac
+ * the folder ShipIt stages the new build in and the app's own web cache.
+ * An install runs outside every sandbox (on Linux as root, through dpkg), so
+ * these are the app's own data, closed to every chat.
+ */
+export function appUpdateCaches(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  if (platform === "darwin") {
+    const caches = path.join(home, "Library", "Caches");
+    return [
+      path.join(caches, APP_UPDATER_CACHE_DIR_NAME),
+      path.join(caches, `${APP_BUNDLE_ID}.ShipIt`),
+      path.join(caches, APP_BUNDLE_ID),
+    ];
+  }
+  return platform === "linux"
+    ? [path.join(home, ".cache", APP_UPDATER_CACHE_DIR_NAME)]
+    : [];
+}
+
 /** The startup places as paths in `home`. */
 export function startupPaths(home = os.homedir()): string[] {
   return STARTUP_PLACES.map((place) => path.join(home, place));
 }
 
 /**
+ * Folders in the app-files place that hold a folder per app, so a card for
+ * a file in one names that app's folder ("Code" in `Application Support`)
+ * rather than the folder every app shares.
+ */
+const APP_FOLDER_PARENTS: Partial<Record<NodeJS.Platform, string[]>> = {
+  darwin: [
+    "Library/Application Support",
+    "Library/Containers",
+    "Library/Group Containers",
+    "Library/Logs",
+  ],
+  win32: [
+    "AppData/Roaming",
+    "AppData/Local",
+    "AppData/LocalLow",
+    "AppData/Local/Packages",
+  ],
+};
+
+/** The folders of {@link APP_FOLDER_PARENTS} as paths in `home`. */
+export function appFolderParents(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  return (APP_FOLDER_PARENTS[platform] ?? []).map((parent) =>
+    path.join(home, parent),
+  );
+}
+
+/**
  * A place as paths on this computer. `closedUnlessAllowed` are paths in the
- * place that stay Not allowed while the place asks first.
+ * place that stay Not allowed while the place asks first, and
+ * `openUnlessClosed` paths open while it asks first and closed only when it
+ * is Not allowed. A `listed` place shows programs and the shell the names,
+ * sizes and dates in it while it asks first, but in its `unlisted` folders;
+ * opening or changing a file in it still asks.
  */
 export interface PlacePaths {
   closedUnlessAllowed?: string[];
   id: PlaceId;
+  listed?: true;
+  openUnlessClosed?: string[];
   paths: string[];
+  unlisted?: string[];
 }
 
 /** Every built-in place this platform has, as paths in `home`. */
-export function placePaths(home = os.homedir()): PlacePaths[] {
+export function placePaths(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): PlacePaths[] {
   const inHome = (...names: string[]) =>
     names.map((name) => path.join(home, name));
-  const mac = process.platform === "darwin";
+  const mac = platform === "darwin";
   // The fixed places are spelled from this account's home; carried over to
   // `home` so a check against another home folder lines up.
   const inOwnHome = (placePath: string) =>
@@ -246,7 +332,18 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     places.push(
       { id: "icloud", paths: [inOwnHome(iCloudDrivePath())] },
       { id: "drives", paths: ["/Volumes"] },
-      { id: "appFiles", paths: inHome("Library") },
+      // Listed, so a program sees what is in it without opening a file. But
+      // not the apps' containers: macOS asks the person before a program
+      // looks into another app's container, in a dialog the program waits
+      // on. Caches is open, since what is in it is made again from
+      // something else, but for the browsers', closed with their profiles.
+      {
+        id: "appFiles",
+        listed: true,
+        openUnlessClosed: inHome("Library/Caches"),
+        paths: inHome("Library"),
+        unlisted: inHome("Library/Containers", "Library/Group Containers"),
+      },
       // The Photos, Music and TV libraries are folders macOS asks the
       // person about before any program reads them, in a dialog the program
       // waits on. Closed here, the sandbox refuses a native walk over the
@@ -258,14 +355,19 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
         paths: inHome("Music/Music", "Music/iTunes", "Movies/TV"),
       },
     );
-  } else if (process.platform === "linux") {
+  } else if (platform === "linux") {
     places.push(
       // The system's own /mnt, where Linux mounts a drive by hand.
       { id: "drives", paths: ["/media", "/run/media", "/mnt"] },
       // Where a Linux program keeps its settings and its data, which is what
-      // `Library` is on a Mac and `AppData` on Windows. `.cache` is left
-      // out: what is in it is made again from something else.
-      { id: "appFiles", paths: inHome(".config", ".local/share") },
+      // `Library` is on a Mac and `AppData` on Windows. Not listed, since
+      // bubblewrap cannot show a folder's names without what is in it.
+      // `.cache` is open, as `Library/Caches` is on a Mac.
+      {
+        id: "appFiles",
+        openUnlessClosed: inHome(".cache"),
+        paths: inHome(".config", ".local/share"),
+      },
     );
   } else {
     places.push(
@@ -273,6 +375,7 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
       {
         closedUnlessAllowed: inHome(...WINDOWS_ACTIVITY_PLACES),
         id: "appFiles",
+        listed: true,
         paths: inHome("AppData"),
       },
     );

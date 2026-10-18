@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../command-line-tools-env";
+import { hostPathWithin } from "../host-path";
 import { REACHABLE_APPS } from "../permissions/apps";
 import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -51,12 +52,42 @@ export function seatbeltProfile(
       text: `(deny file-write* (subpath ${sbplString(resolveReal(home))}))`,
     },
   ];
+  // A listed folder lets a program list folders and read metadata, each
+  // named as one operation, which Seatbelt ranks above a rule for
+  // `file-read*` whatever the order: last match wins only between rules
+  // naming operations alike. So every rule inside one says the same for
+  // those two operations as well, or a closed folder in it would list and
+  // an open one would not read.
+  const listedFolders = rules
+    .filter(
+      (rule) =>
+        rule.listed &&
+        levelAllowingEveryFolder(
+          rule.level,
+          rule,
+          dangerouslyAllowEveryFolder,
+        ) === "ask",
+    )
+    .flatMap((rule) => spellings(rule.path));
+  const inListed = (spelled: string) =>
+    listedFolders.some((folder) => hostPathWithin(folder, spelled) !== null);
+  /** The same rule for the two operations a listed folder names alone. */
+  const alike = (
+    verdict: "allow" | "deny",
+    filter: string,
+    spelled: string,
+    listed = false,
+  ) =>
+    !listed && inListed(spelled)
+      ? [`(${verdict} file-read-data file-read-metadata ${filter})`]
+      : [];
   for (const rule of rules) {
     const level = levelAllowingEveryFolder(
       rule.level,
       rule,
       dangerouslyAllowEveryFolder,
     );
+    const listed = rule.listed === true && level === "ask";
     const filter = (spelled: string) =>
       rule.dotEntries
         ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
@@ -72,16 +103,29 @@ export function seatbeltProfile(
       level === "never" || (rule.place === "passwords" && level !== "allow");
     // A read-only folder opens for reading and closes to changes; the two
     // rules sit at one depth, in that order.
+    // A listed folder lists its folders and answers metadata, and opens no
+    // file.
     const texts = (spelled: string) =>
       level === "allow"
-        ? [`(allow file-read* file-write* network-outbound ${filter(spelled)})`]
+        ? [
+            `(allow file-read* file-write* network-outbound ${filter(spelled)})`,
+            ...alike("allow", filter(spelled), spelled),
+          ]
         : level === "readOnly"
           ? [
               `(allow file-read* ${filter(spelled)})`,
+              ...alike("allow", filter(spelled), spelled),
               `(deny file-write* ${filter(spelled)})`,
             ]
           : [
               `(deny file-read* file-write*${socketsClosed ? " network-outbound" : ""} ${filter(spelled)})`,
+              ...alike("deny", filter(spelled), spelled, listed),
+              ...(listed
+                ? [
+                    `(allow file-read-data (require-all ${filter(spelled)} (vnode-type DIRECTORY)))`,
+                    `(allow file-read-metadata ${filter(spelled)})`,
+                  ]
+                : []),
             ];
     entries.push(
       ...spellings(rule.path).flatMap((spelled) =>
@@ -101,12 +145,20 @@ export function seatbeltProfile(
   }
   const opens = (paths: readonly string[], access: string) =>
     paths.flatMap((opened) =>
-      spellings(opened).map((spelled) => ({
-        depth: depthOf(spelled),
-        opened: spelled,
-        rank: 3,
-        text: `(allow ${access} (subpath ${sbplString(spelled)}))`,
-      })),
+      spellings(opened).flatMap((spelled) => {
+        const filter = `(subpath ${sbplString(spelled)})`;
+        return [
+          `(allow ${access} ${filter})`,
+          ...(access.includes("file-read*")
+            ? alike("allow", filter, spelled)
+            : []),
+        ].map((text) => ({
+          depth: depthOf(spelled),
+          opened: spelled,
+          rank: 3,
+          text,
+        }));
+      }),
     );
   entries.push(
     ...opens([DEVICES], "file-write*"),

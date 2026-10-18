@@ -392,6 +392,75 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
     expect(policy.enumeratePaths).toEqual([]);
   });
 
+  // App files while it asks first, with what stays closed in it denied by
+  // name, and set to Not allowed, where it is listed only on the way to
+  // the app's own programs and its names stay closed off that way.
+  it("list App files as far as its level lets them", () => {
+    const at = home(
+      "AppData/Local/Programs/Instrument",
+      "AppData/Local/Discord",
+      "AppData/Roaming/Microsoft/Windows/Recent",
+      "AppData/Roaming/Code",
+    );
+    const appData = path.join(at, "AppData");
+    const policyAt = (level: "ask" | "never") => {
+      const { deniedPaths, enumeratePaths } = policyOf(
+        reachOver(
+          at,
+          [
+            {
+              level,
+              ...(level === "ask" && { listed: true }),
+              path: appData,
+              place: "appFiles",
+              source: "place",
+            },
+            {
+              level: "never",
+              path: path.join(
+                appData,
+                "Roaming",
+                "Microsoft",
+                "Windows",
+                "Recent",
+              ),
+              place: "appFiles",
+              source: "place",
+            },
+          ],
+          { readOnly: [path.join(appData, "Local", "Programs")] },
+        ),
+      );
+      return { deniedPaths, enumeratePaths };
+    };
+    expect({
+      ask: policyAt("ask"),
+      never: policyAt("never"),
+    }).toMatchInlineSnapshot(`
+      {
+        "ask": {
+          "deniedPaths": [
+            "~/AppData/Roaming/Microsoft/Windows/Recent",
+          ],
+          "enumeratePaths": [
+            "~/AppData",
+            "~/AppData/Local",
+          ],
+        },
+        "never": {
+          "deniedPaths": [
+            "~/AppData/Local/Discord",
+            "~/AppData/Roaming",
+          ],
+          "enumeratePaths": [
+            "~/AppData",
+            "~/AppData/Local",
+          ],
+        },
+      }
+    `);
+  });
+
   it("list the app's data folder and the runtime folder in it on the way to the runtime's caches", () => {
     // The app's data folder under AppData, closed, with the runtime folder
     // in it closed too and its caches open. The sandbox's own folder beside

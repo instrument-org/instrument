@@ -13,7 +13,7 @@ import nodePath from "node:path";
 import { CHAT_FOLDER_NAMES, HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Listings, ruleRefusal, rulesFs } from "./permissions/rules-fs";
-import { windowsProgramFolders } from "./permissions/places";
+import { appUpdateCaches, windowsProgramFolders } from "./permissions/places";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import {
   type AbsolutePath,
@@ -834,7 +834,8 @@ export function shellPathOfHostSpelling(
  * The app's own data is closed to every command, and refused plainly: this
  * computer's folder (each workspace's keys, browser profiles and folder
  * rules, and the runtime folder), the workspace's `.instrument/`, its
- * records, and `~/.instrument/`. The workspace's own folder around that is
+ * records, `~/.instrument/`, and the updater's downloads in the caches
+ * (`appUpdateCaches`). The workspace's own folder around that is
  * the person's, and follows their rules like any folder: once they picked
  * it, it is the output folder. In the app's own data only these open: every
  * chat's work folder, in `~/.instrument/work/`, which chats share as they
@@ -877,6 +878,7 @@ function layoutRules(
     config.runtimeDir,
     workspaceLayout(config.rootDir).dataDir,
     homeDataLayout(given.home).dataDir,
+    ...appUpdateCaches(given.home),
   ].map((path) => ({ appData: true, ...system("never", path) }));
   const own: Rule[] = [
     ...appData,

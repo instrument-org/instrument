@@ -186,6 +186,11 @@ export function mxcFilesystemPolicy(
       access: Access;
       /** Set by a rule closing the app's own data. */
       appData?: true;
+      /**
+       * Set by a rule closing its folder outright (Not allowed, or the
+       * app's own data), whose names stay closed where it is listed.
+       */
+      hidden?: true;
       path: string;
       rank: number;
     }
@@ -199,6 +204,7 @@ export function mxcFilesystemPolicy(
     access: Access,
     rank: number,
     appData?: true,
+    hidden?: true,
   ) => {
     // MXC refuses the whole request (`ERROR_PATH_NOT_FOUND`) for a Windows
     // path with no drive, which names nothing it can hold and would read the
@@ -218,6 +224,7 @@ export function mxcFilesystemPolicy(
         entries.set(key, {
           access,
           ...(appData && { appData }),
+          ...((appData ?? hidden) && { hidden: true }),
           path: spelled,
           rank,
         });
@@ -232,8 +239,15 @@ export function mxcFilesystemPolicy(
       rule,
       dangerouslyAllowEveryFolder,
     );
+    // A listed place that asks first is listed whatever opens below it.
     const access: Access =
-      level === "allow" ? "write" : level === "readOnly" ? "read" : "deny";
+      level === "allow"
+        ? "write"
+        : level === "readOnly"
+          ? "read"
+          : rule.listed && level === "ask"
+            ? "list"
+            : "deny";
     for (const target of rule.dotEntries
       ? dotEntriesIn(rule.path, disk)
       : [rule.path]) {
@@ -242,6 +256,7 @@ export function mxcFilesystemPolicy(
         access,
         ruleRank(rule),
         rule.appData && access === "deny" ? true : undefined,
+        level === "never" ? true : undefined,
       );
     }
   }
@@ -331,8 +346,10 @@ export function mxcFilesystemPolicy(
   // The app's own data listed that way would show every name in it: each
   // workspace's keys, profiles and records. So in a listed folder of the
   // app's, and in every folder below it on the way to an open one, each
-  // folder off that way is denied by name, closing the names in it too. A
-  // folder of the person's that is listed shows its names, which is what
+  // folder off that way is denied by name, closing the names in it too; and
+  // the same in a folder the person set to Not allowed (App files, around
+  // the app's own programs in `AppData\Local\Programs`). A folder of the
+  // person's that asks first and is listed shows its names, which is what
   // asking first about it costs.
   const offTheWay = (folder: string) => {
     for (const child of disk.list(folder) ?? []) {
@@ -351,10 +368,10 @@ export function mxcFilesystemPolicy(
     }
   };
   // Taken before any is denied, since that adds to the entries.
-  const listedAppData = [...entries.values()].filter(
-    (entry) => entry.access === "list" && entry.appData,
+  const listedHidden = [...entries.values()].filter(
+    (entry) => entry.access === "list" && entry.hidden,
   );
-  for (const entry of listedAppData) {
+  for (const entry of listedHidden) {
     offTheWay(entry.path);
   }
   // A denied folder whose nearest listed folder above is denied too adds

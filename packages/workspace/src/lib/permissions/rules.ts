@@ -19,6 +19,7 @@ import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "../chat/asks";
 import { workspaceMachineDir } from "../workspace-machine-dir";
 import {
+  appFolderParents,
   type Level,
   LevelSchema,
   PLACE_DEFAULTS,
@@ -231,6 +232,12 @@ export interface Rule {
   /** Set for a file the user sent, which the rule opens alone. */
   file?: true;
   level: Access;
+  /**
+   * Set for a place that asks first whose names, sizes and dates programs
+   * and the shell see without a card (App files on macOS and Windows):
+   * listing a folder in it is allowed, and opening or changing a file asks.
+   */
+  listed?: true;
   path: string;
   /** Set for a folder the person said not now to in this chat. */
   denied?: true;
@@ -358,12 +365,31 @@ function placeRules(home: string, settings: PermissionSettings): Rule[] {
       place.id === "output"
         ? PLACE_DEFAULTS.output
         : (settings.places[place.id] ?? PLACE_DEFAULTS[place.id]);
+    const listed = place.listed && level === "ask";
     for (const placePath of place.paths) {
+      rules.push({
+        level,
+        ...(listed && { listed: true }),
+        path: placePath,
+        place: place.id,
+        source: "place",
+      });
+    }
+    // Asking as the place does, without the listing.
+    for (const placePath of listed ? (place.unlisted ?? []) : []) {
       rules.push({ level, path: placePath, place: place.id, source: "place" });
     }
     for (const placePath of place.closedUnlessAllowed ?? []) {
       rules.push({
         level: level === "allow" ? "allow" : "never",
+        path: placePath,
+        place: place.id,
+        source: "place",
+      });
+    }
+    for (const placePath of place.openUnlessClosed ?? []) {
+      rules.push({
+        level: level === "never" ? "never" : "allow",
         path: placePath,
         place: place.id,
         source: "place",
@@ -448,7 +474,8 @@ export function levelAllowingEveryFolder<L extends Access>(
 export function reachOf(
   rules: Rules,
   hostPath: string,
-  op: "read" | "write",
+  /** `list` is reading a folder's names, which a listed place allows. */
+  op: "list" | "read" | "write",
 ): Reach {
   if (namesStream(hostPath)) {
     return { level: "never", stream: true };
@@ -497,9 +524,15 @@ export function reachOf(
   ) {
     best = undefined;
   }
-  const access = best ? best.rule.level : op === "read" ? "allow" : "ask";
+  const access = !best
+    ? op === "write"
+      ? "ask"
+      : "allow"
+    : op === "list" && best.rule.listed && best.rule.level === "ask"
+      ? "allow"
+      : best.rule.level;
   const level =
-    access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
+    access === "readOnly" ? (op === "write" ? "never" : "allow") : access;
   return {
     level: levelAllowingEveryFolder(
       level,
@@ -585,7 +618,9 @@ function compiled(rules: Rules) {
  * app's own data gives way to the one below it on the way to the path
  * (`~/Library/Application Support/Other App` rather than Application
  * Support), so a card never names it; one with nothing below it is left as
- * it is, for `ruleRefusal` to raise no card for.
+ * it is, for `ruleRefusal` to raise no card for. In the app-files place a
+ * folder holding a folder per app gives way the same way, so the card names
+ * one app's folder (`AppData\Roaming\Discord`).
  */
 export function folderToAskFor({
   hostPath,
@@ -611,9 +646,14 @@ export function folderToAskFor({
   // folder, all but the file's name for a file.
   const folders = isDirectory ? parts : parts.slice(0, -1);
   let depth = folders.length === 0 ? 0 : 1;
+  const parents =
+    rule?.place === "appFiles" ? appFolderParents(rules.home) : [];
+  const passedOver = (folder: string) =>
+    holdsAppData(rules, folder) ||
+    parents.some((parent) => hostPathWithin(parent, folder) === "/");
   while (
     depth < folders.length &&
-    holdsAppData(rules, path.join(root, ...folders.slice(0, depth)))
+    passedOver(path.join(root, ...folders.slice(0, depth)))
   ) {
     depth++;
   }

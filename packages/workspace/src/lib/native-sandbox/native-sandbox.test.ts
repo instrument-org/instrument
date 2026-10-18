@@ -175,6 +175,97 @@ describe.skipIf(onWindows)(
   },
 );
 
+/**
+ * A listed place, as App files is on a Mac while it asks first, with what
+ * stays closed in it, an app's folder opened, and its caches open.
+ */
+function listedLibrary(home: string): Rule[] {
+  const library = path.join(home, "Library");
+  return [
+    {
+      level: "ask",
+      listed: true,
+      path: library,
+      place: "appFiles",
+      source: "place",
+    },
+    {
+      level: "never",
+      path: path.join(library, "Keychains"),
+      place: "passwords",
+      source: "place",
+    },
+    {
+      appData: true,
+      level: "never",
+      path: path.join(library, "Application Support", "Instrument"),
+      source: "system",
+    },
+    {
+      level: "readOnly",
+      path: path.join(library, "Application Support", "Instrument", "skills"),
+      source: "system",
+    },
+    {
+      level: "allow",
+      path: path.join(library, "Application Support", "Code"),
+      source: "grant",
+    },
+    {
+      level: "allow",
+      path: path.join(library, "Caches"),
+      place: "appFiles",
+      source: "place",
+    },
+  ];
+}
+
+describe.skipIf(onWindows)("a listed place in a profile", () => {
+  const home = "/nope/home";
+  const lines = (rules: Rule[], dangerouslyAllowEveryFolder = false) =>
+    seatbeltProfile({
+      ...reachOver(home, rules),
+      rules: { dangerouslyAllowEveryFolder, home, rules },
+    })
+      .split("\n")
+      .filter(
+        (line) =>
+          line.includes("/nope/home/Library") && !line.includes("literal"),
+      );
+
+  // Seatbelt ranks a rule naming one operation over `file-read*` whatever
+  // the order, so every rule inside the listed folder names the two the
+  // listing does as well.
+  it("lists folders and metadata, and says the same of every rule inside", () => {
+    expect(lines(listedLibrary(home))).toMatchInlineSnapshot(`
+      [
+        "(deny file-read* file-write* (subpath "/nope/home/Library"))",
+        "(allow file-read-data (require-all (subpath "/nope/home/Library") (vnode-type DIRECTORY)))",
+        "(allow file-read-metadata (subpath "/nope/home/Library"))",
+        "(deny file-read* file-write* network-outbound (subpath "/nope/home/Library/Keychains"))",
+        "(deny file-read-data file-read-metadata (subpath "/nope/home/Library/Keychains"))",
+        "(allow file-read* file-write* network-outbound (subpath "/nope/home/Library/Caches"))",
+        "(allow file-read-data file-read-metadata (subpath "/nope/home/Library/Caches"))",
+        "(allow file-read* file-write* network-outbound (subpath "/nope/home/Library/Application Support/Code"))",
+        "(allow file-read-data file-read-metadata (subpath "/nope/home/Library/Application Support/Code"))",
+        "(deny file-read* file-write* network-outbound (subpath "/nope/home/Library/Application Support/Instrument"))",
+        "(deny file-read-data file-read-metadata (subpath "/nope/home/Library/Application Support/Instrument"))",
+        "(allow file-read* (subpath "/nope/home/Library/Application Support/Instrument/skills"))",
+        "(allow file-read-data file-read-metadata (subpath "/nope/home/Library/Application Support/Instrument/skills"))",
+        "(deny file-write* (subpath "/nope/home/Library/Application Support/Instrument/skills"))",
+      ]
+    `);
+  });
+
+  it("lists nothing on its own once using folders without asking opens the place", () => {
+    expect(
+      lines(listedLibrary(home), true).filter((line) =>
+        line.includes("file-read-data"),
+      ),
+    ).toMatchInlineSnapshot(`[]`);
+  });
+});
+
 describe.skipIf(onWindows)("Shortcuts in a profile", () => {
   const lines = (shortcutsAllowed?: boolean) =>
     seatbeltProfile({
@@ -727,6 +818,73 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     ]);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Operation not permitted");
+  });
+});
+
+describe.runIf(seatbeltAvailable())("a listed place on this Mac", () => {
+  const home = realpathSync(
+    mkdtempSync(path.join(os.tmpdir(), "native-sandbox-listed-")),
+  );
+  const at = (relative: string) => path.join(home, "Library", relative);
+  for (const [file, text] of [
+    ["Preferences/app.plist", "p"],
+    ["Keychains/login.keychain-db", "k"],
+    ["Application Support/Instrument/keys/key", "s"],
+    ["Application Support/Instrument/skills/a/SKILL.md", "a"],
+    ["Application Support/Code/User/settings.json", "c"],
+    ["Caches/tool/cache.bin", "t"],
+  ] as const) {
+    mkdirSync(path.dirname(at(file)), { recursive: true });
+    writeFileSync(at(file), text);
+  }
+  const reach = reachOver(home, listedLibrary(home));
+
+  afterAll(() => {
+    rmSync(home, { force: true, recursive: true });
+  });
+
+  async function sh(script: string) {
+    const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
+    const result = await execa(spawned.file, argsOf(spawned), {
+      reject: false,
+    });
+    return result.exitCode === 0 ? result.stdout.trim() : "refused";
+  }
+
+  it.each([
+    [
+      "lists the place",
+      `ls '${at("")}'`,
+      "Application Support\nCaches\nKeychains\nPreferences",
+    ],
+    ["lists a folder in it", `ls '${at("Preferences")}'`, "app.plist"],
+    ["gives a file's size", `stat -f %z '${at("Preferences/app.plist")}'`, "1"],
+    ["opens no file in it", `cat '${at("Preferences/app.plist")}'`, "refused"],
+    ["changes nothing in it", `touch '${at("Preferences/new")}'`, "refused"],
+    ["keeps a sign-in folder unlisted", `ls '${at("Keychains")}'`, "refused"],
+    [
+      "keeps the app's own data unlisted",
+      `ls '${at("Application Support/Instrument")}'`,
+      "refused",
+    ],
+    [
+      "reads the app's own folder opened in it",
+      `cat '${at("Application Support/Instrument/skills/a/SKILL.md")}'`,
+      "a",
+    ],
+    [
+      "reads an app's folder the person allowed",
+      `cat '${at("Application Support/Code/User/settings.json")}'`,
+      "c",
+    ],
+    [
+      "changes an app's folder the person allowed",
+      `touch '${at("Application Support/Code/new")}' && echo made`,
+      "made",
+    ],
+    ["reads the caches", `cat '${at("Caches/tool/cache.bin")}'`, "t"],
+  ])("%s", async (_name, script, expected) => {
+    expect(await sh(script)).toBe(expected);
   });
 });
 

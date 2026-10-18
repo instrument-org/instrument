@@ -311,6 +311,43 @@ describe("folderToAskFor", () => {
   );
 });
 
+// One app's folder, the first below the folders that hold a folder per app.
+describe("folderToAskFor in App files", () => {
+  const cases: Partial<Record<NodeJS.Platform, [string, string][]>> = {
+    darwin: [
+      [
+        "Library/Application Support/Code/User/settings.json",
+        "Library/Application Support/Code",
+      ],
+      ["Library/Containers/com.foo/Data/a.db", "Library/Containers/com.foo"],
+      ["Library/Logs/Foo/a.log", "Library/Logs/Foo"],
+      ["Library/Preferences/com.foo.plist", "Library/Preferences"],
+    ],
+    linux: [
+      [".config/Code/User/settings.json", ".config/Code"],
+      [".local/share/fonts/a.ttf", ".local/share/fonts"],
+    ],
+    win32: [
+      ["AppData/Roaming/discord/settings.json", "AppData/Roaming/discord"],
+      ["AppData/Local/Foo/a.db", "AppData/Local/Foo"],
+      [
+        "AppData/Local/Packages/Foo_1/LocalState/a",
+        "AppData/Local/Packages/Foo_1",
+      ],
+    ],
+  };
+
+  it.each(cases[process.platform] ?? [])("%s asks for %s", (file, folder) => {
+    const rules = rulesFor({ home, settings });
+    const hostPath = inHome(file);
+    const { rule } = reachOf(rules, hostPath, "read");
+    expect(rule?.place).toBe("appFiles");
+    expect(folderToAskFor({ hostPath, isDirectory: false, rule, rules })).toBe(
+      inHome(folder),
+    );
+  });
+});
+
 describe.runIf(process.platform !== "win32")("an allow above the home", () => {
   const plantedHome = "/scratch/run/home";
   const base = rulesFor({ home: plantedHome, settings });

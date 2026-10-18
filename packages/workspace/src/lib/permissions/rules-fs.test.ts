@@ -72,6 +72,84 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   `);
 });
 
+it("lists a listed place, and asks for the app's folder on the first file read", async () => {
+  const sam = onDisk("/Users/sam");
+  const library = nodePath.join(sam, "Library");
+  vi.mocked(raiseAsk).mockClear();
+  const delegate = new InMemoryFs({
+    "/Library/Application Support/Code/User/settings.json": "{}",
+    "/Library/Keychains/login.keychain-db": "k",
+    "/Library/Preferences/app.plist": "p",
+  });
+  const refusals: string[] = [];
+  const fs = rulesFs({
+    delegate,
+    hostRoot: sam,
+    onRefusal: (refusal) => refusals.push(refusal),
+    rules: {
+      asker: {
+        chatId: ChatIdSchema.parse("listed-place"),
+        sessionId: StoreId.newSessionId(),
+      },
+      home: sam,
+      rules: [
+        {
+          level: "ask",
+          listed: true,
+          path: library,
+          place: "appFiles",
+          source: "place",
+        },
+        {
+          level: "never",
+          path: nodePath.join(library, "Keychains"),
+          place: "passwords",
+          source: "place",
+        },
+      ],
+      dangerouslyAllowEveryFolder: false,
+    },
+    spell: slashed,
+  });
+
+  expect(await fs.readdir("/Library")).toEqual([
+    "Application Support",
+    "Keychains",
+    "Preferences",
+  ]);
+  expect(await fs.readdir("/Library/Application Support/Code/User")).toEqual([
+    "settings.json",
+  ]);
+  expect(fs.getAllPaths().filter((entry) => entry.includes("Library"))).toEqual(
+    [
+      "/Library",
+      "/Library/Application Support",
+      "/Library/Application Support/Code",
+      "/Library/Application Support/Code/User",
+      "/Library/Application Support/Code/User/settings.json",
+      "/Library/Preferences",
+      "/Library/Preferences/app.plist",
+    ],
+  );
+  await expect(fs.readdir("/Library/Keychains")).rejects.toThrow(/EACCES/);
+  await expect(
+    fs.readFile("/Library/Application Support/Code/User/settings.json"),
+  ).rejects.toThrow(/EACCES/);
+  await expect(fs.writeFile("/Library/Preferences/new", "x")).rejects.toThrow(
+    /EACCES/,
+  );
+  expect(vi.mocked(raiseAsk).mock.calls.map((call) => call[2])).toEqual([
+    nodePath.join(
+      library,
+      ...(process.platform === "darwin"
+        ? ["Application Support", "Code"]
+        : ["Application Support"]),
+    ),
+    nodePath.join(library, "Preferences"),
+  ]);
+  expect(refusals).toHaveLength(3);
+});
+
 it("refuses the entry mktemp makes, which is a write by another name", async () => {
   const sam = onDisk("/Users/sam");
   // The folders exist, so what the proxy does is the only thing under test.

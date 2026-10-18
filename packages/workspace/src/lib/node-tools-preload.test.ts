@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs";
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { connect } from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -7,6 +8,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { knowChat } from "../test/helpers/mock-chat-config";
 import { createLocalBashEnv } from "./create-bash-env";
+import { openToolsChannel } from "./node-tools-preload";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 
@@ -54,7 +56,7 @@ describe("node's tools global", () => {
     const result = await run(`node -e 'console.log(typeof tools)'`);
     expect(result.stdout).toBe("function\n");
     expect(result.exitCode).toBe(0);
-    // An open IPC channel holding the process would leave it running until
+    // An open connection holding the process would leave it running until
     // the test times out.
     expect(Date.now() - started).toBeLessThan(5000);
   });
@@ -87,6 +89,13 @@ describe("node's tools global", () => {
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("undefined\n");
+  });
+
+  it("keeps the channel's token out of the script's environment", async () => {
+    const result = await run(
+      `node -e 'console.log(Object.keys(process.env).filter((name) => name.startsWith("INSTRUMENT_TOOLS")).length)'`,
+    );
+    expect(result.stdout).toBe("0\n");
   });
 
   // A package.json no one may read stands in for a folder the sandbox keeps
@@ -167,5 +176,38 @@ describe("node's tools global", () => {
     );
     expect(result.stdout).not.toContain("finished");
     expect(Date.now() - started).toBeLessThan(10_000);
+  });
+});
+
+describe("openToolsChannel", () => {
+  /** Writes `lines` and reads what comes back until an answer or the close. */
+  async function talk(port: number, lines: string[]) {
+    const socket = connect({ host: "127.0.0.1", port });
+    socket.setEncoding("utf8");
+    let received = "";
+    socket.on("data", (chunk: string) => {
+      received += chunk;
+      if (received.endsWith("\n")) {
+        socket.end();
+      }
+    });
+    socket.write(lines.map((line) => `${line}\n`).join(""));
+    await new Promise((resolve) => socket.once("close", resolve));
+    return received;
+  }
+
+  it("answers a call only after the token", async () => {
+    const channel = await openToolsChannel(echoTool);
+    const [port, token = ""] = Object.values(channel.env)[0]?.split(":") ?? [];
+    const call = JSON.stringify({ argsJson: '{"a":1}', id: 1, path: "x.y" });
+    try {
+      expect(await talk(Number(port), ["0".repeat(64), call])).toBe("");
+      expect(await talk(Number(port), [token, call])).toMatchInlineSnapshot(`
+        "{"id":1,"result":"{\\"args\\":{\\"a\\":1},\\"path\\":\\"x.y\\"}"}
+        "
+      `);
+    } finally {
+      channel.close();
+    }
   });
 });

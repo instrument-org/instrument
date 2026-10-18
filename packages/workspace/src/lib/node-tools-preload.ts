@@ -1,26 +1,17 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { runtimeLayout } from "./runtime-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
-/** What the preload sends for `tools.<slug>.<tool>(args)`. */
-export interface ToolCallMessage {
-  argsJson: string;
-  id: number;
-  path: string;
-  type: typeof TOOL_CALL;
-}
-
-/** What the `node` command sends back: the result as JSON, or the refusal's message. */
-export type ToolReplyMessage =
-  | { error: string; id: number; type: typeof TOOL_REPLY }
-  | { id: number; result: string; type: typeof TOOL_REPLY };
-
-const TOOL_CALL = "instrument:tool-call";
-const TOOL_REPLY = "instrument:tool-reply";
+/**
+ * The variable that tells the preload where the `node` command listens for
+ * its tool calls: `<port>:<token>` on 127.0.0.1.
+ */
+const TOOLS_ENV = "INSTRUMENT_TOOLS";
 
 /**
  * The preload's first part: Node reading past a package.json it may not read.
@@ -158,50 +149,77 @@ Module._extensions[".js"] = function (module, filename) {
 `;
 
 /**
- * The preload's second part, `tools`: a proxy whose `tools.<slug>.<tool>(args)` sends the call
- * to the `node` command over the IPC channel the command opened, and resolves
- * to the value the command sends back, or throws its refusal.
+ * The preload's second part, `tools`: a proxy whose `tools.<slug>.<tool>(args)`
+ * sends the call to the `node` command over a loopback connection the command
+ * listens on for this one process, and resolves to the value the command
+ * sends back, or throws its refusal. Loopback TCP is the channel on every
+ * platform since a sandbox lets a program connect to it, where Node's IPC
+ * handle does not reach a program MXC holds. The port and the token that
+ * opens it come in `INSTRUMENT_TOOLS`, which the preload takes out of the
+ * environment before the script runs, so a process the script starts gets
+ * neither; a program that read it anyway could call what `app call` can.
  *
  * It keeps out of the way of the script's own code: it defines nothing when
  * there is no channel or when `tools` already exists, the global is
  * non-enumerable (so walking the globals never shows it) and writable and
- * configurable (so a package assigning its own `tools` replaces it), and the
- * channel is referenced only while a call is waiting, so a script that never
- * calls a tool exits when its own work is done.
+ * configurable (so a package assigning its own `tools` replaces it), and it
+ * connects at the first call and holds the process open only while a call
+ * is waiting, so a script that never calls a tool exits when its own work
+ * is done.
  */
 const TOOLS_PRELOAD = `
-if (globalThis.tools === undefined && typeof process.send === "function") {
+import { connect } from "node:net";
+
+const toolsAt = process.env.${TOOLS_ENV};
+delete process.env.${TOOLS_ENV};
+if (globalThis.tools === undefined && toolsAt !== undefined) {
+  const [port, token] = toolsAt.split(":");
   const pending = new Map();
   let nextId = 0;
-  const onMessage = (message) => {
-    if (message?.type !== ${JSON.stringify(TOOL_REPLY)}) return;
-    const call = pending.get(message.id);
+  let socket;
+  let received = "";
+  const fail = (error) => {
+    socket = undefined;
+    received = "";
+    for (const call of pending.values()) call.reject(error);
+    pending.clear();
+  };
+  const onReply = (reply) => {
+    const call = pending.get(reply.id);
     if (call === undefined) return;
-    pending.delete(message.id);
-    if (pending.size === 0) {
-      process.off("message", onMessage);
-      process.channel?.unref();
-    }
-    if (typeof message.error === "string") {
-      call.reject(new Error(message.error));
+    pending.delete(reply.id);
+    if (pending.size === 0) socket?.unref();
+    if (typeof reply.error === "string") {
+      call.reject(new Error(reply.error));
     } else {
-      call.resolve(JSON.parse(message.result));
+      call.resolve(JSON.parse(reply.result));
     }
+  };
+  const connection = () => {
+    if (socket !== undefined) return socket;
+    const opened = connect({ host: "127.0.0.1", noDelay: true, port: Number(port) });
+    opened.setEncoding("utf8");
+    opened.write(token + "\\n");
+    opened.on("data", (chunk) => {
+      received += chunk;
+      for (let end = received.indexOf("\\n"); end !== -1; end = received.indexOf("\\n")) {
+        const line = received.slice(0, end);
+        received = received.slice(end + 1);
+        onReply(JSON.parse(line));
+      }
+    });
+    opened.on("error", fail);
+    opened.on("close", () => fail(new Error("The app closed the connection tools use.")));
+    socket = opened;
+    return opened;
   };
   const invoke = (toolPath, args) =>
     new Promise((resolve, reject) => {
       const id = ++nextId;
-      if (pending.size === 0) {
-        process.on("message", onMessage);
-        process.channel?.ref();
-      }
       pending.set(id, { reject, resolve });
-      process.send({
-        argsJson: JSON.stringify(args ?? {}),
-        id,
-        path: toolPath,
-        type: ${JSON.stringify(TOOL_CALL)},
-      });
+      const open = connection();
+      open.ref();
+      open.write(JSON.stringify({ argsJson: JSON.stringify(args ?? {}), id, path: toolPath }) + "\\n");
     });
   const at = (toolPath) =>
     new Proxy(function tools() {}, {
@@ -211,7 +229,6 @@ if (globalThis.tools === undefined && typeof process.send === "function") {
           ? at(toolPath === "" ? key : toolPath + "." + key)
           : undefined,
     });
-  process.channel?.unref();
   Object.defineProperty(globalThis, "tools", {
     configurable: true,
     enumerable: false,
@@ -227,38 +244,145 @@ if (globalThis.tools === undefined && typeof process.send === "function") {
  */
 const NODE_TOOLS_PRELOAD = `${PACKAGE_SCOPE_PRELOAD}${TOOLS_PRELOAD}`;
 
-/** Whether a message from the script is a tool call the preload sent. */
-export function isToolCallMessage(
-  message: unknown,
-): message is ToolCallMessage {
+/** A tool call the preload sends, one JSON line each. */
+interface ToolCall {
+  argsJson: string;
+  id: number;
+  path: string;
+}
+
+function isToolCall(value: unknown): value is ToolCall {
   return (
-    typeof message === "object" &&
-    message !== null &&
-    "type" in message &&
-    message.type === TOOL_CALL &&
-    "id" in message &&
-    typeof message.id === "number" &&
-    "path" in message &&
-    typeof message.path === "string" &&
-    "argsJson" in message &&
-    typeof message.argsJson === "string"
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "number" &&
+    "path" in value &&
+    typeof value.path === "string" &&
+    "argsJson" in value &&
+    typeof value.argsJson === "string"
   );
 }
 
 /** The reply to one tool call, from what answered it. */
-export async function answerToolCall(
-  message: ToolCallMessage,
+async function answerToolCall(
+  call: ToolCall,
   invoke: () => Promise<string>,
-): Promise<ToolReplyMessage> {
+): Promise<{ error: string; id: number } | { id: number; result: string }> {
   try {
-    return { id: message.id, result: await invoke(), type: TOOL_REPLY };
+    return { id: call.id, result: await invoke() };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : String(error),
-      id: message.id,
-      type: TOOL_REPLY,
+      id: call.id,
     };
   }
+}
+
+/** Longest a connection may write before giving its token. */
+const TOKEN_LINE_LIMIT = 256;
+
+/**
+ * Where one `node` process calls tools: a listener on 127.0.0.1 that takes
+ * a connection only once its first line is the token, then answers each
+ * call line with `answer`. The token opens exactly what `app call` opens:
+ * every call goes through the same `answer` the command was given.
+ */
+export interface ToolsChannel {
+  /** The variable to start the process with. */
+  env: Record<string, string>;
+  /**
+   * The signal calls run under from now on: a stage handing its stdout on
+   * outlives the command that started it.
+   */
+  attach(signal: AbortSignal): void;
+  /** Stops listening and drops every connection, once the process is gone. */
+  close(): void;
+}
+
+export async function openToolsChannel(
+  answer: (
+    toolPath: string,
+    argsJson: string,
+    signal?: AbortSignal,
+  ) => Promise<string>,
+): Promise<ToolsChannel> {
+  const token = randomBytes(32).toString("hex");
+  const expected = Buffer.from(token);
+  const sockets = new Set<net.Socket>();
+  let signal: AbortSignal | undefined;
+  const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+    socket.on("error", () => socket.destroy());
+    socket.setNoDelay(true);
+    let opened = false;
+    let received = Buffer.alloc(0);
+    socket.on("data", (chunk) => {
+      received = Buffer.concat([received, chunk]);
+      for (
+        let end = received.indexOf(10);
+        end !== -1;
+        end = received.indexOf(10)
+      ) {
+        const line = received.subarray(0, end);
+        received = received.subarray(end + 1);
+        if (!opened) {
+          if (
+            line.length !== expected.length ||
+            !timingSafeEqual(line, expected)
+          ) {
+            socket.destroy();
+            return;
+          }
+          opened = true;
+          continue;
+        }
+        let call: unknown;
+        try {
+          call = JSON.parse(line.toString("utf8"));
+        } catch {
+          socket.destroy();
+          return;
+        }
+        if (!isToolCall(call)) {
+          socket.destroy();
+          return;
+        }
+        void answerToolCall(call, () =>
+          answer(call.path, call.argsJson, signal),
+        ).then((reply) => {
+          if (!socket.destroyed) {
+            socket.write(`${JSON.stringify(reply)}\n`);
+          }
+        });
+      }
+      if (!opened && received.length > TOKEN_LINE_LIMIT) {
+        socket.destroy();
+      }
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen({ host: "127.0.0.1", port: 0 }, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  return {
+    attach(next) {
+      signal = next;
+    },
+    close() {
+      server.close();
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+    },
+    env: { [TOOLS_ENV]: `${port}:${token}` },
+  };
 }
 
 /**

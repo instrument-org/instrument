@@ -1,11 +1,11 @@
 import { execa, type Options } from "execa";
 import { bytesOutput, unsafeBytesFromLatin1 } from "just-bash";
 import { isUtf8 } from "node:buffer";
-import { type Serializable } from "node:child_process";
 import path from "node:path";
 
 import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
+import { type ToolsChannel } from "../node-tools-preload";
 
 import {
   launchNative,
@@ -99,14 +99,8 @@ export async function execShim(
   file: string,
   args: string[],
   options: ShimOptions & {
-    /**
-     * Opens an IPC channel to a Node subprocess and hears each message it
-     * sends; `reply` sends one back while the channel is open.
-     */
-    onMessage?: (
-      message: unknown,
-      reply: (message: Serializable) => void,
-    ) => void;
+    /** Where the program calls tools, closed once it exits. */
+    toolsChannel?: ToolsChannel;
     /**
      * Run outside the native sandbox: only for a command the person allowed
      * to act on its own, such as a script to an app they allowed.
@@ -127,7 +121,7 @@ export async function execShim(
   const sink = currentShellOutputSink();
   const {
     cancelSignal,
-    onMessage,
+    toolsChannel,
     ownEnvOnly,
     unsandboxed,
     walks,
@@ -140,6 +134,7 @@ export async function execShim(
     if (!(error instanceof NativeSandboxUnavailableError)) {
       throw error;
     }
+    toolsChannel?.close();
     // 126, the shell's "found but could not run".
     return {
       exitCode: 126,
@@ -167,7 +162,6 @@ export async function execShim(
   });
   const subprocess = execa(launch.file, launch.args, {
     ...subprocessOptions,
-    ...(onMessage ? { ipc: true } : {}),
     env,
     // Under MXC the program's command line is in the launcher's request,
     // and the launcher's own arguments take Node's quoting.
@@ -182,16 +176,8 @@ export async function execShim(
     reject: false,
     stripFinalNewline: false,
   });
-  if (onMessage) {
-    subprocess.on("message", (message) =>
-      onMessage(message, (reply) => {
-        if (subprocess.connected) {
-          // A subprocess that exits while the reply is on its way has
-          // nothing left to hear it.
-          subprocess.send(reply, () => {});
-        }
-      }),
-    );
+  if (cancelSignal) {
+    toolsChannel?.attach(cancelSignal);
   }
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
@@ -200,6 +186,7 @@ export async function execShim(
     ? collectAndForward(subprocess.readable({ from: "all" }), sink)
     : undefined;
   const result = await subprocess;
+  toolsChannel?.close();
   await streamed;
   await finishTreeTermination?.();
   const stderr = decodeForDisplay(asBuffer(result.stderr));

@@ -28,8 +28,7 @@ const BWRAP = "/usr/bin/bwrap";
 
 /**
  * A step inside the sandbox that closes every file descriptor the command
- * would inherit but its standard streams and Node's IPC channel, then runs
- * it. On Linux a spawned program inherits whatever the app holds open
+ * would inherit but its standard streams, then runs it. On Linux a spawned program inherits whatever the app holds open
  * without close-on-exec (Chromium's databases, its IPC sockets, the debug
  * port), and an open descriptor reaches past every folder bubblewrap
  * closes. Nothing may run before the descriptors are closed: `-p` keeps
@@ -45,7 +44,7 @@ function closingInheritedFds(): string[] {
         "--norc",
         "-p",
         "-c",
-        'for f in /proc/self/fd/*; do f=${f##*/}; case $f in 0|1|2|"$NODE_CHANNEL_FD") ;; *) eval "exec $f>&-" 2>/dev/null ;; esac; done; exec "$@"',
+        'for f in /proc/self/fd/*; do f=${f##*/}; case $f in 0|1|2) ;; *) eval "exec $f>&-" 2>/dev/null ;; esac; done; exec "$@"',
         "bash",
       ]
     : [];

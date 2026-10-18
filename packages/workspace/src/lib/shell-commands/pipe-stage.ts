@@ -6,7 +6,6 @@ import {
 } from "just-bash";
 import {
   type ChildProcess,
-  type Serializable,
   spawn,
   type StdioOptions,
 } from "node:child_process";
@@ -15,6 +14,7 @@ import { constants } from "node:os";
 import { PassThrough, type Readable } from "node:stream";
 
 import { inheritedEnv } from "../native-env";
+import { type ToolsChannel } from "../node-tools-preload";
 import {
   launchNative,
   NativeSandboxUnavailableError,
@@ -85,14 +85,11 @@ export interface StageOptions {
   /** Stop the program once its stdout passes this many bytes, as execa's `maxBuffer`. */
   maxStdout?: number;
   /**
-   * Hears each IPC message a Node child sends. `signal` stops when the stage
-   * does, which for a stage handing its stdout on is after its command.
+   * Where the program calls tools, closed once it exits. Its calls run under
+   * the stage's signal, which for a stage handing its stdout on stops after
+   * its command.
    */
-  onMessage?: (
-    message: unknown,
-    reply: (message: Serializable) => void,
-    signal?: AbortSignal,
-  ) => void;
+  toolsChannel?: ToolsChannel;
   /** Return at once with a handoff for stdout instead of waiting. */
   offerHandoff: boolean;
   /** The previous stage's handoff token, taken as fd 0. */
@@ -215,6 +212,7 @@ export function startPipeStage(
       options.unsandboxed ? null : undefined,
     );
   } catch (error) {
+    options.toolsChannel?.close();
     if (!(error instanceof NativeSandboxUnavailableError)) {
       throw error;
     }
@@ -262,7 +260,6 @@ export function startPipeStage(
       : (upstream ?? (options.input ? "pipe" : (options.stdinFd ?? "ignore"))),
     "pipe",
     "pipe",
-    ...(options.onMessage ? (["ipc"] as const) : []),
   ];
   let child: ChildProcess;
   try {
@@ -316,19 +313,11 @@ export function startPipeStage(
     child.stdin.on("error", () => {});
     child.stdin.end(options.input);
   }
-  if (options.onMessage) {
-    const onMessage = options.onMessage;
-    child.on("message", (message) =>
-      onMessage(
-        message,
-        (reply) => {
-          if (child.connected) {
-            child.send(reply, () => {});
-          }
-        },
-        stop.signal,
-      ),
-    );
+  if (options.toolsChannel) {
+    const channel = options.toolsChannel;
+    channel.attach(stop.signal);
+    child.once("close", () => channel.close());
+    child.once("error", () => channel.close());
   }
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: child.pid, signal: stop.signal })

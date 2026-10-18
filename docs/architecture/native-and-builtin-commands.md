@@ -96,7 +96,7 @@ The last column names the arguments that send one call to the builtin on every p
 | `rg` | ripgrep from `@vscode/ripgrep`, with flags that run other programs refused | all |
 | `git` | dugite's git, with our argv policy and an isolated environment | all |
 | `python`, `pip`, `uv` | the chat's virtualenv interpreter and the bundled uv | all |
-| `node` | Electron run as Node, with a `tools` global over IPC | all |
+| `node` | Electron run as Node, with a `tools` global over loopback | all |
 | `pnpm`, `pnx`, `pnpx`, `npx` | the bundled pnpm (`npx` and `pnpx` are `pnpm dlx`) | all |
 | `ffmpeg`, `ffprobe` | `ffmpeg-ffprobe-static` | all |
 | `agent-browser` | the agent-browser CLI, spawned directly with its own flag policy rather than under the native sandbox | all |

@@ -5,11 +5,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type AppToolInvoker } from "../app-tool-hook";
-import {
-  answerToolCall,
-  isToolCallMessage,
-  nodeToolsPreloadUrl,
-} from "../node-tools-preload";
+import { nodeToolsPreloadUrl, openToolsChannel } from "../node-tools-preload";
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
 import { APP_COMMAND } from "./app-command";
@@ -46,44 +42,44 @@ async function execNode(
   // sandbox refuses; `tools` only works with a tool to answer it.
   const preload =
     args[0] === "--version" ? [] : ["--import", await nodeToolsPreloadUrl()];
-  return runNative(
-    ctx,
-    process.execPath,
-    [...preload, ...args],
-    {
-      cancelSignal: signal,
-      ...(invokeTool && {
-        // `stageSignal` outlives the command when its stdout is handed to the
-        // next program, where the command's own signal ends with it.
-        onMessage: (message, reply, stageSignal) => {
-          if (!isToolCallMessage(message)) {
-            return;
-          }
-          void answerToolCall(message, () =>
-            invokeTool(message.path, message.argsJson, stageSignal ?? signal),
-          ).then(reply);
+  const toolsChannel =
+    invokeTool &&
+    (await openToolsChannel((toolPath, argsJson, stageSignal) =>
+      invokeTool(toolPath, argsJson, stageSignal ?? signal),
+    ));
+  try {
+    return await runNative(
+      ctx,
+      process.execPath,
+      [...preload, ...args],
+      {
+        cancelSignal: signal,
+        ...(toolsChannel && { toolsChannel }),
+        cwd: cwd ?? workDir(chatId),
+        env: {
+          ...getWorkspaceConfig().nodeExecEnv,
+          ...env,
+          // A script that installs or builds a native addon uses the app's own
+          // npm config, store and node-gyp headers, never the person's.
+          ...nodeToolsEnv(),
+          // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
+          ...ffmpegSubprocessEnv(env?.PATH),
+          ...toolsChannel?.env,
         },
-      }),
-      cwd: cwd ?? workDir(chatId),
-      env: {
-        ...getWorkspaceConfig().nodeExecEnv,
-        ...env,
-        // A script that installs or builds a native addon uses the app's own
-        // npm config, store and node-gyp headers, never the person's.
-        ...nodeToolsEnv(),
-        // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
-        ...ffmpegSubprocessEnv(env?.PATH),
+        ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
       },
-      ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
-    },
-    (result) => ({
-      exitCode: result.exitCode ?? 1,
-      ...mapStreams(shimOutput(result, NODE_COMMAND.name), (text) =>
-        filterShellOutput(text),
-      ),
-      ...binaryStdout(result),
-    }),
-  );
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, NODE_COMMAND.name), (text) =>
+          filterShellOutput(text),
+        ),
+        ...binaryStdout(result),
+      }),
+    );
+  } catch (error) {
+    toolsChannel?.close();
+    throw error;
+  }
 }
 
 type NodeContext = Parameters<typeof runNative>[0];
@@ -119,7 +115,7 @@ export const NODE_COMMAND = {
 /**
  * `node` as a real process. With `invokeTool`, the script gets the `tools`
  * global (`node-tools-preload.ts`), and this command answers each call it
- * makes over the subprocess's IPC channel.
+ * makes over a loopback channel opened for that one process.
  */
 export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
   const command = defineCommand(NODE_COMMAND.name, async (args, ctx) => {

@@ -202,9 +202,51 @@ export const WORKSPACE_MACHINE_ENTRIES = {
 } as const;
 
 /**
- * What the app keeps in the person's home folder, in `~/.instrument/`
- * (`PRIVATE_FOLDER_NAME`): what the agent made for the person, in a folder
- * they can find, apart from the app's own data.
+ * What a flavor calls the two folders it keeps in the person's home folder:
+ * `instrument`, its Instrument folder (where finished work goes while the
+ * workspace is kept in the app's own data, and the folder offered when the
+ * person picks one), and `data`, its own data (`HOME_DATA_ENTRIES`). Each
+ * flavor has its own pair, so a development run or a preview never writes
+ * into the folders of the app people install, nor finds its workspace there
+ * to open. Every preview shares one pair, so a rebuild makes no new folders.
+ */
+export function homeFoldersOf(flavor: AppFlavor): {
+  data: string;
+  instrument: string;
+} {
+  switch (flavor.kind) {
+    case "development":
+      return {
+        data: `${PRIVATE_FOLDER_NAME}-dev`,
+        instrument: `${APP_NAME} Dev`,
+      };
+    case "preview":
+      return {
+        data: `${PRIVATE_FOLDER_NAME}-preview`,
+        instrument: `${APP_NAME} Preview`,
+      };
+    case "release":
+      return { data: PRIVATE_FOLDER_NAME, instrument: APP_NAME };
+  }
+}
+export const HOME_FOLDERS = homeFoldersOf(APP_FLAVOR);
+/**
+ * Every flavor's own data folder in the home folder, none of which can be or
+ * hold an Instrument folder, whichever flavor is asking.
+ */
+export const HOME_DATA_FOLDER_NAMES = (
+  [
+    { kind: "development" },
+    { kind: "preview", name: "" },
+    { kind: "release" },
+  ] satisfies AppFlavor[]
+).map((flavor) => homeFoldersOf(flavor).data);
+
+/**
+ * What the app keeps in the person's home folder, in its flavor's data
+ * folder (`HOME_FOLDERS.data`, `~/.instrument/` for the app people install):
+ * what the agent made for the person, in a folder they can find, apart from
+ * the app's own data.
  */
 export const HOME_DATA_ENTRIES = {
   /**

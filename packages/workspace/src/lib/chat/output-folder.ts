@@ -1,3 +1,9 @@
+import {
+  APP_FLAVOR,
+  APP_NAME,
+  type AppFlavor,
+  HOME_FOLDERS,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,9 +19,10 @@ export async function ensureOutputFolder(): Promise<boolean> {
 }
 
 /**
- * `Instrument` in the home folder: where finished work goes while the
- * workspace is kept in the app's own data, and the folder suggested when the
- * person picks where to keep their Instrument folder.
+ * The flavor's Instrument folder in the home folder (`HOME_FOLDERS`,
+ * `~/Instrument` for the app people install): where finished work goes while
+ * the workspace is kept in the app's own data, and the folder suggested when
+ * the person picks where to keep their Instrument folder.
  *
  * The home folder rather than Documents, which macOS asks the person about
  * before any program reads or writes in it. That question used to arrive on
@@ -23,17 +30,23 @@ export async function ensureOutputFolder(): Promise<boolean> {
  * was for, and the folder-icon step waited behind it.
  */
 export function instrumentFolderUnchosen(): string {
-  return path.join(os.homedir(), "Instrument");
+  return path.join(os.homedir(), HOME_FOLDERS.instrument);
 }
 
 /**
- * Where finished work went before the home folder: `Instrument` in
- * Documents. An install that has this folder keeps using it, so its finished
- * work does not split across two folders; the app decides that where it can
- * tell this is not a first launch (`unchosenOutputFolder`).
+ * Where the app people install put finished work before the home folder:
+ * `Instrument` in Documents. An install that has this folder keeps using it,
+ * so its finished work does not split across two folders; the app decides
+ * that where it can tell this is not a first launch (`unchosenOutputFolder`).
+ * Nothing for a development run or a preview, which would otherwise take the
+ * installed app's folder for their own.
  */
-export function instrumentFolderInDocuments(): string {
-  return path.join(os.homedir(), "Documents", "Instrument");
+export function instrumentFolderInDocuments(
+  flavor: AppFlavor = APP_FLAVOR,
+): string | undefined {
+  return flavor.kind === "release"
+    ? path.join(os.homedir(), "Documents", APP_NAME)
+    : undefined;
 }
 
 /**

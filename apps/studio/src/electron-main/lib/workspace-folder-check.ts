@@ -1,4 +1,4 @@
-import { APP_NAME, PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { HOME_DATA_FOLDER_NAMES, HOME_FOLDERS } from "@instrument-org/shared";
 import { placePaths, startupPaths } from "@instrument-org/workspace/electron";
 import os from "node:os";
 import path from "node:path";
@@ -13,8 +13,10 @@ import { pathKey } from "./path-identity";
  * Whether a folder can be an Instrument folder, for every way one reaches the
  * app: picked to move the workspace to, picked to open, or found in the
  * registry at launch. Refused, with no way past, are only the places the app
- * would break: the home folder (whose `.instrument` is the app's own
- * `~/.instrument`), the app's own files, and another workspace. Every other
+ * would break: the home folder (whose `.instrument` is the installed app's
+ * own `~/.instrument`), the app's own files, every flavor's own data folder
+ * in the home folder (`HOME_DATA_FOLDER_NAMES`), and another workspace.
+ * Every other
  * place whose contents are more than the person's own work, which every chat
  * may change from the workspace's top level, is a warning they can go past,
  * since a refusal that is wrong strands them. For the home folder, a folder
@@ -178,7 +180,9 @@ export function folderConcern(
   if (
     within(folder, facts.userDataDir) ||
     within(folder, facts.installDir) ||
-    within(folder, paths.join(home, PRIVATE_FOLDER_NAME))
+    HOME_DATA_FOLDER_NAMES.some((name) =>
+      within(folder, paths.join(home, name)),
+    )
   ) {
     return refused("own-data");
   }
@@ -240,22 +244,21 @@ export function folderConcern(
 
 /**
  * The obvious better place for the Instrument folder than `folder`, where
- * there is one: a folder named for the app in the home folder, for the home
- * folder or a folder around it, and one inside Documents, Desktop, Downloads
- * or iCloud Drive, for one of those. Whether the folder offered could take
- * the workspace is the caller's to check.
+ * there is one: a folder named for the app's flavor (`HOME_FOLDERS`) in the
+ * home folder, for the home folder or a folder around it, and one inside
+ * Documents, Desktop, Downloads or iCloud Drive, for one of those. Whether
+ * the folder offered could take the workspace is the caller's to check.
  */
 export function folderInstead(
   folder: string,
   facts: Pick<FolderFacts, "home" | "platform">,
+  name = HOME_FOLDERS.instrument,
 ): string | undefined {
   const { paths, within } = spelling(facts.platform);
   if (within(facts.home, folder)) {
-    return paths.join(facts.home, APP_NAME);
+    return paths.join(facts.home, name);
   }
-  return isPersonalFolder(folder, facts)
-    ? paths.join(folder, APP_NAME)
-    : undefined;
+  return isPersonalFolder(folder, facts) ? paths.join(folder, name) : undefined;
 }
 
 function isPersonalFolder(

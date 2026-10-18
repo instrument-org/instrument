@@ -28,7 +28,8 @@ import {
  * anywhere but in the folders there that hold the person's own files
  * ({@link isRecordPath}). And this computer's folder, Electron's userData,
  * which keeps each workspace's keys, sign-ins and Chromium profiles under
- * names nothing else marks as private, and `~/.instrument`; only the
+ * names nothing else marks as private, and the flavor's data folder in the
+ * home folder (`~/.instrument` for the app people install); only the
  * folders in them that are the person's to view are shown, every chat's
  * work folder among them, which {@link userDataViewRule} names.
  */
@@ -41,7 +42,7 @@ export interface ViewRule {
   refused: readonly string[];
   viewable: readonly string[];
   /**
-   * Viewable folders inside `~/.instrument`, every workspace's work
+   * Viewable folders inside the home data folder, every workspace's work
    * folders: a file in one is a record only by a `.instrument` below it.
    */
   work: readonly string[];
@@ -56,7 +57,7 @@ const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
 
 /**
  * This computer's folders' rule: all of the app's data is refused, in its
- * own folder and in `~/.instrument`, but the workspaces it keeps, the
+ * own folder and in its home data folder, but the workspaces it keeps, the
  * default one and those made from the dev panel, the workspace this process
  * has open wherever it is, and every chat's work folder.
  */
@@ -129,7 +130,7 @@ export function isRefusedByName(
 ): boolean {
   const hostPath = opened(path.resolve(asked));
   // Below a work folder only what is below it says whether it is a record,
-  // since the folder itself is under `~/.instrument`.
+  // since the folder itself is under `~/.instrument` in the installed app.
   const work = rule.work.find((root) => isAtOrUnder(hostPath, root));
   if (
     isRecordPath(

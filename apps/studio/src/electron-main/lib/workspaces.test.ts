@@ -687,6 +687,15 @@ describe("where finished work goes while the workspace is the app's own", () => 
     );
   });
 
+  it("leaves the installed app's folder in Documents to it", () => {
+    fs.mkdirSync(inHome("Documents", "Instrument"), { recursive: true });
+    plantChat();
+
+    expect(unchosenOutputFolder(userDataDir, { kind: "development" })).toBe(
+      inHome("Instrument"),
+    );
+  });
+
   it("names the home folder for a computer that never made that folder", () => {
     plantChat();
 

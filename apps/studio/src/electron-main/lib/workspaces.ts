@@ -1,4 +1,8 @@
-import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import {
+  APP_FLAVOR,
+  type AppFlavor,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import {
   instrumentFolderInDocuments,
   instrumentFolderUnchosen,
@@ -227,9 +231,10 @@ export function defaultWorkspacePath(userDataDir: string): string {
 }
 
 /**
- * Where finished work goes while the workspace is the app's own: `Instrument`
- * in the home folder, which macOS asks nothing about, so a first launch
- * raises no prompt over it.
+ * Where finished work goes while the workspace is the app's own: the
+ * flavor's Instrument folder in the home folder (`~/Instrument` for the app
+ * people install), which macOS asks nothing about, so a first launch raises
+ * no prompt over it.
  *
  * An install that already made the older folder in Documents keeps that one,
  * so its finished work does not end up split across two folders. Documents
@@ -238,9 +243,14 @@ export function defaultWorkspacePath(userDataDir: string): string {
  * look reads as the folder not being there, which sends new work to the
  * home folder.
  */
-export function unchosenOutputFolder(userDataDir: string): string {
-  const older = instrumentFolderInDocuments();
-  return usedBefore(userDataDir) && isDirectorySync(older)
+export function unchosenOutputFolder(
+  userDataDir: string,
+  flavor: AppFlavor = APP_FLAVOR,
+): string {
+  const older = instrumentFolderInDocuments(flavor);
+  return older !== undefined &&
+    usedBefore(userDataDir) &&
+    isDirectorySync(older)
     ? older
     : instrumentFolderUnchosen();
 }

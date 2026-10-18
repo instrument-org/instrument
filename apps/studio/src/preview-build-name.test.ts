@@ -2,8 +2,47 @@ import { describe, expect, it } from "vitest";
 
 import {
   appFlavorOf,
+  HOME_DATA_FOLDER_NAMES,
+  homeFoldersOf,
   previewBuildNameOf,
 } from "@instrument-org/shared/constants";
+
+describe("homeFoldersOf", () => {
+  it("gives each flavor its own home folders, one pair for every preview", () => {
+    expect([
+      homeFoldersOf({ kind: "release" }),
+      homeFoldersOf({ kind: "development" }),
+      homeFoldersOf({ kind: "preview", name: "sync-110" }),
+      homeFoldersOf({ kind: "preview", name: "sync-111" }),
+    ]).toMatchInlineSnapshot(`
+      [
+        {
+          "data": ".instrument",
+          "instrument": "Instrument",
+        },
+        {
+          "data": ".instrument-dev",
+          "instrument": "Instrument Dev",
+        },
+        {
+          "data": ".instrument-preview",
+          "instrument": "Instrument Preview",
+        },
+        {
+          "data": ".instrument-preview",
+          "instrument": "Instrument Preview",
+        },
+      ]
+    `);
+    expect(HOME_DATA_FOLDER_NAMES).toMatchInlineSnapshot(`
+      [
+        ".instrument-dev",
+        ".instrument-preview",
+        ".instrument",
+      ]
+    `);
+  });
+});
 
 describe("previewBuildNameOf", () => {
   it.each([

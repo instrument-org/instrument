@@ -64,6 +64,9 @@ describe("folderConcern", () => {
     ],
     ["darwin", "/Users/casey/.instrument", "own-data"],
     ["darwin", "/Users/casey/.Instrument/work", "own-data"],
+    // Another flavor's data folder, whichever flavor asks.
+    ["darwin", "/Users/casey/.instrument-dev", "own-data"],
+    ["darwin", "/Users/casey/.instrument-preview/work", "own-data"],
     ["darwin", "/Users/casey/Projects/Lab/notes", "other-workspace"],
     ["darwin", "/Users/casey/projects", "other-workspace"],
 
@@ -256,6 +259,12 @@ describe("folderInstead", () => {
     ["win32", "D:\\", undefined],
   ])("%s offers for %s: %s", (platform, folder, instead) => {
     expect(folderInstead(folder, FACTS[platform])).toBe(instead);
+  });
+
+  it("offers the flavor's own folder", () => {
+    expect(folderInstead("/Users/casey", FACTS.darwin, "Instrument Dev")).toBe(
+      "/Users/casey/Instrument Dev",
+    );
   });
 });
 

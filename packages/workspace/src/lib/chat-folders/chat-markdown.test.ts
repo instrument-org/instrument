@@ -50,6 +50,7 @@ function render(chat: FoldedChat, options: { timeZone?: string } = {}) {
   return renderChatMarkdown({
     chat,
     id: CHAT,
+    rootDir: "/Users/someone/Workspace",
     timeZone: options.timeZone ?? ZONE,
     topicNames: new Map([["top_1", "Kitchen"]]),
   });
@@ -237,11 +238,13 @@ it("renders a chat whole", () => {
     Sent: kitchen.png
 
     <details>
-    <summary>Worked for 20s</summary>
+    <summary>Worked for 20s · ran 2 commands</summary>
     <pre>
     thinking: Noise matters more to them than price.
-    bash: ls
-      t1 bash: ls (exit 1)
+    Ran a command · 10s
+      $ ls
+      t1 Ran a command · exit 1 · 1s
+        $ ls
     </pre>
     </details>
 
@@ -286,7 +289,9 @@ it("counts the work to the end of the call, not to when it was made", () => {
       ),
     ]),
   ]);
-  expect(render(slow)).toContain("<summary>Worked for 3m 10s</summary>");
+  expect(render(slow)).toContain(
+    "<summary>Worked for 3m 10s · ran a command</summary>",
+  );
 });
 
 describe("the same records render the same bytes", () => {

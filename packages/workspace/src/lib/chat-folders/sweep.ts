@@ -205,7 +205,13 @@ async function sweepChatFolder({
   try {
     const dir = chatDirOf(chatsDir, id);
     const chat = await foldChatInFolder(dir);
-    const markdown = renderChatMarkdown({ chat, id, timeZone, topicNames });
+    const markdown = renderChatMarkdown({
+      chat,
+      id,
+      rootDir,
+      timeZone,
+      topicNames,
+    });
     if (markdown === undefined) {
       return { kind: "no-conversation" };
     }

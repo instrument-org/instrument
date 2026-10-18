@@ -6,18 +6,13 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { TOOL_NAMES } from "../../tools/name";
-import {
-  callActivity,
-  clipLine,
-  partCreatedAt,
-  partEndedAt,
-  toolCallLine,
-} from "../chat/call-label";
+import { clipLine, partCreatedAt, partEndedAt } from "../chat/call-label";
 import { shownTitle } from "../chat/shown-title";
 import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
 import { localStamp } from "../local-stamp";
 import { sessionOf } from "../records/session-of";
+import { spokenDuration, workFoldFacts, workFoldLines } from "./work-fold";
 
 /**
  * A chat's `CHAT.md`: its conversation as Markdown, for the person to read in
@@ -45,6 +40,8 @@ export interface ChatMarkdownInput {
   chat: FoldedChat;
   /** The chat, for the address that opens it in the app. */
   id: ChatId;
+  /** The workspace, which the files the work touched are named from. */
+  rootDir: string;
   /** The zone the day and time headings are written in, as an IANA name. */
   timeZone: string;
   /**
@@ -113,6 +110,8 @@ const ConnectInputSchema = z.object({
 /** One line the fold holds: a line of work, at the depth it belongs. */
 interface WorkLine {
   at: Date;
+  /** The call the line is, for the summary to count; none for a thought. */
+  call?: SessionMessagePart.ToolPart;
   /** 0 for the chat's own agent, 1 for a task of its. */
   depth: number;
   /** When the call it names ended, where the records say so; `at` otherwise. */
@@ -129,6 +128,7 @@ interface WorkLine {
 export function renderChatMarkdown({
   chat,
   id,
+  rootDir,
   timeZone,
   topicNames,
 }: ChatMarkdownInput): string | undefined {
@@ -140,7 +140,7 @@ export function renderChatMarkdown({
     frontMatter(own, timeZone, topicNames),
     `[Open this chat in ${APP_NAME}](${APP_NAME_SLUG}://chat/${id})`,
   ];
-  const work = workLines(chat, own.id);
+  const work = workLines(chat, own.id, rootDir);
   let taken = 0;
   let day: string | undefined;
   /** Says the day of what comes next, where the file has not said it yet. */
@@ -363,8 +363,9 @@ function card(part: SessionMessagePart.ToolPart): string | undefined {
 }
 
 /**
- * The work of a stretch, as one `<details>`: how long it ran in the summary,
- * and its lines in a `<pre>`, a task's indented under the chat's own.
+ * The work of a stretch, as one `<details>`: how long it ran and what it did
+ * in the summary, and its lines in a `<pre>`, a task's indented under the
+ * chat's own.
  */
 function details(held: WorkLine[]): string {
   const first = held[0];
@@ -379,9 +380,13 @@ function details(held: WorkLine[]): string {
       .split("\n")
       .map((each) => escaped(`${" ".repeat(line.depth * 2)}${each}`)),
   );
+  const summary = [
+    `Worked for ${spokenDuration(ended - first.at.getTime())}`,
+    ...workFoldFacts(held.flatMap((line) => (line.call ? [line.call] : []))),
+  ].join(" · ");
   return [
     "<details>",
-    `<summary>${worked(ended - first.at.getTime())}</summary>`,
+    `<summary>${escaped(summary)}</summary>`,
     "<pre>",
     ...body,
     "</pre>",
@@ -390,35 +395,20 @@ function details(held: WorkLine[]): string {
 }
 
 /**
- * How long the work took, as the summary line says it: to the second, the
- * way the chat's own rows count time, and never under one.
- */
-function worked(ms: number): string {
-  const seconds = Math.max(1, Math.round(ms / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  if (minutes === 0) {
-    return `Worked for ${rest.toString()}s`;
-  }
-  return rest === 0
-    ? `Worked for ${minutes.toString()}m`
-    : `Worked for ${minutes.toString()}m ${rest.toString()}s`;
-}
-
-/**
  * Every line of work the chat's sessions hold, oldest first: its own agent's
  * reasoning and calls, and each of its tasks' at a depth of one. Ordered by
  * when each happened, and for two at the same moment by the session and the
  * part they are, so the order never comes from how the records were read.
  */
-function workLines(chat: FoldedChat, own: StoreId.Session): WorkLine[] {
+function workLines(
+  chat: FoldedChat,
+  own: StoreId.Session,
+  rootDir: string,
+): WorkLine[] {
   const lines: WorkLine[] = [];
   for (const session of chat.sessions) {
     const depth = session.id === own ? 0 : 1;
     const handle = depth === 0 ? "" : `${session.handle ?? session.id} `;
-    // The phase the calls so far belong to, per session: a call opens a new
-    // one by naming an activity of its own.
-    let activity: string | undefined;
     for (const message of session.messages) {
       if (message.role !== "assistant") {
         continue;
@@ -443,23 +433,14 @@ function workLines(chat: FoldedChat, own: StoreId.Session): WorkLine[] {
         if (!isToolPart(part) || VISIBLE.has(part.type)) {
           continue;
         }
-        const named = callActivity(part);
-        if (named !== undefined && named !== activity) {
-          activity = named;
-          lines.push({
-            at,
-            depth,
-            endedAt: at,
-            order,
-            text: `${handle}${named}`,
-          });
-        }
+        const [head = "", ...more] = workFoldLines(part, rootDir);
         lines.push({
           at,
+          call: part,
           depth,
           endedAt,
           order,
-          text: `${handle}${toolCallLine(part)}`,
+          text: [`${handle}${head}`, ...more].join("\n"),
         });
       }
     }

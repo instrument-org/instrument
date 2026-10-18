@@ -2,7 +2,7 @@ import {
   settingsModalAtom,
   type SettingsTab,
 } from "@/client/atoms/settings-modal";
-import { AIUsageSection } from "@/client/components/settings/ai-usage-section";
+import { ActivitySection } from "@/client/components/settings/activity-section";
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
@@ -481,7 +481,7 @@ function SettingsSectionBody({
 }) {
   switch (tab) {
     case "Usage": {
-      return <AIUsageSection />;
+      return <ActivitySection />;
     }
     case "Debug": {
       return <DebugSection />;

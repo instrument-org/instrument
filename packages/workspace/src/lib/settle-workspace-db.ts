@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { CHAT_DB_FILE_NAME } from "../constants";
-import { makeActivityTable } from "./ai-usage/store";
+import { makeActivityTable } from "./activity/store";
 import {
   entryExists,
   isDirectorySync,

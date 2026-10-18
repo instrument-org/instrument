@@ -21,7 +21,7 @@ import { TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
-import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
+import { registerActivityTelemetry } from "../../lib/activity/record";
 import { chatDir } from "../../lib/record-folders";
 import {
   ChatRecords,
@@ -376,7 +376,7 @@ export const workspaceMachine = setup({
         onError: workspaceConfig.captureException,
       }),
     );
-    registerAIUsageTelemetry();
+    registerActivityTelemetry();
     return {
       config: workspaceConfig,
       sessionRefsByChatId: new Map(),

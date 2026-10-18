@@ -1,21 +1,21 @@
 import { z } from "zod";
 
 import {
-  AIUsageFilterSchema,
-  AIUsageRowSchema,
-  AIUsageSortSchema,
-} from "../../lib/ai-usage/schema";
+  ActivityFilterSchema,
+  ActivityRowSchema,
+  ActivitySortSchema,
+} from "../../lib/activity/schema";
 import {
-  getAIUsage,
-  listAIUsage,
-  summarizeAIUsage,
-} from "../../lib/ai-usage/store";
+  getActivity,
+  listActivity,
+  summarizeActivity,
+} from "../../lib/activity/store";
 import { chatById } from "../../lib/chat/chats";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
 
 /** A row with its chat's name, which is absent once the chat is gone. */
-const AIUsageListedSchema = AIUsageRowSchema.extend({
+const ActivityListedSchema = ActivityRowSchema.extend({
   chatTitle: z.string().nullable(),
 });
 
@@ -37,15 +37,15 @@ async function chatTitles(chatIds: Iterable<null | string>) {
 const list = base
   .input(
     z.object({
-      filter: AIUsageFilterSchema,
+      filter: ActivityFilterSchema,
       limit: z.number().int().min(1).max(500),
       offset: z.number().int().min(0),
-      sort: AIUsageSortSchema,
+      sort: ActivitySortSchema,
     }),
   )
-  .output(AIUsageListedSchema.array())
+  .output(ActivityListedSchema.array())
   .handler(async ({ input }) => {
-    const rows = listAIUsage(input);
+    const rows = listActivity(input);
     const titles = await chatTitles(rows.map((row) => row.chatId));
     return rows.map((row) => ({
       ...row,
@@ -56,9 +56,9 @@ const list = base
 /** One request, for its detail page. */
 const byId = base
   .input(z.object({ id: z.string() }))
-  .output(AIUsageListedSchema.optional())
+  .output(ActivityListedSchema.optional())
   .handler(async ({ input }) => {
-    const row = getAIUsage(input.id);
+    const row = getActivity(input.id);
     if (!row) {
       return undefined;
     }
@@ -80,7 +80,7 @@ const FacetValueSchema = z.object({
 
 /** The totals under the filters, and the values each filter can take with their counts. */
 const summary = base
-  .input(z.object({ filter: AIUsageFilterSchema }))
+  .input(z.object({ filter: ActivityFilterSchema }))
   .output(
     z.object({
       facets: z.record(z.string(), FacetValueSchema.array()),
@@ -89,7 +89,7 @@ const summary = base
     }),
   )
   .handler(async ({ input }) => {
-    const { facets, requests, tokens } = summarizeAIUsage(input.filter);
+    const { facets, requests, tokens } = summarizeActivity(input.filter);
     const titles = await chatTitles(
       facets.origin.map(({ value }) =>
         value.startsWith("chat:") ? value.slice("chat:".length) : null,
@@ -112,4 +112,4 @@ const summary = base
     };
   });
 
-export const aiUsage = { byId, list, summary };
+export const activity = { byId, list, summary };

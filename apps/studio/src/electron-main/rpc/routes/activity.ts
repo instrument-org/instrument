@@ -2,8 +2,8 @@ import { base } from "@/electron-main/rpc/base";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { APP_NAME } from "@instrument-org/shared";
 import {
-  aiUsageCsv,
-  AIUsageFilterSchema,
+  activityCsv,
+  ActivityFilterSchema,
 } from "@instrument-org/workspace/electron";
 import { app, dialog } from "electron";
 import fs from "node:fs/promises";
@@ -11,13 +11,13 @@ import path from "node:path";
 import { z } from "zod";
 
 /**
- * Saves the AI usage log, as the filters show it, to a CSV file the person
+ * Saves the activity log, as the filters show it, to a CSV file the person
  * picks. A copy of their own rather than the record itself: the record is
  * the only copy of what it holds, so it is never shown in the Finder for
  * someone to move or delete by accident.
  */
 const saveCsv = base
-  .input(z.object({ filter: AIUsageFilterSchema }))
+  .input(z.object({ filter: ActivityFilterSchema }))
   .output(z.object({ status: z.enum(["canceled", "failed", "saved"]) }))
   .handler(async ({ context, input }) => {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -35,11 +35,11 @@ const saveCsv = base
       return { status: "canceled" as const };
     }
     try {
-      await fs.writeFile(result.filePath, aiUsageCsv(input.filter));
+      await fs.writeFile(result.filePath, activityCsv(input.filter));
       return { status: "saved" as const };
     } catch {
       return { status: "failed" as const };
     }
   });
 
-export const aiUsage = { saveCsv };
+export const activity = { saveCsv };

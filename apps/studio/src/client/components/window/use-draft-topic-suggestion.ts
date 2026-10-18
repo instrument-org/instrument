@@ -74,7 +74,7 @@ export function useDraftTopicSuggestion({
           state: {},
         }
       : undefined,
-    usage: { purpose: "topic-suggestion", surface: "draft" },
+    activity: { purpose: "topic-suggestion", surface: "draft" },
     key: ["draft-topic", settled, criteria],
   });
 

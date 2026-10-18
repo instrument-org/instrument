@@ -1,15 +1,15 @@
 import { z } from "zod";
 
 /** What kind of model answered: the column a person filters to tell a reply from a quick choice. */
-const AI_USAGE_KINDS = ["language", "decision", "search", "image"] as const;
-const AIUsageKindSchema = z.enum(AI_USAGE_KINDS);
-export type AIUsageKind = z.output<typeof AIUsageKindSchema>;
+const ACTIVITY_KINDS = ["language", "decision", "search", "image"] as const;
+const ActivityKindSchema = z.enum(ACTIVITY_KINDS);
+export type ActivityKind = z.output<typeof ActivityKindSchema>;
 
 /**
  * Why the app made the request. `other` is what a call that named no purpose
  * is recorded as, so a call site that forgot to say shows up as a gap.
  */
-const AI_USAGE_PURPOSES = [
+const ACTIVITY_PURPOSES = [
   "chat",
   "task",
   "chat-title",
@@ -24,11 +24,11 @@ const AI_USAGE_PURPOSES = [
   "app-search",
   "other",
 ] as const;
-export const AIUsagePurposeSchema = z.enum(AI_USAGE_PURPOSES);
-export type AIUsagePurpose = z.output<typeof AIUsagePurposeSchema>;
+export const ActivityPurposeSchema = z.enum(ACTIVITY_PURPOSES);
+export type ActivityPurpose = z.output<typeof ActivityPurposeSchema>;
 
 /** Where a request came from when no chat or task asked for it. */
-const AI_USAGE_SURFACES = [
+const ACTIVITY_SURFACES = [
   "agent",
   "apps",
   "chats",
@@ -36,14 +36,14 @@ const AI_USAGE_SURFACES = [
   "settings",
   "topics",
 ] as const;
-export const AIUsageSurfaceSchema = z.enum(AI_USAGE_SURFACES);
-export type AIUsageSurface = z.output<typeof AIUsageSurfaceSchema>;
+export const ActivitySurfaceSchema = z.enum(ACTIVITY_SURFACES);
+export type ActivitySurface = z.output<typeof ActivitySurfaceSchema>;
 
-const AI_USAGE_STATUSES = ["finished", "failed", "stopped"] as const;
-const AIUsageStatusSchema = z.enum(AI_USAGE_STATUSES);
+const ACTIVITY_STATUSES = ["finished", "failed", "stopped"] as const;
+const ActivityStatusSchema = z.enum(ACTIVITY_STATUSES);
 
 /** One request, as stored and as the log reads it back. Metadata only: nothing anyone wrote. */
-export const AIUsageRowSchema = z.object({
+export const ActivityRowSchema = z.object({
   cacheReadTokens: z.number().nullable(),
   cacheWriteTokens: z.number().nullable(),
   chatId: z.string().nullable(),
@@ -55,48 +55,48 @@ export const AIUsageRowSchema = z.object({
   finishReason: z.string().nullable(),
   id: z.string(),
   inputTokens: z.number().nullable(),
-  kind: AIUsageKindSchema,
+  kind: ActivityKindSchema,
   modelRequested: z.string().nullable(),
   modelServed: z.string().nullable(),
   outputTokens: z.number().nullable(),
-  purpose: AIUsagePurposeSchema,
+  purpose: ActivityPurposeSchema,
   reasoningTokens: z.number().nullable(),
   responseId: z.string().nullable(),
   startedAt: z.number(),
-  status: AIUsageStatusSchema,
-  surface: AIUsageSurfaceSchema.nullable(),
+  status: ActivityStatusSchema,
+  surface: ActivitySurfaceSchema.nullable(),
   sessionId: z.string().nullable(),
   totalTokens: z.number().nullable(),
 });
-export type AIUsageRow = z.output<typeof AIUsageRowSchema>;
+export type ActivityRow = z.output<typeof ActivityRowSchema>;
 
 /** A row before it is stored: the id and total are the store's to fill in. */
-export type AIUsageEntry = Partial<
+export type ActivityEntry = Partial<
   Omit<
-    AIUsageRow,
+    ActivityRow,
     "id" | "kind" | "purpose" | "startedAt" | "status" | "totalTokens"
   >
 > &
-  Pick<AIUsageRow, "kind" | "purpose" | "startedAt" | "status">;
+  Pick<ActivityRow, "kind" | "purpose" | "startedAt" | "status">;
 
 /**
  * The filters the log stacks: every field present narrows the rows, and the
  * values listed for one field are alternatives. `origin` is a chat id or a
  * surface, written `chat:<id>` or `surface:<name>`.
  */
-export const AIUsageFilterSchema = z.object({
+export const ActivityFilterSchema = z.object({
   connection: z.array(z.string()).optional(),
-  kind: z.array(AIUsageKindSchema).optional(),
+  kind: z.array(ActivityKindSchema).optional(),
   model: z.array(z.string()).optional(),
   origin: z.array(z.string()).optional(),
-  purpose: z.array(AIUsagePurposeSchema).optional(),
+  purpose: z.array(ActivityPurposeSchema).optional(),
   since: z.number().optional(),
-  status: z.array(AIUsageStatusSchema).optional(),
+  status: z.array(ActivityStatusSchema).optional(),
   until: z.number().optional(),
 });
-export type AIUsageFilter = z.output<typeof AIUsageFilterSchema>;
+export type ActivityFilter = z.output<typeof ActivityFilterSchema>;
 
-const AI_USAGE_SORT_COLUMNS = [
+const ACTIVITY_SORT_COLUMNS = [
   "startedAt",
   "kind",
   "purpose",
@@ -104,14 +104,14 @@ const AI_USAGE_SORT_COLUMNS = [
   "totalTokens",
   "durationMs",
 ] as const;
-export const AIUsageSortSchema = z.object({
-  column: z.enum(AI_USAGE_SORT_COLUMNS),
+export const ActivitySortSchema = z.object({
+  column: z.enum(ACTIVITY_SORT_COLUMNS),
   direction: z.enum(["asc", "desc"]),
 });
-export type AIUsageSort = z.output<typeof AIUsageSortSchema>;
+export type ActivitySort = z.output<typeof ActivitySortSchema>;
 
 /** The fields the filter menu offers values for, each with how many rows have that value. */
-export const AI_USAGE_FACETS = [
+export const ACTIVITY_FACETS = [
   "connection",
   "kind",
   "model",
@@ -119,4 +119,4 @@ export const AI_USAGE_FACETS = [
   "purpose",
   "status",
 ] as const;
-export type AIUsageFacet = (typeof AI_USAGE_FACETS)[number];
+export type ActivityFacet = (typeof ACTIVITY_FACETS)[number];

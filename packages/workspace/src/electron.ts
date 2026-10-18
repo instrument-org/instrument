@@ -1,5 +1,5 @@
-export { AIUsageFilterSchema } from "./lib/ai-usage/schema";
-export { aiUsageCsv } from "./lib/ai-usage/store";
+export { ActivityFilterSchema } from "./lib/activity/schema";
+export { activityCsv } from "./lib/activity/store";
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,

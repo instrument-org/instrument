@@ -14,33 +14,33 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { sessionRole } from "../chat/children";
 import {
-  type AIUsageEntry,
-  type AIUsageKind,
-  type AIUsagePurpose,
-  type AIUsageSurface,
+  type ActivityEntry,
+  type ActivityKind,
+  type ActivityPurpose,
+  type ActivitySurface,
 } from "./schema";
-import { insertAIUsage } from "./store";
+import { insertActivity } from "./store";
 
 /** What a call site knows about a request that the request itself does not carry. */
-export interface AIUsageCall {
+export interface ActivityCall {
   /** The chat the request was for. */
   chatId?: ChatId;
   /** The connection the request goes through; never its key. */
   connection?: { displayName?: string; id: string; type: string };
   /** Language unless said otherwise: an image made by a language model is still an image. */
-  kind?: AIUsageKind;
-  purpose: AIUsagePurpose;
+  kind?: ActivityKind;
+  purpose: ActivityPurpose;
   /** The session in the chat that asked: the chat's own, or one of its tasks. */
   sessionId?: StoreId.Session;
   /** Where the request came from when no chat or task asked for it. */
-  surface?: AIUsageSurface;
+  surface?: ActivitySurface;
 }
 
 /** The connection a model runs through, by the provider config its URI names. */
 export function connectionFor(
   configs: AIGatewayProviderConfig.Type[],
   providerConfigId: string,
-): AIUsageCall["connection"] {
+): ActivityCall["connection"] {
   const config = configs.find((candidate) => candidate.id === providerConfigId);
   return (
     config && {
@@ -55,7 +55,7 @@ export function connectionFor(
 export function turnPurpose(
   chatId: ChatId,
   sessionId: StoreId.Session,
-): AIUsagePurpose {
+): ActivityPurpose {
   return sessionRole(chatId, sessionId) ?? "other";
 }
 
@@ -63,12 +63,12 @@ export function turnPurpose(
  * Records one request after the current tick, so the caller is never held up
  * by the write and a failure to write never reaches it.
  */
-export function recordAIUsage(
-  call: AIUsageCall,
-  entry: Omit<AIUsageEntry, "kind" | "purpose">,
+export function recordActivity(
+  call: ActivityCall,
+  entry: Omit<ActivityEntry, "kind" | "purpose">,
 ): void {
   setImmediate(() => {
-    insertAIUsage({
+    insertActivity({
       chatId: call.chatId ?? null,
       connectionId: call.connection?.id ?? null,
       // Our own connection carries no name, so it goes by the app's.
@@ -101,18 +101,18 @@ function usageColumns(usage: LanguageModelUsage | undefined) {
  * a generation is its own request. It reads timing, usage and ids, and never
  * the prompt or the output.
  */
-function usageRecorder(call: AIUsageCall): Telemetry {
+function activityRecorder(call: ActivityCall): Telemetry {
   const pending = new Map<string, { modelId: string; startedAt: number }>();
   const settle = (
     callId: string,
-    entry: Omit<AIUsageEntry, "kind" | "purpose" | "startedAt">,
+    entry: Omit<ActivityEntry, "kind" | "purpose" | "startedAt">,
   ) => {
     const started = pending.get(callId);
     if (!started) {
       return;
     }
     pending.delete(callId);
-    recordAIUsage(call, {
+    recordActivity(call, {
       durationMs: Date.now() - started.startedAt,
       modelRequested: started.modelId,
       startedAt: started.startedAt,
@@ -151,10 +151,10 @@ function usageRecorder(call: AIUsageCall): Telemetry {
 }
 
 /** Telemetry options for one AI SDK call, recording each of its model calls under `call`. */
-export function aiUsageTelemetry(call: AIUsageCall): TelemetryOptions {
+export function activityTelemetry(call: ActivityCall): TelemetryOptions {
   return {
     functionId: call.purpose,
-    integrations: [usageRecorder(call)],
+    integrations: [activityRecorder(call)],
     recordInputs: false,
     recordOutputs: false,
   };
@@ -164,13 +164,13 @@ let registered = false;
 
 /**
  * Records every AI SDK call that passes no telemetry of its own, as Other.
- * A call that passes {@link aiUsageTelemetry} replaces this one, so nothing
+ * A call that passes {@link activityTelemetry} replaces this one, so nothing
  * is counted twice.
  */
-export function registerAIUsageTelemetry() {
+export function registerActivityTelemetry() {
   if (registered) {
     return;
   }
   registered = true;
-  registerTelemetry(usageRecorder({ purpose: "other" }));
+  registerTelemetry(activityRecorder({ purpose: "other" }));
 }

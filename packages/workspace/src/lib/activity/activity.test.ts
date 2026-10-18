@@ -8,13 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { closeWorkspaceDb } from "../workspace-db";
-import { aiUsageTelemetry, registerAIUsageTelemetry } from "./record";
-import { type AIUsageEntry } from "./schema";
+import { activityTelemetry, registerActivityTelemetry } from "./record";
+import { type ActivityEntry } from "./schema";
 import {
-  aiUsageCsv,
-  insertAIUsage,
-  listAIUsage,
-  summarizeAIUsage,
+  activityCsv,
+  insertActivity,
+  listActivity,
+  summarizeActivity,
 } from "./store";
 
 const SECRET = "the words nobody may keep";
@@ -24,7 +24,7 @@ let dir: string;
 const original = getWorkspaceConfig();
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), "ai-usage-test-"));
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), "activity-test-"));
   setWorkspaceConfig({
     ...original,
     workspaceDbFile: AbsolutePathSchema.parse(path.join(dir, "workspace.db")),
@@ -40,7 +40,12 @@ afterEach(async () => {
 /** Every row, after the writes the recorder put off to the next tick. */
 async function rows() {
   await new Promise((resolve) => setImmediate(resolve));
-  return listAIUsage({ filter: {}, limit: 100, offset: 0, sort: NEWEST_FIRST });
+  return listActivity({
+    filter: {},
+    limit: 100,
+    offset: 0,
+    sort: NEWEST_FIRST,
+  });
 }
 
 const usage = {
@@ -67,7 +72,7 @@ describe("recording through AI SDK telemetry", () => {
     await generateText({
       model: answering(),
       prompt: SECRET,
-      telemetry: aiUsageTelemetry({
+      telemetry: activityTelemetry({
         connection: { displayName: "Mine", id: "c1", type: "openrouter" },
         purpose: "chat-title",
       }),
@@ -105,7 +110,7 @@ describe("recording through AI SDK telemetry", () => {
         maxRetries: 0,
         model,
         prompt: "hi",
-        telemetry: aiUsageTelemetry({ purpose: "chat-title" }),
+        telemetry: activityTelemetry({ purpose: "chat-title" }),
       }),
     ).rejects.toThrow();
 
@@ -133,7 +138,7 @@ describe("recording through AI SDK telemetry", () => {
       abortSignal: controller.signal,
       model,
       prompt: "hi",
-      telemetry: aiUsageTelemetry({ purpose: "chat" }),
+      telemetry: activityTelemetry({ purpose: "chat" }),
     });
     for await (const part of result.fullStream) {
       if (part.type === "text-delta") {
@@ -147,12 +152,12 @@ describe("recording through AI SDK telemetry", () => {
   });
 
   it("records a call that names no purpose as Other, once", async () => {
-    registerAIUsageTelemetry();
+    registerActivityTelemetry();
     await generateText({ model: answering(), prompt: "hi" });
     await generateText({
       model: answering(),
       prompt: "hi",
-      telemetry: aiUsageTelemetry({ purpose: "chat-title" }),
+      telemetry: activityTelemetry({ purpose: "chat-title" }),
     });
 
     expect((await rows()).map((row) => row.purpose).sort()).toEqual([
@@ -163,7 +168,7 @@ describe("recording through AI SDK telemetry", () => {
 });
 
 describe("the store", () => {
-  const entry = (over: Partial<AIUsageEntry>): AIUsageEntry => ({
+  const entry = (over: Partial<ActivityEntry>): ActivityEntry => ({
     kind: "language",
     purpose: "chat",
     startedAt: Date.UTC(2026, 9, 10, 10),
@@ -172,7 +177,7 @@ describe("the store", () => {
   });
 
   beforeEach(() => {
-    insertAIUsage(
+    insertActivity(
       entry({
         chatId: "c-lisbon",
         inputTokens: 900,
@@ -180,7 +185,7 @@ describe("the store", () => {
         outputTokens: 100,
       }),
     );
-    insertAIUsage(
+    insertActivity(
       entry({
         chatId: "c-lisbon",
         inputTokens: 400,
@@ -190,7 +195,7 @@ describe("the store", () => {
         startedAt: Date.UTC(2026, 9, 10, 11),
       }),
     );
-    insertAIUsage(
+    insertActivity(
       entry({
         inputTokens: 5000,
         kind: "decision",
@@ -203,18 +208,20 @@ describe("the store", () => {
   });
 
   it("stacks filters and totals what they leave", () => {
-    expect(summarizeAIUsage({ kind: ["decision"] })).toMatchObject({
+    expect(summarizeActivity({ kind: ["decision"] })).toMatchObject({
       requests: 2,
       tokens: 5400,
     });
     expect(
-      summarizeAIUsage({ kind: ["decision"], origin: ["chat:c-lisbon"] }),
+      summarizeActivity({ kind: ["decision"], origin: ["chat:c-lisbon"] }),
     ).toMatchObject({ requests: 1, tokens: 400 });
-    expect(summarizeAIUsage({ since: Date.UTC(2026, 9, 10) }).requests).toBe(2);
+    expect(summarizeActivity({ since: Date.UTC(2026, 9, 10) }).requests).toBe(
+      2,
+    );
   });
 
   it("counts each filter's values under every filter but its own", () => {
-    const { facets } = summarizeAIUsage({ kind: ["decision"] });
+    const { facets } = summarizeActivity({ kind: ["decision"] });
     expect(facets.kind).toEqual([
       { count: 2, value: "decision" },
       { count: 1, value: "language" },
@@ -226,14 +233,14 @@ describe("the store", () => {
   });
 
   it("sorts by any column, keeping rows with nothing to sort by last", () => {
-    const byTokens = listAIUsage({
+    const byTokens = listActivity({
       filter: {},
       limit: 10,
       offset: 0,
       sort: { column: "totalTokens", direction: "desc" },
     });
     expect(byTokens.map((row) => row.totalTokens)).toEqual([5000, 1000, 400]);
-    const byModel = listAIUsage({
+    const byModel = listActivity({
       filter: {},
       limit: 10,
       offset: 0,
@@ -245,7 +252,7 @@ describe("the store", () => {
   });
 
   it("exports what the filters show as CSV", () => {
-    const [header, row, ...rest] = aiUsageCsv({
+    const [header, row, ...rest] = activityCsv({
       purpose: ["settings-search"],
     }).split("\n");
     expect(rest).toEqual([""]);

@@ -20,7 +20,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
-import { aiUsageTelemetry, recordAIUsage } from "./ai-usage/record";
+import { activityTelemetry, recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { searchKeyless } from "./keyless-web-search";
@@ -235,7 +235,7 @@ async function requestPlatformSearch({
   });
   // Our endpoint is reached from the app's main process rather than through
   // the model proxy or the AI SDK, so it is recorded here.
-  recordAIUsage(
+  recordActivity(
     {
       connection: {
         id: OUR_MODELS.providerType,
@@ -408,7 +408,7 @@ async function* searchWithProviderModel({
       model,
       prompt,
       providerOptions,
-      telemetry: aiUsageTelemetry({
+      telemetry: activityTelemetry({
         connection: config,
         kind: "search",
         purpose: "web-search",

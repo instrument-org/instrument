@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import {
-  AIUsagePurposeSchema,
-  AIUsageSurfaceSchema,
-} from "../../lib/ai-usage/schema";
+  ActivityPurposeSchema,
+  ActivitySurfaceSchema,
+} from "../../lib/activity/schema";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import {
   askDecisionModel,
@@ -14,10 +14,10 @@ import {
 import { base } from "../base";
 
 /** Why the app is asking, which the record of model requests files the ask under. */
-const AIUsageAskSchema = z.object({
+const ActivityAskSchema = z.object({
   chatId: ChatIdSchema.optional(),
-  purpose: AIUsagePurposeSchema,
-  surface: AIUsageSurfaceSchema.optional(),
+  purpose: ActivityPurposeSchema,
+  surface: ActivitySurfaceSchema.optional(),
 });
 
 /**
@@ -31,7 +31,7 @@ const ask = base
     z.object({
       questions: z.record(z.string(), DecisionQuestionSchema),
       state: z.unknown(),
-      usage: AIUsageAskSchema,
+      activity: ActivityAskSchema,
     }),
   )
   .output(
@@ -44,7 +44,7 @@ const ask = base
         body: { questions: input.questions, state: input.state },
         configs: context.workspaceConfig.getAIProviderConfigs(),
         signal,
-        usage: input.usage,
+        activity: input.activity,
       });
     } catch (error) {
       if (signal?.aborted) {

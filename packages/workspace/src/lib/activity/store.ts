@@ -4,13 +4,13 @@ import { ulid } from "ulid";
 import { getWorkspaceConfig } from "../workspace-config";
 import { versionMatches, workspaceTables } from "../workspace-db";
 import {
-  AI_USAGE_FACETS,
-  type AIUsageEntry,
-  type AIUsageFacet,
-  type AIUsageFilter,
-  type AIUsageRow,
-  AIUsageRowSchema,
-  type AIUsageSort,
+  ACTIVITY_FACETS,
+  type ActivityEntry,
+  type ActivityFacet,
+  type ActivityFilter,
+  type ActivityRow,
+  ActivityRowSchema,
+  type ActivitySort,
 } from "./schema";
 
 /**
@@ -45,7 +45,7 @@ const COLUMNS = {
   status: "status",
   surface: "surface",
   totalTokens: "total_tokens",
-} as const satisfies Record<keyof AIUsageRow, string>;
+} as const satisfies Record<keyof ActivityRow, string>;
 
 const SELECT_ROW = Object.entries(COLUMNS)
   .map(([key, column]) => `${column} AS "${key}"`)
@@ -58,7 +58,7 @@ const MODEL = "COALESCE(model_served, model_requested)";
 const ORIGIN =
   "CASE WHEN chat_id IS NOT NULL THEN 'chat:' || chat_id WHEN surface IS NOT NULL THEN 'surface:' || surface END";
 
-const FACET_EXPRESSIONS: Record<AIUsageFacet, string> = {
+const FACET_EXPRESSIONS: Record<ActivityFacet, string> = {
   // A connection by the name Providers shows it under, or its kind when it has none.
   connection: "COALESCE(connection_name, connection_type)",
   kind: "kind",
@@ -69,12 +69,12 @@ const FACET_EXPRESSIONS: Record<AIUsageFacet, string> = {
 };
 
 // The facets whose values are shown with their connection's mark.
-const FACETS_WITH_CONNECTION_TYPE = new Set<AIUsageFacet>([
+const FACETS_WITH_CONNECTION_TYPE = new Set<ActivityFacet>([
   "connection",
   "model",
 ]);
 
-const SORT_EXPRESSIONS: Record<AIUsageSort["column"], string> = {
+const SORT_EXPRESSIONS: Record<ActivitySort["column"], string> = {
   durationMs: "duration_ms",
   kind: "kind",
   model: MODEL,
@@ -155,7 +155,7 @@ function report(error: unknown) {
   );
 }
 
-function totalOf(entry: AIUsageEntry): null | number {
+function totalOf(entry: ActivityEntry): null | number {
   if (entry.inputTokens == null && entry.outputTokens == null) {
     return null;
   }
@@ -167,12 +167,12 @@ function totalOf(entry: AIUsageEntry): null | number {
  * record that cannot be written loses the row rather than slow or break the
  * request it describes.
  */
-export function insertAIUsage(entry: AIUsageEntry): void {
+export function insertActivity(entry: ActivityEntry): void {
   const db = openStore();
   if (!db) {
     return;
   }
-  const row: AIUsageRow = {
+  const row: ActivityRow = {
     cacheReadTokens: entry.cacheReadTokens ?? null,
     cacheWriteTokens: entry.cacheWriteTokens ?? null,
     chatId: entry.chatId ?? null,
@@ -197,7 +197,7 @@ export function insertAIUsage(entry: AIUsageEntry): void {
     surface: entry.surface ?? null,
     totalTokens: totalOf(entry),
   };
-  const keys = Object.keys(COLUMNS) as (keyof AIUsageRow)[]; // Object.keys widens to string[]
+  const keys = Object.keys(COLUMNS) as (keyof ActivityRow)[]; // Object.keys widens to string[]
   try {
     db.prepare(
       `INSERT INTO activity (${keys.map((key) => COLUMNS[key]).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
@@ -208,7 +208,7 @@ export function insertAIUsage(entry: AIUsageEntry): void {
 }
 
 /** A WHERE clause and its parameters for the filters, leaving out one field's own (for its facet counts). */
-function where(filter: AIUsageFilter, except?: AIUsageFacet) {
+function where(filter: ActivityFilter, except?: ActivityFacet) {
   const clauses: string[] = [];
   const params: SQLInputValue[] = [];
   const anyOf = (expression: string, values: readonly string[] | undefined) => {
@@ -218,7 +218,7 @@ function where(filter: AIUsageFilter, except?: AIUsageFacet) {
     clauses.push(`${expression} IN (${values.map(() => "?").join(", ")})`);
     params.push(...values);
   };
-  for (const facet of AI_USAGE_FACETS) {
+  for (const facet of ACTIVITY_FACETS) {
     if (facet !== except) {
       anyOf(FACET_EXPRESSIONS[facet], filter[facet]);
     }
@@ -238,17 +238,17 @@ function where(filter: AIUsageFilter, except?: AIUsageFacet) {
 }
 
 /** One page of rows under the filters, in the order asked for. */
-export function listAIUsage({
+export function listActivity({
   filter,
   limit,
   offset,
   sort,
 }: {
-  filter: AIUsageFilter;
+  filter: ActivityFilter;
   limit: number;
   offset: number;
-  sort: AIUsageSort;
-}): AIUsageRow[] {
+  sort: ActivitySort;
+}): ActivityRow[] {
   const db = openStore();
   if (!db) {
     return [];
@@ -262,15 +262,15 @@ export function listAIUsage({
       `SELECT ${SELECT_ROW} FROM activity ${sql} ORDER BY ${SORT_EXPRESSIONS[sort.column]} IS NULL, ${SORT_EXPRESSIONS[sort.column]} ${direction}, id ${direction} LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset);
-  return rows.map((row) => AIUsageRowSchema.parse(row));
+  return rows.map((row) => ActivityRowSchema.parse(row));
 }
 
 /** One request by its id. */
-export function getAIUsage(id: string): AIUsageRow | undefined {
+export function getActivity(id: string): ActivityRow | undefined {
   const row = openStore()
     ?.prepare(`SELECT ${SELECT_ROW} FROM activity WHERE id = ?`)
     .get(id);
-  return row ? AIUsageRowSchema.parse(row) : undefined;
+  return row ? ActivityRowSchema.parse(row) : undefined;
 }
 
 type FacetEntry = {
@@ -285,11 +285,11 @@ type FacetEntry = {
  * with how many rows have each, counted under every filter but that field's
  * own, so picking one value leaves its alternatives countable.
  */
-export function summarizeAIUsage(filter: AIUsageFilter) {
+export function summarizeActivity(filter: ActivityFilter) {
   const db = openStore();
   const facets = Object.fromEntries(
-    AI_USAGE_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
-  ) as Record<AIUsageFacet, FacetEntry[]>; // filled per facet below
+    ACTIVITY_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
+  ) as Record<ActivityFacet, FacetEntry[]>; // filled per facet below
   if (!db) {
     return { facets, requests: 0, tokens: 0 };
   }
@@ -299,7 +299,7 @@ export function summarizeAIUsage(filter: AIUsageFilter) {
       `SELECT COUNT(*) AS requests, COALESCE(SUM(total_tokens), 0) AS tokens FROM activity ${sql}`,
     )
     .get(...params) as { requests: number; tokens: number }; // an aggregate always returns its row
-  for (const facet of AI_USAGE_FACETS) {
+  for (const facet of ACTIVITY_FACETS) {
     const scoped = where(filter, facet);
     const expression = FACET_EXPRESSIONS[facet];
     const scopedWhere = scoped.sql
@@ -316,7 +316,7 @@ export function summarizeAIUsage(filter: AIUsageFilter) {
 
 const CSV_COLUMNS: [
   header: string,
-  read: (row: AIUsageRow) => null | number | string,
+  read: (row: ActivityRow) => null | number | string,
 ][] = [
   ["Started", (row) => new Date(row.startedAt).toISOString()],
   ["Duration (ms)", (row) => row.durationMs],
@@ -350,7 +350,7 @@ function csvCell(value: null | number | string): string {
 }
 
 /** Every row under the filters as CSV, newest first, with a header line. */
-export function aiUsageCsv(filter: AIUsageFilter): string {
+export function activityCsv(filter: ActivityFilter): string {
   const lines = [CSV_COLUMNS.map(([header]) => csvCell(header)).join(",")];
   const db = openStore();
   if (db) {
@@ -360,7 +360,7 @@ export function aiUsageCsv(filter: AIUsageFilter): string {
         `SELECT ${SELECT_ROW} FROM activity ${sql} ORDER BY started_at DESC, id DESC`,
       )
       .iterate(...params)) {
-      const parsed = AIUsageRowSchema.parse(row);
+      const parsed = ActivityRowSchema.parse(row);
       lines.push(
         CSV_COLUMNS.map(([, read]) => csvCell(read(parsed))).join(","),
       );

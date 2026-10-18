@@ -15,7 +15,7 @@ import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
-import { aiUsageTelemetry, connectionFor } from "./ai-usage/record";
+import { activityTelemetry, connectionFor } from "./activity/record";
 import { TypedError } from "./errors";
 import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
@@ -105,7 +105,7 @@ export function generateTitleFromUserMessage({
           effort: "low",
           reasoning: model.reasoning,
         }),
-        telemetry: aiUsageTelemetry({
+        telemetry: activityTelemetry({
           connection: connectionFor(
             workspaceConfig.getAIProviderConfigs(),
             model.params.providerConfigId,

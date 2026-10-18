@@ -1,10 +1,10 @@
 import type { ToolSet } from "ai";
 
 import {
-  aiUsageTelemetry,
+  activityTelemetry,
   connectionFor,
   turnPurpose,
-} from "../lib/ai-usage/record";
+} from "../lib/activity/record";
 import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
@@ -402,7 +402,7 @@ export const llmRequestLogic = fromPromise<
         // no-op to avoid excessive logging
       },
       providerOptions,
-      telemetry: aiUsageTelemetry({
+      telemetry: activityTelemetry({
         connection: connectionFor(
           workspaceConfig.getAIProviderConfigs(),
           input.model.params.providerConfigId,

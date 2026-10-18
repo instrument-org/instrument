@@ -1,4 +1,4 @@
-import { aiUsage } from "./routes/ai-usage";
+import { activity } from "./routes/activity";
 import { browser } from "./routes/browser";
 import { chats } from "./routes/chats";
 import { computer } from "./routes/computer";
@@ -15,7 +15,7 @@ import { topics } from "./routes/topics";
 import { window } from "./routes/window";
 
 export const router = {
-  aiUsage,
+  activity,
   browser,
   chats,
   computer,

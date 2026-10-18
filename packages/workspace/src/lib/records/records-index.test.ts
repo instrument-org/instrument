@@ -6,7 +6,7 @@ import { type DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { withTempDir } from "../../test/helpers/temp-dir";
-import { makeActivityTable } from "../ai-usage/store";
+import { makeActivityTable } from "../activity/store";
 import { openWorkspaceDb } from "../workspace-db";
 import { type Delivery, planDeliveries, simulateChat } from "./fake-sync";
 import { logFileName, marksFileName } from "./file-names";

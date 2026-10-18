@@ -51,9 +51,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
-type Filter = RPCInput["workspace"]["aiUsage"]["list"]["filter"];
-type Sort = RPCInput["workspace"]["aiUsage"]["list"]["sort"];
-type Row = RPCOutput["workspace"]["aiUsage"]["list"][number];
+type Filter = RPCInput["workspace"]["activity"]["list"]["filter"];
+type Sort = RPCInput["workspace"]["activity"]["list"]["sort"];
+type Row = RPCOutput["workspace"]["activity"]["list"][number];
 type FacetField =
   | "connection"
   | "kind"
@@ -473,7 +473,7 @@ const columnDefs: ColumnDef<Row>[] = COLUMN_IDS.map((id) => {
  * Every model request the app made, newest first: a log you can filter,
  * sort, and open a request from to see everything recorded about it.
  */
-export function AIUsageSection() {
+export function ActivitySection() {
   const [openId, setOpenId] = useState<null | string>(null);
   useModalBack(() => {
     setOpenId(null);
@@ -530,18 +530,18 @@ function UsageLog({
   sort: Sort;
 }) {
   const { data: summary } = useQuery(
-    rpcClient.workspace.aiUsage.summary.queryOptions({ input: { filter } }),
+    rpcClient.workspace.activity.summary.queryOptions({ input: { filter } }),
   );
   const pages = useInfiniteQuery({
     getNextPageParam: (last: Row[], all: Row[][]) =>
       last.length < PAGE_SIZE ? undefined : all.length * PAGE_SIZE,
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
-      rpcClient.workspace.aiUsage.list.call(
+      rpcClient.workspace.activity.list.call(
         { filter, limit: PAGE_SIZE, offset: pageParam, sort },
         { signal },
       ),
-    queryKey: ["ai-usage", "list", filter, sort],
+    queryKey: ["activity", "list", filter, sort],
   });
   const rows = pages.data?.pages.flat() ?? [];
   const modelName = useModelName();
@@ -613,7 +613,7 @@ function UsageLog({
         <Button
           disabled={!summary || summary.requests === 0}
           onClick={() => {
-            void rpcClient.aiUsage.saveCsv
+            void rpcClient.activity.saveCsv
               .call({ filter })
               .then(({ status }) => {
                 if (status === "failed") {
@@ -1213,7 +1213,7 @@ function HeaderCell({
 /** Everything recorded about one request, with a way back to the log. */
 function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const { data: row } = useQuery(
-    rpcClient.workspace.aiUsage.byId.queryOptions({ input: { id } }),
+    rpcClient.workspace.activity.byId.queryOptions({ input: { id } }),
   );
 
   return (

@@ -11,6 +11,7 @@ import {
   launchNative,
   type NativeReach,
   NativeSandboxUnavailableError,
+  packageScopeNote,
   refusalNote,
   refusedPathIn,
   wrapNativeCommand,
@@ -293,8 +294,12 @@ export function withShimNotes({
   // a bare "Operation not permitted" reads as something to work around. Its
   // stdout is its own output, and a path a card could open raises no card
   // from a command that did not fail.
+  // Node stopped by a package.json the sandbox refused it is told how to get
+  // past that, rather than asked about a folder that holds no work.
+  const packageScope =
+    exitCode === 0 ? undefined : packageScopeNote(`${stderr}\n${stdout}`);
   const refused =
-    !reach || walks
+    !reach || walks || packageScope
       ? undefined
       : exitCode === 0
         ? refusedPathIn(stderr, reach, cwd, { appDataOnly: true })
@@ -312,6 +317,7 @@ export function withShimNotes({
       ? commandLineToolsNote(`${stderr}\n${stdout}`)
       : undefined;
   const notes = [
+    ...(packageScope ? [`${packageScope}\n`] : []),
     ...(refusal ? [`${refusal}\n`] : []),
     ...(missingTools ? [missingTools] : []),
   ].join("");

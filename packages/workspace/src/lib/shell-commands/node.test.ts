@@ -23,6 +23,9 @@ const mockCtx = createCommandContext({
   stdin: EMPTY_BYTES,
 });
 
+/** What every `node` but `node --version` is started with ahead of its own arguments. */
+const PRELOAD = ["--import", expect.stringMatching(/tools-preload\.mjs$/)];
+
 describe("nodeCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const layout = chatLayout(chatId);
@@ -106,7 +109,7 @@ describe("nodeCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-e", "console.log('hello')"],
+      [...PRELOAD, "-e", "console.log('hello')"],
       expect.any(Object),
     );
   });
@@ -126,7 +129,7 @@ describe("nodeCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-e", "console.log('hello')"],
+      [...PRELOAD, "-e", "console.log('hello')"],
       expect.any(Object),
     );
   });
@@ -161,7 +164,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--env-file=work/.env", "--no-warnings", "./work/a.js"],
+      [...PRELOAD, "--env-file=work/.env", "--no-warnings", "./work/a.js"],
       expect.any(Object),
     );
   });
@@ -183,6 +186,7 @@ describe("nodeCommand", () => {
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
       [
+        ...PRELOAD,
         `--env-file=${path.join(layout.chat.hostRoot, "work", ".env")}`,
         "./work/a.js",
       ],
@@ -201,7 +205,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-p", "1+1"],
+      [...PRELOAD, "-p", "1+1"],
       expect.any(Object),
     );
   });
@@ -217,7 +221,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-p", "1+1"],
+      [...PRELOAD, "-p", "1+1"],
       expect.any(Object),
     );
   });
@@ -233,7 +237,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--check", "./work/check.js"],
+      [...PRELOAD, "--check", "./work/check.js"],
       expect.any(Object),
     );
   });
@@ -249,7 +253,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--check", "./work/check.js"],
+      [...PRELOAD, "--check", "./work/check.js"],
       expect.any(Object),
     );
   });
@@ -268,7 +272,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--check", "--input-type", "module"],
+      [...PRELOAD, "--check", "--input-type", "module"],
       expect.objectContaining({
         input: Buffer.from("export const x = 1\n", "latin1"),
       }),
@@ -290,7 +294,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      [],
+      [...PRELOAD],
       expect.objectContaining({
         input: Buffer.from(
           `fs.readFileSync("${chatRoot}/work/a.txt")`,
@@ -356,7 +360,11 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-e", `fs.readFileSync("${chatRoot}/attachments/chart.svg")`],
+      [
+        ...PRELOAD,
+        "-e",
+        `fs.readFileSync("${chatRoot}/attachments/chart.svg")`,
+      ],
       expect.any(Object),
     );
   });
@@ -373,7 +381,7 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).toBe(
+    expect(calledArgs[PRELOAD.length]).toBe(
       path.join(layout.chat.hostRoot, "scripts", "run.js"),
     );
   });

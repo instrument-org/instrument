@@ -42,7 +42,10 @@ async function execNode(
   invokeTool?: AppToolInvoker,
 ) {
   const signal = ctx.signal;
-  const preload = invokeTool ? ["--import", await nodeToolsPreloadUrl()] : [];
+  // Every script gets the preload, which reads past a package.json the
+  // sandbox refuses; `tools` only works with a tool to answer it.
+  const preload =
+    args[0] === "--version" ? [] : ["--import", await nodeToolsPreloadUrl()];
   return runNative(
     ctx,
     process.execPath,

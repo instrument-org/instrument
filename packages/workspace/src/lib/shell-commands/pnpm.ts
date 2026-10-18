@@ -11,6 +11,7 @@ import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import {
   installedProjectConfig,
   installOutside,
+  installsPackages,
   outsidePlan,
   projectFolder,
 } from "../pnpm-outside";
@@ -244,12 +245,24 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       `;
     }
 
+    // An install that stayed in the sandbox, where the sandbox refuses the
+    // links it makes (MXC on Windows).
+    const linkNote =
+      !plan &&
+      result.exitCode !== 0 &&
+      installsPackages(filteredArgs) &&
+      /EPERM[^\n]*symlink/.test(result.stderr + result.stdout)
+        ? systemNote`
+            The sandbox here does not let pnpm make the links this install needs. Only installs of npm registry packages work: no file:, link:, git or workspace dependencies, pnpmfiles, or project .npmrc, and only common options (-D, -E, -O, --save-peer, --frozen-lockfile, --prod, --offline).
+          `
+        : "";
+
     return {
       exitCode: result.exitCode,
       // The auto-install report and the stripped-flag note are this wrapper's
       // own diagnostics, so they join the command's stderr rather than its
       // output.
-      stderr: installOutput + result.stderr + globalNote,
+      stderr: installOutput + result.stderr + globalNote + linkNote,
       stdout: result.stdout,
     };
   });

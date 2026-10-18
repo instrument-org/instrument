@@ -145,6 +145,12 @@ export function isRegistryRange(specifier: string): boolean {
   return RANGE.test(specifier);
 }
 
+/** Whether a `pnpm` command installs, adds, removes or updates packages. */
+export function installsPackages(args: readonly string[]): boolean {
+  const [subcommand] = args;
+  return subcommand !== undefined && SUBCOMMANDS[subcommand] !== undefined;
+}
+
 /**
  * The arguments to run outside the sandbox for the agent's `pnpm` command,
  * or undefined when it runs inside as before: a subcommand that installs,

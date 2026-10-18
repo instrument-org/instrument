@@ -84,7 +84,7 @@ describe.runIf(held)("pnpm in a chat's shell under MXC", () => {
     expect(approved.stdout).toContain("postinstall");
     const version = await run("pnpm exec esbuild --version");
     expect(version).toMatchObject({ exitCode: 0 });
-    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+\n$/);
+    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+\s*$/);
     const bundled = await run(
       `echo "export const x = 1" > in.js && pnpm exec esbuild in.js --bundle --format=esm`,
     );
@@ -99,12 +99,23 @@ describe.runIf(held)("pnpm in a chat's shell under MXC", () => {
     expect(loaded).toMatchObject({ exitCode: 0, stdout: "1s\n" });
   }, 300_000);
 
+  it("runs an approved install script right after the install, in the sandbox", async () => {
+    const result = await run(
+      `mkdir -p built && cd built && printf 'allowBuilds:\\n  esbuild: true\\n' > pnpm-workspace.yaml && pnpm add esbuild && pnpm exec esbuild --version`,
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("postinstall: Done");
+    expect(result.stdout).not.toContain("Ignored build scripts");
+  }, 300_000);
+
   it("leaves a file: dependency to the sandbox", async () => {
     const result = await run(
       `mkdir -p lib app && echo '{"name":"lib","version":"1.0.0"}' > lib/package.json && cd app && pnpm add file:../lib`,
     );
-    // Recorded rather than pinned: what MXC makes of an install that needs
-    // links inside it.
-    expect(result.exitCode).toBeTypeOf("number");
+    // Inside the sandbox, which refuses the links it needs, and says so.
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(
+      "Only installs of npm registry packages work",
+    );
   }, 300_000);
 });

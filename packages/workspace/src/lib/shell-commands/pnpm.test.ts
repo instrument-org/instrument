@@ -337,6 +337,28 @@ describe("createPnpmCommand", () => {
     },
   );
 
+  it.each([
+    { args: ["add", "file:../lib"], noted: true },
+    { args: ["run", "build"], noted: false },
+  ])(
+    "says which installs work when the sandbox refuses links ($args)",
+    async ({ args, noted }) => {
+      const { execaNodeForChat } = await import("../execa-node-for-chat");
+      vi.mocked(execaNodeForChat).mockResolvedValueOnce({
+        exitCode: 1,
+        stderr: "[EPERM] EPERM: operation not permitted, symlink 'a' -> 'b'",
+        stdout: "",
+      });
+
+      const result = await command.execute(args, mockCtx);
+
+      expect(result.exitCode).toBe(1);
+      expect(
+        result.stderr.includes("Only installs of npm registry packages work"),
+      ).toBe(noted);
+    },
+  );
+
   it("aliases npx registered commands to the bash command registry", async () => {
     const exec = vi.fn().mockResolvedValue({
       exitCode: 0,

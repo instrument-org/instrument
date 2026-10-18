@@ -916,6 +916,100 @@ export async function runEvals(
         }, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
 
+      // A question the agent asked, or a folder or app it asked for, shows
+      // the person a card, which the case answers the way they would: a
+      // scripted pick, a yes, a no, or nothing, leaving the agent to carry on
+      // without it. Read on every part and on a timer, since a turn ends on
+      // the call that asked and may publish nothing after it.
+      let answeringAsks = Promise.resolve();
+      const answerAsks = () => {
+        answeringAsks = answeringAsks
+          .then(async () => {
+            for (const ask of await openAsks(id)) {
+              if (handledAskIds.has(ask.id)) {
+                continue;
+              }
+              handledAskIds.add(ask.id);
+              let answer: () => Promise<unknown>;
+              if (ask.kind === "question") {
+                const partId = ask.askers[0]?.partId;
+                const input = partId ? chooseInputs.get(partId) : undefined;
+                const scripted = evalCase.answers?.[questionsAnswered++];
+                const picked =
+                  typeof scripted === "function"
+                    ? input && scripted(input)
+                    : scripted;
+                write(
+                  `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${ask.question}${picked ? `; answering ${JSON.stringify(picked)}` : "; leaving it open"}${c.reset}\n`,
+                );
+                if (!picked) {
+                  continue;
+                }
+                answer = () =>
+                  call(
+                    chatsRoute.answerQuestion,
+                    { answer: picked, askId: ask.id, id },
+                    { context },
+                  );
+              } else {
+                const declines =
+                  ask.kind === "folder"
+                    ? evalCase.declinesFolders
+                    : evalCase.declinesApps;
+                const allows =
+                  ask.kind === "folder"
+                    ? !declines &&
+                      foldersAllowed++ < (evalCase.allowsFolders ?? 0)
+                    : evalCase.allowsApps;
+                write(
+                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : allows ? "; allowing" : ""}${c.reset}\n`,
+                );
+                if (!(declines || allows)) {
+                  continue;
+                }
+                answer = () =>
+                  call(
+                    permissionsRoute.answer,
+                    {
+                      askId: ask.id,
+                      decision: declines ? "declined" : "allowed",
+                      id,
+                    },
+                    { context },
+                  );
+              }
+              // Answered once the asking sessions' turns are over, as a
+              // person reading the card would, so the answer arrives as a
+              // wake rather than mid-turn.
+              void (async () => {
+                const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                while (
+                  ask.askers.some((asker) => isWorking(id, asker.sessionId)) &&
+                  Date.now() < until
+                ) {
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, TREE_POLL_MS),
+                  );
+                }
+                await answer();
+              })().catch((error: unknown) => {
+                process.stderr.write(
+                  `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+                );
+              });
+            }
+          })
+          .catch((error: unknown) => {
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}reading the chat's cards failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+            );
+          });
+        return answeringAsks;
+      };
+      const askTimer = setInterval(() => {
+        void answerAsks();
+      }, TREE_POLL_MS);
+
       void (async () => {
         try {
           for await (const event of partUpdates) {
@@ -998,83 +1092,7 @@ export async function runEvals(
               chooseInputs.set(part.metadata.id, part.input);
             }
 
-            // A boundary the agent ran into, or a question it asked, shows the
-            // person a card, which the case answers the way they would: a
-            // scripted pick, a no, or nothing, leaving the agent to carry on
-            // without it.
-            for (const ask of await openAsks(id)) {
-              if (handledAskIds.has(ask.id)) {
-                continue;
-              }
-              handledAskIds.add(ask.id);
-              let answer: () => Promise<unknown>;
-              if (ask.kind === "question") {
-                const partId = ask.askers[0]?.partId;
-                const input = partId ? chooseInputs.get(partId) : undefined;
-                const scripted = evalCase.answers?.[questionsAnswered++];
-                const picked =
-                  typeof scripted === "function"
-                    ? input && scripted(input)
-                    : scripted;
-                write(
-                  `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${ask.question}${picked ? `; answering ${JSON.stringify(picked)}` : "; leaving it open"}${c.reset}\n`,
-                );
-                if (!picked) {
-                  continue;
-                }
-                answer = () =>
-                  call(
-                    chatsRoute.answerQuestion,
-                    { answer: picked, askId: ask.id, id },
-                    { context },
-                  );
-              } else {
-                const declines =
-                  ask.kind === "folder"
-                    ? evalCase.declinesFolders
-                    : evalCase.declinesApps;
-                const allows =
-                  ask.kind === "folder"
-                    ? !declines &&
-                      foldersAllowed++ < (evalCase.allowsFolders ?? 0)
-                    : evalCase.allowsApps;
-                write(
-                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : allows ? "; allowing" : ""}${c.reset}\n`,
-                );
-                if (!(declines || allows)) {
-                  continue;
-                }
-                answer = () =>
-                  call(
-                    permissionsRoute.answer,
-                    {
-                      askId: ask.id,
-                      decision: declines ? "declined" : "allowed",
-                      id,
-                    },
-                    { context },
-                  );
-              }
-              // Answered once the asking sessions' turns are over, as a
-              // person reading the card would, so the answer arrives as a
-              // wake rather than mid-turn.
-              void (async () => {
-                const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
-                while (
-                  ask.askers.some((asker) => isWorking(id, asker.sessionId)) &&
-                  Date.now() < until
-                ) {
-                  await new Promise((resolve) =>
-                    setTimeout(resolve, TREE_POLL_MS),
-                  );
-                }
-                await answer();
-              })().catch((error: unknown) => {
-                process.stderr.write(
-                  `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
-                );
-              });
-            }
+            await answerAsks();
 
             if (
               isToolPart(part) &&
@@ -1316,6 +1334,7 @@ export async function runEvals(
       }
 
       clearInterval(enforcementTimer);
+      clearInterval(askTimer);
       abortController.abort();
       await evalCase.teardown?.({ chatId: id });
 

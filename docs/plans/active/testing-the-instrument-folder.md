@@ -110,5 +110,4 @@ Needs Jeremy's go, as every eval run does.
 ## 5. What cannot be tested yet, and should be said rather than assumed
 
 - **The phone.** The format is shaped for a second client that does not exist. Until it does, "another client can author a draft" is a claim held up by a schema, not by a client.
-- **`$INSTRUMENT_CHATS`.** Decided, not built.
 - **A folder the person has open.** Windows refuses a rename while Explorer has the folder selected, which the test in section 2 does not cover and a person will hit.

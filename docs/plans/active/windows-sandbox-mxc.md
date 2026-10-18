@@ -51,6 +51,20 @@ Through the agent's shell (`bash.exec` in a chat, phase 1 as built, uutils for t
 
 Building the policy from a chat's rules takes about 50 ms (realpaths of every rule's folder and the walk for names that run code); a policy is reused until the rules change or a path it read does, which a stat of each tells (about 0.6 ms against 12 ms to build on an M5 Max). The rest is the launcher's start and a request of about 45 paths; fewer paths per request is phase 2 work.
 
+In an unsigned NSIS preview with MXC on by default, through a real chat's shell, the mean of ten runs in one loop, two runs each, with `INSTRUMENT_MXC=0` as the unwrapped side. The text commands here run unwrapped (`unsandboxed-uutils.ts`), so they cost the same either way:
+
+| Work | Unwrapped | Under MXC | Added |
+| --- | --- | --- | --- |
+| `node -e 0` | 53 ms | 175 to 211 ms | about 140 ms |
+| `python -c 0` | 40 to 50 ms | 195 to 204 ms | about 155 ms |
+| `git -C repo status` | 41 ms | 192 ms | about 150 ms |
+| `powershell.exe -NoProfile -Command exit` | 163 ms | 342 ms | about 180 ms |
+| `cmd /c exit 0` | 85 to 130 ms | 125 to 190 ms | about 60 ms, noisy |
+
+A held program starts about 150 ms later there, more than the 90 ms the phase 1 shell measured; where it goes (the request, now with `AppData`'s enumerated folders and denied names, or the policy check) is not measured yet.
+
+The same preview, driven through real chats on GLM 5.3 Flash: files and a summary in the work folder, a matplotlib chart, `node count.js` with no package.json, `pnpm add is-odd` then `require`, `git init`/`commit`/`status` and Windows PowerShell 5.1's `Get-Location` in the work folder and in a granted folder under Documents (the folder, never `C:\`), a granted Documents file behind its card, a Downloads file declined at its card, `AppData\Roaming` listed and a file in one app's folder behind a card naming that app, a node server stopped with `kill bg_1`, `/tmp` shared between the shell and Python, and `ssh-add -l | sort` twice with no card. Held programs ran under `wxc-exec` at Low integrity. `kill`, `taskkill` and `Get-Process` did not reach a process outside the chat; since a held program sees only its own processes, the agent took "not found" for "gone" and said a running process had exited, and answered "what's using CPU?" with the sandbox's own processes before saying it could not see the rest.
+
 ## Approach
 
 ### A third backend behind `wrapNativeCommand`

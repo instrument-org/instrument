@@ -1,5 +1,4 @@
 import { rpcClient } from "@/client/rpc/client";
-import { getToolExplanation } from "@/client/lib/get-tool-explanation";
 import {
   isInside,
   nameOf,
@@ -9,11 +8,10 @@ import { toast } from "@/client/lib/toast";
 import {
   askTargetName,
   type ChatId,
-  isToolPart,
-  type SessionMessage,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { openSettings } from "@/client/atoms/settings-modal";
@@ -29,12 +27,7 @@ import { Spinner } from "./ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type Decision = "allowed" | "always" | "declined";
-type Ask = {
-  askers: { partId?: string | undefined }[];
-  id: string;
-  kind: "folder" | "app";
-  target: string;
-};
+type Ask = NonNullable<ReturnType<typeof useAsks>>[number];
 
 /** The chat's open permission cards; its questions draw under their calls. */
 function useAsks(chatId: ChatId) {
@@ -45,15 +38,11 @@ function useAsks(chatId: ChatId) {
   ).data?.filter((ask) => ask.kind !== "question");
 }
 
-function useAnswer() {
-  return useMutation(
-    rpcClient.workspace.permissions.answer.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't send your answer", { cause: error });
-      },
-    }),
-  );
-}
+const onAnswerError = {
+  onError: (error: Error) => {
+    toast.error("Couldn't send your answer", { cause: error });
+  },
+};
 
 /**
  * What each folder of sign-ins the agent asks first about holds, by its path
@@ -85,38 +74,13 @@ function signInLine(target: string): string | undefined {
   return SIGN_IN_LINES[inHome];
 }
 
-/** The explanation a call that raised the ask, found in these messages, gave for itself. */
-function explanationOf(
-  messages: readonly SessionMessage.WithParts[],
-  ask: Ask,
-): string | undefined {
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (
-        isToolPart(part) &&
-        ask.askers.some((asker) => asker.partId === part.metadata.id)
-      ) {
-        return getToolExplanation(part);
-      }
-    }
-  }
-  return undefined;
-}
-
 /**
  * Every open ask, just above the composer and only there: a task's ask has no
  * call in the chat's transcript to draw under, and one place keeps several
  * from piling up. The oldest is drawn whole with the rest tucked under it,
  * and answering it brings up the next.
  */
-export function PermissionAsksFoot({
-  chatId,
-  messages,
-}: {
-  chatId: ChatId;
-  /** The chat's messages, where the call that raised an ask is found. */
-  messages: readonly SessionMessage.WithParts[];
-}) {
+export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
   const asks = useAsks(chatId);
   const [first] = asks ?? [];
   if (!asks || !first) {
@@ -134,7 +98,6 @@ export function PermissionAsksFoot({
       <PermissionAskCard
         ask={first}
         chatId={chatId}
-        explanation={explanationOf(messages, first)}
         key={first.id}
         stack={asks}
       />
@@ -145,21 +108,28 @@ export function PermissionAsksFoot({
 function PermissionAskCard({
   ask,
   chatId,
-  explanation,
   stack,
 }: {
   ask: Ask;
   chatId: ChatId;
-  explanation: string | undefined;
   /** Every open ask, this one first, for the count and the no to all. */
   stack: readonly Ask[];
 }) {
-  const answer = useAnswer();
+  const answer = useMutation(
+    rpcClient.workspace.permissions.answer.mutationOptions(onAnswerError),
+  );
+  const declineAll = useMutation(
+    rpcClient.workspace.permissions.declineAll.mutationOptions(onAnswerError),
+  );
+  const busy = answer.isPending || declineAll.isPending;
   const isFolder = ask.kind === "folder";
+  const refused = ask.status === "macos-refused";
+  // What the agent said it needs this for, from the first to ask.
+  const reason = ask.askers[0]?.reason;
   const holds = isFolder ? signInLine(ask.target) : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({
-    disabled: answer.isPending,
+    disabled: busy,
     onClick: () => {
       answer.mutate({ askId: ask.id, decision, id: chatId });
     },
@@ -167,12 +137,22 @@ function PermissionAskCard({
   });
 
   return (
-    <div className="relative rounded-2xl border border-border bg-card p-3 shadow-xs">
+    <div
+      className={cn(
+        "relative rounded-2xl border bg-card p-3 shadow-xs",
+        refused
+          ? "border-warning-300 dark:border-warning-700"
+          : "border-border",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium">
-          {isFolder
-            ? "Can Instrument use this folder?"
-            : "Can Instrument use this app?"}
+          {refused
+            ? // oxlint-disable-next-line studio/no-os-words -- macOS alone refuses a folder this way
+              `Your Mac is keeping Instrument out of ${askTargetName(ask.kind, ask.target)}`
+            : isFolder
+              ? "Can Instrument use this folder?"
+              : "Can Instrument use this app?"}
         </p>
         {stack.length > 1 ? (
           <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
@@ -182,15 +162,9 @@ function PermissionAskCard({
                 <Button
                   aria-label="Don’t allow any of these"
                   className="size-6"
-                  disabled={answer.isPending}
+                  disabled={busy}
                   onClick={() => {
-                    for (const each of stack) {
-                      answer.mutate({
-                        askId: each.id,
-                        decision: "declined",
-                        id: chatId,
-                      });
-                    }
+                    declineAll.mutate({ id: chatId });
                   }}
                   size="icon-sm"
                   variant="ghost"
@@ -203,9 +177,11 @@ function PermissionAskCard({
           </div>
         ) : null}
       </div>
-      {explanation ? (
+      {refused || reason ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {explanation}
+          {refused
+            ? "You allowed it here, but macOS needs to let Instrument in too."
+            : reason}
         </p>
       ) : null}
       <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
@@ -239,10 +215,18 @@ function PermissionAskCard({
       {/* A chat too narrow for the three in a row stacks them, each the
       card's width, rather than wrapping into a ragged pair. */}
       <div className="mt-3 flex items-center gap-2 @max-md/asks:flex-col @max-md/asks:items-stretch @max-md/asks:gap-1.5">
-        <AnswerButton {...choice("allowed")}>Allow in this chat</AnswerButton>
-        <AnswerButton {...choice("always")} variant="outline">
-          Always allow
-        </AnswerButton>
+        {refused ? (
+          <MacFixes ask={ask} busy={busy} chatId={chatId} />
+        ) : (
+          <>
+            <AnswerButton {...choice("allowed")}>
+              Allow in this chat
+            </AnswerButton>
+            <AnswerButton {...choice("always")} variant="outline">
+              Always allow
+            </AnswerButton>
+          </>
+        )}
         <AnswerButton
           {...choice("declined")}
           className="ml-auto text-muted-foreground @max-md/asks:ml-0"
@@ -254,6 +238,95 @@ function PermissionAskCard({
     </div>
   );
 }
+
+// oxlint-disable studio/no-os-words -- a folder is refused by macOS alone, so this shows only there
+/**
+ * The two ways past a folder macOS refused after the person allowed it: pick
+ * it in the Mac's own panel, which is a lasting grant, or turn it on in System
+ * Settings. While Settings is open the card waits the way a sign-in does,
+ * trying the folder again each time the window comes back, until it opens
+ * (and the card goes) or the person cancels.
+ */
+function MacFixes({
+  ask,
+  busy,
+  chatId,
+}: {
+  ask: Ask;
+  busy: boolean;
+  chatId: ChatId;
+}) {
+  const [inSettings, setInSettings] = useState(false);
+  const retry = useMutation(
+    rpcClient.workspace.permissions.retry.mutationOptions(onAnswerError),
+  );
+  const systemSettings = useMutation(
+    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+  );
+  const tryAgain = () => {
+    retry.mutate({ askId: ask.id, id: chatId });
+  };
+  useEffect(() => {
+    if (!inSettings) {
+      return;
+    }
+    window.addEventListener("focus", tryAgain);
+    return () => {
+      window.removeEventListener("focus", tryAgain);
+    };
+  });
+  const name = askTargetName(ask.kind, ask.target);
+  const choose = async () => {
+    const picked = await rpcClient.utils.showFolderPicker.call({
+      buttonLabel: "Allow",
+      message: `Choose ${name} to let Instrument in.`,
+      startingAt: ask.target,
+    });
+    if (picked) {
+      tryAgain();
+    }
+  };
+  return (
+    <>
+      <AnswerButton
+        disabled={busy || retry.isPending || inSettings}
+        onClick={() => {
+          void choose();
+        }}
+        pending={retry.isPending && !inSettings}
+      >
+        {`Choose ${name}…`}
+      </AnswerButton>
+      <Button
+        className="relative"
+        disabled={busy}
+        onClick={() => {
+          if (inSettings) {
+            setInSettings(false);
+            return;
+          }
+          systemSettings.mutate(undefined);
+          setInSettings(true);
+        }}
+        size="sm"
+        variant="outline"
+      >
+        {/* The label stays in place, unseen, under the waiting state, so
+        the button keeps its width and nothing beside it moves. */}
+        <span className={cn(inSettings && "invisible")}>
+          Open System Settings
+        </span>
+        {inSettings ? (
+          <span className="absolute inset-0 flex items-center justify-center gap-1.5">
+            <Spinner className="size-3.5" delay={0} />
+            Cancel
+          </span>
+        ) : null}
+      </Button>
+    </>
+  );
+}
+// oxlint-enable studio/no-os-words
 
 /**
  * One answer. Pressed, it keeps its label and the others are disabled; only a

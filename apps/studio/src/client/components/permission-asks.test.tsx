@@ -9,20 +9,29 @@ import { PermissionAsksFoot } from "./permission-asks";
 
 const chatId = ChatIdSchema.parse("test-chat");
 
-function showAsks(asks: { kind?: "app" | "folder"; target: string }[]) {
+function showAsks(
+  asks: {
+    kind?: "app" | "folder";
+    reason?: string;
+    status?: "macos-refused" | "open";
+    target: string;
+  }[],
+) {
   const { queryClient } = renderWithProviders(
-    <PermissionAsksFoot chatId={chatId} messages={[]} />,
+    <PermissionAsksFoot chatId={chatId} />,
   );
   queryClient.setQueryData(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }).queryKey,
-    asks.map(({ kind = "folder", target }, index) => ({
+    asks.map(({ kind = "folder", reason, status = "open", target }, index) => ({
       askedAt: new Date(index),
-      askers: [{ sessionId: StoreId.newSessionId() }],
+      askers: [
+        { sessionId: StoreId.newSessionId(), ...(reason && { reason }) },
+      ],
       id: `ask-${index}`,
       kind,
-      status: "open",
+      status,
       target,
     })),
   );
@@ -95,5 +104,38 @@ describe("PermissionAsksFoot", () => {
     expect(
       screen.queryByRole("button", { name: "Don’t allow any of these" }),
     ).toBeNull();
+  });
+
+  it("says what the agent needs it for", async () => {
+    showAsks([
+      {
+        reason: "Saving a copy of the comparison on your Desktop",
+        target: "/Users/sam/Desktop",
+      },
+    ]);
+
+    expect(
+      await screen.findByText(
+        "Saving a copy of the comparison on your Desktop",
+      ),
+    ).toBeDefined();
+  });
+
+  it("offers the ways past macOS, not the yes again, once macOS refused", async () => {
+    showAsks([{ status: "macos-refused", target: "/Users/sam/Desktop" }]);
+
+    expect(
+      await screen.findByText(
+        "Your Mac is keeping Instrument out of “Desktop”",
+      ),
+    ).toBeDefined();
+    expect(screen.getAllByRole("button").map((button) => button.textContent))
+      .toMatchInlineSnapshot(`
+      [
+        "Choose “Desktop”…",
+        "Open System Settings",
+        "Don’t allow",
+      ]
+    `);
   });
 });

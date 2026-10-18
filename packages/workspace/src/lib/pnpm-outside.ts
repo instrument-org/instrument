@@ -538,17 +538,12 @@ export function projectReason(project: string): string | undefined {
   if (workspaceWhy) {
     return workspaceWhy;
   }
-  // pnpm looks above the project for a workspace it belongs to.
-  for (
-    let dir = path.dirname(project);
-    dir !== path.dirname(dir);
-    dir = path.dirname(dir)
-  ) {
-    for (const name of ["pnpm-workspace.yaml", "pnpm-workspace.yml"]) {
-      if (lstatOrUndefined(path.join(dir, name)) !== undefined) {
-        return `${path.join(dir, name)} is above the project`;
-      }
-    }
+  const above = workspaceAbove(project, {
+    ownManifest: manifest !== null,
+    ownWorkspace: workspace !== null,
+  });
+  if (above !== undefined) {
+    return `${above} is above the project`;
   }
   const modules = path.join(project, "node_modules");
   const modulesStat = lstatOrUndefined(modules);
@@ -559,6 +554,49 @@ export function projectReason(project: string): string | undefined {
     const link = linkOutOf(project, modules);
     if (link !== undefined) {
       return `${link} leads out of the project`;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The workspace manifest above a project that pnpm would take it to belong
+ * to, as pnpm looks: the nearest `pnpm-workspace.yaml` from the project up,
+ * none past the project's own, and none that lists no `packages` when the
+ * project has a package.json of its own, since its default list holds only
+ * the folder it is in.
+ */
+function workspaceAbove(
+  project: string,
+  { ownManifest, ownWorkspace }: { ownManifest: boolean; ownWorkspace: boolean },
+): string | undefined {
+  if (ownWorkspace) {
+    return undefined;
+  }
+  for (
+    let dir = path.dirname(project);
+    dir !== path.dirname(dir);
+    dir = path.dirname(dir)
+  ) {
+    if (lstatOrUndefined(path.join(dir, "pnpm-workspace.yml")) !== undefined) {
+      return path.join(dir, "pnpm-workspace.yml");
+    }
+    const found = path.join(dir, "pnpm-workspace.yaml");
+    if (lstatOrUndefined(found) === undefined) {
+      continue;
+    }
+    if (!ownManifest) {
+      return found;
+    }
+    try {
+      const settings: unknown = parse(readFileSync(found, "utf8"), {
+        maxAliasCount: 0,
+      });
+      return isRecord(settings) && settings.packages !== undefined
+        ? found
+        : undefined;
+    } catch {
+      return found;
     }
   }
   return undefined;
@@ -797,8 +835,16 @@ export async function installOutside({
         ...result,
         // pnpm's own words for builds it skipped, which the bash tool
         // answers with how to allow them (`ignoredBuildsNote`).
-        stdout: `${result.stdout}${result.stdout.endsWith("\n") || result.stdout === "" ? "" : "\n"}Ignored build scripts: ${ignored.join(", ")}.\nRun "${PNPM_NAME} approve-builds" to pick which dependencies should be allowed to run scripts.\n`,
+        stdout: `${result.stdout}Ignored build scripts: ${ignored.join(", ")}.\nRun "${PNPM_NAME} approve-builds" to pick which dependencies should be allowed to run scripts.\n`,
       };
+}
+
+/** Each step's output on lines of its own. */
+function joinedOutput(outputs: string[]): string {
+  return outputs
+    .filter((output) => output !== "")
+    .map((output) => (output.endsWith("\n") ? output : `${output}\n`))
+    .join("");
 }
 
 /** Steps run as one command: their output in order, the first failure's exit code. */
@@ -806,7 +852,7 @@ function combined(args: string[], results: PnpmResult[]): PnpmResult {
   return {
     command: `${PNPM_NAME} ${args.join(" ")}`,
     exitCode: results.find((result) => result.exitCode !== 0)?.exitCode ?? 0,
-    stderr: results.map((result) => result.stderr).join(""),
-    stdout: results.map((result) => result.stdout).join(""),
+    stderr: joinedOutput(results.map((result) => result.stderr)),
+    stdout: joinedOutput(results.map((result) => result.stdout)),
   };
 }

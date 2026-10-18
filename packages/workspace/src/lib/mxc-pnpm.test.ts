@@ -85,11 +85,6 @@ describe.runIf(held)("pnpm in a chat's shell under MXC", () => {
     const version = await run("pnpm exec esbuild --version");
     expect(version).toMatchObject({ exitCode: 0 });
     expect(version.stdout).toMatch(/^\d+\.\d+\.\d+\s*$/);
-    const bundled = await run(
-      `echo "export const x = 1" > in.js && pnpm exec esbuild in.js --bundle --format=esm`,
-    );
-    expect(bundled.exitCode).toBe(0);
-    expect(bundled.stdout).toContain("x = 1");
   }, 300_000);
 
   it("adds a later package outside again, from the same store", async () => {

@@ -360,6 +360,37 @@ describe("projectReason", () => {
     expect(projectReason(project)).toBeUndefined();
   });
 
+  it.each([
+    {
+      above: "packages:\n  - '*'\n",
+      name: "its own pnpm-workspace.yaml stops pnpm's look",
+      own: "allowBuilds:\n  esbuild: true\n",
+    },
+    {
+      above: "allowBuilds:\n  esbuild: true\n",
+      name: "a workspace above lists no packages and it has a package.json",
+      own: undefined,
+    },
+  ])("takes a project when $name", ({ above, own }) => {
+    writeFileSync(path.join(root, "pnpm-workspace.yaml"), above);
+    if (own !== undefined) {
+      writeFileSync(path.join(project, "pnpm-workspace.yaml"), own);
+    }
+    expect(projectReason(project)).toBeUndefined();
+  });
+
+  it("keeps a folder with no package.json under a workspace in the sandbox", () => {
+    writeFileSync(
+      path.join(root, "pnpm-workspace.yaml"),
+      "allowBuilds:\n  esbuild: true\n",
+    );
+    const empty = path.join(root, "empty");
+    mkdirSync(empty);
+    expect(projectReason(empty)).toMatch(
+      /pnpm-workspace\.yaml is above the project$/,
+    );
+  });
+
   it("takes a folder with nothing in it yet", () => {
     const empty = path.join(root, "empty");
     mkdirSync(empty);
@@ -474,7 +505,7 @@ describe("projectReason", () => {
         reason: /^package.json dependencies names x$/,
       },
       {
-        name: "a workspace above it",
+        name: "a workspace above it listing packages",
         plant: () => {
           writeFileSync(
             path.join(root, "pnpm-workspace.yaml"),

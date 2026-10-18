@@ -1,8 +1,11 @@
+import fs from "node:fs/promises";
+
 import { type ChatId } from "../../schemas/chat-id";
 import { readChatRecord, updateChatRecord } from "../chat-record";
 import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { renameChatFolder } from "./chat-folder";
+import { rewriteChatFolder } from "./on-turn-end";
 
 /**
  * Renames a chat's folder to the title it now has, and records the name it
@@ -36,14 +39,28 @@ export async function followTitle(
       rootDir: getWorkspaceConfig().rootDir,
       title,
     });
-    if (folder.name === from) {
-      return;
+    if (folder.name !== from) {
+      await updateChatRecord(dir, "settings", (current) => ({
+        ...current.raw,
+        folder: folder.name,
+      }));
     }
-    await updateChatRecord(dir, "settings", (current) => ({
-      ...current.raw,
-      folder: folder.name,
-    }));
+    // The transcript was written when the turn ended, which is before a
+    // title settled from that turn landed; its front matter names the chat.
+    // A folder the person took away is left for the chat's next change.
+    if (await exists(folder.path)) {
+      await rewriteChatFolder(chatId);
+    }
   } catch (error) {
     getWorkspaceConfig().captureException(error);
+  }
+}
+
+async function exists(entry: string): Promise<boolean> {
+  try {
+    await fs.stat(entry);
+    return true;
+  } catch {
+    return false;
   }
 }

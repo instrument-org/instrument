@@ -1,4 +1,5 @@
 import { publisher } from "../../rpc/publisher";
+import { type ChatId } from "../../schemas/chat-id";
 import { sessionRole } from "../chat/children";
 import { readTopicsSync } from "../chat/topics";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -27,24 +28,32 @@ export function startChatFolderWrites(): void {
         if (sessionRole(id, sessionId) === undefined) {
           continue;
         }
-        const rootDir = getWorkspaceConfig().rootDir;
-        const written = await writeChatFolder({
-          chatsDir: workspaceLayout(rootDir).chatsDir,
-          id,
-          rootDir,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          topicNames: new Map(
-            readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
-          ),
-        });
-        if (written.kind === "failed") {
-          getWorkspaceConfig().captureException(
-            new Error(`Writing ${id}'s transcript: ${written.error}`),
-          );
-        }
+        await rewriteChatFolder(id);
       } catch (error) {
         getWorkspaceConfig().captureException(error);
       }
     }
   })();
+}
+
+/**
+ * Writes the chat's folder and `CHAT.md` from its records as they stand now,
+ * reporting a failure rather than throwing it.
+ */
+export async function rewriteChatFolder(id: ChatId): Promise<void> {
+  const rootDir = getWorkspaceConfig().rootDir;
+  const written = await writeChatFolder({
+    chatsDir: workspaceLayout(rootDir).chatsDir,
+    id,
+    rootDir,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    topicNames: new Map(
+      readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
+    ),
+  });
+  if (written.kind === "failed") {
+    getWorkspaceConfig().captureException(
+      new Error(`Writing ${id}'s transcript: ${written.error}`),
+    );
+  }
 }

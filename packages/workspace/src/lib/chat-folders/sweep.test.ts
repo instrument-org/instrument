@@ -187,10 +187,10 @@ describe("every chat gets a folder", () => {
     expect((await settingsOf(two.dir)).folder).toBe("Taxes 2026");
   });
 
-  it("names a chat whose title never settled", async () => {
+  it("names a chat the agent never named by its opening words", async () => {
     await writeChat("2026-10-14-unnamed");
     await sweep();
-    expect(await folderNames()).toEqual(["Untitled chat"]);
+    expect(await folderNames()).toEqual(["A question"]);
   });
 
   it("numbers the second folder two chats would share", async () => {

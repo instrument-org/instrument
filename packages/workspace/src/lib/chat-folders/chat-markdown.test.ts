@@ -368,6 +368,12 @@ describe("a change the file does not report leaves it alone", () => {
   });
 });
 
+it("names a chat the agent never named by its opening words", () => {
+  expect(render(foldChat(foldFilesOf()))?.split("\n")[1]).toBe(
+    "title: A question.",
+  );
+});
+
 it("leaves a record folder with no conversation of its own unrendered", () => {
   const taskOnly = foldChat([
     log(

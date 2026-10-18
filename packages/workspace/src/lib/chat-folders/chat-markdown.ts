@@ -13,6 +13,7 @@ import {
   partEndedAt,
   toolCallLine,
 } from "../chat/call-label";
+import { shownTitle } from "../chat/shown-title";
 import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
 import { localStamp } from "../local-stamp";
@@ -186,10 +187,18 @@ export function renderChatMarkdown({
   return `${blocks.join("\n\n")}\n`;
 }
 
-/** The title the chat's folder is named by, as its records hold it. */
+/** The title the chat's folder is named by, as the chat list shows it. */
 export function chatTitleOf(chat: FoldedChat): string | undefined {
   const own = ownSession(chat);
-  return own && sessionOf(own).title;
+  return own && titleOf(own);
+}
+
+/** The chat's title as the chat list shows it. */
+function titleOf(own: FoldedSession): string {
+  return shownTitle(
+    sessionOf(own).title,
+    own.messages.find((message) => message.role === "user"),
+  );
 }
 
 /** The chat's own conversation: the session of its records with no parent. */
@@ -219,10 +228,9 @@ function frontMatter(
 ): string {
   const topicId = own.marks.topic?.value;
   const topic = topicId ? topicNames?.get(topicId) : undefined;
-  const title = sessionOf(own).title;
   return [
     "---",
-    ...(title === undefined ? [] : [`title: ${yamlScalar(title)}`]),
+    `title: ${yamlScalar(titleOf(own))}`,
     `created: ${localStamp(own.createdAt, timeZone)}`,
     ...(topic === undefined ? [] : [`topic: ${yamlScalar(topic)}`]),
     "---",

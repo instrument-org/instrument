@@ -1,4 +1,4 @@
-import { APP_NAME_SLUG, placeholderTitle } from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -30,6 +30,7 @@ import { listChatIds } from "./chat-records";
 import { listChildTasks, sessionRole } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
+import { shownTitle } from "./shown-title";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingJobWake } from "./job-wake";
@@ -544,11 +545,7 @@ async function chatFor(
     runningTasks,
     sessionId: session.id,
     state,
-    // Until the agent names the chat, the ask's own first words stand for it
-    // rather than the placeholder a session is born with.
-    title: isUntitledChatSessionTitle(session.title)
-      ? placeholderTitle(firstLine(root ? textOf(root) : "")) || session.title
-      : session.title,
+    title: shownTitle(session.title, root),
     titled: !isUntitledChatSessionTitle(session.title),
     ...(session.topic ? { topic: session.topic } : {}),
     unread: session.unreadAt !== undefined,

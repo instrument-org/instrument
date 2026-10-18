@@ -1,7 +1,7 @@
 import { revokeSession } from "@/electron-main/auth/client";
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
-  machineDir,
+  getUserDataDir,
   workspaceInAppData,
   workspaceKeysDir,
 } from "@/electron-main/lib/get-workspace-folder";
@@ -64,8 +64,6 @@ async function sizeOnDisk(dir: string): Promise<null | number> {
   }
 }
 
-const userDataDir = machineDir;
-
 const WorkspaceRowSchema = z.object({
   /** Why Delete is unavailable, or null when it is offered. */
   deleteBlockedBy: z.string().nullable(),
@@ -112,11 +110,14 @@ const list = devOnly
   )
   .handler(() => {
     const resolved = getResolvedWorkspace();
-    const listings = listWorkspaces({ resolved, userDataDir: userDataDir() });
+    const listings = listWorkspaces({
+      resolved,
+      userDataDir: getUserDataDir(),
+    });
     return {
       pinned: resolved.pinned,
       workspaces: listings.map((listing) => ({
-        deleteBlockedBy: whyNotDeletable(listing, userDataDir()),
+        deleteBlockedBy: whyNotDeletable(listing, getUserDataDir()),
         id: listing.id,
         identity: listing.identity,
         isDefault: listing.isDefault,
@@ -139,7 +140,7 @@ const sizes = devOnly
   .handler(async () => {
     const listings = listWorkspaces({
       resolved: getResolvedWorkspace(),
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     const measured = await Promise.all(
       listings.map(
@@ -167,7 +168,7 @@ const create = devOnly
       copySignInsFrom: input.copySignIns ? workspaceKeysDir() : null,
       developerMode: isDeveloperMode(),
       name: input.name,
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     return { id };
   });
@@ -186,12 +187,12 @@ const switchTo = devOnly
       });
     }
     if (
-      !readRegistry(userDataDir()).workspaces.some((w) => w.id === input.id)
+      !readRegistry(getUserDataDir()).workspaces.some((w) => w.id === input.id)
     ) {
       throw errors.NOT_FOUND({ message: `No workspace "${input.id}"` });
     }
     const choose = () => {
-      updateRegistry(userDataDir(), (registry) => ({
+      updateRegistry(getUserDataDir(), (registry) => ({
         ...registry,
         active: input.id,
       }));
@@ -210,7 +211,7 @@ const remove = devOnly
   .handler(async ({ errors, input }) => {
     const listings = listWorkspaces({
       resolved: getResolvedWorkspace(),
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     const listing = listings.find((candidate) =>
       samePath(candidate.path, input.path),
@@ -218,7 +219,7 @@ const remove = devOnly
     if (!listing) {
       throw errors.NOT_FOUND({ message: "No such workspace" });
     }
-    const blocked = whyNotDeletable(listing, userDataDir());
+    const blocked = whyNotDeletable(listing, getUserDataDir());
     if (blocked) {
       throw errors.UNAUTHORIZED({ message: blocked });
     }
@@ -226,11 +227,11 @@ const remove = devOnly
     // ends too, unless another workspace holds the same one (a workspace made
     // with the sign-in copied shares its session), which would be signed out
     // with it.
-    const token = readBearerTokenIn(keysDirOf(userDataDir(), listing));
+    const token = readBearerTokenIn(keysDirOf(getUserDataDir(), listing));
     const sharedWith = listings.some(
       (other) =>
         other !== listing &&
-        readBearerTokenIn(keysDirOf(userDataDir(), other)) === token,
+        readBearerTokenIn(keysDirOf(getUserDataDir(), other)) === token,
     );
     if (token !== null && !sharedWith) {
       await revokeSession(token).catch((error: unknown) => {
@@ -244,7 +245,7 @@ const remove = devOnly
     // folder is removed only once that leaves it empty. A folder that cannot
     // be reached is only taken off the list: nothing of it can be read to
     // say what is its own.
-    const ownMachineDir = machineDirOwnedBy(userDataDir(), listing);
+    const ownMachineDir = machineDirOwnedBy(getUserDataDir(), listing);
     if (listing.isReachable) {
       await shell.trashItem(workspaceLayout(listing.path).dataDir);
       removeFolderIfEmpty(listing.path);
@@ -252,7 +253,7 @@ const remove = devOnly
     if (ownMachineDir !== undefined) {
       await shell.trashItem(ownMachineDir);
     }
-    unregisterWorkspace({ dir: listing.path, userDataDir: userDataDir() });
+    unregisterWorkspace({ dir: listing.path, userDataDir: getUserDataDir() });
   });
 
 const register = devOnly
@@ -261,7 +262,7 @@ const register = devOnly
     const registered = registerStray({
       dir: input.path,
       resolved: getResolvedWorkspace(),
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     if (!registered) {
       throw errors.NOT_FOUND({ message: "Not an unlisted workspace" });
@@ -299,7 +300,7 @@ const checkFolder = base
   .handler(({ input }) =>
     checkMoveTarget({
       target: input.path,
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
       workspace: getResolvedWorkspace(),
     }),
   );
@@ -325,7 +326,7 @@ const move = base
     const workspace = getResolvedWorkspace();
     const verdict = checkMoveTarget({
       target: input.path,
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
       workspace,
     });
     if (verdict.kind !== "movable") {
@@ -334,7 +335,7 @@ const move = base
     const request = () => {
       requestWorkspaceMove({
         target: input.path,
-        userDataDir: userDataDir(),
+        userDataDir: getUserDataDir(),
         workspace,
       });
     };
@@ -373,13 +374,13 @@ const open = base
     }
     const registered = registerWorkspaceFolder({
       dir: input.path,
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     if (registered === undefined) {
       return { outcome: "not-a-workspace" as const };
     }
     const choose = () => {
-      updateRegistry(userDataDir(), (registry) => ({
+      updateRegistry(getUserDataDir(), (registry) => ({
         ...registry,
         active: registered.id,
       }));

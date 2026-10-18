@@ -488,7 +488,7 @@ describe("buildBashFs skills mount", () => {
       ...getWorkspaceConfig(),
       appsDir: AbsolutePathSchema.parse(workspaceLayout(tmpDir).appsDir),
       chatsDir: AbsolutePathSchema.parse(workspaceLayout(tmpDir).chatsDir),
-      machineDir: AbsolutePathSchema.parse(machine),
+      userDataDir: AbsolutePathSchema.parse(machine),
       rootDir: WorkspaceDirSchema.parse(tmpDir),
       runtimeDir: AbsolutePathSchema.parse(path.join(machine, "runtime")),
       workFoldersDir: AbsolutePathSchema.parse(path.join(machine, "work")),
@@ -587,7 +587,7 @@ describe("effectiveFolderAccess", () => {
       chatsDir: AbsolutePathSchema.parse(
         workspaceLayout(path.join(tmpDir, "Documents", "picked")).chatsDir,
       ),
-      machineDir: AbsolutePathSchema.parse(path.join(tmpDir, "machine")),
+      userDataDir: AbsolutePathSchema.parse(path.join(tmpDir, "machine")),
       rootDir: WorkspaceDirSchema.parse(
         path.join(tmpDir, "Documents", "picked"),
       ),

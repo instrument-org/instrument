@@ -57,16 +57,11 @@ const userData = path.join(
 );
 
 // The default workspace's keys hold the plan, in its machine folder
-// (`workspaces-data/default/`, wherever the workspace itself is). Its
+// (`machine/default/`, wherever the workspace itself is). Its
 // settings folder held it before that folder existed, and the userData root
 // before workspaces; an install not yet migrated still keeps it there.
 const storeDir = [
-  path.join(
-    userData,
-    "workspaces-data",
-    "default",
-    WORKSPACE_MACHINE_ENTRIES.keys,
-  ),
+  path.join(userData, "machine", "default", WORKSPACE_MACHINE_ENTRIES.keys),
   path.join(userData, "workspace", PRIVATE_FOLDER_NAME, "settings"),
   userData,
 ].find((dir) =>

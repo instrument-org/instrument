@@ -183,9 +183,9 @@ describe("du", () => {
   );
 
   it("refuses the app's own data as ls does, with the same note", async () => {
-    const { machineDir } = getWorkspaceConfig();
-    await fs.mkdir(machineDir, { recursive: true });
-    const machine = shellPath(machineDir);
+    const { userDataDir } = getWorkspaceConfig();
+    await fs.mkdir(userDataDir, { recursive: true });
+    const machine = shellPath(userDataDir);
     const du = await run(`du -s '${machine}'`);
     const ls = await run(`ls '${machine}'`);
 

@@ -113,24 +113,24 @@ beforeEach(() => {
 function homeShaped(appFiles: string, workspaceIn?: string) {
   const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "app-data-")));
   homes.push(home);
-  const machine = path.join(home, appFiles, "Instrument");
-  const workspaceMachine = path.join(machine, "workspaces-data", "default");
+  const userData = path.join(home, appFiles, "Instrument");
+  const workspaceMachine = path.join(userData, "machine", "default");
   const workspace =
     workspaceIn === undefined
-      ? path.join(machine, "workspace")
+      ? path.join(userData, "workspace")
       : path.join(home, workspaceIn);
   const data = workspaceLayout(workspace);
   const paths = {
     appFiles: path.join(home, appFiles),
     home,
-    machine,
+    userData,
     data,
     otherRecord: path.join(data.chatsDir, "2026-10-13-other"),
     otherWork: path.join(workspaceMachine, "work", "2026-10-13-other"),
     /** Where the person picked their workspace, in their home folder. */
     pickedIn: workspaceIn,
     record: path.join(data.chatsDir, "2026-10-13-chat"),
-    runtime: path.join(machine, "runtime"),
+    runtime: path.join(userData, "runtime"),
     work: path.join(workspaceMachine, "work", "2026-10-13-chat"),
     workspace,
     workspaceMachine,
@@ -152,10 +152,10 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     `${workspaceMachine}/keys/x`,
     `${workspaceMachine}/browser/Cookies`,
     `${workspaceMachine}/permissions.json`,
-    `${machine}/Cookies`,
-    `${machine}/Local State`,
-    `${machine}/logs/main.log`,
-    `${machine}/workspaces.json`,
+    `${userData}/Cookies`,
+    `${userData}/Local State`,
+    `${userData}/logs/main.log`,
+    `${userData}/workspaces.json`,
     `${paths.runtime}/caches/uv/x`,
     `${paths.runtime}/config/npmrc`,
     `${paths.runtime}/python/bin/python3`,
@@ -193,7 +193,7 @@ function useApp(paths: Paths) {
     ...previous,
     appsDir: AbsolutePathSchema.parse(paths.data.appsDir),
     chatsDir: AbsolutePathSchema.parse(paths.data.chatsDir),
-    machineDir: AbsolutePathSchema.parse(paths.machine),
+    userDataDir: AbsolutePathSchema.parse(paths.userData),
     // A folder the person picked is where their finished work goes too,
     // which the app says through the config. Spelled from this account's
     // home, as every path in the config is, so the output place carries it
@@ -342,24 +342,24 @@ function reachTable(p: Paths) {
       `${p.workspaceMachine}/permissions.json`,
       "never",
     ],
-    ["the app's own cookies", "read", `${p.machine}/Cookies`, "never"],
+    ["the app's own cookies", "read", `${p.userData}/Cookies`, "never"],
     [
       "the app's own Chromium state",
       "read",
-      `${p.machine}/Local State`,
+      `${p.userData}/Local State`,
       "never",
     ],
-    ["the app's own log", "read", `${p.machine}/logs/main.log`, "never"],
+    ["the app's own log", "read", `${p.userData}/logs/main.log`, "never"],
     [
       "the registry of workspaces",
       "read",
-      `${p.machine}/workspaces.json`,
+      `${p.userData}/workspaces.json`,
       "never",
     ],
     [
       "the registry of workspaces",
       "write",
-      `${p.machine}/workspaces.json`,
+      `${p.userData}/workspaces.json`,
       "never",
     ],
     [
@@ -576,7 +576,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
 
     it.each([
       ["the keys", `${paths.workspaceMachine}/keys/x`],
-      ["the registry of workspaces", `${paths.machine}/workspaces.json`],
+      ["the registry of workspaces", `${paths.userData}/workspaces.json`],
       ["another chat's work folder", `${paths.otherWork}/notes.md`],
       ["another chat's settings", `${paths.otherRecord}/settings.json`],
       ["its own chat.db", `${paths.record}/chat.db`],
@@ -606,9 +606,9 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           [
             `ls '${paths.otherWork}'`,
             `cat '${paths.workspaceMachine}/keys/x'`,
-            `cat '${paths.machine}/workspaces.json'`,
-            `ls '${paths.machine}'`,
-            `echo x > '${paths.machine}/Cookies'`,
+            `cat '${paths.userData}/workspaces.json'`,
+            `ls '${paths.userData}'`,
+            `echo x > '${paths.userData}/Cookies'`,
             `echo x > '${paths.runtime}/bin/probe'`,
             `echo x > '${paths.runtime}/python/probe'`,
             `echo x > '${paths.runtime}/preload/probe'`,
@@ -705,10 +705,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         `cat '${paths.otherRecord}/chat.db'`,
         1,
       ],
-      ["refuses the app's own cookies", `cat '${paths.machine}/Cookies'`, 1],
+      ["refuses the app's own cookies", `cat '${paths.userData}/Cookies'`, 1],
       [
         "refuses a change to the registry of workspaces",
-        `echo x > '${paths.machine}/workspaces.json'`,
+        `echo x > '${paths.userData}/workspaces.json'`,
         1,
       ],
       [
@@ -826,7 +826,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         expect(opened).not.toBe(-1);
         expect(opened).toBeLessThan(
           lines.indexOf(
-            `(deny file-read* file-write* network-outbound (subpath "${paths.machine}"))`,
+            `(deny file-read* file-write* network-outbound (subpath "${paths.userData}"))`,
           ),
         );
       },
@@ -840,7 +840,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           `--bind ${paths.appFiles} ${paths.appFiles}`,
         );
         expect(opened).not.toBe(-1);
-        expect(opened).toBeLessThan(args.indexOf(`--tmpfs ${paths.machine}`));
+        expect(opened).toBeLessThan(args.indexOf(`--tmpfs ${paths.userData}`));
         expect(args).not.toContain(
           `--bind ${path.join(paths.workspaceMachine, "keys")}`,
         );
@@ -1036,7 +1036,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     const args = bwrapArgs(reach).join(" ");
 
     it("closes this computer's folder, passing through to what opens in it", () => {
-      expect(args).toContain(`--perms 0111 --tmpfs ${paths.machine}`);
+      expect(args).toContain(`--perms 0111 --tmpfs ${paths.userData}`);
       expect(args).toContain(`--bind ${paths.work} ${paths.work}`);
       expect(args).toContain(
         `--ro-bind ${paths.runtime}/python ${paths.runtime}/python`,
@@ -1063,7 +1063,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ["the keys", path.join(paths.workspaceMachine, "keys")],
       [
         "the registry of workspaces",
-        path.join(paths.machine, "workspaces.json"),
+        path.join(paths.userData, "workspaces.json"),
       ],
     ])("names nothing of %s", (_name, target) => {
       expect(args).not.toContain(target);
@@ -1100,7 +1100,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it.each([
       [
         "Python's missing file",
-        `FileNotFoundError: [Errno 2] No such file or directory: '${paths.machine}/workspaces.json'`,
+        `FileNotFoundError: [Errno 2] No such file or directory: '${paths.userData}/workspaces.json'`,
       ],
       [
         "Node's missing file",

@@ -212,7 +212,7 @@ setWorkspaceConfig({
   uutilsOutsideSandbox: true,
   webSearch: unavailableWebSearchClient,
   workFoldersDir: AbsolutePathSchema.parse(workFoldersDir),
-  machineDir: AbsolutePathSchema.parse(machineDir),
+  userDataDir: AbsolutePathSchema.parse(machineDir),
   workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
 });
 

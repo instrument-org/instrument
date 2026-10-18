@@ -152,7 +152,7 @@ export function createMockChatConfig(
     uvBinPath: AbsolutePathSchema.parse(path.resolve("/tmp/uv")),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
     workFoldersDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.work),
-    machineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
+    userDataDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
     workspaceMachineDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.machine),
     ...mxcTestConfig(),
   };

@@ -74,7 +74,7 @@ beforeAll(async () => {
   // marks it as home.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    machineDir: AbsolutePathSchema.parse(path.join(home, "app-data")),
+    userDataDir: AbsolutePathSchema.parse(path.join(home, "app-data")),
     rootDir: WorkspaceDirSchema.parse(path.join(home, "workspace")),
   });
 }, 60_000);

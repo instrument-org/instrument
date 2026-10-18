@@ -270,7 +270,7 @@ export const workspaceMachine = setup({
        * `tasks/`.
        */
       legacyTasks?: boolean;
-      machineDir: string;
+      userDataDir: string;
       workspaceDbFile?: string;
       workspaceMachineDir: string;
       modelCache: ModelCache;
@@ -316,7 +316,7 @@ export const workspaceMachine = setup({
       ...(input.isRefusedFile ? { isRefusedFile: input.isRefusedFile } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
-      machineDir: AbsolutePathSchema.parse(input.machineDir),
+      userDataDir: AbsolutePathSchema.parse(input.userDataDir),
       ...(input.workspaceDbFile && {
         workspaceDbFile: AbsolutePathSchema.parse(input.workspaceDbFile),
       }),

@@ -31,9 +31,9 @@ export function mxcTestConfig() {
   if (!exec || !data) {
     return {};
   }
-  const workspaceMachine = path.join(data, "workspaces-data", "test");
+  const workspaceMachine = path.join(data, "machine", "test");
   return {
-    machineDir: AbsolutePathSchema.parse(data),
+    userDataDir: AbsolutePathSchema.parse(data),
     mxcExecPath: AbsolutePathSchema.parse(exec),
     runtimeDir: AbsolutePathSchema.parse(path.join(data, "runtime")),
     workFoldersDir: AbsolutePathSchema.parse(

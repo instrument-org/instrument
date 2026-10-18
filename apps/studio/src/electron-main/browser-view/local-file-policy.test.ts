@@ -464,46 +464,45 @@ describe("a symlink beside the page", () => {
   });
 });
 
-// The machine folder's names carry no private segment, so it is refused as a
-// place: each workspace's keys and browser profiles are in it.
-describe("the machine folder", () => {
-  let machine: string;
+// This computer's folder carries no private segment in its names, so it is
+// refused as a place: each workspace's keys and browser profiles are in it.
+describe("this computer's folder", () => {
+  let computerDir: string;
   const at = (...segments: string[]) =>
-    pathToFileURL(path.join(machine, ...segments)).href;
-  const keys = () => at("workspaces-data/default/keys/providers.json");
-  const cookies = () =>
-    at("workspaces-data/default/browser/app-session/Cookies");
+    pathToFileURL(path.join(computerDir, ...segments)).href;
+  const keys = () => at("machine/default/keys/providers.json");
+  const cookies = () => at("machine/default/browser/app-session/Cookies");
   const chat = "workspace/chats/2026-10-01-chat";
 
   beforeAll(async () => {
-    machine = path.join(
+    computerDir = path.join(
       await fs.realpath(
-        await fs.mkdtemp(path.join(os.tmpdir(), "local-file-machine-")),
+        await fs.mkdtemp(path.join(os.tmpdir(), "local-file-user-data-")),
       ),
-      "machine",
+      "user-data",
     );
-    userData.dir = machine;
+    userData.dir = computerDir;
     for (const file of [
-      "workspaces-data/default/keys/providers.json",
-      "workspaces-data/default/browser/app-session/Cookies",
-      "workspaces-data/default/page.html",
+      "machine/default/keys/providers.json",
+      "machine/default/browser/app-session/Cookies",
+      "machine/default/page.html",
       `${chat}/index.html`,
       `${chat}/style.css`,
     ]) {
-      await fs.mkdir(path.dirname(path.join(machine, file)), {
+      await fs.mkdir(path.dirname(path.join(computerDir, file)), {
         recursive: true,
       });
-      await fs.writeFile(path.join(machine, file), "");
+      await fs.writeFile(path.join(computerDir, file), "");
     }
     await fs.symlink(
-      path.join(machine, "workspaces-data/default/keys/providers.json"),
-      path.join(machine, chat, "keys.json"),
+      path.join(computerDir, "machine/default/keys/providers.json"),
+      path.join(computerDir, chat, "keys.json"),
     );
   });
 
   afterAll(async () => {
     userData.dir = "/mock/user/data";
-    await fs.rm(path.dirname(machine), { force: true, recursive: true });
+    await fs.rm(path.dirname(computerDir), { force: true, recursive: true });
   });
 
   const response = (
@@ -526,11 +525,11 @@ describe("the machine folder", () => {
   };
 
   it("refuses a page beside a workspace's keys and cookies both", async () => {
-    const beside = showing("workspaces-data/default/page.html");
+    const beside = showing("machine/default/page.html");
     expect(await response(keys(), beside)).toEqual({ cancel: true });
     expect(await response(cookies(), beside)).toEqual({ cancel: true });
     expect(
-      isAllowedLocalDownload(keys(), at("workspaces-data/default/page.html")),
+      isAllowedLocalDownload(keys(), at("machine/default/page.html")),
     ).toBe(false);
   });
 

@@ -52,7 +52,7 @@ The gateway's provider proxy is untouched: no body wrapping, no stream parsing, 
 
 ### Storage
 
-One SQLite table, `activity`, in the workspace's `workspace.db` on this computer (`<userData>/workspaces-data/<local id>/`), opened with `node:sqlite` in WAL mode so two Studio instances on one workspace can both write. Each computer keeps the requests it made: a workspace may sit in a synced folder, which can carry a database mid-write, so the table is beside the index ([chat-records.md](chat-records.md)) rather than in the workspace. Rows a build kept in the workspace's `.instrument/ai-usage.db` move in once at launch. This record is the only copy of what it holds; a `workspace.db` SQLite cannot read is moved aside and made again, which loses it, and nothing billing depends on it.
+One SQLite table, `activity`, in the workspace's `workspace.db` on this computer (`<userData>/machine/<local id>/`), opened with `node:sqlite` in WAL mode so two Studio instances on one workspace can both write. Each computer keeps the requests it made: a workspace may sit in a synced folder, which can carry a database mid-write, so the table is beside the index ([chat-records.md](chat-records.md)) rather than in the workspace. Rows a build kept in the workspace's `.instrument/ai-usage.db` move in once at launch. This record is the only copy of what it holds; a `workspace.db` SQLite cannot read is moved aside and made again, which loses it, and nothing billing depends on it.
 
 Indexes on `started_at` and on each filterable column paired with `started_at` keep the totals line a single indexed aggregate. At a heavy thousand requests a day that is under 400,000 rows a year, a few hundred bytes each, so there is no rotation.
 

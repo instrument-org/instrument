@@ -210,7 +210,7 @@ export interface WorkspaceConfig {
    * Chromium profile and machine preferences. Closed to every command the
    * agent runs, but for what the rules open in it.
    */
-  machineDir: AbsolutePath;
+  userDataDir: AbsolutePath;
   /**
    * Where finished work goes when nobody said where (`outputFolderPath`):
    * the workspace's own folder once the person picked where it is kept,

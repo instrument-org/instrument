@@ -61,9 +61,9 @@ const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
 
 /**
  * Takes what is this computer's own out of the resolved workspace folder and
- * into its machine folder, `<userData>/workspaces-data/<local id>/`:
- * secrets encrypted with this computer's key, the Chromium profiles and
- * browser history, the window's state, the folder rules (whose paths are this
+ * into its machine folder, `<userData>/machine/<local id>/`: secrets
+ * encrypted with this computer's key, the Chromium profiles and browser
+ * history, the window's state, the folder rules (whose paths are this
  * computer's) and installed app servers. What follows the person
  * stays and moves up out of `.instrument/settings/`, and the layout sweep's
  * marker files become fields of `workspace.json`.

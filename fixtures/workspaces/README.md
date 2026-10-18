@@ -13,7 +13,7 @@ documents/
       session.json  ── the chat     │       workspace/.instrument/chats/red-and-blue-squares/
       files/        ── its folders' │         chat.db  (the chat and its tasks)
       tasks/                        │         settings.json
-        generated-pdf/              │       workspaces-data/default/work/
+        generated-pdf/              │       machine/default/work/
           session.json ── the task  │         red-and-blue-squares/
           files/                  ──┘           work/red-blue-squares.pdf
                                             folders/Instrument/…

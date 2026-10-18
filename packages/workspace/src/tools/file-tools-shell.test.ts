@@ -60,7 +60,7 @@ beforeAll(async () => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(workspaceLayout(rootDir).chatsDir),
-    machineDir: AbsolutePathSchema.parse(machine),
+    userDataDir: AbsolutePathSchema.parse(machine),
     rootDir: WorkspaceDirSchema.parse(rootDir),
     workFoldersDir: AbsolutePathSchema.parse(path.join(machine, "work")),
     workspaceMachineDir: AbsolutePathSchema.parse(machine),

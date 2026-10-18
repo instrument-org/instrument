@@ -77,7 +77,7 @@ import {
 } from "./lib/quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
 import { showWorkspaceRefusal } from "./lib/workspace-refusal-window";
-import { machineDir } from "./lib/get-workspace-folder";
+import { getUserDataDir } from "./lib/get-workspace-folder";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -163,7 +163,7 @@ async function bootstrapPrimaryInstance() {
   // nothing else starts: no stores, no workspace, no other window.
   const refusal = getWorkspaceRefusal();
   if (refusal) {
-    await showWorkspaceRefusal({ refusal, userDataDir: machineDir() });
+    await showWorkspaceRefusal({ refusal, userDataDir: getUserDataDir() });
     return;
   }
 

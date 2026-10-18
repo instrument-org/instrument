@@ -7,35 +7,35 @@ import {
   isRecordPath,
   isRefusedByName,
   isRefusedFile,
-  machineFolderViewRule,
+  userDataViewRule,
 } from "./refused-files";
 
 /** Whether this system opens a name in another case as the same file. */
 const FOLDS_CASE =
   process.platform === "darwin" || process.platform === "win32";
 
-const MACHINE = path.join(path.parse(process.cwd()).root, "machine");
-const at = (...segments: string[]) => path.join(MACHINE, ...segments);
+const USER_DATA = path.join(path.parse(process.cwd()).root, "user-data");
+const at = (...segments: string[]) => path.join(USER_DATA, ...segments);
 
 describe("isRefusedByName", () => {
-  const rule = machineFolderViewRule({
-    machineDir: MACHINE,
+  const rule = userDataViewRule({
+    userDataDir: USER_DATA,
     workspaceDir: path.join(path.parse(process.cwd()).root, "elsewhere"),
-    workspaceMachineDir: at("workspaces-data", "x"),
+    workspaceMachineDir: at("machine", "x"),
   });
 
   it.each([
     ["the registry of workspaces", at("workspaces.json"), true],
-    ["a workspace's keys", at("workspaces-data", "x", "keys", "a.json"), true],
+    ["a workspace's keys", at("machine", "x", "keys", "a.json"), true],
     ["the runtime", at("runtime", "bin", "node"), true],
     [
       "the open workspace's chat's work folder",
-      at("workspaces-data", "x", "work", "c", "a.md"),
+      at("machine", "x", "work", "c", "a.md"),
       false,
     ],
     [
       "another workspace's work folder",
-      at("workspaces-data", "y", "work", "c", "a.md"),
+      at("machine", "y", "work", "c", "a.md"),
       true,
     ],
     [
@@ -63,9 +63,9 @@ describe("isRefusedByName", () => {
       at("workspace", ".instrument", "chats", "c", "chat.db"),
       true,
     ],
-    ["a folder whose name only starts the same", `${MACHINE}-other`, false],
+    ["a folder whose name only starts the same", `${USER_DATA}-other`, false],
     [
-      "the open workspace outside the machine folder",
+      "the open workspace outside this computer's folder",
       path.join(path.parse(process.cwd()).root, "elsewhere", "a.md"),
       false,
     ],
@@ -73,7 +73,7 @@ describe("isRefusedByName", () => {
     // the longer spelling alone.
     [
       "a workspace's keys by the Data volume's path",
-      `/System/Volumes/Data${at("workspaces-data", "x", "keys", "a.json")}`,
+      `/System/Volumes/Data${at("machine", "x", "keys", "a.json")}`,
       process.platform === "darwin",
     ],
     [
@@ -83,12 +83,12 @@ describe("isRefusedByName", () => {
     ],
     [
       "a workspace's keys spelled in upper case",
-      at("WORKSPACES-DATA", "X", "KEYS", "a.json"),
+      at("MACHINE", "X", "KEYS", "a.json"),
       true,
     ],
     [
       "the open workspace's work folder spelled in upper case",
-      at("WORKSPACES-DATA", "X", "WORK", "c", "a.md"),
+      at("MACHINE", "X", "WORK", "c", "a.md"),
       !FOLDS_CASE,
     ],
   ])("%s: %s refused %s", (_case, hostPath, refused) => {
@@ -96,22 +96,17 @@ describe("isRefusedByName", () => {
   });
 
   it("refuses a refused folder reached by a step up from a viewable one", () => {
-    const up = [
-      at("workspace"),
-      "..",
-      "workspaces-data",
-      "x",
-      "keys",
-      "new.json",
-    ].join(path.sep);
+    const up = [at("workspace"), "..", "machine", "x", "keys", "new.json"].join(
+      path.sep,
+    );
     expect(isRefusedByName(up, rule)).toBe(true);
   });
 
   it.runIf(process.platform === "darwin")(
-    "refuses the machine folder named by the Data volume's path",
+    "refuses this computer's folder named by the Data volume's path",
     () => {
-      const onData = machineFolderViewRule({
-        machineDir: `/System/Volumes/Data${MACHINE}`,
+      const onData = userDataViewRule({
+        userDataDir: `/System/Volumes/Data${USER_DATA}`,
         workspaceDir: undefined,
       });
       expect(isRefusedByName(at("workspaces.json"), onData)).toBe(true);
@@ -122,7 +117,7 @@ describe("isRefusedByName", () => {
     expect(
       isRefusedByName(
         at("a.md"),
-        machineFolderViewRule({ machineDir: MACHINE, workspaceDir: MACHINE }),
+        userDataViewRule({ userDataDir: USER_DATA, workspaceDir: USER_DATA }),
       ),
     ).toBe(true);
   });
@@ -133,15 +128,15 @@ describe("isRefusedFile", () => {
     fs.mkdtempSync(path.join(os.tmpdir(), "refused-files-")),
   );
   const machine = path.join(root, "machine");
-  const keys = path.join(machine, "workspaces-data", "x", "keys");
+  const keys = path.join(machine, "machine", "x", "keys");
   const elsewhere = path.join(root, "elsewhere");
   fs.mkdirSync(keys, { recursive: true });
   fs.mkdirSync(elsewhere);
   fs.writeFileSync(path.join(keys, "k.json"), "{}");
   fs.writeFileSync(path.join(elsewhere, "notes.md"), "");
   fs.symlinkSync(keys, path.join(elsewhere, "escape"));
-  const rule = machineFolderViewRule({
-    machineDir: machine,
+  const rule = userDataViewRule({
+    userDataDir: machine,
     workspaceDir: elsewhere,
   });
 
@@ -149,7 +144,7 @@ describe("isRefusedFile", () => {
     fs.rmSync(root, { force: true, recursive: true });
   });
 
-  // A file not made yet through a link into the machine folder is where a
+  // A file not made yet through a link into this computer's folder is where a
   // write would put it, so it is refused as the files there are.
   it.each([
     ["a file of the person's", path.join(elsewhere, "notes.md"), false],

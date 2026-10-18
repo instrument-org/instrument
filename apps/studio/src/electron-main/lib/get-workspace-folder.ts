@@ -15,7 +15,7 @@ export function getWorkspaceFolder(): string {
  * whichever workspace is open (the update channel, caches, the registry of
  * workspaces), and each workspace's machine folder.
  */
-export function machineDir(): string {
+export function getUserDataDir(): string {
   return app.getPath("userData");
 }
 
@@ -26,7 +26,7 @@ export function machineDir(): string {
  * theirs: their finished work goes there.
  */
 export function workspaceInAppData(): boolean {
-  return pathWithin(getWorkspaceFolder(), machineDir());
+  return pathWithin(getWorkspaceFolder(), getUserDataDir());
 }
 
 /**
@@ -40,8 +40,8 @@ export function workspaceDataDir(): string {
 
 /**
  * This computer's folder for the resolved workspace,
- * `<userData>/workspaces-data/<local id>/`: what is secret, means
- * something only here, or is rebuilt here, none of which travels with it.
+ * `<userData>/machine/<local id>/`: what is secret, means something only
+ * here, or is rebuilt here, none of which travels with it.
  */
 export function workspaceMachineDir(): string {
   return getResolvedWorkspace().machineDir;

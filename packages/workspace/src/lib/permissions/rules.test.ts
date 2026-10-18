@@ -258,8 +258,8 @@ describe("folderToAskFor", () => {
     ).toBe(inHome("Projects"));
   });
 
-  // The app's own data in a place that asks, as the machine folder sits in
-  // the Library on a Mac: a card for something beside it names the folder
+  // The app's own data in a place that asks, as this computer's folder sits
+  // in the Library on a Mac: a card for something beside it names the folder
   // below the one that holds it, and one with nothing below asks for the
   // folder that holds it, which ruleRefusal raises no card for.
   it.each([

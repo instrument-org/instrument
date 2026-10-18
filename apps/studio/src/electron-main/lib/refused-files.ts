@@ -11,7 +11,7 @@ import { PERSON_FOLDERS_IN_DATA_DIR } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import { machineDir as appMachineDir } from "./get-workspace-folder";
+import { getUserDataDir } from "./get-workspace-folder";
 import {
   createdWorkspacesDir,
   defaultWorkspacePath,
@@ -25,10 +25,10 @@ import {
  *
  * Two kinds are refused. A workspace's records, under a `.instrument` segment
  * anywhere but in the folders there that hold the person's own files
- * ({@link isRecordPath}). And the machine folder, Electron's userData, which
- * keeps each workspace's keys, sign-ins and Chromium profiles under names
- * nothing else marks as private; only the folders in it that are the
- * person's to view are shown, which {@link machineFolderViewRule} names.
+ * ({@link isRecordPath}). And this computer's folder, Electron's userData,
+ * which keeps each workspace's keys, sign-ins and Chromium profiles under
+ * names nothing else marks as private; only the folders in it that are the
+ * person's to view are shown, which {@link userDataViewRule} names.
  */
 
 /**
@@ -48,25 +48,25 @@ export interface ViewRule {
 const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
 
 /**
- * The machine folder's rule: all of it is refused, but the workspaces it
+ * This computer's folder's rule: all of it is refused, but the workspaces it
  * keeps, the default one and those made from the dev panel, the workspace
  * this process has open wherever it is, and that workspace's chats' work
  * folders.
  */
-export function machineFolderViewRule({
-  machineDir,
+export function userDataViewRule({
+  userDataDir,
   workspaceDir,
   workspaceMachineDir,
 }: {
-  machineDir: string;
+  userDataDir: string;
   workspaceDir: string | undefined;
   workspaceMachineDir?: string;
 }): ViewRule {
   return {
-    refused: [machineDir],
+    refused: [userDataDir],
     viewable: [
-      defaultWorkspacePath(machineDir),
-      createdWorkspacesDir(machineDir),
+      defaultWorkspacePath(userDataDir),
+      createdWorkspacesDir(userDataDir),
       ...(workspaceDir === undefined ? [] : [workspaceDir]),
       ...(workspaceMachineDir === undefined
         ? []
@@ -168,28 +168,28 @@ export async function isRefusedFile(
 
 let cached: undefined | { key: string; rule: ViewRule };
 
-/** The rule for this process's machine folder and open workspace. */
+/** The rule for this process's own folder and open workspace. */
 function appViewRule(): ViewRule {
-  const machine = appMachineDir();
+  const userData = getUserDataDir();
   let workspaceDir: string | undefined;
   let workspaceMachineDir: string | undefined;
   try {
     ({ path: workspaceDir, machineDir: workspaceMachineDir } =
       getResolvedWorkspace());
   } catch {
-    // Not resolved yet: only the workspaces the machine folder keeps are shown.
+    // Not resolved yet: only the workspaces this computer's folder keeps are shown.
   }
-  const key = `${machine}\0${workspaceDir ?? ""}`;
+  const key = `${userData}\0${workspaceDir ?? ""}`;
   if (cached?.key !== key) {
     cached = {
       key,
       rule: withRealPaths(
-        machineFolderViewRule({
-          machineDir: machine,
+        userDataViewRule({
+          userDataDir: userData,
           workspaceDir,
           workspaceMachineDir,
         }),
-        machine,
+        userData,
       ),
     };
   }

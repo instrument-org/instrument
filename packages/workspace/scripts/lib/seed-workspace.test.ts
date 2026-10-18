@@ -272,13 +272,7 @@ describe("seedWorkspace", () => {
       throw new Error("the task was seeded in no chat");
     }
     // Where the app keeps the work folder of a chat in the first workspace.
-    const dir = path.join(
-      userDataDir,
-      "workspaces-data",
-      "default",
-      "work",
-      filedIn,
-    );
+    const dir = path.join(userDataDir, "machine", "default", "work", filedIn);
 
     expect(chatTask.files.length).toBeGreaterThan(0);
     for (const file of chatTask.files) {

@@ -6,7 +6,7 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
-import { machineDir } from "./lib/get-workspace-folder";
+import { getUserDataDir } from "./lib/get-workspace-folder";
 import {
   LAUNCH_OVERRIDES_FILENAME,
   readLaunchOverrides,
@@ -31,6 +31,7 @@ import {
 import {
   markWorkspaceOpen,
   releaseOpenMark,
+  renameMachineFolder,
   resolveWorkspace,
   setResolvedWorkspace,
 } from "./lib/workspaces";
@@ -100,7 +101,11 @@ installAISDKWarningLogger();
  * is first asked for.
  */
 function openWorkspace() {
-  const userDataDir = machineDir();
+  const userDataDir = getUserDataDir();
+  // Before the workspace resolves, which takes a path inside this folder.
+  for (const step of renameMachineFolder(userDataDir)) {
+    logger.info(`Machine folder: ${step}`);
+  }
   const resolved = resolveWorkspace({
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,

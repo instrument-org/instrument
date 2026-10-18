@@ -14,6 +14,7 @@ import {
   readRegistry,
   readWorkspaceIdentity,
   registerWorkspaceFolder,
+  renameMachineFolder,
   releaseOpenMark,
   resolveWorkspace,
   settleWorkspace,
@@ -690,5 +691,72 @@ describe("where finished work goes while the workspace is the app's own", () => 
     plantChat();
 
     expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
+  });
+});
+
+describe("the machine folder's name", () => {
+  const former = (...names: string[]) =>
+    path.join(userDataDir, "workspaces-data", ...names);
+  const now = (...names: string[]) =>
+    path.join(userDataDir, "machine", ...names);
+
+  function plant(file: string, contents = "x") {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, contents);
+  }
+
+  it("is where a workspace's machine folder is", () => {
+    expect(workspaceMachineDirOf(userDataDir, "default")).toBe(now("default"));
+  });
+
+  it("does nothing where no earlier build left a folder", () => {
+    expect(renameMachineFolder(userDataDir)).toEqual([]);
+    expect(fs.existsSync(now())).toBe(false);
+  });
+
+  it("takes what an earlier build kept under the old name", () => {
+    plant(former("default", "keys", "providers.json.enc"), "keys");
+
+    const done = renameMachineFolder(userDataDir);
+
+    expect(done).toEqual(["workspaces-data/ is now machine/"]);
+    expect(
+      fs.readFileSync(now("default", "keys", "providers.json.enc"), "utf8"),
+    ).toBe("keys");
+    expect(fs.existsSync(former())).toBe(false);
+  });
+
+  // A launch that stopped partway leaves both, so the next one carries the
+  // rest over rather than starting again.
+  it("carries over the workspaces a stopped launch left behind", () => {
+    plant(former("second", "keys", "providers.json.enc"), "second");
+    plant(now("default", "keys", "providers.json.enc"), "default");
+
+    const done = renameMachineFolder(userDataDir);
+
+    expect(done).toEqual(["second is now in machine/"]);
+    expect(
+      fs.readFileSync(now("second", "keys", "providers.json.enc"), "utf8"),
+    ).toBe("second");
+    expect(fs.existsSync(former())).toBe(false);
+  });
+
+  // Two folders of one local id are two workspaces' worth of keys, and only
+  // the one under the new name was opened.
+  it("leaves a workspace already under the new name as it is", () => {
+    plant(former("default", "keys", "providers.json.enc"), "older");
+    plant(now("default", "keys", "providers.json.enc"), "opened");
+
+    const done = renameMachineFolder(userDataDir);
+
+    expect(done).toEqual([
+      "default left in workspaces-data/: already in machine/",
+    ]);
+    expect(
+      fs.readFileSync(now("default", "keys", "providers.json.enc"), "utf8"),
+    ).toBe("opened");
+    expect(
+      fs.readFileSync(former("default", "keys", "providers.json.enc"), "utf8"),
+    ).toBe("older");
   });
 });

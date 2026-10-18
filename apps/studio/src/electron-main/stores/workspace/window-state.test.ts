@@ -34,7 +34,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  workspaceWindowDir: () => "/machine/workspaces-data/default/window",
+  workspaceWindowDir: () => "/user-data/machine/default/window",
 }));
 
 // The zoom the kept state holds is not under test, and the real module

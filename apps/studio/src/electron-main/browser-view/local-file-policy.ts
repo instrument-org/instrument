@@ -30,7 +30,7 @@ import { type GuestRole, guests } from "./guest-registry";
  * shows a file (see `isAllowedGuestRequest`). A workspace's records are
  * refused under a `.instrument` segment anywhere but in the folders there
  * that hold the person's own files, the way every other road to a file
- * refuses them, and so is the machine folder but the workspaces kept in it
+ * refuses them, and so is this computer's folder but the workspaces kept in it
  * (`refused-files.ts`), by name and by where the name really leads, a page's
  * own navigation included.
  *

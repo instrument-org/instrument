@@ -21,7 +21,7 @@ let folder: string;
 let file: string;
 let mtimeMs: number;
 /** This computer's folder, Electron's userData. */
-let machine: string;
+let computerDir: string;
 
 const urlFor = (hostPath: string, query = "") =>
   `${computerFileBase()}${hostPath.split("/").map(encodeURIComponent).join("/")}${query}`;
@@ -38,25 +38,25 @@ beforeAll(async () => {
   const stats = await fs.stat(file);
   mtimeMs = stats.mtimeMs;
 
-  machine = path.join(folder, "machine");
+  computerDir = path.join(folder, "user-data");
   vi.spyOn(app, "getPath").mockImplementation((name) =>
-    name === "userData" ? machine : "/mock/path",
+    name === "userData" ? computerDir : "/mock/path",
   );
   const machineFiles = {
     attachment: "workspace/.instrument/chats/2026-10-01-chat/attachments/a.png",
-    "browser-cookies": "workspaces-data/default/browser/app-session/Cookies",
+    "browser-cookies": "machine/default/browser/app-session/Cookies",
     "chat-db": "workspace/.instrument/chats/2026-10-01-chat/chat.db",
-    keys: "workspaces-data/default/keys/providers.json",
+    keys: "machine/default/keys/providers.json",
     note: "workspace/Reports/notes.md",
   };
   for (const relative of Object.values(machineFiles)) {
-    await fs.mkdir(path.dirname(path.join(machine, relative)), {
+    await fs.mkdir(path.dirname(path.join(computerDir, relative)), {
       recursive: true,
     });
-    await fs.writeFile(path.join(machine, relative), relative);
+    await fs.writeFile(path.join(computerDir, relative), relative);
   }
   await fs.symlink(
-    path.join(machine, machineFiles.keys),
+    path.join(computerDir, machineFiles.keys),
     path.join(folder, "leads-to-keys.json"),
   );
 });
@@ -96,9 +96,9 @@ describe("handleComputerFileRequest", () => {
       "workspace/.instrument/chats/2026-10-01-chat/attachments/a.png",
     ],
   ])(
-    "serves %s in a workspace the machine folder keeps",
+    "serves %s in a workspace this computer's folder keeps",
     async (_name, relative) => {
-      const response = await request(urlFor(path.join(machine, relative)));
+      const response = await request(urlFor(path.join(computerDir, relative)));
       expect(response.status).toBe(200);
       expect(await response.text()).toBe(relative);
     },
@@ -164,7 +164,7 @@ describe("handleComputerFileRequest", () => {
       () =>
         urlFor(
           path.join(
-            machine,
+            computerDir,
             "workspace",
             ".instrument",
             "chats",
@@ -186,7 +186,7 @@ describe("handleComputerFileRequest", () => {
     expect(response.status).toBe(404);
   });
 
-  // The machine folder's names carry no private segment. Its files are
+  // This computer's folder carries no private segment in its names. Its files are
   // forbidden rather than missing, in an answer the renderer may read, so a
   // file tab can say why it shows nothing.
   it.each([
@@ -195,8 +195,8 @@ describe("handleComputerFileRequest", () => {
       () =>
         urlFor(
           path.join(
-            machine,
-            "workspaces-data",
+            computerDir,
+            "machine",
             "default",
             "keys",
             "providers.json",
@@ -208,8 +208,8 @@ describe("handleComputerFileRequest", () => {
       () =>
         urlFor(
           path.join(
-            machine,
-            "workspaces-data",
+            computerDir,
+            "machine",
             "default",
             "browser",
             "app-session",
@@ -218,12 +218,12 @@ describe("handleComputerFileRequest", () => {
         ),
     ],
     [
-      "the machine folder in another case",
+      "this computer's folder in another case",
       () =>
         urlFor(
           path.join(
-            machine,
-            "WORKSPACES-DATA",
+            computerDir,
+            "MACHINE",
             "default",
             "keys",
             "providers.json",
@@ -231,7 +231,7 @@ describe("handleComputerFileRequest", () => {
         ),
     ],
     [
-      "a symlink into the machine folder",
+      "a symlink into this computer's folder",
       () => urlFor(path.join(folder, "leads-to-keys.json")),
     ],
   ])("forbids %s", async (_name, url) => {

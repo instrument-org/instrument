@@ -82,7 +82,7 @@ setWorkspaceConfig({
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   webSearch: unavailableWebSearchClient,
   workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
-  machineDir: AbsolutePathSchema.parse(machineDir),
+  userDataDir: AbsolutePathSchema.parse(machineDir),
   workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
   ...mxcTestConfig(),
 });

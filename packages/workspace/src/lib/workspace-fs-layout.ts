@@ -411,18 +411,18 @@ export function effectiveFolderAccess(folder: {
   }
   const config = getWorkspaceConfig();
   const folderPath = canonicalizeThroughMissing(folder.path);
-  const machine = canonicalizeThroughMissing(config.machineDir);
+  const userData = canonicalizeThroughMissing(config.userDataDir);
   const workspaceData = canonicalizeThroughMissing(
     workspaceLayout(config.rootDir).dataDir,
   );
   // A path failing to resolve means the overlap cannot be ruled out, so the
   // grant is refused rather than assumed safe.
-  if (folderPath === null || machine === null || workspaceData === null) {
+  if (folderPath === null || userData === null || workspaceData === null) {
     return "read-only";
   }
   const overlapsAppData =
-    pathIsWithin(folderPath, machine) ||
-    pathIsWithin(machine, folderPath) ||
+    pathIsWithin(folderPath, userData) ||
+    pathIsWithin(userData, folderPath) ||
     pathIsWithin(folderPath, workspaceData);
   return overlapsAppData ? "read-only" : "read-write";
 }
@@ -435,12 +435,12 @@ export function effectiveFolderAccess(folder: {
  */
 export function folderHoldsAppData(folderPath: string): boolean {
   const resolved = canonicalizeThroughMissing(folderPath);
-  const machine = canonicalizeThroughMissing(getWorkspaceConfig().machineDir);
+  const userData = canonicalizeThroughMissing(getWorkspaceConfig().userDataDir);
   return (
     resolved !== null &&
-    machine !== null &&
-    resolved !== machine &&
-    pathIsWithin(machine, resolved)
+    userData !== null &&
+    resolved !== userData &&
+    pathIsWithin(userData, resolved)
   );
 }
 
@@ -831,7 +831,7 @@ function layoutRules(
       ? windowsProgramFolders(given.home)
       : { readOnly: [], readWrite: [] };
   const appData: Rule[] = [
-    config.machineDir,
+    config.userDataDir,
     workspaceMachineDir(),
     config.runtimeDir,
     workspaceLayout(config.rootDir).dataDir,

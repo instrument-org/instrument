@@ -46,7 +46,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
   attachments/                                  as today, until instrument-folder.md moves it out
   handoff-notes.md                              as today, until instrument-folder.md moves it out
 
-<machine>/workspaces-data/<local id>/           this computer only
+<userData>/machine/<local id>/                  this computer only
   workspace.db                                  index, activity log
   set-aside/chat-db/<chat id>.db                converted chat.db files
   work/<chat id>/.tool-output/                  big command output, as today
@@ -143,7 +143,7 @@ Dates inside `state` values and tool outputs come back as ISO strings; their rea
 
 ## `workspace.db`
 
-One file in `workspaces-data/<local id>/`, WAL, `synchronous = NORMAL`, owned by the workspace's process.
+One file in `machine/<local id>/`, WAL, `synchronous = NORMAL`, owned by the workspace's process.
 
 - Index tables, rebuildable from the folder: `files` (path, size, mtime, tail hash, folded offset, last `seq`, whether the file is downloaded, and what the file's own records decide), `chats` (the chat's own session's title and marks, when it began and last changed, how many tasks it has), `sessions` (header, rollover, stopped, merged marks), `messages` (id, session, role, created, first and last byte offset, for paging), `task_hosts`, `task_standings`. Today's `chat_digests` also reads the parts' text (the first ask, the last reply's first line, steps, files and sites), which no index table holds yet. Later, with the visible folders, the front matter of topics, drafts and memories, and full-text search.
 - Records, not rebuildable: `activity` (the rows `ai-usage.db` held). The window's own tabs have kept no browser state since beta.55, so there is nothing of the window's to keep here.

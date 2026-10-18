@@ -99,7 +99,7 @@ export function buildReportWorkspaceConfig(
         WORKSPACE_MACHINE_ENTRIES.work,
       ),
     ),
-    machineDir: AbsolutePathSchema.parse(
+    userDataDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, EVAL_MACHINE_DIR_NAME),
     ),
     workspaceMachineDir: AbsolutePathSchema.parse(

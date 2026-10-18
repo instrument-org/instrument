@@ -131,7 +131,7 @@ const actor = createActor(workspaceMachine, {
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),
     runtimeDir: path.resolve("../../../workspace.local/runtime"),
-    machineDir: path.resolve("../../../workspace.local/machine"),
+    userDataDir: path.resolve("../../../workspace.local/machine"),
     workspaceMachineDir: path.resolve("../../../workspace.local/machine"),
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),

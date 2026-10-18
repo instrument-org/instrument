@@ -94,7 +94,7 @@ describe("createWorkspace", () => {
     });
     expect(identity.id).toMatch(/^[\dA-Z]{26}$/);
     expect(machineDirOf(created)).toBe(
-      path.join(userDataDir, "workspaces-data", "byok-only"),
+      path.join(userDataDir, "machine", "byok-only"),
     );
     expect(entriesOf(machineDirOf(created))).toEqual(["owner.json"]);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([

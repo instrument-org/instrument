@@ -98,7 +98,7 @@ export async function seedWorkspace({
 }): Promise<SeededTask[]> {
   const rootDir = path.join(userDataDir, "workspace");
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
-  const machineDir = path.join(userDataDir, "workspaces-data", "default");
+  const machineDir = path.join(userDataDir, "machine", "default");
 
   await fs.mkdir(tasksDir, { recursive: true });
 

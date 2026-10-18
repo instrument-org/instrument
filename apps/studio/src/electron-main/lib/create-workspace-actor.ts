@@ -71,8 +71,8 @@ import { captureServerException } from "./capture-server-exception";
 import { convertChatRecords } from "./convert-chat-records";
 import { logger } from "./electron-logger";
 import {
+  getUserDataDir,
   getWorkspaceFolder,
-  machineDir,
   workspaceInAppData,
   workspaceMachineDir,
 } from "./get-workspace-folder";
@@ -200,7 +200,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       // This computer's folder, and in it the workspace's: where the
       // folder rules, the browser profile and the apps' servers are, which
       // the agent never reaches.
-      machineDir: machineDir(),
+      userDataDir: getUserDataDir(),
       // In the workspace's machine folder rather than in the workspace: a
       // workspace may sit in a synced folder.
       workspaceDbFile: workspaceDbFileOf(workspaceMachineDir()),
@@ -224,7 +224,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       ...(inAppData
         ? {
             legacyTasks: true,
-            outputDir: unchosenOutputFolder(machineDir()),
+            outputDir: unchosenOutputFolder(getUserDataDir()),
           }
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.

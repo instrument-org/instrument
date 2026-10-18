@@ -58,6 +58,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `numfmt` | uutils | uutils | uutils | uutils coreutils |  |
 | `od` | uutils | uutils | uutils | uutils coreutils |  |
 | `pr` | uutils | uutils | uutils | uutils coreutils |  |
+| `ps` | system | system | PATH | system |  |
 | `realpath` | uutils | uutils | uutils | uutils coreutils |  |
 | `seq` | uutils | uutils | uutils | uutils coreutils |  |
 | `sha224sum` | uutils | uutils | uutils | uutils coreutils |  |
@@ -69,6 +70,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `stat` | uutils | uutils | builtin | uutils coreutils |  |
 | `tail` | uutils | uutils | uutils | uutils coreutils |  |
 | `tar` | system | system | system | system |  |
+| `top` | system | system | PATH | system |  |
 | `tsort` | uutils | uutils | uutils | uutils coreutils |  |
 | `uname` | uutils | uutils | uutils | uutils coreutils |  |
 | `uniq` | uutils | uutils | uutils | uutils coreutils |  |
@@ -149,6 +151,16 @@ Starting a program under the OS sandbox costs a few milliseconds on macOS and te
 Anything that fails a check runs sandboxed exactly as before, so the tiers change how fast a call starts, never what it prints. `find`, `xargs`, `grep -r`, `cmp`, `comm`, `join`, `dd`, `stat`, `realpath`, `df`, `diff`, `file` and `tar` always run sandboxed. In a pipeline each stage decides for itself, so unwrapped stages and wrapped ones join by the same pipes, and a stage cut off by its reader still reports 141.
 
 The workspace config's `uutilsOutsideSandbox` turns this on; Studio, `run-bash` and the eval harness set it, and a test gets the sandboxed path unless it asks. Changing the uutils release in `download-uutils.ts` fails `unsandboxed-uutils.test.ts` until the rules are read again against the new sources and `REVIEWED` is updated. On macOS `unsandboxed-uutils-canary.test.ts` runs every corpus call under a Seatbelt profile that refuses reading any file but the binaries' folder and the system's libraries and time zones, and holds its output equal to the plain run, so a release that starts reading a file of its own shows up there.
+
+`ps` and `top` skip the sandbox for a different reason: to read the person's process list (`shell-commands/unsandboxed-process-list.ts`). On macOS both are setuid root, which Seatbelt refuses to exec, and a non-root copy is killed on exec; on Linux procps is not setuid and runs under bubblewrap, but its pid namespace and fresh `/proc` show only the command's own processes, so the same outside run applies there. Each is the route marked `system` in the table: the fixed path (`/bin/ps` and `/usr/bin/top` on macOS, `/usr/bin` then `/bin` on Linux), refused unless it is root-owned and writable by no one else, run with the uutils environment above (so no `PS_FORMAT`, `PS_SYSMAP`, `COLUMNS`, or `HOME` for top's rc file), and only with options on a closed list per platform. Neither program has an option that writes a file or changes a process; the lists leave out the rest:
+
+- **macOS `ps`**: its getopt letters `aACcdefhjLlMmrSTvwx`, with values `gGOoptUu`, or with a first argument that has no dash (`ps aux`) the old-style letters, where `g` and `u` take none. Not `-E` (other processes' environments) and no operand.
+- **Linux `ps`** (procps): UNIX letters `AacdeFfHjLlMmNPTVwxy` with values `CDGgOopqstUu`; BSD letters `acfhHjLlmnrSsTuVvwXxZ` with values `kOopqtU`, a value letter last in its cluster; and `--sort`, `--format`, `--pid`, `--ppid`, `--quick-pid`, `--sid`, `--tty`, `--user`, `--User`, `--group`, `--Group`, `--cols`, `--columns`, `--width`, `--rows`, `--lines`, `--forest`, `--headers`, `--no-headers`, `--deselect`, `--cumulative`, `--signames`, `--context`, `--version`. Not BSD `e` (the environment), `-n`/`N` (a namelist file), or a bare pid.
+- **Both `ps`**: a format (`-o`, `-O`, `--format`) naming anything with `env` in it (procps' `environ`) is refused, and a tty name that starts with `/` or holds `..`.
+- **macOS `top`**: logging mode only, `-l <samples>` with at least one sample, plus `-a -d -e -F -f -h -R -r -S -u` and the values of `-c -i -l -n -O -o -s -U -ncols -pid -stats -user`.
+- **Linux `top`**: batch mode only, `-b` with `-n <iterations>` of at least one, plus `-1 -c -H -h -i -O -S -s -V` and the values of `-d -E -e -o -p -U -u`, and `-w` with or without its width.
+
+A call with anything else is refused before it runs, with a line naming what was refused and what the command takes; it never falls back to the sandbox, where on macOS it cannot start. A program or script that starts `ps` or `top` itself still runs under the profile and is refused, and `setuidRefusalNote` tells the agent to run the command in the shell instead. Windows has neither route: `ps` there is a program on the PATH, and under MXC `tasklist` and `Get-Process` see only the command's own processes.
 
 What it gives up: on Linux an unwrapped program loses bubblewrap's PID namespace and the step that closes the app's inherited descriptors, which is safe only because no call on the list names `/dev/fd/N` and tier B refuses paths outside the chat's folders. The CPU and memory a program may use are what they were, since the sandbox never limited them.
 

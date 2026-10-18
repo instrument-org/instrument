@@ -357,10 +357,13 @@ export function signalRefusalNote(
     : undefined;
 }
 
-/** What to use instead of a process lister that cannot run here. */
+/**
+ * How to run a process lister that a program or script tried to start: the
+ * shell runs it by name outside the sandbox (unsandboxed-process-list.ts).
+ */
 const PROCESS_LISTERS: Record<string, string> = {
-  ps: "`pgrep -lf <name>` finds processes by name, `lsof -i :<port>` by the port they hold, and `jobs -l` lists the ones you started.",
-  top: "`pgrep -lf <name>` finds processes by name, `vm_stat` and `uptime` show memory and load, and `jobs -l` lists the ones you started.",
+  ps: "Run `ps` as a shell command of its own (`ps aux | grep node`), where it lists every process; a program or script can't start it.",
+  top: "Run `top -l 1` as a shell command of its own, where it lists every process; a program or script can't start it.",
 };
 
 /**

@@ -157,14 +157,14 @@ describe("signalRefusalNote", () => {
 });
 
 describe.runIf(process.platform === "darwin")("setuidRefusalNote", () => {
-  it("says ps cannot run here, and what can look instead", () => {
+  it("says a program can't start ps, and that the shell can", () => {
     expect(
       setuidRefusalNote(
         "/bin/ps",
         "instrument-seatbelt: /bin/ps: Operation not permitted",
       ),
     ).toMatchInlineSnapshot(
-      `"\`ps\` can't run here: it runs as another user, which the sandbox refuses. \`pgrep -lf <name>\` finds processes by name, \`lsof -i :<port>\` by the port they hold, and \`jobs -l\` lists the ones you started."`,
+      `"\`ps\` can't run here: it runs as another user, which the sandbox refuses. Run \`ps\` as a shell command of its own (\`ps aux | grep node\`), where it lists every process; a program or script can't start it."`,
     );
   });
 

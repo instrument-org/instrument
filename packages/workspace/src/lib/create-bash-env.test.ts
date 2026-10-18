@@ -51,7 +51,7 @@ describe("createBashDescription", () => {
 
       TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-      Available commands (the complete set of unix builtins): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, html-to-markdown, join, ln, ls, md5sum, mkdir, mktemp, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, yes, zcat
+      Available commands (the complete set of unix builtins): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, html-to-markdown, join, ln, ls, md5sum, mkdir, mktemp, mv, nl, od, paste, printenv, printf, ps, pwd, readlink, rev, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, top, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, yes, zcat
 
       Any other program on the computer's PATH runs too, held to the same rules as the specialized commands below; \`which <name>\` says whether one is there.
 

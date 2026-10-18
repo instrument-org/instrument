@@ -34,6 +34,7 @@ import {
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
+import { classifyProcessList, systemOwned } from "./unsandboxed-process-list";
 import { classifyUnsandboxed, type TierBFixup } from "./unsandboxed-uutils";
 import { unsandboxedEnv } from "./unsandboxed-uutils-env";
 import { uutilsBinaryReviewed } from "./unsandboxed-uutils-integrity";
@@ -80,6 +81,11 @@ interface NativeTextRoute {
   programArgs?: (args: string[]) => string[];
   /** Variables the program runs with besides the shell's own. */
   env?: Record<string, string>;
+  /**
+   * Lists the person's processes: runs outside the sandbox, with only the
+   * options `unsandboxed-process-list.ts` allows, and is refused otherwise.
+   */
+  listsProcesses?: "ps" | "top";
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
@@ -254,6 +260,24 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     name: "file",
     platforms: UNIX,
     system: { darwin: () => ["/usr/bin/file"], linux: () => linuxBin("file") },
+  },
+  // `ps` and `top` are setuid root on macOS, which Seatbelt refuses to start;
+  // inside bubblewrap's pid namespace on Linux they would see only the
+  // command's own processes. Both run outside the sandbox with options that
+  // only read (unsandboxed-process-list.ts).
+  {
+    binary: "system",
+    listsProcesses: "ps",
+    name: "ps",
+    platforms: UNIX,
+    system: { darwin: () => ["/bin/ps"], linux: () => linuxBin("ps") },
+  },
+  {
+    binary: "system",
+    listsProcesses: "top",
+    name: "top",
+    platforms: UNIX,
+    system: { darwin: () => ["/usr/bin/top"], linux: () => linuxBin("top") },
   },
   // The builtin tar builds the whole archive in memory, refuses a file over
   // the shell's 256 MB read cap, and has no xz without a native module, and
@@ -648,6 +672,9 @@ function unsandboxedRun(
   layout: WorkspaceFsLayout,
   resolvePath: (arg: string) => string,
 ): UnsandboxedRun | undefined {
+  if (route.listsProcesses !== undefined) {
+    return { args };
+  }
   if (
     (route.binary !== "coreutils" && route.binary !== "grep") ||
     getWorkspaceConfig().uutilsOutsideSandbox !== true
@@ -710,7 +737,24 @@ export function createNativeTextCommand(
     // find's arguments after its start points are an expression, patterns
     // rather than paths.
     const starts = route.name === "find" ? splitFind(args).starts : undefined;
-    const refusal = operandRefusal(route, starts ?? args, layout, resolvePath);
+    const listing =
+      route.listsProcesses === undefined
+        ? undefined
+        : classifyProcessList(route.listsProcesses, args);
+    if (listing?.allowed === false) {
+      return { exitCode: 2, stderr: `${listing.reason}\n`, stdout: "" };
+    }
+    if (listing !== undefined && !systemOwned(program)) {
+      return {
+        exitCode: 126,
+        stderr: `${route.name}: ${program} is not the system's own program, so it does not run here.\n`,
+        stdout: "",
+      };
+    }
+    const refusal =
+      listing === undefined
+        ? operandRefusal(route, starts ?? args, layout, resolvePath)
+        : undefined;
     if (refusal) {
       return { exitCode: 2, stderr: `${refusal}\n`, stdout: "" };
     }

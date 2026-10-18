@@ -97,7 +97,6 @@ describe("createBashDescription", () => {
       Usage: \`kill <id>...\`, where each id is one \`jobs\` reports (\`bg_1\`). A signal flag (\`-9\`) is accepted and ignored; termination always escalates on its own. Killing one that already finished is harmless.
       Only these ids can be stopped -- there is no access to the machine's own processes, so a bare number is refused.
         instrument task - Start, message, stop and read your tasks: you, carrying on in the background with this conversation in hand. \`instrument task help\` prints the full surface.
-        instrument chat - Read the user's other chats: \`instrument chat list [--topic <name>] [-n <count>]\` lists them with where each stands, \`instrument chat read <id or title words> [--tail <n>]\` reads the end of one, \`instrument chat search <words>\` finds a line across all of them, \`instrument chat topics\` names the topics, \`instrument chat tag <chat> <topic>\` files a chat under one. The chat you are in is in front of you; these are for the others.
         instrument memory - What you keep about the user for every chat: \`instrument memory list\` names it all, \`instrument memory save <name>\` keeps or corrects one (the text on stdin through a quoted heredoc), \`instrument memory show <name>\` reads one whole, \`instrument memory forget <name>\` drops it.
         instrument tab - The tabs of the user's window, each named by the id the note on their message gives it, pages, files, folders and screens alike: \`instrument tab open <url or path>...\` opens each in a tab of its own and shows it, printing the tab's id, which a task takes with --tab; \`instrument tab replace <id> <url or path>\` shows something else in a tab; \`instrument tab close <id>...\` closes tabs; \`instrument tab show <id>\` brings an open tab forward; \`instrument tab read <id>\` prints the text of the page in a tab, as the user sees it, signed in where they are. A path is a file or folder you can read. It opens nothing in the user's own applications and downloads nothing."
     `);
@@ -189,7 +188,6 @@ describe("instrument", () => {
       "Usage: instrument <command> ...
 
         app     Connect services and call their tools.
-        chat    Read the user's other chats.
         memory  What you keep about the user for every chat.
         tab     Open, show, read and close the tabs of the user's window.
         task    Start, message, stop and read your tasks.

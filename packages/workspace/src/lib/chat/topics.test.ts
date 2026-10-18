@@ -11,7 +11,6 @@ import {
   listTopics,
   retireTopic,
   TOPIC_FILE_NAME,
-  topicByName,
   topicName,
   TopicNameError,
   topicsDir,
@@ -60,7 +59,6 @@ describe("createTopic", () => {
     expect(reddit.emoji).toBe("🦆");
     const listed = await listTopics();
     expect(listed.map((topic) => topic.id)).toEqual([reddit.id, home.id]);
-    expect(await topicByName("reddit")).toEqual(reddit);
   });
 });
 
@@ -77,7 +75,7 @@ describe("updateTopic", () => {
 });
 
 describe("retireTopic", () => {
-  it("moves a topic behind the ones in use and out of the name lookup", async () => {
+  it("moves a topic behind the ones in use", async () => {
     const reddit = await createTopic({ name: "Reddit" });
     const home = await createTopic({ name: "Home" });
 
@@ -88,7 +86,6 @@ describe("retireTopic", () => {
       [home.id, undefined],
       [reddit.id, true],
     ]);
-    expect(await topicByName("reddit")).toBeUndefined();
   });
 });
 

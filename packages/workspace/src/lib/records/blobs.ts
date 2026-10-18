@@ -13,7 +13,8 @@ import { syncDirectory } from "./sync-directory";
  * that is already there is not written again.
  */
 
-const BLOBS = "blobs";
+/** The folder in a chat's records its blobs are kept in. */
+export const BLOBS_FOLDER_NAME = "blobs";
 
 const BLOB_NAME = /^sha256-[0-9a-f]{64}\.[0-9a-z]+$/;
 
@@ -26,7 +27,7 @@ export function isBlobName(name: string): boolean {
 }
 
 export function blobPath(dir: string, name: string): string {
-  return path.join(dir, BLOBS, name);
+  return path.join(dir, BLOBS_FOLDER_NAME, name);
 }
 
 /**

@@ -37,7 +37,6 @@ import {
   KILL_COMMAND,
   type SessionCommandContext,
 } from "./shell-commands/background-jobs";
-import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
 import {
   createInstrumentCommand,
   type InstrumentSubcommand,
@@ -640,7 +639,6 @@ export type BashRunner = Pick<Bash, "exec">;
  */
 const CHAT_COMMAND_LINES = [
   `  ${TASK_COMMAND.name} - ${TASK_COMMAND.description}`,
-  `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
   `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
   `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
 ];
@@ -718,8 +716,8 @@ export function createBashDescription() {
 
 /**
  * The folders the agent works with, by the names the shell gives them: the
- * workspace's apps, its work folder, what the person sent the chat (none for
- * the window), the output folder, the folder of the skill it loaded last,
+ * workspace's apps, every chat's records (none for the window), its work
+ * folder, the output folder, the folder of the skill it loaded last,
  * where it has loaded one, and the workspace's own skills, in the shell's
  * spelling.
  */
@@ -729,6 +727,7 @@ function folderVariables(
 ): Record<string, string> {
   return {
     [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
+    ...(layout.chats && { [FOLDER_VARIABLES.chats]: layout.chats.shellRoot }),
     // The chat's own folder, so finished work lands beside the transcript
     // the person reads. A chat with no folder yet, the window, which never
     // has one, and a workspace whose folders the person does not open fall
@@ -764,7 +763,7 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
  * reports to the chat, which has them.
  */
 const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
-  [CHAT_COMMAND, MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
+  [MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
     command.word,
     "only the chat has this. Say in your report what the chat should do with it.",
   ]),
@@ -822,10 +821,10 @@ export async function createLocalBashEnv({
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
   // What sets the chat's shell apart from a task's: its `instrument` has
-  // `task`, `chat`, `memory` and `tab` beside the `app` every shell has, and
-  // the Mac app commands every shell on macOS has. Putting a thing on the
-  // user's screen is the chat's `tab`: a task's reply is read by the chat,
-  // and a pane of the task's own has nobody looking.
+  // `task`, `memory` and `tab` beside the `app` every shell has, and the
+  // Mac app commands every shell on macOS has. Putting a thing on the user's
+  // screen is the chat's `tab`: a task's reply is read by the chat, and a pane
+  // of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
     cmd.factory({ chatId, invokeTool, layout }),
   );
@@ -835,10 +834,6 @@ export async function createLocalBashEnv({
       { ...APP_COMMAND, command: createAppCommand({ chatId }) },
       ...(role === "chat"
         ? [
-            {
-              ...CHAT_COMMAND,
-              command: createChatCommand(),
-            },
             {
               ...MEMORY_COMMAND,
               command: createMemoryCommand({ chatId, sessionId }),

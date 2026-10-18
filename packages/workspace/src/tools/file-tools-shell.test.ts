@@ -75,6 +75,7 @@ beforeAll(async () => {
   await fs.mkdir(path.join(workDir(other), "work"), { recursive: true });
   await fs.writeFile(path.join(workDir(other), "work", "theirs.md"), "x\n");
   await fs.writeFile(path.join(chatDir(other), "chat.db"), "x\n");
+  await fs.writeFile(path.join(chatDir(chatId), "chat.db"), "x\n");
   await fs.mkdir(path.join(machine, "keys"), { recursive: true });
   await fs.writeFile(path.join(machine, "keys", "provider.json"), "SECRET\n");
   await fs.mkdir(path.join(docs, "locked"), { recursive: true });
@@ -134,11 +135,25 @@ function noteIn(stderr: string): string {
   return stderr.split("\n").slice(1).join("\n").trim();
 }
 
+// Every chat's records are open to reading, so one chat can find what was
+// said and done in another.
+describe.skipIf(process.platform === "win32")("every chat's records", () => {
+  it.each([
+    ["another chat's records", () => path.join(chatDir(other), "chat.db")],
+    ["the chat's own records", () => path.join(chatDir(chatId), "chat.db")],
+  ])("reads %s with cat and read_file alike", async (_label, target) => {
+    const typed = target();
+    const shown = await shell(`cat '${typed}'`);
+    const read = await readFile(typed);
+
+    expect(shown.exitCode).toBe(0);
+    expect(read.isOk()).toBe(true);
+  });
+});
+
 describe.skipIf(process.platform === "win32")("a path the rules refuse", () => {
   it.each([
     ["the keys", () => path.join(machine, "keys", "provider.json")],
-    ["another chat's records", () => path.join(chatDir(other), "chat.db")],
-    ["the chat's own records", () => path.join(chatDir(chatId), "chat.db")],
     [
       "another chat's work folder, through ..",
       () => `../${path.basename(workDir(other))}/work/theirs.md`,

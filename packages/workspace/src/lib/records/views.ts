@@ -36,13 +36,6 @@ interface HistoryOptions {
   only?: ReadonlySet<StoreId.Message>;
 }
 
-/** One message's words in a search: who said them, and what. */
-export interface Said {
-  id: StoreId.Message;
-  role: "assistant" | "user";
-  text: string;
-}
-
 /** Parts the chat view draws for everyone, by type. */
 const CONVERSATION_PARTS = new Set<string>([
   "data-asks",
@@ -307,24 +300,6 @@ function inputTokensIn(messages: SessionMessage.Type[]): number {
   return reported?.role === "assistant"
     ? (reported.metadata.usage?.inputTokens ?? 0)
     : 0;
-}
-
-/** What the person and the agent said in the session, in words, oldest first. */
-export function searchView(read: ChatRead, sessionId: StoreId.Session): Said[] {
-  return saidIn(historyOf(read.chat, sessionId));
-}
-
-function saidIn(messages: SessionMessage.WithParts[]): Said[] {
-  return messages.flatMap((message) => {
-    if (message.role !== "user" && message.role !== "assistant") {
-      return [];
-    }
-    const text = message.parts
-      .flatMap((part) => (part.type === "text" ? [part.text] : []))
-      .join(" ")
-      .trim();
-    return text ? [{ id: message.id, role: message.role, text }] : [];
-  });
 }
 
 function messagesOf(

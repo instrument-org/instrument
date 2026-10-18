@@ -94,6 +94,13 @@ export interface WorkspaceFsLayout {
    */
   record?: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
   /**
+   * Every chat's records, this one's included, read-only: how one chat finds
+   * what was said and done in another. Holds the record folder, whose own
+   * rules open its attachments and handoff notes as above. Absent for the
+   * window.
+   */
+  chats?: WorkspaceFsMount & { readOnly: false };
+  /**
    * The chat's own folder under `Chats/`, which the person sees: where its
    * finished work goes and what they sent it lives. Absent for the window,
    * and for a chat whose settings name no folder yet.
@@ -306,6 +313,7 @@ export function buildWorkspaceFsLayout({
   const ownFolder =
     recordHostRoot === undefined ? undefined : chatOwnFolder(recordHostRoot);
   const chatFolderHostRoot = ownFolder;
+  const chatsHostRoot = workspaceLayout(getWorkspaceConfig().rootDir).chatsDir;
   const mounts: WorkspaceFsMount[] = Object.values(folders ?? {}).map(
     (folder) => ({
       hostRoot: folder.path,
@@ -333,6 +341,14 @@ export function buildWorkspaceFsLayout({
       shellRoot: shellPath(chatHostRoot),
       readOnly: false,
     },
+    ...(recordHostRoot && {
+      chats: {
+        hostRoot: AbsolutePathSchema.parse(chatsHostRoot),
+        shellRoot: shellPath(chatsHostRoot),
+        // What in it the agent reads or writes is the rules' to say.
+        readOnly: false as const,
+      },
+    }),
     ...(recordHostRoot && {
       record: {
         hostRoot: recordHostRoot,
@@ -460,6 +476,7 @@ export function otherFolders(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
     ...layout.folders,
     ...layout.skills,
     ...(layout.apps ? [layout.apps] : []),
+    ...(layout.chats ? [layout.chats] : []),
     ...(layout.record ? [layout.record] : []),
   ];
 }
@@ -821,8 +838,9 @@ export function shellPathOfHostSpelling(
  * the person's, and follows their rules like any folder: once they picked
  * it, it is the output folder. In the app's own data only these open: every
  * chat's work folder, in `~/.instrument/work/`, which chats share as they
- * share everything of the person's, and in the chat's record folder
- * the attachments it reads and the handoff notes it writes; the skills it
+ * share everything of the person's; every chat's records, which it reads;
+ * and in the chat's record folder the attachments it reads and the handoff
+ * notes it writes; the skills it
  * reads and the apps it writes; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
  * environments, preload and `bin` links, which they read; its build
@@ -868,6 +886,7 @@ function layoutRules(
     // what another made; the chat's own may be elsewhere (a test's).
     system("allow", homeDataLayout(given.home).workDir),
     system("allow", layout.chat.hostRoot),
+    ...(layout.chats ? [system("readOnly", layout.chats.hostRoot)] : []),
     ...(layout.record
       ? [
           system(

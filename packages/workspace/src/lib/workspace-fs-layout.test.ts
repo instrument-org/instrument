@@ -309,12 +309,24 @@ describe("buildBashFs", () => {
       ).resolves.toBe("notes\n");
     });
 
+    // Every chat's records are open to reading, so one chat can find what
+    // was said and done in another.
     it.each([
       ["the settings", "cat <record>/settings.json"],
       ["the database", "cat <record>/chat.db"],
       ["a listing", "ls <record>"],
       ["a glob", "cat <record>/*.json"],
       ["a traversal", "cat <record>/attachments/../settings.json"],
+    ])("reads the rest of it: %s", async (_label, command) => {
+      const bash = await makeChatBash();
+      const stdout = await stdoutOf(
+        bash,
+        command.replaceAll("<record>", shellPath(record)),
+      );
+      expect(stdout).toMatch(/secret|chat\.db|settings/);
+    });
+
+    it.each([
       [
         "a link from the work folder",
         "ln -s <record>/settings.json leak; cat leak",

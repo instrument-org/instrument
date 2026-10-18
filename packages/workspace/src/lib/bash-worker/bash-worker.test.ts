@@ -296,12 +296,14 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       ).resolves.toBe('{"sent":"by the person"}');
     });
 
+    // Every chat's records are open to reading, and closed to changes.
     it.each([`<record>/settings.json`, `<record>/chat.db`])(
-      "refuses to read %s",
+      "reads %s and changes none of it",
       async (target) => {
-        const result = await chatBash(`cat ${target}`);
-        expect(result.exitCode).not.toBe(0);
-        expect(result.stdout).toBe("");
+        const read = await chatBash(`cat ${target}`);
+        expect(read.exitCode).toBe(0);
+        await chatBash(`echo x >> ${target}`).catch(noop);
+        expect((await chatBash(`cat ${target}`)).stdout).toBe(read.stdout);
       },
     );
 

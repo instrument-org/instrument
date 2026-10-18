@@ -125,18 +125,6 @@ export function retireTopic(topicId: string): Promise<void> {
   });
 }
 
-/** A topic in use by name, however the caller cased or hashed it. */
-export async function topicByName(name: string): Promise<Topic | undefined> {
-  // Case-insensitive, since a name is written by the user and typed back by
-  // the agent, and neither should have to remember which. It is also how a
-  // Mac compares the folder names.
-  const wanted = nameKey(name);
-  const topics = await listTopics();
-  return topics.find(
-    (topic) => !topic.retired && nameKey(topic.name) === wanted,
-  );
-}
-
 /** What a name becomes: no hash, one space between words, bounded. */
 export function topicName(raw: string): string {
   return raw

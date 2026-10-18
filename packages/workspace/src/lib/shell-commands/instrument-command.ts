@@ -1,6 +1,6 @@
 /**
  * The name of the command Instrument's own commands are subcommands of
- * (`instrument chat`, `instrument task`, ...), kept apart from the command
+ * (`instrument task`, `instrument memory`, ...), kept apart from the command
  * itself so each subcommand's name and prompt text can be spelled from it
  * without importing the workspace machinery the command runs against.
  *

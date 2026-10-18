@@ -876,8 +876,8 @@ export namespace SessionMessageDataPart {
    * The user's other chats at the moment a new chat opened, newest first:
    * each one's title, topics, latest line, and when it last moved, on the
    * root message of a chat an earlier build opened. Nothing writes it and
-   * the model is not shown it; the agent searches and reads earlier chats
-   * with `instrument chat search` and `instrument chat read` when the user refers to earlier work.
+   * the model is not shown it; the agent reads earlier chats' records itself
+   * when the user refers to earlier work.
    * Kept so those stored messages still parse, and shown only on the
    * developer view of the transcript.
    */

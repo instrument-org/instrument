@@ -138,7 +138,7 @@ describe("agentPathOfFileUrl", () => {
 
   it.each([
     { file: "attachments/sent.html", reachable: true },
-    { file: "chat.db", reachable: false },
+    { file: "chat.db", reachable: true },
   ])("record folder's $file → reachable: $reachable", ({ file, reachable }) => {
     expect(
       agentPathOfFileUrl(layout, fileUrlOfHostPath(path.join(record, file))),

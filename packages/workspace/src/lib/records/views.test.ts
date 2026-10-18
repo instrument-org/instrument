@@ -26,7 +26,6 @@ import {
   liveView,
   mergeViews,
   modelHistoryView,
-  searchView,
   stepsView,
 } from "./views";
 
@@ -399,22 +398,5 @@ describe("views", () => {
         "The file this call returned is no longer in the chat's records.",
       state: "output-error",
     });
-  });
-
-  it("search what was said in words, a task's from its chat's on", async () => {
-    const read = await throughRecords(records.service);
-
-    expect(searchView(read, taskSession)).toEqual([
-      { id: messageId(2), role: "user", text: "Total the sales" },
-      { id: messageId(3), role: "assistant", text: "Here is the total." },
-      { id: messageId(12), role: "assistant", text: "North is up" },
-    ]);
-    expect(searchView(read, chatSession).map((said) => said.text)).toEqual([
-      "Total the sales",
-      "Here is the total.",
-      "Now the regions",
-      "Done",
-      "Continue",
-    ]);
   });
 });

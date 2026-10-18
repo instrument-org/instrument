@@ -1,6 +1,5 @@
 import { TOOL_NAMES } from "../tools/name";
 import { APP_COMMAND } from "./shell-commands/app-command";
-import { CHAT_COMMAND } from "./shell-commands/chat-command";
 import { MEMORY_COMMAND } from "./shell-commands/memory-command";
 import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
@@ -13,7 +12,6 @@ import { TASK_COMMAND } from "./shell-commands/task-command";
  */
 const SHELL_COMMANDS = new Set<string>([
   APP_COMMAND.word,
-  CHAT_COMMAND.word,
   MEMORY_COMMAND.word,
   TASK_COMMAND.word,
 ]);

@@ -19,8 +19,6 @@ import {
   mergeViews,
   messageIdsView,
   modelHistoryView,
-  type Said,
-  searchView,
   stepsView,
 } from "./records/views";
 
@@ -117,20 +115,6 @@ export namespace ChatReads {
         storageError,
       );
     });
-  }
-
-  /**
-   * What the person and the agent said in the session, in words, oldest
-   * first: what the chat's own search reads.
-   */
-  export function said({
-    chatId,
-    sessionId,
-  }: {
-    chatId: ChatId;
-    sessionId: StoreId.Session;
-  }): ResultAsync<Said[], Failure> {
-    return read(chatId).map((chat) => searchView(chat, sessionId));
   }
 
   /**

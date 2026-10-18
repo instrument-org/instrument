@@ -19,9 +19,6 @@ describe("shellCommandFromToolName", () => {
     expect(repair("instrument app call linear list_issues")).toBe(
       "instrument app call linear list_issues",
     );
-    expect(repair("instrument chat list -n 5")).toBe(
-      "instrument chat list -n 5",
-    );
   });
 
   it("takes a whole script, which is the failure it exists for", () => {

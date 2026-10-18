@@ -245,9 +245,8 @@ describe("rg command", () => {
   });
 });
 
-// A chat's shell starts in its work folder, apart from its records: what the
-// person sent is searched where it is, and the rest of the record folder is
-// the workspace's.
+// A chat's shell starts in its work folder, apart from its records, which it
+// searches where they are.
 describe("rg command in a chat", () => {
   async function runInChat(
     command: string,
@@ -299,12 +298,15 @@ describe("rg command in a chat", () => {
     expect(result.stdout).toContain("attachments/note.md");
   });
 
-  // The agent names the record folder by its shell path, and on Windows can
-  // also type its drive path, which ripgrep opens as the same folder.
+  // Every chat's records are open to reading. The agent names them by
+  // `$INSTRUMENT_CHATS` or by the record folder's shell path, and on Windows
+  // can also type its drive path, which ripgrep opens as the same folder.
   it.each([
-    ...["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"].map(
-      (command) => [command, "its shell path", shellPath] as const,
-    ),
+    ...[
+      "rg -uu NEEDLE RECORD",
+      "rg NEEDLE RECORD/chat.db",
+      'rg -uu NEEDLE "$INSTRUMENT_CHATS"',
+    ].map((command) => [command, "its shell path", shellPath] as const),
     ...(process.platform === "win32"
       ? ["rg -uu NEEDLE RECORD", "rg NEEDLE RECORD/chat.db"].map(
           (command) =>
@@ -316,12 +318,12 @@ describe("rg command in a chat", () => {
         )
       : []),
   ])(
-    "keeps the rest of the record folder out of `%s`, named by %s",
+    "searches the chat's records with `%s`, named by %s",
     async (command, _spelling, spell) => {
       const result = await runInChat(command, spell);
 
-      expect(result.stdout).not.toContain("sentinel");
-      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).toContain("sentinel");
+      expect(result.exitCode).toBe(0);
     },
   );
 });

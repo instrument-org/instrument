@@ -35,13 +35,14 @@ export const CHAT_FOLDER_NAMES = {
  * the workspace's apps; its chat's work folder, where every command starts;
  * the output folder, where finished work goes; the folder of the skill it
  * loaded last, where that skill's scripts run from; and the workspace's own
- * writable skills. Every program the shell starts sees them too. The system
+ * writable skills; and every chat's records, read-only. Every program the shell starts sees them too. The system
  * prompt names folders by these, never by path, so it reads the same on
  * every computer. A file the person sent is read where they keep it, so no
  * variable names a folder of copies.
  */
 export const FOLDER_VARIABLES = {
   apps: "INSTRUMENT_APPS",
+  chats: "INSTRUMENT_CHATS",
   output: "INSTRUMENT_OUTPUT",
   skill: "INSTRUMENT_SKILL_DIR",
   work: "INSTRUMENT_WORK",

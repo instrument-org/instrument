@@ -109,8 +109,9 @@ describe.runIf(seatbeltAvailable())("a chat's command on this Mac", () => {
 });
 
 // The chat's record folder sits in the workspace, which the app's own rules
-// keep from the agent; what the person sent and the handoff notes are opened
-// in it by the rules the profile is built from, and nothing else.
+// keep from the agent but for every chat's records, which it reads; the
+// handoff notes are the one thing in it the rules the profile is built from
+// open to writing.
 describe.runIf(seatbeltAvailable())(
   "a chat's record folder on this Mac",
   () => {
@@ -130,7 +131,12 @@ describe.runIf(seatbeltAvailable())(
 
     it.each([
       ["reads what the person sent", `cat "${record}/attachments/sent.txt"`, 0],
-      ["refuses the settings", `cat "${record}/settings.json"`, 1],
+      ["reads the settings", `cat "${record}/settings.json"`, 0],
+      [
+        "refuses a change to the settings",
+        `echo x > "${record}/settings.json"`,
+        1,
+      ],
       [
         "refuses a change to what the person sent",
         `echo x > "${record}/attachments/planted"`,

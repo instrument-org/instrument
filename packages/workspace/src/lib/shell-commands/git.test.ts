@@ -145,7 +145,7 @@ describe("createGitCommand arg policy", () => {
   it.each([
     { args: ["-C", "../..", "status"] },
     { args: ["--git-dir=../../../other/.git", "log"] },
-    { args: ["--work-tree", "../elsewhere", "status"] },
+    { args: ["--work-tree", "../../../elsewhere", "status"] },
     // git resolves each -C relative to the previous one, so these compound.
     { args: ["-C", "..", "-C", "..", "-C", "..", "log"] },
     { args: ["config", "--file", "../../../.gitconfig", "--list"] },

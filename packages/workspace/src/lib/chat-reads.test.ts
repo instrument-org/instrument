@@ -480,37 +480,3 @@ describe("the standing facts a session was told", () => {
     ).toBeUndefined();
   });
 });
-
-describe("what a chat's own search reads", () => {
-  it("gives every line somebody said, a task's from its chat's on", async () => {
-    const { chatId, sessionId } = await startChat();
-    const { asked } = await writeTurn(chatId, sessionId, {
-      text: "Which of these are overdue?",
-    });
-    const task = await addChildTask(chatId, {
-      createdAt: new Date(),
-      forkedAtMessageId: asked.id,
-      id: StoreId.newSessionId(),
-      title: "Check the dates",
-      updatedAt: new Date(),
-    });
-    (
-      await ChatWrites.saveMessageWithParts(
-        userMessage(task.id, "Two of them."),
-        chatId,
-      )
-    )._unsafeUnwrap();
-
-    const said = (await ChatReads.said({ chatId, sessionId }))._unsafeUnwrap();
-    expect(said.map((line) => `${line.role}: ${line.text}`)).toEqual([
-      "user: Which of these are overdue?",
-      "assistant: One file.",
-    ]);
-    // A task's lines start with its chat's, up to where it forked.
-    expect(
-      (await ChatReads.said({ chatId, sessionId: task.id }))
-        ._unsafeUnwrap()
-        .map((line) => `${line.role}: ${line.text}`),
-    ).toEqual(["user: Which of these are overdue?", "user: Two of them."]);
-  });
-});

@@ -194,7 +194,12 @@ describe("createLocalFileGate", () => {
     { expected: false, url: own },
     { expected: false, url: `${own}?instrument-edit=n1` },
     { expected: true, url: outside },
-    { expected: true, url: fileUrl(path.join(record, "chat.db")) },
+    {
+      expected: true,
+      url: fileUrl(
+        path.join(path.dirname(path.dirname(record)), "workspace.json"),
+      ),
+    },
   ])("judges a tab at $url closed: $expected", async ({ expected, url }) => {
     const { gate } = gateAt(url);
     await gate.load();

@@ -28,8 +28,13 @@ const base = realpathSync(
 );
 const chat = path.join(base, "chat");
 const outside = path.join(base, "outside");
-// The chat's record folder, in the workspace's own data, which is closed but
-// for what the rules open in it.
+// The workspace's own data, closed but for every chat's records, which it
+// reads.
+const appData = path.join(
+  workspaceLayout(getWorkspaceConfig().rootDir).dataDir,
+  `${path.basename(base)}.txt`,
+);
+// The chat's record folder, in that data.
 const record = path.join(
   workspaceLayout(getWorkspaceConfig().rootDir).dataDir,
   "chats",
@@ -49,6 +54,7 @@ writeFileSync(path.join(chat, "two-names.txt"), "x\n");
 linkSync(path.join(chat, "two-names.txt"), path.join(chat, "second-name.txt"));
 writeFileSync(path.join(outside, "secret.txt"), "secret\n");
 writeFileSync(path.join(record, "s.txt"), "s\n");
+writeFileSync(appData, "d\n");
 writeFileSync(path.join(chat, "closed", "c.txt"), "c\n");
 writeFileSync(path.join(chat, "asks", "q.txt"), "q\n");
 // Windows makes a symbolic link only in Developer Mode or for an
@@ -71,6 +77,7 @@ if (process.platform !== "win32") {
 afterAll(() => {
   rmSync(base, { force: true, recursive: true });
   rmSync(record, { force: true, recursive: true });
+  rmSync(appData, { force: true });
 });
 
 const layout = buildWorkspaceFsLayout({
@@ -107,6 +114,8 @@ describe("openOperandForStdin", () => {
     ["a.txt", "one\ntwo\n"],
     ["./a.txt", "one\ntwo\n"],
     [path.join(chat, "a.txt"), "one\ntwo\n"],
+    // Every chat's records are open to reading.
+    [path.join(record, "s.txt"), "s\n"],
     // A link that stays inside the chat's folder reads what it leads to.
     ...(symlinks ? [["in-link", "one\ntwo\n"]] : []),
   ])("opens %s", (operand, contents) => {
@@ -121,7 +130,7 @@ describe("openOperandForStdin", () => {
     ["a file outside them", path.join(outside, "secret.txt")],
     ["a file with a second name", "second-name.txt"],
     ["a FIFO", "fifo"],
-    ["the app's own folder", path.join(record, "s.txt")],
+    ["the app's own data", appData],
     ["a folder the rules close", "closed/c.txt"],
     ["a folder that asks first", "asks/q.txt"],
     ["a folder", "."],

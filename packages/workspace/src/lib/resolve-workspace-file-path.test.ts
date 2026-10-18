@@ -202,14 +202,15 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
     [
       // Nothing follows it: the app wrote the paths it stored where the work
       // went, and a path in the records is the chat's words, not the app's.
+      // It is read where it says, in the records, which every chat reads.
       "the agent's work, by its path before it moved",
       (): string => shellPath(path.join(chatDir(chatId), "work", "report.md")),
-      (): null | string => null,
+      (): null | string => path.join(chatDir(chatId), "work", "report.md"),
     ],
     [
       "the chat's settings",
       (): string => shellPath(path.join(chatDir(chatId), "settings.json")),
-      (): null | string => null,
+      (): null | string => path.join(chatDir(chatId), "settings.json"),
     ],
     [
       "another chat's work, by its path before it moved",
@@ -222,7 +223,8 @@ describe("resolveWorkspaceFilePath with the records apart from the work", () => 
             "theirs.md",
           ),
         ),
-      (): null | string => null,
+      (): null | string =>
+        path.join(path.dirname(chatDir(chatId)), "other", "work", "theirs.md"),
     ],
     [
       "a task's file, by the path an earlier build gave its folder",

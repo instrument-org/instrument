@@ -125,8 +125,8 @@ describe("rewriteNavigationArgToFileUrl", () => {
   it.each([
     { arg: "file:///etc/hosts", name: "file outside every mount" },
     {
-      arg: `file://${shellPath(RECORD)}/chat.db`,
-      name: "file in the chat's record folder",
+      arg: `file://${shellPath(path.join(path.dirname(path.dirname(RECORD)), "workspace.json"))}`,
+      name: "file in the app's own data",
     },
     { arg: "/etc/hosts", name: "path outside every mount" },
   ])("refuses a $name", async ({ arg }) => {

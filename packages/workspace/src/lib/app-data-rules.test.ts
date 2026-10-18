@@ -317,14 +317,19 @@ function reachTable(p: Paths) {
     ["what it was sent", "read", `${p.record}/attachments/a.pdf`, "allow"],
     ["what it was sent", "write", `${p.record}/attachments/a.pdf`, "never"],
     ["its handoff notes", "write", `${p.record}/handoff-notes.md`, "allow"],
-    ["its own chat.db", "read", `${p.record}/chat.db`, "never"],
-    ["its own settings.json", "read", `${p.record}/settings.json`, "never"],
-    ["another chat's records", "read", `${p.otherRecord}/chat.db`, "never"],
+    // Every chat's records are open to reading, so one chat can find what
+    // was said and done in another, and closed to changes.
+    ["its own chat.db", "read", `${p.record}/chat.db`, "allow"],
+    ["its own chat.db", "write", `${p.record}/chat.db`, "never"],
+    ["its own settings.json", "read", `${p.record}/settings.json`, "allow"],
+    ["its own settings.json", "write", `${p.record}/settings.json`, "never"],
+    ["another chat's records", "read", `${p.otherRecord}/chat.db`, "allow"],
+    ["another chat's records", "write", `${p.otherRecord}/chat.db`, "never"],
     [
       "what another chat was sent",
       "read",
       `${p.otherRecord}/attachments/a.pdf`,
-      "never",
+      "allow",
     ],
     // Chats share their work as they share everything of the person's.
     ["another chat's work folder", "read", `${p.otherWork}/notes.md`, "allow"],
@@ -553,7 +558,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
   describe("what the rules still open inside the app's own data", () => {
     const layout = layoutUnder(paths, {});
 
-    it("is the chat's own two things and nothing else", () => {
+    it("is every chat's records to read, and the chat's own two things", () => {
       const dataDir = workspaceLayout(paths.workspace).dataDir;
       const open = layout.rules.rules
         .filter(
@@ -566,6 +571,9 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         .toSorted();
 
       expect(open).toEqual([
+        // Every chat's records, read where one chat looks for what was said
+        // and done in another.
+        path.join(".instrument", "chats") + " (readOnly)",
         // Read where a chat whose move into its own folder was refused
         // still keeps what the person sent it.
         path.join(".instrument", "chats", "2026-10-13-chat", "attachments") +
@@ -581,21 +589,30 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ]);
     });
 
-    // The same two, as paths the agent asks for rather than as rules: the
+    // The same, as paths the agent asks for rather than as rules: the
     // reach of everything written in there, under every rule the person
     // could have, since nothing they allow around the app's data opens
     // anything in it.
     it.each(personRules(paths))(
-      "is the same two paths and no others under $name",
+      "is the same paths and no others under $name",
       (person) => {
         const chat = ".instrument/chats/2026-10-13-chat";
+        const other = ".instrument/chats/2026-10-13-other";
         expect(
           reachedInsideAppData(layoutUnder(paths, person).rules, paths),
         ).toEqual([
+          ".instrument/chats (read)",
+          `${chat} (read)`,
           `${chat}/attachments (read)`,
           `${chat}/attachments/a.pdf (read)`,
+          `${chat}/chat.db (read)`,
           `${chat}/handoff-notes.md (read)`,
           `${chat}/handoff-notes.md (write)`,
+          `${chat}/settings.json (read)`,
+          `${other} (read)`,
+          `${other}/attachments (read)`,
+          `${other}/attachments/a.pdf (read)`,
+          `${other}/chat.db (read)`,
         ]);
       },
     );
@@ -607,8 +624,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it.each([
       ["the keys", `${paths.workspaceMachine}/keys/x`],
       ["the registry of workspaces", `${paths.userData}/workspaces.json`],
-      ["another chat's settings", `${paths.otherRecord}/settings.json`],
-      ["its own chat.db", `${paths.record}/chat.db`],
+      [
+        "the workspace's identity",
+        `${paths.workspace}/.instrument/workspace.json`,
+      ],
     ])(
       "refuse %s to a file tool's read, rather than finding it missing",
       async (_name, target) => {
@@ -633,7 +652,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         });
         const result = await bash.exec(
           [
-            `ls '${paths.otherRecord}'`,
+            `ls '${paths.workspaceMachine}/keys'`,
             `cat '${paths.workspaceMachine}/keys/x'`,
             `cat '${paths.userData}/workspaces.json'`,
             `ls '${paths.userData}'`,
@@ -744,9 +763,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         `cat '${paths.homeData}/other.json'`,
         1,
       ],
+      ["reads another chat's records", `cat '${paths.otherRecord}/chat.db'`, 0],
       [
-        "refuses another chat's records",
-        `cat '${paths.otherRecord}/chat.db'`,
+        "refuses a change to another chat's records",
+        `echo x > '${paths.otherRecord}/chat.db'`,
         1,
       ],
       ["refuses the app's own cookies", `cat '${paths.userData}/Cookies'`, 1],
@@ -812,12 +832,12 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it.each([
       [
         "says why when stderr names the app's own data",
-        `cat '${paths.otherRecord}/chat.db' || true`,
+        `cat '${paths.userData}/workspaces.json' || true`,
         true,
       ],
       [
         "leaves the same line on stdout alone",
-        `cat '${paths.otherRecord}/chat.db' 2>&1 || true`,
+        `cat '${paths.userData}/workspaces.json' 2>&1 || true`,
         false,
       ],
       [
@@ -1089,15 +1109,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       );
     });
 
-    it.each([
-      ["the chats' records", paths.data.chatsDir],
-      ["its own record folder", paths.record],
-    ])(
-      "makes %s, on the way to what opens, searchable and no more",
-      (_name, folder) => {
-        expect(`${args} `).toContain(`--perms 0111 --dir ${folder} `);
-      },
-    );
+    it("binds every chat's records read-only", () => {
+      const chats = paths.data.chatsDir;
+      expect(`${args} `).toContain(`--ro-bind ${chats} ${chats} `);
+    });
 
     // An empty folder answers a name in it as missing, and the note says
     // why; nothing is listed to stand in for what the folder holds.
@@ -1144,11 +1159,11 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
       [
         "Node's missing file",
-        `Error: ENOENT: no such file or directory, open '${paths.otherRecord}/chat.db'`,
+        `Error: ENOENT: no such file or directory, open '${paths.data.dataDir}/workspace.json'`,
       ],
       [
         "cat's missing file",
-        `cat: ${paths.otherRecord}/chat.db: No such file or directory`,
+        `cat: ${paths.data.dataDir}/workspace.json: No such file or directory`,
       ],
       [
         "Node's refused listing",

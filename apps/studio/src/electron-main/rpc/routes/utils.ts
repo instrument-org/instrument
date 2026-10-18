@@ -1,7 +1,7 @@
 import {
+  chatOutputFolder,
   ChatIdSchema,
   liveRead,
-  workDir,
 } from "@instrument-org/workspace/electron";
 import { recordFileOpen } from "@/electron-main/browser-view/history-store";
 import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
@@ -595,15 +595,14 @@ function readWindowState(webContentsId: number) {
 }
 
 /**
- * Where a chat's work folder is on the computer, which holds what it and its
- * tasks made, for the window to show it in its own folder view. Made when the
- * chat's agent has not yet run a command, so what is shown is the folder its
- * work will land in rather than nothing.
+ * Where a chat's finished work goes (`$INSTRUMENT_OUTPUT`), for the window to
+ * show it in its own folder view. Made when nothing has landed there yet, so
+ * what is shown is the folder its work will land in rather than nothing.
  */
 const chatFolderPath = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    const dir = workDir(input.id);
+    const dir = chatOutputFolder(input.id);
     await fs.mkdir(dir, { recursive: true });
     return dir;
   });

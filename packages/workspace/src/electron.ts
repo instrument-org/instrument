@@ -168,6 +168,7 @@ export {
   type StoredPathRewrite,
 } from "./lib/rewrite-stored-paths";
 export {
+  chatOutputFolder,
   instrumentFolderInDocuments,
   instrumentFolderUnchosen,
   outputFolderPath,

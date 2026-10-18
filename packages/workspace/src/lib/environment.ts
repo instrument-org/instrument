@@ -12,8 +12,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ChatReads } from "./chat-reads";
-import { finishedWorkFolder } from "./chat/output-folder";
-import { chatDir, chatOwnFolder } from "./record-folders";
+import { chatOutputFolder, outputFolderPath } from "./chat/output-folder";
 import { getCurrentDate } from "./get-current-date";
 import { getSystemInfo } from "./get-system-info";
 import { baselineInForce } from "./session-baseline";
@@ -36,9 +35,7 @@ export function currentEnvironment(chatId?: ChatId): Environment {
     computer: getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
     outputFolder: shellPath(
-      finishedWorkFolder(
-        chatId === undefined ? undefined : chatOwnFolder(chatDir(chatId)),
-      ),
+      chatId === undefined ? outputFolderPath() : chatOutputFolder(chatId),
     ),
     platform: process.platform,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,

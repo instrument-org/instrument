@@ -8,7 +8,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { type ChatId } from "../../schemas/chat-id";
 import { pathIsWithin } from "../path-is-within";
+import { chatDir, chatOwnFolder } from "../record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "../workspace-config";
 
 /** Creates the output folder if it is not there yet, answering whether it made it now. */
@@ -79,6 +81,11 @@ export function outputFolderPath(): string {
  */
 export function finishedWorkFolder(ownFolder: string | undefined): string {
   return chatFolderTheyOpen(ownFolder) ?? outputFolderPath();
+}
+
+/** Where a chat's finished work goes, as {@link finishedWorkFolder} answers it for that chat. */
+export function chatOutputFolder(chatId: ChatId): string {
+  return finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
 }
 
 /**

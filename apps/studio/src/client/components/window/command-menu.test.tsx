@@ -117,7 +117,7 @@ describe("Settings tabs in the command menu in developer mode", () => {
         "Settings: Providers",
         "Settings: Skills",
         "Settings: Storage",
-        "Settings: Usage",
+        "Settings: Activity",
         ...(debug ? ["Settings: Debug"] : []),
       ].sort(),
     );

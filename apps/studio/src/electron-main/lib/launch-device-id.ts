@@ -2,10 +2,13 @@ import { getMachineState } from "@/electron-main/stores/machine/state";
 import {
   chooseDeviceId,
   type DeviceId,
+  newDeviceId,
   readMachineId,
 } from "@instrument-org/workspace/electron";
 
 import { logger } from "./electron-logger";
+import { workspaceMachineDir } from "./get-workspace-folder";
+import { openElsewhereBy } from "./workspaces";
 
 /**
  * The device id this launch writes chat records as: the one the machine's
@@ -13,10 +16,24 @@ import { logger } from "./electron-logger";
  * none or the hardware differs, and the held one when the machine's id
  * cannot be read. Says which in the log, and stores a new one before
  * anything is written under it.
+ *
+ * A launch opening a workspace another live process of this userData already
+ * has open (a second worktree's dev run, which shares one userData) writes as
+ * a device of its own instead, kept for this launch only, so two processes
+ * never append to one log.
  */
 export async function chooseLaunchDeviceId(
   readId: typeof readMachineId = readMachineId,
+  holder: () => null | number = () => openElsewhereBy(workspaceMachineDir()),
 ): Promise<DeviceId> {
+  const openBy = holder();
+  if (openBy !== null) {
+    const deviceId = newDeviceId();
+    logger.info(
+      `Device id ${deviceId}: for this launch only, since pid ${openBy.toString()} has the workspace open`,
+    );
+    return deviceId;
+  }
   const state = getMachineState();
   const machine = await readId();
   const choice = chooseDeviceId(

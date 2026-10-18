@@ -26,7 +26,7 @@ import {
  * `~/.instrument/work/`: one folder per workspace, and in it one per chat,
  * what the agent made for the person, apart from the app's own data.
  */
-export function workFoldersRoot(home = os.homedir()): string {
+function workFoldersRoot(home = os.homedir()): string {
   return homeDataLayout(home).workDir;
 }
 

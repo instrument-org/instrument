@@ -436,6 +436,13 @@ export interface EvalCase {
   marks?: { after?: string; match: RegExp; name: string }[];
   name: string;
   /**
+   * Native commands run under Seatbelt on macOS, as Studio runs them, for
+   * every case in the run once any case asks: for a case whose agent may
+   * reach for processes it did not start, which unwrapped could reach the
+   * rest of this computer's.
+   */
+  nativeSandbox?: boolean;
+  /**
    * The run is not over while a command the agent left running in the
    * background is still going: for a case scored on what the agent does
    * when one ends after its turn and wakes it. A process that never exits
@@ -450,6 +457,13 @@ export interface EvalCase {
    * files whose modification times matter, or a memory already kept.
    */
   setup?: () => Promise<void> | void;
+  /**
+   * Run once the run has settled, before anything is scored: to record what
+   * an assertion reads about the computer at the end (whether a fixture is
+   * still running) and to stop what `setup` started and what the run's chat
+   * left running.
+   */
+  teardown?: (run: { chatId: ChatId }) => Promise<void> | void;
   shouldStop?: (
     part: SessionMessagePart.Type,
     chatId: ChatId,
@@ -631,6 +645,9 @@ export async function runEvals(
         ? { macHelperBinPath: MAC_HELPER_BIN }
         : {}),
       modelCache: noopModelCache,
+      ...(evals.some((evalCase) => evalCase.nativeSandbox)
+        ? { nativeSandbox: true }
+        : {}),
       nodeExecEnv: {},
       // A workspace the person picked, which is what makes its top level
       // theirs: each chat's own folder under `Chats/` is then where its
@@ -1303,6 +1320,7 @@ export async function runEvals(
 
       clearInterval(enforcementTimer);
       abortController.abort();
+      await evalCase.teardown?.({ chatId: id });
 
       if (outcome === "timeout") {
         stoppedBy = "timeout";

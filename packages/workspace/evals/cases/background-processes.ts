@@ -22,8 +22,10 @@ import { type Session } from "../../src/schemas/session";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";
 
-interface BashCall {
+export interface BashCall {
   command: string;
+  /** Absent for a call still running when it returned, or one that errored. */
+  exitCode: number | undefined;
   output: string;
   processId: string | undefined;
 }
@@ -34,7 +36,7 @@ type Sessions = Session.WithMessagesAndParts[];
  * Every completed `bash` call, flattened to the three things these assertions
  * ask about. A promoted call is the one that carries a `processId`.
  */
-function bashCalls(sessions: Sessions): BashCall[] {
+export function bashCalls(sessions: Sessions): BashCall[] {
   return sessions
     .flatMap((session) => session.messages)
     .flatMap((message) => message.parts)
@@ -48,6 +50,8 @@ function bashCalls(sessions: Sessions): BashCall[] {
       return [
         {
           command,
+          exitCode:
+            typeof output?.exitCode === "number" ? output.exitCode : undefined,
           output: typeof output?.output === "string" ? output.output : "",
           processId:
             typeof output?.processId === "string"
@@ -58,7 +62,7 @@ function bashCalls(sessions: Sessions): BashCall[] {
     });
 }
 
-function describeCommands(calls: BashCall[]): string {
+export function describeCommands(calls: BashCall[]): string {
   return calls.length === 0
     ? "(no bash calls)"
     : calls.map((call) => `\`${call.command}\``).join(", ");
@@ -92,7 +96,9 @@ function makeAssertUsedCommand(name: string, why: string): Assertion {
   };
 }
 
-function promoted(sessions: Sessions): (BashCall & { processId: string })[] {
+export function promoted(
+  sessions: Sessions,
+): (BashCall & { processId: string })[] {
   return bashCalls(sessions).flatMap((call) =>
     call.processId === undefined
       ? []
@@ -100,7 +106,7 @@ function promoted(sessions: Sessions): (BashCall & { processId: string })[] {
   );
 }
 
-function replyText(sessions: Sessions): string {
+export function replyText(sessions: Sessions): string {
   return sessions
     .flatMap((session) => session.messages)
     .filter((message) => message.role === "assistant")

@@ -133,7 +133,7 @@ describe("signalRefusalNote", () => {
     ["/bin/kill", "kill: 611: Operation not permitted", true],
     [
       "/usr/bin/pkill",
-      "pkill: signalling pid 611: Operation not permitted",
+      "pkill: signaling pid 611: Operation not permitted",
       true,
     ],
     [

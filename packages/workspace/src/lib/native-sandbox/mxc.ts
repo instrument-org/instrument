@@ -400,10 +400,12 @@ export function mxcFilesystemPolicy(
       }
     }
   };
-  for (const entry of [...entries.values()]) {
-    if (entry.access === "list" && entry.appData) {
-      offTheWay(entry.path);
-    }
+  // Taken before any is denied, since that adds to the entries.
+  const listedAppData = [...entries.values()].filter(
+    (entry) => entry.access === "list" && entry.appData,
+  );
+  for (const entry of listedAppData) {
+    offTheWay(entry.path);
   }
   // A denied folder whose nearest listed folder above is denied too adds
   // nothing to what the deny above closes, and MXC refuses it `lstat` even

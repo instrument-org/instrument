@@ -278,13 +278,22 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # The manifests go up after everything they name: a running app offers
+      # a build as soon as its manifest lands, and one read before the
+      # installer is there fails the download.
       - name: Upload release artifacts to S3
         run: |
           aws s3 sync artifacts/ s3://instrument-releases/ \
             --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
             --no-progress \
             --exclude "*.png" \
-            --exclude "sourcemaps-*"
+            --exclude "sourcemaps-*" \
+            --exclude "*.yml"
+          aws s3 sync artifacts/ s3://instrument-releases/ \
+            --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
+            --no-progress \
+            --exclude "*" \
+            --include "*.yml"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

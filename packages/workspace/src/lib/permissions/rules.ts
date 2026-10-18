@@ -22,7 +22,6 @@ import {
   type Level,
   LevelSchema,
   PLACE_DEFAULTS,
-  DANGEROUS_NAMES,
   type PlaceId,
   PlaceIdSchema,
   placePaths,
@@ -498,15 +497,6 @@ export function reachOf(
   ) {
     best = undefined;
   }
-  // A name that runs code when its folder is used is closed to changes
-  // anywhere but the app's own folders.
-  if (
-    op === "write" &&
-    !(best?.rule.source === "system" && best.rule.level === "allow") &&
-    namesDangerous(target)
-  ) {
-    return { level: "never", rule: best?.rule };
-  }
   const access = best ? best.rule.level : op === "read" ? "allow" : "ask";
   const level =
     access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
@@ -533,19 +523,6 @@ function appDataHolding(rules: Rules, hostPath: string): Rule | undefined {
 
 function homeDepth(rules: Rules): number {
   return path.resolve(rules.home).split(path.sep).filter(Boolean).length;
-}
-
-function namesDangerous(foldedPath: string): boolean {
-  const slashed = foldedPath.replaceAll(path.sep, "/");
-  // A repository's .git folder itself: moved or replaced, its hooks would
-  // sit outside the name that closes them.
-  if (slashed.endsWith("/.git")) {
-    return true;
-  }
-  return DANGEROUS_NAMES.some((name) => {
-    const folded = fold(name);
-    return slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`);
-  });
 }
 
 /**

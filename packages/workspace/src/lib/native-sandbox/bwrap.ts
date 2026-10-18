@@ -13,16 +13,10 @@ import { hostPathWithin } from "../host-path";
 import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
 import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
-import { appEnv, canWrite, depthOf, resolveReal, toolCaches } from "./host";
+import { dotEntriesIn } from "./disk";
+import { appEnv, depthOf, resolveReal, toolCaches } from "./host";
 import { probeSandbox, type ProbeResult } from "./probe";
 import { type NativeReach, reachesSshKeys } from "./reach";
-import {
-  dotEntriesIn,
-  namesThatRunCode,
-  runsCodeByName,
-  WALK_LIMITS,
-  type WalkLimits,
-} from "./walk";
 
 const BWRAP = "/usr/bin/bwrap";
 
@@ -94,7 +88,6 @@ export function bwrapAvailable(): boolean {
  */
 export function bwrapArgs(
   reach: NativeReach,
-  walk: WalkLimits = WALK_LIMITS,
   session: {
     /** The ssh-agent's socket the app was started with, if any. */
     agentSocket?: string;
@@ -107,8 +100,7 @@ export function bwrapArgs(
   },
 ): string[] {
   const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
-  /** "empty" is a read-only empty folder made where nothing is yet. */
-  type Access = "empty" | "none" | "read" | "write";
+  type Access = "none" | "read" | "write";
   const entries: {
     access: Access;
     depth: number;
@@ -142,14 +134,8 @@ export function bwrapArgs(
       rule,
       dangerouslyAllowEveryFolder,
     );
-    // A file the user sent that runs code when its folder is used (an
-    // `.envrc`) opens to reading alone, as the rules have it.
     const access =
-      level === "allow" && !(rule.file && runsCodeByName(rule.path))
-        ? "write"
-        : level === "allow" || level === "readOnly"
-          ? "read"
-          : "none";
+      level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
     const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];
     for (const target of targets) {
       add(target, access, ruleRank(rule));
@@ -161,89 +147,6 @@ export function bwrapArgs(
   }
   for (const opened of reach.readOnly) {
     add(opened, "read", 3);
-  }
-  // bubblewrap has no pattern for a name that runs code when its folder is
-  // used, so each allowed folder of the person's is searched for the ones
-  // already there and they are bound read-only by name, as is a repository's
-  // hooks folder. A repository's .git, and every folder between a name and
-  // the allowed folder, is bound onto itself: a mount point cannot be renamed
-  // or removed, so the name cannot be carried out from under its bind and
-  // made again unbound, or the folder holding it swapped for a copy.
-  const own = [...caches, ...reach.readWrite].map(resolveReal);
-  const isOwn = (target: string) =>
-    own.some((folder) => hostPathWithin(folder, target) !== null);
-  const stops = new Set([
-    ...own,
-    // A rule over hidden entries stops the walk at each entry it closes
-    // rather than at the folder holding them, which is the whole home
-    // folder. Without them the walk descended into a hidden folder the
-    // rules hold at ask, and the write it binds every folder between a name
-    // and its root with outranks the rule that closed it: the file tools
-    // refused `~/.config` while a native command was handed it read-write,
-    // where the Mac's own profile closes it. An allow keeps its names bound,
-    // since there the walk is reaching what the person opened.
-    ...rules.flatMap((rule) => {
-      if (!rule.dotEntries) {
-        return [resolveReal(rule.path)];
-      }
-      return levelAllowingEveryFolder(
-        rule.level,
-        rule,
-        dangerouslyAllowEveryFolder,
-      ) === "allow"
-        ? []
-        : dotEntriesIn(rule.path).map(resolveReal);
-    }),
-  ]);
-  const guarded = new Set<string>();
-  for (const rule of rules) {
-    if (
-      levelAllowingEveryFolder(
-        rule.level,
-        rule,
-        dangerouslyAllowEveryFolder,
-      ) !== "allow" ||
-      rule.source === "system"
-    ) {
-      continue;
-    }
-    const root = resolveReal(rule.path);
-    const dotEntriesOnly = rule.dotEntries ?? false;
-    const searched = `${dotEntriesOnly ? "." : ""}${root}`;
-    if (isOwn(root) || guarded.has(searched)) {
-      continue;
-    }
-    guarded.add(searched);
-    const found = namesThatRunCode(root, {
-      dotEntriesOnly,
-      limits: walk,
-      stops,
-    });
-    for (const { kind, path: named } of found) {
-      for (
-        let folder = path.dirname(named);
-        folder !== root && folder !== path.dirname(folder);
-        folder = path.dirname(folder)
-      ) {
-        add(folder, "write", 4);
-      }
-      if (kind === "name") {
-        add(named, "read", 4);
-        continue;
-      }
-      add(named, "write", 4);
-      const hooks = path.join(named, "hooks");
-      if (existsSync(hooks)) {
-        add(hooks, "read", 4);
-      } else if (kind === "repo" && canWrite(named)) {
-        // A repository with no hooks folder gets an empty one nothing can
-        // write, so none can be made; bubblewrap leaves the empty folder
-        // behind, as `git init` would have made it. One whose .git this
-        // account cannot write is left as it is, since bubblewrap could not
-        // make the folder to mount on and the command would not start.
-        add(hooks, "empty", 4);
-      }
-    }
   }
   const args = [
     "--ro-bind",
@@ -360,11 +263,6 @@ export function bwrapArgs(
   };
   for (const entry of ordered) {
     const real = resolveReal(entry.path);
-    if (entry.access === "empty") {
-      args.push(...onTheWay(real), "--tmpfs", real, "--remount-ro", real);
-      mounted.add(real);
-      continue;
-    }
     if (
       !existsSync(real) &&
       (ours.has(entry.path) ||

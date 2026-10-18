@@ -28,8 +28,7 @@ Out of scope entirely: the person themselves, malware already on the computer, a
 - **The agent's choices inside the workspace.** Inside the workspace (its chats, its topics and their folders, the Instrument folder), what the agent chooses to do is not defended, whether or not something steered it: a chat the agent tags with a topic, for example, reaches that topic's folders. The five lines guard everything outside the workspace.
 - **Network access.** The agent can reach any address. Network rules are too fine-grained for most people to reason about, and the agent drives a real browser, which could not work behind them anyway. So if planted instructions steer the agent into sending something it was allowed to read, Instrument does not stop it. What limits that is the folder settings (what the agent can read at all) and the model's judgment.
 - **The in-app browser's sessions.** The in-app browser is the agent's as much as the person's: the agent browses as the person, with the sessions the person signed in to there. The person's other browsers stay closed (line 1).
-- **What the agent leaves in folders it may change.** If a folder is open to the agent, it can leave a script or file there that runs or is opened later. Line 3 keeps that out of the app's own programs and out of login and shell startup, not out of every program the person uses.
-- **A repository's hooks on Windows, by renaming `.git`.** A hooks folder in a folder the agent may change is closed to changes on every platform, but on Windows MXC holds a folder by its name and has no mount points: a program can rename a repository's `.git` aside, write a hook into it and rename it back, and the hook runs the next time the person uses git there. This is accepted. Only a badly misaligned agent would set out to do it, and every way to stop it (denying the rename, a read-only `.git`) breaks git in the folders the person opened for it ([decision](../decisions/2026-10-17-accept-the-git-rename-gap.md)).
+- **What the agent leaves in folders it may change.** If a folder is open to the agent, it can leave a script or file there that runs or is opened later, a repository's git hooks and an editor's or coding agent's settings included. Line 3 keeps that out of the app's own programs and out of login and shell startup, not out of every program the person uses.
 - **Whether a file exists.** A refusal can reveal that a name exists in a folder the agent may not read. File names and sizes are not treated as secrets.
 - **The app's own records from the agent's view.** Other chats' records and the workspace's settings are closed to the agent so it does not wander into or rewrite the app's state, not because they are secret from the person. They are closed to it as files, and it reaches them on purpose through the `chat` and `memory` commands.
 - **Running out the person's computer.** A runaway command is stopped by timeouts and limits, not prevented from starting.
@@ -87,7 +86,6 @@ Do not fix it, and say so in the review, when the finding is:
 - something the agent could only do with access it already has, such as sending allowed files somewhere or deleting allowed files;
 - a race that needs another program on the computer acting at the same moment (a link the agent planted itself is not a race);
 - a way around a filter that only keeps output clean;
-- a Windows gap that the Windows sandbox will close;
-- a program on Windows renaming a repository's `.git` to write its hooks, which is accepted (above).
+- a Windows gap that the Windows sandbox will close.
 
 A fix with no cost (no new special case, no second code path, nothing more for the model to read) can still be taken for any finding. A fix that adds any of those has to protect one of the five lines.

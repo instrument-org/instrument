@@ -108,7 +108,10 @@ it("refuses the entry mktemp makes, which is a write by another name", async () 
   expect(await delegate.exists("/.ssh/tmp.XXXXXX")).toBe(false);
 
   // And makes one where they do not.
-  await fs.createExclusive?.("/work/tmp.XXXXXX", { directory: true, mode: 0o700 });
+  await fs.createExclusive?.("/work/tmp.XXXXXX", {
+    directory: true,
+    mode: 0o700,
+  });
   expect(await delegate.exists("/work/tmp.XXXXXX")).toBe(true);
 });
 
@@ -188,21 +191,28 @@ it
 it("checks a hard link's source as a change, since writing the link writes it", async () => {
   const fs = rulesFs({
     delegate: new InMemoryFs({
-      "/repo/.claude/settings.json": "{}",
+      "/repo/shared/notes.md": "s",
       "/repo/notes.md": "n",
     }),
     hostRoot: "/Users/sam",
     rules: {
       home: "/Users/sam",
-      rules: [{ level: "allow", path: "/Users/sam/repo", source: "grant" }],
+      rules: [
+        { level: "allow", path: "/Users/sam/repo", source: "grant" },
+        {
+          level: "readOnly",
+          path: "/Users/sam/repo/shared",
+          source: "system",
+        },
+      ],
       dangerouslyAllowEveryFolder: false,
     },
     spell: (hostPath) => hostPath,
   });
 
-  await expect(
-    fs.link("/repo/.claude/settings.json", "/repo/h"),
-  ).rejects.toThrow(/EACCES/);
+  await expect(fs.link("/repo/shared/notes.md", "/repo/h")).rejects.toThrow(
+    /EACCES/,
+  );
   await expect(fs.link("/repo/notes.md", "/repo/n")).resolves.toBeUndefined();
 });
 
@@ -214,11 +224,6 @@ it("says why each kind of closed path is closed", () => {
     ],
     ["read-only", { level: "readOnly", path: "/h/S", source: "system" }],
     ["runs at login", { level: "never", path: "/h/.zshrc", source: "system" }],
-    [
-      "runs code, allowed folder",
-      { level: "allow", path: "/h/repo", source: "grant" },
-    ],
-    ["runs code, no rule", undefined],
     [
       "closed in Settings",
       {
@@ -242,8 +247,6 @@ it("says why each kind of closed path is closed", () => {
       "not now": "/h/x: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.",
       "read-only": "/h/x is read-only. Copy what you need out of it and change the copy.",
       "runs at login": "/h/x runs every time the person logs in or opens a terminal, so it is never changed for them, whatever their settings. Tell them what to add and they can add it themselves.",
-      "runs code, allowed folder": "/h/x makes code run when its folder is used (a git hook, .envrc, or an editor's or coding agent's settings), so it is never changed, moved or removed outside this chat's own folder. The rest of the folder, and git commands like commit and checkout, still work.",
-      "runs code, no rule": "/h/x makes code run when its folder is used (a git hook, .envrc, or an editor's or coding agent's settings), so it is never changed, moved or removed outside this chat's own folder. The rest of the folder, and git commands like commit and checkout, still work.",
     }
   `);
 });

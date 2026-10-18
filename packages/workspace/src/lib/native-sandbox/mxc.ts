@@ -8,6 +8,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import {
   type Disk,
   type DiskProof,
+  dotEntriesIn,
   liveDisk,
   proofHolds,
   recordingDisk,
@@ -16,13 +17,6 @@ import { appEnv, spellings } from "./host";
 import { type MxcLaunch, mxcVerdict, sandboxStateDir } from "./mxc-canary";
 import { type ProbeResult } from "./probe";
 import { type NativeReach } from "./reach";
-import {
-  dotEntriesIn,
-  namesThatRunCode,
-  runsCodeByName,
-  WALK_LIMITS,
-  type WalkLimits,
-} from "./walk";
 
 /**
  * Whether MXC holds the native commands this process starts: Windows, with
@@ -74,7 +68,6 @@ interface PolicyInputs {
   closed: readonly string[];
   /** The system drive's root, readable where no rule says otherwise. */
   root: string;
-  walk: WalkLimits;
 }
 
 function policyInputs(given: Partial<PolicyInputs>): PolicyInputs {
@@ -82,18 +75,16 @@ function policyInputs(given: Partial<PolicyInputs>): PolicyInputs {
     appFolders: given.appFolders ?? mxcAppFolders(),
     closed: given.closed ?? [sandboxStateDir()],
     root: given.root ?? `${appEnv.SystemDrive ?? "C:"}\\`,
-    walk: given.walk ?? WALK_LIMITS,
   };
 }
 
 /**
  * Policies built, by the reach and inputs they were built from, each with
  * the proof that the disk still answers as it did. Building one reads every
- * rule's folder and searches the allowed ones for names that run code,
- * about 50 ms on Windows, where checking the proof stats the paths those
- * answers came from. A `.git` made in an allowed folder changes the listed
- * folder holding it, so the next command builds a policy that holds its
- * hooks.
+ * rule's folder and lists the home folder's hidden entries, where checking
+ * the proof stats the paths those answers came from. A hidden folder made
+ * in the home folder changes the listing, so the next command builds a
+ * policy that holds it by the rule over hidden entries.
  */
 const policies = new Map<
   string,
@@ -167,16 +158,15 @@ export interface MxcFilesystemPolicy {
 /**
  * MXC's filesystem lists from the rules, ordered and ranked as the Seatbelt
  * profile is: the system drive and the home folder readable and closed to
- * changes, each rule's folder opened or closed, the reach's own folders,
- * then the names that run code already in an allowed folder, read-only.
- * One entry per path, the highest rank winning, since MXC gives a path
+ * changes, each rule's folder opened or closed, then the reach's own
+ * folders. One entry per path, the highest rank winning, since MXC gives a path
  * named in two lists the narrower access.
  */
 export function mxcFilesystemPolicy(
   reach: NativeReach,
   { disk = liveDisk, ...given }: Partial<PolicyInputs> & { disk?: Disk } = {},
 ): MxcFilesystemPolicy {
-  const { appFolders, closed, root, walk } = policyInputs(given);
+  const { appFolders, closed, root } = policyInputs(given);
   const { home, rules, dangerouslyAllowEveryFolder } = reach.rules;
   // The app's own folders are made before they are granted, as bubblewrap
   // makes them, so a first run can write one the app makes later; and
@@ -242,14 +232,8 @@ export function mxcFilesystemPolicy(
       rule,
       dangerouslyAllowEveryFolder,
     );
-    // A file the user sent that runs code when its folder is used (an
-    // `.envrc`) opens to reading alone, as the rules have it.
     const access: Access =
-      level === "allow" && !(rule.file && runsCodeByName(rule.path))
-        ? "write"
-        : level === "allow" || level === "readOnly"
-          ? "read"
-          : "deny";
+      level === "allow" ? "write" : level === "readOnly" ? "read" : "deny";
     for (const target of rule.dotEntries
       ? dotEntriesIn(rule.path, disk)
       : [rule.path]) {
@@ -266,40 +250,6 @@ export function mxcFilesystemPolicy(
   }
   for (const folder of reach.readWrite) {
     add(folder, "write", 3);
-  }
-  // MXC has no patterns, so the names that run code already in an allowed
-  // folder are found as bubblewrap finds them and closed to changes by name.
-  const own = reach.readWrite.map(disk.real);
-  const stops = new Set([
-    ...own,
-    ...rules.flatMap((rule) => (rule.dotEntries ? [] : [disk.real(rule.path)])),
-  ]);
-  for (const rule of rules) {
-    if (
-      levelAllowingEveryFolder(
-        rule.level,
-        rule,
-        dangerouslyAllowEveryFolder,
-      ) !== "allow" ||
-      rule.source === "system"
-    ) {
-      continue;
-    }
-    const searched = disk.real(rule.path);
-    if (own.some((folder) => hostPathWithin(folder, searched) !== null)) {
-      continue;
-    }
-    for (const { kind, path: named } of namesThatRunCode(
-      searched,
-      { dotEntriesOnly: rule.dotEntries ?? false, limits: walk, stops },
-      disk,
-    )) {
-      if (kind === "name") {
-        add(named, "read", 4);
-      } else if (kind === "repo") {
-        add(path.join(named, "hooks"), "read", 4);
-      }
-    }
   }
   for (const folder of closed) {
     add(folder, "deny", 5);

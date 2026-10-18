@@ -94,7 +94,6 @@ describe("what runs code later stays closed with folders open unasked", () => {
   });
 
   it.each([
-    ".config/git/config",
     ".config/fish/conf.d/x.fish",
     ".config/fish/functions/ls.fish",
     ".config/systemd/user/x.service",

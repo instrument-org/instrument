@@ -1,4 +1,3 @@
-import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -54,13 +53,4 @@ export function spellings(
   const written = path.resolve(target);
   const resolved = real(target);
   return resolved === written ? [written] : [written, resolved];
-}
-
-export function canWrite(target: string): boolean {
-  try {
-    accessSync(target, constants.W_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }

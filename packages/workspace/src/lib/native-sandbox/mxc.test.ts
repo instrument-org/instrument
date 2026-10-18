@@ -29,7 +29,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "mxc-policy-")));
 afterAll(() => rmSync(base, { force: true, recursive: true }));
 
-/** A home folder on this disk, so the walk for names that run code has one. */
+/** A home folder on this disk, with `folders` made in it. */
 function home(...folders: string[]): string {
   const at = mkdtempSync(path.join(base, "home-"));
   for (const folder of folders) {
@@ -216,30 +216,6 @@ describe("mxcFilesystemPolicy", () => {
       ]),
     );
     expect(policy.deniedPaths).toEqual(["~/.cache", "~/.config"]);
-  });
-
-  it("closes the names that run code already in an allowed folder, and a repository's hooks", () => {
-    const at = home("work/repo/.git", "work/.vscode", "other/.vscode");
-    const policy = policyOf(
-      reachOver(at, [
-        { level: "allow", path: path.join(at, "work"), source: "grant" },
-      ]),
-    );
-    expect(policy.readonlyPaths).toEqual(
-      expect.arrayContaining(["~/work/.vscode", "~/work/repo/.git/hooks"]),
-    );
-    expect(policy.readonlyPaths).not.toContain("~/other/.vscode");
-  });
-
-  it("does not search the app's own folders for names that run code", () => {
-    const at = home("chat/.vscode");
-    const chat = path.join(at, "chat");
-    const policy = policyOf(
-      reachOver(at, [{ level: "allow", path: chat, source: "system" }], {
-        readWrite: [chat],
-      }),
-    );
-    expect(policy.readonlyPaths).not.toContain("~/chat/.vscode");
   });
 
   // The lists say what reachOf says of each rule's folder: a generator that
@@ -524,7 +500,14 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
           },
           {
             level: "never",
-            path: path.join(at, "AppData", "Roaming", "Microsoft", "Windows", "Recent"),
+            path: path.join(
+              at,
+              "AppData",
+              "Roaming",
+              "Microsoft",
+              "Windows",
+              "Recent",
+            ),
             place: "appFiles",
             source: "place",
           },
@@ -918,12 +901,18 @@ describe("mxcPolicyFor", () => {
     return { counted, disk };
   }
 
-  /** A home with a projects folder the rules allow, and a chat folder. */
+  /**
+   * A home with a projects folder the rules allow, its hidden entries
+   * asking first, as the app-files place has them, and a chat folder.
+   */
   function projects(...folders: string[]) {
     const at = home("Projects/app", ...folders.map((f) => `Projects/${f}`));
     const reach = reachOver(
       at,
-      [{ level: "allow", path: path.join(at, "Projects"), source: "folder" }],
+      [
+        { dotEntries: true, level: "ask", path: at, source: "place" },
+        { level: "allow", path: path.join(at, "Projects"), source: "folder" },
+      ],
       { readWrite: [path.join(at, "chat")] },
     );
     return { at, reach };
@@ -941,37 +930,15 @@ describe("mxcPolicyFor", () => {
     expect(counted.lists).toBe(listed);
   });
 
-  it.each([
-    [".git", ".git/hooks"],
-    [".vscode", ".vscode"],
-    ["deep/.git", "deep/.git/hooks"],
-  ])("builds again once %s is made in an allowed folder", (made, held) => {
-    const { at, reach } = projects("app/deep");
+  it("builds again once a hidden folder is made in the home folder", () => {
+    const { at, reach } = projects();
     const first = mxcPolicyFor(reach, { ...inputs, now: later() });
-    const target = path.join(at, "Projects", "app", held);
-    expect(first.readonlyPaths).not.toContain(target);
-    mkdirSync(path.join(at, "Projects", "app", made), { recursive: true });
+    const made = path.join(at, ".tokens");
+    expect(first.deniedPaths).not.toContain(made);
+    mkdirSync(made);
     const next = mxcPolicyFor(reach, { ...inputs, now: later() });
     expect(next).not.toBe(first);
-    expect(next.readonlyPaths).toContain(target);
-  });
-
-  it("builds again once a name of two parts is made in its folder", () => {
-    const { at, reach } = projects("app/.claude");
-    const settings = path.join(
-      at,
-      "Projects",
-      "app",
-      ".claude",
-      "settings.json",
-    );
-    expect(
-      mxcPolicyFor(reach, { ...inputs, now: later() }).readonlyPaths,
-    ).not.toContain(settings);
-    writeFileSync(settings, "{}");
-    expect(
-      mxcPolicyFor(reach, { ...inputs, now: later() }).readonlyPaths,
-    ).toContain(settings);
+    expect(next.deniedPaths).toContain(made);
   });
 
   it("builds again for changed rules", () => {

@@ -42,6 +42,14 @@ export const liveDisk: Disk = {
   real: resolveReal,
 };
 
+/** The hidden entries in `folder`, as paths. */
+export function dotEntriesIn(folder: string, disk: Disk = liveDisk): string[] {
+  return (disk.list(folder) ?? [])
+    .map((entry) => entry.name)
+    .filter((name) => name.startsWith("."))
+    .map((name) => path.join(folder, name));
+}
+
 /**
  * Every path some answer came from, stamped. Where a path leads and whether
  * it is there depend only on what each part of the way is: the same file,
@@ -90,8 +98,8 @@ function linkTarget(link: string): string | undefined {
  * names themselves, and a folder's times do not always follow them: on
  * Windows, making an entry in a folder moves neither its modification nor
  * its change time, so times alone hold a stamp while the entries move under
- * it, and a built policy would keep saying that the `.git` just made is not
- * there. "-" where the folder cannot be listed, as the stats are "-".
+ * it, and a built policy would keep saying that a hidden folder just made in
+ * the home folder is not there. "-" where the folder cannot be listed, as the stats are "-".
  */
 function namesIn(folder: string): string {
   try {

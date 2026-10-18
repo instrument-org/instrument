@@ -102,9 +102,8 @@ export function ruleRefusal({
 /**
  * What the agent reads about a path the rules never open to it this way,
  * by why: a path through an NTFS stream, the person's not now in this chat, a folder only read, a file
- * that runs when they log in, a name that runs code when its folder is
- * used, or a place closed in Settings. Only the last is something a
- * setting changes, so only it sends the person there.
+ * that runs when they log in, or a place closed in Settings. Only the last
+ * is something a setting changes, so only it sends the person there.
  */
 export function closedNote(reach: Reach, shown: string): string {
   if (reach.stream) {
@@ -122,9 +121,6 @@ export function closedNote(reach: Reach, shown: string): string {
   }
   if (rule?.source === "system" && rule.level === "never") {
     return `${shown} runs every time the person logs in or opens a terminal, so it is never changed for them, whatever their settings. Tell them what to add and they can add it themselves.`;
-  }
-  if (rule?.level !== "never") {
-    return `${shown} makes code run when its folder is used (a git hook, .envrc, or an editor's or coding agent's settings), so it is never changed, moved or removed outside this chat's own folder. The rest of the folder, and git commands like commit and checkout, still work.`;
   }
   return `${shown} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
 }

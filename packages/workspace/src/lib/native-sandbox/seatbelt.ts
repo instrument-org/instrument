@@ -3,7 +3,6 @@ import path from "node:path";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../command-line-tools-env";
 import { REACHABLE_APPS } from "../permissions/apps";
-import { DANGEROUS_NAMES } from "../permissions/places";
 import { levelAllowingEveryFolder, ruleRank } from "../permissions/rules";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appEnv, depthOf, resolveReal, spellings, toolCaches } from "./host";
@@ -206,21 +205,6 @@ export function seatbeltProfile(
         : `(deny network-outbound ${socket.join(" ")})`,
     );
   }
-  // A name that runs code when its folder is used stays closed to changes
-  // everywhere but the app's own folders, and a repository's .git folder
-  // stays where it is: renamed, its hooks would be outside the name that
-  // closes them, and could be written and moved back. Nor can such a name be
-  // hard linked to elsewhere, where writing the link would change it.
-  const ownFolders = reach.readWrite.flatMap((own) => spellings(own));
-  const notOwn = ownFolders
-    .map((own) => `(require-not (subpath ${sbplString(own)}))`)
-    .join(" ");
-  texts.push(
-    `(deny file-write* file-link (require-all (require-any ${DANGEROUS_NAMES.map(
-      (name) => `(regex #"/${regexEscape(name)}(/|$)")`,
-    ).join(" ")}) ${notOwn}))`,
-    `(deny file-write-unlink (require-all (regex #"/\\.git$") ${notOwn}))`,
-  );
   // No Apple Events and no opening apps: a command could otherwise have
   // another app do what the profile keeps it from, outside any sandbox.
   // The app's own scripts reach an app only when the person allowed that

@@ -3,6 +3,7 @@ import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
+import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
@@ -42,6 +43,7 @@ export const EVALS = [
   ...APP_SCRIPTING_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...BROWSER_SELECTION_EVALS,
+  ...CHAT_HISTORY_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,
   ...DEVELOPER_TOOLS_EVALS,

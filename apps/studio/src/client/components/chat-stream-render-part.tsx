@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import {
   isToolPart,
   pathsNamedInMessage,
@@ -10,8 +9,6 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ChatDevOnly } from "./dev-mode-card";
-import { getToolExplanation } from "../lib/get-tool-explanation";
-import { PermissionAsksForPart } from "./permission-asks";
 import { ToolCall, ToolCallBody } from "./message-part/tool-call";
 import {
   isToolCallVisible,
@@ -155,16 +152,8 @@ export function renderChatPart({
         (part.type === "tool-connect_app" &&
           part.state === "output-available" &&
           part.output.state === "failure"));
-    const asked = (
-      <PermissionAsksForPart
-        chatId={ctx.chatInfo.id}
-        explanation={getToolExplanation(part)}
-        key={`asks-${part.metadata.id}`}
-        partId={part.metadata.id}
-      />
-    );
     if (isDevOnly && !ctx.isDeveloperMode) {
-      return asked;
+      return null;
     }
     // The chat draws a card that asks the user as the card alone, with no
     // row above it to open or shut it, and only once it has something to
@@ -172,17 +161,13 @@ export function renderChatPart({
     // broken.
     if (ctx.presentation === "chat" && !isDevOnly) {
       return isCardReady(part) ? (
-        <Fragment key={part.metadata.id}>
-          <ToolCallBody
-            onRetry={ctx.onRetry}
-            part={part}
-            chatInfo={ctx.chatInfo}
-          />
-          {asked}
-        </Fragment>
-      ) : (
-        asked
-      );
+        <ToolCallBody
+          chatInfo={ctx.chatInfo}
+          key={part.metadata.id}
+          onRetry={ctx.onRetry}
+          part={part}
+        />
+      ) : null;
     }
     const streaming = ctx.isToolStreaming(part, message);
     // A part can carry a start with no end long after the run that wrote it
@@ -212,11 +197,10 @@ export function renderChatPart({
         chatInfo={ctx.chatInfo}
       />
     );
-    return (
-      <Fragment key={part.metadata.id}>
-        {isDevOnly ? <ChatDevOnly>{row}</ChatDevOnly> : row}
-        {asked}
-      </Fragment>
+    return isDevOnly ? (
+      <ChatDevOnly key={part.metadata.id}>{row}</ChatDevOnly>
+    ) : (
+      row
     );
   }
 

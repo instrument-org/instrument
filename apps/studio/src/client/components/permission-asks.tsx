@@ -15,9 +15,18 @@ import {
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { openSettings } from "@/client/atoms/settings-modal";
+import { cn } from "@/client/lib/utils";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { KeyIcon } from "@phosphor-icons/react/Key";
+import { XIcon } from "@phosphor-icons/react/X";
+
 import { InstrumentGlyph } from "./wordmark";
 import { Button } from "./ui/button";
-import { ToolCard, ToolCardSection } from "./message-part/tool-card";
+import { Delayed } from "./ui/delayed";
+import { Spinner } from "./ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type Decision = "allowed" | "always" | "declined";
 type Ask = {
@@ -36,25 +45,14 @@ function useAsks(chatId: ChatId) {
   ).data?.filter((ask) => ask.kind !== "question");
 }
 
-function useAnswer(chatId: ChatId, ask: Ask) {
-  const answer = useMutation(
+function useAnswer() {
+  return useMutation(
     rpcClient.workspace.permissions.answer.mutationOptions({
       onError: (error) => {
         toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );
-  return {
-    isBusy: answer.isPending,
-    send: (decision: Decision, path?: string) => {
-      answer.mutate({
-        askId: ask.id,
-        decision,
-        id: chatId,
-        ...(path && { path }),
-      });
-    },
-  };
 }
 
 /**
@@ -105,50 +103,11 @@ function explanationOf(
   return undefined;
 }
 
-/** A folder's path from the home folder down, `Documents › Clients`; the home folder is its own name. */
-function readablePath(target: string): string {
-  const home = window.api.homeDir;
-  const names = segmentsOf(target);
-  const below = isInside(target, home)
-    ? names.slice(segmentsOf(home).length)
-    : names;
-  return below.join(" › ") || nameOf(target);
-}
-
 /**
- * The chat's open asks that the tool part with this id raised, alone or with
- * other sessions that ran into the same thing, drawn in full under it.
- */
-export function PermissionAsksForPart({
-  chatId,
-  explanation,
-  partId,
-}: {
-  chatId: ChatId;
-  /** What the call said it was doing, shown on its cards. */
-  explanation: string | undefined;
-  partId: string;
-}) {
-  const asks = useAsks(chatId)?.filter((ask) =>
-    ask.askers.some((asker) => asker.partId === partId),
-  );
-  if (!asks?.length) {
-    return null;
-  }
-  return asks.map((ask) => (
-    <PermissionAskCard
-      ask={ask}
-      chatId={chatId}
-      explanation={explanation}
-      key={ask.id}
-    />
-  ));
-}
-
-/**
- * Every open ask at the foot of the chat, just above the composer. One that
- * a tool part also shows keeps the short form here; one with no part has only
- * this card, so it gets the whole set of answers.
+ * Every open ask, just above the composer and only there: a task's ask has no
+ * call in the chat's transcript to draw under, and one place keeps several
+ * from piling up. The oldest is drawn whole with the rest tucked under it,
+ * and answering it brings up the next.
  */
 export function PermissionAsksFoot({
   chatId,
@@ -159,20 +118,26 @@ export function PermissionAsksFoot({
   messages: readonly SessionMessage.WithParts[];
 }) {
   const asks = useAsks(chatId);
-  if (!asks?.length) {
+  const [first] = asks ?? [];
+  if (!asks || !first) {
     return null;
   }
+  const waiting = asks.length - 1;
   return (
-    <div className="mb-2 flex flex-col gap-2">
-      {asks.map((ask) => (
-        <PermissionAskCard
-          ask={ask}
-          chatId={chatId}
-          compact={ask.askers.some((asker) => asker.partId !== undefined)}
-          explanation={explanationOf(messages, ask)}
-          key={ask.id}
-        />
-      ))}
+    <div className={cn("@container/asks relative mb-2", waiting > 0 && "pb-2")}>
+      {waiting > 1 ? (
+        <div className="absolute inset-x-6 bottom-0 h-6 rounded-b-2xl border border-border bg-card/70" />
+      ) : null}
+      {waiting > 0 ? (
+        <div className="absolute inset-x-3 bottom-1 h-6 rounded-b-2xl border border-border bg-card shadow-xs" />
+      ) : null}
+      <PermissionAskCard
+        ask={first}
+        chatId={chatId}
+        explanation={explanationOf(messages, first)}
+        key={first.id}
+        stack={asks}
+      />
     </div>
   );
 }
@@ -180,123 +145,153 @@ export function PermissionAsksFoot({
 function PermissionAskCard({
   ask,
   chatId,
-  compact = false,
   explanation,
+  stack,
 }: {
   ask: Ask;
   chatId: ChatId;
-  compact?: boolean;
   explanation: string | undefined;
+  /** Every open ask, this one first, for the count and the no to all. */
+  stack: readonly Ask[];
 }) {
-  const { isBusy, send } = useAnswer(chatId, ask);
-  const shown = askTargetName(ask.kind, ask.target);
-  const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
-  const choose = async () => {
-    const picked = await rpcClient.utils.showFolderPicker.call({
-      buttonLabel: "Allow",
-      startingAt: ask.target,
-    });
-    if (picked) {
-      send("allowed", picked.path);
-    }
-  };
-
-  if (compact) {
-    return (
-      <ToolCard className="mt-0 rounded-xl">
-        <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <div className="min-w-0">
-            <p className="truncate text-sm">{`Let Instrument use ${shown}?`}</p>
-            {explanation ? (
-              <p className="truncate text-xs text-muted-foreground">
-                {explanation}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button
-              disabled={isBusy}
-              onClick={() => {
-                send("allowed");
-              }}
-              size="sm"
-            >
-              Allow
-            </Button>
-            <Button
-              disabled={isBusy}
-              onClick={() => {
-                send("declined");
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              Not now
-            </Button>
-          </div>
-        </div>
-      </ToolCard>
-    );
-  }
+  const answer = useAnswer();
+  const isFolder = ask.kind === "folder";
+  const holds = isFolder ? signInLine(ask.target) : undefined;
+  const pending = answer.isPending ? answer.variables.decision : undefined;
+  const choice = (decision: Decision) => ({
+    disabled: answer.isPending,
+    onClick: () => {
+      answer.mutate({ askId: ask.id, decision, id: chatId });
+    },
+    pending: pending === decision,
+  });
 
   return (
-    <ToolCard>
-      <ToolCardSection collapsedHeight={256}>
-        <p className="text-sm">{`Let Instrument use ${shown}?`}</p>
-        {explanation ? (
-          <p className="mt-1 text-sm text-muted-foreground">{explanation}</p>
+    <div className="relative rounded-2xl border border-border bg-card p-3 shadow-xs">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium">
+          {isFolder
+            ? "Can Instrument use this folder?"
+            : "Can Instrument use this app?"}
+        </p>
+        {stack.length > 1 ? (
+          <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+            {`1 of ${stack.length}`}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label="Don’t allow any of these"
+                  className="size-6"
+                  disabled={answer.isPending}
+                  onClick={() => {
+                    for (const each of stack) {
+                      answer.mutate({
+                        askId: each.id,
+                        decision: "declined",
+                        id: chatId,
+                      });
+                    }
+                  }}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <XIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Don’t allow any of these</TooltipContent>
+            </Tooltip>
+          </div>
         ) : null}
-        {holds ? <p className="mt-1 text-sm">{holds}</p> : null}
-        {ask.kind === "folder" ? (
-          <p className="mt-1 text-xs break-all text-muted-foreground">
-            {readablePath(ask.target)}
-          </p>
-        ) : null}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            disabled={isBusy}
-            onClick={() => {
-              send("allowed");
-            }}
-            size="sm"
-          >
-            Allow in this chat
-          </Button>
-          <Button
-            disabled={isBusy}
-            onClick={() => {
-              send("always");
-            }}
-            size="sm"
-            variant="secondary"
-          >
-            Always allow
-          </Button>
-          {ask.kind === "folder" ? (
-            <Button
-              disabled={isBusy}
-              onClick={() => {
-                void choose();
-              }}
-              size="sm"
-              variant="ghost"
+      </div>
+      {explanation ? (
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
+          {explanation}
+        </p>
+      ) : null}
+      <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
+        {isFolder ? (
+          <MacFolderIcon className="size-8 shrink-0" />
+        ) : (
+          <span className="grid size-8 shrink-0 place-items-center">
+            <AppWindowIcon className="size-6 text-muted-foreground" />
+          </span>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm">
+            {isFolder ? nameOf(ask.target) : ask.target}
+          </span>
+          {isFolder ? (
+            <span
+              className="truncate text-xs text-muted-foreground"
+              title={ask.target}
             >
-              Choose a folder…
-            </Button>
+              {ask.target}
+            </span>
           ) : null}
-          <Button
-            disabled={isBusy}
-            onClick={() => {
-              send("declined");
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            Not now
-          </Button>
         </div>
-      </ToolCardSection>
-    </ToolCard>
+      </div>
+      {holds ? (
+        <p className="mt-2 flex items-start gap-1.5 text-[13px] text-warning-700 dark:text-warning-300">
+          <KeyIcon className="mt-0.5 size-3.5 shrink-0" />
+          <span>{holds}</span>
+        </p>
+      ) : null}
+      {/* A chat too narrow for the three in a row stacks them, each the
+      card's width, rather than wrapping into a ragged pair. */}
+      <div className="mt-3 flex items-center gap-2 @max-md/asks:flex-col @max-md/asks:items-stretch @max-md/asks:gap-1.5">
+        <AnswerButton {...choice("allowed")}>Allow in this chat</AnswerButton>
+        <AnswerButton {...choice("always")} variant="outline">
+          Always allow
+        </AnswerButton>
+        <AnswerButton
+          {...choice("declined")}
+          className="ml-auto text-muted-foreground @max-md/asks:ml-0"
+          variant="ghost"
+        >
+          Don’t allow
+        </AnswerButton>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One answer. Pressed, it keeps its label and the others are disabled; only a
+ * wait long enough to notice (the first macOS prompt for a folder) covers the
+ * label with a spinner, at the button's own width.
+ */
+function AnswerButton({
+  children,
+  className,
+  disabled,
+  onClick,
+  pending,
+  variant = "brand",
+}: {
+  children: string;
+  className?: string;
+  disabled: boolean;
+  onClick: () => void;
+  pending: boolean;
+  variant?: "brand" | "ghost" | "outline";
+}) {
+  return (
+    <Button
+      className={cn("relative", className)}
+      disabled={disabled}
+      onClick={onClick}
+      size="sm"
+      variant={variant}
+    >
+      {children}
+      {pending ? (
+        <Delayed>
+          <span className="absolute inset-0 flex items-center justify-center rounded-[inherit] bg-inherit">
+            <Spinner className="size-3.5" delay={0} />
+          </span>
+        </Delayed>
+      ) : null}
+    </Button>
   );
 }
 
@@ -315,8 +310,20 @@ export function PermissionAnswerNote({
           ? `You allowed ${shown} in this chat.`
           : data.answer === "always"
             ? `You allowed ${shown} for every chat.`
-            : `You said not now to ${shown}.`}
+            : `You didn’t allow ${shown} in this chat.`}
       </span>
+      {data.answer === "always" ? (
+        // Where an answer for every chat is taken back.
+        <button
+          className="font-medium text-foreground/80 underline decoration-border underline-offset-2 hover:decoration-foreground/50"
+          onClick={() => {
+            openSettings({ tab: "Permissions" });
+          }}
+          type="button"
+        >
+          Settings
+        </button>
+      ) : null}
     </p>
   );
 }

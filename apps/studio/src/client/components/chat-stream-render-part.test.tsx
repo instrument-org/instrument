@@ -4,7 +4,6 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
-import { isValidElement } from "react";
 import { describe, expect, it } from "vitest";
 
 // Relative, not `@/tests/render`: oxlint's type-aware pass does not resolve the
@@ -14,7 +13,6 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
-import { PermissionAsksForPart } from "./permission-asks";
 import { ToolCallBody } from "./message-part/tool-call";
 
 const sessionId = StoreId.newSessionId();
@@ -207,11 +205,7 @@ describe("renderChatPart in the chat", () => {
       part,
       partIndex: 0,
     });
-    // A hidden call still holds a place for the asks it raised, which draw
-    // nothing when there are none; the row itself is what these tests count.
-    return isValidElement(node) && node.type === PermissionAsksForPart
-      ? null
-      : node;
+    return node;
   }
 
   it.each([
@@ -246,9 +240,7 @@ describe("renderChatPart in the chat", () => {
           isDeveloperMode,
           { isStreaming: true },
         ),
-      ).toMatchObject({
-        props: { children: [{ type: ToolCallBody }, expect.anything()] },
-      });
+      ).toMatchObject({ type: ToolCallBody });
     },
   );
 });

@@ -5,61 +5,51 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
 import { installWindowStubs } from "../../tests/window-stubs";
-import { PermissionAsksForPart } from "./permission-asks";
+import { PermissionAsksFoot } from "./permission-asks";
 
 const chatId = ChatIdSchema.parse("test-chat");
-const partId = StoreId.newPartId();
 
-function showAsk(target: string) {
+function showAsks(asks: { kind?: "app" | "folder"; target: string }[]) {
   const { queryClient } = renderWithProviders(
-    <PermissionAsksForPart
-      chatId={chatId}
-      explanation={undefined}
-      partId={partId}
-    />,
+    <PermissionAsksFoot chatId={chatId} messages={[]} />,
   );
   queryClient.setQueryData(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }).queryKey,
-    [
-      {
-        askedAt: new Date(0),
-        askers: [{ partId, sessionId: StoreId.newSessionId() }],
-        id: "ask-1",
-        kind: "folder",
-        status: "open",
-        target,
-      },
-    ],
+    asks.map(({ kind = "folder", target }, index) => ({
+      askedAt: new Date(index),
+      askers: [{ sessionId: StoreId.newSessionId() }],
+      id: `ask-${index}`,
+      kind,
+      status: "open",
+      target,
+    })),
   );
 }
 
 afterEach(installWindowStubs);
 
-describe("PermissionAsksForPart", () => {
-  // The home folder is /Users/sam (`tests/window-stubs.ts`).
+describe("PermissionAsksFoot", () => {
   it.each([
-    ["/Users/sam/Documents/Clients", "Documents › Clients"],
-    ["/Users/sam", "sam"],
+    ["/Users/sam/Desktop", "Desktop"],
     // A backslash is a character a name can hold on a Mac or Linux.
-    ["/Users/sam/Documents/a\\b", "Documents › a\\b"],
-    ["D:\\Projects\\Clients", "D: › Projects › Clients"],
-  ])("says where %s is as %s", async (target, where) => {
-    showAsk(target);
-
-    expect(await screen.findByText(where)).toBeDefined();
-  });
-
-  it.each([
     ["/Users/sam/Documents/a\\b", "a\\b"],
     ["D:\\Projects\\Clients", "Clients"],
-  ])("asks about %s by its name, %s", async (target, name) => {
-    showAsk(target);
+  ])("names %s as %s over its whole path", async (target, name) => {
+    showAsks([{ target }]);
+
+    expect(await screen.findByText(name)).toBeDefined();
+    expect(screen.getByText(target)).toBeDefined();
+  });
+
+  it("asks about an app by its name, with no path", async () => {
+    showAsks([{ kind: "app", target: "Calendar" }]);
 
     expect(
-      await screen.findByText(`Let Instrument use “${name}”?`),
+      await screen.findByText("Can Instrument use this app?"),
     ).toBeDefined();
+    expect(screen.getByText("Calendar")).toBeDefined();
   });
 
   it.each([
@@ -73,12 +63,37 @@ describe("PermissionAsksForPart", () => {
     "with home at %s, says %s holds sign-ins: %s",
     async (home, target, holds) => {
       window.api.homeDir = home;
-      showAsk(target);
+      showAsks([{ target }]);
 
-      await screen.findByText(/^Let Instrument use/);
+      await screen.findByText("Can Instrument use this folder?");
       expect(
         screen.queryByText("This folder has your sign-in to GitHub.") !== null,
       ).toBe(holds);
     },
   );
+
+  it("draws the oldest of several asks, with how many are waiting", async () => {
+    showAsks([
+      { target: "/Users/sam/Desktop" },
+      { target: "/Users/sam/Downloads" },
+      { kind: "app", target: "Calendar" },
+    ]);
+
+    expect(await screen.findByText("1 of 3")).toBeDefined();
+    expect(screen.getByText("Desktop")).toBeDefined();
+    expect(screen.queryByText("Downloads")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Don’t allow any of these" }),
+    ).toBeDefined();
+  });
+
+  it("offers no answer to all for one ask alone", async () => {
+    showAsks([{ target: "/Users/sam/Desktop" }]);
+
+    await screen.findByText("Desktop");
+    expect(screen.queryByText(/ of /)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Don’t allow any of these" }),
+    ).toBeNull();
+  });
 });

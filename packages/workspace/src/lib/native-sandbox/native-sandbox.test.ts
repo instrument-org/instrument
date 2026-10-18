@@ -291,11 +291,51 @@ describe.skipIf(onWindows)("refusedPathIn", () => {
       "PermissionError: [Errno 1] Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       "ask",
     ],
-    // bubblewrap leaves a closed folder empty, so its refusal reads as missing.
-    ["cat: /Users/someone/.ssh/config: No such file or directory", "never"],
     ["cat: /Users/someone/notes.md: No such file or directory", undefined],
   ])("%s", (output, level) => {
     expect(refusedPathIn(output, reach)?.reach.level).toBe(level);
+  });
+
+  // Lines real programs print that name no path the sandbox refused.
+  it.each([
+    // ssh-add -l with the agent's socket missing, on Windows (no agent
+    // service running) and on a Mac (a socket path that is not there).
+    "Error connecting to agent: No such file or directory\r\n",
+    "Error connecting to agent: No such file or directory\n",
+    // ssh-add -l with no SSH_AUTH_SOCK at all.
+    "Could not open a connection to your authentication agent.\n",
+    // A config file a program only looked for, in a folder that asks.
+    "python3: can't open file '/Users/someone/Documents/Acme/run.py': [Errno 2] No such file or directory",
+    "gpg: keyblock resource '/Users/someone/.ssh/gnupg/pubring.kbx': No such file or directory",
+  ])("finds no refusal in %j", (output) => {
+    expect(refusedPathIn(output, reach)).toBeUndefined();
+  });
+
+  // bubblewrap leaves a closed folder empty, so its refusal reads as missing
+  // where the disk has the path, or the folder it would be in.
+  describe("of a missing path", () => {
+    const home = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "refused-missing-")),
+    );
+    mkdirSync(path.join(home, ".ssh"));
+    writeFileSync(path.join(home, ".ssh", "config"), "");
+    const closed = reachOver(home, [
+      { level: "never", path: path.join(home, ".ssh"), source: "place" },
+    ]);
+    afterAll(() => rmSync(home, { force: true, recursive: true }));
+
+    it.each([
+      [".ssh/config", "never"],
+      [".ssh/known_hosts", "never"],
+      [".ssh/keys/id_ed25519", undefined],
+    ])("finds %s refused: %s", (named, level) => {
+      expect(
+        refusedPathIn(
+          `cat: ${path.join(home, named)}: No such file or directory`,
+          closed,
+        )?.reach.level,
+      ).toBe(level);
+    });
   });
 
   it.each([

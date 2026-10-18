@@ -13,7 +13,11 @@ import { filterShellOutput } from "../filter-shell-output";
 import { nodeToolsEnv } from "../tool-isolation";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hostPathOf, shellPath } from "../workspace-fs-layout";
+import {
+  hostPathOf,
+  noteFoundProgram,
+  shellPath,
+} from "../workspace-fs-layout";
 import {
   binaryStdout,
   collapseProgress,
@@ -172,12 +176,15 @@ export function createPathProgramResolver(
       path: programPath(chatId, cwd),
       pathExt: hostEnv("PATHEXT"),
     });
-    return hostPath === undefined
-      ? undefined
-      : {
-          command: createPathProgramCommand(chatId, name, hostPath),
-          path: shellPath(hostPath),
-        };
+    if (hostPath === undefined) {
+      return undefined;
+    }
+    const programShellPath = shellPath(hostPath);
+    noteFoundProgram(programShellPath);
+    return {
+      command: createPathProgramCommand(chatId, name, hostPath),
+      path: programShellPath,
+    };
   };
 }
 

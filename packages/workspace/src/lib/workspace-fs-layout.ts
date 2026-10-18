@@ -662,6 +662,19 @@ function buildSkillMounts(): WorkspaceFsMount[] {
 export const SHELL_PATH = "/usr/local/bin:/usr/bin:/bin";
 const SHELL_PATH_DIRS = new Set(SHELL_PATH.split(":"));
 
+/**
+ * The programs the shell found on the host's PATH, as the shell spells them.
+ * The shell names a program it found by its path afterwards (a command it
+ * remembers, `type`), and that look at the program is not the agent asking
+ * for its folder.
+ */
+const foundPrograms = new Set<string>();
+
+/** Records a program the shell found on the host's PATH, by its shell path. */
+export function noteFoundProgram(programShellPath: string): void {
+  foundPrograms.add(programShellPath);
+}
+
 /** Folders that hold the system rather than anything of the person's. */
 const SYSTEM_FOLDERS = [
   "/System",
@@ -1059,11 +1072,12 @@ export function outsideFolderRefusal(
   op: "read" | "write",
 ): string | undefined {
   const { rules } = layout;
-  // The shell looking a command up on its PATH is not the agent asking,
-  // and a folder above a mount answers as one, which a walk to the mount
-  // looks at first.
+  // The shell looking a command up on its PATH, or reading a program it
+  // found there, is not the agent asking, and a folder above a mount answers
+  // as one, which a walk to the mount looks at first.
   if (
     SHELL_PATH_DIRS.has(nodePath.posix.dirname(path)) ||
+    (op === "read" && foundPrograms.has(path)) ||
     allMounts(layout).some((mount) =>
       mount.shellRoot.startsWith(`${path === "/" ? "" : path}/`),
     )

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { ruleRefusal } from "../permissions/rules-fs";
@@ -114,7 +115,18 @@ export function refusedPathIn(
       const hostPath = path.resolve(cwd ?? "/", named);
       // A missing file can only be a closed read; anything else may have
       // been a change.
-      const op = MISSING.test(line) ? "read" : "write";
+      const missing = MISSING.test(line);
+      // A sandbox hides what is on disk, so a path missing here as well as
+      // the folder it would be in is missing for the program too, as a
+      // config file it only looked for is.
+      if (
+        missing &&
+        !existsSync(hostPath) &&
+        !existsSync(path.dirname(hostPath))
+      ) {
+        continue;
+      }
+      const op = missing ? "read" : "write";
       const decided = reachOf(reach.rules, hostPath, op);
       if (
         decided.level !== "allow" &&

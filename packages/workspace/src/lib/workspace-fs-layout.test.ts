@@ -31,6 +31,7 @@ import {
   effectiveFolderAccess,
   folderHoldsAppData,
   hostPathOf,
+  noteFoundProgram,
   outsideFolderRefusal,
   shellPath,
   shellPathOfHostSpelling,
@@ -809,6 +810,27 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
       outsideFolderRefusal(layoutWith("ask"), log, "read"),
     ]).toEqual([undefined, undefined, undefined]);
     expect(raiseAsk).not.toHaveBeenCalled();
+  });
+
+  // The shell remembers a program it found on the PATH by its path, and
+  // looks there first the next time it runs (on Windows, where nothing
+  // outside a mount is read, `ssh-add; ssh-add` asked for
+  // /c/WINDOWS/System32/OpenSSH).
+  it("asks nothing for a look at a program the shell found on the PATH", async () => {
+    const program = path.join(drives, "Backup", "bin", "tool");
+    await fs.mkdir(path.dirname(program));
+    await fs.writeFile(program, "");
+    const layout = layoutWith("ask");
+    expect(outsideFolderRefusal(layout, program, "read")).toContain(
+      "Waiting on the person",
+    );
+    vi.mocked(raiseAsk).mockClear();
+    noteFoundProgram(program);
+    expect(outsideFolderRefusal(layout, program, "read")).toBeUndefined();
+    expect(raiseAsk).not.toHaveBeenCalled();
+    expect(outsideFolderRefusal(layout, program, "write")).toContain(
+      "Waiting on the person",
+    );
   });
 });
 

@@ -315,6 +315,7 @@ export const llmRequestLogic = fromPromise<
       captureException: workspaceConfig.captureException,
       configs: workspaceConfig.getAIProviderConfigs(),
       modelCache: workspaceConfig.modelCache,
+      modelRoutes: workspaceConfig.modelRoutes,
       modelURI: input.model.uri,
       workspaceServerURL: getWorkspaceServerURL(),
     });

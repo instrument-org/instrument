@@ -1,6 +1,7 @@
 import type { ChatId } from "@instrument-org/workspace/client";
 
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { reachModel } from "@/client/lib/model-status";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -20,9 +21,7 @@ export function ModelPreview({ id }: { id: ChatId }) {
   }
 
   const selectedModelURI = chatInfo.modelURI;
-  const models = modelsResponse?.models ?? [];
-
-  const matchedModel = models.find((model) => model.uri === selectedModelURI);
+  const matchedModel = reachModel(modelsResponse, selectedModelURI).model;
 
   const displayName = matchedModel
     ? matchedModel.name

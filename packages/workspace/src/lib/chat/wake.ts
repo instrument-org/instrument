@@ -832,6 +832,7 @@ async function wakeModel(modelURI: AIGatewayModelURI.Type) {
       captureException: workspaceConfig.captureException,
       configs: workspaceConfig.getAIProviderConfigs(),
       modelCache: workspaceConfig.modelCache,
+      modelRoutes: workspaceConfig.modelRoutes,
       modelURI,
     });
   let result = await lookUp();

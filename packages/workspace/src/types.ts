@@ -4,6 +4,7 @@ import {
   type AIGatewayEnv,
   type GetProviderConfigs,
   type ModelCache,
+  type ModelRoutes,
 } from "@instrument-org/ai-gateway";
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
@@ -242,6 +243,12 @@ export interface WorkspaceConfig {
    */
   refreshExpiredCredentials?: AIGatewayEnv["Variables"]["refreshExpiredCredentials"];
   modelCache: ModelCache;
+  /**
+   * The connection this computer settled on for each model a chat names
+   * through another computer's connection (`routeModel`). Absent, a model
+   * is still routed, just worked out afresh each time.
+   */
+  modelRoutes?: ModelRoutes;
   nodeExecEnv: Record<string, string>;
   /**
    * Whether native commands (node, python, uv, pnpm, ffmpeg, git) are held

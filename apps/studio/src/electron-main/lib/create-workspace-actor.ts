@@ -22,6 +22,7 @@ import {
   startQuit,
 } from "@/electron-main/lib/quit";
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
+import { workspaceModelRoutes } from "@/electron-main/stores/workspace/state";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
@@ -221,6 +222,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         videos: app.getPath("videos"),
       },
       modelCache: diskModelCache,
+      modelRoutes: workspaceModelRoutes,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process
         // See https://www.electronjs.org/docs/latest/api/environment-variables

@@ -22,6 +22,7 @@ export async function chatModel(command: string, context: TaskCommandContext) {
     captureException: workspaceConfig.captureException,
     configs: workspaceConfig.getAIProviderConfigs(),
     modelCache: workspaceConfig.modelCache,
+    modelRoutes: workspaceConfig.modelRoutes,
     modelURI,
   });
   if (!result.ok) {

@@ -2,6 +2,12 @@ export { findReplacement, readModelURI } from "./lib/find-replacement";
 export { isRouterModel } from "./lib/is-router-model";
 export { modelNameFromURI } from "./lib/model-name-from-uri";
 export { namesSameModel } from "./lib/names-same-model";
+export {
+  type ModelConnection,
+  type ModelRoute,
+  type ModelRouteTable,
+  routeModel,
+} from "./lib/route-model";
 export { catalogEffort, type ReasoningEffort } from "./lib/reasoning-effort";
 export type { AIGatewayModel } from "./schemas/model";
 export type { AIGatewayModelURI } from "./schemas/model-uri";

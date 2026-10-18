@@ -26,6 +26,7 @@ import { appMentionToken } from "@/client/lib/app-mention";
 import {
   type ModelAction,
   noticeFor,
+  reachModel,
   readModelStatus,
 } from "@/client/lib/model-status";
 import { ITEM_IN } from "@/client/lib/motion";
@@ -278,7 +279,10 @@ export const PromptInput = ({
     slug: app.slug,
   }));
 
-  const selectedModel = models?.find((model) => model.uri === modelURI);
+  // The chosen model as this computer reaches it. The send still names the
+  // URI as stored, and the main process routes it the same way.
+  const reached = reachModel(modelsData, modelURI);
+  const selectedModel = reached.model;
   const [dismissedOffers, setDismissedOffers] = useAtom(
     dismissedModelOffersAtom,
   );
@@ -287,6 +291,7 @@ export const PromptInput = ({
   // the user without anything here being touched.
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const modelStatus = readModelStatus({
+    connections: modelsData?.connections,
     dismissedOffers: new Set(dismissedOffers),
     errors: modelsErrors,
     isError: modelsIsError,
@@ -296,6 +301,7 @@ export const PromptInput = ({
     providerNames: new Map(
       [...providerMetadataMap].map(([type, metadata]) => [type, metadata.name]),
     ),
+    routes: modelsData?.routes,
   });
   const modelNotice = noticeFor(modelStatus);
   // Counts the sends the notice refused, for the row to flash at each one.
@@ -861,7 +867,7 @@ export const PromptInput = ({
                 isError={modelsIsError}
                 isLoading={modelsIsLoading}
                 models={models}
-                modelURI={modelURI}
+                modelURI={reached.uri}
                 notice={modelNotice}
                 onAction={handleModelAction}
                 onAddProvider={addProvider}
@@ -994,7 +1000,7 @@ export const PromptInput = ({
                 isError={modelsIsError}
                 isLoading={modelsIsLoading}
                 models={models}
-                modelURI={modelURI}
+                modelURI={reached.uri}
                 notice={modelNotice}
                 onAction={handleModelAction}
                 onAddProvider={addProvider}

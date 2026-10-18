@@ -73,6 +73,7 @@ export function generateTitleFromUserMessage({
         captureException: workspaceConfig.captureException,
         configs: workspaceConfig.getAIProviderConfigs(),
         modelCache: workspaceConfig.modelCache,
+        modelRoutes: workspaceConfig.modelRoutes,
         modelURI: model.uri,
         workspaceServerURL: getWorkspaceServerURL(),
       });

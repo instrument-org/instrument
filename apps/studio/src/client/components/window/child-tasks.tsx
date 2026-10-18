@@ -12,6 +12,7 @@ import {
 import { StoppedLine } from "@/client/components/stopped-line";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
+import { reachModel } from "@/client/lib/model-status";
 import { useOutputFolder } from "@/client/lib/output-folder";
 import { folderLabel } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -167,9 +168,7 @@ function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const model = models.data?.models.find(
-    (entry) => entry.uri === chatInfo.modelURI,
-  );
+  const { model } = reachModel(models.data, chatInfo.modelURI);
   const fromModel = model ? catalogEffort(model) : undefined;
   const effort = chatInfo.reasoningEffort ?? fromModel;
   if (!effort) {

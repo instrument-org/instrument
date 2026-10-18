@@ -83,6 +83,7 @@ const run = base
       captureException: context.workspaceConfig.captureException,
       configs: context.workspaceConfig.getAIProviderConfigs(),
       modelCache: context.workspaceConfig.modelCache,
+      modelRoutes: context.workspaceConfig.modelRoutes,
       modelURI,
     });
 

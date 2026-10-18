@@ -70,6 +70,7 @@ export async function retitleChat({
     captureException: workspaceConfig.captureException,
     configs: workspaceConfig.getAIProviderConfigs(),
     modelCache: workspaceConfig.modelCache,
+    modelRoutes: workspaceConfig.modelRoutes,
     modelURI,
   });
   if (!model.ok) {

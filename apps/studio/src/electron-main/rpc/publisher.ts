@@ -62,6 +62,8 @@ interface PublisherEvents {
   "debug.browser-view-manager.updated": null;
   // Whether the platform API answers changed (development builds only).
   "platform-api.reachability.updated": null;
+  // This computer settled on a connection for a model another computer chose.
+  "model-routes.updated": null;
   "preferences.updated": null;
   "provider-config.updated": null;
   "server-exception": {

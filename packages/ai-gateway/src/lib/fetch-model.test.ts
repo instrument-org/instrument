@@ -124,4 +124,63 @@ describe("fetchModel", () => {
 
     expect(result.error?.type).toBe("gateway-not-listed-error");
   });
+
+  describe("a URI another computer chose", () => {
+    // The same model, named through a connection this computer does not have.
+    const THEIRS = AIGatewayModelURI.Schema.parse(
+      "anthropic/claude?provider=anthropic&providerConfigId=their-anthropic",
+    );
+    const routes = () => {
+      const table: Record<string, string> = {};
+      return {
+        read: () => table,
+        remember: vi.fn((key: string, id: string) => {
+          table[key] = id;
+        }),
+        table,
+      };
+    };
+
+    it("goes through this computer's connection of the kind, and remembers it", async () => {
+      const modelRoutes = routes();
+
+      const result = await fetchModel({
+        captureException,
+        configs: [config],
+        modelCache: createMemoryCache(FETCHED),
+        modelRoutes,
+        modelURI: THEIRS,
+      });
+
+      expect(result.getOrNull()).toEqual(FETCHED[0]);
+      expect(modelRoutes.table).toEqual({ "anthropic:claude": config.id });
+      expect(fetchAndParseAnthropicModels).not.toHaveBeenCalled();
+    });
+
+    it("fetches the kind's list when nothing of it is cached", async () => {
+      fetchAndParseAnthropicModels.mockResolvedValue(FETCHED);
+
+      const result = await fetchModel({
+        captureException,
+        configs: [config],
+        modelCache: createMemoryCache(),
+        modelURI: THEIRS,
+      });
+
+      expect(result.getOrNull()).toEqual(FETCHED[0]);
+    });
+
+    it("says its own connection is missing when nothing here reaches it", async () => {
+      const result = await fetchModel({
+        captureException,
+        configs: [{ ...config, type: "openrouter" }],
+        modelCache: createMemoryCache(FETCHED),
+        modelURI: THEIRS,
+      });
+
+      expect(result.error?.message).toBe(
+        "Provider config for their-anthropic not found",
+      );
+    });
+  });
 });

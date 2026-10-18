@@ -273,6 +273,7 @@ export const workspaceMachine = setup({
       /** Where each chat's work folder is made, a folder per chat. */
       workFoldersDir: string;
       modelCache: ModelCache;
+      modelRoutes?: WorkspaceConfig["modelRoutes"];
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
       outputDir?: string;
@@ -322,6 +323,7 @@ export const workspaceMachine = setup({
       workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
       workFoldersDir: AbsolutePathSchema.parse(input.workFoldersDir),
       modelCache: input.modelCache,
+      ...(input.modelRoutes && { modelRoutes: input.modelRoutes }),
       ...(input.nativeSandbox && {
         nativeSandbox: input.nativeSandbox,
       }),

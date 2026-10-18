@@ -2,8 +2,11 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
   findReplacement,
+  type ModelConnection,
   modelNameFromURI,
+  type ModelRouteTable,
   readModelURI,
+  routeModel,
 } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 
@@ -71,7 +74,37 @@ export const offerKeyOf = (
   newer: AIGatewayModel.Type,
 ) => `${model.uri}>${newer.canonicalId}`;
 
+/** What the models list says this computer has: its models, its connections in the order added, and its routes. */
+export interface ModelsHere {
+  connections?: readonly ModelConnection[];
+  models?: readonly AIGatewayModel.Type[];
+  routes?: ModelRouteTable;
+}
+
+/**
+ * A stored model URI as this computer reaches it (`routeModel`): the URI it
+ * sends as, and the listed model at it, if any. A URI nothing here reaches is
+ * answered as it is, for the status to call gone. Every place that shows or
+ * checks a chosen model reads it through this, so none of them can differ
+ * from the send, which routes in the main process the same way.
+ */
+export function reachModel(
+  { connections = [], models = [], routes = {} }: ModelsHere = {},
+  uri: AIGatewayModelURI.Type | undefined,
+): { model?: AIGatewayModel.Type; uri?: AIGatewayModelURI.Type } {
+  if (!uri) {
+    return {};
+  }
+  const route = routeModel({ connections, models, routes, uri });
+  const reached = route.kind === "none" ? uri : route.uri;
+  return {
+    model: models.find((entry) => entry.uri === reached),
+    uri: reached,
+  };
+}
+
 export function readModelStatus({
+  connections,
   dismissedOffers,
   errors = [],
   isError = false,
@@ -79,7 +112,10 @@ export function readModelStatus({
   models = [],
   modelURI,
   providerNames,
+  routes,
 }: {
+  /** This computer's connections and routes, from the list, for `reachModel`. */
+  connections?: readonly ModelConnection[];
   dismissedOffers: ReadonlySet<string>;
   errors?: ModelListError[];
   isError?: boolean;
@@ -88,13 +124,14 @@ export function readModelStatus({
   modelURI?: AIGatewayModelURI.Type;
   /** What each kind of provider is called, for naming a connection that is no longer there. */
   providerNames?: ReadonlyMap<AIProviderType, string>;
+  routes?: ModelRouteTable;
 }): ModelStatus {
   if (isLoading) {
     return { kind: "loading" };
   }
 
   const auto = models.find((model) => model.providerId === OUR_MODELS.text.id);
-  const model = modelURI && models.find((entry) => entry.uri === modelURI);
+  const { model } = reachModel({ connections, models, routes }, modelURI);
 
   if (model) {
     if (model.restricted) {

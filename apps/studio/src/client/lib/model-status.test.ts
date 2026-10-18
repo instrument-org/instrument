@@ -22,6 +22,13 @@ describe("readModelStatus and noticeFor", () => {
     );
     expect(read).toMatchInlineSnapshot(`
       {
+        "another computer's connection, one of the kind here": {
+          "status": "ready",
+        },
+        "another computer's connection, only another kind here": {
+          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
+          "status": "gone",
+        },
         "fine": {
           "status": "ready",
         },

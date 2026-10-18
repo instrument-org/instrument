@@ -6,6 +6,7 @@ import {
   AIGatewayModel,
   AIGatewayProviderConfig,
   fetchModelResultsForProviders,
+  type ModelRoutes,
 } from "@instrument-org/ai-gateway";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
@@ -24,9 +25,29 @@ const ListSchema = z.object({
     }),
   ),
   models: z.array(AIGatewayModel.Schema),
+  /**
+   * This computer's connections in the order added, and the routes it
+   * settled on for models other computers chose: what `routeModel` reads,
+   * so the composer reaches a stored model the way the send does.
+   */
+  connections: z.array(
+    AIGatewayProviderConfig.Schema.pick({ id: true, type: true }),
+  ),
+  routes: z.record(z.string(), z.string()),
 });
 
 type ListErrors = z.output<typeof ListSchema>["errors"];
+
+/** What the list says about this computer, beside the models. */
+function routing(
+  providers: AIGatewayProviderConfig.Type[],
+  routes: ModelRoutes | undefined,
+) {
+  return {
+    connections: providers.map(({ id, type }) => ({ id, type })),
+    routes: { ...routes?.read() },
+  };
+}
 
 const list = base
   .errors({
@@ -56,7 +77,11 @@ const list = base
       }
     }
 
-    return { errors, models };
+    return {
+      errors,
+      models,
+      ...routing(providers, context.workspaceConfig.modelRoutes),
+    };
   });
 
 const live = {
@@ -69,6 +94,7 @@ const live = {
     const changes = [
       publisher.subscribe("provider-config.updated", { signal }),
       publisher.subscribe("session.apiBearerToken.updated", { signal }),
+      publisher.subscribe("model-routes.updated", { signal }),
     ];
 
     // Claude's provider config depends on the CLI's first sign-in check.
@@ -82,7 +108,11 @@ const live = {
         context.workspaceConfig.modelCache.read(config.cacheIdentifier) ?? [],
     );
     if (cachedModels.length > 0) {
-      yield { errors: [], models: cachedModels };
+      yield {
+        errors: [],
+        models: cachedModels,
+        ...routing(providers, context.workspaceConfig.modelRoutes),
+      };
     }
 
     // Fetch fresh data. fetchModelsForProvider writes to cache on success.

@@ -482,6 +482,18 @@ function makeMove({
             `found the whole copy at ${toData} a launch cut short made`,
           );
         } else {
+          // The sweeps that bring what 1.x and the betas left into this
+          // build's shape run only while the workspace is in the app's own
+          // data (`create-workspace-actor.ts`). Moving it out first would
+          // leave them skipped for good, so a move picked before they
+          // finished waits for the launch that does, and happens on the one
+          // after. Nothing is lost by waiting: the pick stays recorded.
+          if (pathWithin(from, userDataDir) && !isSettled(from)) {
+            done.push(
+              `left the move to ${to} until a launch has finished bringing ${from} up to date`,
+            );
+            return { done, workspace };
+          }
           // The folder may have changed since it was picked.
           if (!isFolder(to)) {
             done.push(

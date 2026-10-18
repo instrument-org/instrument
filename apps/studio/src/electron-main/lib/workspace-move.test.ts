@@ -313,6 +313,36 @@ describe("finishPendingMove", () => {
     });
   }
 
+  // A folder picked before the 1.x and beta sweeps finished, which the
+  // onboarding step can record while they are still running. They run only
+  // while the workspace is in the app's own data, so the move waits for them
+  // rather than taking the workspace out of their reach.
+  it("waits for a launch to finish the sweeps before it moves", () => {
+    const from = workspace.path;
+    requestWorkspaceMove({ target: picked, userDataDir, workspace });
+    writeWorkspaceIdentity(from, {
+      ...settled(),
+      layoutVersion: WORKSPACE_LAYOUT_VERSION - 1,
+    });
+
+    const { done, workspace: stayed } = finish();
+
+    expect(stayed.path).toBe(from);
+    expect(fs.existsSync(workspaceLayout(from).dataDir)).toBe(true);
+    expect(fs.existsSync(workspaceLayout(picked).dataDir)).toBe(false);
+    expect(done).toEqual([
+      expect.stringContaining("until a launch has finished bringing"),
+    ]);
+    // The pick is still recorded, so the launch after the sweeps makes it.
+    expect(readRegistry(userDataDir).workspaces[0]?.pendingMove).toMatchObject({
+      to: picked,
+    });
+
+    writeWorkspaceIdentity(from, settled());
+
+    expect(finish().workspace.path).toBe(picked);
+  });
+
   it("moves the records and the person's files, and the entry follows", () => {
     const from = workspace.path;
     requestWorkspaceMove({ target: picked, userDataDir, workspace });

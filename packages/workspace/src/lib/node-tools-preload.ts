@@ -27,6 +27,10 @@ const TOOLS_ENV = "INSTRUMENT_TOOLS";
  * - resolving (`module.registerHooks`): the file is found by Node's own
  *   lookup without the package's name for itself, and an `import` of a
  *   `.js` or `.ts` file gets the format Node would detect from its syntax;
+ * - loading (the same hooks): a file resolved without a format, such as the
+ *   script `node <script>` starts, which the `--import` preload sends
+ *   through the ES module loader, is loaded with the format detected the
+ *   same way;
  * - the CommonJS loader's `.js` handler, which reads the module type before
  *   any hook runs: the file is compiled with no type, as Node compiles one
  *   with no package.json, detecting ES module syntax itself.
@@ -129,6 +133,17 @@ registerHooks({
         if (!scopeRefused(again)) throw again;
         return { format: detectedFormat(filename), shortCircuit: true, url };
       }
+    }
+  },
+  load(url, context, nextLoad) {
+    try {
+      return nextLoad(url, context);
+    } catch (error) {
+      if (!scopeRefused(error) || !url.startsWith("file:")) throw error;
+      return nextLoad(url, {
+        ...context,
+        format: detectedFormat(fileURLToPath(url)),
+      });
     }
   },
 });

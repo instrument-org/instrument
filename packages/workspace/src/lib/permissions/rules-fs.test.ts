@@ -68,7 +68,6 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
 it("lists a listed place, and asks for the app's folder on the first file read", async () => {
   const sam = onDisk("/Users/sam");
   const library = nodePath.join(sam, "Library");
-  vi.mocked(raiseAsk).mockClear();
   const delegate = new InMemoryFs({
     "/Library/Application Support/Code/User/settings.json": "{}",
     "/Library/Keychains/login.keychain-db": "k",
@@ -131,14 +130,21 @@ it("lists a listed place, and asks for the app's folder on the first file read",
   await expect(fs.writeFile("/Library/Preferences/new", "x")).rejects.toThrow(
     /EACCES/,
   );
-  expect(vi.mocked(raiseAsk).mock.calls.map((call) => call[2])).toEqual([
-    nodePath.join(
-      library,
-      ...(process.platform === "darwin"
-        ? ["Application Support", "Code"]
-        : ["Application Support"]),
+  expect(
+    refusals.flatMap((refusal) => {
+      const asked = / ask for (".+") with ask_permission\.$/.exec(refusal)?.[1];
+      return asked ? [JSON.parse(asked) as string] : [];
+    }),
+  ).toEqual([
+    slashed(
+      nodePath.join(
+        library,
+        ...(process.platform === "darwin"
+          ? ["Application Support", "Code"]
+          : ["Application Support"]),
+      ),
     ),
-    nodePath.join(library, "Preferences"),
+    slashed(nodePath.join(library, "Preferences")),
   ]);
   expect(refusals).toHaveLength(3);
 });

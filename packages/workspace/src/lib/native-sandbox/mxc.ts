@@ -19,16 +19,16 @@ import { type ProbeResult } from "./probe";
 import { type NativeReach } from "./reach";
 
 /**
- * Whether MXC holds the native commands this process starts: Windows, with
- * `INSTRUMENT_MXC=1` in the app's environment while it is new, the launcher
- * shipped, and the canary passed on this build of Windows. A canary that
+ * Whether MXC holds the native commands this process starts: Windows, the
+ * launcher shipped, and the canary passed on this build of Windows, unless
+ * `INSTRUMENT_MXC=0` in the app's environment turns it off. A canary that
  * gave no answer is "failed" and runs again for the next command.
  */
 export function mxcState(): ProbeResult {
   const exec = getWorkspaceConfig().mxcExecPath;
   if (
     process.platform !== "win32" ||
-    appEnv.INSTRUMENT_MXC !== "1" ||
+    appEnv.INSTRUMENT_MXC === "0" ||
     !exec ||
     !existsSync(exec)
   ) {

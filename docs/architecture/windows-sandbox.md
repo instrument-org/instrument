@@ -8,7 +8,7 @@ The agent's own tools follow the Permissions rules on every platform: the shell'
 
 ## Native programs
 
-A native program the agent runs (`python`, `node`, `uv`, `pnpm`, `git`, `ffmpeg`, uutils, anything on the PATH) is held by the operating system on macOS (Seatbelt) and Linux (bubblewrap), from the same rules. On Windows that is Microsoft's MXC (`@microsoft/mxc-sdk`), when the app runs with `INSTRUMENT_MXC=1` and the canary below passed on that machine. Otherwise native programs run with the person's own access, so a script can read or change any file the person can, and Settings › Permissions says so in plain words, with a link to this page.
+A native program the agent runs (`python`, `node`, `uv`, `pnpm`, `git`, `ffmpeg`, uutils, anything on the PATH) is held by the operating system on macOS (Seatbelt) and Linux (bubblewrap), from the same rules. On Windows that is Microsoft's MXC (`@microsoft/mxc-sdk`), wherever the app ships its launcher and the canary below passed on that machine; `INSTRUMENT_MXC=0` in the app's environment turns it off. Otherwise native programs run with the person's own access, so a script can read or change any file the person can, and Settings › Permissions says so in plain words, with a link to this page.
 
 ### How MXC holds a program
 

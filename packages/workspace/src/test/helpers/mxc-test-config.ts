@@ -34,7 +34,7 @@ export function mxcTestWorkFoldersDir(): string | undefined {
 
 /**
  * On Windows, INSTRUMENT_TEST_MXC_EXEC names MXC's launcher so a suite runs
- * with native commands held by it (with INSTRUMENT_MXC=1 as well). The
+ * with native commands held by it (unless INSTRUMENT_MXC=0). The
  * sandbox keeps its verdict and requests in the runtime folder, which a mock
  * config puts at a path with no drive, so a run held by MXC gets a real one,
  * laid out as the app lays out its data folder and its work folders.

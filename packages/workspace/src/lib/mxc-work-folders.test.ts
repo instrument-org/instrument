@@ -37,7 +37,7 @@ const RESOURCES = path.resolve(
 const held =
   process.platform === "win32" &&
   process.env.INSTRUMENT_TEST_MXC_EXEC !== undefined &&
-  process.env.INSTRUMENT_MXC === "1";
+  process.env.INSTRUMENT_MXC !== "0";
 
 const sessionId = StoreId.newSessionId();
 const secret = randomUUID();

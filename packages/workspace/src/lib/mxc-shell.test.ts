@@ -20,8 +20,8 @@ const UUTILS_DIR = path.resolve(
 
 /**
  * A chat's shell with MXC holding its native commands, on Windows only:
- * INSTRUMENT_TEST_MXC_EXEC names the launcher and INSTRUMENT_MXC=1 turns it
- * on. The app's data folder is under `AppData\Roaming` with the runtime
+ * INSTRUMENT_TEST_MXC_EXEC names the launcher, and INSTRUMENT_MXC=0 turns it
+ * off. The app's data folder is under `AppData\Roaming` with the runtime
  * folder inside it, as the app lays it out (`mxcTestConfig`). A file under
  * `AppData` (outside its temp folder, which the rules open) sits in a place
  * that asks first, so a program reading it is refused by the container, and
@@ -31,7 +31,7 @@ const UUTILS_DIR = path.resolve(
 const held =
   process.platform === "win32" &&
   process.env.INSTRUMENT_TEST_MXC_EXEC !== undefined &&
-  process.env.INSTRUMENT_MXC === "1";
+  process.env.INSTRUMENT_MXC !== "0";
 
 const sessionId = StoreId.newSessionId();
 let tmpDir: string;

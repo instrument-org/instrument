@@ -52,17 +52,23 @@ describe.runIf(process.platform === "win32" && exec)(
     });
 
     it("holds native commands once the canary passed", () => {
-      process.env.INSTRUMENT_MXC = "1";
       expect(wrapNativeCommand("cmd.exe", ["/c", "exit"], reach).kind).toBe(
         "mxc",
       );
       expect(nativeSandboxEnforced()).toBe(true);
     });
 
+    it("runs native commands unwrapped with INSTRUMENT_MXC=0", () => {
+      process.env.INSTRUMENT_MXC = "0";
+      expect(wrapNativeCommand("cmd.exe", ["/c", "exit"], reach).kind).toBe(
+        "unwrapped",
+      );
+      expect(nativeSandboxEnforced()).toBe(false);
+    });
+
     it.each<Fault>(["grant", "realpath", "refuse"])(
       "runs native commands unwrapped when %s fails",
       (fault) => {
-        process.env.INSTRUMENT_MXC = "1";
         process.env.INSTRUMENT_MXC_CANARY_FAULT = fault;
         const spawned = wrapNativeCommand("cmd.exe", ["/c", "exit"], reach);
         expect(spawned).toEqual({

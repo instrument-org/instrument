@@ -13,7 +13,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
  * pnpm in a chat's shell with MXC holding its native commands, on Windows
- * only (INSTRUMENT_TEST_MXC_EXEC and INSTRUMENT_MXC=1, in the interactive
+ * only (INSTRUMENT_TEST_MXC_EXEC, unless INSTRUMENT_MXC=0, in the interactive
  * session, as `mxc-shell.test.ts`). MXC refuses a program it holds the
  * links an install makes, so a registry install runs its install step
  * outside and its install scripts inside (`pnpm-outside.ts`). Installs from
@@ -22,7 +22,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 const held =
   process.platform === "win32" &&
   process.env.INSTRUMENT_TEST_MXC_EXEC !== undefined &&
-  process.env.INSTRUMENT_MXC === "1";
+  process.env.INSTRUMENT_MXC !== "0";
 
 /** The pnpm the app ships, as its JS entry. */
 const PNPM_BIN = path.join(

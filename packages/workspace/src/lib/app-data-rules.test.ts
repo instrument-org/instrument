@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { MEMORY_FOLDER_NAME } from "../constants";
 import { MountedFolder } from "../schemas/mounted-folder";
@@ -25,11 +25,8 @@ import {
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import {
-  type NativeReach,
   bwrapArgs,
   bwrapAvailable,
-  refusalNote,
-  refusedPathIn,
   seatbeltAvailable,
   seatbeltProfile,
   withNativeReach,
@@ -42,7 +39,6 @@ import { execShim } from "./shell-commands/exec-shim";
 import { withAppDataLeftOut } from "./shell-commands/rg";
 import { pathIsWithin } from "./path-is-within";
 import { homeDataLayout, workspaceLayout } from "./workspace-layout";
-import { raiseAsk } from "./chat/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { reachOf, type Rules, rulesFor } from "./permissions/rules";
@@ -53,11 +49,6 @@ import {
   buildWorkspaceFsLayout,
   shellPath,
 } from "./workspace-fs-layout";
-
-vi.mock("./chat/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./chat/asks")>()),
-  raiseAsk: vi.fn(),
-}));
 
 /**
  * The app's own data, laid out as on a person's computer: this computer's
@@ -100,10 +91,6 @@ afterAll(() => {
   for (const home of homes) {
     rmSync(home, { force: true, recursive: true });
   }
-});
-
-beforeEach(() => {
-  vi.mocked(raiseAsk).mockClear();
 });
 
 /**
@@ -537,7 +524,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     );
 
     it.each(reachTable(paths).filter(([, , , level]) => level === "never"))(
-      "refuses %s plainly, with no card",
+      "refuses %s plainly, naming nothing to ask for",
       (_name, op, hostPath) => {
         const refusal = ruleRefusal({
           hostPath,
@@ -548,7 +535,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         expect(refusal).toMatch(
           /is Instrument's own data, which no command reads or changes|is read-only/,
         );
-        expect(raiseAsk).not.toHaveBeenCalled();
+        expect(refusal).not.toContain("ask_permission");
       },
     );
   });
@@ -667,7 +654,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         expect(result.stdout).toBe("");
         expect(result.stderr).toContain("Permission denied");
         expect(result.stderr).not.toContain("No such file or directory");
-        expect(raiseAsk).not.toHaveBeenCalled();
+        expect(result.stderr).not.toContain("ask_permission");
         for (const probe of [
           "bin/probe",
           "preload/probe",
@@ -693,15 +680,16 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it.runIf(asksBeside)(
       "names the folder beside it, never the one that holds it",
       () => {
-        ruleRefusal({
-          hostPath: `${paths.appFiles}/Other/state.json`,
-          op: "read",
-          rules: layout.rules,
-          spell: (spelled) => spelled,
-        });
-        expect(vi.mocked(raiseAsk).mock.calls).toEqual([
-          [expect.anything(), "folder", path.join(paths.appFiles, "Other")],
-        ]);
+        expect(
+          ruleRefusal({
+            hostPath: `${paths.appFiles}/Other/state.json`,
+            op: "read",
+            rules: layout.rules,
+            spell: (spelled) => spelled,
+          }),
+        ).toContain(
+          `ask for ${JSON.stringify(path.join(paths.appFiles, "Other"))} with ask_permission`,
+        );
       },
     );
 
@@ -715,9 +703,8 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           spell: (spelled) => spelled,
         }),
       ).toBe(
-        `${JSON.stringify(paths.appFiles)} is in ${JSON.stringify(paths.appFiles)}, which holds Instrument's own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`,
+        `${JSON.stringify(paths.appFiles)} is in ${JSON.stringify(paths.appFiles)}, which holds Instrument's own data, so it can't be asked for whole. Work in this conversation's folder, or a folder the person names.`,
       );
-      expect(raiseAsk).not.toHaveBeenCalled();
     });
   });
 
@@ -828,35 +815,24 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
     });
 
-    // A script that catches the refusal and prints it exits 0, and is told
-    // why all the same where the path is the app's own.
+    // A script that catches the refusal and prints it exits 0, and its
+    // output is its own: nothing is read out of it.
     it.each([
-      [
-        "says why when stderr names the app's own data",
-        `cat '${paths.userData}/workspaces.json' || true`,
-        true,
-      ],
-      [
-        "leaves the same line on stdout alone",
-        `cat '${paths.userData}/workspaces.json' 2>&1 || true`,
-        false,
-      ],
-      [
-        "leaves a refusal outside the app's own data alone",
-        `echo x > '${paths.runtime}/python/probe' || true`,
-        false,
-      ],
-    ])("a command that exits 0 %s", async (_name, script, noted) => {
-      const result = await withNativeReach(reach, () =>
-        execShim("/bin/sh", ["-c", script], { cwd: paths.work }),
-      );
-      expect(result.exitCode).toBe(0);
-      expect(`${result.stdout}${result.stderr}`).toContain(
-        "Operation not permitted",
-      );
-      expect(result.stderr.includes("Instrument's own data")).toBe(noted);
-      expect(raiseAsk).not.toHaveBeenCalled();
-    });
+      `cat '${paths.userData}/workspaces.json' || true`,
+      `echo x > '${paths.runtime}/python/probe' || true`,
+    ])(
+      "a command that exits 0 keeps its output as it was: %s",
+      async (script) => {
+        const result = await withNativeReach(reach, () =>
+          execShim("/bin/sh", ["-c", script], { cwd: paths.work }),
+        );
+        expect(result.exitCode).toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain(
+          "Operation not permitted",
+        );
+        expect(result.stderr).not.toContain("Instrument's own data");
+      },
+    );
   });
 
   // A rule named deep through a link holds what it leads to only as deep
@@ -1151,51 +1127,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         two.map((each) => each.length),
       );
       expect(many).toEqual(two);
-    });
-
-    it.each([
-      [
-        "Python's missing file",
-        `FileNotFoundError: [Errno 2] No such file or directory: '${paths.userData}/workspaces.json'`,
-      ],
-      [
-        "Node's missing file",
-        `Error: ENOENT: no such file or directory, open '${paths.data.dataDir}/workspace.json'`,
-      ],
-      [
-        "cat's missing file",
-        `cat: ${paths.data.dataDir}/workspace.json: No such file or directory`,
-      ],
-      [
-        "Node's refused listing",
-        `Error: EACCES: permission denied, scandir '${paths.homeData}'`,
-      ],
-    ])(
-      "tells the agent %s there is the app's own, whatever the exit",
-      (_name, line) => {
-        for (const appDataOnly of [false, true]) {
-          const refused = refusedPathIn(
-            line,
-            reach satisfies NativeReach,
-            paths.work,
-            { appDataOnly },
-          );
-          expect(refused && refusalNote(refused)).toContain(
-            "is Instrument's own data, which no command reads or changes",
-          );
-        }
-      },
-    );
-
-    it("says nothing of a missing file outside it on a zero exit", () => {
-      expect(
-        refusedPathIn(
-          `FileNotFoundError: [Errno 2] No such file or directory: '${paths.home}/Documents/a.csv'`,
-          reach,
-          paths.work,
-          { appDataOnly: true },
-        ),
-      ).toBeUndefined();
     });
   });
 });

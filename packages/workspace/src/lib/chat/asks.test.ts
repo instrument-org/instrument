@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { asksWritten, cardLine, closeAsk, openAsks } from "./asks";
+import { cardLine, closeAsk, openAsks, recordAsk } from "./asks";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { rulesFor } from "../permissions/rules";
 
@@ -17,31 +17,55 @@ const settings = {
   dangerouslyAllowEveryFolder: false,
 };
 
-it("asks once for a folder a call runs into, under that call", async () => {
+it("names the folder to ask for, and raises no card itself", async () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("asks-test"));
-  const sessionId = StoreId.newSessionId();
-  const partId = StoreId.newPartId();
   const home = os.homedir();
   const rules = {
     ...rulesFor({ home, settings }),
-    asker: { chatId, partId, sessionId },
+    asker: { chatId, sessionId: StoreId.newSessionId() },
   };
-  const refuse = (file: string) =>
-    ruleRefusal({
-      hostPath: path.join(home, "Documents", "Clients", file),
-      op: "read",
-      rules,
-      spell: (hostPath) => hostPath,
-    });
-  expect(refuse("a.pdf")).toMatch(/^Waiting on the person to allow /);
-  refuse("b.pdf");
-  await asksWritten();
+  const refusal = ruleRefusal({
+    hostPath: path.join(home, "Documents", "Clients", "a.pdf"),
+    op: "read",
+    rules,
+    spell: (hostPath) => hostPath,
+  });
+  expect(refusal?.replaceAll(home, "~")).toMatchInlineSnapshot(
+    `""~/Documents/Clients/a.pdf" needs the person's yes. If the work needs it, ask for "~/Documents/Clients" with ask_permission."`,
+  );
+  expect(await openAsks(chatId)).toEqual([]);
+});
+
+it("asks once per folder, and a second session joins the card", async () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("asks-join-test"));
+  const first = StoreId.newSessionId();
+  const second = StoreId.newSessionId();
+  const target = path.join(os.homedir(), "Desktop");
+  await recordAsk(
+    { chatId, reason: "To copy it.", sessionId: first },
+    "folder",
+    target,
+  );
+  await recordAsk(
+    { chatId, reason: "Again.", sessionId: first },
+    "folder",
+    target,
+  );
+  await recordAsk(
+    { chatId, reason: "To read it.", sessionId: second },
+    "folder",
+    target,
+  );
   const asks = await openAsks(chatId);
   expect(asks).toEqual([
     expect.objectContaining({
-      askers: [{ partId, sessionId }],
+      askers: [
+        { reason: "To copy it.", sessionId: first },
+        { reason: "To read it.", sessionId: second },
+      ],
       kind: "folder",
-      target: path.join(home, "Documents", "Clients"),
+      status: "open",
+      target,
     }),
   ]);
   expect(await closeAsk(chatId, asks[0]?.id ?? "")).toBeDefined();
@@ -62,7 +86,7 @@ it("never asks for the home folder whole", () => {
     },
     spell: (hostPath) => hostPath,
   });
-  expect(refusal).toMatch(/which no card can open whole\./);
+  expect(refusal).toMatch(/which can't be asked for whole\./);
 });
 
 it.each([
@@ -74,6 +98,13 @@ it.each([
   ["app", "Reminders", "Waiting for your OK to use Reminders"],
 ] as const)("names the %s a card waits on", (kind, target, line) => {
   expect(
-    cardLine({ askedAt: new Date(), askers: [], id: "ask", kind, target }),
+    cardLine({
+      askedAt: new Date(),
+      askers: [],
+      id: "ask",
+      kind,
+      status: "open",
+      target,
+    }),
   ).toBe(line);
 });

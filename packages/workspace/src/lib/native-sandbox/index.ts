@@ -21,7 +21,7 @@ export {
   reachesSshKeys,
   withNativeReach,
 } from "./reach";
-export { packageScopeNote, refusalNote, refusedPathIn } from "./refusals";
+export { packageScopeNote } from "./refusals";
 export {
   seatbeltAvailable,
   seatbeltProfile,

@@ -22,20 +22,7 @@ const LOOK_INSIDE_MS = 750;
 export async function lookInside(
   folderPath: string,
 ): Promise<"account" | "asking" | "missing" | "open" | "system"> {
-  const look = (async () => {
-    try {
-      const dir = await fs.opendir(folderPath);
-      try {
-        await dir.read();
-      } finally {
-        await dir.close();
-      }
-      return "open" as const;
-    } catch (error) {
-      const refusal = readRefusalOf(error);
-      return refusal ?? ("missing" as const);
-    }
-  })();
+  const look = listFolder(folderPath);
   let timer: NodeJS.Timeout | undefined;
   const asking = new Promise<"asking">((resolve) => {
     timer = setTimeout(() => {
@@ -46,5 +33,25 @@ export async function lookInside(
     return await Promise.race([look, asking]);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * A look inside a folder that waits as long as the system's own ask is up:
+ * "open", "missing", or who refused it.
+ */
+export async function listFolder(
+  folderPath: string,
+): Promise<"account" | "missing" | "open" | "system"> {
+  try {
+    const dir = await fs.opendir(folderPath);
+    try {
+      await dir.read();
+    } finally {
+      await dir.close();
+    }
+    return "open";
+  } catch (error) {
+    return readRefusalOf(error) ?? "missing";
   }
 }

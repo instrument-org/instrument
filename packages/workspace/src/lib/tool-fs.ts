@@ -8,7 +8,6 @@ import { type ExecuteError, executeError } from "./execute-error";
 import { formatBytes } from "./format-bytes";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
-import { asksWritten } from "./chat/asks";
 import { sessionLayout } from "./session-layout";
 import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
 import {
@@ -103,7 +102,6 @@ export async function toolFs(layout: WorkspaceFsLayout): Promise<ToolFs> {
       return resolved;
     },
     failure: async (error, resolved) => {
-      await asksWritten();
       const notes = [...refusals].join("\n");
       refusals.clear();
       return executeError(notes || errnoMessage(error, shown(resolved)));
@@ -112,7 +110,8 @@ export async function toolFs(layout: WorkspaceFsLayout): Promise<ToolFs> {
     hostPath: async (resolved) => hostPathOf(await fs.realpath(resolved)),
     inWorkFolder,
     list: async (resolved, limit) => {
-      // The folder asked for, which raises a card where the rules ask first.
+      // The folder named, whose refusal says what to ask for where the rules
+      // ask first.
       listings.count = 0;
       const names = (await fs.readdir(resolved)).toSorted((a, b) =>
         a.localeCompare(b),

@@ -66,7 +66,6 @@ import {
 } from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
-import { asksWritten } from "./chat/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { closedAppServices } from "./permissions/apps";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -985,13 +984,11 @@ export async function createLocalBashEnv({
     } catch (error) {
       // An error that escapes the shell ends the whole call; what the rules
       // said still goes with it.
-      await asksWritten();
       if (refusals.size > 0 && error instanceof Error) {
         error.message = `${error.message}\n${[...refusals].join("\n")}`;
       }
       throw error;
     }
-    await asksWritten();
     if (refusals.size === 0) {
       return result;
     }

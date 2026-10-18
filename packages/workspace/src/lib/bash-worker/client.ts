@@ -18,9 +18,6 @@ import {
   terminateSubprocessTree,
 } from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { StoreId } from "../../schemas/store-id";
-import { recordAsk } from "../chat/asks";
 import { recordWorkspaceSkillMutation } from "../workspace-skill-index";
 import {
   fromWireError,
@@ -266,25 +263,6 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
         // so the streamed copy is whole by the time the run settles.
         await entry.sinkDone;
         entry.resolve(message.result);
-      }
-      return;
-    }
-    case "ask": {
-      const chatId = ChatIdSchema.safeParse(message.asker.chatId);
-      const sessionId = StoreId.SessionSchema.safeParse(
-        message.asker.sessionId,
-      );
-      const partId = StoreId.PartSchema.safeParse(message.asker.partId);
-      if (chatId.success && sessionId.success) {
-        await recordAsk(
-          {
-            chatId: chatId.data,
-            ...(partId.success && { partId: partId.data }),
-            sessionId: sessionId.data,
-          },
-          message.kind,
-          message.target,
-        );
       }
       return;
     }

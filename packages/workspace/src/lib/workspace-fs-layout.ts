@@ -1059,7 +1059,7 @@ function holdsWritable(
 
 /**
  * What the agent reads about a path in a mount it named that the rules keep
- * from it, with a card raised where the folder asks first. Undefined for a
+ * from it, naming what to ask for where the folder asks first. Undefined for a
  * path that is open or not there. A path a walk passes is left to the
  * native sandbox, which skips it without asking.
  */

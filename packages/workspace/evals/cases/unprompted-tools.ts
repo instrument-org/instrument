@@ -104,11 +104,7 @@ const toolsChosen: Assertion = {
         /\bINSTRUMENT_CHATS\b|\.instrument\/chats\b/g,
       ),
       "permission asks": parts.filter(
-        (part) =>
-          "output" in part &&
-          JSON.stringify(part.output).includes(
-            "Waiting on the person to allow",
-          ),
+        (part) => part.type === "tool-ask_permission",
       ).length,
     };
     const used = Object.entries(tally)
@@ -814,7 +810,7 @@ export const UNPROMPTED_TOOL_EVALS = [
   }),
   defineEval({
     assertions: [totaledEachClient, toolsChosen],
-    folderPicks: [INVOICES_DIR()],
+    allowsFolders: 1,
     kind: "chat",
     name: "unprompted-outside-folder",
     get prompt() {

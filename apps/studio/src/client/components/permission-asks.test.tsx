@@ -28,6 +28,7 @@ function showAsk(target: string) {
         askers: [{ partId, sessionId: StoreId.newSessionId() }],
         id: "ask-1",
         kind: "folder",
+        status: "open",
         target,
       },
     ],

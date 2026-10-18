@@ -6,7 +6,7 @@
 
 ```
 permissions/rules.ts         668    builds the rule list and ranks the sources
-permissions/rules-fs.ts      280    the fs proxy that refuses and raises the card
+permissions/rules-fs.ts      280    the fs proxy that refuses and names what to ask for
 permissions/places.ts        260    the built-in places
 permissions/apps.ts          174    Mac apps
 permissions/chat-rules.ts    137    a chat's grants as rules
@@ -21,6 +21,8 @@ native-sandbox/mxc.ts        488    the same rules, as a Windows MXC policy
 No single file is wrong. One question, "may this chat read or change this path", is answered once by our rules and then again in three sandbox dialects that have to agree with it exactly. A disagreement between them is invisible until an agent is refused by one layer and allowed by another, and which layer it meets depends on whether it ran a builtin or a real program.
 
 ## The part that is genuinely backwards
+
+Resolved: the agent asks with `ask_permission`, a refusal raises no card, and `refusals.ts` no longer parses a program's output ([the agent asks](../decisions/2026-10-18-the-agent-asks-for-folders-and-apps.md)). What follows is how it stood.
 
 A builtin goes through `ruleRefusal`, which asks `reachOf` and raises the card.
 

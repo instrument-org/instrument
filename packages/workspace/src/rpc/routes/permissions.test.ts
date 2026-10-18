@@ -3,7 +3,7 @@ import { call } from "@orpc/server";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { updateChatSettings } from "../../lib/chat-settings";
 import { appRefusal } from "../../lib/permissions/apps";
@@ -25,6 +25,21 @@ import { type WorkspaceRPCContext } from "../base";
 import { permissions } from "./permissions";
 
 vi.mock(import("../../lib/session-store-storage"));
+
+// What macOS answers a look inside a folder, which a test sets.
+const macos = vi.hoisted(() => ({
+  look: undefined as
+    | undefined
+    | (() => Promise<"account" | "missing" | "open" | "system">),
+}));
+vi.mock(import("../../lib/chat/folder-look"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    listFolder: (folderPath: string) =>
+      macos.look ? macos.look() : original.listFolder(folderPath),
+  };
+});
 
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -251,5 +266,138 @@ describe("permissions.answer", () => {
     expect(await appRefusal(elsewhere.chatId, app, undefined)).toBe(
       "using Contacts needs the person's yes first.",
     );
+  });
+  it("says not now to every card at once", async () => {
+    const { chatId, own } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "app", "Contacts");
+
+    await call(permissions.declineAll, { id: chatId }, { context: context() });
+
+    expect(await openAsks(chatId)).toEqual([]);
+    expect((await chatDenials(chatId)).map((denial) => denial.target)).toEqual(
+      expect.arrayContaining(["/Users/me/Pantry", "Contacts"]),
+    );
+  });
+
+  it("retries only a card macOS refused", async () => {
+    const { chatId, own } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    const [card] = await openAsks(chatId);
+    await expect(
+      call(
+        permissions.retry,
+        { askId: card?.id ?? "", id: chatId },
+        { context: context() },
+      ),
+    ).rejects.toThrow("That request isn't waiting on macOS.");
+  });
+
+  describe.runIf(process.platform === "darwin")("on macOS", () => {
+    afterEach(() => {
+      macos.look = undefined;
+    });
+
+    it("keeps a folder macOS refuses open with the yes, and wakes the askers once a retry gets in", async () => {
+      const { chatId, own } = await chatWithTask();
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      macos.look = () => Promise.resolve("system");
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "always", id: chatId },
+        { context: context() },
+      );
+
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({ allowed: "always", status: "macos-refused" }),
+      ]);
+      expect(wokenSince(sentBefore)).toEqual([]);
+
+      macos.look = () => Promise.resolve("open");
+      await call(
+        permissions.retry,
+        { askId: card?.id ?? "", id: chatId },
+        { context: context() },
+      );
+
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["always"], sessionId: own },
+      ]);
+    });
+
+    it("joins an Allow from another window to the look already running", async () => {
+      const { chatId, own, task } = await chatWithTask();
+      await recordAsk(
+        { chatId, sessionId: task },
+        "folder",
+        "/Users/me/Pantry",
+      );
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      let answerMacos: (look: "open") => void = () => {};
+      let looks = 0;
+      macos.look = () => {
+        looks++;
+        return new Promise((resolve) => {
+          answerMacos = resolve;
+        });
+      };
+      const allow = () =>
+        call(
+          permissions.answer,
+          { askId: card?.id ?? "", decision: "allowed", id: chatId },
+          { context: context() },
+        );
+
+      const first = allow();
+      const second = allow();
+      await vi.waitFor(() => {
+        expect(looks).toBe(1);
+      });
+      answerMacos("open");
+      await Promise.all([first, second]);
+
+      expect(wokenSince(sentBefore)).toHaveLength(2);
+      expect(await openAsks(chatId)).toEqual([]);
+    });
+
+    it("wakes with only the not now given while macOS was still asking", async () => {
+      const { chatId, own } = await chatWithTask();
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      let answerMacos: (look: "open") => void = () => {};
+      let asking = false;
+      macos.look = () =>
+        new Promise((resolve) => {
+          asking = true;
+          answerMacos = resolve;
+        });
+
+      const allowed = call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "allowed", id: chatId },
+        { context: context() },
+      );
+      await vi.waitFor(() => {
+        expect(asking).toBe(true);
+      });
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "declined", id: chatId },
+        { context: context() },
+      );
+      answerMacos("open");
+      await allowed;
+
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["declined"], sessionId: own },
+      ]);
+    });
   });
 });

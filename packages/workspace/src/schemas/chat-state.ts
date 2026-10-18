@@ -33,34 +33,43 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
-/** A session that ran into what a card asks about, the chat's own or one of its tasks'. */
+/** A session that asked what a card asks, the chat's own or one of its tasks'. */
 const AskerSchema = z.object({
-  /**
-   * The tool call whose command or file operation raised it before running,
-   * by its part's id, so the card draws under that call; absent for one a
-   * running command ran into.
-   */
+  /** The call that asked, by its part's id. */
   partId: StoreId.PartSchema.optional(),
+  /** What the session said it needs the folder or app for, for the card. */
+  reason: z.string().optional(),
   sessionId: StoreId.SessionSchema,
 });
 
 /**
- * A place or app the agent ran into that the person has not answered for
- * yet: a folder that asks first, or an app it may not use. Shown as a card at
- * the foot of the chat until the person answers, which wakes every session
- * that asked.
+ * A folder or app the agent asked for with `ask_permission` that the person
+ * has not answered for yet. Shown as a card until the person answers, which
+ * wakes every session that asked.
  */
 const PermissionAskSchema = z.object({
+  /**
+   * The yes the person gave a folder macOS then refused, kept while the
+   * card offers the system's own ways in, so the retry that gets in wakes
+   * the askers with it.
+   */
+  allowed: z.enum(["allowed", "always"]).optional(),
   askedAt: z.coerce.date(),
   /**
    * Every session waiting on the answer, the first to ask first. A session
-   * that runs into the same thing while the card is up joins it, and one the
+   * that asks for the same thing while the card is up joins it, and one the
    * person stops leaves it; the card goes when none is left.
    */
   askers: z.array(AskerSchema),
   id: z.string(),
   kind: z.enum(["app", "folder"]),
-  /** The folder's path, or the app's name as the agent named it. */
+  /**
+   * `macos-refused` once the person allowed a folder and macOS kept the app
+   * out of it: the card offers the Mac's folder panel and System Settings
+   * until a retry gets in or the person declines.
+   */
+  status: z.enum(["macos-refused", "open"]).default("open"),
+  /** The folder's absolute path, or the app's name. */
   target: z.string(),
 });
 

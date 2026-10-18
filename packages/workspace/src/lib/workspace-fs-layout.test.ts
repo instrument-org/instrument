@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { workspaceLayout } from "./workspace-layout";
 import { SKILLS_FOLDER_NAME } from "../constants";
@@ -19,7 +19,6 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
-import { raiseAsk } from "./chat/asks";
 import { type Rule } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { createWalkBudget } from "./walk-budget";
@@ -40,11 +39,6 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "./workspace-skill-index";
-
-vi.mock("./chat/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./chat/asks")>()),
-  raiseAsk: vi.fn(),
-}));
 
 describe("buildBashFs", () => {
   let tmpDir: string;
@@ -802,7 +796,6 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
   let drives: string;
 
   beforeEach(async () => {
-    vi.mocked(raiseAsk).mockClear();
     tmpDir = await fs.realpath(
       await fs.mkdtemp(path.join(os.tmpdir(), "outside-folder-")),
     );
@@ -837,11 +830,8 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
       path.join(drives, "Backup", "photos", "2026", "new.jpg"),
       "write",
     );
-    expect(vi.mocked(raiseAsk).mock.calls.map((call) => call[2])).toEqual([
-      path.join(drives, "Backup"),
-    ]);
     expect(refusal).toContain(
-      `Waiting on the person to allow "${drives}/Backup".`,
+      `ask for "${drives}/Backup" with ask_permission.`,
     );
   });
 
@@ -856,7 +846,6 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
       outsideFolderRefusal(allowed, path.dirname(photo), "read"),
       outsideFolderRefusal(layoutWith("ask"), log, "read"),
     ]).toEqual([undefined, undefined, undefined]);
-    expect(raiseAsk).not.toHaveBeenCalled();
   });
 
   // The shell remembers a program it found on the PATH by its path, and
@@ -869,14 +858,12 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
     await fs.writeFile(program, "");
     const layout = layoutWith("ask");
     expect(outsideFolderRefusal(layout, program, "read")).toContain(
-      "Waiting on the person",
+      "needs the person's yes",
     );
-    vi.mocked(raiseAsk).mockClear();
     noteFoundProgram(program);
     expect(outsideFolderRefusal(layout, program, "read")).toBeUndefined();
-    expect(raiseAsk).not.toHaveBeenCalled();
     expect(outsideFolderRefusal(layout, program, "write")).toContain(
-      "Waiting on the person",
+      "needs the person's yes",
     );
   });
 });

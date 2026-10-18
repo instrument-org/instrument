@@ -36,9 +36,9 @@ export async function shellFs(layout: WorkspaceFsLayout): Promise<{
   /** The home folder's own walk budget, which the shell resets per command. */
   homeWalkBudget: WalkBudget;
   /**
-   * The listings the command running now has made: a first one is asked
-   * for and raises a card where the rules ask first, a later one is a walk
-   * passing through.
+   * The listings the command running now has made: a first one is named,
+   * and its refusal says what to ask for where the rules ask first; a later
+   * one is a walk passing through.
    */
   listings: Listings;
   /**

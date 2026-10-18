@@ -261,7 +261,7 @@ describe("folderToAskFor", () => {
   // The app's own data in a place that asks, as this computer's folder sits
   // in the Library on a Mac: a card for something beside it names the folder
   // below the one that holds it, and one with nothing below asks for the
-  // folder that holds it, which ruleRefusal raises no card for.
+  // folder that holds it, which ruleRefusal names nothing to ask for.
   it.each([
     [
       inHome("Library/Application Support/Other/state.json"),

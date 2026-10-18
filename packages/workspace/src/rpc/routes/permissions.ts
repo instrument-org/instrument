@@ -20,7 +20,7 @@ import {
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
 import { appBundleId, grantApp } from "../../lib/permissions/apps";
-import { closeAsk, openAsks } from "../../lib/chat/asks";
+import { closeAsk, openAsks, refusedByMacos } from "../../lib/chat/asks";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";
@@ -29,7 +29,10 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
 import { recordChanges } from "../../lib/record-changes";
-import { AskSchema } from "../../schemas/chat-state";
+import { AskSchema, type PermissionAsk } from "../../schemas/chat-state";
+import { type ChatId } from "../../schemas/chat-id";
+import { type WorkspaceActorRef } from "../../machines/workspace";
+import { listFolder } from "../../lib/chat/folder-look";
 import { distinct, liveRead } from "../live-read";
 
 const PermissionsViewSchema = z.object({
@@ -244,10 +247,12 @@ const removeApp = base
 
 /**
  * The person's answer to an ask: allowed in this chat, allowed always, or
- * not now, which the chat keeps whoever asked. A folder may be answered with
- * a different one picked in the system's panel. Every session that asked is
+ * not now, which the chat keeps whoever asked. Every session that asked is
  * woken with the answer, or hears it at its next step if its turn is still
- * going.
+ * going. On macOS a folder allowed is looked inside first, which is when the
+ * system's own ask for it comes up, and the call settles once that is
+ * answered; a folder the system refuses keeps its card, `macos-refused`,
+ * until `retry` gets in or the person declines.
  */
 const answer = base
   .input(
@@ -255,61 +260,171 @@ const answer = base
       askId: z.string(),
       decision: z.enum(["allowed", "always", "declined"]),
       id: ChatIdSchema,
-      /** A folder picked in place of the one asked for. */
-      path: z.string().optional(),
     }),
   )
   .output(z.void())
   .handler(async ({ context, input }) => {
-    const ask = await closeAsk(input.id, input.askId);
-    if (!ask) {
-      throw new ORPCError("NOT_FOUND", {
-        message: "That request was already answered.",
+    const ask = await openPermissionAsk(input.id, input.askId);
+    if (input.decision === "declined") {
+      await decline(input.id, ask, context.workspaceRef);
+      return;
+    }
+    await grant(input.id, ask, input.decision);
+    await settle(input.id, ask, input.decision, context.workspaceRef);
+  });
+
+/**
+ * Looks inside a folder macOS refused again, after the person picked it in
+ * the system's folder panel or allowed it in System Settings, and wakes the
+ * askers with the yes they gave once it gets in.
+ */
+const retry = base
+  .input(z.object({ askId: z.string(), id: ChatIdSchema }))
+  .output(z.void())
+  .handler(async ({ context, input }) => {
+    const ask = await openPermissionAsk(input.id, input.askId);
+    if (ask.status !== "macos-refused" || !ask.allowed) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "That request isn't waiting on macOS.",
       });
     }
-    const target =
-      ask.kind === "folder" ? (input.path ?? ask.target) : ask.target;
-    await setDenied(input.id, ask.kind, target, input.decision === "declined");
-    if (input.decision !== "declined") {
-      if (ask.kind === "folder") {
-        await grantFolder({ chatId: input.id, path: target, source: "card" });
-        if (input.decision === "always") {
-          const folder = AbsolutePathSchema.parse(target);
-          await updatePermissionSettings((settings) =>
-            withFolderLevel(settings, folder, "allow"),
-          );
-        }
-      } else {
-        await grantApp(input.id, target);
-        if (input.decision === "always") {
-          const bundleId = await appBundleId(target);
-          await updatePermissionSettings((settings) => ({
-            ...settings,
-            apps: [
-              ...settings.apps.filter(
-                (app) => app.name.toLowerCase() !== target.toLowerCase(),
-              ),
-              {
-                addedAt: getCurrentDate(),
-                bundleId,
-                level: "allow",
-                name: target,
-              },
-            ],
-          }));
-        }
+    await settle(input.id, ask, ask.allowed, context.workspaceRef);
+  });
+
+/** Says not now to every permission card the chat has open. */
+const declineAll = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(z.void())
+  .handler(async ({ context, input }) => {
+    const asks = (await openAsks(input.id)).filter(
+      (ask): ask is PermissionAsk => ask.kind !== "question",
+    );
+    await Promise.all(
+      asks.map((ask) => decline(input.id, ask, context.workspaceRef)),
+    );
+  });
+
+async function openPermissionAsk(
+  chatId: ChatId,
+  askId: string,
+): Promise<PermissionAsk> {
+  const ask = (await openAsks(chatId)).find(
+    (open): open is PermissionAsk =>
+      open.id === askId && open.kind !== "question",
+  );
+  if (!ask) {
+    throw new ORPCError("NOT_FOUND", {
+      message: "That request was already answered.",
+    });
+  }
+  return ask;
+}
+
+async function decline(
+  chatId: ChatId,
+  ask: PermissionAsk,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  // A check still looking inside finds the card gone and wakes nobody.
+  const closed = await closeAsk(chatId, ask.id);
+  if (!closed) {
+    return;
+  }
+  await setDenied(chatId, ask.kind, ask.target, true);
+  await wakeAskers(
+    {
+      data: { answer: "declined", kind: ask.kind, target: ask.target },
+      type: "data-permissionAnswer",
+    },
+    workspaceRef,
+    chatId,
+    closed.askers.map((asker) => asker.sessionId),
+  );
+}
+
+/** Lets the chat use what the ask is for, and every chat with Always allow. */
+async function grant(
+  chatId: ChatId,
+  ask: PermissionAsk,
+  decision: "allowed" | "always",
+): Promise<void> {
+  const { target } = ask;
+  await setDenied(chatId, ask.kind, target, false);
+  if (ask.kind === "folder") {
+    await grantFolder({ chatId, path: target, source: "card" });
+    if (decision === "always") {
+      const folder = AbsolutePathSchema.parse(target);
+      await updatePermissionSettings((settings) =>
+        withFolderLevel(settings, folder, "allow"),
+      );
+    }
+    return;
+  }
+  await grantApp(chatId, target);
+  if (decision === "always") {
+    const bundleId = await appBundleId(target);
+    await updatePermissionSettings((settings) => ({
+      ...settings,
+      apps: [
+        ...settings.apps.filter(
+          (app) => app.name.toLowerCase() !== target.toLowerCase(),
+        ),
+        {
+          addedAt: getCurrentDate(),
+          bundleId,
+          level: "allow",
+          name: target,
+        },
+      ],
+    }));
+  }
+}
+
+/** The look inside running for each ask, so an Allow from another window joins it. */
+const settling = new Map<string, Promise<void>>();
+
+/**
+ * Closes an allowed ask and wakes its askers, once macOS lets the app into
+ * the folder: the look inside waits as long as the system's own ask is up.
+ * One macOS refuses stays open as `macos-refused`, keeping the yes. Off
+ * macOS, and for an app, nothing is looked at.
+ */
+function settle(
+  chatId: ChatId,
+  ask: PermissionAsk,
+  decision: "allowed" | "always",
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const running = settling.get(ask.id);
+  if (running) {
+    return running;
+  }
+  const settled = (async () => {
+    if (ask.kind === "folder" && process.platform === "darwin") {
+      if ((await listFolder(ask.target)) === "system") {
+        await refusedByMacos(chatId, ask.id, decision);
+        return;
       }
+    }
+    const closed = await closeAsk(chatId, ask.id);
+    if (!closed) {
+      return;
     }
     await wakeAskers(
       {
-        data: { answer: input.decision, kind: ask.kind, target },
+        data: { answer: decision, kind: ask.kind, target: ask.target },
         type: "data-permissionAnswer",
       },
-      context.workspaceRef,
-      input.id,
-      ask.askers.map((asker) => asker.sessionId),
+      workspaceRef,
+      chatId,
+      closed.askers.map((asker) => asker.sessionId),
     );
+  })().finally(() => {
+    settling.delete(ask.id);
   });
+  settling.set(ask.id, settled);
+  return settled;
+}
 
 /**
  * The chat's open asks, as its cards draw them, oldest first, read again
@@ -334,6 +449,8 @@ const liveAsks = base
 
 export const permissions = {
   answer,
+  declineAll,
+  retry,
   liveAsks,
   get,
   removeApp,

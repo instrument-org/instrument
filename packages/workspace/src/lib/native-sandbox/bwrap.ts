@@ -289,7 +289,7 @@ export function bwrapArgs(
       // folder it would take at face value. A folder opened inside it keeps
       // search permission, which reaching that folder needs, and holds only
       // what opens in it: a program naming anything else there finds it
-      // missing, and `refusedPathIn` reads that as the refusal it is.
+      // missing.
       const opensInside = ordered.some(
         (other) =>
           other.access !== "none" &&

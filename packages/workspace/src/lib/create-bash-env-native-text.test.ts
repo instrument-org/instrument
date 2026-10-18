@@ -11,7 +11,6 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import {
   findWithHiddenEntriesPruned,
-  grepWalks,
   quietRefusedFolders,
   quoteWindowsArgument,
   xargsRunsParallel,
@@ -120,18 +119,6 @@ describe("quoteWindowsArgument", () => {
     ['a\\"b', '"a\\\\\\"b"'],
   ])("%j becomes %s", (arg, quoted) => {
     expect(quoteWindowsArgument(arg)).toBe(quoted);
-  });
-});
-
-describe("grepWalks", () => {
-  it.each<[string[], boolean]>([
-    [["-r", "x"], true],
-    [["-ril", "x"], true],
-    [["-R", "x"], true],
-    [["--recursive", "x"], true],
-    [["-H", "x", "a.txt"], false],
-  ])("%j is %s", (args, expected) => {
-    expect(grepWalks(args)).toBe(expected);
   });
 });
 

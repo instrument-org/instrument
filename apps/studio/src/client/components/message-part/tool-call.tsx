@@ -111,6 +111,10 @@ export function ToolCallBody({
   }
 
   switch (part.type) {
+    // The card above the reply box is the whole of an ask.
+    case "tool-ask_permission": {
+      return null;
+    }
     case "tool-bash": {
       return <ToolBash part={part} />;
     }

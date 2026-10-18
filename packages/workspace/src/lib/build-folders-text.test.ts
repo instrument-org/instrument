@@ -127,7 +127,7 @@ describe("buildFoldersText", () => {
     `);
   });
 
-  it("says a folder that asks shows the person a card", () => {
+  it("says a folder that asks is asked for with ask_permission", () => {
     const folders = [
       {
         access: "read-write" as const,
@@ -135,7 +135,7 @@ describe("buildFoldersText", () => {
       },
     ];
     expect(buildFoldersText({ folders, intro: INTRO })).toContain(
-      "shows the person a card",
+      "Ask for one that needs a yes with `ask_permission`",
     );
   });
 

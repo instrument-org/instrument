@@ -375,12 +375,10 @@ export interface EvalCase {
   allowsApps?: boolean;
   files?: FileUpload.Type[];
   /**
-   * The folders the user picks for each folder card the agent's work raises,
-   * in the order they come up, answered the way the card does once a folder
-   * is chosen in the picker. A card past the end of the list goes
-   * unanswered, as one nobody clicks.
+   * How many folder cards the user allows in this chat, in the order they
+   * come up. A card past that goes unanswered, as one nobody clicks.
    */
-  folderPicks?: string[];
+  allowsFolders?: number;
   /**
    * `inPlace` attaches the folder where it is rather than a per-run copy:
    * for a folder under the run's home, which `setup` made and which a
@@ -824,7 +822,7 @@ export async function runEvals(
       >();
       let questionsAnswered = 0;
       const handledAskIds = new Set<string>();
-      let folderPicksUsed = 0;
+      let foldersAllowed = 0;
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
@@ -1035,15 +1033,15 @@ export async function runEvals(
                   ask.kind === "folder"
                     ? evalCase.declinesFolders
                     : evalCase.declinesApps;
-                const picked =
-                  ask.kind === "folder" && !declines
-                    ? evalCase.folderPicks?.[folderPicksUsed++]
-                    : undefined;
-                const allows = ask.kind === "app" && evalCase.allowsApps;
+                const allows =
+                  ask.kind === "folder"
+                    ? !declines &&
+                      foldersAllowed++ < (evalCase.allowsFolders ?? 0)
+                    : evalCase.allowsApps;
                 write(
-                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
+                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : allows ? "; allowing" : ""}${c.reset}\n`,
                 );
-                if (!(declines || picked || allows)) {
+                if (!(declines || allows)) {
                   continue;
                 }
                 answer = () =>
@@ -1053,7 +1051,6 @@ export async function runEvals(
                       askId: ask.id,
                       decision: declines ? "declined" : "allowed",
                       id,
-                      ...(picked && { path: picked }),
                     },
                     { context },
                   );

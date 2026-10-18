@@ -5,7 +5,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatLayout } from "../../test/helpers/chat-layout";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { grantApp } from "../permissions/apps";
-import { asksWritten, openAsks } from "../chat/asks";
+import { openAsks } from "../chat/asks";
 import { setDenied } from "../permissions/denials";
 import {
   listArgs,
@@ -182,19 +182,16 @@ describe("the app gate", () => {
     vi.resetAllMocks();
   });
 
-  it("raises the app's card, by its name, before anything runs", async () => {
+  it("names the app to ask for, before anything runs", async () => {
     const { execa } = await import("execa");
     const chatId = createMockChatConfig(ChatIdSchema.parse("app-gate-ask"));
     const result = await run(chatId, true);
-    await asksWritten();
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      "messages: refused: Waiting on the person to allow Messages. If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run this again once they allow it.\n",
+      "messages: refused: using Messages needs the person's yes. If the work needs it, ask for Messages with ask_permission.\n",
     );
-    expect(await openAsks(chatId)).toEqual([
-      expect.objectContaining({ kind: "app", target: "Messages" }),
-    ]);
+    expect(await openAsks(chatId)).toEqual([]);
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
   });
 
@@ -213,7 +210,6 @@ describe("the app gate", () => {
       );
       await setDenied(chatId, "app", target, true);
       const result = await run(chatId, true);
-      await asksWritten();
 
       expect(result.stderr).toContain(
         "the person said not now to Messages in this chat. Don't look for another way to use it",

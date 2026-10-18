@@ -99,7 +99,6 @@ export interface StageOptions {
   /** The environment is `env` alone, with nothing of the app's own. */
   ownEnvOnly?: true;
   unsandboxed?: true;
-  walks?: true;
   windowsVerbatimArguments?: boolean;
 }
 
@@ -375,13 +374,11 @@ export function startPipeStage(
       wasCutOff && (status !== 0 || err !== written) ? 141 : status;
     await finishTreeTermination?.();
     const noted = withShimNotes({
-      cwd: options.cwd,
       exitCode,
       file,
       reach: spawned.reach,
       stderr: err,
       stdout: out,
-      walks: options.walks,
     });
     return {
       exitCode: noted.exitCode,

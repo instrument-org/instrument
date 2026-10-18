@@ -84,7 +84,7 @@ export function buildFoldersText({
     writable
       ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
       : null,
-    `Some folders inside these need the person's yes, and some they closed to ${APP_NAME}. Reaching one that asks shows the person a card on its own, and you hear when they answer; one they closed stays closed, so say what you couldn't reach. Never look for another way in.`,
+    `Some folders inside these need the person's yes, and some they closed to ${APP_NAME}. Ask for one that needs a yes with \`${TOOL_NAMES.askPermission}\`; one they closed stays closed, so say what you couldn't reach. Never look for another way in.`,
     `Every command works on these folders in place, the native ones (\`python\`, \`node\`, \`ffmpeg\`) included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through your folder.`,
     `A repository in a folder is read in place: \`git -C '<folder>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there asks the person for the repository's own folder.`,
   ]

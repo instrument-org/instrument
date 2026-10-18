@@ -5,6 +5,7 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
+import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlugsConnectedIcon } from "@phosphor-icons/react/PlugsConnected";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
@@ -13,6 +14,7 @@ import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 
 // | undefined ensures runtime type safety
 const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  ask_permission: "Asked for permission",
   bash: "Ran terminal command",
   choose: "Waiting for answer",
   connect_app: "Asked to connect an app",
@@ -27,6 +29,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
 };
 
 const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  ask_permission: "Asking for permission",
   bash: "Running terminal command",
   choose: "Thinking about a question",
   connect_app: "Asking to connect an app",
@@ -44,6 +47,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   ToolName,
   string | undefined
 > = {
+  ask_permission: TOOL_STREAMING_DISPLAY_NAMES.ask_permission,
   bash: TOOL_STREAMING_DISPLAY_NAMES.bash,
   choose: TOOL_STREAMING_DISPLAY_NAMES.choose,
   connect_app: TOOL_STREAMING_DISPLAY_NAMES.connect_app,
@@ -58,6 +62,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
 };
 
 const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
+  ask_permission: "Tried to ask for permission",
   bash: "Tried to run terminal command",
   choose: "Tried to ask a question",
   connect_app: "Tried to ask to connect an app",
@@ -79,6 +84,7 @@ const TOOL_SUMMARY_PHRASES: Record<
   ToolName,
   undefined | { plural?: (count: number) => string; singular: string }
 > = {
+  ask_permission: { singular: "asked for permission" },
   bash: {
     plural: (count) => `ran ${count} commands`,
     singular: "ran a command",
@@ -111,6 +117,7 @@ const TOOL_SUMMARY_PHRASES: Record<
 };
 
 export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
+  ask_permission: LockKeyIcon,
   bash: TerminalIcon,
   choose: QuestionIcon,
   connect_app: PlugsConnectedIcon,

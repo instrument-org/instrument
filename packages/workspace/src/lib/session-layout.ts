@@ -47,8 +47,7 @@ export function roleLayout({
 
 /**
  * What a session reaches as it stands now, held to its chat's rules. A
- * session's refusals that ask first raise their card in it, under `partId`
- * when given. Without a session it is what the chat reaches, which is what a
+ * session's refusals that ask first tell it what to ask for. Without a session it is what the chat reaches, which is what a
  * surface the person looks at resolves against.
  */
 export async function sessionLayout({

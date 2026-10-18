@@ -163,15 +163,15 @@ describe.each(Object.entries(shells))(
       );
     });
 
-    it("raises a card for a folder a later command lists, and none for one a walk passes", async () => {
+    it("names a folder a later command lists to ask for, and none a walk passes", async () => {
       const bash = await shell();
       const walked = await bash.exec(`find ${shown(docs)} -name x`);
-      expect(walked.stderr).not.toContain("Waiting on the person");
+      expect(walked.stderr).not.toContain("ask_permission");
       const listed = await bash.exec(
         `ls ${shown(docs)}; ls ${shown(docs)}/asks`,
       );
       expect(listed.stderr).toContain(
-        `Waiting on the person to allow ${JSON.stringify(shown(docs, "asks"))}.`,
+        `ask for ${JSON.stringify(shown(docs, "asks"))} with ask_permission.`,
       );
     });
 
@@ -183,7 +183,7 @@ describe.each(Object.entries(shells))(
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain("Permission denied");
       expect(result.stderr).toContain("Instrument's own data");
-      expect(result.stderr).not.toContain("Waiting on the person");
+      expect(result.stderr).not.toContain("ask_permission");
     });
 
     it("still says a missing file is missing", async () => {

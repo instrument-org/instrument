@@ -30,9 +30,9 @@ export async function chatRules({
 }: {
   chatId: ChatId;
   folders?: Record<string, MountedFolder.Type>;
-  /** The tool call they hold, whose card draws under it. */
+  /** The tool call they hold. */
   partId?: StoreId.Part;
-  /** The session that holds to them, whose refusals raise the card. */
+  /** The session that holds to them, whose refusals say what to ask for. */
   sessionId?: StoreId.Session;
 }): Promise<Rules> {
   const home = os.homedir();

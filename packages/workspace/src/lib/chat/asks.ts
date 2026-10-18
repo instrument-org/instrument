@@ -1,4 +1,3 @@
-import { AsyncResource } from "node:async_hooks";
 import { ulid } from "ulid";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -12,77 +11,30 @@ import { getChatState, updateChatState } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { chatDir } from "../record-folders";
 import { askTargetName } from "../permissions/ask-target";
+import { TOOL_NAMES } from "../../tools/name";
 
-/** What raised an ask: the chat and the session that ran into it or asked. */
+/** What raised an ask: the chat and the session that asked. */
 export interface Asker {
   chatId: ChatId;
-  /** The tool call that raised it before running, by its part's id. */
+  /** The call that asked, by its part's id. */
   partId?: StoreId.Part;
   sessionId: StoreId.Session;
 }
 
 /**
- * Set in the bash worker, which cannot write the chat's record where the
- * app hears it: each ask goes to the main thread to be raised there.
+ * Records that the agent asked for a folder or an app the person has not
+ * answered for, so the chat shows the card. One card per thing: asking again
+ * while the card is up raises nothing new, and another session that asks
+ * joins the card, to be woken with its answer too.
  */
-let forwardAsk:
-  | ((ask: {
-      asker: Asker;
-      kind: PermissionAsk["kind"];
-      target: string;
-    }) => void)
-  | undefined;
-
-export function setAskForwarder(next: typeof forwardAsk): void {
-  forwardAsk = next;
-}
-
-/**
- * Records that the agent ran into a folder or an app the person has not
- * answered for, so the chat shows the card. One card per thing: running into
- * it again while the card is up raises nothing new, and another session
- * that does joins the card, to be woken with its answer too.
- */
-export function raiseAsk(
-  asker: Asker,
-  kind: PermissionAsk["kind"],
-  target: string,
-): void {
-  if (forwardAsk) {
-    forwardAsk({ asker, kind, target });
-    return;
-  }
-  // Written from the async context this module loaded in rather than the
-  // caller's: a shell builtin runs under just-bash's guard, which holds the
-  // host's own file writes from inside a command.
-  const written = outside
-    .runInAsyncScope(() => recordAsk(asker, kind, target))
-    .finally(() => {
-      pending.delete(written);
-    });
-  pending.add(written);
-}
-
-/** Asks raised on this thread and not yet written. */
-const pending = new Set<Promise<void>>();
-
-const outside = new AsyncResource("PermissionAsk");
-
-/**
- * Waits for every ask raised on this thread to be written, so a command
- * that raised one returns after its card is on the chat.
- */
-export async function asksWritten(): Promise<void> {
-  await Promise.allSettled(pending);
-}
-
 export async function recordAsk(
-  asker: Asker,
+  asker: Asker & { reason?: string },
   kind: PermissionAsk["kind"],
   target: string,
 ): Promise<void> {
   const joining = {
     ...(asker.partId && { partId: asker.partId }),
+    ...(asker.reason && { reason: asker.reason }),
     sessionId: asker.sessionId,
   };
   await updateChatState(chatDir(asker.chatId), (state) => {
@@ -100,6 +52,7 @@ export async function recordAsk(
             askers: [joining],
             id: ulid(),
             kind,
+            status: "open" as const,
             target,
           },
         ],
@@ -193,6 +146,24 @@ export function closeAsk(
   );
 }
 
+/**
+ * Marks an allowed folder macOS refused, keeping the yes, so its card offers
+ * the system's own ways in and a retry wakes the askers with it.
+ */
+export async function refusedByMacos(
+  chatId: ChatId,
+  askId: string,
+  allowed: "allowed" | "always",
+): Promise<void> {
+  await updateChatState(chatDir(chatId), (state) => ({
+    waitingOn: (state.waitingOn ?? []).map((ask) =>
+      ask.id === askId && ask.kind !== "question"
+        ? { ...ask, allowed, status: "macos-refused" as const }
+        : ask,
+    ),
+  }));
+}
+
 /** Takes an answered question off the chat, and answers what it was. */
 export function closeQuestion(
   chatId: ChatId,
@@ -244,7 +215,10 @@ export async function closeAsksOf(
   }));
 }
 
-/** What the agent reads when it runs into something the person must allow. */
-export function waitingNote(what: string): string {
-  return `Waiting on the person to allow ${what}. If the rest of the job needs it, end your turn here; you'll be woken with their answer.`;
+/**
+ * What the agent reads when it runs into something the person must allow
+ * first: `what` it was kept from, and the folder or app to ask for.
+ */
+export function askFirstNote(what: string, ask: string): string {
+  return `${what} needs the person's yes. If the work needs it, ask for ${ask} with ${TOOL_NAMES.askPermission}.`;
 }

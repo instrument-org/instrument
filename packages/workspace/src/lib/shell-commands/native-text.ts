@@ -68,8 +68,6 @@ interface NativeTextRoute {
    * separator the shell spells as a slash.
    */
   printsPaths?: boolean;
-  /** Walks the folders it is given, which the sandbox may refuse on the way. */
-  walks?: (args: string[]) => boolean;
   /**
    * Arguments the program accepts but does not honor, which send the call
    * to the builtin; `args` is how the generated table names them.
@@ -109,16 +107,6 @@ function sortOutput(args: string[]): string[] {
     }
   });
   return out;
-}
-
-/** A recursive search. */
-export function grepWalks(args: string[]): boolean {
-  return args.some(
-    (arg) =>
-      arg === "--recursive" ||
-      arg === "--dereference-recursive" ||
-      /^-[a-zA-Z]*[rR]/.test(arg),
-  );
 }
 
 /** xargs' long options that take the next argument as their value. */
@@ -307,8 +295,8 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   },
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
-  { binary: "grep", name: "grep", walks: grepWalks },
-  { binary: "find", name: "find", walks: () => true },
+  { binary: "grep", name: "grep" },
+  { binary: "find", name: "find" },
   // What xargs starts is a program on the PATH. Windows has no `echo` or
   // `printf` of its own, so there xargs' PATH starts with links to the
   // coreutils it carries (coreutilsLinks).
@@ -722,7 +710,6 @@ export function createNativeTextCommand(
   { chatId, layout }: { chatId: ChatId; layout: WorkspaceFsLayout },
 ): Command {
   const command = defineCommand(route.name, async (args, ctx) => {
-    const walks = route.walks?.(args) ?? false;
     const program = routeProgram(route);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
       return ctx.origCommand
@@ -812,10 +799,6 @@ export function createNativeTextCommand(
                   ? pathSeparatorEnv(env)
                   : env,
           ...(windows ? { windowsVerbatimArguments: true } : {}),
-          // A walk was checked where it starts; a folder it passes that the
-          // sandbox refuses is skipped without a card, as the shell's own
-          // walks skip one.
-          ...(walks ? { walks: true as const } : {}),
           ...(outside
             ? { ownEnvOnly: true as const, unsandboxed: true as const }
             : {}),

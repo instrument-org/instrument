@@ -155,9 +155,6 @@ export function createRgCommand({
         cwd: hostCwd,
         env,
         maxBuffer: { stdout: RG_MAX_STDOUT },
-        // What it named was checked above; a folder its walk is refused is
-        // skipped without asking, the way the shell's own walks skip one.
-        walks: true,
         // ripgrep picks between reading stdin and walking the working directory
         // by stat'ing fd 0, so the piped bytes have to reach it as a real pipe.
         // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search

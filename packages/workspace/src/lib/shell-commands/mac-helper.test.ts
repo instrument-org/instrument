@@ -7,7 +7,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatLayout } from "../../test/helpers/chat-layout";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { grantApp } from "../permissions/apps";
-import { asksWritten, openAsks } from "../chat/asks";
+import { openAsks } from "../chat/asks";
 import { setDenied } from "../permissions/denials";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
@@ -142,15 +142,12 @@ describe("mac helper commands", () => {
         chatId,
         asking(chatId),
       ).execute(args, ctx);
-      await asksWritten();
 
       expect(asked.exitCode).toBe(1);
       expect(asked.stderr).toBe(
-        `${command.name}: refused: Waiting on the person to allow ${app}. If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run this again once they allow it.\n`,
+        `${command.name}: refused: using ${app} needs the person's yes. If the work needs it, ask for ${app} with ask_permission.\n`,
       );
-      expect(await openAsks(chatId)).toEqual([
-        expect.objectContaining({ kind: "app", target: app }),
-      ]);
+      expect(await openAsks(chatId)).toEqual([]);
       expect(vi.mocked(execa)).not.toHaveBeenCalled();
 
       await grantApp(chatId, app);
@@ -165,7 +162,7 @@ describe("mac helper commands", () => {
     },
   );
 
-  it("keeps a not now for the chat, and raises no card again", async () => {
+  it("keeps a not now for the chat", async () => {
     const chatId = newChat();
     await setDenied(chatId, "app", "Contacts", true);
     const { execa } = await import("execa");
@@ -175,7 +172,6 @@ describe("mac helper commands", () => {
       chatId,
       asking(chatId),
     ).execute(["--search", "neil"], ctx);
-    await asksWritten();
 
     expect(result.stderr).toBe(
       "instrument contacts: refused: the person said not now to Contacts in this chat. Don't look for another way to use it; say what you skipped without it.\n",

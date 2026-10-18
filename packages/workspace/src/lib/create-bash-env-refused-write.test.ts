@@ -87,7 +87,7 @@ it("keeps the output before a redirect outside every folder, and runs what follo
     {
       "exitCode": 0,
       "stderr": "bash: <tmp>/outside/file: Read-only file system
-    Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+    "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
     ",
       "stdout": "before
     after rc=1
@@ -139,7 +139,7 @@ it("stops on the failed redirect under set -e", async () => {
       {
         "exitCode": 1,
         "stderr": "bash: <tmp>/outside/file: Read-only file system
-      Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+      "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
       ",
         "stdout": "before
       ",
@@ -159,7 +159,7 @@ it("reports tee and cp into a refused place and goes on", async () => {
         "exitCode": 0,
         "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
       cp: cannot safely determine whether 'copy.txt' and '<tmp>/closed' are the same file
-      Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+      "<tmp>/outside/tee.txt" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
       "<tmp>/closed" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
       ",
         "stdout": "x
@@ -174,7 +174,7 @@ it("reports tee and cp into a refused place and goes on", async () => {
         "exitCode": 0,
         "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
       cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt'
-      Waiting on the person to allow "<tmp>/outside". If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+      "<tmp>/outside/tee.txt" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
       "<tmp>/closed/copy.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
       ",
         "stdout": "x

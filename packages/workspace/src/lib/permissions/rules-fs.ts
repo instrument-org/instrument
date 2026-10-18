@@ -6,7 +6,7 @@ import nodePath from "node:path";
 import { FOLDER_VARIABLES } from "../../constants";
 import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
-import { raiseAsk, waitingNote } from "../chat/asks";
+import { askFirstNote } from "../chat/asks";
 import { isClosedDiskRoot } from "../disk-root";
 import {
   folderToAskFor,
@@ -17,16 +17,14 @@ import {
 } from "./rules";
 
 /**
- * What the agent reads when the rules keep it from a path, and the card it
- * raises where the person can open it: the one answer for the shell's own
- * commands, the file tools, the commands that check their operands, and the
- * programs the native profiles stopped. `spell` turns a host path into the
+ * What the agent reads when the rules keep it from a path, naming the folder
+ * to ask for where the person can open it: the one answer for the shell's own
+ * commands, the file tools, and the commands that check their operands. `spell` turns a host path into the
  * path the agent uses, which the note quotes as a JSON string, so a name
  * that reads as words to the agent (one taken from a download or an
  * archive) stays a name. Undefined where the path is open.
  */
 export function ruleRefusal({
-  afterAsk,
   asks = true,
   hostPath: given,
   isDirectory = false,
@@ -36,11 +34,9 @@ export function ruleRefusal({
   rules,
   spell,
 }: {
-  /** What to do once the card is up, said after the waiting note. */
-  afterAsk?: string;
   /**
-   * Whether running into it raises a card. A walk that passes a closed
-   * folder on its way is not asking for it.
+   * Whether the note says what to ask for. A walk that passes a closed
+   * folder on its way is not after it.
    */
   asks?: boolean;
   hostPath: string;
@@ -74,29 +70,60 @@ export function ruleRefusal({
   if (op === "write" && !accountCanWrite(hostPath)) {
     return systemOwnedNote(shown(hostPath));
   }
-  let folder = folderToAskFor({
+  const asked = askableFolder({
     hostPath,
     isDirectory,
+    onDisk,
     rule: reach.rule,
     rules,
+    shown,
   });
+  if ("refusal" in asked) {
+    return asked.refusal;
+  }
+  if (!asks || !rules.asker) {
+    return `${shown(hostPath)} needs the person's yes first.`;
+  }
+  return askFirstNote(shown(hostPath), shown(asked.folder));
+}
+
+/**
+ * The folder a card opens to reach `hostPath`, or why no card can: the home
+ * folder, a disk's root, and a folder holding the app's own data are never
+ * asked for whole. `onDisk` takes the nearest folder that exists.
+ */
+export function askableFolder({
+  hostPath,
+  isDirectory,
+  onDisk,
+  rule,
+  rules,
+  shown,
+}: {
+  hostPath: string;
+  isDirectory: boolean;
+  onDisk: boolean;
+  rule: Reach["rule"];
+  rules: Rules;
+  shown: (hostPath: string) => string;
+}): { folder: string } | { refusal: string } {
+  let folder = folderToAskFor({ hostPath, isDirectory, rule, rules });
   while (onDisk && !existsSync(folder) && folder !== nodePath.dirname(folder)) {
     folder = nodePath.dirname(folder);
   }
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
-    return `${shown(hostPath)} is directly in ${shown(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
+    return {
+      refusal: `${shown(hostPath)} is directly in ${shown(folder)}, which can't be asked for whole. Work in this conversation's folder, or a folder the person names.`,
+    };
   }
   // Nor is a folder that holds the app's own data, which no yes opens.
   if (holdsAppData(rules, folder)) {
-    return `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so no card can open it whole. Work in this conversation's folder, or a folder the person names.`;
+    return {
+      refusal: `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so it can't be asked for whole. Work in this conversation's folder, or a folder the person names.`,
+    };
   }
-  if (!asks || !rules.asker) {
-    return `${shown(hostPath)} needs the person's yes first.`;
-  }
-  raiseAsk(rules.asker, "folder", folder);
-  const waiting = waitingNote(shown(folder));
-  return afterAsk ? `${waiting} ${afterAsk}` : waiting;
+  return { folder };
 }
 
 /**
@@ -129,8 +156,8 @@ export function closedNote(reach: Reach, shown: string): string {
  * How many folders the command running now has listed, shared by every
  * folder's filesystem in one shell, which starts it over as each command
  * starts. The first is the folder the command was asked to list; a later
- * one is a walk passing through, which raises no card for every closed
- * folder it meets.
+ * one is a walk passing through, which is told of no folder to ask for
+ * at every closed one it meets.
  */
 export interface Listings {
   count: number;

@@ -18,8 +18,6 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 
 import {
   type NativeReach,
-  refusalNote,
-  refusedPathIn,
   bwrapArgs,
   bwrapAvailable,
   launchNative,
@@ -28,12 +26,8 @@ import {
   wrapNativeCommand,
   type WrappedCommand,
 } from "./index";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { StoreId } from "../../schemas/store-id";
 import { inheritedEnv } from "../native-env";
-import { accountCanWrite } from "../permissions/account-can-write";
 import { REACHABLE_APPS } from "../permissions/apps";
-import { raiseAsk } from "../chat/asks";
 import { reachOf, type Rule } from "../permissions/rules";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { runtimeLayout } from "../runtime-dir";
@@ -46,11 +40,6 @@ vi.mock("../permissions/account-can-write", async (importOriginal) => ({
     typeof import("../permissions/account-can-write")
   >()),
   accountCanWrite: vi.fn(() => true),
-}));
-
-vi.mock("../chat/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../chat/asks")>()),
-  raiseAsk: vi.fn(),
 }));
 
 // Windows runs native commands with no Seatbelt or bubblewrap profile, so
@@ -392,230 +381,6 @@ describe("inheritedEnv", () => {
       PATH: "/usr/bin",
       ...(kept && { SSH_AUTH_SOCK: "/tmp/agent" }),
     });
-  });
-});
-
-describe.runIf(onWindows)("refusedPathIn on Windows", () => {
-  const home = "C:\\Users\\someone";
-  const reach = reachOver(home, [
-    { level: "never", path: `${home}\\.ssh`, source: "place" },
-  ]);
-  const cwd = `${home}\\work`;
-
-  it("reads the folder git pads with spaces as the folder", () => {
-    // git's own `%*s` pads the path it failed to stat by the length of a
-    // prefix it does not print.
-    const refused = refusedPathIn(
-      "fatal: failed to stat '                        C:/Users/someone/AppData': Permission denied\n",
-      reach,
-      cwd,
-    );
-    expect(refused?.hostPath).toBe(`${home}\\AppData`);
-    expect(refused?.reach.stream).toBeUndefined();
-  });
-
-  it("names no stream for a path read wrongly out of the output", () => {
-    expect(
-      refusedPathIn(
-        `cat: 'notes C:\\Users\\someone\\a.txt': Permission denied`,
-        reach,
-        cwd,
-      ),
-    ).toBeUndefined();
-  });
-});
-
-describe.skipIf(onWindows)("refusedPathIn", () => {
-  const reach = reachOver("/Users/someone", [
-    { level: "never", path: "/Users/someone/.ssh", source: "place" },
-    { level: "ask", path: "/Users/someone/Documents", source: "place" },
-  ]);
-
-  it.each([
-    ["cat: /Users/someone/.ssh/id_ed25519: Operation not permitted", "never"],
-    [
-      "PermissionError: [Errno 1] Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
-      "ask",
-    ],
-    // .NET's wording, which PowerShell prints.
-    [
-      "Out-File : Access to the path '/Users/someone/Documents/a.txt' is denied.",
-      "ask",
-    ],
-    ["cat: /Users/someone/notes.md: No such file or directory", undefined],
-  ])("%s", (output, level) => {
-    expect(refusedPathIn(output, reach)?.reach.level).toBe(level);
-  });
-
-  // Lines real programs print that name no path the sandbox refused.
-  it.each([
-    // ssh-add -l with the agent's socket missing, on Windows (no agent
-    // service running) and on a Mac (a socket path that is not there).
-    "Error connecting to agent: No such file or directory\r\n",
-    "Error connecting to agent: No such file or directory\n",
-    // ssh-add -l with no SSH_AUTH_SOCK at all.
-    "Could not open a connection to your authentication agent.\n",
-    // A config file a program only looked for, in a folder that asks.
-    "python3: can't open file '/Users/someone/Documents/Acme/run.py': [Errno 2] No such file or directory",
-    "gpg: keyblock resource '/Users/someone/.ssh/gnupg/pubring.kbx': No such file or directory",
-  ])("finds no refusal in %j", (output) => {
-    expect(refusedPathIn(output, reach)).toBeUndefined();
-  });
-
-  // bubblewrap leaves a closed folder empty, so its refusal reads as missing
-  // where the disk has the path, or the folder it would be in.
-  describe("of a missing path", () => {
-    const home = realpathSync(
-      mkdtempSync(path.join(os.tmpdir(), "refused-missing-")),
-    );
-    mkdirSync(path.join(home, ".ssh"));
-    writeFileSync(path.join(home, ".ssh", "config"), "");
-    const closed = reachOver(home, [
-      { level: "never", path: path.join(home, ".ssh"), source: "place" },
-    ]);
-    afterAll(() => rmSync(home, { force: true, recursive: true }));
-
-    it.each([
-      [".ssh/config", "never"],
-      [".ssh/known_hosts", "never"],
-      [".ssh/keys/id_ed25519", undefined],
-    ])("finds %s refused: %s", (named, level) => {
-      expect(
-        refusedPathIn(
-          `cat: ${path.join(home, named)}: No such file or directory`,
-          closed,
-        )?.reach.level,
-      ).toBe(level);
-    });
-  });
-
-  it.each([
-    ["cat: ../Documents/Acme/a.txt: Operation not permitted", "ask"],
-    [
-      "fatal: cannot change to '../.ssh/keys': Operation not permitted",
-      "never",
-    ],
-    ["cat: notes/a.txt: No such file or directory", undefined],
-  ])("reads %s against the cwd", (output, level) => {
-    expect(
-      refusedPathIn(output, reach, "/Users/someone/Projects")?.reach.level,
-    ).toBe(level);
-  });
-
-  it.each([
-    "cp: /Users/someone/Documents/Acme Corp/a.csv: Operation not permitted",
-    "cat: '/Users/someone/Documents/Acme Corp/a.csv': Operation not permitted",
-    "PermissionError: [Errno 1] Operation not permitted: '/Users/someone/Documents/Acme Corp/a.csv'",
-    "cp: cannot open ‘/Users/someone/Documents/Acme Corp/a.csv’ for reading: Permission denied",
-    "/bin/sh: 1: cannot create /Users/someone/Documents/Acme Corp/a.csv: Permission denied",
-  ])("keeps the spaces in the path %s names", (output) => {
-    expect(refusedPathIn(output, reach)?.hostPath).toBe(
-      "/Users/someone/Documents/Acme Corp/a.csv",
-    );
-  });
-
-  it.each([
-    `cat: "/Users/someone/Documents/Bob's Files/a.txt": Operation not permitted`,
-    "cat: /Users/someone/Documents/Bob's Files/a.txt: Operation not permitted",
-    `PermissionError: [Errno 1] Operation not permitted: "/Users/someone/Documents/Bob's Files/a.txt"`,
-  ])("keeps the apostrophe in the path %s names", (output) => {
-    expect(refusedPathIn(output, reach)?.hostPath).toBe(
-      "/Users/someone/Documents/Bob's Files/a.txt",
-    );
-  });
-
-  describe("of the app's own data only", () => {
-    const appData = "/Users/someone/Library/Application Support/Instrument";
-    const withAppData = reachOver("/Users/someone", [
-      ...reach.rules.rules,
-      { appData: true, level: "never", path: appData, source: "system" },
-    ]);
-
-    it.each([
-      [
-        "passes over a path a card could open for one in the app's data",
-        [
-          "cat: /Users/someone/Documents/Acme/a.csv: Operation not permitted",
-          `PermissionError: [Errno 1] Operation not permitted: '${appData}/work/other/a.md'`,
-        ].join("\n"),
-        `${appData}/work/other/a.md`,
-      ],
-      [
-        "finds none where only places are refused",
-        "cat: /Users/someone/.ssh/id_ed25519: Operation not permitted",
-        undefined,
-      ],
-    ])("%s", (_name, output, hostPath) => {
-      expect(
-        refusedPathIn(output, withAppData, undefined, { appDataOnly: true })
-          ?.hostPath,
-      ).toBe(hostPath);
-    });
-  });
-
-  it("asks for the folder one level into the place", () => {
-    const refused = refusedPathIn(
-      "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
-      reach,
-    );
-    expect(refused && refusalNote(refused)).toMatchInlineSnapshot(
-      `""~/Documents/Acme/a.csv" needs the person's yes first."`,
-    );
-  });
-
-  it.each([
-    [
-      "mkdir: cannot create directory '/Users/someone/newproj': Read-only file system",
-      "~/newproj",
-    ],
-    [
-      "fatal: cannot mkdir /Users/someone/newproj: Read-only file system",
-      "~/newproj",
-    ],
-    [
-      "mkdir: cannot create directory ‘/Users/someone/newproj’: Read-only file system",
-      "~/newproj",
-    ],
-    [
-      "touch: cannot touch '/Users/someone/newproj/x': Read-only file system",
-      "~/newproj",
-    ],
-    [
-      "touch: cannot touch '/Users/someone/notes.txt': Read-only file system",
-      undefined,
-    ],
-  ])("%s asks for %s", (output, asked) => {
-    vi.mocked(raiseAsk).mockClear();
-    const refused = refusedPathIn(output, {
-      ...reach,
-      rules: {
-        ...reach.rules,
-        asker: {
-          chatId: ChatIdSchema.parse("native-sandbox-test"),
-          sessionId: StoreId.newSessionId(),
-        },
-      },
-    });
-    const note = refused && refusalNote(refused);
-    expect(vi.mocked(raiseAsk).mock.calls[0]?.[2]).toBe(
-      asked?.replace("~", "/Users/someone"),
-    );
-    expect(note).toBe(
-      asked
-        ? `Waiting on the person to allow "${asked}". If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run the command again once they allow it.`
-        : `"~/notes.txt" is directly in "~", which no card can open whole. Work in this conversation's folder, or a folder the person names.`,
-    );
-  });
-
-  it("asks nothing for a change only an administrator could make", () => {
-    vi.mocked(accountCanWrite).mockReturnValueOnce(false);
-    const refused = refusedPathIn(
-      "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
-      reach,
-    );
-    expect(refused && refusalNote(refused)).toMatchInlineSnapshot(
-      `""~/Documents/Acme/a.csv" belongs to the system, and only an administrator can change it. Write what you need somewhere you can, or tell the person what you needed it for."`,
-    );
   });
 });
 

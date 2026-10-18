@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const TOOL_NAMES = {
+  askPermission: "ask_permission",
   bash: "bash",
   choose: "choose",
   connectApp: "connect_app",
@@ -15,6 +16,7 @@ export const TOOL_NAMES = {
 } as const;
 
 export const ToolNameSchema = z.enum([
+  TOOL_NAMES.askPermission,
   TOOL_NAMES.bash,
   TOOL_NAMES.choose,
   TOOL_NAMES.connectApp,

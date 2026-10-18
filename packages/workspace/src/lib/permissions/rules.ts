@@ -253,8 +253,8 @@ export interface Rule {
 /** Everything that decides one chat's reach, resolved once and checked often. */
 export interface Rules {
   /**
-   * The session these rules hold, which a refusal that asks first raises
-   * its card for. Absent, a refusal says what is needed and raises nothing.
+   * The session these rules hold, which a refusal that asks first tells
+   * what to ask for. Absent, a refusal says only what is needed.
    */
   asker?: Asker;
   home: string;
@@ -618,7 +618,7 @@ function compiled(rules: Rules) {
  * app's own data gives way to the one below it on the way to the path
  * (`~/Library/Application Support/Other App` rather than Application
  * Support), so a card never names it; one with nothing below it is left as
- * it is, for `ruleRefusal` to raise no card for. In the app-files place a
+ * it is, for `ruleRefusal` to name nothing to ask for. In the app-files place a
  * folder holding a folder per app gives way the same way, so the card names
  * one app's folder (`AppData\Roaming\Discord`).
  */

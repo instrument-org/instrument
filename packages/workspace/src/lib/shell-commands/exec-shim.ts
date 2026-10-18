@@ -13,8 +13,6 @@ import {
   type NativeReach,
   NativeSandboxUnavailableError,
   packageScopeNote,
-  refusalNote,
-  refusedPathIn,
   wrapNativeCommand,
 } from "../native-sandbox";
 
@@ -112,11 +110,6 @@ export async function execShim(
      * program run outside the sandbox on an environment built for it.
      */
     ownEnvOnly?: true;
-    /**
-     * A walk, whose paths were checked before it ran: a folder the sandbox
-     * refuses on the way is skipped quietly, with no card and no note.
-     */
-    walks?: true;
   },
 ) {
   const sink = currentShellOutputSink();
@@ -125,7 +118,6 @@ export async function execShim(
     toolsChannel,
     ownEnvOnly,
     unsandboxed,
-    walks,
     ...subprocessOptions
   } = options;
   let spawned: ReturnType<typeof wrapNativeCommand>;
@@ -194,16 +186,11 @@ export async function execShim(
   const stdoutBytes = asBuffer(result.stdout);
   const stdout = stdoutBytes.toString("utf8");
   const noted = withShimNotes({
-    cwd:
-      typeof subprocessOptions.cwd === "string"
-        ? subprocessOptions.cwd
-        : undefined,
     exitCode: result.exitCode,
     file,
     reach: spawned.reach,
     stderr,
     stdout,
-    walks,
   });
   return {
     exitCode: noted.exitCode,
@@ -255,33 +242,22 @@ export function binaryStdout(
 
 /**
  * A finished program's exit code and stderr with what the app adds to them:
- * the note for a path the sandbox refused, and the note for a developer tool
- * stub on a Mac without the tools.
+ * the notes for a package.json, a setuid program or a signal the sandbox
+ * refused, and the note for a developer tool stub on a Mac without the tools.
  */
 export function withShimNotes({
-  cwd,
   exitCode,
   file,
   reach,
   stderr,
   stdout,
-  walks,
 }: {
-  cwd: string | undefined;
   exitCode: number | undefined;
   file: string;
   reach: NativeReach | undefined;
   stderr: string;
   stdout: string;
-  walks: boolean | undefined;
 }): { exitCode: number | undefined; stderr: string } {
-  // A command that failed is told of any path the rules kept it from, the
-  // likeliest reason it failed. One that exited 0 handled the refusal itself,
-  // as a script printing the error it caught does, so it is told only of a
-  // path in the app's own data that its stderr names: nothing opens that, and
-  // a bare "Operation not permitted" reads as something to work around. Its
-  // stdout is its own output, and a path a card could open raises no card
-  // from a command that did not fail.
   // Node stopped by a package.json the sandbox refused it is told how to get
   // past that, rather than asked about a folder that holds no work.
   const packageScope =
@@ -294,13 +270,6 @@ export function withShimNotes({
     exitCode === 0
       ? undefined
       : signalRefusalNote(file, `${stderr}\n${stdout}`);
-  const refused =
-    !reach || walks || packageScope || setuid
-      ? undefined
-      : exitCode === 0
-        ? refusedPathIn(stderr, reach, cwd, { appDataOnly: true })
-        : refusedPathIn(`${stderr}\n${stdout}`, reach, cwd);
-  const refusal = refused && refusalNote(refused);
   // A program that reached a developer tool stub on a Mac without the tools
   // fails with the stub's own error, which does not say what to do.
   // `xcode-select --install` reports a request the sandbox refused and still
@@ -316,7 +285,6 @@ export function withShimNotes({
     ...(packageScope ? [`${packageScope}\n`] : []),
     ...(setuid ? [`${setuid}\n`] : []),
     ...(signals ? [`${signals}\n`] : []),
-    ...(refusal ? [`${refusal}\n`] : []),
     ...(missingTools ? [missingTools] : []),
   ].join("");
   return {

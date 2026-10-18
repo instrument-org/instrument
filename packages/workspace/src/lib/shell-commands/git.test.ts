@@ -169,7 +169,7 @@ describe("createGitCommand arg policy", () => {
     ],
     [
       ["add", "notes.txt"],
-      `"~/notes.txt" is directly in "~", which no card can open whole.`,
+      `"~/notes.txt" is directly in "~", which can't be asked for whole.`,
     ],
   ])(
     "asks for a new repository directly in the home folder: %j",

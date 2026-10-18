@@ -7,7 +7,7 @@ import { type ChatAppGrant } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { getCurrentDate } from "../get-current-date";
 import { type Level } from "./places";
-import { type Asker, raiseAsk, waitingNote } from "../chat/asks";
+import { type Asker, askFirstNote } from "../chat/asks";
 import { chatDenials } from "./denials";
 import { readChatPermissions, updateChatPermissions } from "./rules";
 import { readPermissionSettings } from "./rules";
@@ -124,7 +124,7 @@ export async function closedAppServices(chatId: ChatId): Promise<AppService[]> {
 }
 
 /** How far the agent may use `app` in this chat, by its name, or its bundle id where the name asks. */
-async function appLevel(chatId: ChatId, app: MacApp): Promise<Level> {
+export async function appLevel(chatId: ChatId, app: MacApp): Promise<Level> {
   const byName = await appReach(chatId, app.name);
   return byName === "ask" ? appReach(chatId, app.bundleId) : byName;
 }
@@ -137,8 +137,8 @@ async function appAllowed(chatId: ChatId, app: MacApp): Promise<boolean> {
 /**
  * Why the agent may not use `app` in this chat yet, or undefined when it
  * may: the person said not now to it here, Settings › Permissions marks it
- * Not allowed, or nobody has answered for it yet, which raises its card for
- * `asker` to be woken with the answer. A rule, a grant or a "not now" holds
+ * Not allowed, or nobody has answered for it yet, which the note tells
+ * `asker` to ask for. A rule, a grant or a "not now" holds
  * whether it names the app or its bundle id. The card names the app, and so
  * does the rule an Always allow on it writes, which is how Settings lists it.
  */
@@ -160,8 +160,7 @@ export async function appRefusal(
   if (!asker) {
     return `using ${app.name} needs the person's yes first.`;
   }
-  raiseAsk(asker, "app", app.name);
-  return `${waitingNote(app.name)} Run this again once they allow it.`;
+  return askFirstNote(`using ${app.name}`, app.name);
 }
 
 async function chatAppGrants(chatId: ChatId): Promise<ChatAppGrant[]> {

@@ -16,7 +16,6 @@ import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
-import { setAskForwarder } from "../chat/asks";
 import { setSkillMutationForwarder } from "../workspace-skill-index";
 import {
   type ExceptionProperties,
@@ -85,9 +84,6 @@ process.on("unhandledRejection", (reason) => {
 // State the main thread owns: which turn a skill write belongs to, the process
 // trees to end if this worker dies, and the one creator of every venv and
 // skill environment.
-setAskForwarder(({ asker, kind, target }) => {
-  post({ asker, kind, target, type: "ask" });
-});
 setSkillMutationForwarder((skillPath) => {
   const id = currentExec.getStore();
   if (id !== undefined) {

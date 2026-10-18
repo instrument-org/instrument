@@ -163,7 +163,7 @@ function programPath(chatId: ChatId, cwd: string) {
  */
 export function createPathProgramResolver(
   chatId: ChatId,
-  /** Who a program's ask for one of the person's apps raises its card for. */
+  /** The session a program's refusal for one of the person's apps tells what to ask for. */
   asker?: Asker,
 ): ExternalCommandResolver {
   return async (name, { cwd }) => {

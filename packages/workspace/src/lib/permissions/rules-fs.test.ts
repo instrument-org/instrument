@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { raiseAsk } from "../chat/asks";
 import { closedNote, ruleRefusal, rulesFs } from "./rules-fs";
 import { type Rule, type Rules } from "./rules";
 
@@ -14,12 +13,6 @@ import { type Rule, type Rules } from "./rules";
 vi.mock("./account-can-write", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./account-can-write")>()),
   accountCanWrite: () => true,
-}));
-
-// A card is heard rather than written to a chat's record.
-vi.mock("../chat/asks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../chat/asks")>()),
-  raiseAsk: vi.fn(),
 }));
 
 /**
@@ -66,7 +59,7 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   expect(refusals).toMatchInlineSnapshot(`
     [
       ""/c/Users/sam/Documents/a.txt" needs the person's yes first.",
-      ""/c/Users/sam/new.md" is directly in "/c/Users/sam", which no card can open whole. Work in this conversation's folder, or a folder the person names.",
+      ""/c/Users/sam/new.md" is directly in "/c/Users/sam", which can't be asked for whole. Work in this conversation's folder, or a folder the person names.",
       ""/c/Users/sam/newproj" needs the person's yes first.",
     ]
   `);
@@ -365,8 +358,7 @@ describe.runIf(process.platform !== "win32")(
       `${escaped}/machine/work/c1`,
       `${escaped}/machine/keys`,
       `${escaped}/Preferences`,
-    ])("refuses %s plainly, raising no card", (hostPath) => {
-      vi.mocked(raiseAsk).mockClear();
+    ])("refuses %s plainly, naming nothing to ask for", (hostPath) => {
       const refusal = ruleRefusal({
         hostPath,
         op: "read",
@@ -374,21 +366,18 @@ describe.runIf(process.platform !== "win32")(
         spell: (spelled) => spelled,
       });
       expect(refusal).toMatch(/Instrument's own data/);
-      expect(raiseAsk).not.toHaveBeenCalled();
+      expect(refusal).not.toContain("ask_permission");
     });
 
     it("still asks for a folder of the person's own spelled with a backslash", () => {
-      vi.mocked(raiseAsk).mockClear();
-      ruleRefusal({
+      const refusal = ruleRefusal({
         hostPath: String.raw`/Users/sam/Library/Notes \(old\)/a.txt`,
         op: "read",
         rules,
         spell: (spelled) => spelled,
       });
-      expect(raiseAsk).toHaveBeenCalledWith(
-        rules.asker,
-        "folder",
-        String.raw`/Users/sam/Library/Notes \(old\)`,
+      expect(refusal).toContain(
+        `ask for ${JSON.stringify(String.raw`/Users/sam/Library/Notes \(old\)`)} with ask_permission`,
       );
     });
   },

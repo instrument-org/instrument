@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { asksWritten, openAsks } from "../chat/asks";
+import { openAsks } from "../chat/asks";
 import { createLocalBashEnv } from "../create-bash-env";
 import { seatbeltAvailable } from "../native-sandbox";
 import { grantApp } from "../permissions/apps";
@@ -41,14 +41,11 @@ describe.runIf(
       (await shell()).exec(command, { signal: AbortSignal.timeout(30_000) });
 
     const asked = await run("shortcuts list");
-    await asksWritten();
     expect(asked.exitCode).toBe(1);
     expect(asked.stderr).toBe(
-      "shortcuts: refused: Waiting on the person to allow Shortcuts. If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run this again once they allow it.\n",
+      "shortcuts: refused: using Shortcuts needs the person's yes. If the work needs it, ask for Shortcuts with ask_permission.\n",
     );
-    expect(await openAsks(chatId)).toEqual([
-      expect.objectContaining({ kind: "app", target: "Shortcuts" }),
-    ]);
+    expect(await openAsks(chatId)).toEqual([]);
     const around = await run(`/bin/sh -c '${SHORTCUTS} list'`);
     expect(around.exitCode).not.toBe(0);
     expect(around.stderr).toContain(

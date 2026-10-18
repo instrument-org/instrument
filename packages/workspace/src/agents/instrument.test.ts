@@ -89,6 +89,25 @@ const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
   type: "data-taskEvent",
 });
 
+const askPermission =
+  (state: "allowed" | "asked") =>
+  (messageId: StoreId.Message): SessionMessagePart.Type => ({
+    input: {
+      explanation: "Asking for Desktop",
+      kind: "folder",
+      reason: "So I can put the copy there.",
+      target: "/Users/sam/Desktop",
+    },
+    metadata: { ...partMetadata(messageId), endedAt: createdAt },
+    output:
+      state === "asked"
+        ? { kind: "folder", state, target: "/Users/sam/Desktop" }
+        : { state, target: "/Users/sam/Desktop" },
+    state: "output-available",
+    toolCallId: `call-${messageId}`,
+    type: "tool-ask_permission",
+  });
+
 const taskNew = bash(
   "instrument task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
@@ -110,6 +129,28 @@ describe("shouldContinueAfterHandingOff", () => {
         ],
       }),
     ).resolves.toBe(false);
+  });
+
+  it("ends the turn on a permission card, with no step after it for a line", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("put a copy on my desktop")),
+          assistant(askPermission("asked")),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("carries on when the folder asked for was already allowed", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("put a copy on my desktop")),
+          assistant(askPermission("allowed")),
+        ],
+      }),
+    ).resolves.toBe(true);
   });
 
   it("gives a hand-off that said nothing one more step, for the line", async () => {
@@ -310,6 +351,7 @@ describe("instrumentAgent", () => {
         .toSorted(),
     ).toEqual(
       [
+        TOOL_NAMES.askPermission,
         TOOL_NAMES.bash,
         TOOL_NAMES.choose,
         TOOL_NAMES.connectApp,

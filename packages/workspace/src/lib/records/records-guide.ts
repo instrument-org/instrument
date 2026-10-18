@@ -3,8 +3,8 @@ import { BLOBS_FOLDER_NAME } from "./blobs";
 import { type LogRecord, type MarkField } from "./record";
 
 /**
- * What the agent is told of a chat's records, so it can search and read them
- * itself. Keyed by the record format's own types: a record, a message role
+ * What the chat-history skill tells the agent of a chat's records, so it can
+ * search and read them itself. Keyed by the record format's own types: a record, a message role
  * or a mark the format adds or drops fails the type check here until this
  * says what it is, so the agent is never told of a record that is not there.
  * The file names are checked against the parser in the test beside this.
@@ -57,18 +57,22 @@ function listed(entries: Record<string, string>, depth: number): string[] {
 }
 
 /**
- * The guide itself, naming the folder by `variable`: a folder per chat named
- * by its id, the files in one, and every record in them.
+ * The chat-history skill's `records.md`: the files in a chat's records and
+ * every record in them, held equal to this by its test.
  */
-export function chatRecordsGuide(variable: string): string {
+export function chatRecordsReference(): string {
   return [
-    `Every chat's records, this one's included, are in \`$${variable}\`, read-only: a folder per chat, named by its id, holding JSON Lines files, one record per line with \`t\` naming it.`,
-    `  - \`${RECORD_FILE_EXAMPLES.log}\`: one session's log as one device wrote it (\`.2\` and on once it grew long). Its records, by \`t\`:`,
-    ...listed(LOG_RECORDS, 2),
-    "    A message's `role`:",
-    ...listed(MESSAGE_ROLES, 3),
-    `  - \`${RECORD_FILE_EXAMPLES.marks}\`: \`mark\` records, the newest of each \`field\` standing:`,
-    ...listed(MARK_FIELDS, 2),
-    `  - \`${BLOBS_FOLDER_NAME}/\`: bytes a tool returned, which its part names in a \`blob\` field (\`sha256-<hex>.<ext>\`).`,
+    "# Chat records",
+    "",
+    "A chat's folder holds JSON Lines files, one record per line, with `t` naming the record.",
+    "",
+    `- \`${RECORD_FILE_EXAMPLES.log}\`: one session's log as one device wrote it (\`.2\` and on once it grew long). Its records, by \`t\`:`,
+    ...listed(LOG_RECORDS, 1),
+    "  A message's `role`:",
+    ...listed(MESSAGE_ROLES, 2),
+    `- \`${RECORD_FILE_EXAMPLES.marks}\`: \`mark\` records, the newest of each \`field\` standing:`,
+    ...listed(MARK_FIELDS, 1),
+    `- \`${BLOBS_FOLDER_NAME}/\`: bytes a tool returned, which its part names in a \`blob\` field (\`sha256-<hex>.<ext>\`).`,
+    "",
   ].join("\n");
 }

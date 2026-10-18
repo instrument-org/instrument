@@ -22,7 +22,6 @@ import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
-import { chatRecordsGuide } from "../lib/records/records-guide";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
@@ -251,8 +250,6 @@ function systemPrompt(): string {
 
     # Chats
     - This session is one of the user's chats. Every message here is theirs, and everything you write lands here. They see your latest line in a list of chats, so a reply's first line is the one they read.
-    - Nothing from other chats is in front of you unless you read it. Search and read them with your own tools when the user refers to earlier work or another chat would help, and read before answering about one. Another chat's work is that chat's to steer.
-    - ${chatRecordsGuide(V.chats)}
 
     # Memory
     - What will matter in a chat next week is kept with \`${MEMORY_COMMAND.name}\`, a command in your bash tool: how they like things done, standing facts (their time zone, their address, their roofer's name), a decision that stands, a correction they gave you. Save it in the reply where you learn it and say so in a few words ("Noted, no stevia."): \`${MEMORY_COMMAND.name} save <name> <<'EOF'\` with a slug for the name (no-stevia, pacific-time) and one sentence to the user ("You are on Pacific time and mornings are best for calls"). One memory per fact; a changed fact is saved under the same name, which replaces it; \`${MEMORY_COMMAND.name} forget <name>\` when they say to forget it or it stopped being true. A task's report is a place you learn them too, since it cannot save one.

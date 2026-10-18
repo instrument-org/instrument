@@ -120,8 +120,8 @@ export const ChatSchema = z.object({
    * ask's own first words, which a row need not repeat under the ask.
    */
   titled: z.boolean(),
-  /** Topic ids, from the session record. */
-  topics: z.array(z.string()),
+  /** The topic's id, from the session record; absent when it is filed under none. */
+  topic: z.string().optional(),
   /** Whether something in the chat has not been looked at: the mark on its session record. */
   unread: z.boolean(),
   /** Whether the user set that mark themselves, which holds until they come back to the chat. */
@@ -320,19 +320,19 @@ export async function setChatStarred(
 }
 
 /**
- * Tags a chat with topics, by id. Ids the conversation has no topic for
- * are dropped rather than written, so the record never names a topic that
- * was never made.
+ * Files a chat under a topic, by id, or under none with `null`. An id the
+ * workspace has no topic for files it under none, so the record never
+ * names a topic that was never made.
  */
-export async function setChatTopics(
+export async function setChatTopic(
   chatId: ChatId,
-  topics: string[],
+  topicId: null | string,
 ): Promise<boolean> {
-  const known = new Set((await listTopics()).map((topic) => topic.id));
-  return saveMark(chatId, (session) => ({
-    ...session,
-    topics: unique(topics.filter((id) => known.has(id))),
-  }));
+  const known = (await listTopics()).some((topic) => topic.id === topicId);
+  return saveMark(chatId, (session) => {
+    const { topic: _was, ...rest } = session;
+    return { ...rest, ...(known && topicId ? { topic: topicId } : {}) };
+  });
 }
 
 /**
@@ -550,7 +550,7 @@ async function chatFor(
       ? placeholderTitle(firstLine(root ? textOf(root) : "")) || session.title
       : session.title,
     titled: !isUntitledChatSessionTitle(session.title),
-    topics: session.topics ?? [],
+    ...(session.topic ? { topic: session.topic } : {}),
     unread: session.unreadAt !== undefined,
     unreadByUser: session.unreadByUser === true,
     // When anything last happened: the session's own stamp moves when a turn

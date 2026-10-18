@@ -578,8 +578,8 @@ function marksOf(
       value: { byUser: session.unreadByUser === true },
     });
   }
-  if (session.topics !== undefined) {
-    marks.push({ ...of, at, field: "topics", value: session.topics });
+  if (session.topic !== undefined) {
+    marks.push({ ...of, at, field: "topic", value: session.topic });
   }
   if (session.stoppedAt !== undefined) {
     marks.push({
@@ -614,7 +614,7 @@ function sessionRow(folded: FoldedSession): unknown {
       : {}),
     ...(unread?.value ? { unreadAt: unread.at } : {}),
     ...(unread?.value?.byUser === true ? { unreadByUser: true } : {}),
-    ...(marks.topics ? { topics: marks.topics.value } : {}),
+    ...(marks.topic?.value ? { topic: marks.topic.value } : {}),
     ...(marks.stoppedAt ? { stoppedAt: marks.stoppedAt.value } : {}),
     ...(rollover === undefined
       ? {}

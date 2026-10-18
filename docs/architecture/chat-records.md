@@ -11,7 +11,7 @@ In the chat's record folder (`chats/<id>/`, resolved by `record-folders.ts`):
 | Name | What it holds |
 |---|---|
 | `<session>.<device>.jsonl` | One session's log, as that device wrote it: its header, its messages and parts, where its context window was reset, who stopped its turn, what it was told |
-| `marks.<device>.jsonl` | What the person did to the chat from that device: title, star, archive, unread, topics, Stop |
+| `marks.<device>.jsonl` | What the person did to the chat from that device: title, star, archive, unread, topic, Stop |
 | `blobs/sha256-<hex>.<ext>` | The bytes a part points at, named by their hash, so the same bytes get the same name on every device |
 | `settings.json` | What the app knows about the chat: the model and effort its sessions run on, the folders granted in it |
 

@@ -268,16 +268,16 @@ export async function newMessage({
       parts.push(messageGap.value);
     }
 
-    // The chat's topics ride on every message sent in it, and the model
-    // note is rendered only when they changed since the last one.
-    const topicsPart = await createTopicsPart({
+    // The chat's topic rides on every message sent in it, and the model
+    // note is rendered only when it changed since the last one.
+    const topicPart = await createTopicPart({
       createdAt,
       messageId,
       sessionId,
       chatId,
     });
-    if (topicsPart) {
-      parts.push(topicsPart);
+    if (topicPart) {
+      parts.push(topicPart);
     }
 
     // What the agent remembers about the user, told once and again only when
@@ -347,11 +347,11 @@ export async function newMessage({
 }
 
 /**
- * The topics the chat carries, named for the model. None when it carries
- * none and never has: a chat untagged since its last message gets an empty
- * part, so the note can say the topics are gone.
+ * The topic the chat is filed under, named for the model. None when it has
+ * none and never had: a chat taken off its topic since its last message
+ * gets a part saying so, so the note can say the topic is gone.
  */
-async function createTopicsPart({
+async function createTopicPart({
   createdAt,
   messageId,
   sessionId,
@@ -366,39 +366,36 @@ async function createTopicsPart({
   if (session.isErr()) {
     return undefined;
   }
-  const tagged = session.value.topics ?? [];
-  if (tagged.length === 0) {
+  const known = await listTopics();
+  const filed = known.find((entry) => entry.id === session.value.topic);
+  if (!filed) {
     const messages = await ChatReads.modelHistory({ chatId, sessionId });
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>
-        message.parts.some((part) => part.type === "data-topics"),
+        message.parts.some((part) => part.type === "data-topic"),
       );
     if (!toldBefore) {
       return undefined;
     }
   }
-  const known = await listTopics();
-  const reach = await folderReach(chatId);
-  const topics = [];
-  for (const id of tagged) {
-    const topic = known.find((entry) => entry.id === id);
-    if (!topic) {
-      continue;
-    }
-    const folders = topicFolderPaths(reach, topic.folders ?? []);
-    topics.push({
-      ...(topic.about ? { about: topic.about } : {}),
-      ...(topic.emoji ? { emoji: topic.emoji } : {}),
-      ...(folders.length > 0 ? { folders } : {}),
-      ...(topic.instructions ? { instructions: topic.instructions } : {}),
-      name: topic.name,
-    });
-  }
+  const folders = filed
+    ? topicFolderPaths(await folderReach(chatId), filed.folders ?? [])
+    : [];
   return {
-    data: { topics },
+    data: {
+      topic: filed
+        ? {
+            ...(filed.about ? { about: filed.about } : {}),
+            ...(filed.emoji ? { emoji: filed.emoji } : {}),
+            ...(folders.length > 0 ? { folders } : {}),
+            ...(filed.instructions ? { instructions: filed.instructions } : {}),
+            name: filed.name,
+          }
+        : null,
+    },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
-    type: "data-topics",
+    type: "data-topic",
   };
 }
 

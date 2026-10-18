@@ -580,10 +580,10 @@ describe("migrateLegacyTasks", () => {
       },
     ]);
     const made = topics.find((topic) => topic.name === "Bug tasks")?.id;
-    expect(sessionOf("2026-06-23-buy-socks").topics).toEqual([
+    expect(sessionOf("2026-06-23-buy-socks").topic).toBe(
       "top_01M2R5DNCH9PJ09F2CV1VEMM77",
-    ]);
-    expect(sessionOf("2026-06-23-a-bug").topics).toEqual([made]);
+    );
+    expect(sessionOf("2026-06-23-a-bug").topic).toBe(made);
     expect(
       readJson(
         ".instrument",

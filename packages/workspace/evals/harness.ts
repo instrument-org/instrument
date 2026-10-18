@@ -469,11 +469,11 @@ export interface EvalCase {
     chatId: ChatId,
   ) => boolean | Promise<boolean>;
   /**
-   * Topics the chat is filed under from its first message, made before the
-   * run with these instructions, the way a chat started from a topic in the
-   * window is. Chat cases only.
+   * The topic the chat is filed under from its first message, made before
+   * the run with these instructions, the way a chat started from a topic in
+   * the window is. Chat cases only.
    */
-  topics?: { instructions: string; name: string }[];
+  topic?: { instructions: string; name: string };
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
@@ -758,8 +758,8 @@ export async function runEvals(
         }
         await evalCase.setup?.();
         const folders = privateFoldersFor(evalCase, index) ?? [];
-        if (evalCase.topics && evalCase.kind === "chat") {
-          return openChatUnderTopics(evalCase, evalCase.topics, {
+        if (evalCase.topic && evalCase.kind === "chat") {
+          return openChatUnderTopic(evalCase, evalCase.topic, {
             context,
             folders,
             uri,
@@ -1556,14 +1556,14 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 }
 
 /**
- * Opens a chat filed under `topics` the way the window's first send from a
- * topic does: the chat's record, then its first message with the topic ids,
- * which tag the chat before that message is written, so its note carries
- * their instructions.
+ * Opens a chat filed under `topic` the way the window's first send from a
+ * topic does: the chat's record, then its first message with the topic id,
+ * which files the chat before that message is written, so its note carries
+ * the topic's instructions.
  */
-async function openChatUnderTopics(
+async function openChatUnderTopic(
   evalCase: EvalCase,
-  topics: NonNullable<EvalCase["topics"]>,
+  { instructions, name }: NonNullable<EvalCase["topic"]>,
   {
     context,
     folders,
@@ -1577,12 +1577,8 @@ async function openChatUnderTopics(
     uri: string;
   },
 ): Promise<{ id: ChatId; sessionId: StoreId.Session }> {
-  const topicIds: string[] = [];
-  for (const { instructions, name } of topics) {
-    const topic = await createTopic({ name });
-    await updateTopic(topic.id, { instructions });
-    topicIds.push(topic.id);
-  }
+  const topic = await createTopic({ name });
+  await updateTopic(topic.id, { instructions });
   const newSessionId = StoreId.newSessionId();
   const id = await ensureChat(newSessionId, evalCase.prompt);
   const { sessionId } = await call(
@@ -1593,7 +1589,7 @@ async function openChatUnderTopics(
       id,
       modelURI: uri,
       prompt: evalCase.prompt,
-      topics: topicIds,
+      topic: topic.id,
       viewing: evalCase.viewing,
     },
     { context },

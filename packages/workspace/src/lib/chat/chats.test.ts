@@ -36,7 +36,7 @@ import {
   startChatUnreadOnSettle,
   renameChat,
   setChatStarred,
-  setChatTopics,
+  setChatTopic,
   unarchiveChat,
 } from "./chats";
 import { liveChatList } from "./live-chat-list";
@@ -704,16 +704,18 @@ describe("listChats", () => {
     },
   );
 
-  it("carries the topics a chat is tagged with, dropping ids that are not topics", async () => {
+  it("carries the topic a chat is filed under, and files it under none for an id that is not one", async () => {
     const chatId = await freshChat();
     const home = await createTopic({ name: "Home" });
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list");
+    const id = await chatFor(sessionId);
 
-    await setChatTopics(await chatFor(sessionId), [home.id, "top_nothing"]);
+    await setChatTopic(id, home.id);
+    expect((await listChats())[0]?.topic).toBe(home.id);
 
-    const [chat] = await listChats();
-    expect(chat?.topics).toEqual([home.id]);
+    await setChatTopic(id, "top_nothing");
+    expect((await listChats())[0]?.topic).toBeUndefined();
   });
 
   it("puts a chat away and brings it back, without moving its stamp", async () => {

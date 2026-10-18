@@ -18,7 +18,7 @@ import {
   markChatUnread,
   renameChat,
   setChatStarred,
-  setChatTopics,
+  setChatTopic,
   settleChatTitle,
 } from "./chat/chats";
 import { addChildTask, touchTask } from "./chat/children";
@@ -412,7 +412,7 @@ describe("a chat written through its records", () => {
     expect(await setChatStarred(chatId, true)).toBe(true);
     expect(await archiveChat(chatId)).toBe(true);
     expect(await markChatUnread(chatId, { byUser: true })).toBe(true);
-    expect(await setChatTopics(chatId, [topic.id])).toBe(true);
+    expect(await setChatTopic(chatId, topic.id)).toBe(true);
     expect(await markChatStopped(chatId, new Date())).toBe(true);
     expect(await settleChatTitle(chatId)).toBe(true);
 
@@ -422,7 +422,7 @@ describe("a chat written through its records", () => {
       stoppedAt: NOW,
       title: "Plans for the trip",
       titleSettledAt: NOW,
-      topics: [topic.id],
+      topic: topic.id,
       unreadAt: NOW,
       unreadByUser: true,
     });

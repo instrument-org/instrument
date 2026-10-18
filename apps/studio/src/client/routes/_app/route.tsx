@@ -303,8 +303,8 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                             show: true,
                           });
                         }}
-                        onSetTopics={(next) => {
-                          shell.setChatTopics(chat, next);
+                        onSetTopic={(next) => {
+                          shell.setChatTopic(chat, next);
                         }}
                         onViewTasks={() => {
                           appWindow.openScreen(tasksHref(chat), {

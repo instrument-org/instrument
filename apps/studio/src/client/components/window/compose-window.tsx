@@ -796,7 +796,6 @@ function TopicSlot({
           onPick(picked);
         }
       }}
-      single
       topics={topics}
     >
       {trigger}

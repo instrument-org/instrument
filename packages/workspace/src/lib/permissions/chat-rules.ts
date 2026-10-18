@@ -18,7 +18,7 @@ import { readPermissionSettings, type Rules, rulesFor } from "./rules";
 
 /**
  * The rules one chat's shell is held to: Settings › Permissions, the chat's
- * grants, and the folders it holds without one (its topics' folders). The
+ * grants, and the folders it holds without one (its topic's folders). The
  * home folder is not one of those: it is reached so the agent can look, and
  * the rules decide what in it may change.
  */

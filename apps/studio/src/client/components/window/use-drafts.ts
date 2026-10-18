@@ -392,7 +392,7 @@ export function useDrafts({
           id: chatId,
           modelURI: send.modelURI,
           prompt: send.prompt,
-          ...(draft.topicId ? { topics: [draft.topicId] } : {}),
+          ...(draft.topicId ? { topic: draft.topicId } : {}),
           // A context that cannot be gathered is a chat told less, not a
           // chat that never starts: the send goes on without it.
           viewing: await viewing,

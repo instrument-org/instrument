@@ -73,7 +73,7 @@ import { TAIL_BYTES, tailHash } from "./record-writer";
  * the index with nothing to put back. So the format carries the version with
  * it, and nobody has to remember that bumping one means bumping the other.
  */
-const INDEX_SHAPE = 1;
+const INDEX_SHAPE = 2;
 const RECORDS_INDEX_VERSION = INDEX_SHAPE * 1000 + RECORD_FORMAT;
 
 const TABLES = ["files", "messages", "sessions", "chats"];
@@ -350,7 +350,7 @@ function prepare(database: DatabaseSync): Statements {
         starred INTEGER NOT NULL,
         archived INTEGER NOT NULL,
         unread TEXT,
-        topics TEXT NOT NULL,
+        topic TEXT,
         tasks INTEGER NOT NULL
       ) STRICT;
     `);
@@ -365,7 +365,7 @@ function prepare(database: DatabaseSync): Statements {
       "DELETE FROM messages WHERE chat = ? AND file = ?",
     ),
     insertChat: database.prepare(
-      "INSERT INTO chats (id, session, title, created_at, updated_at, starred, archived, unread, topics, tasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO chats (id, session, title, created_at, updated_at, starred, archived, unread, topic, tasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ),
     insertSession: database.prepare(
       "INSERT INTO sessions (chat, id, parent, forked_at, handle, title, created_at, updated_at, forked, rollover, stopped, state, marks, retracted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -738,7 +738,7 @@ function summarize(files: ReadonlyMap<string, FileRow>): Summary {
         own.marks.starred?.value ? 1 : 0,
         own.marks.archived?.value ? 1 : 0,
         own.marks.unread?.value ? JSON.stringify(own.marks.unread.value) : null,
-        JSON.stringify(own.marks.topics?.value ?? []),
+        own.marks.topic?.value ?? null,
         summaries.filter(({ header }) => header.parent === own.header.id)
           .length,
       ],
@@ -843,8 +843,8 @@ function marksOf(latest: Map<string, { line: string; place: Place }>): Marks {
       case "title":
         marks.title = record;
         break;
-      case "topics":
-        marks.topics = record;
+      case "topic":
+        marks.topic = record;
         break;
       case "unread":
         marks.unread = record;

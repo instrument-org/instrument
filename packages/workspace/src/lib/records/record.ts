@@ -194,8 +194,8 @@ const MarkRecordSchema = z.discriminatedUnion("field", [
   markSchema("archived", z.boolean()),
   /** Unread, and whether the person marked it so; `null` is read. */
   markSchema("unread", z.object({ byUser: z.boolean() }).nullable()),
-  /** The topic ids the chat is tagged with. */
-  markSchema("topics", z.array(z.string())),
+  /** The topic id the chat is filed under; `null` is none. */
+  markSchema("topic", z.string().nullable()),
   /** When the person stopped the chat's own turn. */
   markSchema("stoppedAt", DateSchema),
 ]);
@@ -217,7 +217,32 @@ export function parseLogLine(text: string): LogRecord | undefined {
 
 /** The mark a marks file's line holds, or nothing for a line that is not one. */
 export function parseMarkLine(text: string): MarkRecord | undefined {
-  return parseLine(text, MarkRecordSchema);
+  return parseLine(text, z.preprocess(fromTopicsMark, MarkRecordSchema));
+}
+
+/**
+ * A `topics` mark, from builds that filed a chat under a list of topics,
+ * read as the `topic` mark it stands for: the first of them, the rest
+ * dropped. The file is left as it is; the chat's next change of topic
+ * writes the singular mark, which is newer and wins.
+ */
+function fromTopicsMark(value: unknown): unknown {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("field" in value) ||
+    value.field !== "topics" ||
+    !("value" in value) ||
+    !Array.isArray(value.value)
+  ) {
+    return value;
+  }
+  const first: unknown = value.value[0];
+  return {
+    ...value,
+    field: "topic",
+    value: typeof first === "string" ? first : null,
+  };
 }
 
 function parseLine<S extends z.ZodType>(

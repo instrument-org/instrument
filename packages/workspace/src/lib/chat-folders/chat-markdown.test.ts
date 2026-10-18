@@ -210,9 +210,9 @@ function wholeChat() {
         seq: 1,
         at: at(300),
         device: DEVICE_A,
-        field: "topics",
+        field: "topic",
         session: chatSession,
-        value: ["top_1", "top_gone"],
+        value: "top_1",
       },
     ]),
   ]);

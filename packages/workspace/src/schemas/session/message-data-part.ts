@@ -32,7 +32,7 @@ export namespace SessionMessageDataPart {
     "reply",
     "taskEvent",
     "chatContext",
-    "topics",
+    "topic",
     "unknown",
     "viewContext",
   ]);
@@ -87,7 +87,7 @@ export namespace SessionMessageDataPart {
     skillChanges: "event",
     skillMentions: "event",
     taskEvent: "event",
-    topics: "state",
+    topic: "state",
     unknown: "unwritten",
     viewContext: "state",
   } satisfies Record<Name, Cadence>;
@@ -934,14 +934,15 @@ export namespace SessionMessageDataPart {
   export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;
 
   /**
-   * The topics the chat carries, on every user message sent in a chat
-   * that has any: each one's name, mark, and the line saying what goes
-   * there. State cadence: rendered only when it differs from the note before
-   * it, so a chat tagged once is told once.
+   * The topic the chat is filed under, on every user message sent in a chat
+   * that has one: its name, mark, and the line saying what goes there.
+   * `null` once the chat has none, after one it was told of. State cadence:
+   * rendered only when it differs from the note before it, so a chat filed
+   * once is told once.
    */
-  const TopicsDataPartSchema = z.object({
-    topics: z.array(
-      z.object({
+  const TopicDataPartSchema = z.object({
+    topic: z
+      .object({
         about: z.string().optional(),
         emoji: z.string().optional(),
         /** The paths of the topic's folders in the chat. */
@@ -949,11 +950,11 @@ export namespace SessionMessageDataPart {
         /** The topic's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),
         name: z.string(),
-      }),
-    ),
+      })
+      .nullable(),
   });
 
-  export type TopicsDataPart = z.output<typeof TopicsDataPartSchema>;
+  export type TopicDataPart = z.output<typeof TopicDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -1029,7 +1030,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
-    [NameSchema.enum.topics]: TopicsDataPartSchema,
+    [NameSchema.enum.topic]: TopicDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,

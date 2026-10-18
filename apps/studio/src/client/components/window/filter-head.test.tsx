@@ -41,15 +41,14 @@ function chat({
     starred: false,
     state: "idle",
     title: "",
-    topics: [],
     unread: false,
     ...overrides,
   };
 }
 
 const CHATS = [
-  chat({ holds: { apps: ["gmail"] }, topics: ["house"], unread: true }),
-  chat({ topics: ["house"] }),
+  chat({ holds: { apps: ["gmail"] }, topic: "house", unread: true }),
+  chat({ topic: "house" }),
 ];
 
 /** The picker is a popover, which Radix opens on click. */
@@ -99,8 +98,8 @@ describe("FilterHead", () => {
   it("lists the views, then the topics, each with how many chats it holds", () => {
     const { head } = renderHead({
       chats: [
-        chat({ starred: true, topics: ["house"], unread: true }),
-        chat({ archived: true, topics: ["house"], unread: true }),
+        chat({ starred: true, topic: "house", unread: true }),
+        chat({ archived: true, topic: "house", unread: true }),
         chat({ state: "waiting" }),
       ],
     });

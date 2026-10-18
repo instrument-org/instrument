@@ -90,7 +90,7 @@ export function TopicContextMenu({
 }
 
 /**
- * Every topic, a check on each that is on, and a new one at the foot: the
+ * Every topic, a check on the one that is on, and a new one at the foot: the
  * list behind the inbox head's topic picker, a row's tag control, a draft's
  * topic and a chat's head alike, so filing and filtering are learned once.
  * Where it files, it opens on a find field whose words the foot offers to

@@ -24,7 +24,7 @@ import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
-import { topicsModelNote } from "../../lib/topics-model-text";
+import { topicModelNote } from "../../lib/topic-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { environmentChangeModelNote } from "../../lib/environment-model-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -359,7 +359,7 @@ export namespace SessionMessage {
   ): UIMessage[] {
     // The last note sent for each part that carries a whole standing picture
     // rather than something that happened: what the user had on screen, the
-    // chat's topics, what the agent remembers, its browser, its processes.
+    // chat's topic, what the agent remembers, its browser, its processes.
     // The same page with the same words in front of it is a note the agent
     // already read and has no reason to doubt, and a page's excerpt is the
     // longest thing a message carries. `noteOnce` below compares against
@@ -705,15 +705,15 @@ export namespace SessionMessage {
           noteOnce("reply", replyModelNote(replyPart.data));
         }
 
-        const topicsPart = message.parts.find(
+        const topicPart = message.parts.find(
           (
             part,
           ): part is SessionMessagePart.DataPart & {
-            type: "data-topics";
-          } => part.type === "data-topics",
+            type: "data-topic";
+          } => part.type === "data-topic",
         );
-        if (topicsPart) {
-          noteOnce("topics", topicsModelNote(topicsPart.data));
+        if (topicPart) {
+          noteOnce("topic", topicModelNote(topicPart.data));
         }
 
         const memoryPart = message.parts.find(

@@ -33,7 +33,6 @@ function chat({
     starred: false,
     state: "idle",
     title: "",
-    topics: [],
     unread: false,
     ...overrides,
   };
@@ -52,7 +51,7 @@ function wordyChat(): Filterable {
       parts: [{ text: "Find the best RTD protein drink", type: "text" }],
     },
     title: "Best priced protein drink",
-    topics: ["shopping"],
+    topic: "shopping",
   });
 }
 
@@ -62,7 +61,7 @@ describe("outsideFilters", () => {
   const chats = [
     wordyChat(),
     chat({ archived: true, title: "Protein powder returns" }),
-    chat({ title: "Protein bars", topics: ["house"] }),
+    chat({ title: "Protein bars", topic: "house" }),
     chat({ title: "Roof repair" }),
   ];
 
@@ -130,8 +129,8 @@ describe("matchesFilters", () => {
     [
       "a topic",
       { topics: ["house"] },
-      chat({ topics: ["house", "money"] }),
-      chat({ topics: ["money"] }),
+      chat({ topic: "house" }),
+      chat({ topic: "money" }),
     ],
     [
       "an app",
@@ -186,10 +185,10 @@ describe("matchesFilters", () => {
   it("keeps a chat put away in a topic it is filed under, as a label does", () => {
     const filters: ChatFilters = { ...NO_FILTERS, topics: ["house"] };
     expect(
-      matchesFilters(chat({ archived: true, topics: ["house"] }), filters),
+      matchesFilters(chat({ archived: true, topic: "house" }), filters),
     ).toBe(true);
     expect(
-      matchesFilters(chat({ archived: true, topics: ["garden"] }), filters),
+      matchesFilters(chat({ archived: true, topic: "garden" }), filters),
     ).toBe(false);
   });
 
@@ -268,18 +267,18 @@ describe("matchesFilters", () => {
     };
     expect(
       matchesFilters(
-        chat({ holds: { apps: ["gmail"] }, topics: ["errands"] }),
+        chat({ holds: { apps: ["gmail"] }, topic: "errands" }),
         filters,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
-        chat({ holds: { apps: ["gmail"] }, topics: ["money"] }),
+        chat({ holds: { apps: ["gmail"] }, topic: "money" }),
         filters,
       ),
     ).toBe(false);
     expect(
-      matchesFilters(chat({ holds: { apps: [] }, topics: ["house"] }), filters),
+      matchesFilters(chat({ holds: { apps: [] }, topic: "house" }), filters),
     ).toBe(false);
   });
 

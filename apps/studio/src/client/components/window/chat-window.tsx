@@ -130,7 +130,7 @@ export function ChatWindow({
   onNewTopic,
   onOpenInChats,
   onPlacementChange,
-  onSetTopics,
+  onSetTopic,
   placement,
   right,
   sendContext,
@@ -151,7 +151,7 @@ export function ChatWindow({
   /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
   onOpenInChats: () => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
-  onSetTopics: (topics: string[]) => void;
+  onSetTopic: (topic: null | string) => void;
   placement: "docked" | "expanded";
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
@@ -396,7 +396,7 @@ export function ChatWindow({
         onOpenTask={(id) => {
           openTasksHere(taskHref(id, chatId));
         }}
-        onSetTopics={onSetTopics}
+        onSetTopic={onSetTopic}
         onViewTasks={() => {
           openTasksHere(tasksHref(chatId));
         }}

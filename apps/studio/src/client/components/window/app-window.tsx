@@ -101,7 +101,7 @@ import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useWindowSteps } from "./use-tab-steps";
-import { useSetChatTopics } from "./use-set-chat-topics";
+import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
@@ -491,7 +491,7 @@ function WindowShell({
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
-  const setChatTopics = useSetChatTopics();
+  const setChatTopic = useSetChatTopic();
   // The new-topic dialog, asked for from a chat's head or a draft's, with
   // what was typed in the picker: the topic it makes files that chat or
   // that draft.
@@ -773,7 +773,7 @@ function WindowShell({
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
     sentWords,
-    setChatTopics,
+    setChatTopic,
     setPaneOpen,
     showDraft,
     topics,
@@ -844,7 +844,7 @@ function WindowShell({
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
                 onOpenChat={landChat}
-                onSetChatTopics={setChatTopics}
+                onSetChatTopic={setChatTopic}
                 onStart={startChat}
                 sendContext={(options) => sendContextRef.current(options)}
                 sentWords={sentWords}
@@ -980,7 +980,7 @@ function WindowShell({
                 createTopic.mutate(topic, {
                   onSuccess: (created) => {
                     for (const id of alsoFile) {
-                      setChatTopics(id, [created.id]);
+                      setChatTopic(id, created.id);
                     }
                     if (forDraft !== undefined) {
                       setDrafts((current) =>
@@ -997,10 +997,7 @@ function WindowShell({
                       );
                     }
                     if (filedOn) {
-                      setChatTopics(filedOn.id, [
-                        ...filedOn.topics,
-                        created.id,
-                      ]);
+                      setChatTopic(filedOn.id, created.id);
                     }
                   },
                 });

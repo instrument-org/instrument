@@ -104,10 +104,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // user typed has a visible cause.
   "data-taskEvent": "always",
   // What the agent is told about the chats around this one: the other
-  // chats at the moment this one opened, and the topics this one is filed
+  // chats at the moment this one opened, and the topic this one is filed
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
-  "data-topics": "dev",
+  "data-topic": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -220,16 +220,16 @@ export function renderDataPart({
         />
       );
     }
-    case "data-topics": {
+    case "data-topic": {
       return (
         <ModelContextDebugCard
           className={noteClassName}
           compact={compact}
           key={part.metadata.id}
           text={
-            part.data.topics.length === 0
-              ? "No topics on this chat"
-              : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
+            part.data.topic
+              ? `Topic: ${part.data.topic.name}`
+              : "No topic on this chat"
           }
         />
       );

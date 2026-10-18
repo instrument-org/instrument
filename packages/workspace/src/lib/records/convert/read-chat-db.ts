@@ -7,7 +7,7 @@ import { alphabetical } from "radashi";
 import superjson from "superjson";
 import { createStorage } from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
-import { type z } from "zod";
+import { z } from "zod";
 
 import { Session } from "../../../schemas/session";
 import { SessionMessage } from "../../../schemas/session/message";
@@ -152,6 +152,19 @@ async function copyStore(file: string, copy: string): Promise<void> {
   }
 }
 
+/**
+ * A session row as the store read it. A row from a build that filed a chat
+ * under a list of topics reads as filed under the first of them.
+ */
+const ChatDbSessionSchema = z.preprocess((row) => {
+  if (typeof row !== "object" || row === null || !("topics" in row)) {
+    return row;
+  }
+  const { topics, ...rest } = row;
+  const first: unknown = Array.isArray(topics) ? topics[0] : undefined;
+  return typeof first === "string" ? { ...rest, topic: first } : rest;
+}, Session.Schema);
+
 async function readStorage(storage: WrappedStorage): Promise<ChatDbRead> {
   const migrated = await runStoreMigrations({ storage });
   if (migrated.isErr()) {
@@ -168,7 +181,7 @@ async function readStorage(storage: WrappedStorage): Promise<ChatDbRead> {
   )) {
     const key = StorageKey.session(id);
     const session = await need(
-      getParsedStorageItem(key, Session.Schema, storage),
+      getParsedStorageItem(key, ChatDbSessionSchema, storage),
       key,
     );
     taken.add(key);

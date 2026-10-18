@@ -11,7 +11,7 @@ import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
-import { setChatTopics } from "../../lib/chat/chats";
+import { setChatTopic } from "../../lib/chat/chats";
 
 import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
@@ -74,8 +74,8 @@ const create = base
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
       sessionId: StoreId.SessionSchema.optional(),
-      /** Topic ids for the chat this message opens, when it opens one. */
-      topics: z.array(z.string()).optional(),
+      /** The topic id for the chat this message opens, when it opens one. */
+      topic: z.string().optional(),
       viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
@@ -94,7 +94,7 @@ const create = base
         prompt,
         replyTo,
         sessionId,
-        topics,
+        topic,
         viewing,
       },
     }) =>
@@ -122,8 +122,8 @@ const create = base
         }
         // Without a session named, the message goes to the chat's own.
         const finalSessionId = sessionId ?? chatSession.value.id;
-        if (!sessionId && topics && topics.length > 0) {
-          await setChatTopics(chatId, topics);
+        if (!sessionId && topic) {
+          await setChatTopic(chatId, topic);
         }
 
         const messageIdsBeforeResult = await ChatReads.messageIds({

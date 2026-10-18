@@ -47,7 +47,8 @@ export interface Filterable {
   starred: boolean;
   state: "failed" | "idle" | "stopped" | "waiting" | "working";
   title: string;
-  topics: string[];
+  /** The id of the topic it is filed under, when it is filed under one. */
+  topic?: string;
   /** Whether it carries the unread mark: something in it not yet looked at. */
   unread: boolean;
 }
@@ -153,7 +154,7 @@ export function matchesFilters(
 ) {
   return (
     matchesPlace(chat, filters) &&
-    anyOf(filters.topics, chat.topics) &&
+    anyOf(filters.topics, chat.topic ? [chat.topic] : []) &&
     anyOf(filters.apps, chat.holds.apps) &&
     matchesSearch(chat, filters.search, topicNames)
   );
@@ -237,7 +238,7 @@ function matchesSearch(
     chat.title,
     askOf(chat),
     chat.latest?.text ?? "",
-    ...chat.topics.map((id) => topicNames.get(id) ?? ""),
+    chat.topic ? (topicNames.get(chat.topic) ?? "") : "",
     ...chat.holds.files.map(nameOf),
     ...chat.holds.sites,
     ...chat.holds.apps,

@@ -397,16 +397,13 @@ describe("convertChat", () => {
                 "text": "Plans for the trip",
               },
             },
-            "topics": {
+            "topic": {
               "at": 2026-10-14T12:01:40.000Z,
               "device": "dev_AAAAAAAA",
-              "field": "topics",
+              "field": "topic",
               "session": "ses_01K7A000000000000000000001",
               "t": "mark",
-              "value": [
-                "travel",
-                "family",
-              ],
+              "value": "travel",
             },
             "unread": {
               "at": 2026-10-14T12:00:40.000Z,
@@ -516,6 +513,29 @@ describe("convertChat", () => {
       expect(await readBack(dir, session)).toEqual(stored.get(session.id));
     }
   });
+
+  it.each([
+    [["travel", "family"], "travel"],
+    [[], undefined],
+  ])(
+    "files a chat whose row kept the topics %j under the first",
+    async (topics, topic) => {
+      const dir = chatPath(`topics-${topics.length}`);
+      await writeChat(dir, async (chat) => {
+        const { topic: _one, ...session } = EVERY_KIND_SESSION;
+        await tell(chat, StorageKey.session(session.id), {
+          ...session,
+          topics,
+        });
+      });
+
+      expect(await convertChat(dir, OPTIONS)).toMatchObject({
+        kind: "converted",
+      });
+      const [chatSession] = (await foldFolder(dir)).sessions;
+      expect(chatSession?.marks.topic?.value).toBe(topic);
+    },
+  );
 
   it("finishes a call a closed chat left waiting in the records, and not in chat.db", async () => {
     const dir = chatPath("waiting-call");

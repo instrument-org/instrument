@@ -191,11 +191,28 @@ describe("parseMarkLine", () => {
     ["an archive", mark(2, { field: "archived", value: false })],
     ["unread", mark(3, { field: "unread", value: { byUser: true } })],
     ["read", mark(4, { field: "unread", value: null })],
-    ["topics", mark(5, { field: "topics", value: ["work"] })],
+    ["a topic", mark(5, { field: "topic", value: "work" })],
+    ["no topic", mark(5, { field: "topic", value: null })],
     ["a stop", mark(6, { field: "stoppedAt", value: at(3) })],
   ])("reads back %s as written", (_name, record) => {
     expect(parseMarkLine(recordLine(record))).toEqual(record);
   });
+
+  it.each([
+    [["work", "home"], "work"],
+    [[], null],
+  ])(
+    "reads a topics mark of %j as the topic mark for its first",
+    (topics, topic) => {
+      const line = recordLine(mark(5, { field: "topic", value: "x" })).replace(
+        '"field":"topic","value":"x"',
+        `"field":"topics","value":${JSON.stringify(topics)}`,
+      );
+      expect(parseMarkLine(line)).toEqual(
+        mark(5, { field: "topic", value: topic }),
+      );
+    },
+  );
 
   it("refuses a value of another field's kind", () => {
     const line = recordLine(mark(1, { field: "starred", value: true }));

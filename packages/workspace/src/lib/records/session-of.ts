@@ -39,7 +39,7 @@ export function sessionOf(session: FoldedSession): Session.Type {
     ...(marks.stoppedAt && { stoppedAt: marks.stoppedAt.value }),
     title: title?.value.text ?? session.title ?? UNTITLED_CHAT_TITLE,
     ...(title?.value.settled && { titleSettledAt: title.at }),
-    ...(marks.topics && { topics: marks.topics.value }),
+    ...(marks.topic?.value && { topic: marks.topic.value }),
     ...(unread?.value && {
       unreadAt: unread.at,
       ...(unread.value.byUser && { unreadByUser: true }),

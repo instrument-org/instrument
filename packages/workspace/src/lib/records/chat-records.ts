@@ -1436,7 +1436,7 @@ type Marked = Pick<
   | "stoppedAt"
   | "title"
   | "titleSettledAt"
-  | "topics"
+  | "topic"
   | "unreadAt"
   | "unreadByUser"
 >;
@@ -1476,8 +1476,8 @@ function marksBetween(was: Marked, now: Session.Type): MarkChange[] {
           : { byUser: now.unreadByUser === true },
     });
   }
-  if (now.topics !== undefined && !isEqual(was.topics ?? [], now.topics)) {
-    changes.push({ field: "topics", value: now.topics });
+  if ((was.topic ?? null) !== (now.topic ?? null)) {
+    changes.push({ field: "topic", value: now.topic ?? null });
   }
   if (
     now.stoppedAt !== undefined &&
@@ -1826,8 +1826,8 @@ function withMark(
       return { ...marks, stoppedAt: mark };
     case "title":
       return { ...marks, title: mark };
-    case "topics":
-      return { ...marks, topics: mark };
+    case "topic":
+      return { ...marks, topic: mark };
     case "unread":
       return { ...marks, unread: mark };
   }

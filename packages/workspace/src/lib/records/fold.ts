@@ -348,8 +348,8 @@ export class ChatFold {
       case "unread":
         marks.unread = newer(marks.unread, record, place);
         break;
-      case "topics":
-        marks.topics = newer(marks.topics, record, place);
+      case "topic":
+        marks.topic = newer(marks.topic, record, place);
         break;
       case "stoppedAt":
         marks.stoppedAt = newer(marks.stoppedAt, record, place);
@@ -530,7 +530,7 @@ function foldedMarks(marks: MarkState): FoldedMarks {
     ...(marks.starred && { starred: made(marks.starred.value) }),
     ...(marks.stoppedAt && { stoppedAt: made(marks.stoppedAt.value) }),
     ...(marks.title && { title: made(marks.title.value) }),
-    ...(marks.topics && { topics: made(marks.topics.value) }),
+    ...(marks.topic && { topic: made(marks.topic.value) }),
     ...(marks.unread && { unread: made(marks.unread.value) }),
   };
 }

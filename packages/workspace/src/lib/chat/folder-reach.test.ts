@@ -14,7 +14,7 @@ import { type Topic } from "./topics";
 const world = vi.hoisted(() => ({
   missing: new Set<string>(),
   places: {} as Record<string, "allow" | "ask" | "never">,
-  tagged: [] as string[],
+  tagged: undefined as string | undefined,
   topics: [] as Topic[],
 }));
 
@@ -24,7 +24,7 @@ vi.mock(import("../record-folders"), async (importOriginal) => ({
 }));
 vi.mock(import("../chat-reads"), () => ({
   ChatReads: {
-    session: () => okAsync({ topics: world.tagged } as never),
+    session: () => okAsync({ topic: world.tagged } as never),
   } as never,
 }));
 vi.mock(import("./topics"), () => ({
@@ -83,12 +83,12 @@ beforeEach(() => {
   world.missing = new Set();
   world.places = {};
   world.topics = [];
-  world.tagged = [];
+  world.tagged = undefined;
 });
 
 describe("folderReach", () => {
   it("gives the window the home and workspace folders alone", async () => {
-    world.tagged = ["top_Trips"];
+    world.tagged = "top_Trips";
     world.topics = [topic("Trips", [elsewhere])];
 
     expect(
@@ -110,11 +110,11 @@ describe("folderReach", () => {
     ]);
   });
 
-  it("adds what the chat was sent, then its topics' folders that are still there", async () => {
+  it("adds what the chat was sent, then its topic's folders that are still there", async () => {
     const recipes = path.resolve(path.sep, "Volumes", "Kitchen", "Recipes");
     const gone = path.resolve(path.sep, "Volumes", "Gone");
     world.topics = [topic("Cooking", [recipes, gone, elsewhere])];
-    world.tagged = ["top_Cooking"];
+    world.tagged = "top_Cooking";
     world.missing = new Set([gone]);
 
     const mounts = await reach(granted({ at: 1, path: elsewhere }));
@@ -127,7 +127,7 @@ describe("folderReach", () => {
   it("puts a topic's folder after the folders sent, namesakes included", async () => {
     const otherArchive = path.resolve(path.sep, "Volumes", "Old", "Archive");
     world.topics = [topic("History", [otherArchive])];
-    world.tagged = ["top_History"];
+    world.tagged = "top_History";
 
     const mounts = await reach(granted({ at: 1, path: elsewhere }));
 
@@ -168,7 +168,7 @@ describe("folderReach", () => {
 
   it("drops a topic's folders once the chat is no longer filed under it", async () => {
     world.topics = [topic("Cooking", [elsewhere])];
-    world.tagged = [];
+    world.tagged = undefined;
 
     expect(await reach([])).toHaveLength(2);
   });

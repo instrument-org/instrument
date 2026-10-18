@@ -179,7 +179,6 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     state: "idle",
     title: TITLE,
     titled: true,
-    topics: [],
     unread: false,
     unreadByUser: false,
     updatedAt: MOVED_AT.getTime(),
@@ -226,7 +225,7 @@ function barOf(row: HTMLElement) {
     // The actions past the control that files the chat, which leads.
     labels: [...bar.querySelectorAll("button")]
       .map((button) => button.getAttribute("aria-label"))
-      .filter((label) => label !== "Topics"),
+      .filter((label) => label !== "Topic"),
   };
 }
 
@@ -282,19 +281,19 @@ async function renderRow(
   row: Chat,
   {
     onOpen = vi.fn(),
-    onSetTopics = vi.fn(),
+    onSetTopic = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
     onOpen?: Mock<() => void>;
-    onSetTopics?: Mock<(topics: string[]) => void>;
+    onSetTopic?: Mock<(topic: null | string) => void>;
     openScreen?: Mock<(href: string) => void>;
     store?: ReturnType<typeof createStore>;
   } = {},
 ) {
   const { rows, ...rest } = await renderRows([row], {
     onOpen,
-    onSetTopics,
+    onSetTopic,
     openScreen,
     store,
   });
@@ -302,7 +301,7 @@ async function renderRow(
   if (!element) {
     throw new Error("no row");
   }
-  return { ...rest, onOpen, onSetTopics, openScreen, row: element };
+  return { ...rest, onOpen, onSetTopic, openScreen, row: element };
 }
 
 /** Several rows at once, each in a box of the list's width, so one test can compare them without a second render. */
@@ -311,14 +310,14 @@ async function renderRows(
   {
     leading = [],
     onOpen = vi.fn(),
-    onSetTopics = vi.fn(),
+    onSetTopic = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
     /** Actions the list puts ahead of the chat's own, as it does Pop out. */
     leading?: RowAction[];
     onOpen?: Mock<() => void>;
-    onSetTopics?: Mock<(topics: string[]) => void>;
+    onSetTopic?: Mock<(topic: null | string) => void>;
     openScreen?: Mock<(href: string) => void>;
     /** A store with atoms already set, for what the row reads beyond its props. */
     store?: ReturnType<typeof createStore>;
@@ -354,7 +353,7 @@ async function renderRows(
           onDelete={vi.fn()}
           onNewTopic={vi.fn()}
           onOpen={onOpen}
-          onSetTopics={onSetTopics}
+          onSetTopic={onSetTopic}
           topics={[HOUSE, MONEY]}
         />
       </div>
@@ -372,7 +371,7 @@ async function renderRows(
   const rows = [
     ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
   ];
-  return { ...rendered, onOpen, onSetTopics, openScreen, rows, window };
+  return { ...rendered, onOpen, onSetTopic, openScreen, rows, window };
 }
 
 /** The title, which is the one line of words every row has. */
@@ -395,7 +394,7 @@ describe("ChatRow", () => {
           files: ["/Users/sam/chat/out/report.md"],
           sites: [],
         },
-        topics: ["house"],
+        topic: "house",
       }),
     );
     expect(row.getBoundingClientRect().height).toBeGreaterThan(40);
@@ -494,7 +493,7 @@ describe("ChatRow", () => {
       promptDraftAtom({ chatId: CHAT_ID, scope: "chat" }),
       "and keep the porch light on",
     );
-    const { row } = await renderRow(chat({ topics: ["house"] }), {
+    const { row } = await renderRow(chat({ topic: "house" }), {
       store,
     });
     const draft = [...row.querySelectorAll("span")].find(
@@ -519,13 +518,10 @@ describe("ChatRow", () => {
     expect(row.textContent).not.toContain("Draft");
   });
 
-  it("wears a pill per topic, each by name, at the title's end", async () => {
-    const { row } = await renderRow(chat({ topics: ["money", "house"] }));
+  it("wears its topic's pill, by name, at the title's end", async () => {
+    const { row } = await renderRow(chat({ topic: "money" }));
     const pills = [...row.querySelectorAll("span.rounded-full")];
-    expect(pills.map((pill) => pill.textContent)).toEqual([
-      "💸Money",
-      "🏠House",
-    ]);
+    expect(pills.map((pill) => pill.textContent)).toEqual(["💸Money"]);
   });
 
   it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
@@ -605,7 +601,7 @@ describe("ChatRow", () => {
 
   it("opens the chat from a click anywhere on it, and from Enter", async () => {
     const { onOpen, openScreen, row } = await renderRow(
-      chat({ topics: ["house"] }),
+      chat({ topic: "house" }),
     );
     row.click();
     firstLineOf(row).click();
@@ -653,10 +649,10 @@ describe("ChatRow", () => {
           files: ["/Users/sam/chat/out/report.md"],
           sites: [],
         },
-        topics: ["house"],
+        topic: "house",
       }),
     );
-    const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
+    const control = row.querySelector<HTMLElement>('[aria-label="Topic"]');
     const pill = pillOf(row);
     if (!control || !pill) {
       throw new Error("no tag control or pill");
@@ -965,10 +961,10 @@ describe("ChatRow", () => {
   });
 
   it("opens the chat's topic list from the corner's tag control, which files the chat rather than opening it, and holds the corner while the list leaves", async () => {
-    const { onOpen, onSetTopics, row } = await renderRow(
-      chat({ topics: ["house"] }),
+    const { onOpen, onSetTopic, row } = await renderRow(
+      chat({ topic: "house" }),
     );
-    const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
+    const control = row.querySelector<HTMLElement>('[aria-label="Topic"]');
     if (!control) {
       throw new Error("no tag control");
     }
@@ -981,7 +977,7 @@ describe("ChatRow", () => {
     const list = page.getByRole("menu");
     await expect.element(list).toBeVisible();
     await userEvent.click(list.getByText("Money"));
-    expect(onSetTopics).toHaveBeenCalledWith(["house", "money"]);
+    expect(onSetTopic).toHaveBeenCalledWith("money");
     expect(onOpen).not.toHaveBeenCalled();
     // The pointer leaves as the list closes; the control stays for the
     // list's way out, so the list is not left without an anchor. The hold is
@@ -1096,9 +1092,7 @@ describe("the row's actions", () => {
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the topics", async () => {
-    const { onOpen, onSetTopics, row } = await renderRow(
-      chat({ unread: true }),
-    );
+    const { onOpen, onSetTopic, row } = await renderRow(chat({ unread: true }));
     await userEvent.click(titleOf(row), { button: "right" });
     const menu = page.getByRole("menu");
     await expect.element(menu).toBeVisible();
@@ -1112,7 +1106,7 @@ describe("the row's actions", () => {
       "Mark as read",
       "Star",
       "Rename",
-      "Topics",
+      "Topic",
       osConventions().showInFileManager,
       "Archive",
       "Delete chat…",
@@ -1129,11 +1123,11 @@ describe("the row's actions", () => {
     expect(calls.archive).toHaveBeenCalledWith(INPUT);
 
     await userEvent.click(titleOf(row), { button: "right" });
-    await userEvent.hover(page.getByRole("menuitem", { name: "Topics" }));
+    await userEvent.hover(page.getByRole("menuitem", { name: "Topic" }));
     const house = page.getByRole("menuitemcheckbox", { name: "House" });
     await expect.element(house).toBeVisible();
     await userEvent.click(house);
-    expect(onSetTopics).toHaveBeenCalledWith(["house"]);
+    expect(onSetTopic).toHaveBeenCalledWith("house");
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
@@ -1173,12 +1167,12 @@ describe("the row's actions", () => {
   // right click is the row's whatever is under the pointer, or the menu is
   // only there on the words.
   it("raises the row's menu on a right click on a pill, the star, and the corner's bar", async () => {
-    const { onOpen, row } = await renderRow(chat({ topics: ["house"] }));
+    const { onOpen, row } = await renderRow(chat({ topic: "house" }));
     const menu = page.getByRole("menu");
     for (const target of [
       pillOf(row),
       row.querySelector<HTMLElement>('[aria-label="Star"]'),
-      row.querySelector<HTMLElement>('[aria-label="Topics"]'),
+      row.querySelector<HTMLElement>('[aria-label="Topic"]'),
       row.querySelector<HTMLElement>('[aria-label="Archive"]'),
     ]) {
       if (!target) {
@@ -1194,7 +1188,7 @@ describe("the row's actions", () => {
 
   it("marks a starred row with a star past its topics, not a control", async () => {
     const { rows } = await renderRows([
-      chat({ starred: true, topics: ["house"] }),
+      chat({ starred: true, topic: "house" }),
       chat(),
     ]);
     const [starred, plain] = rows;

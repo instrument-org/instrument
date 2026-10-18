@@ -20,6 +20,6 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `starred`: whether it is starred
   - `stoppedAt`: when the user stopped its turn
   - `title`: its title, in `value.text`
-  - `topics`: its topic ids, the `id` in each topic's `TOPIC.md`
+  - `topic`: its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none. An older `topics` mark lists ids, and its first is the topic
   - `unread`: whether it is unread
 - `blobs/`: bytes a tool returned, which its part names in a `blob` field (`sha256-<hex>.<ext>`).

@@ -346,7 +346,7 @@ function adoptTask({
       : {}),
     title,
     titleSettledAt: createdAt,
-    ...(topicId ? { topics: [topicId] } : {}),
+    ...(topicId ? { topic: topicId } : {}),
     updatedAt: lastActivityAt,
   };
 

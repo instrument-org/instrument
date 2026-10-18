@@ -193,7 +193,10 @@ export namespace SessionMessagePart {
     };
   }
 
-  function coerceDataPart(part: SessionMessageRelaxedPart.DataPart): DataPart {
+  function coerceDataPart(
+    stored: SessionMessageRelaxedPart.DataPart,
+  ): DataPart {
+    const part = fromTopicsPart(stored);
     const name = part.type.slice("data-".length);
     const parsed = SessionMessageDataPart.parseDataPayload(name, part.data);
 
@@ -206,6 +209,28 @@ export namespace SessionMessagePart {
       data: { originalType: part.type, reason: parsed.reason },
       type: "data-unknown",
     } as DataPart;
+  }
+
+  /**
+   * A `data-topics` part, from builds that filed a chat under a list of
+   * topics, read as the `data-topic` part it stands for: the first of them,
+   * or none.
+   */
+  function fromTopicsPart(
+    part: SessionMessageRelaxedPart.DataPart,
+  ): SessionMessageRelaxedPart.DataPart {
+    if (part.type !== "data-topics") {
+      return part;
+    }
+    const topics =
+      typeof part.data === "object" &&
+      part.data !== null &&
+      "topics" in part.data &&
+      Array.isArray(part.data.topics)
+        ? part.data.topics
+        : [];
+    const first: unknown = topics[0];
+    return { ...part, data: { topic: first ?? null }, type: "data-topic" };
   }
 
   /**

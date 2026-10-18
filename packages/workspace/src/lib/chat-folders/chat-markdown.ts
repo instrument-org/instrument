@@ -217,10 +217,8 @@ function frontMatter(
   timeZone: string,
   topicNames: ReadonlyMap<string, string> | undefined,
 ): string {
-  const [topic] = (own.marks.topics?.value ?? []).flatMap((topicId) => {
-    const name = topicNames?.get(topicId);
-    return name === undefined ? [] : [name];
-  });
+  const topicId = own.marks.topic?.value;
+  const topic = topicId ? topicNames?.get(topicId) : undefined;
   const title = sessionOf(own).title;
   return [
     "---",

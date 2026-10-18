@@ -46,7 +46,7 @@ export function ComposeLayer({
   onNewChatTopic,
   onNewTopic,
   onOpenChat,
-  onSetChatTopics,
+  onSetChatTopic,
   onStart,
   sendContext,
   sentWords,
@@ -73,7 +73,7 @@ export function ComposeLayer({
   onNewTopic: (draftId: string, name: string) => void;
   /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
   onOpenChat: (chatId: ChatId) => void;
-  onSetChatTopics: (chatId: ChatId, topics: string[]) => void;
+  onSetChatTopic: (chatId: ChatId, topic: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
   sendContext: (options: {
@@ -214,8 +214,8 @@ export function ComposeLayer({
                 onPlacementChange={(placement) => {
                   compose.setPlacement(chatId, placement);
                 }}
-                onSetTopics={(next) => {
-                  onSetChatTopics(chatId, next);
+                onSetTopic={(next) => {
+                  onSetChatTopic(chatId, next);
                 }}
                 placement={entry.placement}
                 right={entry.right}

@@ -75,7 +75,7 @@ Settled 2026-10-16: a chat is filed under one topic, not several. The plural was
 
 Singular removes all of that rather than renaming it. The migration is one step, since a chat with several topics keeps the first and the rest are dropped; nothing on disk needs rewriting until the chat's next change, because the mark is newest-wins per field.
 
-Not started, and not a blocker for anything below it.
+Built. A `topics` mark, a `chat.db` row's `topics` and a stored `data-topics` part each read as the singular one for their first topic. The column's filter still reads a list, as the app filter beside it does, since it only ever holds one.
 
 ## Naming a chat well enough to find it
 

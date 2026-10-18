@@ -2468,7 +2468,7 @@ export interface Scenario {
   sentCopied?: string[];
   setup?: EvalCase["setup"];
   slug: string;
-  topics?: EvalCase["topics"];
+  topic?: EvalCase["topic"];
 }
 
 export function toEval(scenario: Scenario): EvalCase {
@@ -2493,7 +2493,7 @@ export function toEval(scenario: Scenario): EvalCase {
         name: `handoff-${scenario.slug}`,
         prompt: "",
         setup: scenario.setup,
-        topics: scenario.topics,
+        topic: scenario.topic,
       },
       "prompt",
       { enumerable: true, get: () => scenario.prompt },
@@ -2657,13 +2657,11 @@ const SCENARIOS: Scenario[] = [
     ],
     prompt: "Can you write up a short report on these Q3 expenses?",
     slug: "topic-instruction",
-    topics: [
-      {
-        instructions:
-          "Reports for this topic go in a folder called Quarterly in the workspace folder.",
-        name: "Finance",
-      },
-    ],
+    topic: {
+      instructions:
+        "Reports for this topic go in a folder called Quarterly in the workspace folder.",
+      name: "Finance",
+    },
   },
   {
     // Dictated: "it" points back at the kitchen folder, "to do dot md" is

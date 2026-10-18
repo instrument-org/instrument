@@ -259,7 +259,7 @@ export interface Rules {
 /**
  * The rules for a chat: the places with the person's changes, their folder
  * rules, and the chat's grants, which are allows. `extraAllows` are folders
- * the chat holds without a grant (its own folder, its topics' folders).
+ * the chat holds without a grant (its own folder, its topic's folders).
  */
 export function rulesFor({
   denials = [],

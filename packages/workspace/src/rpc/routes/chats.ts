@@ -13,7 +13,7 @@ import {
   markChatUnread,
   renameChat,
   setChatStarred,
-  setChatTopics,
+  setChatTopic,
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
@@ -221,11 +221,11 @@ const renameChatRoute = base
     });
   });
 
-/** The topics a chat carries, replaced whole. */
-const setChatTopicsRoute = base
-  .input(z.object({ id: ChatIdSchema, topics: z.array(z.string()) }))
+/** Files a chat under a topic, or under none with `null`. */
+const setChatTopicRoute = base
+  .input(z.object({ id: ChatIdSchema, topic: z.string().nullable() }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => setChatTopics(chatId, input.topics));
+    await whenChat(input.id, (chatId) => setChatTopic(chatId, input.topic));
   });
 
 /**
@@ -396,7 +396,7 @@ export const chats = {
   rename: renameChatRoute,
   retitle: retitleChatRoute,
   session: chatSessionRoute,
-  setTopics: setChatTopicsRoute,
+  setTopic: setChatTopicRoute,
   star: starChatRoute,
   tasks: childTasksRoute,
   trash: trashChatRoute,

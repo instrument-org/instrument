@@ -27,7 +27,7 @@ import { DeleteChatDialog } from "./delete-chat-dialog";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { TopicBanner } from "./topic-banner";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
-import { useSetChatTopics } from "./use-set-chat-topics";
+import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
 
 /**
@@ -102,7 +102,7 @@ export function ChatPane({
   const retireTopic = useMutation(
     rpcClient.workspace.topics.retire.mutationOptions(afterTopicChange),
   );
-  const setChatTopics = useSetChatTopics();
+  const setChatTopic = useSetChatTopic();
 
   const [filters, setFilters] = useAtom(chatFiltersAtom);
   // A change of filter is a change of subject, and the newest of the new
@@ -234,8 +234,8 @@ export function ChatPane({
         onOpen={onOpenChat}
         onOpenDraft={onOpenDraft}
         onPopOut={onPopOut}
-        onSetTopics={(chat, next) => {
-          setChatTopics(chat.id, next);
+        onSetTopic={(chat, next) => {
+          setChatTopic(chat.id, next);
         }}
         onWiden={() => {
           setFilters(widenToSearch(filters));
@@ -275,10 +275,10 @@ export function ChatPane({
               // Chats offered were filed under nothing, so the new topic
               // is all they carry.
               for (const id of alsoFile) {
-                setChatTopics(id, [created.id]);
+                setChatTopic(id, created.id);
               }
               if (forChat) {
-                setChatTopics(forChat.id, [...forChat.topics, created.id]);
+                setChatTopic(forChat.id, created.id);
                 return;
               }
               // Read at the moment it lands rather than from the render

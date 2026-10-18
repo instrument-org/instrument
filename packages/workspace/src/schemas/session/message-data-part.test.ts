@@ -19,7 +19,7 @@ describe("CADENCE", () => {
         "backgroundProcesses",
         "browserStatus",
         "memory",
-        "topics",
+        "topic",
         "viewContext",
       ]
     `);

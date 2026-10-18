@@ -90,11 +90,11 @@ export namespace Session {
      */
     titleSettledAt: z.date().optional(),
     /**
-     * The topics this chat is tagged with, by topic id. On the chat's own
+     * The topic this chat is filed under, by topic id. On the chat's own
      * record so the chat list is one read and a filter is a predicate over
-     * it; a task's ordinary sessions never carry any.
+     * it; a task's session never carries one.
      */
-    topics: z.array(z.string()).optional(),
+    topic: z.string().optional(),
     updatedAt: z.date().optional(),
   });
 

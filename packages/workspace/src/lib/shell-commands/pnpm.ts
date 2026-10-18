@@ -49,10 +49,14 @@ function blockedSubcommand(
   };
 }
 
-// Skip auto-install when the subcommand is itself a package management operation
+// Skip auto-install when the subcommand is itself a package management
+// operation, or makes a project rather than running one
 const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "add",
   "approve-builds",
+  "create",
+  "dlx",
+  "init",
   "dedupe",
   "fetch",
   "i", // short for install
@@ -178,7 +182,13 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     const isInformational =
       !subcommand || subcommand.startsWith("-") || subcommand === "help";
     let installOutput = "";
-    if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
+    // A folder with no package.json has nothing to install, and pnpm says
+    // so for the command itself.
+    if (
+      !isInformational &&
+      !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand) &&
+      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "package.json")))
+    ) {
       const installResult = await runPnpmCommand({
         args: ["install"],
         cwd,

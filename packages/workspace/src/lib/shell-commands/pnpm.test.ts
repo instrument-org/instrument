@@ -149,7 +149,10 @@ describe("createPnpmCommand", () => {
       })
       .mockResolvedValueOnce({ exitCode: 0, stdout: "script output" });
 
-    const result = await command.execute(["run", "build"], mockCtx);
+    const result = await command.execute(["run", "build"], {
+      ...mockCtx,
+      fs: new InMemoryFs({ "/package.json": "{}" }),
+    });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("script output");
@@ -160,6 +163,29 @@ describe("createPnpmCommand", () => {
       "
     `);
   });
+
+  it.each([
+    { args: ["init"], manifest: false },
+    { args: ["create", "vite", "app"], manifest: true },
+    { args: ["run", "build"], manifest: false },
+  ])(
+    "runs pnpm $args with no auto-install first",
+    async ({ args, manifest }) => {
+      const { execaNodeForChat } = await import("../execa-node-for-chat");
+      const execaNodeForChatMock = vi.mocked(execaNodeForChat);
+      execaNodeForChatMock.mockClear();
+      execaNodeForChatMock.mockResolvedValueOnce({ exitCode: 0, stdout: "" });
+
+      const result = await command.execute(args, {
+        ...mockCtx,
+        fs: new InMemoryFs(manifest ? { "/package.json": "{}" } : {}),
+      });
+
+      expect(result.stderr).toBe("");
+      expect(execaNodeForChatMock).toHaveBeenCalledOnce();
+      expect(execaNodeForChatMock.mock.calls[0]?.[2]).toEqual(args);
+    },
+  );
 
   it("does not auto-install for informational commands", async () => {
     const { execaNodeForChat } = await import("../execa-node-for-chat");

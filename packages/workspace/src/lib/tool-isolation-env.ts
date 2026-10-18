@@ -67,6 +67,11 @@ function nodeToolsEnvIn(
     pnpm_config_global_bin_dir: path.join(caches, "pnpm-global-bin"),
     pnpm_config_global_dir: path.join(caches, "pnpm-global"),
     pnpm_config_globalconfig: globalConfig,
+    // `pnpm init` otherwise pins the project to the newest pnpm on the
+    // registry (`devEngines.packageManager` with `onFail: download`), and
+    // every later pnpm there downloads and runs that one instead of the
+    // app's.
+    pnpm_config_init_package_manager: "false",
     // A release younger than a week is not installed, in minutes.
     pnpm_config_minimum_release_age: String(RELEASE_AGE_DAYS * 24 * 60),
     pnpm_config_npmrc_auth_file: userConfig,

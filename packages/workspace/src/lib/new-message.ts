@@ -14,6 +14,7 @@ import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
+import { readWorkspaceInstructions } from "./workspace-instructions";
 import { detectDateChange } from "./date-change";
 import { detectEnvironmentChange } from "./environment";
 import { ChatReads } from "./chat-reads";
@@ -69,6 +70,19 @@ export async function newMessage({
   const messageId = StoreId.newMessageId();
   const createdAt = new Date();
   const parts: SessionMessagePart.Type[] = [];
+  const workspaceInstructions = await readWorkspaceInstructions();
+  if (workspaceInstructions) {
+    parts.push({
+      data: workspaceInstructions,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-workspaceInstructions",
+    });
+  }
   if (prompt.trim()) {
     parts.push({
       metadata: {

@@ -35,6 +35,7 @@ export namespace SessionMessageDataPart {
     "topic",
     "unknown",
     "viewContext",
+    "workspaceInstructions",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
@@ -90,6 +91,7 @@ export namespace SessionMessageDataPart {
     topic: "state",
     unknown: "unwritten",
     viewContext: "state",
+    workspaceInstructions: "state",
   } satisfies Record<Name, Cadence>;
 
   // Folders granted in the chat or taken back since the session last heard --
@@ -1020,6 +1022,17 @@ export namespace SessionMessageDataPart {
 
   export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
 
+  /** The root AGENTS.md snapshot for this turn, bounded before it is stored. */
+  const WorkspaceInstructionsDataPartSchema = z.object({
+    file: z.string(),
+    /** Absent when the file is missing or empty, including after removal. */
+    instructions: z.string().optional(),
+  });
+
+  export type WorkspaceInstructionsDataPart = z.output<
+    typeof WorkspaceInstructionsDataPartSchema
+  >;
+
   const DataPartsSchema = z.object({
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
@@ -1049,6 +1062,8 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
+    [NameSchema.enum.workspaceInstructions]:
+      WorkspaceInstructionsDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
 

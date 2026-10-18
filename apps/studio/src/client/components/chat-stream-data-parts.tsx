@@ -108,6 +108,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
   "data-topic": "dev",
+  "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -217,6 +218,16 @@ export function renderDataPart({
               ? "The first chat"
               : `Other chats: ${part.data.chats.map((chat) => chat.title).join(" · ")}`
           }
+        />
+      );
+    }
+    case "data-workspaceInstructions": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={part.data.instructions ?? "No workspace instructions"}
         />
       );
     }

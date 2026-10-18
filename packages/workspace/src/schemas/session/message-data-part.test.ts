@@ -21,6 +21,7 @@ describe("CADENCE", () => {
         "memory",
         "topic",
         "viewContext",
+        "workspaceInstructions",
       ]
     `);
   });

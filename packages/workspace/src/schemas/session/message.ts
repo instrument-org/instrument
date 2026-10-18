@@ -25,6 +25,7 @@ import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { topicModelNote } from "../../lib/topic-model-text";
+import { workspaceInstructionsModelNote } from "../../lib/workspace-instructions-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { environmentChangeModelNote } from "../../lib/environment-model-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -703,6 +704,20 @@ export namespace SessionMessage {
         );
         if (replyPart) {
           noteOnce("reply", replyModelNote(replyPart.data));
+        }
+
+        const workspaceInstructionsPart = message.parts.find(
+          (part) => part.type === "data-workspaceInstructions",
+        );
+        if (
+          workspaceInstructionsPart &&
+          (workspaceInstructionsPart.data.instructions ||
+            lastStateNote.has("workspaceInstructions"))
+        ) {
+          noteOnce(
+            "workspaceInstructions",
+            workspaceInstructionsModelNote(workspaceInstructionsPart.data),
+          );
         }
 
         const topicPart = message.parts.find(

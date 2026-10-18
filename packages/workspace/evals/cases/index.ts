@@ -1,3 +1,4 @@
+import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
@@ -39,6 +40,7 @@ import { WORKER_EVALS } from "./worker";
 import { WORK_FOLDER_EVALS } from "./work-folder";
 
 export const EVALS = [
+  ...WORKSPACE_INSTRUCTIONS_EVALS,
   ...APP_ACCOUNTS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
   ...APP_SCRIPTING_EVALS,

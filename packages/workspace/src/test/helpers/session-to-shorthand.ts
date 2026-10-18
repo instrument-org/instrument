@@ -148,6 +148,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-chatContext": {
       return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
     }
+    case "data-workspaceInstructions": {
+      return `<data-workspaceInstructions>${part.data.instructions ?? ""}</data-workspaceInstructions>`;
+    }
     case "data-topic": {
       return `<data-topic>${part.data.topic?.name ?? ""}</data-topic>`;
     }

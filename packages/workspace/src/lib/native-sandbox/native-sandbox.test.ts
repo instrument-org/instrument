@@ -291,6 +291,11 @@ describe.skipIf(onWindows)("refusedPathIn", () => {
       "PermissionError: [Errno 1] Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       "ask",
     ],
+    // .NET's wording, which PowerShell prints.
+    [
+      "Out-File : Access to the path '/Users/someone/Documents/a.txt' is denied.",
+      "ask",
+    ],
     ["cat: /Users/someone/notes.md: No such file or directory", undefined],
   ])("%s", (output, level) => {
     expect(refusedPathIn(output, reach)?.reach.level).toBe(level);

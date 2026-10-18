@@ -19,6 +19,8 @@ const REFUSALS = [
   /permission denied/i,
   // Windows' own wording, as a Rust or C program prints it.
   /access is denied/i,
+  // .NET's, as PowerShell prints it: `Access to the path 'C:\...' is denied.`
+  /access to the path .+ is denied/i,
   MISSING,
   /read-only file system/i,
 ];

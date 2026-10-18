@@ -52,6 +52,8 @@ import {
   renameChatDatabases,
   setBashWorkerFactory,
   settleWorkspaceDb,
+  startRecordArrivals,
+  stopRecordArrivals,
   stopWorkspaceSkillWatcher,
   chatRecords,
   warmBashWorker,
@@ -59,7 +61,7 @@ import {
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
-import { app, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, shell } from "electron";
 import ms from "ms";
 import path from "node:path";
 import { noop } from "radashi";
@@ -270,6 +272,29 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // and a chat left on its database is one the person is likely to open next.
   // Nothing has opened a chat yet, so nothing reads a grant before this.
   await carryChatPermissions();
+  // What another device writes into the chats folder reaches the app while
+  // it runs: the folder is watched, and looked at whenever the window comes
+  // forward and every minute while it is in front.
+  void startRecordArrivals({
+    chatsDir: workspaceConfig.chatsDir,
+    device: deviceId,
+    onError: (error: unknown) => {
+      logger.warn("Could not look at another device's chat records", error);
+    },
+  }).then((arrivals) => {
+    arrivals.setForeground(BrowserWindow.getFocusedWindow() !== null);
+    app.on("browser-window-focus", () => {
+      arrivals.setForeground(true);
+    });
+    app.on("browser-window-blur", () => {
+      // After the focus moving to another of the app's windows lands.
+      setTimeout(() => {
+        if (BrowserWindow.getFocusedWindow() === null) {
+          arrivals.setForeground(false);
+        }
+      });
+    });
+  });
   // In the background: a shell builds its mounts per command, so the bundled
   // skills appear in the shell for the first command after this lands. What
   // the runtime folder replaced goes once its skills are in place, the `bin`
@@ -395,6 +420,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
               .then(() => killAllBackgroundProcesses())
               .catch(noop),
           ]);
+          stopRecordArrivals();
           // Last, so the stops the tasks just wrote are on disk: every chat's
           // records are landed and synced before the process goes.
           await chatRecords()

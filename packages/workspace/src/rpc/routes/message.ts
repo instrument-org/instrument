@@ -10,6 +10,7 @@ import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
+import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatTopics } from "../../lib/chat/chats";
 
 import { recordChatActivity } from "../../lib/chat-settings";
@@ -223,6 +224,8 @@ const live = {
       // unobserved between the two; an event for a message the read already
       // covered only costs a redundant re-read of that message.
       const batches = changedMessageBatches(input, signal);
+      // Another device's records of the chat are noticed while it is shown.
+      const unattend = attendChatArrivals(input.id);
 
       try {
         const initial = await ChatReads.transcript({
@@ -290,6 +293,7 @@ const live = {
       } finally {
         // for await only closes the iterator once the loop has been entered;
         // this also unsubscribes when the initial read throws.
+        unattend();
         await batches.return();
       }
     }),

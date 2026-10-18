@@ -176,7 +176,7 @@ interface FileState<W> {
 }
 
 interface OpenChat {
-  catchingUp: Map<string, Promise<void>>;
+  catchingUp: Map<string, Promise<unknown>>;
   /** Each file's queue of records still being made ready, so lines go in in call order. */
   chains: Map<string, Promise<unknown>>;
   dir: string;
@@ -185,6 +185,11 @@ interface OpenChat {
   logs: Map<StoreId.Session, FileState<LogWriter>>;
   marks?: FileState<MarksWriter>;
   pending: Map<StoreId.Session, PendingSession>;
+  /**
+   * Sessions whose log this device opens again before its next write to it,
+   * since another device's records of them were folded in after it opened.
+   */
+  reopen: Set<StoreId.Session>;
   writes: Set<Promise<unknown>>;
 }
 
@@ -304,6 +309,56 @@ export class ChatRecords {
       live: this.#liveOf(chatId),
       load: (name) => fs.readFile(blobPath(chat.dir, name)),
     }));
+  }
+
+  /**
+   * Folds in what other devices' files of the chat have gained since this
+   * process folded it, for a chat held in memory: one that is not is folded
+   * from its folder the next time it is read, so there is nothing to catch
+   * up. A file of another device's that grew has only its new bytes folded.
+   * One that shrank, which a file its device only appends to does only when
+   * a sync engine replaces it, has the chat folded again from its folder.
+   * One that went keeps what was folded of it: a sync engine evicting a file
+   * to a placeholder takes it away until it is read again, and what it held
+   * is still the chat's. This device's own files are its writes' to keep
+   * current. Answers whether the chat was held.
+   *
+   * A session that changed has this device's log of it opened again before
+   * the next write to it, behind the writes already queued, so a log that
+   * carries on after another device's records starts anew saying so
+   * (`openLog`).
+   */
+  async catchUp(chatId: ChatId): Promise<boolean> {
+    const chat = this.#chats.get(chatId)?.open;
+    if (!chat || this.#disposed) {
+      return false;
+    }
+    const before = new Map(
+      chat.fold.chat().sessions.map((session) => [session.id, session]),
+    );
+    const others = (await recordFiles(chat.dir)).filter(
+      (name) => parseRecordFileName(name)?.device !== this.device,
+    );
+    let refold = false;
+    for (const name of others) {
+      if (refold) {
+        break;
+      }
+      refold = (await grownInto(chat, name)) === "shrank";
+    }
+    if (refold) {
+      const fold = new ChatFold();
+      for (const name of await recordFiles(chat.dir)) {
+        fold.add(name, await fs.readFile(path.join(chat.dir, name)));
+      }
+      chat.fold = fold;
+    }
+    for (const session of chat.fold.chat().sessions) {
+      if (before.get(session.id) !== session && chat.logs.has(session.id)) {
+        chat.reopen.add(session.id);
+      }
+    }
+    return true;
   }
 
   /**
@@ -865,24 +920,40 @@ export class ChatRecords {
 
   #logFile(chat: OpenChat, sessionId: StoreId.Session): FileState<LogWriter> {
     const existing = chat.logs.get(sessionId);
-    if (existing) {
+    if (existing && !chat.reopen.has(sessionId)) {
       return existing;
     }
-    const header = this.#header(chat, sessionId);
+    chat.reopen.delete(sessionId);
+    // Opened again once what was queued for the log it had has landed, so
+    // its header says this device's newest records of the session were read.
+    // Taken now: the write about to be queued waits on this, so it must not
+    // be among what this waits on.
+    const queued = new Set(chat.writes);
+    const behind =
+      existing &&
+      (chat.chains.get(`log ${sessionId}`) ?? Promise.resolve())
+        .then(() => Promise.allSettled(queued))
+        .then(() => caughtUp(chat, existing))
+        .catch(noop);
+    const header = behind ? undefined : this.#header(chat, sessionId);
     const file: FileState<LogWriter> = {
       end: 0,
-      writer: openLog({
-        dir: chat.dir,
-        header,
-        onWrite: (bytes, offset) => {
-          wrote(chat, file, bytes, offset);
-        },
-      }).then(async (writer) => {
-        file.name = path.basename(writer.path);
-        // A log this opened was started with its header before its name was known.
-        await caughtUp(chat, file);
-        return writer;
-      }),
+      writer: Promise.resolve(behind)
+        .then(() =>
+          openLog({
+            dir: chat.dir,
+            header: header ?? this.#header(chat, sessionId),
+            onWrite: (bytes, offset) => {
+              wrote(chat, file, bytes, offset);
+            },
+          }),
+        )
+        .then(async (writer) => {
+          file.name = path.basename(writer.path);
+          // A log this opened was started with its header before its name was known.
+          await caughtUp(chat, file);
+          return writer;
+        }),
     };
     file.writer.catch(() => {
       // Opened again by the next write, rather than failing every one after.
@@ -1024,6 +1095,7 @@ export class ChatRecords {
       id: chatId,
       logs: new Map(),
       pending: new Map(),
+      reopen: new Set(),
       writes: new Set(),
     };
     entry.open = chat;
@@ -1506,6 +1578,51 @@ function wrote(
   ) {
     chat.fold.add(file.name, bytes);
   }
+}
+
+/**
+ * Reads another device's file into the fold from where the fold stopped:
+ * `grew` when it had bytes past that, `kept` when it had none or is gone,
+ * and `shrank` when it is shorter than what was folded.
+ */
+function grownInto(
+  chat: OpenChat,
+  name: string,
+): Promise<"grew" | "kept" | "shrank"> {
+  const previous = chat.catchingUp.get(name) ?? Promise.resolve();
+  const next = previous.then(async () => {
+    const start = chat.fold.cursor(name).offset;
+    let handle: fs.FileHandle;
+    try {
+      handle = await fs.open(path.join(chat.dir, name), "r");
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return "kept";
+      }
+      throw error;
+    }
+    try {
+      const { size } = await handle.stat();
+      if (size < start) {
+        return "shrank";
+      }
+      if (size === start) {
+        return "kept";
+      }
+      const bytes = Buffer.alloc(size - start);
+      await handle.read(bytes, 0, bytes.length, start);
+      chat.fold.add(name, bytes);
+      return "grew";
+    } finally {
+      await handle.close();
+    }
+  });
+  chat.catchingUp.set(name, next.catch(noop));
+  return next;
 }
 
 /** Reads the file into the fold from where the fold stopped, when its writes reach past that. */

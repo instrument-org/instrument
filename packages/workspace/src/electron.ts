@@ -135,6 +135,10 @@ export {
   newDeviceId,
 } from "./lib/records/device-id";
 export { readMachineId } from "./lib/records/machine-id";
+export {
+  startRecordArrivals,
+  stopRecordArrivals,
+} from "./lib/records/take-arrivals";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";

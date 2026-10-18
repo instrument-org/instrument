@@ -23,6 +23,19 @@ Two things can ship before it, and are worth shipping before it, since they are 
 - **The unchosen location moves to `~/Instrument`.** Done. Nothing macOS guards is touched, so a first launch raises no prompt at all, and the folder a person is told about is the one they can see in their home folder. An install that already made `~/Documents/Instrument` keeps it (`unchosenOutputFolder`), which is decided from the app's own data rather than by looking inside Documents, since looking is the thing a first launch must not do.
 - **Settings shows the location**, read-only, so a tester can see which folder an install settled on without reading the registry.
 
+## Taking the pick while an upgrade is still running
+
+A first install has nothing to bring over: the settings migration, the machine-data move and the layout sweeps all run at the first launch and find nothing, so the step can take a folder as soon as it is picked. An install that upgraded is the case to design for, and only an install with chats from 1.x or an early beta is one.
+
+The order the app already keeps: everything starts in the app's own data (`<userData>/workspace`), the sweeps run there, and a pick is recorded in the registry entry and made by the next launch before any store opens. The step needs nothing of its own for that; `workspaces.current`, `workspaces.checkFolder` and `workspaces.move` are what it calls.
+
+Two things to build the step against:
+
+- **The sweeps run only while the workspace is in the app's own data**, since a folder the person picked was never one of those (`create-workspace-actor.ts`). A move that happened before they ran would leave them skipped for good, so a recorded move waits for the launch that finishes them and is made by the one after (`finishPendingMove`). The step may therefore take a pick at any point; what it must not do is wait for the move itself before letting the person on.
+- **Settings' refusal is not the step's refusal.** Settings › Storage refuses a pick while the workspace is unsettled and says to quit and reopen, which inside onboarding is a dead end. The step either waits for the sweeps with a line about what is happening, or takes the pick and leaves the move to the restart that ends onboarding.
+
+What is unmeasured: how long the conversion takes for a workspace with a few hundred chats. It runs before the pick either way, and only an install that upgraded pays it.
+
 ## When the folder is not there, or cannot be read
 
 The location is a folder on someone's disk, so every way a folder goes wrong is a state the app has to have an answer for. What each one does today:

@@ -258,9 +258,9 @@ export function PermissionsSection() {
                     }
                     mark={
                       isHome ? (
-                        <HouseIcon className="size-4 text-muted-foreground" />
+                        <HouseIcon className="size-6 text-muted-foreground" />
                       ) : (
-                        <FolderMark large path={folder.path} />
+                        <FolderMark size="row" path={folder.path} />
                       )
                     }
                     name={nameOf(folder.path)}
@@ -307,7 +307,7 @@ export function PermissionsSection() {
                   key={app.name}
                   line={undefined}
                   mark={
-                    <AppWindowIcon className="size-4 text-muted-foreground" />
+                    <AppWindowIcon className="size-6 text-muted-foreground" />
                   }
                   name={app.name}
                 />
@@ -355,7 +355,7 @@ function PermissionRow({
 }) {
   return (
     <div className="flex items-center gap-3 p-3">
-      <span className="flex w-5 shrink-0 justify-center">{mark}</span>
+      <span className="flex w-7 shrink-0 justify-center">{mark}</span>
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="truncate text-sm">{name}</div>
         {line ? (
@@ -376,15 +376,15 @@ function PlaceRow({
   onSelect: (level: Level) => void;
   place: Place;
 }) {
-  const className = "size-4 text-muted-foreground";
+  const className = "size-6 text-muted-foreground";
   const volumes = useComputerVolumes();
   const details = (() => {
     switch (place.id) {
       case "output": {
         return {
           line: fromHome(place.paths[0] ?? "", home),
-          mark: <FolderMark large path={place.paths[0] ?? ""} />,
-          name: "Output folder",
+          mark: <FolderMark size="row" path={place.paths[0] ?? ""} />,
+          name: "Instrument folder",
         };
       }
       case "desktop":
@@ -392,7 +392,7 @@ function PlaceRow({
       case "downloads": {
         return {
           line: undefined,
-          mark: <FolderMark large path={place.paths[0] ?? ""} />,
+          mark: <FolderMark size="row" path={place.paths[0] ?? ""} />,
           name: {
             desktop: "Desktop",
             documents: "Documents",

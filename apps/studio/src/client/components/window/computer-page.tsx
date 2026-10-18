@@ -1626,7 +1626,7 @@ export function ComputerPage({
           ...(instrumentPlace
             ? [
                 {
-                  icon: <FolderMark large path={instrumentPlace.path} />,
+                  icon: <FolderMark size="large" path={instrumentPlace.path} />,
                   isActive: folderHostPath === instrumentPlace.path,
                   name: instrumentPlace.name,
                   path: instrumentPlace.path,
@@ -1660,7 +1660,7 @@ export function ComputerPage({
         places={pinned.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
-          icon: <FolderMark large path={place.path} />,
+          icon: <FolderMark size="large" path={place.path} />,
           isActive: folderHostPath === place.path,
           name: place.name,
           path: place.path,
@@ -1674,7 +1674,7 @@ export function ComputerPage({
           rootTo(folder);
         }}
         places={places.data.volumes.map((volume) => ({
-          icon: <FolderMark large path={volume.path} />,
+          icon: <FolderMark size="large" path={volume.path} />,
           isActive: folderHostPath === volume.path,
           name: volume.name,
           path: volume.path,

@@ -51,7 +51,7 @@ export function FolderNameMenu({
             size="sm"
             variant="ghost"
           >
-            <FolderMark large path={folder.path} />
+            <FolderMark size="large" path={folder.path} />
             <span className="min-w-0 truncate font-medium">{folder.name}</span>
             <CaretDownIcon className="size-2.5 shrink-0 text-muted-foreground" />
           </Button>
@@ -59,7 +59,7 @@ export function FolderNameMenu({
       </ToolbarTooltip>
       <DropdownMenuContent align="start" className="min-w-56">
         <DropdownMenuItem disabled>
-          <FolderMark large path={folder.path} />
+          <FolderMark size="large" path={folder.path} />
           <span className="min-w-0 flex-1 truncate">{folder.name}</span>
           <CheckIcon className="size-3.5" />
         </DropdownMenuItem>
@@ -70,7 +70,7 @@ export function FolderNameMenu({
               onGo(ancestor.path);
             }}
           >
-            <FolderMark large path={ancestor.path} />
+            <FolderMark size="large" path={ancestor.path} />
             <span className="min-w-0 truncate">{ancestor.name}</span>
           </DropdownMenuItem>
         ))}
@@ -90,7 +90,7 @@ export function FolderNameMenu({
                   onGo(place.path);
                 }}
               >
-                <FolderMark large path={place.path} />
+                <FolderMark size="large" path={place.path} />
                 <span className="min-w-0 truncate">{place.name}</span>
               </DropdownMenuItem>
             ))}

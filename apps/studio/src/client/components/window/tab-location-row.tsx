@@ -492,7 +492,7 @@ function Field({ location }: { location: TabLocation }) {
                       }}
                     >
                       {crumb.path === undefined ? null : (
-                        <FolderMark large path={crumb.path} />
+                        <FolderMark size="large" path={crumb.path} />
                       )}
                       <span className="min-w-0 truncate">{crumb.label}</span>
                     </DropdownMenuItem>

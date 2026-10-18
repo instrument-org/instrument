@@ -18,22 +18,22 @@ import { useQuery } from "@tanstack/react-query";
  * the places the sidebar lists, from the same cache.
  *
  * `path` is the folder on the computer, `~` for home allowed; empty is the
- * recents, which are no folder. `large` is the sidebar's size, the rest the
- * size of a tab's or a row's mark.
+ * recents, which are no folder. `size` is `large` in the sidebar, `row` beside
+ * a settings row's two lines, and `small` for a tab or a one-line row.
  */
 export function FolderMark({
-  large = false,
   path,
+  size = "small",
 }: {
-  large?: boolean;
   path: string;
+  size?: "large" | "row" | "small";
 }) {
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const outputFolder = useOutputFolder();
   const home = window.api.homeDir;
   const iconClassName = cn(
     "shrink-0 text-muted-foreground",
-    large ? "size-4" : "size-3.5",
+    { large: "size-4", row: "size-6", small: "size-3.5" }[size],
   );
   if (path === "") {
     return <ClockCounterClockwiseIcon className={iconClassName} />;
@@ -54,7 +54,10 @@ export function FolderMark({
   }
   return (
     <FileSystemFolderGlyph
-      className={cn("w-auto shrink-0", large ? "h-3.5" : "h-3")}
+      className={cn(
+        "w-auto shrink-0",
+        { large: "h-3.5", row: "h-5", small: "h-3" }[size],
+      )}
       {...(hostPath === outputFolder ? { src: OUTPUT_FOLDER_GLYPH_URL } : {})}
     />
   );

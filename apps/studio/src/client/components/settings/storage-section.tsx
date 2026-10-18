@@ -28,6 +28,7 @@ import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/client/lib/toast";
+import { folderRefusalSentence } from "@/shared/workspace-folder-refusal";
 
 type InvalidFolder =
   RPCOutput["workspace"]["storage"]["invalidFolders"]["list"][number];
@@ -225,13 +226,16 @@ type MoveRefusal = Extract<FolderVerdict, { kind: "refused" }>["reason"];
 
 /** Why a folder the person picked can't take their Instrument folder, said to them. */
 const REFUSALS: Record<MoveRefusal, string> = {
-  "app-data": `That folder holds ${APP_NAME}’s own data.`,
+  "apps-data": folderRefusalSentence("apps-data"),
+  "around-home": folderRefusalSentence("around-home"),
+  drive: folderRefusalSentence("drive"),
+  home: folderRefusalSentence("home"),
+  "other-workspace": folderRefusalSentence("other-workspace"),
+  "own-data": folderRefusalSentence("own-data"),
+  system: folderRefusalSentence("system"),
   current: "That’s your Instrument folder, or a folder inside it or around it.",
-  "home-or-drive": `${APP_NAME} needs a folder of its own, not your whole home folder or disk.`,
   missing: "That folder isn’t there anymore.",
   "not-absolute": "That folder isn’t there anymore.",
-  "other-workspace":
-    "That folder holds another Instrument folder, or is inside one.",
   pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
   place: `${APP_NAME} needs a folder of its own. Make one inside that folder and choose it instead.`,
   "sign-ins":
@@ -309,10 +313,15 @@ function InstrumentFolder() {
         }
         return;
       }
-      const { outcome } = await rpcClient.workspaces.open.call({
+      const opened = await rpcClient.workspaces.open.call({
         path: picked.path,
       });
-      if (outcome === "unsupported") {
+      const { outcome } = opened;
+      if (opened.outcome === "refused") {
+        toast.error(`${APP_NAME} can’t open that folder`, {
+          description: folderRefusalSentence(opened.reason),
+        });
+      } else if (outcome === "unsupported") {
         toast.info(
           `Quit ${APP_NAME} and open it again to switch to that folder.`,
         );

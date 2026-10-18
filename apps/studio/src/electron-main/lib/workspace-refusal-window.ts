@@ -13,11 +13,13 @@ import { restartNow } from "./relaunch";
 import { createStudioAppUpdater } from "./update";
 import { type AppUpdaterStatus } from "./update-status";
 import { startWorkspaceAfresh } from "./workspace-management";
+import { FOLDER_REFUSAL_COPY } from "../../shared/workspace-folder-refusal";
 import { type WorkspaceRefusal } from "./workspace-refusal";
 import {
   registerWorkspaceFolder,
   updateRegistry,
   workspaceFolderState,
+  workspacePlaceRefusal,
 } from "./workspaces";
 
 /**
@@ -25,9 +27,10 @@ import {
  * page of its own with no workspace, no stores and no script behind it,
  * each button a link to an action here, each step drawn as a page anew.
  * For a folder made by a newer build it offers to update, which runs the
- * updater with no workspace; for one it cannot read, to choose the folder
- * again (the system's own panel, which is also how macOS gives back access
- * to Documents) or to start over with a new one. Closing it quits.
+ * updater with no workspace; for one it cannot read, or one somewhere no
+ * workspace can be, to choose the folder again (the system's own panel,
+ * which is also how macOS gives back access to Documents) or to start over
+ * with a new one. Closing it quits.
  */
 
 /** The links the page's buttons are, read here rather than followed. */
@@ -139,27 +142,36 @@ export async function showWorkspaceRefusal({
           ],
           title: `Your Instrument folder was made by a newer version of ${APP_NAME}`,
         }
-      : refusal.why === "denied"
+      : refusal.kind === "misplaced"
         ? {
             body: [
-              `It’s at <code>${where}</code>, and ${APP_NAME} doesn’t have permission to read it.`,
-              pinned
-                ? `Give ${APP_NAME} access to it, then open ${APP_NAME} again.`
-                : `Choose the folder again to give ${APP_NAME} access to it, or start over with a new one.`,
+              `It’s at <code>${where}</code>. ${FOLDER_REFUSAL_COPY[refusal.reason].why}, so ${APP_NAME} won’t keep your chats there.`,
+              "Choose a different Instrument folder, or start over with a new one.",
             ],
             buttons: folderButtons,
-            title: `${APP_NAME} can’t open your Instrument folder`,
+            title: `${APP_NAME} can’t use your Instrument folder where it is`,
           }
-        : {
-            body: [
-              `It was at <code>${where}</code>.`,
-              pinned
-                ? `Put it back there, then open ${APP_NAME} again.`
-                : "If you moved it, or it’s on a disk that isn’t connected, choose where it is now. You can also start over with a new one.",
-            ],
-            buttons: folderButtons,
-            title: `${APP_NAME} can’t find your Instrument folder`,
-          };
+        : refusal.why === "denied"
+          ? {
+              body: [
+                `It’s at <code>${where}</code>, and ${APP_NAME} doesn’t have permission to read it.`,
+                pinned
+                  ? `Give ${APP_NAME} access to it, then open ${APP_NAME} again.`
+                  : `Choose the folder again to give ${APP_NAME} access to it, or start over with a new one.`,
+              ],
+              buttons: folderButtons,
+              title: `${APP_NAME} can’t open your Instrument folder`,
+            }
+          : {
+              body: [
+                `It was at <code>${where}</code>.`,
+                pinned
+                  ? `Put it back there, then open ${APP_NAME} again.`
+                  : "If you moved it, or it’s on a disk that isn’t connected, choose where it is now. You can also start over with a new one.",
+              ],
+              buttons: folderButtons,
+              title: `${APP_NAME} can’t find your Instrument folder`,
+            };
 
   /**
    * Restarts into what the person chose, or, in a run that can't restart
@@ -204,6 +216,20 @@ export async function showWorkspaceRefusal({
           { action: "choose-folder", label: "Choose Folder…", primary: true },
         ],
         title: `${APP_NAME} can’t read that folder`,
+      });
+      return;
+    }
+    const misplaced =
+      found === "workspace"
+        ? workspacePlaceRefusal({ dir, userDataDir })
+        : undefined;
+    if (misplaced !== undefined) {
+      await show({
+        body: [
+          `${FOLDER_REFUSAL_COPY[misplaced].why}. Choose a different one, or start over with a new one.`,
+        ],
+        buttons: folderButtons,
+        title: `${APP_NAME} can’t use that folder`,
       });
       return;
     }

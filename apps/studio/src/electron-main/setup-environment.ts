@@ -123,14 +123,17 @@ function openWorkspace() {
   logger.info(
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
-  // A folder made by a newer build, or one that cannot be read, is not
-  // opened: the boot says so in a window of its own and starts nothing else.
+  // A folder made by a newer build, one that cannot be read, or one in a
+  // place no workspace can be is not opened: the boot says so in a window of
+  // its own and starts nothing else.
   const refusal = inspectWorkspaceFolder({ userDataDir, workspace });
   if (refusal) {
     logger.warn(
       refusal.kind === "newer"
         ? `Not opening ${workspace.path}: a newer build made it`
-        : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
+        : refusal.kind === "misplaced"
+          ? `Not opening ${workspace.path}: no workspace can be there (${refusal.reason})`
+          : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
     );
     setWorkspaceRefusal(refusal);
     return;

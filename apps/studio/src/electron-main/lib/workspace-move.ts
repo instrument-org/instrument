@@ -27,8 +27,10 @@ import { z } from "zod";
 
 import { rewriteRecentFiles } from "../browser-view/history-store";
 import { rewriteFolderAddresses } from "../stores/workspace/kept-state";
+import { FolderRefusalSchema } from "../../shared/workspace-folder-refusal";
 import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
+import { folderRefusalHere } from "./workspace-folder-check";
 import {
   hasWorkspaceIdentity,
   liveHolderOf,
@@ -51,27 +53,21 @@ import {
  * move before any store opens (`finishPendingMove`).
  */
 
-/** Why a folder cannot take the workspace. */
+/** Why a folder cannot take the workspace: anywhere a workspace can't be (`folderRefusal`), or a reason of moving's own. */
 const MoveRefusalSchema = z.enum([
-  /** Inside the app's own data, or holding it. */
-  "app-data",
+  ...FolderRefusalSchema.options,
   /** The workspace's own folder, or one inside or around it. */
   "current",
-  /** The home folder, or the top of a disk. */
-  "home-or-drive",
   /** Not a folder that is there. */
   "missing",
   /** Not a whole path. */
   "not-absolute",
-  /** Holds or sits inside another workspace this computer knows. */
-  "other-workspace",
   /** This process is pinned to its workspace by `INSTRUMENT_WORKSPACE`. */
   "pinned",
   /**
    * A folder the computer keeps for something of its own (Documents,
-   * Desktop, Downloads, iCloud Drive, the folder of disks, the apps' data,
-   * a hidden folder in the home folder), which would make all of it the
-   * folder every chat may change.
+   * Desktop, Downloads, iCloud Drive, a hidden folder in the home folder),
+   * which would make all of it the folder every chat may change.
    */
   "place",
   /** Where other programs keep sign-ins or what runs at login, or inside one. */
@@ -189,10 +185,10 @@ export function checkMoveTarget({
 /**
  * Why `target` cannot take the workspace with registry id `id`, now in
  * `from`, by where it is, compared where the folders really are: the
- * workspace's own folder or one around or inside it, the home folder or a
- * disk's top, a folder the computer keeps for something of its own, a
- * place of sign-ins or of what runs at login, a temporary folder, the
- * app's data, or another workspace this computer knows. The folder becomes
+ * workspace's own folder or one around or inside it, anywhere no workspace
+ * can be (`folderRefusal`), a folder the computer keeps for something of
+ * its own, a place of sign-ins or of what runs at login, or a temporary
+ * folder. The folder becomes
  * the output folder, which every chat may change, so a place holding more
  * than the person's own work is refused. Asked when the person picks the
  * folder and again when the move is made, since the folder can change in
@@ -214,10 +210,17 @@ export function refusalOfPlace({
   if (samePath(target, from)) {
     return "current";
   }
-  const home = os.homedir();
-  if (samePath(target, home) || isVolumeRoot(target)) {
-    return "home-or-drive";
+  const anywhere = folderRefusalHere({
+    folder: target,
+    otherWorkspaces: readRegistry(userDataDir)
+      .workspaces.filter((entry) => entry.id !== id)
+      .map((entry) => entry.path),
+    userDataDir,
+  });
+  if (anywhere !== undefined) {
+    return anywhere;
   }
+  const home = os.homedir();
   const places = placePaths(home);
   if (
     [
@@ -246,20 +249,8 @@ export function refusalOfPlace({
   if (temporaryDirs.some((dir) => pathWithin(target, dir))) {
     return "temporary";
   }
-  if (pathWithin(target, userDataDir) || pathWithin(userDataDir, target)) {
-    return "app-data";
-  }
   if (pathWithin(target, from) || pathWithin(from, target)) {
     return "current";
-  }
-  if (
-    readRegistry(userDataDir).workspaces.some(
-      (entry) =>
-        entry.id !== id &&
-        (pathWithin(target, entry.path) || pathWithin(entry.path, target)),
-    )
-  ) {
-    return "other-workspace";
   }
   return undefined;
 }
@@ -788,19 +779,6 @@ function isSettled(workspacePath: string) {
       identity.layoutVersion === WORKSPACE_LAYOUT_VERSION &&
       identity.legacyProjectsMigrated === true)
   );
-}
-
-/** The top of a disk: a folder on another device than the one holding it. */
-function isVolumeRoot(dir: string) {
-  const parent = path.dirname(dir);
-  if (parent === dir) {
-    return true;
-  }
-  try {
-    return fs.statSync(dir).dev !== fs.statSync(parent).dev;
-  } catch {
-    return false;
-  }
 }
 
 /**

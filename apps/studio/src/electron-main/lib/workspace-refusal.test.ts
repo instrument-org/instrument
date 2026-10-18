@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { inspectWorkspaceFolder } from "./workspace-refusal";
 import {
   type ResolvedWorkspace,
+  updateRegistry,
   writeWorkspaceIdentity,
   WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
@@ -82,6 +83,36 @@ describe("inspectWorkspaceFolder", () => {
         userDataDir,
         workspace: at(path.join(root, "Clean room"), true),
       }),
+    ).toBeUndefined();
+  });
+
+  it("refuses a picked folder somewhere no workspace can be, but not one in the app's data or pinned", () => {
+    const projects = path.join(root, "Projects");
+    const picked = path.join(projects, "Instrument");
+    const inAppData = path.join(userDataDir, "workspaces", "lab");
+    for (const dir of [projects, picked, inAppData]) {
+      writeWorkspaceIdentity(dir, identity(WORKSPACE_FORMAT_VERSION));
+    }
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [
+        ...registry.workspaces,
+        { id: "projects", path: projects },
+        { id: "picked", path: picked },
+      ],
+    }));
+    const picking = { ...at(picked), id: "picked", isDefault: false };
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: picking }),
+    ).toMatchObject({ kind: "misplaced", reason: "other-workspace" });
+    expect(
+      inspectWorkspaceFolder({
+        userDataDir,
+        workspace: { ...picking, pinned: true },
+      }),
+    ).toBeUndefined();
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(inAppData) }),
     ).toBeUndefined();
   });
 

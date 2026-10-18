@@ -30,7 +30,9 @@ import {
   updateRegistry,
   WorkspaceColorSchema,
   WorkspaceIdentitySchema,
+  workspacePlaceRefusal,
 } from "@/electron-main/lib/workspaces";
+import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
@@ -350,20 +352,24 @@ const move = base
 
 /**
  * Open the Instrument folder in a folder the person picked that already
- * holds one, in place of this one, which stays where it is: registered and
- * made the one to open, then the app restarted.
+ * holds one, in place of this one, which stays where it is: checked for a
+ * place no workspace can be, registered and made the one to open, then the
+ * app restarted.
  */
 const open = base
   .input(z.object({ path: z.string() }))
   .output(
-    z.object({
-      outcome: z.enum([
-        "canceled",
-        "not-a-workspace",
-        "relaunching",
-        "unsupported",
-      ]),
-    }),
+    z.union([
+      z.object({
+        outcome: z.enum([
+          "canceled",
+          "not-a-workspace",
+          "relaunching",
+          "unsupported",
+        ]),
+      }),
+      z.object({ outcome: z.literal("refused"), reason: FolderRefusalSchema }),
+    ]),
   )
   .handler(async ({ errors, input }) => {
     if (getResolvedWorkspace().pinned) {
@@ -371,6 +377,13 @@ const open = base
         message:
           "This instance is pinned to its workspace by INSTRUMENT_WORKSPACE",
       });
+    }
+    const reason = workspacePlaceRefusal({
+      dir: input.path,
+      userDataDir: getUserDataDir(),
+    });
+    if (reason !== undefined) {
+      return { outcome: "refused" as const, reason };
     }
     const registered = registerWorkspaceFolder({
       dir: input.path,

@@ -141,12 +141,16 @@ describe("checkMoveTarget", () => {
     [
       "one inside the app's data",
       () => path.join(userDataDir, "elsewhere"),
-      "app-data",
+      "own-data",
     ],
-    ["one holding the app's data", () => root, "app-data"],
+    ["one holding the app's data", () => root, "own-data"],
     ["the workspace's own folder", () => workspace.path, "current"],
-    ["the home folder", () => os.homedir(), "home-or-drive"],
-    ["the top of a disk", () => path.parse(root).root, "home-or-drive"],
+    ["the home folder", () => os.homedir(), "home"],
+    [
+      "the top of the disk the home folder is on",
+      () => path.parse(os.homedir()).root,
+      "around-home",
+    ],
     ["one that is not there", () => path.join(root, "nowhere"), "missing"],
     ["a file", () => path.join(picked, "report.pdf"), "missing"],
     ["a path that is not whole", () => "Documents/Instrument", "not-absolute"],
@@ -171,8 +175,12 @@ describe("checkMoveTarget", () => {
             reason: "place",
             target: home("Library", "Mobile Documents", "com~apple~CloudDocs"),
           },
-          { name: "the apps' data", reason: "place", target: home("Library") },
-          { name: "the folder of disks", reason: "place", target: "/Volumes" },
+          {
+            name: "the apps' data",
+            reason: "apps-data",
+            target: home("Library"),
+          },
+          { name: "the folder of disks", reason: "drive", target: "/Volumes" },
         ]
       : []),
     {
@@ -183,12 +191,12 @@ describe("checkMoveTarget", () => {
     { name: "the SSH folder", reason: "sign-ins", target: home(".ssh") },
     {
       name: "a folder inside a sign-in place",
-      reason: "sign-ins",
+      reason: process.platform === "linux" ? "apps-data" : "sign-ins",
       target: home(".config", "gh", "Instrument"),
     },
     {
       name: "a startup folder",
-      reason: "sign-ins",
+      reason: process.platform === "darwin" ? "apps-data" : "sign-ins",
       target: home("Library", "LaunchAgents"),
     },
   ])("refuses $name", ({ reason, target }) => {
@@ -496,7 +504,7 @@ describe("finishPendingMove", () => {
         fs.mkdirSync(inside);
         fs.symlinkSync(inside, picked);
       },
-      "refuses now (app-data)",
+      "refuses now (own-data)",
     ],
     [
       "the folder replaced by a link to the workspace's own",

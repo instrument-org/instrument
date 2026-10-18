@@ -2,20 +2,24 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
+import { type FolderRefusal } from "../../shared/workspace-folder-refusal";
 import { pathWithin } from "./path-identity";
 import {
   type ResolvedWorkspace,
   WorkspaceIdentitySchema,
   WORKSPACE_FORMAT_VERSION,
+  workspacePlaceRefusal,
 } from "./workspaces";
 
 /**
  * Why the resolved workspace is not opened, said back to the person in a
  * window of its own (`workspace-refusal-window.ts`) rather than thrown: a
- * folder made by a newer build, which this one could only damage; or a
- * folder it cannot read, which it never stands a new one in for.
+ * folder made by a newer build, which this one could only damage; a folder
+ * it cannot read, which it never stands a new one in for; or a folder in a
+ * place no workspace can be (`folderRefusal`), such as the home folder.
  */
 export type WorkspaceRefusal =
+  | { kind: "misplaced"; reason: FolderRefusal; workspace: ResolvedWorkspace }
   | { kind: "newer"; workspace: ResolvedWorkspace }
   | {
       kind: "unreadable";
@@ -45,7 +49,10 @@ export function setWorkspaceRefusal(refused: WorkspaceRefusal): void {
  * - a folder the person picked, or its `.instrument/`, is gone (a disk not
  *   connected, a folder moved by hand). A folder the app made in its own
  *   data, or one pinned for the process, is made again instead, as a first
- *   launch makes the default one.
+ *   launch makes the default one;
+ * - a folder the person picked is somewhere no workspace can be, as an
+ *   earlier build let it be. One in the app's own data was made there by
+ *   the app, and one pinned for the process is the pin's to place.
  */
 export function inspectWorkspaceFolder({
   userDataDir,
@@ -69,6 +76,16 @@ export function inspectWorkspaceFolder({
     return workspace.pinned || pathWithin(workspace.path, userDataDir)
       ? undefined
       : { kind: "unreadable", why: "missing", workspace };
+  }
+  if (!workspace.pinned && !pathWithin(workspace.path, userDataDir)) {
+    const reason = workspacePlaceRefusal({
+      dir: workspace.path,
+      id: workspace.id,
+      userDataDir,
+    });
+    if (reason !== undefined) {
+      return { kind: "misplaced", reason, workspace };
+    }
   }
   let identity: unknown;
   try {

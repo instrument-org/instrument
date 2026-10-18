@@ -23,7 +23,7 @@ describe("windowsDrives", () => {
 describe("windowsProgramFolders", () => {
   // As the layout adds them on Windows: the app's own, over the app-files
   // place that holds AppData, with a browser profile in it closed.
-  const home = "/home/someone";
+  const home = "/nope/home";
   const programs = windowsProgramFolders(home);
   const rules = {
     dangerouslyAllowEveryFolder: false,
@@ -76,7 +76,7 @@ describe("windowsProgramFolders", () => {
 });
 
 describe("what runs code later stays closed with folders open unasked", () => {
-  const home = "/home/someone";
+  const home = "/nope/home";
   const rules = rulesFor({
     home,
     settings: {

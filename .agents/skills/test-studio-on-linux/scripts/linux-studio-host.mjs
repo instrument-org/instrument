@@ -493,7 +493,9 @@ function answersSsh(host) {
   return probe.stdout.trim() === "up";
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Starts the UTM guest the host runs in, when this Mac hosts it, and waits for

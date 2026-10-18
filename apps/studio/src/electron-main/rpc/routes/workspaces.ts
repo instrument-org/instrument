@@ -37,10 +37,15 @@ import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
-import { instrumentFolderUnchosen } from "@instrument-org/workspace/electron";
+import {
+  instrumentFolderUnchosen,
+  removeIfEmptySync,
+} from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { shell } from "electron";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
@@ -312,10 +317,12 @@ const checkFolder = base
  * recorded for the next launch, and the app restarted to make it with
  * nothing open (`workspace-move.ts`). A folder it cannot move to answers
  * as `checkFolder` would; a restart the person declines over running
- * agents records nothing.
+ * agents records nothing. With `create`, a folder not there yet is made
+ * first (the better folder `checkFolder` offered), and taken away again,
+ * still empty, when nothing is recorded to move into it.
  */
 const move = base
-  .input(z.object({ path: z.string() }))
+  .input(z.object({ create: z.boolean().optional(), path: z.string() }))
   .output(
     z.union([
       NotMovableSchema,
@@ -326,12 +333,27 @@ const move = base
   )
   .handler(async ({ input }) => {
     const workspace = getResolvedWorkspace();
+    let made = false;
+    if (input.create === true && path.isAbsolute(input.path)) {
+      try {
+        fs.mkdirSync(input.path);
+        made = true;
+      } catch {
+        // Already there, or not makeable: the check says which.
+      }
+    }
+    const unmake = () => {
+      if (made) {
+        removeIfEmptySync(input.path);
+      }
+    };
     const verdict = checkMoveTarget({
       target: input.path,
       userDataDir: getUserDataDir(),
       workspace,
     });
     if (verdict.kind !== "movable") {
+      unmake();
       return verdict;
     }
     const request = () => {
@@ -347,7 +369,11 @@ const move = base
       request();
       return { kind: "on-next-launch" as const };
     }
-    return { kind: await relaunchApp({ beforeRestart: request }) };
+    const outcome = await relaunchApp({ beforeRestart: request });
+    if (outcome === "canceled") {
+      unmake();
+    }
+    return { kind: outcome };
   });
 
 /**

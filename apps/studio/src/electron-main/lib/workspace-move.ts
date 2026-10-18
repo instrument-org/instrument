@@ -14,7 +14,6 @@ import {
   removeEntrySync,
   removeIfEmptySync,
   setAsideSync,
-  startupPaths,
   type StoredPathRewrite,
   WORKSPACE_LAYOUT_VERSION,
 } from "@instrument-org/workspace/electron";
@@ -34,7 +33,11 @@ import {
 } from "../../shared/workspace-folder-refusal";
 import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
-import { folderConcernHere } from "./workspace-folder-check";
+import {
+  folderConcernHere,
+  folderInsteadHere,
+  systemTemporaryDirs,
+} from "./workspace-folder-check";
 import {
   hasWorkspaceIdentity,
   liveHolderOf,
@@ -68,18 +71,8 @@ const MoveRefusalSchema = z.enum([
   "not-absolute",
   /** This process is pinned to its workspace by `INSTRUMENT_WORKSPACE`. */
   "pinned",
-  /**
-   * A folder the computer keeps for something of its own (Documents,
-   * Desktop, Downloads, iCloud Drive, a hidden folder in the home folder),
-   * which would make all of it the folder every chat may change.
-   */
-  "place",
-  /** Where other programs keep sign-ins or what runs at login, or inside one. */
-  "sign-ins",
   /** Holds a `.instrument` folder that is not a workspace's. */
   "taken",
-  /** A folder the system empties on its own, or one inside it. */
-  "temporary",
   /** The workspace's layout sweeps have not finished in the app's data. */
   "unfinished",
   /** The app cannot write there. */
@@ -88,8 +81,24 @@ const MoveRefusalSchema = z.enum([
 
 type MoveRefusal = z.output<typeof MoveRefusalSchema>;
 
-/** What the person is warned of before they go ahead (`folderConcern`). */
-const WarningField = { warning: FolderWarningSchema.optional() };
+/**
+ * The obvious better folder than the one picked (`folderInstead`), offered
+ * where it could take the workspace: what is in it already, nothing (not
+ * there yet, or empty), files of the person's, or a workspace to open.
+ */
+const InsteadSchema = z.object({
+  holds: z.enum(["nothing", "files", "workspace"]),
+  path: z.string(),
+});
+
+/**
+ * What the person is warned of before they go ahead (`folderConcern`), and
+ * the better folder to offer them.
+ */
+const WarningField = {
+  instead: InsteadSchema.optional(),
+  warning: FolderWarningSchema.optional(),
+};
 
 const OpenInsteadSchema = z.object({
   kind: z.literal("workspace"),
@@ -100,6 +109,7 @@ const OpenInsteadSchema = z.object({
 const RefusedSchema = z.object({
   kind: z.literal("refused"),
   reason: MoveRefusalSchema,
+  ...WarningField,
 });
 
 /** A folder the workspace cannot move to: one to open instead, or one it cannot take, with why. */
@@ -164,17 +174,51 @@ export function checkMoveTarget({
   if (!stats.isDirectory()) {
     return refused("missing");
   }
-  const { refusal, warning } = checkPlace({
-    from: workspace.path,
-    id: workspace.id,
-    target,
-    temporaryDirs,
-    userDataDir,
-  });
+  const place = (dir: string) =>
+    checkPlace({
+      from: workspace.path,
+      id: workspace.id,
+      target: dir,
+      temporaryDirs,
+      userDataDir,
+    });
+  const unsettled =
+    pathWithin(workspace.path, userDataDir) && !isSettled(workspace.path);
+  /** The better folder, offered only where the workspace could go. */
+  const insteadOf = (dir: string): MoveVerdict["instead"] => {
+    if (!entryExists(dir)) {
+      return place(dir).refusal === undefined && !unsettled
+        ? { holds: "nothing", path: dir }
+        : undefined;
+    }
+    const verdict = checkMoveTarget({
+      target: dir,
+      temporaryDirs,
+      userDataDir,
+      workspace,
+    });
+    if (verdict.kind === "refused") {
+      return undefined;
+    }
+    return {
+      holds:
+        verdict.kind === "workspace"
+          ? "workspace"
+          : fs.readdirSync(dir).some((name) => !FILE_MANAGER_RECORDS.has(name))
+            ? "files"
+            : "nothing",
+      path: dir,
+    };
+  };
+  const { instead, refusal, warning } = place(target);
+  const offered = instead === undefined ? undefined : insteadOf(instead);
+  const warned = {
+    ...(offered === undefined ? {} : { instead: offered }),
+    ...(warning === undefined ? {} : { warning }),
+  };
   if (refusal !== undefined) {
-    return refused(refusal);
+    return { kind: "refused", reason: refusal, ...warned };
   }
-  const warned = warning === undefined ? {} : { warning };
   const dataDir = workspaceLayout(target).dataDir;
   if (entryExists(dataDir)) {
     // A link is no workspace's: it would have the move or the open act on
@@ -190,7 +234,7 @@ export function checkMoveTarget({
   if (!canWrite(target)) {
     return refused("unwritable");
   }
-  if (pathWithin(workspace.path, userDataDir) && !isSettled(workspace.path)) {
+  if (unsettled) {
     return refused("unfinished");
   }
   return { kind: "movable", ...warned };
@@ -199,15 +243,14 @@ export function checkMoveTarget({
 /**
  * Why `target` cannot take the workspace with registry id `id`, now in
  * `from`, by where it is, compared where the folders really are: the
- * workspace's own folder or one around or inside it, anywhere no workspace
- * can be (`folderConcern`), a folder the computer keeps for something of
- * its own, a place of sign-ins or of what runs at login, or a temporary
- * folder. The folder becomes the output folder, which every chat may change,
- * so a place holding more than the person's own work is refused, or, where
- * `folderConcern` only warns, answered with the warning to show. Asked when
- * the person picks the folder and again when the move is made, since the
- * folder can change in between; the move goes past a warning, which the
- * person saw when they picked.
+ * workspace's own folder or one around or inside it, or anywhere no
+ * workspace can be (`folderConcern`). Anywhere `folderConcern` only warns
+ * of, and the photo and media libraries apps keep for themselves, is
+ * answered with the warning to show, and the home folder, a folder around
+ * it, and Documents, Desktop or Downloads themselves with the better folder
+ * to offer (`folderInstead`). Asked when the person picks the folder and
+ * again when the move is made, since the folder can change in between; the
+ * move goes past a warning, which the person saw when they picked.
  */
 export function checkPlace({
   from,
@@ -221,67 +264,40 @@ export function checkPlace({
   target: string;
   temporaryDirs: string[];
   userDataDir: string;
-}): { refusal?: MoveRefusal; warning?: FolderWarning } {
+}): { instead?: string; refusal?: MoveRefusal; warning?: FolderWarning } {
   if (samePath(target, from)) {
     return { refusal: "current" };
   }
+  const opensInstead = hasWorkspaceIdentity(target);
   const concern = folderConcernHere({
     folder: target,
+    // A workspace picked itself is one to open, never one around itself.
     otherWorkspaces: readRegistry(userDataDir)
-      .workspaces.filter((entry) => entry.id !== id)
+      .workspaces.filter(
+        (entry) =>
+          entry.id !== id && !(opensInstead && samePath(entry.path, target)),
+      )
       .map((entry) => entry.path),
+    temporaryDirs,
     userDataDir,
   });
+  const instead = folderInsteadHere(target);
   if (concern?.kind === "refused") {
-    return { refusal: concern.reason };
+    return { instead, refusal: concern.reason };
   }
-  const warning = concern?.reason;
-  const home = os.homedir();
-  const places = placePaths(home);
-  if (
-    [
-      ...places.flatMap((place) =>
-        place.id === "passwords"
-          ? [...place.paths, ...(place.closedUnlessAllowed ?? [])]
-          : [],
-      ),
-      ...startupPaths(home),
-    ].some((placePath) => pathWithin(target, placePath))
-  ) {
-    return { refusal: "sign-ins" };
-  }
-  // A place `folderConcern` warns of (the folder of disks, the apps' data)
-  // is the person's to pick past the warning.
-  if (
-    warning === undefined &&
-    (places.some(
+  const warning =
+    concern?.reason ??
+    (placePaths(os.homedir()).some(
       (place) =>
-        place.id !== "output" &&
-        place.id !== "passwords" &&
+        (place.id === "photos" || place.id === "mediaLibraries") &&
         place.paths.some((placePath) => samePath(target, placePath)),
-    ) ||
-      (samePath(path.dirname(target), home) &&
-        path.basename(target).startsWith(".")))
-  ) {
-    return { refusal: "place" };
-  }
-  if (temporaryDirs.some((dir) => pathWithin(target, dir))) {
-    return { refusal: "temporary" };
-  }
+    )
+      ? "apps-data"
+      : undefined);
   if (pathWithin(target, from) || pathWithin(from, target)) {
-    return { refusal: "current" };
+    return { instead, refusal: "current", warning };
   }
-  return { warning };
-}
-
-/**
- * The folders the system empties on its own: this account's temporary
- * folder and, beyond Windows, the shared ones.
- */
-function systemTemporaryDirs(): string[] {
-  return process.platform === "win32"
-    ? [os.tmpdir()]
-    : [os.tmpdir(), "/tmp", "/var/tmp"];
+  return { instead, warning };
 }
 
 /**

@@ -1,4 +1,5 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { APP_NAME, PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { placePaths, startupPaths } from "@instrument-org/workspace/electron";
 import os from "node:os";
 import path from "node:path";
 
@@ -11,11 +12,14 @@ import { pathKey } from "./path-identity";
 /**
  * Whether a folder can be an Instrument folder, for every way one reaches the
  * app: picked to move the workspace to, picked to open, or found in the
- * registry at launch. Refused, with no way past, are only the places a
- * workspace would break or take over: the home folder, the app's own files,
- * and another workspace. Places whose contents are more than the person's own
- * work, which every chat may change from the workspace's top level, are a
- * warning they can go past, since a refusal that is wrong strands them.
+ * registry at launch. Refused, with no way past, are only the places the app
+ * would break: the home folder (whose `.instrument` is the app's own
+ * `~/.instrument`), the app's own files, and another workspace. Every other
+ * place whose contents are more than the person's own work, which every chat
+ * may change from the workspace's top level, is a warning they can go past,
+ * since a refusal that is wrong strands them. For the home folder, a folder
+ * around it, and Documents, Desktop or Downloads themselves, the better
+ * choice is a folder of its own inside (`folderInstead`).
  *
  * `folderConcern` is pure, so it answers for any of the three systems on any
  * of them; `folderConcernHere` feeds it this computer's facts with every path
@@ -32,8 +36,12 @@ export interface FolderFacts {
   /** Every other workspace this computer knows, never the one being placed. */
   otherWorkspaces: string[];
   platform: FolderPlatform;
+  /** Where other programs keep sign-ins or what runs at login. */
+  signInDirs: string[];
   /** Windows' system drive (`C:`); ignored elsewhere. */
   systemDrive?: string;
+  /** The folders the system empties on its own (`systemTemporaryDirs`). */
+  temporaryDirs: string[];
   /** Electron's userData. */
   userDataDir: string;
 }
@@ -114,6 +122,22 @@ const APPS_DATA_FOLDERS: Record<
 };
 
 /**
+ * Folders in the home folder that have the person's other files in them,
+ * warned of themselves; a folder inside one is the person's to pick.
+ */
+const PERSONAL_FOLDERS: Record<FolderPlatform, string[][]> = {
+  darwin: [
+    ["Desktop"],
+    ["Documents"],
+    ["Downloads"],
+    // oxlint-disable-next-line studio/no-os-words -- a folder name, never shown
+    ["Library", "Mobile Documents", "com~apple~CloudDocs"],
+  ],
+  linux: [["Desktop"], ["Documents"], ["Downloads"]],
+  win32: [["Desktop"], ["Documents"], ["Downloads"]],
+};
+
+/**
  * Folders that hold disks, by their depth below the container: a folder
  * there is a disk's top (`/Volumes/USB`), never a folder of the person's.
  */
@@ -137,20 +161,7 @@ export function folderConcern(
   facts: FolderFacts,
 ): FolderConcern | undefined {
   const { home, platform } = facts;
-  const paths = platform === "win32" ? path.win32 : path.posix;
-  const key = (spelled: string) => {
-    const resolved = paths.resolve(spelled);
-    return platform === "linux" ? resolved : resolved.toLowerCase();
-  };
-  const within = (inner: string, outer: string) => {
-    const relative = paths.relative(key(outer), key(inner));
-    return (
-      relative === "" ||
-      (relative !== ".." &&
-        !relative.startsWith(`..${paths.sep}`) &&
-        !paths.isAbsolute(relative))
-    );
-  };
+  const { key, paths, within } = spelling(platform);
   const target = key(folder);
   const refused = (reason: FolderRefusal) => ({
     kind: "refused" as const,
@@ -181,6 +192,15 @@ export function folderConcern(
   if (within(home, folder)) {
     return warned("around-home");
   }
+  if (isPersonalFolder(folder, facts)) {
+    return warned("personal");
+  }
+  if (facts.temporaryDirs.some((dir) => within(folder, dir))) {
+    return warned("temporary");
+  }
+  if (facts.signInDirs.some((dir) => within(folder, dir))) {
+    return warned("sign-ins");
+  }
   if (
     SYSTEM_FOLDERS[platform](facts.systemDrive ?? "C:").some((system) =>
       within(folder, system),
@@ -202,6 +222,8 @@ export function folderConcern(
   }
   if (
     within(facts.userDataDir, folder) ||
+    (paths.dirname(target) === key(home) &&
+      paths.basename(target).startsWith(".")) ||
     APPS_DATA_FOLDERS[platform].some(
       ({ at, except = [] }) =>
         within(folder, paths.join(home, ...at)) &&
@@ -214,6 +236,58 @@ export function folderConcern(
     return warned("apps-data");
   }
   return undefined;
+}
+
+/**
+ * The obvious better place for the Instrument folder than `folder`, where
+ * there is one: a folder named for the app in the home folder, for the home
+ * folder or a folder around it, and one inside Documents, Desktop, Downloads
+ * or iCloud Drive, for one of those. Whether the folder offered could take
+ * the workspace is the caller's to check.
+ */
+export function folderInstead(
+  folder: string,
+  facts: Pick<FolderFacts, "home" | "platform">,
+): string | undefined {
+  const { paths, within } = spelling(facts.platform);
+  if (within(facts.home, folder)) {
+    return paths.join(facts.home, APP_NAME);
+  }
+  return isPersonalFolder(folder, facts)
+    ? paths.join(folder, APP_NAME)
+    : undefined;
+}
+
+function isPersonalFolder(
+  folder: string,
+  { home, platform }: Pick<FolderFacts, "home" | "platform">,
+) {
+  const { key, paths } = spelling(platform);
+  return PERSONAL_FOLDERS[platform].some(
+    (names) => key(folder) === key(paths.join(home, ...names)),
+  );
+}
+
+/**
+ * How `platform` spells and compares paths: its separators, case folded
+ * where its disks ignore case, and whether one folder is at or inside another.
+ */
+function spelling(platform: FolderPlatform) {
+  const paths = platform === "win32" ? path.win32 : path.posix;
+  const key = (spelled: string) => {
+    const resolved = paths.resolve(spelled);
+    return platform === "linux" ? resolved : resolved.toLowerCase();
+  };
+  const within = (inner: string, outer: string) => {
+    const relative = paths.relative(key(outer), key(inner));
+    return (
+      relative === "" ||
+      (relative !== ".." &&
+        !relative.startsWith(`..${paths.sep}`) &&
+        !paths.isAbsolute(relative))
+    );
+  };
+  return { key, paths, within };
 }
 
 /**
@@ -242,22 +316,57 @@ export function installDirOf(
 export function folderConcernHere({
   folder,
   otherWorkspaces,
+  temporaryDirs = systemTemporaryDirs(),
   userDataDir,
 }: {
   folder: string;
   otherWorkspaces: string[];
+  /** The folders the system empties on its own (`systemTemporaryDirs`). */
+  temporaryDirs?: string[];
   userDataDir: string;
 }): FolderConcern | undefined {
-  const platform =
-    process.platform === "win32" || process.platform === "darwin"
-      ? process.platform
-      : "linux";
+  const home = os.homedir();
   return folderConcern(pathKey(folder), {
-    home: pathKey(os.homedir()),
-    installDir: pathKey(installDirOf(process.execPath, platform)),
+    home: pathKey(home),
+    installDir: pathKey(installDirOf(process.execPath, platformHere())),
     otherWorkspaces: otherWorkspaces.map(pathKey),
-    platform,
+    platform: platformHere(),
+    signInDirs: [
+      ...placePaths(home).flatMap((place) =>
+        place.id === "passwords"
+          ? [...place.paths, ...(place.closedUnlessAllowed ?? [])]
+          : [],
+      ),
+      ...startupPaths(home),
+    ].map(pathKey),
     systemDrive: process.env.SystemDrive,
+    temporaryDirs: temporaryDirs.map(pathKey),
     userDataDir: pathKey(userDataDir),
   });
+}
+
+/** `folderInstead` for this computer. */
+export function folderInsteadHere(folder: string): string | undefined {
+  // Spelled as the person and the system spell them, since the folder
+  // offered is shown, and made where it is not there yet.
+  return folderInstead(folder, {
+    home: os.homedir(),
+    platform: platformHere(),
+  });
+}
+
+/**
+ * The folders the system empties on its own: this account's temporary
+ * folder and, beyond Windows, the shared ones.
+ */
+export function systemTemporaryDirs(): string[] {
+  return process.platform === "win32"
+    ? [os.tmpdir()]
+    : [os.tmpdir(), "/tmp", "/var/tmp"];
+}
+
+function platformHere(): FolderPlatform {
+  return process.platform === "win32" || process.platform === "darwin"
+    ? process.platform
+    : "linux";
 }

@@ -29,6 +29,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/client/lib/toast";
 import {
+  FOLDER_REFUSAL_COPY,
   folderRefusalSentence,
   folderWarningSentence,
 } from "@/shared/workspace-folder-refusal";
@@ -236,12 +237,7 @@ const REFUSALS: Record<MoveRefusal, string> = {
   missing: "That folder isn’t there anymore.",
   "not-absolute": "That folder isn’t there anymore.",
   pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
-  place: `${APP_NAME} needs a folder of its own. Make one inside that folder and choose it instead.`,
-  "sign-ins":
-    "Other apps keep sign-ins or startup settings in that folder. Choose a different one.",
   taken: `It already has a folder named .instrument that ${APP_NAME} didn’t make.`,
-  temporary:
-    "Your computer clears out that folder on its own, so files kept there can disappear.",
   unfinished: `${APP_NAME} is still updating your folder from an earlier version. Quit and reopen ${APP_NAME}, then try again.`,
   unwritable: `${APP_NAME} doesn’t have permission to save files there.`,
 };
@@ -250,13 +246,16 @@ const REFUSALS: Record<MoveRefusal, string> = {
  * Where the person's Instrument folder is, and moving it: a folder picked
  * in the system's own panel, then a confirmation that the app restarts to
  * move it there, or to open the Instrument folder already in it, which
- * leads with the warning when the place is a risky one.
+ * leads with the warning when the place is a risky one. Where there is an
+ * obvious better folder (`~/Instrument` for the home folder, a new folder
+ * inside Documents), using it is the main choice, and a refused folder with
+ * one is offered it rather than only refused.
  */
 function InstrumentFolder() {
   const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
   const [picked, setPicked] = useState<null | {
     path: string;
-    verdict: Exclude<FolderVerdict, { kind: "refused" }>;
+    verdict: FolderVerdict;
   }>(null);
   // Held from the confirmation until the app quits: the restart begins only
   // after the running-agent prompt and the quit teardown, a few seconds in
@@ -285,22 +284,37 @@ function InstrumentFolder() {
     const verdict = await rpcClient.workspaces.checkFolder.call({
       path: choice.path,
     });
-    if (verdict.kind === "refused") {
+    if (verdict.kind === "refused" && verdict.instead === undefined) {
       refuse(verdict.reason);
       return;
     }
     setPicked({ path: choice.path, verdict });
   };
 
-  const confirm = async () => {
+  /** Moves to, or opens, the folder picked or the better one offered. */
+  const confirm = async (choice: "instead" | "picked") => {
     if (!picked) {
       return;
     }
+    const { instead } = picked.verdict;
+    const target =
+      choice === "instead" && instead !== undefined
+        ? {
+            create: true,
+            opens: instead.holds === "workspace",
+            path: instead.path,
+          }
+        : {
+            create: false,
+            opens: picked.verdict.kind === "workspace",
+            path: picked.path,
+          };
     setRestarting(true);
     try {
-      if (picked.verdict.kind === "movable") {
+      if (!target.opens) {
         const moved = await rpcClient.workspaces.move.call({
-          path: picked.path,
+          create: target.create,
+          path: target.path,
         });
         if (moved.kind === "refused") {
           refuse(moved.reason);
@@ -314,7 +328,7 @@ function InstrumentFolder() {
         return;
       }
       const opened = await rpcClient.workspaces.open.call({
-        path: picked.path,
+        path: target.path,
       });
       const { outcome } = opened;
       if (opened.outcome === "refused") {
@@ -343,6 +357,39 @@ function InstrumentFolder() {
   const where = picked ? typedHostPath(picked.path, window.api.homeDir) : "";
   const opensInstead = picked?.verdict.kind === "workspace";
   const warning = picked?.verdict.warning;
+  const refusal =
+    picked?.verdict.kind === "refused" ? picked.verdict.reason : undefined;
+  const instead = picked?.verdict.instead;
+  const insteadWhere = instead
+    ? typedHostPath(instead.path, window.api.homeDir)
+    : "";
+  // A refused folder is shown only with a better one to offer, so the
+  // dialog is about that one: why the pick won't do, then what the better
+  // folder has in it already.
+  const why =
+    refusal === "home"
+      ? `${FOLDER_REFUSAL_COPY.home.why}, so ${APP_NAME} needs a folder of its own inside it.`
+      : warning !== undefined
+        ? folderWarningSentence(warning)
+        : refusal === "other-workspace" || refusal === "own-data"
+          ? `${FOLDER_REFUSAL_COPY[refusal].why}.`
+          : refusal !== undefined
+            ? REFUSALS[refusal]
+            : undefined;
+  const offer =
+    instead === undefined
+      ? undefined
+      : refusal !== undefined
+        ? {
+            files: `That folder already has files in it. ${APP_NAME} will restart and move your Instrument folder in beside them.`,
+            nothing: `${APP_NAME} will make that folder, then restart and move your Instrument folder there.`,
+            workspace: `That folder is already an Instrument folder. ${APP_NAME} will restart and open it, and your current folder stays where it is.`,
+          }[instead.holds]
+        : {
+            files: `“${insteadWhere}” already has files in it, and your chats can go in beside them.`,
+            nothing: `A new folder, “${insteadWhere}”, keeps your chats apart from everything else.`,
+            workspace: `“${insteadWhere}” is already an Instrument folder, so you can open it instead.`,
+          }[instead.holds];
 
   return (
     <section className="space-y-2" {...settingAnchor("instrument-folder")}>
@@ -395,39 +442,56 @@ function InstrumentFolder() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {opensInstead
-                ? `“${where}” is already an Instrument folder`
-                : `Move your Instrument folder to “${where}”?`}
+              {refusal !== undefined
+                ? `Use “${insteadWhere}” instead?`
+                : opensInstead
+                  ? `“${where}” is already an Instrument folder`
+                  : `Move your Instrument folder to “${where}”?`}
             </AlertDialogTitle>
-            {warning !== undefined && (
+            {why !== undefined && (
               <AlertDialogDescription className="text-warning-700 dark:text-warning-300">
-                {folderWarningSentence(warning)}
+                {why}
               </AlertDialogDescription>
             )}
             <AlertDialogDescription>
-              {opensInstead
-                ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
-                : `${APP_NAME} will restart and move everything in your Instrument folder there, including any files of your own. What ${APP_NAME} makes for you will go there too.`}
+              {offer ??
+                (opensInstead
+                  ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
+                  : `${APP_NAME} will restart and move everything in your Instrument folder there, including any files of your own. What ${APP_NAME} makes for you will go there too.`)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={restarting}>Cancel</AlertDialogCancel>
+            {instead !== undefined && refusal === undefined && (
+              <AlertDialogAction
+                disabled={restarting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirm("picked");
+                }}
+                variant="outline"
+              >
+                {opensInstead ? "Open Anyway" : "Move Anyway"}
+              </AlertDialogAction>
+            )}
             <AlertDialogAction
               disabled={restarting}
               onClick={(event) => {
                 event.preventDefault();
-                void confirm();
+                void confirm(instead === undefined ? "picked" : "instead");
               }}
             >
               {restarting
                 ? "Restarting…"
-                : warning !== undefined
-                  ? opensInstead
-                    ? "Open Anyway"
-                    : "Move Anyway"
-                  : opensInstead
-                    ? "Restart and Open"
-                    : "Restart and Move"}
+                : instead !== undefined
+                  ? `${instead.holds === "workspace" ? "Open" : "Use"} ${insteadWhere}`
+                  : warning !== undefined
+                    ? opensInstead
+                      ? "Open Anyway"
+                      : "Move Anyway"
+                    : opensInstead
+                      ? "Restart and Open"
+                      : "Restart and Move"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

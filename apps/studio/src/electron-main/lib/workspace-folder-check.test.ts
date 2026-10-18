@@ -15,6 +15,7 @@ import {
   folderConcern,
   folderConcernHere,
   type FolderFacts,
+  folderInstead,
   type FolderPlatform,
   installDirOf,
 } from "./workspace-folder-check";
@@ -25,6 +26,8 @@ const FACTS: Record<FolderPlatform, FolderFacts> = {
     installDir: "/Applications/Instrument.app",
     otherWorkspaces: ["/Users/casey/Projects/Lab"],
     platform: "darwin",
+    signInDirs: ["/Users/casey/.ssh", "/Users/casey/Library/LaunchAgents"],
+    temporaryDirs: ["/private/var/folders/xy/T", "/private/tmp"],
     userDataDir: "/Users/casey/Library/Application Support/Instrument",
   },
   linux: {
@@ -32,6 +35,8 @@ const FACTS: Record<FolderPlatform, FolderFacts> = {
     installDir: "/opt/Instrument",
     otherWorkspaces: ["/home/casey/Projects/Lab"],
     platform: "linux",
+    signInDirs: ["/home/casey/.ssh", "/home/casey/.config/gh"],
+    temporaryDirs: ["/tmp", "/var/tmp"],
     userDataDir: "/home/casey/.config/Instrument",
   },
   win32: {
@@ -39,7 +44,9 @@ const FACTS: Record<FolderPlatform, FolderFacts> = {
     installDir: "C:\\Users\\casey\\AppData\\Local\\Programs\\Instrument",
     otherWorkspaces: ["C:\\Users\\casey\\Projects\\Lab"],
     platform: "win32",
+    signInDirs: ["C:\\Users\\casey\\.ssh"],
     systemDrive: "C:",
+    temporaryDirs: ["C:\\Users\\casey\\AppData\\Local\\Temp"],
     userDataDir: "C:\\Users\\casey\\AppData\\Roaming\\Instrument",
   },
 };
@@ -101,6 +108,19 @@ describe("folderConcern", () => {
     ["darwin", "/Users/casey/Library/Mobile Documents", "apps-data"],
     ["darwin", "/Volumes", "drive"],
     ["darwin", "/Volumes/Backup", "drive"],
+    ["darwin", "/Users/casey/Documents", "personal"],
+    ["darwin", "/users/casey/desktop/", "personal"],
+    ["darwin", "/Users/casey/Downloads", "personal"],
+    [
+      "darwin",
+      "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs",
+      "personal",
+    ],
+    ["darwin", "/private/tmp/work", "temporary"],
+    ["darwin", "/private/var/folders/xy/T", "temporary"],
+    ["darwin", "/Users/casey/.ssh", "sign-ins"],
+    ["darwin", "/Users/casey/Library/LaunchAgents", "sign-ins"],
+    ["darwin", "/Users/casey/.instrument-work", "apps-data"],
 
     ["linux", "/home", "around-home"],
     ["linux", "/", "around-home"],
@@ -114,6 +134,13 @@ describe("folderConcern", () => {
     ["linux", "/mnt/usb", "drive"],
     ["linux", "/media/casey/USB", "drive"],
     ["linux", "/run/media/casey/USB", "drive"],
+    ["linux", "/home/casey/Documents", "personal"],
+    ["linux", "/home/casey/Downloads", "personal"],
+    ["linux", "/tmp", "temporary"],
+    ["linux", "/var/tmp/work", "temporary"],
+    ["linux", "/home/casey/.ssh/keys", "sign-ins"],
+    ["linux", "/home/casey/.config/gh", "sign-ins"],
+    ["linux", "/home/casey/.notes", "apps-data"],
 
     ["win32", "C:\\Users", "around-home"],
     ["win32", "C:\\", "around-home"],
@@ -126,6 +153,10 @@ describe("folderConcern", () => {
     ["win32", "C:\\ProgramData\\Work", "system"],
     ["win32", "C:\\Users\\casey\\AppData", "apps-data"],
     ["win32", "C:\\Users\\casey\\appdata\\Local\\Work", "apps-data"],
+    ["win32", "C:\\Users\\casey\\Documents", "personal"],
+    ["win32", "c:\\users\\casey\\DESKTOP", "personal"],
+    ["win32", "C:\\Users\\casey\\AppData\\Local\\Temp\\Work", "temporary"],
+    ["win32", "C:\\Users\\casey\\.ssh", "sign-ins"],
   ])("%s warns of %s as %s", (platform, folder, reason) => {
     const facts = { ...FACTS[platform], otherWorkspaces: [] };
     expect(folderConcern(folder, facts)).toEqual({
@@ -138,7 +169,8 @@ describe("folderConcern", () => {
     ["darwin", "/Users/casey/Instrument"],
     ["darwin", "/Users/casey/Documents/Instrument"],
     ["darwin", "/Users/casey/Projects/Lab Notes"],
-    ["darwin", "/Users/casey/.instrument-work"],
+    ["darwin", "/Users/casey/Documents/Notes/Instrument"],
+    ["darwin", "/Users/casey/Desktop/Instrument"],
     ["darwin", "/Users/casey/Mounted"],
     ["darwin", "/Volumes/Backup/Instrument"],
     ["darwin", "/Users/Shared/Instrument"],
@@ -153,8 +185,10 @@ describe("folderConcern", () => {
     ["linux", "/home/casey/Library"],
     ["linux", "/media/casey/USB/Instrument"],
     ["linux", "/srv/instrument"],
+    ["linux", "/home/casey/Downloads/Instrument"],
     ["win32", "C:\\Users\\casey\\Instrument"],
     ["win32", "C:\\Users\\casey\\Documents\\Instrument"],
+    ["win32", "C:\\Users\\casey\\Downloads\\Instrument"],
     ["win32", "D:\\Instrument"],
     ["win32", "C:\\Users\\casey\\OneDrive\\Instrument"],
   ])("%s takes %s", (platform, folder) => {
@@ -190,6 +224,38 @@ describe("folderConcern", () => {
       reason: "system",
     });
     expect(folderConcern("C:\\Windows", facts)).toBeUndefined();
+  });
+});
+
+describe("folderInstead", () => {
+  it.each<[FolderPlatform, string, string | undefined]>([
+    ["darwin", "/Users/casey", "/Users/casey/Instrument"],
+    ["darwin", "/Users", "/Users/casey/Instrument"],
+    ["darwin", "/", "/Users/casey/Instrument"],
+    ["darwin", "/Users/casey/Documents", "/Users/casey/Documents/Instrument"],
+    ["darwin", "/Users/casey/Desktop", "/Users/casey/Desktop/Instrument"],
+    [
+      "darwin",
+      "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs",
+      "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs/Instrument",
+    ],
+    ["darwin", "/Users/casey/Library", undefined],
+    ["darwin", "/Volumes/Backup", undefined],
+    ["darwin", "/Users/casey/Notes", undefined],
+    ["linux", "/home/casey", "/home/casey/Instrument"],
+    ["linux", "/home", "/home/casey/Instrument"],
+    ["linux", "/home/casey/Downloads", "/home/casey/Downloads/Instrument"],
+    ["linux", "/tmp", undefined],
+    ["win32", "C:\\Users\\casey", "C:\\Users\\casey\\Instrument"],
+    ["win32", "C:\\", "C:\\Users\\casey\\Instrument"],
+    [
+      "win32",
+      "C:\\Users\\casey\\Documents",
+      "C:\\Users\\casey\\Documents\\Instrument",
+    ],
+    ["win32", "D:\\", undefined],
+  ])("%s offers for %s: %s", (platform, folder, instead) => {
+    expect(folderInstead(folder, FACTS[platform])).toBe(instead);
   });
 });
 

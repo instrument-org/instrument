@@ -59,34 +59,6 @@ function blockedSubcommand(
   };
 }
 
-// Skip auto-install when the subcommand is itself a package management
-// operation, or makes a project rather than running one
-const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
-  "add",
-  "approve-builds",
-  "create",
-  "dlx",
-  "init",
-  "dedupe",
-  "fetch",
-  "i", // short for install
-  "import",
-  "install",
-  "install-test",
-  "it", // short for install-test
-  "link",
-  "ln", // short for link
-  "prune",
-  "rb", // short for rebuild
-  "rebuild",
-  "remove",
-  "rm", // short for remove
-  "uninstall",
-  "unlink",
-  "up", // short for update
-  "update",
-]);
-
 export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
@@ -160,20 +132,6 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       );
     }
 
-    if (subcommand === "store") {
-      return blockedSubcommand(
-        "store",
-        "The shared package store is managed by the sandbox and must not be modified directly.",
-      );
-    }
-
-    if (subcommand === "publish" || subcommand === "pack") {
-      return blockedSubcommand(
-        subcommand,
-        "This is a sandboxed task workspace intended for development; publishing to the npm registry is not permitted.",
-      );
-    }
-
     const hasGlobalFlag = args.some((arg) => GLOBAL_FLAGS.has(arg));
     const filteredArgs = hasGlobalFlag
       ? args.filter((arg) => !GLOBAL_FLAGS.has(arg))
@@ -189,35 +147,6 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     // The shell's cwd as a host path.
     const { hostCwd: cwd } = resolveCommandContext(chatId, ctx);
 
-    const isInformational =
-      !subcommand || subcommand.startsWith("-") || subcommand === "help";
-    let installOutput = "";
-    // A folder with no package.json has nothing to install, and pnpm says
-    // so for the command itself.
-    if (
-      !isInformational &&
-      !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand) &&
-      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "package.json")))
-    ) {
-      const installPlan = outsidePlan({ args: ["install"], cwd, layout });
-      const installResult = installPlan
-        ? await installOutside({
-            chatId,
-            env,
-            plan: installPlan,
-            signal: ctx.signal,
-          })
-        : await runPnpmCommand({
-            args: ["install"],
-            cwd,
-            env,
-            signal: ctx.signal,
-            chatId,
-          });
-      if (installResult.exitCode !== 0) {
-        installOutput = `[auto-install failed]\n${installResult.stdout}${installResult.stderr}\n\n`;
-      }
-    }
     // An install from the registry runs outside the sandbox, which refuses
     // the links it makes on Windows; anything else runs inside it.
     const plan = outsidePlan({ args: filteredArgs, cwd, layout });
@@ -259,10 +188,9 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
 
     return {
       exitCode: result.exitCode,
-      // The auto-install report and the stripped-flag note are this wrapper's
-      // own diagnostics, so they join the command's stderr rather than its
-      // output.
-      stderr: installOutput + result.stderr + globalNote + linkNote,
+      // The stripped-flag and link notes are this wrapper's own diagnostics,
+      // so they join the command's stderr rather than its output.
+      stderr: result.stderr + globalNote + linkNote,
       stdout: result.stdout,
     };
   });

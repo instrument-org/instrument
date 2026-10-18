@@ -52,6 +52,7 @@ describe("nativeReachFor", () => {
           "environments",
           "preload",
           "python-base",
+          "install/caches",
         ],
         "readWrite": [
           "caches",

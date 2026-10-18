@@ -50,6 +50,15 @@ export function runtimeLayout(runtimeDir: string) {
      */
     environments: path.join(runtimeDir, "environments"),
     /**
+     * The store, caches and settings of the pnpm install step the app runs
+     * outside the sandbox for a chat (`pnpm-outside.ts`). Native commands
+     * only read its store, so no chat can plant a link or a file there that
+     * the unsandboxed pnpm would follow or copy.
+     */
+    installCaches: path.join(runtimeDir, "install", "caches"),
+    /** That install step's own empty npm config files and `XDG_CONFIG_HOME`. */
+    installConfig: path.join(runtimeDir, "install", "config"),
+    /**
      * What the app loads into the programs a chat runs, which native
      * commands only read: the `tools` preload every `node` imports. The app
      * writes it, so no chat can change what another chat's programs load.

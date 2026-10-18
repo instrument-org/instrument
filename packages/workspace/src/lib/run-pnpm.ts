@@ -1,11 +1,16 @@
+import { type Readable } from "node:stream";
+
+import { execa } from "execa";
+
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { nodeToolsEnv } from "./tool-isolation";
-import { nodeBuildEnvFor } from "./tool-isolation-env";
+import { nodeBuildEnvFor, nodeInstallEnvFor } from "./tool-isolation-env";
 import { chatNativeReach } from "./chat-native-reach";
 import { runtimeLayout } from "./runtime-dir";
 import { execaNodeForChat } from "./execa-node-for-chat";
 import { filterShellOutput } from "./filter-shell-output";
+import { inheritedEnv } from "./native-env";
 import {
   collectAndForward,
   currentShellOutputSink,
@@ -20,6 +25,7 @@ export async function runPnpmCommand({
   buildFolders = false,
   cwd,
   env,
+  pnpmConfig,
   pnpmLogLevel,
   signal,
   stdin,
@@ -36,6 +42,8 @@ export async function runPnpmCommand({
   buildFolders?: boolean;
   cwd?: AbsolutePath;
   env?: Record<string, string>;
+  /** pnpm settings over the app's own, as `pnpm_config_*` variables. */
+  pnpmConfig?: Record<string, string>;
   /** Forwarded to pnpm as `pnpm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
   pnpmLogLevel?: "error";
   signal?: AbortSignal;
@@ -84,6 +92,7 @@ export async function runPnpmCommand({
         ...(buildFolders ? nodeBuildEnvFor(runtimeDir) : nodeToolsEnv()),
         pnpm_config_reporter: "append-only",
         ...(pnpmLogLevel === "error" ? { pnpm_config_loglevel: "error" } : {}),
+        ...pnpmConfig,
       },
       // Don't reject so we can filter the output
       reject: false,
@@ -92,6 +101,99 @@ export async function runPnpmCommand({
     cwd,
     reach,
   );
+  return await pnpmResult(args, subprocess, signal);
+}
+
+/**
+ * The app's own pnpm with no sandbox around it, for the install step
+ * `pnpm-outside.ts` decided may run there. Its environment is built from
+ * nothing the shell has: the variables a program needs to find itself and
+ * reach the network, taken from the app's own environment, the system's
+ * program folders for a PATH, and `nodeInstallEnvFor`, so nothing the agent
+ * exported reaches it.
+ */
+export async function runPnpmOutsideSandbox({
+  args,
+  cwd,
+  signal,
+}: {
+  args: string[];
+  cwd: AbsolutePath;
+  signal?: AbortSignal;
+}) {
+  const sink = currentShellOutputSink();
+  const { nodeExecEnv, pnpmBinPath, runtimeDir } = getWorkspaceConfig();
+  const subprocess = execa(process.execPath, [pnpmBinPath, ...args], {
+    all: true,
+    cancelSignal: sink ? undefined : signal,
+    cwd,
+    detached: sink !== undefined && process.platform !== "win32",
+    env: outsidePnpmEnv({
+      appEnv: process.env,
+      install: nodeInstallEnvFor(runtimeDir),
+      nodeExecEnv,
+    }),
+    extendEnv: false,
+    reject: false,
+    stdin: "ignore",
+  });
+  return await pnpmResult(args, subprocess, signal);
+}
+
+/** The whole environment of the install step outside the sandbox. */
+export function outsidePnpmEnv({
+  appEnv,
+  install,
+  nodeExecEnv,
+  platform = process.platform,
+}: {
+  /** The app's own environment, never the shell's. */
+  appEnv: NodeJS.ProcessEnv;
+  /** `nodeInstallEnvFor`'s folders and settings. */
+  install: Record<string, string>;
+  /** What runs the app's executable as Node. */
+  nodeExecEnv: Record<string, string>;
+  platform?: NodeJS.Platform;
+}): Record<string, string> {
+  return {
+    ...inheritedEnv(appEnv),
+    PATH: systemPath(appEnv, platform),
+    ...nodeExecEnv,
+    ...install,
+    pnpm_config_reporter: "append-only",
+  };
+}
+
+/**
+ * The system's own program folders: pnpm starts nothing from the PATH with
+ * scripts off, and nothing the person or the app put first on it is looked
+ * at.
+ */
+function systemPath(
+  appEnv: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): string {
+  if (platform !== "win32") {
+    return "/usr/bin:/bin:/usr/sbin:/sbin";
+  }
+  const root = appEnv.SystemRoot ?? appEnv.SYSTEMROOT ?? "C:\\Windows";
+  return [`${root}\\System32`, root, `${root}\\System32\\Wbem`].join(";");
+}
+
+async function pnpmResult(
+  args: string[],
+  /** A running execa subprocess, as much of it as is read here. */
+  subprocess: PromiseLike<{
+    exitCode?: number;
+    stderr: unknown;
+    stdout: unknown;
+  }> & {
+    pid?: number;
+    readable(options: { from: "all" }): Readable;
+  },
+  signal: AbortSignal | undefined,
+) {
+  const sink = currentShellOutputSink();
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal })
     : undefined;

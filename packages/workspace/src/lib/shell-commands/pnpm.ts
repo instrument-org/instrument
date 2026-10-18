@@ -8,6 +8,12 @@ import { dedent } from "radashi";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import {
+  installedProjectConfig,
+  installOutside,
+  outsidePlan,
+  projectFolder,
+} from "../pnpm-outside";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { resolveCommandContext, subprocessStdin } from "./utils";
@@ -34,6 +40,9 @@ export const PNX_COMMAND = {
 } as const;
 
 const GLOBAL_FLAGS = new Set(["--global", "-g"]);
+
+/** Subcommands that run install scripts in an installed project. */
+const BUILD_SUBCOMMANDS = new Set(["approve-builds", "rb", "rebuild"]);
 
 function blockedSubcommand(
   cmd: string,
@@ -85,7 +94,7 @@ export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   );
 }
 
-export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
@@ -189,25 +198,42 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand) &&
       (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "package.json")))
     ) {
-      const installResult = await runPnpmCommand({
-        args: ["install"],
-        cwd,
-        env,
-        signal: ctx.signal,
-        chatId,
-      });
+      const installPlan = outsidePlan({ args: ["install"], cwd, layout });
+      const installResult = installPlan
+        ? await installOutside({
+            chatId,
+            env,
+            plan: installPlan,
+            signal: ctx.signal,
+          })
+        : await runPnpmCommand({
+            args: ["install"],
+            cwd,
+            env,
+            signal: ctx.signal,
+            chatId,
+          });
       if (installResult.exitCode !== 0) {
         installOutput = `[auto-install failed]\n${installResult.stdout}${installResult.stderr}\n\n`;
       }
     }
-    const result = await runPnpmCommand({
-      args: filteredArgs,
-      cwd,
-      env,
-      signal: ctx.signal,
-      stdin: subprocessStdin(ctx.stdin),
-      chatId,
-    });
+    // An install from the registry runs outside the sandbox, which refuses
+    // the links it makes on Windows; anything else runs inside it.
+    const plan = outsidePlan({ args: filteredArgs, cwd, layout });
+    const result = plan
+      ? await installOutside({ chatId, env, plan, signal: ctx.signal })
+      : await runPnpmCommand({
+          args: filteredArgs,
+          cwd,
+          env,
+          // A build reads the store its project was installed from.
+          ...(BUILD_SUBCOMMANDS.has(subcommand ?? "") && {
+            pnpmConfig: installedProjectConfig(projectFolder(layout, cwd)),
+          }),
+          signal: ctx.signal,
+          stdin: subprocessStdin(ctx.stdin),
+          chatId,
+        });
 
     let globalNote = "";
     if (hasGlobalFlag) {

@@ -36,6 +36,36 @@ export function nodeBuildEnvFor(runtimeDir: string): Record<string, string> {
   return nodeToolsEnvIn(buildCaches, buildConfig);
 }
 
+/**
+ * {@link nodeToolsEnvFor} for the pnpm install step the app runs outside the
+ * sandbox (`pnpm-outside.ts`): the same settings, with the store, caches,
+ * config and temp folder in the install folders, which no chat changes, and
+ * nothing that runs a package's code or another pnpm. Install scripts and
+ * pnpmfiles are off, a `packageManager` or `devEngines` naming another pnpm
+ * is ignored rather than downloaded and run, and a dependency of a package
+ * comes from the registry alone.
+ */
+export function nodeInstallEnvFor(runtimeDir: string): Record<string, string> {
+  const { installCaches, installConfig } = runtimeLayout(runtimeDir);
+  const temp = path.join(installCaches, "tmp");
+  mkdirSync(temp, { recursive: true });
+  return {
+    ...nodeToolsEnvIn(installCaches, installConfig),
+    TEMP: temp,
+    TMP: temp,
+    TMPDIR: temp,
+    // pnpm's global config, auth file and data folders, wherever it looks.
+    XDG_CACHE_HOME: installCaches,
+    XDG_CONFIG_HOME: installConfig,
+    XDG_DATA_HOME: installCaches,
+    XDG_STATE_HOME: installCaches,
+    pnpm_config_block_exotic_subdeps: "true",
+    pnpm_config_ignore_pnpmfile: "true",
+    pnpm_config_ignore_scripts: "true",
+    pnpm_config_pm_on_fail: "ignore",
+  };
+}
+
 function nodeToolsEnvIn(
   caches: string,
   config: string,

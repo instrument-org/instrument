@@ -16,6 +16,12 @@ import {
 import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock(import("../execa-node-for-chat"));
+vi.mock(import("../pnpm-outside"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  installedProjectConfig: vi.fn(),
+  installOutside: vi.fn(),
+  outsidePlan: vi.fn(),
+}));
 
 const mockCtx = createCommandContext({
   cwd: "/",
@@ -247,6 +253,89 @@ describe("createPnpmCommand", () => {
       </instrument-system-note>"
     `);
   });
+
+  it("installs from the registry outside the sandbox when the plan allows it", async () => {
+    const { execaNodeForChat } = await import("../execa-node-for-chat");
+    const { installOutside, outsidePlan } = await import("../pnpm-outside");
+    vi.mocked(execaNodeForChat).mockClear();
+    const plan = { args: ["add", "is-odd", "--dir", "/job"], project: "/job" };
+    vi.mocked(outsidePlan).mockReturnValueOnce(plan);
+    vi.mocked(installOutside).mockResolvedValueOnce({
+      command: "pnpm add is-odd",
+      exitCode: 0,
+      stderr: "",
+      stdout: "+ is-odd 3.0.1",
+    });
+
+    const result = await command.execute(["add", "is-odd"], mockCtx);
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: "+ is-odd 3.0.1",
+    });
+    expect(vi.mocked(outsidePlan).mock.calls[0]?.[0].args).toEqual([
+      "add",
+      "is-odd",
+    ]);
+    expect(vi.mocked(installOutside).mock.calls[0]?.[0].plan).toBe(plan);
+    expect(execaNodeForChat).not.toHaveBeenCalled();
+  });
+
+  it("runs the auto-install outside and the script in the sandbox", async () => {
+    const { execaNodeForChat } = await import("../execa-node-for-chat");
+    const { installOutside, outsidePlan } = await import("../pnpm-outside");
+    vi.mocked(execaNodeForChat).mockClear();
+    vi.mocked(installOutside).mockClear();
+    const plan = { args: ["install", "--dir", "/"], project: "/" };
+    vi.mocked(outsidePlan).mockImplementation(({ args }) =>
+      args[0] === "install" ? plan : undefined,
+    );
+    vi.mocked(installOutside).mockResolvedValueOnce({
+      command: "pnpm install",
+      exitCode: 0,
+      stderr: "",
+      stdout: "",
+    });
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: "built",
+    });
+
+    const result = await command.execute(["run", "build"], {
+      ...mockCtx,
+      fs: new InMemoryFs({ "/package.json": "{}" }),
+    });
+
+    expect(result.stdout).toBe("built");
+    expect(vi.mocked(installOutside).mock.calls[0]?.[0].plan).toBe(plan);
+    expect(
+      vi.mocked(execaNodeForChat).mock.calls.map((call) => call[2]),
+    ).toEqual([["run", "build"]]);
+    vi.mocked(outsidePlan).mockReset();
+  });
+
+  it.each([["approve-builds", "esbuild"], ["rebuild"], ["rb"]])(
+    "builds %s from the store its project was installed from",
+    async (...args) => {
+      const { execaNodeForChat } = await import("../execa-node-for-chat");
+      const { installedProjectConfig } = await import("../pnpm-outside");
+      vi.mocked(execaNodeForChat).mockClear();
+      vi.mocked(installedProjectConfig).mockReturnValueOnce({
+        pnpm_config_frozen_store: "true",
+      });
+      vi.mocked(execaNodeForChat).mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: "",
+      });
+
+      await command.execute(args, mockCtx);
+
+      expect(vi.mocked(execaNodeForChat).mock.calls[0]?.[3].env).toMatchObject({
+        pnpm_config_frozen_store: "true",
+      });
+    },
+  );
 
   it("aliases npx registered commands to the bash command registry", async () => {
     const exec = vi.fn().mockResolvedValue({

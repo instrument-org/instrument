@@ -237,7 +237,7 @@ it("renders a chat whole", () => {
     Sent: kitchen.png
 
     <details>
-    <summary>Worked for less than a minute</summary>
+    <summary>Worked for 20s</summary>
     <pre>
     thinking: Noise matters more to them than price.
     bash: ls
@@ -286,7 +286,7 @@ it("counts the work to the end of the call, not to when it was made", () => {
       ),
     ]),
   ]);
-  expect(render(slow)).toContain("<summary>Worked for 3 minutes</summary>");
+  expect(render(slow)).toContain("<summary>Worked for 3m 10s</summary>");
 });
 
 describe("the same records render the same bytes", () => {

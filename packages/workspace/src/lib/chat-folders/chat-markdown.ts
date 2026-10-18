@@ -389,12 +389,20 @@ function details(held: WorkLine[]): string {
   ].join("\n");
 }
 
-/** How long the work took, in the words the summary line says it in. */
+/**
+ * How long the work took, as the summary line says it: to the second, the
+ * way the chat's own rows count time, and never under one.
+ */
 function worked(ms: number): string {
-  const minutes = Math.round(ms / 60_000);
-  return minutes < 1
-    ? "Worked for less than a minute"
-    : `Worked for ${minutes.toString()} minute${minutes === 1 ? "" : "s"}`;
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes === 0) {
+    return `Worked for ${rest.toString()}s`;
+  }
+  return rest === 0
+    ? `Worked for ${minutes.toString()}m`
+    : `Worked for ${minutes.toString()}m ${rest.toString()}s`;
 }
 
 /**

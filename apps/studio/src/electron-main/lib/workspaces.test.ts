@@ -632,6 +632,7 @@ describe("where finished work goes while the workspace is the app's own", () => 
 
   const inHome = (...names: string[]) => path.join(home, ...names);
 
+  /** What startup settles on a first launch, before anything asks. */
   function plantWorkspace() {
     writeWorkspaceIdentity(defaultWorkspacePath(userDataDir), {
       color: "gray",
@@ -640,6 +641,18 @@ describe("where finished work goes while the workspace is the app's own", () => 
       name: "Instrument",
       settingsVersion: 2,
     });
+  }
+
+  /** What a person leaves behind by using the app: a chat. */
+  function plantChat() {
+    plantWorkspace();
+    fs.mkdirSync(
+      path.join(
+        workspaceLayout(defaultWorkspacePath(userDataDir)).chatsDir,
+        "2026-10-17-a-chat",
+      ),
+      { recursive: true },
+    );
   }
 
   it("names the Instrument folder in the home folder", () => {
@@ -654,17 +667,27 @@ describe("where finished work goes while the workspace is the app's own", () => 
     expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
   });
 
-  it("keeps the older folder in Documents where an install made one", () => {
+  // Startup settles the workspace's identity before anything asks where
+  // finished work goes, so the identity cannot stand for a computer that has
+  // used the app: a first launch has one too.
+  it("leaves Documents alone for a workspace startup has only just settled", () => {
     fs.mkdirSync(inHome("Documents", "Instrument"), { recursive: true });
     plantWorkspace();
+
+    expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
+  });
+
+  it("keeps the older folder in Documents where a computer has used the app", () => {
+    fs.mkdirSync(inHome("Documents", "Instrument"), { recursive: true });
+    plantChat();
 
     expect(unchosenOutputFolder(userDataDir)).toBe(
       inHome("Documents", "Instrument"),
     );
   });
 
-  it("names the home folder for an install that never made one", () => {
-    plantWorkspace();
+  it("names the home folder for a computer that never made that folder", () => {
+    plantChat();
 
     expect(unchosenOutputFolder(userDataDir)).toBe(inHome("Instrument"));
   });

@@ -226,3 +226,4 @@ Local first, and most of the time:
 
 - How an app's instructions show and are edited in the app's own interface.
 - Whether Settings shows that a chat holds an attached item Settings says is Not allowed.
+- The drafts migration publishes a draft before it moves what was pasted into it, and reads a published draft as one it has already done. A crash between the two therefore leaves a draft naming files by where they were, with no later launch to put that right; the files are on disk either way. Resuming it takes a claim that can be made again, which the folder claim is not.

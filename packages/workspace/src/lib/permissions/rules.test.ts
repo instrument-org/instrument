@@ -491,7 +491,7 @@ describe("reachOf on Windows, where a folder has second names", () => {
 
 it.runIf(process.platform === "win32")(
   "closes every spelling NTFS opens a closed folder by, on a real disk",
-  ({ skip }) => {
+  () => {
     const ws = fs.mkdtempSync(nodePath.join(os.tmpdir(), "second-names-"));
     try {
       fs.mkdirSync(nodePath.join(ws, ".instrument", "keys"), {
@@ -499,14 +499,12 @@ it.runIf(process.platform === "win32")(
       });
       fs.writeFileSync(nodePath.join(ws, ".instrument", "keys", "a.txt"), "");
       fs.writeFileSync(nodePath.join(ws, "notes.txt"), "");
-      // A second name of the 8.3 kind is what this case is about, and a
-      // volume can be set up without them: Windows leaves them off on a
-      // drive added after the system one, which is where a CI runner puts
-      // its temp folder. There the folder has only its own name and there is
-      // no second spelling to close.
-      if (!fs.existsSync(nodePath.join(ws, "INSTRU~1"))) {
-        skip();
-      }
+      // Whether this volume gives a folder a second name of the 8.3 kind.
+      // Windows leaves them off on a drive added after the system one, which
+      // is where a CI runner puts its temp folder; there `.instrument` has
+      // only its own name, and the other spellings below are still worth
+      // checking.
+      const shortNames = fs.existsSync(nodePath.join(ws, "INSTRU~1"));
       const rules: Rules = {
         home,
         rules: [
@@ -523,18 +521,24 @@ it.runIf(process.platform === "win32")(
       const levelOf = (...segments: string[]) =>
         reachOf(rules, nodePath.join(ws, ...segments), "read").level;
 
+      const short = shortNames
+        ? {
+            short: levelOf("INSTRU~1", "keys", "a.txt"),
+            shortLower: levelOf("instru~1", "keys", "a.txt"),
+            shortNotYet: levelOf("INSTRU~1", "keys", "not-yet.txt"),
+          }
+        : {};
+
       expect({
-        short: levelOf("INSTRU~1", "keys", "a.txt"),
-        shortLower: levelOf("instru~1", "keys", "a.txt"),
-        shortNotYet: levelOf("INSTRU~1", "keys", "not-yet.txt"),
+        ...short,
         stream: levelOf(".instrument::$INDEX_ALLOCATION", "keys", "a.txt"),
         trailingDot: levelOf(".instrument.", "keys", "a.txt"),
         upper: levelOf(".INSTRUMENT", "keys", "a.txt"),
         open: levelOf("notes.txt"),
       }).toEqual({
-        short: "never",
-        shortLower: "never",
-        shortNotYet: "never",
+        ...(shortNames
+          ? { short: "never", shortLower: "never", shortNotYet: "never" }
+          : {}),
         stream: "never",
         trailingDot: "never",
         upper: "never",

@@ -50,7 +50,7 @@ const SEPARATOR = " › ";
 
 // oxlint-disable studio/no-os-words -- shown only on macOS, where Seatbelt does not nest inside another sandbox
 const MAC_SANDBOX_OFF =
-  "On this Mac, Instrument can't use the system's sandbox, which happens when Instrument itself runs inside another one. Its own tools still follow this list, but a program the agent runs, like Python, could reach other folders.";
+  "A program the agent runs, like Python, can reach folders this list closes. Instrument's own tools still follow the list, and what the system usually adds on top of it is unavailable on this Mac.";
 // oxlint-enable studio/no-os-words
 
 const LEVEL_LABELS = {

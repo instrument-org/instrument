@@ -221,19 +221,40 @@ export function defaultWorkspacePath(userDataDir: string): string {
  * raises no prompt over it.
  *
  * An install that already made the older folder in Documents keeps that one,
- * so its finished work does not end up split across two folders. That folder
- * is only looked for once this computer has a workspace of its own, since
- * looking inside Documents is the one thing a first launch must not do: a
- * launch that has a workspace has been through whatever macOS asked long
- * ago, and a refused look reads as the folder not being there, which sends
- * new work to the home folder.
+ * so its finished work does not end up split across two folders. Documents
+ * is only looked in for a computer that has used the app before, since
+ * looking there is the one thing a first launch must not do, and a refused
+ * look reads as the folder not being there, which sends new work to the
+ * home folder.
  */
 export function unchosenOutputFolder(userDataDir: string): string {
   const older = instrumentFolderInDocuments();
-  return hasWorkspaceIdentity(defaultWorkspacePath(userDataDir)) &&
-    isDirectorySync(older)
+  return usedBefore(userDataDir) && isDirectorySync(older)
     ? older
     : instrumentFolderUnchosen();
+}
+
+/**
+ * Whether this computer has used the app before, by whether the workspace
+ * the app keeps in its own data holds a chat.
+ *
+ * Not by its identity file: startup settles that before anything asks where
+ * finished work goes, so on a first launch it is already there. A chat is
+ * made by a person rather than by starting up, so a workspace with one has
+ * been used, and the folder in Documents, if there is one, is where that
+ * use put its finished work.
+ */
+function usedBefore(userDataDir: string): boolean {
+  try {
+    return (
+      fs.readdirSync(
+        workspaceLayout(defaultWorkspacePath(userDataDir)).chatsDir,
+      ).length > 0
+    );
+  } catch {
+    // No workspace of its own yet, or none this account can read.
+    return false;
+  }
 }
 
 export function hasWorkspaceIdentity(workspacePath: string): boolean {

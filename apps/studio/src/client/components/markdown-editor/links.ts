@@ -131,6 +131,24 @@ export function linksPlugin({
     open(targetOf(href, folder), newTab);
   };
 
+  // The link tooltip draws the address as a plain `target="_blank"` anchor
+  // outside the document's view, which on its own would open a relative
+  // link against the app's own page. A click on it follows the link here.
+  const onTooltipLink = (event: MouseEvent) => {
+    if (event.type === "auxclick" && event.button !== MIDDLE_BUTTON) {
+      return;
+    }
+    const target = event.target instanceof Element ? event.target : null;
+    const href = target
+      ?.closest(".milkdown-link-preview a.link-display")
+      ?.getAttribute("href");
+    if (!href) {
+      return;
+    }
+    event.preventDefault();
+    follow(href, event.type === "auxclick" || event.shiftKey);
+  };
+
   return $prose(
     () =>
       new Plugin({
@@ -197,11 +215,15 @@ export function linksPlugin({
         view(v) {
           viewRef = v;
           window.addEventListener("focus", onFocus);
+          root.addEventListener("click", onTooltipLink, true);
+          root.addEventListener("auxclick", onTooltipLink, true);
           schedule();
           return {
             destroy() {
               clearTimeout(checkTimer);
               window.removeEventListener("focus", onFocus);
+              root.removeEventListener("click", onTooltipLink, true);
+              root.removeEventListener("auxclick", onTooltipLink, true);
               viewRef = null;
             },
             update(next, prev) {

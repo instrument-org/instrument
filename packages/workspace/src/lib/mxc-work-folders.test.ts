@@ -221,7 +221,10 @@ describe.runIf(held)("a chat's work folder under MXC", () => {
       () => path.dirname(path.dirname(work)),
     ],
   ])("lets a program %s", async (_name, call, target) => {
-    const result = await run(nodeOn(call.replace("${tag}", tag), target()), work);
+    const result = await run(
+      nodeOn(call.replace("${tag}", tag), target()),
+      work,
+    );
     console.log("reaches", _name, JSON.stringify(result));
     expect(result.stdout).toMatch(/^ok /);
   });

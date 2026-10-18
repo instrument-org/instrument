@@ -69,6 +69,7 @@ describe.runIf(process.platform === "win32" && exec)(
           args: ["/c", "exit"],
           file: "cmd.exe",
           kind: "unwrapped",
+          unheld: reach,
         });
         expect(nativeSandboxEnforced()).toBe(false);
       },

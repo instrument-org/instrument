@@ -186,15 +186,16 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
   }
   // Links of the kind the agent can make wherever it writes, named far
   // deeper than what they lead to: one into the keys, one to the folder
-  // holding the app's data.
+  // holding the app's data. Junctions on Windows, which an account without
+  // the symlink privilege can make; elsewhere the type is ignored.
   const deep = path.join(home, "Downloads", ..."abcdefghijk".split(""));
   mkdirSync(deep, { recursive: true });
   const deepLinks = {
     appFiles: path.join(deep, "app-files"),
     keys: path.join(deep, "keys"),
   };
-  symlinkSync(path.join(workspaceMachine, "keys"), deepLinks.keys);
-  symlinkSync(paths.appFiles, deepLinks.appFiles);
+  symlinkSync(path.join(workspaceMachine, "keys"), deepLinks.keys, "junction");
+  symlinkSync(paths.appFiles, deepLinks.appFiles, "junction");
   return { ...paths, deepLinks };
 }
 

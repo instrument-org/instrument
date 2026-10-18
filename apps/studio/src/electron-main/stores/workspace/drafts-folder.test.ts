@@ -2,7 +2,7 @@ import { DRAFTS_KEY } from "@/shared/kept-state";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { createDraftsFolder, draftDirOf } from "./drafts-folder";
 
@@ -248,4 +248,20 @@ it("takes in a draft folder copied in from elsewhere", () => {
       }),
     ],
   });
+});
+
+it("watches without making the drafts folder, and calls back once a draft makes it", async () => {
+  const folder = createDraftsFolder(root);
+  folder.read();
+  const onChange = vi.fn();
+  const stop = folder.watch(onChange);
+  try {
+    expect(fs.readdirSync(root)).toEqual([]);
+    folder.write({ [DRAFTS_KEY]: [draft("a", "Plan the trip")] });
+    await vi.waitFor(() => {
+      expect(onChange).toHaveBeenCalled();
+    });
+  } finally {
+    stop();
+  }
 });

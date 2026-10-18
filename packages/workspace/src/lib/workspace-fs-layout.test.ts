@@ -565,6 +565,41 @@ describe("buildBashFs skills mount", () => {
       ),
     ).resolves.toBe("body\n");
   });
+
+  it("leaves skills and apps for the first one to make inside a granted workspace folder", async () => {
+    await fs.rm(path.join(tmpDir, SKILLS_FOLDER_NAME), {
+      force: true,
+      recursive: true,
+    });
+    const layout = buildWorkspaceFsLayout({
+      apps: true,
+      chatHostRoot: WorkDirSchema.parse(path.join(tmpDir, "task")),
+      folders: {
+        workspace: {
+          access: "read-write",
+          id: MountedFolder.IdSchema.parse("workspace-id"),
+          path: AbsolutePathSchema.parse(tmpDir),
+        },
+      },
+    });
+    const bash = new Bash({
+      cwd: layout.chat.shellRoot,
+      fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
+    });
+    expect(existsSync(getWorkspaceSkillsDir())).toBe(false);
+    expect(existsSync(getWorkspaceConfig().appsDir)).toBe(false);
+
+    const written = await bash.exec(
+      `mkdir -p ${WORKSPACE_SKILLS()}/first && echo body > ${WORKSPACE_SKILLS()}/first/SKILL.md`,
+    );
+    expect(written.exitCode).toBe(0);
+    await expect(
+      fs.readFile(
+        path.join(tmpDir, SKILLS_FOLDER_NAME, "first", "SKILL.md"),
+        "utf8",
+      ),
+    ).resolves.toBe("body\n");
+  });
 });
 
 describe("effectiveFolderAccess", () => {

@@ -11,6 +11,10 @@ import {
   renderDraftFile,
   writeDraftFile,
 } from "@instrument-org/workspace/drafts";
+import {
+  afterFolderAppears,
+  isFolder,
+} from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -160,26 +164,40 @@ export function createDraftsFolder(rootDir: string) {
     /**
      * Calls back when the drafts folder changes, its contents or a draft's
      * file, gathered over a beat. The app's own writes call back too;
-     * `reconcile` is what tells them apart.
+     * `reconcile` is what tells them apart. A workspace with no drafts has
+     * no folder, so the watch starts when the first draft makes it.
      */
     watch(onChange: () => void): () => void {
       const root = draftsFolderDir(rootDir);
       let watcher: fs.FSWatcher | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        fs.mkdirSync(root, { recursive: true });
-        watcher = fs.watch(root, { recursive: true }, () => {
-          clearTimeout(timer);
-          timer = setTimeout(onChange, WATCH_SETTLE_MS);
+      const changed = () => {
+        clearTimeout(timer);
+        timer = setTimeout(onChange, WATCH_SETTLE_MS);
+      };
+      const start = () => {
+        try {
+          watcher = fs.watch(root, { recursive: true }, changed);
+          watcher.on("error", (error) => {
+            logger.warn(`Stopped watching drafts in ${root}`, error);
+            watcher?.close();
+          });
+        } catch (error) {
+          logger.warn(`Could not watch drafts in ${root}`, error);
+        }
+      };
+      let stopWaiting: (() => void) | undefined;
+      if (isFolder(root)) {
+        start();
+      } else {
+        stopWaiting = afterFolderAppears(root, () => {
+          start();
+          // Whatever arrived with the folder came before the watch did.
+          changed();
         });
-        watcher.on("error", (error) => {
-          logger.warn(`Stopped watching drafts in ${root}`, error);
-          watcher?.close();
-        });
-      } catch (error) {
-        logger.warn(`Could not watch drafts in ${root}`, error);
       }
       return () => {
+        stopWaiting?.();
         clearTimeout(timer);
         watcher?.close();
       };

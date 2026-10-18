@@ -168,6 +168,7 @@ export {
   instrumentFolderUnchosen,
   outputFolderPath,
 } from "./lib/chat/output-folder";
+export { afterFolderAppears, isFolder } from "./lib/folder-appears";
 export { placePaths, startupPaths } from "./lib/permissions/places";
 export { chatTitle } from "./lib/chat-info";
 export { getChatSettings } from "./lib/chat-settings";

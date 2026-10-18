@@ -969,6 +969,7 @@ async function mountRoots(
   layout: WorkspaceFsLayout,
 ): Promise<WorkspaceFsMount[]> {
   const present: WorkspaceFsMount[] = [];
+  const missingOurs: WorkspaceFsMount[] = [];
   // The app's own folders are made when missing; a folder of the person's
   // that is gone stays gone rather than coming back empty.
   const ours = [
@@ -977,9 +978,28 @@ async function mountRoots(
     ...(layout.apps ? [layout.apps] : []),
   ];
   for (const mount of allMounts(layout)) {
-    if (ours.includes(mount)) {
-      await mkdir(mount.hostRoot, { recursive: true }).catch(() => undefined);
+    if (await pathExists(mount.hostRoot)) {
+      present.push(mount);
+    } else if (ours.includes(mount)) {
+      missingOurs.push(mount);
     }
+  }
+  // Skills and apps inside a folder that is there already (the workspace's
+  // top level, once the person picked it) are reached through it and made
+  // by the first skill or app put there, so a workspace that never used them
+  // has none. The chat's work folder is always made: the shell starts in it.
+  for (const mount of missingOurs) {
+    const reached =
+      mount !== layout.chat &&
+      present.some(
+        (outer) =>
+          !outer.readOnly &&
+          hostPathWithin(outer.hostRoot, mount.hostRoot) !== null,
+      );
+    if (reached) {
+      continue;
+    }
+    await mkdir(mount.hostRoot, { recursive: true }).catch(() => undefined);
     if (await pathExists(mount.hostRoot)) {
       present.push(mount);
     }

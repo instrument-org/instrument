@@ -2,8 +2,9 @@ import ms from "ms";
 import { type FSWatcher, watch } from "node:fs";
 
 import { publisher } from "../../rpc/publisher";
+import { afterFolderAppears, isFolder } from "../folder-appears";
 import { getWorkspaceConfig } from "../workspace-config";
-import { ensureMemoryDir, memoryDir } from "./store";
+import { memoryDir } from "./store";
 
 /** Long enough that a save and the editor's rename around it are one change. */
 const SETTLE_MS = ms("150 milliseconds");
@@ -26,29 +27,42 @@ export async function startWatchingMemory(): Promise<() => void> {
   let watcher: FSWatcher | undefined;
   let timer: NodeJS.Timeout | undefined;
 
-  try {
-    // Watching a folder that is not there throws, and an empty memory is the
-    // ordinary state of a new workspace.
-    await ensureMemoryDir(dir);
-    watcher = watch(dir, () => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      timer = setTimeout(() => {
-        timer = undefined;
-        publisher.publish("memory.changed", null);
-      }, SETTLE_MS);
-    });
-    // A watcher that dies takes the freshness with it and nothing else: the
-    // list is still right until the next change nobody hears about.
-    watcher.on("error", (error) => {
+  const changed = () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = undefined;
+      publisher.publish("memory.changed", null);
+    }, SETTLE_MS);
+  };
+  const start = () => {
+    try {
+      watcher = watch(dir, changed);
+      // A watcher that dies takes the freshness with it and nothing else:
+      // the list is still right until the next change nobody hears about.
+      watcher.on("error", (error) => {
+        getWorkspaceConfig().captureException(error);
+      });
+    } catch (error) {
       getWorkspaceConfig().captureException(error);
+    }
+  };
+
+  // An empty memory is the ordinary state of a new workspace, which has no
+  // folder until the first memory is saved.
+  let stopWaiting: (() => void) | undefined;
+  if (isFolder(dir)) {
+    start();
+  } else {
+    stopWaiting = afterFolderAppears(dir, () => {
+      start();
+      changed();
     });
-  } catch (error) {
-    getWorkspaceConfig().captureException(error);
   }
 
   return () => {
+    stopWaiting?.();
     if (timer) {
       clearTimeout(timer);
     }

@@ -95,6 +95,32 @@ describe("workspace skill watcher", () => {
     }
   }, 15_000);
 
+  it("waits for a missing skills folder without making it, then publishes", async () => {
+    root = await setupWorkspace();
+    const skillsDir = path.join(root, SKILLS_FOLDER_NAME);
+    await fs.rm(skillsDir, { recursive: true });
+
+    const controller = new AbortController();
+    const events = publisher
+      .subscribe("skill.changed", { signal: controller.signal })
+      [Symbol.asyncIterator]();
+    const nextEvent = events.next();
+    const stop = await startWatchingWorkspaceSkills();
+    try {
+      await expect(fs.stat(skillsDir)).rejects.toThrow();
+      await fs.mkdir(path.join(skillsDir, "first"), { recursive: true });
+      await expect(
+        writeUntilPublished(
+          path.join(skillsDir, "first", "SKILL.md"),
+          nextEvent,
+        ),
+      ).resolves.toMatchObject({ done: false });
+    } finally {
+      controller.abort();
+      await stop();
+    }
+  }, 15_000);
+
   it("ignores generated dependency trees", async () => {
     root = await setupWorkspace();
     const skillsDir = path.join(root, SKILLS_FOLDER_NAME);

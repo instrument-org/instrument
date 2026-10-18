@@ -63,11 +63,6 @@ export const MemorySchema = z.object({
 
 export type Memory = z.output<typeof MemorySchema>;
 
-/** Makes the folder, so it can be opened before anything is in it. */
-export async function ensureMemoryDir(dir: AbsolutePath): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
-}
-
 /**
  * Deletes the named memories' files and hands back what they held. Names with
  * no file are simply absent from the answer.

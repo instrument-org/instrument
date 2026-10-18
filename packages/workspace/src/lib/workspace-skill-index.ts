@@ -127,8 +127,8 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
   try {
     entries = await fs.readdir(skillsDir, { withFileTypes: true });
   } catch {
-    // A workspace with no skills yet has no directory; it is created lazily
-    // when the bash filesystem mounts.
+    // A workspace with no skills yet has no directory; making the first
+    // skill makes it.
     return index;
   }
 

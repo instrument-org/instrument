@@ -6,7 +6,6 @@ import {
   MemorySourceSchema,
 } from "../../lib/memory/sources";
 import {
-  ensureMemoryDir,
   forgetMemories,
   listMemories,
   memoryDir,
@@ -26,7 +25,6 @@ const MemoryFolderSchema = z.object({
 /** What the conversation remembers about the user: the folder, and every memory in it newest first. */
 async function readMemoryFolder() {
   const dir = memoryDir();
-  await ensureMemoryDir(dir);
   return { dir, memories: await listMemories(dir) };
 }
 

@@ -29,7 +29,7 @@ export function platformGuidance(platform: string): string | undefined {
       return "The Mac's own apps (Reminders, Calendar, Notes) are among the places a reminder, an event, or a note can go.";
     }
     case "win32": {
-      return "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way, and use the script's own temp folder (`tempfile`, `os.tmpdir()`) rather than `/tmp`, which only the shell has.";
+      return "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` is the one exception: the shell and a script started from a folder on the system drive both open it as `\\tmp` on that drive.";
     }
     default: {
       return undefined;

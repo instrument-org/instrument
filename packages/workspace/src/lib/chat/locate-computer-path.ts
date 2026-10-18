@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
 import { getWorkspaceConfig } from "../workspace-config";
+import { WINDOWS_TMP } from "../workspace-fs-layout";
 import { resolveThroughAliases } from "./finder-entries";
 import { resolveICloudPath } from "./icloud-drive";
 
@@ -130,7 +131,7 @@ export async function locateComputerPath(typed: string): Promise<LocatedPath> {
   const written = hostPathFromTyped(typed, {
     home: os.homedir(),
     platform: process.platform,
-    tmp: os.tmpdir(),
+    tmp: WINDOWS_TMP,
   });
   if (written === undefined) {
     return { kind: "failed", path: typed.trim() };

@@ -895,11 +895,10 @@ describe("shellPath on Windows", () => {
     ).toBeNull();
   });
 
-  it("finds /tmp in the temp folder, as Git Bash does", () => {
-    expect(hostPathOf("/tmp")).toBe(path.win32.join(os.tmpdir()));
-    expect(hostPathOf("/tmp/a/b.txt")).toBe(
-      path.win32.join(os.tmpdir(), "a", "b.txt"),
-    );
+  it("finds /tmp where a Windows program opens /tmp, on the system drive", () => {
+    const drive = process.env.SystemDrive ?? "C:";
+    expect(hostPathOf("/tmp")).toBe(`${drive}\\tmp`);
+    expect(hostPathOf("/tmp/a/b.txt")).toBe(`${drive}\\tmp\\a\\b.txt`);
   });
 
   it("refuses a path on no drive without resolving it", () => {

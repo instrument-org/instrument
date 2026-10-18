@@ -9,7 +9,7 @@ import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { shellPath } from "./workspace-fs-layout";
+import { hostPathOf, shellPath } from "./workspace-fs-layout";
 
 /**
  * `~` in the shell is the home the rules hold, so a path the agent spells
@@ -67,19 +67,35 @@ it("asks for Documents when the agent lists ~/Documents", async () => {
   expect(said).not.toContain("//Documents");
 });
 
-it.skipIf(process.platform === "win32")(
-  "writes /tmp and the process's temp folder without asking",
-  async () => {
-    const name = `bash-home-scratch-${process.pid}`;
-    const own = path.join(await fs.realpath(os.tmpdir()), name);
-    const result = await run(
-      `echo x > /tmp/${name} && cat /tmp/${name} && rm /tmp/${name} && echo y > ${own}.own && cat ${own}.own && rm ${own}.own`,
+it("writes /tmp and the process's temp folder without asking", async () => {
+  const name = `bash-home-scratch-${process.pid}`;
+  const own = shellPath(path.join(await fs.realpath(os.tmpdir()), name));
+  const result = await run(
+    `echo x > /tmp/${name} && cat /tmp/${name} && rm /tmp/${name} && echo y > ${own}.own && cat ${own}.own && rm ${own}.own`,
+  );
+  await fs.rm(`/tmp/${name}`, { force: true });
+  await fs.rm(hostPathOf(`${own}.own`), { force: true });
+  expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "x\ny\n" });
+});
+
+it("names by /tmp the file a program's own code opens as /tmp", async () => {
+  const name = `bash-home-shared-${process.pid}`;
+  try {
+    const written = await run(`echo from-shell > /tmp/${name}`);
+    expect(written.exitCode).toBe(0);
+    // This process is a program like any the shell runs: `/tmp/<name>` in
+    // its code is opened as the system spells it, which on Windows is
+    // `\tmp` on the drive of its folder.
+    await expect(fs.readFile(`/tmp/${name}`, "utf8")).resolves.toBe(
+      "from-shell\n",
     );
+    await fs.writeFile(`/tmp/${name}`, "from-program\n");
+    const read = await run(`cat /tmp/${name}`);
+    expect(read.stdout).toBe("from-program\n");
+  } finally {
     await fs.rm(`/tmp/${name}`, { force: true });
-    await fs.rm(`${own}.own`, { force: true });
-    expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "x\ny\n" });
-  },
-);
+  }
+});
 
 it("asks before changing the home folder a temp folder holds", async () => {
   const result = await run("touch ~/notes.txt");

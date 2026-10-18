@@ -207,6 +207,11 @@ export interface ResolvedWorkspace {
 export type OpenWorkspace = ResolvedWorkspace & {
   /** This computer's folder for it (`workspaceMachineDirOf`). */
   machineDir: string;
+  /**
+   * Its folder in `~/.instrument/work/`, which holds each chat's work
+   * folder (`settleWorkFolders`).
+   */
+  workFoldersDir: string;
 };
 export type WorkspaceIdentity = z.output<typeof WorkspaceIdentitySchema>;
 export type WorkspaceRegistry = z.output<typeof RegistrySchema>;

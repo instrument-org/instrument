@@ -23,7 +23,8 @@ import {
 import { cleanUpMachineData } from "./lib/machine-cleanups";
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
-import { finishPendingMove } from "./lib/workspace-move";
+import { settleWorkFolders } from "./lib/work-folders";
+import { finishPendingMove, storedPathRewrites } from "./lib/workspace-move";
 import {
   inspectWorkspaceFolder,
   setWorkspaceRefusal,
@@ -162,7 +163,22 @@ function openWorkspace() {
   })) {
     logger.info(`Machine cleanup: ${step}`);
   }
-  setResolvedWorkspace({ ...workspace, machineDir: moved.machineDir });
+  // After the cleanups, and before any store opens: the paths it moves are
+  // written into the window's and the browser's stores.
+  const work = settleWorkFolders({
+    also: storedPathRewrites(moved.machineDir),
+    machineDir: moved.machineDir,
+    userDataDir,
+    workspace,
+  });
+  for (const step of work.done) {
+    logger.info(`Work folders: ${step}`);
+  }
+  setResolvedWorkspace({
+    ...workspace,
+    machineDir: moved.machineDir,
+    workFoldersDir: work.workFoldersDir,
+  });
 
   markWorkspaceOpen(moved.machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in

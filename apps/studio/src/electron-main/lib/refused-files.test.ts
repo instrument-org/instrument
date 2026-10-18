@@ -16,12 +16,16 @@ const FOLDS_CASE =
 
 const USER_DATA = path.join(path.parse(process.cwd()).root, "user-data");
 const at = (...segments: string[]) => path.join(USER_DATA, ...segments);
+const HOME = path.join(path.parse(process.cwd()).root, "home");
+const work = (...segments: string[]) =>
+  path.join(HOME, ".instrument", "work", ...segments);
 
 describe("isRefusedByName", () => {
   const rule = userDataViewRule({
+    home: HOME,
     userDataDir: USER_DATA,
+    workFoldersDir: work("workspace-x"),
     workspaceDir: path.join(path.parse(process.cwd()).root, "elsewhere"),
-    workspaceMachineDir: at("machine", "x"),
   });
 
   it.each([
@@ -30,12 +34,27 @@ describe("isRefusedByName", () => {
     ["the runtime", at("runtime", "bin", "node"), true],
     [
       "the open workspace's chat's work folder",
-      at("machine", "x", "work", "c", "a.md"),
+      work("workspace-x", "c", "a.md"),
       false,
     ],
     [
+      "a workspace's records the agent made in a work folder",
+      work("workspace-x", "c", "w", ".instrument", "workspace.json"),
+      true,
+    ],
+    [
       "another workspace's work folder",
-      at("machine", "y", "work", "c", "a.md"),
+      work("workspace-y", "c", "a.md"),
+      true,
+    ],
+    [
+      "what else the app keeps in the home folder",
+      path.join(HOME, ".instrument", "other.json"),
+      true,
+    ],
+    [
+      "a work folder left in a machine folder",
+      at("machine", "x", "work", "c", "a.md"),
       true,
     ],
     [
@@ -87,8 +106,13 @@ describe("isRefusedByName", () => {
       true,
     ],
     [
+      "another workspace's work folder spelled in upper case",
+      path.join(HOME, ".INSTRUMENT", "WORK", "WORKSPACE-Y", "c", "a.md"),
+      true,
+    ],
+    [
       "the open workspace's work folder spelled in upper case",
-      at("MACHINE", "X", "WORK", "c", "a.md"),
+      path.join(HOME, ".INSTRUMENT", "WORK", "WORKSPACE-X", "c", "a.md"),
       !FOLDS_CASE,
     ],
   ])("%s: %s refused %s", (_case, hostPath, refused) => {

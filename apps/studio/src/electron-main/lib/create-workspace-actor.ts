@@ -78,6 +78,7 @@ import {
   getWorkspaceFolder,
   workspaceInAppData,
   workspaceMachineDir,
+  workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
 import {
   unchosenOutputFolder,
@@ -208,6 +209,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       // workspace may sit in a synced folder.
       workspaceDbFile: workspaceDbFileOf(workspaceMachineDir()),
       workspaceMachineDir: workspaceMachineDir(),
+      workFoldersDir: workspaceWorkFoldersDir(),
       knownFolders: {
         desktop: app.getPath("desktop"),
         documents: app.getPath("documents"),
@@ -755,6 +757,7 @@ function sweepWorkspaceLayout(rootDir: string) {
       machineDir: workspaceMachineDir(),
       marks: workspaceLayoutMarks(rootDir),
       rootDir,
+      workFoldersDir: workspaceWorkFoldersDir(),
     });
     logger.info(
       `Workspace layout migration: ${Math.round(performance.now() - migrationStartedAt)}ms`,

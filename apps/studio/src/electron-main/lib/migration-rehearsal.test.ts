@@ -388,6 +388,7 @@ async function runLaunchMigrations(): Promise<void> {
     machineDir,
     marks: workspaceLayoutMarks(clone),
     rootDir: clone,
+    workFoldersDir: path.join(machineDir, "work"),
   });
   settleWorkspaceDb({ machineDir, rootDir: clone });
   await convertChatRecords({

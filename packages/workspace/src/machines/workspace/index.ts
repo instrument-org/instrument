@@ -4,10 +4,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureExceptionFunction,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import ms from "ms";
 import {
   type ActorRefFrom,
@@ -273,6 +270,8 @@ export const workspaceMachine = setup({
       userDataDir: string;
       workspaceDbFile?: string;
       workspaceMachineDir: string;
+      /** Where each chat's work folder is made, a folder per chat. */
+      workFoldersDir: string;
       modelCache: ModelCache;
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
@@ -321,10 +320,7 @@ export const workspaceMachine = setup({
         workspaceDbFile: AbsolutePathSchema.parse(input.workspaceDbFile),
       }),
       workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
-      workFoldersDir: absolutePathJoin(
-        AbsolutePathSchema.parse(input.workspaceMachineDir),
-        WORKSPACE_MACHINE_ENTRIES.work,
-      ),
+      workFoldersDir: AbsolutePathSchema.parse(input.workFoldersDir),
       modelCache: input.modelCache,
       ...(input.nativeSandbox && {
         nativeSandbox: input.nativeSandbox,

@@ -5,7 +5,10 @@ import {
   noopModelCache,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
@@ -643,6 +646,11 @@ export async function runEvals(
       // folders beside their records (`buildReportWorkspaceConfig`).
       userDataDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
       workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
+      workFoldersDir: path.join(
+        workspaceRootDir,
+        EVAL_MACHINE_DIR_NAME,
+        WORKSPACE_MACHINE_ENTRIES.work,
+      ),
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(

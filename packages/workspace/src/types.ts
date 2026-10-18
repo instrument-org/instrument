@@ -222,14 +222,14 @@ export interface WorkspaceConfig {
   /**
    * This computer's own folder for the workspace, outside it: the folder
    * rules (`permissions.json`), the in-app browser's profile, the apps'
-   * installed servers, the app's keys and window state, and each chat's
-   * work folder, none of which travels with the workspace. The agent reaches
-   * only its own chat's work folder in it.
+   * installed servers, and the app's keys and window state, none of which
+   * travels with the workspace. The agent reaches none of it.
    */
   workspaceMachineDir: AbsolutePath;
   /**
-   * Where every chat's work folder is, `work/` in the workspace's machine
-   * folder: `workDir(id)` is the folder named by the chat's id in it.
+   * Where every chat's work folder is, the workspace's own folder in
+   * `~/.instrument/work/`: `workDir(id)` is the folder named by the chat's
+   * id in it.
    */
   workFoldersDir: AbsolutePath;
   /**

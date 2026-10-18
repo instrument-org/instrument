@@ -133,6 +133,7 @@ const actor = createActor(workspaceMachine, {
     runtimeDir: path.resolve("../../../workspace.local/runtime"),
     userDataDir: path.resolve("../../../workspace.local/machine"),
     workspaceMachineDir: path.resolve("../../../workspace.local/machine"),
+    workFoldersDir: path.resolve("../../../workspace.local/machine/work"),
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(

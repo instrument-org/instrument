@@ -129,6 +129,7 @@ function migrate() {
       },
     },
     rootDir,
+    workFoldersDir: path.join(machineDir, "work"),
   });
 }
 

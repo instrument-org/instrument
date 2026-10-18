@@ -82,6 +82,7 @@ function split() {
   return splitChatRecords({
     machineDir: machine.path,
     rootDir: workspace.path,
+    workFoldersDir: path.join(machine.path, "work"),
   });
 }
 

@@ -41,7 +41,7 @@ import { createDuCommand } from "./shell-commands/du";
 import { execShim } from "./shell-commands/exec-shim";
 import { withAppDataLeftOut } from "./shell-commands/rg";
 import { pathIsWithin } from "./path-is-within";
-import { workspaceLayout } from "./workspace-layout";
+import { homeDataLayout, workspaceLayout } from "./workspace-layout";
 import { raiseAsk } from "./chat/asks";
 import { nativeReachFor } from "./permissions/chat-rules";
 import { ruleRefusal } from "./permissions/rules-fs";
@@ -120,18 +120,29 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
       ? path.join(userData, "workspace")
       : path.join(home, workspaceIn);
   const data = workspaceLayout(workspace);
+  // Every workspace's chats' work, in the home folder, a folder each.
+  const homeData = homeDataLayout(home);
+  const workFolders = path.join(homeData.workDir, "instrument-abcd");
   const paths = {
     appFiles: path.join(home, appFiles),
     home,
     userData,
     data,
     otherRecord: path.join(data.chatsDir, "2026-10-13-other"),
-    otherWork: path.join(workspaceMachine, "work", "2026-10-13-other"),
+    homeData: homeData.dataDir,
+    otherWork: path.join(workFolders, "2026-10-13-other"),
+    /** A chat's work folder in another workspace on this computer. */
+    otherWorkspaceWork: path.join(
+      homeData.workDir,
+      "taxes-wxyz",
+      "2026-10-13-chat",
+    ),
     /** Where the person picked their workspace, in their home folder. */
     pickedIn: workspaceIn,
     record: path.join(data.chatsDir, "2026-10-13-chat"),
     runtime: path.join(userData, "runtime"),
-    work: path.join(workspaceMachine, "work", "2026-10-13-chat"),
+    work: path.join(workFolders, "2026-10-13-chat"),
+    workFolders,
     workspace,
     workspaceMachine,
   };
@@ -143,6 +154,8 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     `${paths.otherRecord}/chat.db`,
     `${paths.otherRecord}/attachments/a.pdf`,
     `${paths.otherWork}/notes.md`,
+    `${paths.otherWorkspaceWork}/notes.md`,
+    `${paths.homeData}/other.json`,
     `${workspace}/.instrument/workspace.json`,
     `${workspace}/.instrument/preferences.json`,
     `${data.skillsDir}/mine/SKILL.md`,
@@ -208,9 +221,7 @@ function useApp(paths: Paths) {
     rootDir: WorkspaceDirSchema.parse(paths.workspace),
     runtimeDir: AbsolutePathSchema.parse(paths.runtime),
     tempFolders: [],
-    workFoldersDir: AbsolutePathSchema.parse(
-      path.join(paths.workspaceMachine, "work"),
-    ),
+    workFoldersDir: AbsolutePathSchema.parse(paths.workFolders),
     workspaceMachineDir: AbsolutePathSchema.parse(paths.workspaceMachine),
   });
 }
@@ -317,6 +328,24 @@ function reachTable(p: Paths) {
     ],
     ["another chat's work folder", "read", `${p.otherWork}/notes.md`, "never"],
     ["another chat's work folder", "write", `${p.otherWork}/notes.md`, "never"],
+    [
+      "another workspace's work folder",
+      "read",
+      `${p.otherWorkspaceWork}/notes.md`,
+      "never",
+    ],
+    [
+      "another workspace's work folder",
+      "write",
+      `${p.otherWorkspaceWork}/notes.md`,
+      "never",
+    ],
+    [
+      "what else the app keeps in the home folder",
+      "read",
+      `${p.homeData}/other.json`,
+      "never",
+    ],
     [
       "the workspace's identity",
       "read",
@@ -696,10 +725,21 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         1,
       ],
       [
-        "refuses a listing of the work folders",
-        `ls '${paths.workspaceMachine}/work'`,
+        "refuses another workspace's work folder",
+        `cat '${paths.otherWorkspaceWork}/notes.md'`,
         1,
       ],
+      [
+        "refuses a listing of the workspace's work folders",
+        `ls '${paths.workFolders}'`,
+        1,
+      ],
+      [
+        "refuses a listing of every workspace's work folders",
+        `ls '${path.dirname(paths.workFolders)}'`,
+        1,
+      ],
+      ["refuses a listing of the app's folder in the home folder", `ls '${paths.homeData}'`, 1],
       [
         "refuses another chat's records",
         `cat '${paths.otherRecord}/chat.db'`,
@@ -1037,6 +1077,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
 
     it("closes this computer's folder, passing through to what opens in it", () => {
       expect(args).toContain(`--perms 0111 --tmpfs ${paths.userData}`);
+      expect(args).toContain(`--perms 0111 --tmpfs ${paths.homeData}`);
       expect(args).toContain(`--bind ${paths.work} ${paths.work}`);
       expect(args).toContain(
         `--ro-bind ${paths.runtime}/python ${paths.runtime}/python`,
@@ -1045,7 +1086,8 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     });
 
     it.each([
-      ["the work folders", path.join(paths.workspaceMachine, "work")],
+      ["every workspace's work folders", path.dirname(paths.workFolders)],
+      ["the workspace's work folders", paths.workFolders],
       ["the chats' records", paths.data.chatsDir],
       ["its own record folder", paths.record],
     ])(
@@ -1059,6 +1101,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     // why; nothing is listed to stand in for what the folder holds.
     it.each([
       ["another chat's work folder", paths.otherWork],
+      ["another workspace's work folder", paths.otherWorkspaceWork],
       ["another chat's records", paths.otherRecord],
       ["the keys", path.join(paths.workspaceMachine, "keys")],
       [
@@ -1084,11 +1127,8 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           recursive: true,
         });
         writeFileSync(path.join(fresh.data.chatsDir, id, "chat.db"), "");
-        mkdirSync(path.join(fresh.workspaceMachine, "work", id));
-        writeFileSync(
-          path.join(fresh.workspaceMachine, "work", id, "a.md"),
-          "",
-        );
+        mkdirSync(path.join(fresh.workFolders, id));
+        writeFileSync(path.join(fresh.workFolders, id, "a.md"), "");
       }
       const many = people.map(argsFor);
       expect(many.map((each) => each.length)).toEqual(
@@ -1112,7 +1152,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
       [
         "Node's refused listing",
-        `Error: EACCES: permission denied, scandir '${paths.workspaceMachine}/work'`,
+        `Error: EACCES: permission denied, scandir '${paths.workFolders}'`,
       ],
     ])(
       "tells the agent %s there is the app's own, whatever the exit",

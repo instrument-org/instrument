@@ -188,8 +188,31 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   /** The window's size and place, and where the person left off in it. */
   window: "window",
   /**
-   * Each chat's work folder, `work/<chat id>/`: where its agent's shell
-   * starts and what it makes lands. Its records stay in the workspace.
+   * Where builds before kept each chat's work folder, `work/<chat id>/`;
+   * the launch moves what is there to the workspace's folder in
+   * `~/.instrument/work/` (`HOME_DATA_ENTRIES.work`).
+   */
+  work: "work",
+  /**
+   * The name of the workspace's folder in `~/.instrument/work/`, settled the
+   * first time the workspace opens on this computer and kept here, so a
+   * workspace renamed or moved keeps its chats' work.
+   */
+  workFolders: "work-folders.json",
+} as const;
+
+/**
+ * What the app keeps in the person's home folder, in `~/.instrument/`
+ * (`PRIVATE_FOLDER_NAME`): what the agent made for the person, in a folder
+ * they can find, apart from the app's own data.
+ */
+export const HOME_DATA_ENTRIES = {
+  /**
+   * Each chat's work folder, `work/<workspace>/<chat id>/`: where its
+   * agent's shell starts and what it makes lands. `<workspace>` is a
+   * readable name the workspace's machine folder records
+   * (`WORKSPACE_MACHINE_ENTRIES.workFolders`). Its records stay in the
+   * workspace.
    */
   work: "work",
 } as const;

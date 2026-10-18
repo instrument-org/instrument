@@ -1,14 +1,15 @@
-import {
-  PRIVATE_FOLDER_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import {
   canonicalizeThroughMissing,
   withoutDataVolume,
   withoutTrailingDots,
 } from "@instrument-org/workspace/host-path";
-import { PERSON_FOLDERS_IN_DATA_DIR } from "@instrument-org/workspace/layout";
+import {
+  homeDataLayout,
+  PERSON_FOLDERS_IN_DATA_DIR,
+} from "@instrument-org/workspace/layout";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { getUserDataDir } from "./get-workspace-folder";
@@ -27,8 +28,9 @@ import {
  * anywhere but in the folders there that hold the person's own files
  * ({@link isRecordPath}). And this computer's folder, Electron's userData,
  * which keeps each workspace's keys, sign-ins and Chromium profiles under
- * names nothing else marks as private; only the folders in it that are the
- * person's to view are shown, which {@link userDataViewRule} names.
+ * names nothing else marks as private, and `~/.instrument`, every
+ * workspace's work folders; only the folders in them that are the person's
+ * to view are shown, which {@link userDataViewRule} names.
  */
 
 /**
@@ -38,6 +40,11 @@ import {
 export interface ViewRule {
   refused: readonly string[];
   viewable: readonly string[];
+  /**
+   * Viewable folders inside `~/.instrument`, the open workspace's work
+   * folders: a file in one is a record only by a `.instrument` below it.
+   */
+  work: readonly string[];
 }
 
 /**
@@ -48,30 +55,32 @@ export interface ViewRule {
 const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
 
 /**
- * This computer's folder's rule: all of it is refused, but the workspaces it
- * keeps, the default one and those made from the dev panel, the workspace
- * this process has open wherever it is, and that workspace's chats' work
- * folders.
+ * This computer's folders' rule: all of the app's data is refused, and so
+ * is every workspace's work in `~/.instrument`, but the workspaces the
+ * app's data keeps, the default one and those made from the dev panel, the
+ * workspace this process has open wherever it is, and that workspace's
+ * chats' work folders.
  */
 export function userDataViewRule({
+  home = os.homedir(),
   userDataDir,
+  workFoldersDir,
   workspaceDir,
-  workspaceMachineDir,
 }: {
+  home?: string;
   userDataDir: string;
+  workFoldersDir?: string;
   workspaceDir: string | undefined;
-  workspaceMachineDir?: string;
 }): ViewRule {
   return {
-    refused: [userDataDir],
+    refused: [userDataDir, homeDataLayout(home).dataDir],
     viewable: [
       defaultWorkspacePath(userDataDir),
       createdWorkspacesDir(userDataDir),
       ...(workspaceDir === undefined ? [] : [workspaceDir]),
-      ...(workspaceMachineDir === undefined
-        ? []
-        : [path.join(workspaceMachineDir, WORKSPACE_MACHINE_ENTRIES.work)]),
+      ...(workFoldersDir === undefined ? [] : [workFoldersDir]),
     ],
+    work: workFoldersDir === undefined ? [] : [workFoldersDir],
   };
 }
 
@@ -121,7 +130,14 @@ export function isRefusedByName(
   rule: ViewRule = appViewRule(),
 ): boolean {
   const hostPath = opened(path.resolve(asked));
-  if (isRecordPath(hostPath)) {
+  // Below a work folder only what is below it says whether it is a record,
+  // since the folder itself is under `~/.instrument`.
+  const work = rule.work.find((root) => isAtOrUnder(hostPath, root));
+  if (
+    isRecordPath(
+      work === undefined ? hostPath : hostPath.slice(opened(work).length),
+    )
+  ) {
     return true;
   }
   let deepest: undefined | { length: number; refused: boolean };
@@ -172,10 +188,9 @@ let cached: undefined | { key: string; rule: ViewRule };
 function appViewRule(): ViewRule {
   const userData = getUserDataDir();
   let workspaceDir: string | undefined;
-  let workspaceMachineDir: string | undefined;
+  let workFoldersDir: string | undefined;
   try {
-    ({ path: workspaceDir, machineDir: workspaceMachineDir } =
-      getResolvedWorkspace());
+    ({ path: workspaceDir, workFoldersDir } = getResolvedWorkspace());
   } catch {
     // Not resolved yet: only the workspaces this computer's folder keeps are shown.
   }
@@ -186,8 +201,8 @@ function appViewRule(): ViewRule {
       rule: withRealPaths(
         userDataViewRule({
           userDataDir: userData,
+          workFoldersDir,
           workspaceDir,
-          workspaceMachineDir,
         }),
         userData,
       ),
@@ -234,6 +249,7 @@ function withRealPaths(rule: ViewRule, machine: string): ViewRule {
   return {
     refused: rule.refused.flatMap(real),
     viewable: rule.viewable.flatMap(real),
+    work: rule.work.flatMap(real),
   };
 }
 

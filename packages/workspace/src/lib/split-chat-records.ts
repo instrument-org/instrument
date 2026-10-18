@@ -1,7 +1,6 @@
 import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
@@ -71,7 +70,7 @@ export interface ChatRecordsSplit {
  * of the folder's `.instrument/` to its top, beside `attachments/`, and the
  * handoff notes from `work/` beside them; everything else (`work/`,
  * `downloads/`, `.tool-output/`, the agent's own files, the package template)
- * into the chat's work folder in the workspace's machine folder, at the same
+ * into the chat's work folder (`workFoldersDir`), at the same
  * place below it, so a path stored relative to the old folder reads the same
  * file. The window's record folder is split the same way.
  *
@@ -106,14 +105,16 @@ export interface ChatRecordsSplit {
 export function splitChatRecords({
   machineDir,
   rootDir,
+  workFoldersDir,
 }: {
   machineDir: string;
   rootDir: string;
+  /** Where each chat's work goes, a folder per chat. */
+  workFoldersDir: string;
 }): ChatRecordsSplit {
   const split: ChatRecordsSplit = { done: [], failed: 0 };
   const layout = workspaceLayout(rootDir);
   const { chatsDir } = layout;
-  const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
   const windowRecordDir = layout.windowDir;
   const windowWorkDir = path.join(workFoldersDir, "window");
 

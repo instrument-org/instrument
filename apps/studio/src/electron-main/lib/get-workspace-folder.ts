@@ -47,6 +47,14 @@ export function workspaceMachineDir(): string {
   return getResolvedWorkspace().machineDir;
 }
 
+/**
+ * Where the resolved workspace's chats work on this computer,
+ * `~/.instrument/work/<workspace>/`, a folder per chat.
+ */
+export function workspaceWorkFoldersDir(): string {
+  return getResolvedWorkspace().workFoldersDir;
+}
+
 /** The workspace's secrets on this computer: keys, sign-ins, app credentials. */
 export function workspaceKeysDir(): string {
   return path.join(workspaceMachineDir(), WORKSPACE_MACHINE_ENTRIES.keys);

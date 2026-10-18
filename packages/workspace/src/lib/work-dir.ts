@@ -8,8 +8,9 @@ import { getWorkspaceConfig } from "./workspace-config";
 /**
  * The folder a chat works in on this computer: the agent's working directory,
  * where its shell, scripts and file tools run, and where its spills and
- * downloads land. A chat's tasks work in it too. It sits in the workspace's
- * machine folder, apart from the chat's records (`chatDir`). The chat's first
+ * downloads land. A chat's tasks work in it too. It sits in the
+ * workspace's folder in `~/.instrument/work/` (`workFoldersDir`), apart from
+ * the chat's records (`chatDir`) and from the app's own data. The chat's first
  * command makes it, and a later one makes it again, empty, once it was
  * removed: by the person, or by the app when the chat came to rest with
  * nothing in it (`reapWorkDir`). An id no chat has throws

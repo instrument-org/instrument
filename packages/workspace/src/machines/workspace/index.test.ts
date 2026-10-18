@@ -59,6 +59,7 @@ function createWorkspaceActor(
       webSearch: unavailableWebSearchClient,
       userDataDir: MOCK_WORKSPACE_DIRS.machine,
       workspaceMachineDir: MOCK_WORKSPACE_DIRS.machine,
+      workFoldersDir: MOCK_WORKSPACE_DIRS.work,
     },
   });
 }

@@ -1,4 +1,4 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { HOME_DATA_ENTRIES, PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
 import { APPS_FOLDER_NAME, CHAT_FOLDER_NAMES } from "../constants";
@@ -105,5 +105,19 @@ export function workspaceLayout(workspaceDir: string) {
     skillsDir: entry(WORKSPACE_DATA_ENTRIES.skills),
     topicsDir: entry(WORKSPACE_DATA_ENTRIES.topics),
     windowDir: entry(WORKSPACE_DATA_ENTRIES.window),
+  };
+}
+
+/**
+ * What the app keeps in the person's home folder, `~/.instrument/`: every
+ * workspace's chats' work folders, `work/<workspace>/<chat>/`
+ * (`HOME_DATA_ENTRIES`), what the agent made for the person where they can
+ * find it. Closed to the agent but for the chat's own work folder.
+ */
+export function homeDataLayout(home: string) {
+  const dataDir = path.join(home, PRIVATE_FOLDER_NAME);
+  return {
+    dataDir,
+    workDir: path.join(dataDir, HOME_DATA_ENTRIES.work),
   };
 }

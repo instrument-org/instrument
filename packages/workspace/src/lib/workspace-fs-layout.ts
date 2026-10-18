@@ -39,7 +39,7 @@ import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
 import { skillSourceRoots } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
-import { workspaceLayout } from "./workspace-layout";
+import { homeDataLayout, workspaceLayout } from "./workspace-layout";
 import { workspaceMachineDir } from "./workspace-machine-dir";
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
@@ -377,13 +377,12 @@ export function buildWorkspaceFsLayout({
 
 /**
  * The access a folder actually gets: read and write, unless it overlaps the
- * app's own data: one inside this computer's folder for the app or inside
- * the workspace's `.instrument/`, or one holding this computer's folder
- * whole.
+ * app's own data: one inside this computer's folder for the app, inside
+ * the workspace's `.instrument/` or inside `~/.instrument/`, or one holding
+ * this computer's folder whole.
  *
  * That folder keeps every workspace's keys, browser profiles and folder
- * rules, and each chat's work folder, so a write grant over it would reach
- * all of them; the rules close it to every command, and the mount is
+ * rules, so a write grant over it would reach all of them; the rules close it to every command, and the mount is
  * read-only as well. The judgment is about the folder given, not about the
  * mount it sits in: the home folder whole is read-only, since this
  * computer's folder is somewhere inside it, while its Desktop granted on its
@@ -415,15 +414,24 @@ export function effectiveFolderAccess(folder: {
   const workspaceData = canonicalizeThroughMissing(
     workspaceLayout(config.rootDir).dataDir,
   );
+  const homeData = canonicalizeThroughMissing(
+    homeDataLayout(os.homedir()).dataDir,
+  );
   // A path failing to resolve means the overlap cannot be ruled out, so the
   // grant is refused rather than assumed safe.
-  if (folderPath === null || userData === null || workspaceData === null) {
+  if (
+    folderPath === null ||
+    userData === null ||
+    workspaceData === null ||
+    homeData === null
+  ) {
     return "read-only";
   }
   const overlapsAppData =
     pathIsWithin(folderPath, userData) ||
     pathIsWithin(userData, folderPath) ||
-    pathIsWithin(folderPath, workspaceData);
+    pathIsWithin(folderPath, workspaceData) ||
+    pathIsWithin(folderPath, homeData);
   return overlapsAppData ? "read-only" : "read-write";
 }
 
@@ -805,11 +813,12 @@ export function shellPathOfHostSpelling(
  * The rules the layout is held to: the chat's, or where none were given an
  * allow for each folder it reaches, plus the app's own over its folders.
  * The app's own data is closed to every command, and refused plainly: this
- * computer's folder (each workspace's keys, browser profiles, folder rules
- * and work folders, and the runtime folder) and the workspace's
- * `.instrument/`, its records. The workspace's own folder around that is
- * the person's, and follows their rules like any folder: once they picked
- * it, it is the output folder. In the app's own data only these open: the chat's work folder, and in its record folder
+ * computer's folder (each workspace's keys, browser profiles and folder
+ * rules, and the runtime folder), the workspace's `.instrument/`, its
+ * records, and `~/.instrument/`, every workspace's chats' work folders. The
+ * workspace's own folder around that is the person's, and follows their
+ * rules like any folder: once they picked it, it is the output folder. In
+ * the app's own data only these open: the chat's own work folder, and in its record folder
  * the attachments it reads and the handoff notes it writes; the skills it
  * reads and the apps it writes; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
@@ -848,6 +857,7 @@ function layoutRules(
     workspaceMachineDir(),
     config.runtimeDir,
     workspaceLayout(config.rootDir).dataDir,
+    homeDataLayout(given.home).dataDir,
   ].map((path) => ({ appData: true, ...system("never", path) }));
   const own: Rule[] = [
     ...appData,

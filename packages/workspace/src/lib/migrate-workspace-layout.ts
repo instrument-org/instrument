@@ -154,11 +154,14 @@ export function migrateWorkspaceLayout({
   machineDir,
   marks,
   rootDir,
+  workFoldersDir,
 }: {
-  /** This computer's folder for the workspace, where each chat's work goes. */
+  /** This computer's folder for the workspace. */
   machineDir: string;
   marks: LayoutMarkStore;
   rootDir: string;
+  /** Where each chat's work goes, a folder per chat. */
+  workFoldersDir: string;
 }): WorkspaceLayoutMigration {
   let migration: Omit<
     WorkspaceLayoutMigration,
@@ -208,7 +211,11 @@ export function migrateWorkspaceLayout({
   // folder goes.
   removeIfEmptySync(path.join(rootDir, TASKS_DIR_NAME));
   // After the 1.x migration, whose chats it splits too.
-  const split = splitChatRecords({ machineDir, rootDir });
+  const split = splitChatRecords({
+    machineDir,
+    rootDir,
+    workFoldersDir,
+  });
   const chatRecords: ChatRecordsSplit = {
     done: [...named.done, ...normalized.done, ...split.done],
     failed: named.failed + normalized.failed + split.failed,

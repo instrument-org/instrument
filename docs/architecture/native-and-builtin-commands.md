@@ -105,7 +105,7 @@ The last column names the arguments that send one call to the builtin on every p
 | `instrument calendar`, `instrument contacts` | the Mac helper (`instrument-mac`) | macOS |
 | `instrument mail`, `instrument notes`, `instrument messages` | `/usr/bin/osascript` running the app's own scripts, unwrapped for an app the person allowed | macOS |
 | `osascript` | refused by its bare name; by its path, `/usr/bin/osascript` in the profile, where no app takes its events | macOS |
-| `shortcuts` | `/usr/bin/shortcuts` | macOS |
+| `shortcuts` | `/usr/bin/shortcuts`, found on the PATH like any other program, after asking for Shortcuts; the profile closes the services a shortcut runs in until it is allowed | macOS |
 | anything else on the PATH | itself | all |
 
 `du` is ours but not a process: it walks the real folders in a worker thread.

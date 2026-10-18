@@ -128,6 +128,7 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
         "(deny lsopen)",
         "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
         "(deny mach-lookup (global-name "com.apple.dt.CommandLineTools.installondemand"))",
+        "(deny mach-lookup (global-name "com.apple.siri.VoiceShortcuts.xpc") (global-name "com.apple.siriactionsd.xpc") (global-name "com.apple.shortcuts.systemshortcutservice.runner") (xpc-service-name "com.apple.WorkflowKit.BackgroundShortcutRunner"))",
       ]
     `);
     },
@@ -174,6 +175,23 @@ describe.skipIf(onWindows)(
     });
   },
 );
+
+describe.skipIf(onWindows)("Shortcuts in a profile", () => {
+  const lines = (shortcutsAllowed?: boolean) =>
+    seatbeltProfile({ ...reachOver("/nope/home", []), shortcutsAllowed })
+      .split("\n")
+      .filter((line) => line.includes("Shortcut"));
+
+  it("closes the services a shortcut runs in until Shortcuts is allowed", () => {
+    expect(lines()).toMatchInlineSnapshot(`
+      [
+        "(deny mach-lookup (global-name "com.apple.siri.VoiceShortcuts.xpc") (global-name "com.apple.siriactionsd.xpc") (global-name "com.apple.shortcuts.systemshortcutservice.runner") (xpc-service-name "com.apple.WorkflowKit.BackgroundShortcutRunner"))",
+      ]
+    `);
+    expect(lines(false)).toEqual(lines());
+    expect(lines(true)).toEqual([]);
+  });
+});
 
 describe.skipIf(onWindows)("the passwords place in a profile", () => {
   const home = "/nope/home";

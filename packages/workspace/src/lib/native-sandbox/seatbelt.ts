@@ -19,6 +19,20 @@ const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 const DEVICES = "/dev";
 
 /**
+ * The services `/usr/bin/shortcuts` reaches Shortcuts through. `shortcuts
+ * list` asks siriactionsd over VoiceShortcuts' service, and without it fails
+ * with "Couldn't communicate with a helper application". The daemon's own
+ * service, its runner, and the runner process WorkflowKit starts are closed
+ * with it, so a program has no other way to have a shortcut run.
+ */
+const SHORTCUTS_SERVICES = [
+  '(global-name "com.apple.siri.VoiceShortcuts.xpc")',
+  '(global-name "com.apple.siriactionsd.xpc")',
+  '(global-name "com.apple.shortcuts.systemshortcutservice.runner")',
+  '(xpc-service-name "com.apple.WorkflowKit.BackgroundShortcutRunner")',
+];
+
+/**
  * A Seatbelt profile from the rules. Allow-by-default keeps every system
  * directory, device and service a binary expects where it was; then, ordered
  * shallow to deep because Seatbelt lets the last matching rule win, nothing on
@@ -236,6 +250,12 @@ export function seatbeltProfile(
     // asks, so nothing that works is lost.
     `(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
   );
+  // A shortcut runs in Apple's own services rather than in the program that
+  // asks for it, so it is closed with them until the person allows
+  // Shortcuts, as an app's Apple Events are.
+  if (!reach.shortcutsAllowed) {
+    texts.push(`(deny mach-lookup ${SHORTCUTS_SERVICES.join(" ")})`);
+  }
   return ["(version 1)", "(allow default)", ...texts].join("\n");
 }
 

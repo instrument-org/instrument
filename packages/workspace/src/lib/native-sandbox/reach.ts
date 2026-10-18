@@ -14,6 +14,11 @@ export interface NativeReach {
   /** Folders the command may change whatever the rules say: its chat's own. */
   readWrite: readonly string[];
   rules: Rules;
+  /**
+   * Whether the person allowed Shortcuts in the chat, which opens the
+   * services a shortcut runs in. Closed where absent.
+   */
+  shortcutsAllowed?: boolean;
 }
 
 const reachStorage = new AsyncLocalStorage<NativeReach>();

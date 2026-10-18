@@ -73,6 +73,36 @@ export interface MacApp {
 }
 
 /**
+ * Shortcuts, which macOS's `shortcuts` program reaches: a shortcut runs in
+ * Apple's own services, outside every sandbox, so the program asks for the
+ * app first and the Seatbelt profile closes those services until it is
+ * allowed (`seatbelt.ts`).
+ */
+export const SHORTCUTS_APP: MacApp = {
+  bundleId: "com.apple.shortcuts",
+  name: "Shortcuts",
+};
+
+/** The programs that act through one of the person's apps, by their path, with the app each asks for. */
+export const APP_PROGRAMS: Readonly<Record<string, MacApp>> = {
+  "/usr/bin/shortcuts": SHORTCUTS_APP,
+};
+
+/** How far the agent may use `app` in this chat, by its name, or its bundle id where the name asks. */
+async function appLevel(chatId: ChatId, app: MacApp): Promise<Level> {
+  const byName = await appReach(chatId, app.name);
+  return byName === "ask" ? appReach(chatId, app.bundleId) : byName;
+}
+
+/** Whether the agent may use `app` in this chat without asking. */
+export async function appAllowed(
+  chatId: ChatId,
+  app: MacApp,
+): Promise<boolean> {
+  return (await appLevel(chatId, app)) === "allow";
+}
+
+/**
  * Why the agent may not use `app` in this chat yet, or undefined when it
  * may: the person said not now to it here, Settings › Permissions marks it
  * Not allowed, or nobody has answered for it yet, which raises its card for
@@ -85,9 +115,7 @@ export async function appRefusal(
   app: MacApp,
   asker: Asker | undefined,
 ): Promise<string | undefined> {
-  const byName = await appReach(chatId, app.name);
-  const level =
-    byName === "ask" ? await appReach(chatId, app.bundleId) : byName;
+  const level = await appLevel(chatId, app);
   if (level === "allow") {
     return undefined;
   }

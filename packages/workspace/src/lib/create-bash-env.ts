@@ -67,6 +67,7 @@ import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./chat/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
+import { appAllowed, SHORTCUTS_APP } from "./permissions/apps";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
@@ -74,11 +75,6 @@ import {
   CONTACTS_COMMAND,
   createMacHelperCommand,
 } from "./shell-commands/mac-helper";
-import {
-  createShortcutsCommand,
-  SHORTCUTS_COMMAND,
-  SHORTCUTS_PATH,
-} from "./shell-commands/shortcuts";
 import {
   createPip3Command,
   createPipCommand,
@@ -199,7 +195,7 @@ function osascriptRefusal(): string {
     getWorkspaceConfig().macHelperBinPath === undefined
       ? ""
       : ` Calendar and Reminders have the \`${CALENDAR_COMMAND.name}\` command, and Contacts the \`${CONTACTS_COMMAND.name}\` command.`;
-  return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} The person's own automations run with \`${SHORTCUTS_COMMAND.name}\`. Any other app has no way in from here, so tell the person what you couldn't do in it.`;
+  return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} Any other app has no way in from here, so tell the person what you couldn't do in it.`;
 }
 
 const STATIC_STUB_COMMANDS = [
@@ -431,13 +427,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: NODE_COMMAND.name,
   },
   {
-    description: SHORTCUTS_COMMAND.description,
-    factory: ({ layout, chatId }) => createShortcutsCommand(chatId, layout),
-    listInDescription: true,
-    name: SHORTCUTS_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
     description: "Refuses AppleScript the agent writes.",
     // AppleScript the agent writes would have to run outside the sandbox to
     // reach an app, which no check of its text can make safe. By its path,
@@ -579,7 +568,6 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
     [PYTHON_COMMAND.name]: pythonProgram,
     [PYTHON3_COMMAND.name]: pythonProgram,
     [RG_COMMAND.name]: () => RG_DISK_PATH,
-    [SHORTCUTS_COMMAND.name]: () => SHORTCUTS_PATH,
     [UV_COMMAND.name]: () => getUvBinPath(),
   };
 
@@ -959,7 +947,10 @@ export async function createLocalBashEnv({
     },
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
-    resolveExternalCommand: createPathProgramResolver(chatId),
+    resolveExternalCommand: createPathProgramResolver(
+      chatId,
+      layout.rules.asker,
+    ),
     // A redirect into a folder that does not exist fails, as in bash, rather
     // than making the folder on the disk.
     redirectCreatesDirectories: false,
@@ -971,8 +962,14 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(commandOrderPlugin);
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
 
-  // Every native command this shell spawns is held to the same rules.
-  const reach = nativeReachFor(layout.rules, layout);
+  // Every native command this shell spawns is held to the same rules, and
+  // reaches the services a shortcut runs in only once Shortcuts is allowed.
+  const reach = {
+    ...nativeReachFor(layout.rules, layout),
+    shortcutsAllowed:
+      process.platform === "darwin" &&
+      (await appAllowed(chatId, SHORTCUTS_APP)),
+  };
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();

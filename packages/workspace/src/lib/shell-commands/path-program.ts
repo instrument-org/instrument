@@ -4,10 +4,12 @@ import {
   type ExternalCommandResolver,
 } from "just-bash";
 import { constants } from "node:fs";
-import { access, open, stat } from "node:fs/promises";
+import { access, open, realpath, stat } from "node:fs/promises";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { type Asker } from "../chat/asks";
+import { APP_PROGRAMS, appRefusal, type MacApp } from "../permissions/apps";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { nodeToolsEnv } from "../tool-isolation";
@@ -161,13 +163,15 @@ function programPath(chatId: ChatId, cwd: string) {
  */
 export function createPathProgramResolver(
   chatId: ChatId,
+  /** Who a program's ask for one of the person's apps raises its card for. */
+  asker?: Asker,
 ): ExternalCommandResolver {
   return async (name, { cwd }) => {
     if (name.includes("/")) {
       const hostPath = hostPathOf(nodePath.posix.resolve(cwd, name));
       return (await runsNatively(hostPath))
         ? {
-            command: createPathProgramCommand(chatId, name, hostPath),
+            command: createPathProgramCommand(chatId, name, hostPath, asker),
             path: shellPath(hostPath),
           }
         : undefined;
@@ -182,7 +186,7 @@ export function createPathProgramResolver(
     const programShellPath = shellPath(hostPath);
     noteFoundProgram(programShellPath);
     return {
-      command: createPathProgramCommand(chatId, name, hostPath),
+      command: createPathProgramCommand(chatId, name, hostPath, asker),
       path: programShellPath,
     };
   };
@@ -205,15 +209,46 @@ export async function pathProgramsNamed(
 }
 
 /**
+ * The app a program acts through (`APP_PROGRAMS`), by where it is or where
+ * a link to it leads, if it is one.
+ */
+async function programApp(hostPath: string): Promise<MacApp | undefined> {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+  let resolved = hostPath;
+  try {
+    resolved = await realpath(hostPath);
+  } catch {
+    // Left to fail as itself.
+  }
+  return Object.hasOwn(APP_PROGRAMS, resolved)
+    ? APP_PROGRAMS[resolved]
+    : undefined;
+}
+
+/**
  * The program at `hostPath` as a native command: in the shell's working
  * directory, with the environment and sandbox every native command gets.
+ * One that acts through one of the person's apps first asks for the app,
+ * as the commands made for an app do.
  */
 function createPathProgramCommand(
   chatId: ChatId,
   name: string,
   hostPath: string,
+  asker: Asker | undefined,
 ): Command {
   const command = defineCommand(name, async (args, ctx) => {
+    const app = await programApp(hostPath);
+    const refused = app && (await appRefusal(chatId, app, asker));
+    if (refused) {
+      return {
+        exitCode: 1,
+        stderr: `${name}: refused: ${refused}\n`,
+        stdout: "",
+      };
+    }
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     // cmd.exe runs a batch file; CreateProcess cannot.

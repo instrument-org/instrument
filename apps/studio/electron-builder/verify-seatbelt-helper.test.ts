@@ -29,12 +29,15 @@ describe("verifySeatbeltHelper", () => {
     "throws when the launcher runs a program it could not sandbox",
     () => {
       // A stand-in that compiles to something and then execs whatever it is
-      // handed, the failure the check exists for.
+      // handed, the failure the check exists for. It reads the profile it is
+      // given before answering, as the launcher does: a stand-in that exits
+      // without reading it leaves the check's own write with nowhere to go,
+      // which fails as EPIPE rather than as the refusal this is about.
       const dir = mkdtempSync(path.join(tmpdir(), "seatbelt-verify-"));
       const fake = path.join(dir, "instrument-seatbelt");
       writeFileSync(
         fake,
-        '#!/bin/sh\nif [ "$1" = compile ]; then printf x; exit 0; fi\nshift 2\nexec "$@"\n',
+        '#!/bin/sh\nif [ "$1" = compile ]; then cat >/dev/null; printf x; exit 0; fi\nshift 2\nexec "$@"\n',
         { mode: 0o755 },
       );
       expect(() => verifySeatbeltHelper(fake)).toThrow(

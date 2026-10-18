@@ -100,7 +100,7 @@ export function parseRecordWithText(output: string, count: number): string[] {
 
 /**
  * A local time as a script writes it (`2026-10-14T09:05:03`), with this
- * computer's offset from UTC added, as the `calendar` command writes its
+ * computer's offset from UTC added, as the `instrument calendar` command writes its
  * times; null for an empty one.
  */
 export function localIso(text: string): string | null {

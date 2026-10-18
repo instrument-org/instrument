@@ -2,10 +2,12 @@ import { mkdir } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { createBashDescription, createLocalBashEnv } from "./create-bash-env";
 import { chatDir } from "./record-folders";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("createBashDescription", () => {
   // Pinned so the snapshot holds the macOS-only commands wherever it runs.
@@ -72,9 +74,6 @@ describe("createBashDescription", () => {
         git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. Works in any folder the chat can reach (\`git -C <folder> log\`, or \`cd\` there first); in a read-only one it may only read (log, show, diff, blame, status), and committing there needs write on the repository's own folder. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.
         node - Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`instrument app call\` does and returns the result as a value (\`tools["<slug>"]\` for a slug with a hyphen); only the script \`node\` runs has \`tools\`, not a process that script starts.
         shortcuts - Run the user's own Shortcuts on this Mac: whatever they have automated becomes something you can do. \`shortcuts list [--folder-name <folder>]\` names them; \`shortcuts run '<name>' [-i <file>]... [-o <file>]\` runs one, with files as its input and its result written to a file. A shortcut can do anything its steps do, including things the user sees and things that change their data, so run one only when the user asked for it or for what it plainly does.
-        mail - Read, search, draft, send, and file email in Mail on this Mac, across every account added to it. \`mail list\`, \`mail search <words>\` and \`mail read <id>\` read it, with lists as one JSON object per line; \`mail draft\` opens a message in Mail for the person to look over and send, and \`mail send\` sends one (\`--to\`, \`--subject\`, \`--attach <file>\`, and the message on stdin); \`mail accounts\`, \`mail mailboxes\` and \`mail move <id> <mailbox>\` cover the rest, and \`mail help\` has every flag. The first time a chat uses Mail the person is asked to allow it, and macOS asks them once to let Instrument control it.
-        notes - Read and write the person's notes in Notes on this Mac, iCloud's included. \`notes list\` and \`notes search <words>\` find them, one JSON object per line, \`notes read <id>\` prints one, \`notes create --title <title>\` makes one and \`notes append <id>\` adds to one, with the text on stdin; \`notes folders\` names the folders, and \`notes help\` has every flag. The first time a chat uses Notes the person is asked to allow it, and macOS asks them once to let Instrument control it.
-        messages - Send an iMessage or a text from Messages on this Mac: \`messages send --to <phone or email> [--sms]\`, with the message on stdin. Messages can't be read from here, only sent, so send only what the person asked you to send, worded as they saw it. The first time a chat uses Messages the person is asked to allow it, and macOS asks them once to let Instrument control it.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
         uv - Python package and environment manager, backing \`python\` and \`pip\`. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
@@ -84,6 +83,9 @@ describe("createBashDescription", () => {
       Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.
       Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
       Usage: \`validate-skill [<name>...] [--json]\`. With no name it checks every skill in the workspace. Exits non-zero when there are errors.
+        instrument mail - Read, search, draft, send, and file email in Mail on this Mac, across every account added to it. \`instrument mail list\`, \`instrument mail search <words>\` and \`instrument mail read <id>\` read it, with lists as one JSON object per line; \`instrument mail draft\` opens a message in Mail for the person to look over and send, and \`instrument mail send\` sends one (\`--to\`, \`--subject\`, \`--attach <file>\`, and the message on stdin); \`instrument mail accounts\`, \`instrument mail mailboxes\` and \`instrument mail move <id> <mailbox>\` cover the rest, and \`instrument mail help\` has every flag. The first time a chat uses Mail the person is asked to allow it, and macOS asks them once to let Instrument control it.
+        instrument messages - Send an iMessage or a text from Messages on this Mac: \`instrument messages send --to <phone or email> [--sms]\`, with the message on stdin. Messages can't be read from here, only sent, so send only what the person asked you to send, worded as they saw it. The first time a chat uses Messages the person is asked to allow it, and macOS asks them once to let Instrument control it.
+        instrument notes - Read and write the person's notes in Notes on this Mac, iCloud's included. \`instrument notes list\` and \`instrument notes search <words>\` find them, one JSON object per line, \`instrument notes read <id>\` prints one, \`instrument notes create --title <title>\` makes one and \`instrument notes append <id>\` adds to one, with the text on stdin; \`instrument notes folders\` names the folders, and \`instrument notes help\` has every flag. The first time a chat uses Notes the person is asked to allow it, and macOS asks them once to let Instrument control it.
         jobs - List the background processes this session started, with their status, run time and command.
       Unlike the rest of the shell, this survives across calls: a process started by an earlier call is still listed here. Use it at the start of a turn to find what is already running instead of starting a second copy.
       Usage: \`jobs [--json]\`.
@@ -154,11 +156,22 @@ describe("osascript", () => {
     expect(result.stderr).toContain(
       "osascript: AppleScript you write doesn't run here.",
     );
-    expect(result.stderr).toContain("`mail`, `notes` and `messages` commands");
+    expect(result.stderr).toContain(
+      "`instrument mail`, `instrument notes` and `instrument messages` commands",
+    );
   });
 });
 
 describe("instrument", () => {
+  // Off macOS, so the listings hold only Instrument's own commands.
+  beforeEach(() => {
+    vi.stubGlobal("process", { ...process, platform: "linux" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   async function shell(name: string, role: "chat" | "task") {
     const chatId = createMockChatConfig(ChatIdSchema.parse(name));
     await mkdir(chatDir(chatId), { recursive: true });
@@ -201,6 +214,46 @@ describe("instrument", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('instrument: unknown command "mail".');
   });
+
+  // The Mac's own apps are offered where they can be reached: Mail, Notes
+  // and Messages on any Mac, Calendar and Contacts where the build carries
+  // the helper, and in a task's shell as in the chat's.
+  it.each([
+    [undefined, ["mail", "messages", "notes"]],
+    [
+      "/app/bin/instrument-mac",
+      ["calendar", "contacts", "mail", "messages", "notes"],
+    ],
+  ])(
+    "lists the Mac app commands on macOS with the helper at %s",
+    async (bin, words) => {
+      vi.stubGlobal("process", { ...process, platform: "darwin" });
+      const chatId = createMockChatConfig(
+        ChatIdSchema.parse("instrument-mac-apps"),
+      );
+      await mkdir(chatDir(chatId), { recursive: true });
+      const config = getWorkspaceConfig();
+      const { macHelperBinPath: _absent, ...without } = config;
+      setWorkspaceConfig(
+        bin === undefined
+          ? without
+          : { ...config, macHelperBinPath: AbsolutePathSchema.parse(bin) },
+      );
+      try {
+        const bash = await createLocalBashEnv({
+          chatId,
+          role: "task",
+          sessionId: StoreId.newSessionId(),
+        });
+        const listed = (await bash.exec("instrument")).stdout
+          .split("\n")
+          .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
+        expect(listed).toEqual(["app", ...words]);
+      } finally {
+        setWorkspaceConfig(config);
+      }
+    },
+  );
 
   it("gives a task only `app`, and says the rest are the chat's", async () => {
     const bash = await shell("instrument-task", "task");

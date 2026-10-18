@@ -68,10 +68,12 @@ function runs(command: string): RegExp {
 }
 
 /** Work in one of the Mac's own apps, through the command made for it. */
-const WORKS_IN_A_MAC_APP = runs("(?:calendar|contacts|mail|messages|notes)");
+const WORKS_IN_A_MAC_APP = runs(
+  "instrument (?:calendar|contacts|mail|messages|notes)",
+);
 
 /** Words going out to someone through one of the Mac's own apps. */
-const SENDS = runs("(?:mail|messages) send");
+const SENDS = runs("instrument (?:mail|messages) send");
 
 function result(
   text: string,
@@ -244,7 +246,10 @@ export const REACH_EVALS = [
     // The same ask carried through: the user picks the Mac's own app, and
     // the reminder lands there.
     answers: [pickTheMacApp(/reminder/i)],
-    assertions: [connectedNothingUnasked, reachedTheAppWith("calendar")],
+    assertions: [
+      connectedNothingUnasked,
+      reachedTheAppWith("instrument calendar"),
+    ],
     kind: "chat",
     name: "reach-follow-through-reminder",
     prompt: "Remind me on October 8 at noon to try the new ARC Raiders update.",
@@ -285,14 +290,14 @@ export const REACH_EVALS = [
   }),
   defineEval({
     // A task told what to do in so many words, as a fork is.
-    assertions: [reachedTheAppWith("calendar")],
+    assertions: [reachedTheAppWith("instrument calendar")],
     name: "reach-task-reminders",
     prompt:
       'Create a reminder in the user\'s macOS Reminders app for October 8, 2026 at 12:00 PM local time. Title it "Try the ARC Raiders: Frozen Trail update". Confirm briefly when it is set; if macOS requires permission or interaction, report exactly what the user needs to allow.',
   }),
   defineEval({
-    // Notes, which the `notes` command drives through the app's own script.
-    assertions: [reachedTheAppWith("notes")],
+    // Notes, which the `instrument notes` command drives through the app's own script.
+    assertions: [reachedTheAppWith("instrument notes")],
     name: "reach-task-notes",
     prompt:
       'Add a note to the user\'s Notes app titled "Taco night" listing tortillas, black beans, salsa, and limes. Confirm briefly when it is added.',

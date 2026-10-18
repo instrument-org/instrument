@@ -205,7 +205,7 @@ describe("notes' answers", () => {
       stdout: Buffer.from(""),
     } as never);
     expect((await command.execute(["read", NOTE_ID], ctx())).stderr).toBe(
-      "notes: that note is locked, so only the person can open it, in Notes.\n",
+      "instrument notes: that note is locked, so only the person can open it, in Notes.\n",
     );
   });
 });

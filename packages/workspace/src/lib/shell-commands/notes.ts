@@ -14,6 +14,7 @@ import {
   SCRIPT_HELPERS,
   textFromStdin,
 } from "./app-scripts";
+import { INSTRUMENT_COMMAND } from "./instrument-command";
 import {
   defineSubcommands,
   subcommand,
@@ -21,17 +22,19 @@ import {
   type SubcommandShell,
 } from "./subcommands";
 
-const NAME = "notes";
+const NAME = `${INSTRUMENT_COMMAND.name} notes`;
 
 const NOTES_APP: MacApp = { bundleId: "com.apple.Notes", name: "Notes" };
 
 export const NOTES_COMMAND = {
   description:
     "Read and write the person's notes in Notes on this Mac, iCloud's included. " +
-    "`notes list` and `notes search <words>` find them, one JSON object per line, `notes read <id>` prints one, " +
-    "`notes create --title <title>` makes one and `notes append <id>` adds to one, with the text on stdin; `notes folders` names the folders, and `notes help` has every flag. " +
+    "`instrument notes list` and `instrument notes search <words>` find them, one JSON object per line, `instrument notes read <id>` prints one, " +
+    "`instrument notes create --title <title>` makes one and `instrument notes append <id>` adds to one, with the text on stdin; `instrument notes folders` names the folders, and `instrument notes help` has every flag. " +
     `The first time a chat uses Notes the person is asked to allow it, and macOS asks them once to let ${APP_NAME} control it.`,
   name: NAME,
+  summary: "Read and write notes in Notes.",
+  word: "notes",
 } as const;
 
 const USAGE = `Usage: ${NAME} <subcommand> ...
@@ -273,7 +276,7 @@ end run
 `,
 } as const;
 
-/** What `notes` needs from the shell it runs in. */
+/** What `instrument notes` needs from the shell it runs in. */
 interface NotesContext {
   chatId: ChatId;
   layout: WorkspaceFsLayout;
@@ -326,14 +329,14 @@ export function noteHtml(text: string, title?: string): string {
 
 function placeErrors(account: string, folder: string): Record<number, string> {
   return {
-    9011: `Notes has no account named "${account}". \`notes folders\` names each account's folders.`,
-    9012: `${account ? `"${account}"` : "The account Notes puts new notes in"} has no folder "${folder}". \`notes folders${account ? ` --account '${account}'` : ""}\` lists them.`,
+    9011: `Notes has no account named "${account}". \`instrument notes folders\` names each account's folders.`,
+    9012: `${account ? `"${account}"` : "The account Notes puts new notes in"} has no folder "${folder}". \`instrument notes folders${account ? ` --account '${account}'` : ""}\` lists them.`,
   };
 }
 
 function noteErrors(id: string): Record<number, string> {
   return {
-    9013: `no note has the id "${id}". Ids come from \`notes list\` and \`notes search\`.`,
+    9013: `no note has the id "${id}". Ids come from \`instrument notes list\` and \`instrument notes search\`.`,
     9014: "that note is locked, so only the person can open it, in Notes.",
     9015: "that note has attachments, which adding to it through Notes' scripting would drop. Make a new note instead, or ask the person to add to it.",
   };
@@ -436,7 +439,7 @@ async function runSearch(
 function idOf(given: string | undefined): string {
   if (!given) {
     throw new Error(
-      "a note is named by its id, which `notes list` and `notes search` print.",
+      "a note is named by its id, which `instrument notes list` and `instrument notes search` print.",
     );
   }
   return given;

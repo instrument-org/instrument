@@ -17,7 +17,7 @@ Which half a capability belongs in is decided by whose identity macOS checks:
 - **What is asked too often for a process** also goes in the module, when it reads nothing privacy-guarded: the browser lists a folder every few seconds while it is open, and starting a process per listing would cost more than the answer. Work like this runs on a background queue, since Electron's JS thread is AppKit's main thread.
 - **Privacy-guarded data** goes in the helper. macOS attributes a child's request to the app that launched it, so the prompt names Instrument and the grant covers every later call, from a task or from onboarding. A crash there costs one command, not the app.
 
-Mail, Notes and Messages are in neither half: Apple offers no framework for their data, so the agent's `mail`, `notes` and `messages` commands drive them through AppleScript the app ships, with what the agent passes reaching the script only as its `argv` ([agent-sandbox.md](agent-sandbox.md), the user's other apps).
+Mail, Notes and Messages are in neither half: Apple offers no framework for their data, so the agent's `instrument mail`, `notes` and `messages` commands drive them through AppleScript the app ships, with what the agent passes reaching the script only as its `argv` ([agent-sandbox.md](agent-sandbox.md), the user's other apps).
 
 ## Adding a capability
 

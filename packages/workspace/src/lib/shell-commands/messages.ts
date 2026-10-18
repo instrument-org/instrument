@@ -5,6 +5,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type MacApp } from "../permissions/apps";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { runAppScript, SCRIPT_HELPERS, textFromStdin } from "./app-scripts";
+import { INSTRUMENT_COMMAND } from "./instrument-command";
 import {
   defineSubcommands,
   subcommand,
@@ -12,7 +13,7 @@ import {
   type SubcommandShell,
 } from "./subcommands";
 
-const NAME = "messages";
+const NAME = `${INSTRUMENT_COMMAND.name} messages`;
 
 const MESSAGES_APP: MacApp = {
   bundleId: "com.apple.MobileSMS",
@@ -21,10 +22,12 @@ const MESSAGES_APP: MacApp = {
 
 export const MESSAGES_COMMAND = {
   description:
-    "Send an iMessage or a text from Messages on this Mac: `messages send --to <phone or email> [--sms]`, with the message on stdin. " +
+    "Send an iMessage or a text from Messages on this Mac: `instrument messages send --to <phone or email> [--sms]`, with the message on stdin. " +
     "Messages can't be read from here, only sent, so send only what the person asked you to send, worded as they saw it. " +
     `The first time a chat uses Messages the person is asked to allow it, and macOS asks them once to let ${APP_NAME} control it.`,
   name: NAME,
+  summary: "Send an iMessage or a text from Messages.",
+  word: "messages",
 } as const;
 
 const USAGE = `Usage: ${NAME} send --to <phone or email> [--sms] <<'EOF'
@@ -70,7 +73,7 @@ end run
 `,
 } as const;
 
-/** What `messages` needs from the shell it runs in. */
+/** What `instrument messages` needs from the shell it runs in. */
 interface MessagesContext {
   chatId: ChatId;
   layout: WorkspaceFsLayout;

@@ -16,6 +16,7 @@ import {
   SCRIPT_HELPERS,
   textFromStdin,
 } from "./app-scripts";
+import { INSTRUMENT_COMMAND } from "./instrument-command";
 import {
   defineSubcommands,
   subcommand,
@@ -23,18 +24,20 @@ import {
   type SubcommandShell,
 } from "./subcommands";
 
-const NAME = "mail";
+const NAME = `${INSTRUMENT_COMMAND.name} mail`;
 
 const MAIL_APP: MacApp = { bundleId: "com.apple.mail", name: "Mail" };
 
 export const MAIL_COMMAND = {
   description:
     "Read, search, draft, send, and file email in Mail on this Mac, across every account added to it. " +
-    "`mail list`, `mail search <words>` and `mail read <id>` read it, with lists as one JSON object per line; " +
-    "`mail draft` opens a message in Mail for the person to look over and send, and `mail send` sends one (`--to`, `--subject`, `--attach <file>`, and the message on stdin); " +
-    "`mail accounts`, `mail mailboxes` and `mail move <id> <mailbox>` cover the rest, and `mail help` has every flag. " +
+    "`instrument mail list`, `instrument mail search <words>` and `instrument mail read <id>` read it, with lists as one JSON object per line; " +
+    "`instrument mail draft` opens a message in Mail for the person to look over and send, and `instrument mail send` sends one (`--to`, `--subject`, `--attach <file>`, and the message on stdin); " +
+    "`instrument mail accounts`, `instrument mail mailboxes` and `instrument mail move <id> <mailbox>` cover the rest, and `instrument mail help` has every flag. " +
     `The first time a chat uses Mail the person is asked to allow it, and macOS asks them once to let ${APP_NAME} control it.`,
   name: NAME,
+  summary: "Read, search, draft, send and file email in Mail.",
+  word: "mail",
 } as const;
 
 const USAGE = `Usage: ${NAME} <subcommand> ...
@@ -321,7 +324,7 @@ end run
 `,
 } as const;
 
-/** What `mail` needs from the shell it runs in. */
+/** What `instrument mail` needs from the shell it runs in. */
 interface MailContext {
   chatId: ChatId;
   layout: WorkspaceFsLayout;
@@ -360,7 +363,7 @@ function placeOf(input: SubcommandInput): {
   const mailbox = input.value("mailbox") ?? "";
   if (mailbox && !account) {
     throw new Error(
-      "--mailbox goes with --account, since accounts share mailbox names. `mail mailboxes` lists each account's.",
+      "--mailbox goes with --account, since accounts share mailbox names. `instrument mail mailboxes` lists each account's.",
     );
   }
   return { account, mailbox };
@@ -370,7 +373,7 @@ function placeOf(input: SubcommandInput): {
 function idOf(given: string | undefined): string {
   if (given === undefined || !/^\d+$/.test(given)) {
     throw new Error(
-      `a message is named by its id, a number that \`mail list\` and \`mail search\` print (got ${given === undefined ? "nothing" : `"${given}"`}).`,
+      `a message is named by its id, a number that \`instrument mail list\` and \`instrument mail search\` print (got ${given === undefined ? "nothing" : `"${given}"`}).`,
     );
   }
   return given;
@@ -385,8 +388,8 @@ function placeErrors({
   mailbox: string;
 }): Record<number, string> {
   return {
-    9001: `Mail has no account named "${account}". \`mail accounts\` lists them.`,
-    9002: `"${account}" has no mailbox named "${mailbox || "INBOX"}". \`mail mailboxes --account '${account}'\` lists them.`,
+    9001: `Mail has no account named "${account}". \`instrument mail accounts\` lists them.`,
+    9002: `"${account}" has no mailbox named "${mailbox || "INBOX"}". \`instrument mail mailboxes --account '${account}'\` lists them.`,
   };
 }
 
@@ -508,7 +511,7 @@ function notFound(id: string, place: { account: string; mailbox: string }) {
     : place.account
       ? ` in ${place.account}`
       : "";
-  return `no message has the id ${id}${where}. Ids come from \`mail list\` and \`mail search\`.`;
+  return `no message has the id ${id}${where}. Ids come from \`instrument mail list\` and \`instrument mail search\`.`;
 }
 
 async function runRead(
@@ -620,7 +623,7 @@ async function runMove(
     {
       ...placeErrors(place),
       9003: notFound(id, place),
-      9005: `the message's account has no mailbox named "${destination}". \`mail mailboxes\` lists each account's.`,
+      9005: `the message's account has no mailbox named "${destination}". \`instrument mail mailboxes\` lists each account's.`,
     },
   );
   if (result.exitCode !== 0) {

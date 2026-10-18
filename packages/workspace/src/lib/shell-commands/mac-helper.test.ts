@@ -120,11 +120,15 @@ describe("mac helper commands", () => {
   // Each subcommand is held to the app it reads, so a chat's first look into
   // one asks the person once, by the name Settings lists it under.
   it.each([
-    ["calendar", ["events"], "Calendar"],
-    ["calendar", ["add-event", "--title", "Dinner"], "Calendar"],
-    ["calendar", ["reminders"], "Reminders"],
-    ["calendar", ["add-reminder", "--title", "Call Sam"], "Reminders"],
-    ["contacts", ["--search", "neil"], "Contacts"],
+    ["instrument calendar", ["events"], "Calendar"],
+    ["instrument calendar", ["add-event", "--title", "Dinner"], "Calendar"],
+    ["instrument calendar", ["reminders"], "Reminders"],
+    [
+      "instrument calendar",
+      ["add-reminder", "--title", "Call Sam"],
+      "Reminders",
+    ],
+    ["instrument contacts", ["--search", "neil"], "Contacts"],
   ] as const)(
     "%s %j asks for %s first, then runs once it is allowed",
     async (name, given, app) => {
@@ -174,7 +178,7 @@ describe("mac helper commands", () => {
     await asksWritten();
 
     expect(result.stderr).toBe(
-      "contacts: refused: the person said not now to Contacts in this chat. Don't look for another way to use it; say what you skipped without it.\n",
+      "instrument contacts: refused: the person said not now to Contacts in this chat. Don't look for another way to use it; say what you skipped without it.\n",
     );
     expect(await openAsks(chatId)).toEqual([]);
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
@@ -230,7 +234,7 @@ describe("mac helper commands", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      "calendar: not available in this build, which has no other way into Calendar and Reminders. Tell the person what you couldn't do.\n",
+      "instrument calendar: not available in this build, which has no other way into Calendar and Reminders. Tell the person what you couldn't do.\n",
     );
   });
 });

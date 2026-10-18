@@ -292,7 +292,7 @@ export interface WorkspaceConfig {
   // sandbox (`shell-commands/unsandboxed-uutils.ts`). Off, every call runs
   // sandboxed, which is what a test gets unless it asks.
   uutilsOutsideSandbox?: boolean;
-  // The bundled Mac helper behind the `calendar` and `contacts` commands and
+  // The bundled Mac helper behind the `instrument calendar` and `instrument contacts` commands and
   // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
   // The Seatbelt launcher (`instrument-seatbelt`) native commands start

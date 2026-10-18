@@ -38,7 +38,10 @@ import {
   type SessionCommandContext,
 } from "./shell-commands/background-jobs";
 import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
-import { createInstrumentCommand } from "./shell-commands/instrument";
+import {
+  createInstrumentCommand,
+  type InstrumentSubcommand,
+} from "./shell-commands/instrument";
 import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
@@ -428,49 +431,10 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: NODE_COMMAND.name,
   },
   {
-    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
-    description: CALENDAR_COMMAND.description,
-    factory: ({ chatId, layout }) =>
-      createMacHelperCommand(CALENDAR_COMMAND, chatId, layout),
-    listInDescription: true,
-    name: CALENDAR_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
-    description: CONTACTS_COMMAND.description,
-    factory: ({ chatId, layout }) =>
-      createMacHelperCommand(CONTACTS_COMMAND, chatId, layout),
-    listInDescription: true,
-    name: CONTACTS_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
     description: SHORTCUTS_COMMAND.description,
     factory: ({ layout, chatId }) => createShortcutsCommand(chatId, layout),
     listInDescription: true,
     name: SHORTCUTS_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    description: MAIL_COMMAND.description,
-    factory: ({ layout, chatId }) => createMailCommand(chatId, layout),
-    listInDescription: true,
-    name: MAIL_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    description: NOTES_COMMAND.description,
-    factory: ({ layout, chatId }) => createNotesCommand(chatId, layout),
-    listInDescription: true,
-    name: NOTES_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    description: MESSAGES_COMMAND.description,
-    factory: ({ layout, chatId }) => createMessagesCommand(chatId, layout),
-    listInDescription: true,
-    name: MESSAGES_COMMAND.name,
     platforms: ["darwin"],
   },
   {
@@ -555,6 +519,50 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 ];
 
 /**
+ * `instrument`'s commands for the Mac's own apps, in every shell on macOS:
+ * Mail, Notes and Messages through the app's scripts, and Calendar,
+ * Reminders and Contacts through the Mac helper where this build carries it.
+ */
+const MAC_APP_SUBCOMMANDS: (Omit<InstrumentSubcommand, "command"> & {
+  available?: () => boolean;
+  description: string;
+  factory: (context: CustomCommandContext) => Command;
+  name: string;
+})[] = [
+  {
+    ...CALENDAR_COMMAND,
+    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CALENDAR_COMMAND, chatId, layout),
+  },
+  {
+    ...CONTACTS_COMMAND,
+    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CONTACTS_COMMAND, chatId, layout),
+  },
+  {
+    ...MAIL_COMMAND,
+    factory: ({ chatId, layout }) => createMailCommand(chatId, layout),
+  },
+  {
+    ...MESSAGES_COMMAND,
+    factory: ({ chatId, layout }) => createMessagesCommand(chatId, layout),
+  },
+  {
+    ...NOTES_COMMAND,
+    factory: ({ chatId, layout }) => createNotesCommand(chatId, layout),
+  },
+];
+
+/** The Mac app commands this platform and build offer, read per call so a test can pin one. */
+function macAppSubcommands() {
+  return process.platform === "darwin"
+    ? MAC_APP_SUBCOMMANDS.filter((each) => each.available?.() ?? true)
+    : [];
+}
+
+/**
  * The program each of our commands runs, which `type`, `command -v`, `hash`
  * and `which` name it by. A command not listed runs inside the shell, or
  * runs a program only as part of what it does (`pip` is `uv pip`, `npx` is
@@ -563,7 +571,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
   {
     [AGENT_BROWSER_COMMAND.name]: () => AGENT_BROWSER_PATH,
-    [CALENDAR_COMMAND.name]: () => getWorkspaceConfig().macHelperBinPath,
     [FFMPEG_COMMAND.name]: () => FFMPEG_PATH,
     [FFPROBE_COMMAND.name]: () => FFPROBE_PATH,
     [GIT_COMMAND.name]: () => gitBinaryPath(),
@@ -672,6 +679,7 @@ export function createBashDescription() {
     ...customCommandDefs()
       .filter((cmd) => cmd.listInDescription)
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...macAppSubcommands().map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...CHAT_COMMAND_LINES,
   ];
@@ -826,9 +834,10 @@ export async function createLocalBashEnv({
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
   // What sets the chat's shell apart from a task's: its `instrument` has
-  // `task`, `chat`, `memory` and `tab` beside the `app` every shell has.
-  // Putting a thing on the user's screen is the chat's `tab`: a task's reply
-  // is read by the chat, and a pane of the task's own has nobody looking.
+  // `task`, `chat`, `memory` and `tab` beside the `app` every shell has, and
+  // the Mac app commands every shell on macOS has. Putting a thing on the
+  // user's screen is the chat's `tab`: a task's reply is read by the chat,
+  // and a pane of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
     cmd.factory({ chatId, invokeTool, layout }),
   );
@@ -861,7 +870,12 @@ export async function createLocalBashEnv({
             },
           ]
         : []),
-    ],
+      ...macAppSubcommands().map(({ factory, summary, word }) => ({
+        command: factory({ chatId, invokeTool, layout }),
+        summary,
+        word,
+      })),
+    ].toSorted((a, b) => a.word.localeCompare(b.word)),
   });
   const specializedCommands = [instrumentCommand, ...nativeCommands];
   const bash = new Bash({

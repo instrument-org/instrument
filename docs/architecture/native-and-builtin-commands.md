@@ -102,8 +102,9 @@ The last column names the arguments that send one call to the builtin on every p
 | `pnpm`, `pnx`, `pnpx`, `npx` | the bundled pnpm (`npx` and `pnpx` are `pnpm dlx`) | all |
 | `ffmpeg`, `ffprobe` | `ffmpeg-ffprobe-static` | all |
 | `agent-browser` | the agent-browser CLI, spawned directly with its own flag policy rather than under the native sandbox | all |
-| `calendar`, `contacts` | the Mac helper (`instrument-mac`) | macOS |
-| `osascript` | `/usr/bin/osascript`, unwrapped only for a script whose apps are all allowed | macOS |
+| `instrument calendar`, `instrument contacts` | the Mac helper (`instrument-mac`) | macOS |
+| `instrument mail`, `instrument notes`, `instrument messages` | `/usr/bin/osascript` running the app's own scripts, unwrapped for an app the person allowed | macOS |
+| `osascript` | refused by its bare name; by its path, `/usr/bin/osascript` in the profile, where no app takes its events | macOS |
 | `shortcuts` | `/usr/bin/shortcuts` | macOS |
 | anything else on the PATH | itself | all |
 

@@ -45,7 +45,7 @@ describe("app catalog", () => {
       undefined,
       "set up: none: Instrument has no way into Reminders in this build",
     ],
-    ["/app/bin/instrument-mac", "do it with the `calendar` command"],
+    ["/app/bin/instrument-mac", "do it with the `instrument calendar` command"],
   ])("sends Reminders through the helper when it is %s", async (bin, line) => {
     const config = getWorkspaceConfig();
     const { macHelperBinPath: _absent, ...without } = config;
@@ -62,9 +62,9 @@ describe("app catalog", () => {
   });
 
   it.each([
-    ["apple-mail", "mail"],
-    ["apple-notes", "notes"],
-    ["apple-messages", "messages"],
+    ["apple-mail", "instrument mail"],
+    ["apple-notes", "instrument notes"],
+    ["apple-messages", "instrument messages"],
   ])("sends %s through the `%s` command on a Mac", async (slug, command) => {
     vi.stubGlobal("process", { ...process, platform: "darwin" });
     try {

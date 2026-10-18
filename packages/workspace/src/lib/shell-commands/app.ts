@@ -61,6 +61,10 @@ import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "./app-command";
+import { CALENDAR_COMMAND, CONTACTS_COMMAND } from "./mac-helper";
+import { MAIL_COMMAND } from "./mail";
+import { MESSAGES_COMMAND } from "./messages";
+import { NOTES_COMMAND } from "./notes";
 import {
   defineSubcommands,
   type SubcommandInput,
@@ -255,16 +259,16 @@ const runApp = defineSubcommands<AppCommandContext>({
 
 /** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
 const HELPER_COMMANDS: Record<string, string> = {
-  "com.apple.AddressBook": "contacts",
-  "com.apple.iCal": "calendar",
-  "com.apple.reminders": "calendar",
+  "com.apple.AddressBook": CONTACTS_COMMAND.name,
+  "com.apple.iCal": CALENDAR_COMMAND.name,
+  "com.apple.reminders": CALENDAR_COMMAND.name,
 };
 
 /** Mac apps the app's own scripts drive, by bundle id, with the task command that reaches each. */
 const SCRIPTED_COMMANDS: Record<string, string> = {
-  "com.apple.MobileSMS": "messages",
-  "com.apple.Notes": "notes",
-  "com.apple.mail": "mail",
+  "com.apple.MobileSMS": MESSAGES_COMMAND.name,
+  "com.apple.Notes": NOTES_COMMAND.name,
+  "com.apple.mail": MAIL_COMMAND.name,
 };
 
 /** The task command that reaches a Mac app, where this build has one: a script's on macOS, the helper's where the build carries it. */

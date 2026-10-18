@@ -5,28 +5,33 @@ import { appRefusal, type MacApp } from "../permissions/apps";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { INSTRUMENT_COMMAND } from "./instrument-command";
 import { resolveCommandContext } from "./utils";
 
 export const CALENDAR_COMMAND = {
   description:
     "Read and add to Calendar and Reminders on this Mac through Apple's own interface, in well under a second. " +
-    "`calendar events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]` lists events (today when no dates are given); " +
-    "`calendar reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]` lists incomplete reminders, or every one with --all; " +
-    "`calendar calendars` names every calendar, and `calendar lists` every reminder list, with its account and whether it takes additions; " +
-    "`calendar add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]` and " +
-    "`calendar add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]` add one. " +
+    "`instrument calendar events [--from <date>] [--to <date>] [--calendar <name>] [--search <words>] [--limit <n>]` lists events (today when no dates are given); " +
+    "`instrument calendar reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]` lists incomplete reminders, or every one with --all; " +
+    "`instrument calendar calendars` names every calendar, and `instrument calendar lists` every reminder list, with its account and whether it takes additions; " +
+    "`instrument calendar add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]` and " +
+    "`instrument calendar add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]` add one. " +
     "When two accounts share a calendar or list name, --account names which. " +
     "A date is today, tomorrow, yesterday, 2026-10-06, or 2026-10-06T14:30 in local time. Answers are JSON. " +
     "The first time a chat uses Calendar or Reminders the person is asked to allow it, and macOS asks them once for each; exit code 2 means macOS was told no, which only they can change in System Settings.",
-  name: "calendar",
+  name: `${INSTRUMENT_COMMAND.name} calendar`,
+  summary: "Read and add to Calendar and Reminders.",
+  word: "calendar",
 } as const;
 
 export const CONTACTS_COMMAND = {
   description:
     "Look people up in Contacts on this Mac through Apple's own interface, in well under a second. " +
-    "`contacts [--search <words>] [--limit <n>]` lists the people whose name, nickname, company, title, email, or phone holds every word, with their emails, phones, and birthday, as JSON. " +
+    "`instrument contacts [--search <words>] [--limit <n>]` lists the people whose name, nickname, company, title, email, or phone holds every word, with their emails, phones, and birthday, as JSON. " +
     "The first time a chat uses Contacts the person is asked to allow it, and macOS asks them once; exit code 2 means macOS was told no, which only they can change in System Settings.",
-  name: "contacts",
+  name: `${INSTRUMENT_COMMAND.name} contacts`,
+  summary: "Look people up in Contacts.",
+  word: "contacts",
 } as const;
 
 const CALENDAR_APP: MacApp = { bundleId: "com.apple.iCal", name: "Calendar" };
@@ -39,7 +44,7 @@ const CONTACTS_APP: MacApp = {
   name: "Contacts",
 };
 
-/** The helper's subcommands `calendar` passes through, by the app each reads or adds to. */
+/** The helper's subcommands `instrument calendar` passes through, by the app each reads or adds to. */
 const CALENDAR_SUBCOMMANDS: Record<string, MacApp> = {
   "add-event": CALENDAR_APP,
   "add-reminder": REMINDERS_APP,
@@ -58,8 +63,8 @@ function refusal(command: string, message: string) {
  * macOS asks the user on the app's behalf, and once: the grant then covers
  * every task. Before that, the app it reads is held to the person's own
  * answer for this chat, as every route into one of their apps is.
- * `contacts` is one of the helper's subcommands under its own name;
- * `calendar` passes its own subcommands through, and only those, so it
+ * `instrument contacts` runs the helper's `contacts` subcommand;
+ * `instrument calendar` passes its own subcommands through, and only those, so it
  * reaches nothing of the helper's but Calendar and Reminders.
  */
 export function createMacHelperCommand(

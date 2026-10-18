@@ -1253,7 +1253,7 @@ function appAsks(asks: AskRecord[], app: string): AskRecord[] {
 const TOLD_CANNOT =
   /(can(?:no|'|’)t|couldn(?:'|’)t|could not|haven(?:'|’)t|not yet|unable|not able|need(?:s)? (?:your |the )?(?:ok|okay|permission|approval|access)|permission|allow|declined|didn(?:'|’)t (?:get|grant))/i;
 
-/** Ways to send or draft mail that go around the `mail` command. */
+/** Ways to send or draft mail that go around the `instrument mail` command. */
 const MAIL_DETOURS =
   /mailto:|sendmail|smtplib|\bsmtp|\bmail\s+-s\b|shortcuts\s+run|ScriptingBridge|appscript|\bosascript\b/i;
 

@@ -320,7 +320,7 @@ describe("mail's answers", () => {
         )
       ).stderr,
     ).toBe(
-      "mail: no message has the id 12 in iCloud's INBOX. Ids come from `mail list` and `mail search`.\n",
+      "instrument mail: no message has the id 12 in iCloud's INBOX. Ids come from `instrument mail list` and `instrument mail search`.\n",
     );
   });
 });

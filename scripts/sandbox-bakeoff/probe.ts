@@ -664,10 +664,7 @@ function plantTheirSetup(cwd: string) {
     writeFileSync(file, text, mode === undefined ? {} : { mode });
   };
   rmSync(RAN, { force: true });
-  write(
-    path.join(home, ".npmrc"),
-    `registry=${BOGUS}/\nignore-scripts=false\n`,
-  );
+  // `~/.npmrc` is left out: a chat's pnpm reads it on purpose.
   write(path.join(home, ".config/pnpm/rc"), `registry=${BOGUS}/\n`);
   write(
     path.join(home, ".config/uv/uv.toml"),
@@ -802,7 +799,7 @@ const env: NodeJS.ProcessEnv = {
     path.dirname(process.execPath),
     theirEnv.PATH,
   ].join(":"),
-  ...nodeToolsEnvFor(appData),
+  ...nodeToolsEnvFor(appData, home),
   ...uvToolsEnvFor(appData),
   pnpm_config_update_notifier: "false",
 };

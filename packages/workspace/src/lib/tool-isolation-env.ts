@@ -10,26 +10,31 @@ import { runtimeLayout } from "./runtime-dir";
 
 /**
  * The environment that pins pnpm, npm and node-gyp to the chats' caches and
- * config in `runtimeDir`, whatever the person's setup holds: their `~/.npmrc`
- * (a registry, `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global
- * store and caches are never read or written. Each is pinned by name rather
- * than by moving the folders a tool looks in, since every program on the PATH
- * gets this environment and one that keeps its own settings under `~/.config`
- * would have found an empty folder instead of the person's. The config files
- * are the app's own and empty. pnpm's settings for every install the agent
- * makes, wherever it makes it, are the `pnpm_config_*` variables here, which
- * a project's own `pnpm-workspace.yaml` can still change for that project.
+ * config in `runtimeDir`. The person's `~/.npmrc` is read, so a registry, a
+ * proxy and a sign-in to a private registry work in a chat as they do in
+ * their terminal; the sandbox keeps it from changes. Their
+ * `~/.config/pnpm/rc`, `PNPM_HOME`, global store and caches are never read
+ * or written. Each is pinned by name rather than by moving the folders a
+ * tool looks in, since every program on the PATH gets this environment and
+ * one that keeps its own settings under `~/.config` would have found an
+ * empty folder instead of the person's. The global config file is the app's
+ * own and empty. pnpm's settings for every install the agent makes,
+ * wherever it makes it, are the `pnpm_config_*` variables here, which a
+ * project's own `pnpm-workspace.yaml` can still change for that project.
  */
-export function nodeToolsEnvFor(runtimeDir: string): Record<string, string> {
+export function nodeToolsEnvFor(
+  runtimeDir: string,
+  home = os.homedir(),
+): Record<string, string> {
   const { caches, config } = runtimeLayout(runtimeDir);
-  return nodeToolsEnvIn(caches, config);
+  return nodeToolsEnvIn(caches, config, path.join(home, ".npmrc"));
 }
 
 /**
  * {@link nodeToolsEnvFor} for the app's build of a skill it ships: the same
  * settings, with the store, caches and config in the build folders, which no
  * chat reaches, so no chat's install or setting reaches what every chat
- * then runs.
+ * then runs. Its npm config is the app's own and empty, never `~/.npmrc`.
  */
 export function nodeBuildEnvFor(runtimeDir: string): Record<string, string> {
   const { buildCaches, buildConfig } = runtimeLayout(runtimeDir);
@@ -40,7 +45,9 @@ export function nodeBuildEnvFor(runtimeDir: string): Record<string, string> {
  * {@link nodeToolsEnvFor} for the pnpm install step the app runs outside the
  * sandbox (`pnpm-outside.ts`): the same settings, with the store, caches,
  * config and temp folder in the install folders, which no chat changes, and
- * nothing that runs a package's code or another pnpm. Install scripts and
+ * nothing that runs a package's code or another pnpm. Its npm config is the
+ * app's own and empty, never `~/.npmrc`, since a registry or a pnpmfile set
+ * there would steer an install no sandbox holds. Install scripts and
  * pnpmfiles are off, a `packageManager` or `devEngines` naming another pnpm
  * is ignored rather than downloaded and run, and a dependency of a package
  * comes from the registry alone.
@@ -69,12 +76,14 @@ export function nodeInstallEnvFor(runtimeDir: string): Record<string, string> {
 function nodeToolsEnvIn(
   caches: string,
   config: string,
+  personNpmrc?: string,
 ): Record<string, string> {
-  const userConfig = path.join(config, "npmrc");
+  const userConfig = personNpmrc ?? path.join(config, "npmrc");
   const globalConfig = path.join(config, "npmrc-global");
-  if (!existsSync(userConfig) || !existsSync(globalConfig)) {
+  const own = personNpmrc ? [globalConfig] : [userConfig, globalConfig];
+  if (!own.every((file) => existsSync(file))) {
     mkdirSync(config, { recursive: true });
-    for (const file of [userConfig, globalConfig]) {
+    for (const file of own) {
       if (!existsSync(file)) {
         writeFileSync(file, "");
       }
@@ -155,7 +164,43 @@ export function uvBuildEnvFor(
   now = new Date(),
 ): Record<string, string> {
   const { buildCaches, python } = runtimeLayout(runtimeDir);
-  return uvToolsEnvIn(buildCaches, python, now);
+  return {
+    ...uvToolsEnvIn(buildCaches, python, now),
+    MPLCONFIGDIR: path.join(buildCaches, "matplotlib"),
+    XDG_CACHE_HOME: buildCaches,
+  };
+}
+
+/**
+ * Where a chat's programs keep the caches they make for themselves (models,
+ * font caches), so a download lands once and outlives the chat. On macOS and
+ * Linux that is the person's own `~/.cache`, which the app-files place opens
+ * (`places.ts`): Hugging Face and Whisper find it with nothing set, and
+ * matplotlib and rembg, whose own folders (`~/.matplotlib`, `~/.u2net`) sit
+ * in the home folder a program cannot change, are pointed into it. Windows
+ * opens no cache folder of the person's, and a program held by the sandbox
+ * there gets a `LOCALAPPDATA` that is gone when it exits, so every one of
+ * them is pointed at the runtime folder's caches instead.
+ */
+export function modelCachesEnvFor(
+  runtimeDir: string,
+  platform: NodeJS.Platform = process.platform,
+  home = os.homedir(),
+): Record<string, string> {
+  if (platform !== "win32") {
+    const caches = path.join(home, ".cache");
+    return {
+      MPLCONFIGDIR: path.join(caches, "matplotlib"),
+      U2NET_HOME: path.join(caches, "u2net"),
+    };
+  }
+  const { caches } = runtimeLayout(runtimeDir);
+  return {
+    HF_HOME: path.join(caches, "huggingface"),
+    MPLCONFIGDIR: path.join(caches, "matplotlib"),
+    U2NET_HOME: path.join(caches, "u2net"),
+    XDG_CACHE_HOME: caches,
+  };
 }
 
 function uvToolsEnvIn(
@@ -164,10 +209,6 @@ function uvToolsEnvIn(
   now: Date,
 ): Record<string, string> {
   return {
-    // matplotlib keeps its font cache in ~/.matplotlib on macOS, which the
-    // sandbox keeps from changes, so without its own folder every chart
-    // rebuilt the cache (about ten seconds).
-    MPLCONFIGDIR: path.join(caches, "matplotlib"),
     PIP_CONFIG_FILE: os.devNull,
     UV_CACHE_DIR: path.join(caches, "uv"),
     UV_EXCLUDE_NEWER: new Date(
@@ -181,6 +222,5 @@ function uvToolsEnvIn(
     UV_PYTHON_PREFERENCE: "only-managed",
     UV_TOOL_BIN_DIR: path.join(caches, "uv-tools", "bin"),
     UV_TOOL_DIR: path.join(caches, "uv-tools"),
-    XDG_CACHE_HOME: caches,
   };
 }

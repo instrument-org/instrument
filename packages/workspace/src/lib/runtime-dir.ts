@@ -31,9 +31,9 @@ export function runtimeLayout(runtimeDir: string) {
     /**
      * What a chat's programs keep for themselves and can lose: uv's cache
      * and the tools it installs, the pnpm store, npm's cache, node-gyp's
-     * headers, model downloads. `XDG_CACHE_HOME` for every native command,
-     * which reads and writes it, so the app neither builds nor loads
-     * anything from it.
+     * headers, and on Windows model downloads (`XDG_CACHE_HOME` there,
+     * `modelCachesEnvFor`). Native commands read and write it, so the app
+     * neither builds nor loads anything from it.
      */
     caches: path.join(runtimeDir, "caches"),
     /**

@@ -58,6 +58,7 @@ describe("the app-files place", () => {
           "listed": true,
           "openUnlessClosed": [
             "Library/Caches",
+            ".cache",
           ],
           "parents": [
             "Library/Application Support",
@@ -137,6 +138,7 @@ describe.runIf(process.platform === "darwin")("App files on a Mac", () => {
       ["Library/LaunchAgents", "list"],
       ["Library/Caches/pnpm/x", "write"],
       ["Library/Caches/Google/Chrome/Default", "list"],
+      [".cache/huggingface/hub/x", "write"],
     ] as const;
     const levels = [undefined, "allow", "never"] as const;
     expect(
@@ -159,6 +161,7 @@ describe.runIf(process.platform === "darwin")("App files on a Mac", () => {
         "list Library/LaunchAgents: ask never, allow never, never never",
         "write Library/Caches/pnpm/x: ask allow, allow allow, never never",
         "list Library/Caches/Google/Chrome/Default: ask never, allow never, never never",
+        "write .cache/huggingface/hub/x: ask allow, allow allow, never never",
       ]
     `);
   });

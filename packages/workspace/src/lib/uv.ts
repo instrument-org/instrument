@@ -5,8 +5,11 @@ import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { hostPathWithin } from "./host-path";
-import { runtimeLayout } from "./runtime-dir";
-import { uvBuildEnvFor, uvToolsEnvFor } from "./tool-isolation-env";
+import {
+  modelCachesEnvFor,
+  uvBuildEnvFor,
+  uvToolsEnvFor,
+} from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
@@ -98,7 +101,6 @@ export function uvSubprocessEnv({
   cwd: string;
 }): Record<string, string> {
   const { runtimeDir, uvBinPath } = getWorkspaceConfig();
-  const { caches } = runtimeLayout(runtimeDir);
   const venvDir = nearestVenv(chatId, cwd);
 
   const pathDirs = [
@@ -108,21 +110,13 @@ export function uvSubprocessEnv({
   ];
 
   return {
-    // Redirect heavy model/data caches to an app-managed, writable dir shared
-    // across tasks so big downloads land once and persist, rather than under
-    // `~`, which the native sandbox keeps read-only outside the chat's
-    // folders. We target each library's own cache
-    // var instead of overriding HOME: XDG_CACHE_HOME covers XDG-compliant libs
-    // (Whisper's `~/.cache/whisper`, and HuggingFace's fallback when HF_HOME is
-    // unset); HF_HOME and U2NET_HOME cover HuggingFace and rembg's `~/.u2net`,
-    // which use their own vars. HOME itself stays the real host home (like
-    // run-pnpm.ts) so `os.homedir()`/`Path.home()` match the tsx/node hatches
-    // and stay writable, rather than resolving to a fake isolated dir.
+    // HOME stays the real host home (like run-pnpm.ts) so
+    // `os.homedir()`/`Path.home()` match the tsx/node hatches, rather than
+    // resolving to a fake isolated dir.
     ...(process.env.HOME ? { HOME: process.env.HOME } : {}),
-    HF_HOME: path.join(caches, "huggingface"),
+    ...modelCachesEnvFor(runtimeDir),
     PATH: pathDirs.join(path.delimiter),
     TERM: "dumb",
-    U2NET_HOME: path.join(caches, "u2net"),
     ...(venvDir ? { VIRTUAL_ENV: venvDir } : {}),
     ...uvToolsEnvFor(runtimeDir),
     // The managed Python is the app's to install (installManagedPython), in

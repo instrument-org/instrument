@@ -336,11 +336,13 @@ export function placePaths(
       // not the apps' containers: macOS asks the person before a program
       // looks into another app's container, in a dialog the program waits
       // on. Caches is open, since what is in it is made again from
-      // something else, but for the browsers', closed with their profiles.
+      // something else, but for the browsers', closed with their profiles,
+      // and so is `~/.cache`, where command-line tools keep theirs on a Mac
+      // too (Hugging Face's downloads, Whisper's models).
       {
         id: "appFiles",
         listed: true,
-        openUnlessClosed: inHome("Library/Caches"),
+        openUnlessClosed: inHome("Library/Caches", ".cache"),
         paths: inHome("Library"),
         unlisted: inHome("Library/Containers", "Library/Group Containers"),
       },

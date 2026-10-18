@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { runtimeLayout } from "./runtime-dir";
 import {
+  modelCachesEnvFor,
   nodeBuildEnvFor,
   nodeInstallEnvFor,
   nodeToolsEnvFor,
@@ -13,6 +14,8 @@ import {
 } from "./tool-isolation-env";
 
 const runtimeDir = mkdtempSync(path.join(os.tmpdir(), "tool-isolation-env-"));
+// A home folder in the runtime folder, so its paths read as the rest do.
+const home = path.join(runtimeDir, "home");
 
 /** Each path in the runtime folder spelled from it, so the layout reads at a glance. */
 function inRuntime(env: Record<string, string>) {
@@ -32,32 +35,30 @@ describe("the runtime folder", () => {
   it("holds uv's Pythons apart from its cache and tools", () => {
     expect(inRuntime(uvToolsEnvFor(runtimeDir, new Date("2026-10-13Z"))))
       .toMatchInlineSnapshot(`
-      {
-        "MPLCONFIGDIR": "<runtime>/caches/matplotlib",
-        "PIP_CONFIG_FILE": "<devNull>",
-        "UV_CACHE_DIR": "<runtime>/caches/uv",
-        "UV_EXCLUDE_NEWER": "2026-10-06T00:00:00.000Z",
-        "UV_NO_CONFIG": "1",
-        "UV_PYTHON_DOWNLOADS": "automatic",
-        "UV_PYTHON_INSTALL_DIR": "<runtime>/python",
-        "UV_PYTHON_PREFERENCE": "only-managed",
-        "UV_TOOL_BIN_DIR": "<runtime>/caches/uv-tools/bin",
-        "UV_TOOL_DIR": "<runtime>/caches/uv-tools",
-        "XDG_CACHE_HOME": "<runtime>/caches",
-      }
-    `);
+        {
+          "PIP_CONFIG_FILE": "<devNull>",
+          "UV_CACHE_DIR": "<runtime>/caches/uv",
+          "UV_EXCLUDE_NEWER": "2026-10-06T00:00:00.000Z",
+          "UV_NO_CONFIG": "1",
+          "UV_PYTHON_DOWNLOADS": "automatic",
+          "UV_PYTHON_INSTALL_DIR": "<runtime>/python",
+          "UV_PYTHON_PREFERENCE": "only-managed",
+          "UV_TOOL_BIN_DIR": "<runtime>/caches/uv-tools/bin",
+          "UV_TOOL_DIR": "<runtime>/caches/uv-tools",
+        }
+      `);
   });
 
   // Snapshotted whole so pnpm's safety settings stay in view: weakening the
   // release-age gate or the build policy has to show up as a diff here.
-  it("holds the node tools' caches, their own empty npm config, and pnpm's settings", () => {
-    expect(inRuntime(nodeToolsEnvFor(runtimeDir))).toMatchInlineSnapshot(`
+  it("holds the node tools' caches, the person's npmrc, and pnpm's settings", () => {
+    expect(inRuntime(nodeToolsEnvFor(runtimeDir, home))).toMatchInlineSnapshot(`
       {
         "PNPM_HOME": "<runtime>/caches/pnpm-home",
         "npm_config_cache": "<runtime>/caches/npm",
         "npm_config_devdir": "<runtime>/caches/node-gyp",
         "npm_config_globalconfig": "<runtime>/config/npmrc-global",
-        "npm_config_userconfig": "<runtime>/config/npmrc",
+        "npm_config_userconfig": "<runtime>/home/.npmrc",
         "pnpm_config_cache_dir": "<runtime>/caches/pnpm",
         "pnpm_config_confirm_modules_purge": "false",
         "pnpm_config_dlx_cache_max_age": "259200",
@@ -66,19 +67,48 @@ describe("the runtime folder", () => {
         "pnpm_config_globalconfig": "<runtime>/config/npmrc-global",
         "pnpm_config_init_package_manager": "false",
         "pnpm_config_minimum_release_age": "10080",
-        "pnpm_config_npmrc_auth_file": "<runtime>/config/npmrc",
+        "pnpm_config_npmrc_auth_file": "<runtime>/home/.npmrc",
         "pnpm_config_state_dir": "<runtime>/caches/pnpm-state",
         "pnpm_config_store_dir": "<runtime>/caches/pnpm-store",
         "pnpm_config_strict_dep_builds": "false",
         "pnpm_config_update_notifier": "false",
-        "pnpm_config_userconfig": "<runtime>/config/npmrc",
+        "pnpm_config_userconfig": "<runtime>/home/.npmrc",
         "pnpm_config_verify_deps_before_run": "false",
       }
     `);
+    // The person's `~/.npmrc` is read where it is; the app makes only the
+    // empty global config.
     expect(readdirSync(runtimeLayout(runtimeDir).config).toSorted()).toEqual([
-      "npmrc",
       "npmrc-global",
     ]);
+  });
+
+  it("keeps model caches in the person's ~/.cache, and on Windows in the runtime folder", () => {
+    expect(
+      Object.fromEntries(
+        (["darwin", "linux", "win32"] as const).map((platform) => [
+          platform,
+          inRuntime(modelCachesEnvFor(runtimeDir, platform, home)),
+        ]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "darwin": {
+          "MPLCONFIGDIR": "<runtime>/home/.cache/matplotlib",
+          "U2NET_HOME": "<runtime>/home/.cache/u2net",
+        },
+        "linux": {
+          "MPLCONFIGDIR": "<runtime>/home/.cache/matplotlib",
+          "U2NET_HOME": "<runtime>/home/.cache/u2net",
+        },
+        "win32": {
+          "HF_HOME": "<runtime>/caches/huggingface",
+          "MPLCONFIGDIR": "<runtime>/caches/matplotlib",
+          "U2NET_HOME": "<runtime>/caches/u2net",
+          "XDG_CACHE_HOME": "<runtime>/caches",
+        },
+      }
+    `);
   });
 
   // The install step runs outside the sandbox, so it reads nothing a chat

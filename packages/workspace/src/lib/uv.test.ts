@@ -8,6 +8,7 @@ import {
   createMockChatConfig,
   createMockChatConfigForDir,
 } from "../test/helpers/mock-chat-config";
+import { modelCachesEnvFor } from "./tool-isolation-env";
 import {
   nearestVenv,
   uvBuildSubprocessEnv,
@@ -125,10 +126,8 @@ describe("uvSubprocessEnv", () => {
     expect(env.VIRTUAL_ENV).toBeUndefined();
   });
 
-  it("redirects model/data caches to app-managed dirs without overriding HOME", () => {
-    expect(env.XDG_CACHE_HOME).toBe(path.join(runtime, "caches"));
-    expect(env.HF_HOME).toBe(path.join(runtime, "caches", "huggingface"));
-    expect(env.U2NET_HOME).toBe(path.join(runtime, "caches", "u2net"));
+  it("keeps model caches where modelCachesEnvFor says, without overriding HOME", () => {
+    expect(env).toMatchObject(modelCachesEnvFor(runtime));
     // HOME stays the real host home (or unset), never the isolated dir.
     expect(env.HOME).toBe(process.env.HOME);
   });

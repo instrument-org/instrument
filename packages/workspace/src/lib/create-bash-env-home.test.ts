@@ -78,22 +78,36 @@ it("writes /tmp and the process's temp folder without asking", async () => {
   expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "x\ny\n" });
 });
 
-it("names by /tmp the file a program's own code opens as /tmp", async () => {
+/** A node one-liner that runs `body` with `file` the named file in its temp folder. */
+function inProgramTemp(name: string, body: string): string {
+  return `node -e "const file = require('path').join(require('os').tmpdir(), '${name}'); ${body}"`;
+}
+
+it("names by /tmp on Windows, and by $TMPDIR anywhere, the file a program finds in its temp folder", async () => {
   const name = `bash-home-shared-${process.pid}`;
+  const shellTemp = process.platform === "win32" ? "/tmp" : '"$TMPDIR"';
   try {
-    const written = await run(`echo from-shell > /tmp/${name}`);
+    const written = await run(`echo from-shell > ${shellTemp}/${name}`);
     expect(written.exitCode).toBe(0);
-    // This process is a program like any the shell runs: `/tmp/<name>` in
-    // its code is opened as the system spells it, which on Windows is
-    // `\tmp` on the drive of its folder.
-    await expect(fs.readFile(`/tmp/${name}`, "utf8")).resolves.toBe(
-      "from-shell\n",
+    // A program the shell starts, held by the native sandbox where one
+    // runs, finds it through the temp folder its language gives it.
+    const read = await run(
+      inProgramTemp(
+        name,
+        "process.stdout.write(require('fs').readFileSync(file, 'utf8'))",
+      ),
     );
-    await fs.writeFile(`/tmp/${name}`, "from-program\n");
-    const read = await run(`cat /tmp/${name}`);
-    expect(read.stdout).toBe("from-program\n");
+    expect(read).toMatchObject({ exitCode: 0, stdout: "from-shell\n" });
+    await expect(
+      fs.readFile(path.join(os.tmpdir(), name), "utf8"),
+    ).resolves.toBe("from-shell\n");
+    const wrote = await run(
+      inProgramTemp(name, "require('fs').writeFileSync(file, 'from-program')"),
+    );
+    expect(wrote).toMatchObject({ exitCode: 0, stderr: "" });
+    expect((await run(`cat ${shellTemp}/${name}`)).stdout).toBe("from-program");
   } finally {
-    await fs.rm(`/tmp/${name}`, { force: true });
+    await fs.rm(path.join(os.tmpdir(), name), { force: true });
   }
 });
 

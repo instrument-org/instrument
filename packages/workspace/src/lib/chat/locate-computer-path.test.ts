@@ -10,7 +10,7 @@ const linux = { home: "/home/casey", platform: "linux", tmp: "/tmp" } as const;
 const windows = {
   home: "C:\\Users\\casey",
   platform: "win32",
-  tmp: "C:\\tmp",
+  tmp: "C:\\Users\\casey\\AppData\\Local\\Temp",
 } as const;
 
 describe("hostPathFromTyped", () => {
@@ -54,7 +54,7 @@ describe("hostPathFromTyped", () => {
     ["~/Documents", "C:\\Users\\casey\\Documents"],
     ["/c/Users/casey", "C:\\Users\\casey"],
     ["/d", "D:\\"],
-    ["/tmp/out.log", "C:\\tmp\\out.log"],
+    ["/tmp/out.log", "C:\\Users\\casey\\AppData\\Local\\Temp\\out.log"],
     ["\\\\server\\share\\folder", "\\\\server\\share\\folder"],
     ["file:///C:/Users/casey/a%20b.html", "C:\\Users\\casey\\a b.html"],
     ["file://server/share/x", "\\\\server\\share\\x"],

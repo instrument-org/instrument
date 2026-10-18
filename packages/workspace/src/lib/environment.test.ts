@@ -143,7 +143,7 @@ describe("environmentChangeModelNote", () => {
       - The apps folder (\`$INSTRUMENT_APPS\`): /c/Users/cubetop/Instrument/.instrument/apps
       - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): /c/Users/cubetop/Instrument/.instrument/skills
       Paths named earlier in this conversation may belong to the computer it ran on before; check one before you rely on it.
-      The shell spells a Windows path the POSIX way (\`C:\\Users\\sam\` is \`/c/Users/sam\`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. \`/tmp\` is the one exception: the shell and a script started from a folder on the system drive both open it as \`\\tmp\` on that drive.
+      The shell spells a Windows path the POSIX way (\`C:\\Users\\sam\` is \`/c/Users/sam\`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. \`/tmp\` in the shell is the temp folder (\`%TEMP%\`); a script gets it from its language (\`tempfile.gettempdir()\`, \`os.tmpdir()\`, \`$env:TEMP\`) rather than writing \`/tmp\`.
       </instrument-system-note>"
     `);
   });

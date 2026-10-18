@@ -356,13 +356,12 @@ export function buildWorkspaceFsLayout({
           readOnly: false,
         }),
       ),
-      // `/tmp` on Windows, at the folder a program the shell runs opens
-      // by that name.
+      // Git Bash's `/tmp` on Windows, where no drive holds a `/tmp`.
       ...(process.platform === "win32" &&
       getWorkspaceConfig().tempFolders === undefined
         ? [
             {
-              hostRoot: AbsolutePathSchema.parse(WINDOWS_TMP),
+              hostRoot: AbsolutePathSchema.parse(HOST_TMPDIR),
               shellRoot: "/tmp",
               readOnly: false,
             },
@@ -612,17 +611,10 @@ function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
 }
 
 /**
- * The folder `/tmp` names on Windows: `\tmp` on the system drive, which is
- * where a Windows program opens `/tmp` from a folder on that drive (Python's
- * `open('/tmp/x')`, Node's `fs.readFileSync('/tmp/x')`), so a file the shell
- * writes there is the file a script's own code reads. Made when a shell
- * starts, as it is no folder Windows has. Read once: the shell refuses a
- * command a look at the environment.
+ * This process's temp folder, read once: the shell refuses a command a look
+ * at the environment, and on Windows `/tmp` leads here, as in Git Bash.
  */
-export const WINDOWS_TMP = nodePath.win32.join(
-  `${process.env.SystemDrive ?? "C:"}\\`,
-  "tmp",
-);
+const HOST_TMPDIR = os.tmpdir();
 
 /**
  * The system's temp folders, where any program keeps scratch files: `/tmp`
@@ -723,7 +715,7 @@ export function shellPath(
 /**
  * The host path a shell path names: the inverse of {@link shellPath}. The same
  * path on macOS and Linux; on Windows `/c/Users/sam` becomes `C:\Users\sam`,
- * and `/tmp` is {@link WINDOWS_TMP}.
+ * and `/tmp` is the temp folder, as in Git Bash.
  */
 export function hostPathOf(shellSpelled: string): string {
   if (process.platform !== "win32") {
@@ -731,7 +723,7 @@ export function hostPathOf(shellSpelled: string): string {
   }
   const tmp = /^\/tmp(?:\/(.*))?$/.exec(shellSpelled);
   if (tmp) {
-    return nodePath.win32.join(WINDOWS_TMP, tmp[1] ?? "");
+    return nodePath.win32.join(HOST_TMPDIR, tmp[1] ?? "");
   }
   const drive = /^\/([A-Za-z])(?:\/(.*))?$/.exec(shellSpelled);
   return drive
@@ -961,14 +953,12 @@ async function mountRoots(
   layout: WorkspaceFsLayout,
 ): Promise<WorkspaceFsMount[]> {
   const present: WorkspaceFsMount[] = [];
-  // The app's own folders and Windows' `/tmp` are made when missing; a
-  // folder of the person's that is gone stays gone rather than coming back
-  // empty.
+  // The app's own folders are made when missing; a folder of the person's
+  // that is gone stays gone rather than coming back empty.
   const ours = [
     layout.chat,
     ...layout.skills.filter((mount) => !mount.readOnly),
     ...(layout.apps ? [layout.apps] : []),
-    ...layout.temp.filter((mount) => mount.hostRoot === WINDOWS_TMP),
   ];
   for (const mount of allMounts(layout)) {
     if (ours.includes(mount)) {

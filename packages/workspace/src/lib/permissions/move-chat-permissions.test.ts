@@ -33,7 +33,7 @@ afterEach(() => {
 
 /** What an older build wrote beside the chat. */
 async function writeBesideTheChat(held: Record<string, unknown>) {
-  await updateChatRecord(chatDir(chatId), "settings", (record) => ({
+  await updateChatRecord(chatDir(chatId), (record) => ({
     ...record.raw,
     ...held,
   }));

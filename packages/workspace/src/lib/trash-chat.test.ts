@@ -84,7 +84,7 @@ describe("trashChat", () => {
     const chat = await chatFor();
     const own = path.join(rootDir, "Chats", "A chat");
     await fs.mkdir(own, { recursive: true });
-    await updateChatRecord(chatDir(chat), "settings", (current) => ({
+    await updateChatRecord(chatDir(chat), (current) => ({
       ...current.raw,
       folder: "A chat",
     }));
@@ -104,7 +104,7 @@ describe("trashChat", () => {
     const chat = await chatFor();
     const own = path.join(rootDir, "Chats", "A chat");
     await fs.mkdir(own, { recursive: true });
-    await updateChatRecord(chatDir(chat), "settings", (current) => ({
+    await updateChatRecord(chatDir(chat), (current) => ({
       ...current.raw,
       folder: "A chat",
     }));

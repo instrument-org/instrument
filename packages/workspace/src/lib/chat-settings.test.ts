@@ -56,16 +56,16 @@ describe("updateChatSettings", () => {
     expect(settings?.createdWithAppVersion).toBe("2.0.2");
   });
 
-  // The two views share one file, so each has to leave the other's half alone.
+  // A settings write never touches the state, which is a file of its own.
   it("leaves the state alone", async () => {
-    await setChatState(chatDir(chatId), { appGuidesRead: ["half typed"] });
+    await setChatState(chatDir(chatId), { appGuidesShown: ["half typed"] });
 
     await updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" });
 
     const state = await getChatState(chatDir(chatId));
     const settings = await getChatSettings(chatDir(chatId));
 
-    expect(state.appGuidesRead).toEqual(["half typed"]);
+    expect(state.appGuidesShown).toEqual(["half typed"]);
     expect(settings?.createdWithAppVersion).toBe("2.0.1");
   });
 

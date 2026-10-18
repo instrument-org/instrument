@@ -487,7 +487,7 @@ function seedLegacyTaskFolder({
   ).map(() =>
     // 1.x kept a task's name in its settings; written raw because a chat's
     // settings have no such field.
-    updateChatRecord(dir, "settings", () => ({
+    updateChatRecord(dir, () => ({
       createdAt: new Date().toISOString(),
       createdWithAppVersion: workspaceConfig.appVersion,
       name,

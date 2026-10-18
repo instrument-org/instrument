@@ -57,7 +57,7 @@ export async function moveChatPermissions(): Promise<{ moved: number }> {
   for (const id of held.keys()) {
     // The record file merges a change into what is there, so a key goes by
     // being set to undefined rather than by being left out.
-    await updateChatRecord(chatDir(id), "settings", () => ({
+    await updateChatRecord(chatDir(id), () => ({
       appGrants: undefined,
       denials: undefined,
       grants: undefined,

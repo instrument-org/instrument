@@ -16,6 +16,7 @@ import {
   type WorkDir,
 } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
+import { type DeviceId } from "./records/device-id";
 import { chatOwnFolder } from "./record-folders";
 import { workspaceMachineDir } from "./workspace-machine-dir";
 
@@ -89,9 +90,14 @@ export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
   return fs.existsSync(inFolder) ? inFolder : inRecordFolder(dir);
 }
 
-/** A chat's settings and where the person left off, in its record folder. */
+/** What every device knows about a chat, in its record folder. */
 export function chatSettingsPath(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, SETTINGS_FILE_NAME);
+}
+
+/** Where one device left off in a chat, in its record folder; only that device writes it. */
+export function chatStatePath(dir: ChatDir, device: DeviceId): AbsolutePath {
+  return absolutePathJoin(dir, `state.${device}.json`);
 }
 
 /**

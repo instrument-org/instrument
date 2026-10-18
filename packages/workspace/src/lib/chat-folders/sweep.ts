@@ -234,7 +234,7 @@ async function sweepChatFolder({
     }
     await writeChatFile(folder.path, markdown);
     if (record.settings?.folder !== folder.name && !record.unreadable) {
-      await updateChatRecord(dir, "settings", (current) => ({
+      await updateChatRecord(dir, (current) => ({
         ...current.raw,
         folder: folder.name,
       }));

@@ -8,7 +8,7 @@ import {
   type QuestionAsk,
 } from "../../schemas/chat-state";
 import { StoreId } from "../../schemas/store-id";
-import { readChatRecord, updateChatState } from "../chat-record";
+import { getChatState, updateChatState } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { chatDir } from "../record-folders";
 import { askTargetName } from "../permissions/ask-target";
@@ -86,14 +86,14 @@ export async function recordAsk(
     sessionId: asker.sessionId,
   };
   await updateChatState(chatDir(asker.chatId), (state) => {
-    const asks = state.asks ?? [];
+    const asks = state.waitingOn ?? [];
     const open = asks.find(
       (ask): ask is PermissionAsk =>
         ask.kind !== "question" && ask.kind === kind && ask.target === target,
     );
     if (!open) {
       return {
-        asks: [
+        waitingOn: [
           ...asks,
           {
             askedAt: getCurrentDate(),
@@ -109,7 +109,7 @@ export async function recordAsk(
       return {};
     }
     return {
-      asks: asks.map((ask) =>
+      waitingOn: asks.map((ask) =>
         ask === open ? { ...ask, askers: [...ask.askers, joining] } : ask,
       ),
     };
@@ -127,8 +127,8 @@ export async function recordQuestion(
 ): Promise<string> {
   const id = ulid();
   await updateChatState(chatDir(asker.chatId), (state) => ({
-    asks: [
-      ...(state.asks ?? []),
+    waitingOn: [
+      ...(state.waitingOn ?? []),
       {
         askedAt: getCurrentDate(),
         askers: [{ partId: asker.partId, sessionId: asker.sessionId }],
@@ -152,14 +152,14 @@ export async function closeQuestions(chatId: ChatId): Promise<void> {
     return;
   }
   await updateChatState(chatDir(chatId), (state) => ({
-    asks: (state.asks ?? []).filter((ask) => ask.kind !== "question"),
+    waitingOn: (state.waitingOn ?? []).filter((ask) => ask.kind !== "question"),
   }));
 }
 
 /** The chat's open asks, oldest first. */
 export async function openAsks(chatId: ChatId): Promise<Ask[]> {
-  const record = await readChatRecord(chatDir(chatId));
-  return record.state.asks ?? [];
+  const state = await getChatState(chatDir(chatId));
+  return state.waitingOn ?? [];
 }
 
 /** The chat's open asks a session is on, waiting to be woken with the answer, oldest first. */
@@ -211,9 +211,9 @@ async function closeWhere<Closed extends Ask>(
 ): Promise<Closed | undefined> {
   let closed: Closed | undefined;
   await updateChatState(chatDir(chatId), (state) => {
-    const asks = state.asks ?? [];
+    const asks = state.waitingOn ?? [];
     closed = asks.find(matches);
-    return closed ? { asks: asks.filter((ask) => ask !== closed) } : {};
+    return closed ? { waitingOn: asks.filter((ask) => ask !== closed) } : {};
   });
   return closed;
 }
@@ -237,7 +237,7 @@ export async function closeAsksOf(
     return;
   }
   await updateChatState(chatDir(chatId), (state) => ({
-    asks: (state.asks ?? []).flatMap((ask) => {
+    waitingOn: (state.waitingOn ?? []).flatMap((ask) => {
       const askers = ask.askers.filter(stays);
       return askers.length ? [{ ...ask, askers }] : [];
     }),

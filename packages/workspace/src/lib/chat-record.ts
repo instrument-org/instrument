@@ -7,30 +7,30 @@ import {
   ChatSettingsSchema,
 } from "../schemas/chat-settings";
 import { StoredChatStateSchema, type ChatState } from "../schemas/chat-state";
-import { readJsonRecord, updateJsonRecord } from "./json-record-file";
+import { chatSettingsPath, chatStatePath } from "./chat-dir-utils";
+import {
+  type JsonRecord,
+  readJsonRecord,
+  updateJsonRecord,
+} from "./json-record-file";
 import { recordChanged } from "./record-changes";
-import { chatSettingsPath } from "./chat-dir-utils";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * The one file a chat keeps beside its database (`settings.json`), and the
- * only writer of it.
+ * The two files a chat keeps beside its records, and the only writer of
+ * either:
  *
- * It holds two kinds of thing and the difference is worth knowing, because it
- * is the reason `state` is a nested key rather than more fields:
+ * - `settings.json` is what the app knows *about* a chat: timestamps, its
+ *   folder, the model and effort. Every device reads and writes it, and the
+ *   chat list reads it for every chat in the workspace.
+ * - `state.<device>.json` is where this device left off *inside* the chat:
+ *   the browser tabs its sessions drive, the cards its agent waits on, the
+ *   app guides it was handed. Only this device writes it, and only this
+ *   device reads it, so a turn on another computer never closes this one's
+ *   tabs or takes away a card its agent is waiting on. Another device's
+ *   state file is there for later readers and ignored.
  *
- * - Everything at the top level is what the app knows *about* a chat --
- *   timestamps, model and effort, the folders granted in it. The chat list
- *   reads it for every chat in the workspace.
- * - `state` is where the user left off *inside* one chat -- its browser tabs
- *   and the session driving each. Read when a chat is open, and across chats
- *   only by the chat list, for the cards open in each, through `openAsks`;
- *   nothing will ever index it.
- *
- * Two views over one file rather than two files: see the finding on the task
- * list following file timestamps for why they were split and why that reason
- * did not survive.
- *
- * Every write says which half it changed on the record change feed
+ * Every write says which of the two it changed on the record change feed
  * (`settings` or `state`), so a reader of the settings is not woken by a
  * model pick or a tab, and a reader of the state hears every write to it
  * without its writer having to announce it.
@@ -39,14 +39,13 @@ export interface ChatRecord {
   /**
    * The object as it was on disk.
    *
-   * Writes are built on top of this rather than on the parsed views, so a field
+   * Writes are built on top of this rather than on the parsed view, so a field
    * this build cannot read is carried forward instead of being dropped by the
    * write that happened to come next.
    */
   raw: Record<string, unknown>;
   /** Undefined when the file is missing or its settings cannot be read. */
   settings: ChatSettings | undefined;
-  state: ChatState;
   /**
    * The file is there and could not be read: truncated JSON, something that is
    * not an object, a permission error.
@@ -54,34 +53,27 @@ export interface ChatRecord {
    * Reads answer empty for it, the same answer a chat with no file gets, since
    * a caller asking for its settings has nothing better to show. Writes must
    * not: that empty answer plus whatever the caller is changing *becomes* the
-   * file, so a model pick would replace the grants and every open tab with one
-   * field.
+   * file, so a model pick would replace everything else the file held.
    */
   unreadable: boolean;
 }
 
 /**
- * Where the user left off in a chat.
+ * Where this device left off in a chat.
  *
- * Total rather than optional, unlike the settings view: an empty state means
- * nothing has been set, where an absent settings means the file could not be
- * read. Both callers depend on their half's answer to that.
+ * Total rather than optional, unlike the settings: an empty state means
+ * nothing has been set, and a state file that cannot be read costs the chat
+ * its tabs and cards rather than its settings.
  */
 export async function getChatState(dir: ChatDir): Promise<ChatState> {
-  const record = await readChatRecord(dir);
-  return record.state;
+  await adoptSettingsState(dir);
+  const read = await readJsonRecord(statePath(dir));
+  return read.kind === "read" ? stateFrom(read.record) : emptyState();
 }
 
-/**
- * Reads both views, each tolerant of the other failing.
- *
- * They are parsed separately on purpose. A state written by a newer build, or a
- * field holding something the schema rejects, must not cost the chat its
- * grants and its place in the list -- and settings that cannot be read must
- * not cost the tabs the chat's sessions drive.
- */
+/** Reads the settings file, tolerant of it being missing or unreadable. */
 export async function readChatRecord(dir: ChatDir): Promise<ChatRecord> {
-  const read = await readJsonRecord(recordPath(dir));
+  const read = await readJsonRecord(chatSettingsPath(dir));
   // A chat nobody has written a settings file for yet is the one case a write may
   // create from nothing; anything else is a file we have but cannot read.
   return read.kind === "read"
@@ -93,60 +85,93 @@ export async function setChatState(
   dir: ChatDir,
   state: Partial<ChatState>,
 ): Promise<void> {
-  await updateChatRecord(dir, "state", (record) =>
-    recordWithState(record, state),
-  );
+  await updateChatState(dir, () => state);
 }
 
 /**
- * Changes the state half from what is on disk, read inside the write queue,
- * so two changes landing together each build on the other.
+ * Changes this device's state from what is on disk, read inside the write
+ * queue, so two changes landing together each build on the other. A field
+ * this build cannot read is carried forward.
  */
 export async function updateChatState(
   dir: ChatDir,
   change: (state: ChatState) => Partial<ChatState>,
 ): Promise<void> {
-  await updateChatRecord(dir, "state", (record) =>
-    recordWithState(record, change(record.state)),
-  );
+  await adoptSettingsState(dir);
+  await updateJsonRecord(statePath(dir), (raw) => change(stateFrom(raw)));
+  announce(dir, "state");
 }
 
 /**
- * Applies a change to the whole file, reading it inside the write queue.
+ * Applies a change to the settings file, reading it inside the write queue.
  *
  * The callback receives what is currently on disk and returns the fields to
  * write over it (`undefined` drops one; one left out is kept), so a
- * read-modify-write cannot interleave with another: two tab opens, or a
- * model pick landing with a message's activity stamp, would otherwise each build on
- * the record the other had not written yet.
+ * read-modify-write cannot interleave with another: a title's folder and a
+ * message's activity stamp landing together would otherwise each build on the
+ * record the other had not written yet.
  */
 export async function updateChatRecord(
   dir: ChatDir,
-  /** Which half the change is to, which is what the change feed says moved. */
-  half: "settings" | "state",
   update: (record: ChatRecord) => Record<string, unknown>,
 ): Promise<ChatRecord> {
   // An unreadable record is refused rather than built on: the write would
   // build on an empty reading of it, and going ahead costs everything the
-  // file holds where failing the caller costs a model pick or a tab.
+  // file holds where failing the caller costs a model pick.
   const written = recordFrom(
-    await updateJsonRecord(recordPath(dir), (raw) => update(recordFrom(raw))),
+    await updateJsonRecord(chatSettingsPath(dir), (raw) =>
+      update(recordFrom(raw)),
+    ),
   );
+  announce(dir, "settings");
+  return written;
+}
+
+/** Record folders this process has already looked in for an earlier build's state. */
+const adopted = new Set<string>();
+
+/**
+ * Takes in the state an earlier build kept under `state` in `settings.json`,
+ * once per chat: into this device's state file when it has none, under the
+ * names it has now, and out of the settings either way, since each device's
+ * state is its own.
+ */
+async function adoptSettingsState(dir: ChatDir): Promise<void> {
+  if (adopted.has(dir)) {
+    return;
+  }
+  adopted.add(dir);
+  const settings = await readJsonRecord(chatSettingsPath(dir));
+  if (settings.kind !== "read" || !isRecord(settings.record.state)) {
+    return;
+  }
+  const { appGuidesRead, asks, ...rest } = settings.record.state;
+  await updateJsonRecord(statePath(dir), (current) =>
+    Object.keys(current).length > 0
+      ? undefined
+      : {
+          ...rest,
+          ...(asks !== undefined && { waitingOn: asks }),
+          ...(appGuidesRead !== undefined && { appGuidesShown: appGuidesRead }),
+        },
+  );
+  await updateJsonRecord(chatSettingsPath(dir), () => ({ state: undefined }));
+}
+
+function announce(dir: ChatDir, half: "settings" | "state") {
   // A record's folder is named by its id.
   const id = ChatIdSchema.safeParse(path.basename(dir));
   if (id.success) {
     recordChanged(id.data, half);
   }
-  return written;
 }
 
 function emptyRecord(unreadable: boolean): ChatRecord {
-  return {
-    raw: {},
-    settings: undefined,
-    state: StoredChatStateSchema.parse({}),
-    unreadable,
-  };
+  return { raw: {}, settings: undefined, unreadable };
+}
+
+function emptyState(): ChatState {
+  return StoredChatStateSchema.parse({});
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -159,44 +184,19 @@ function recordFrom(parsed: unknown): ChatRecord {
     // into, which is the same position a truncated file leaves us in.
     return emptyRecord(true);
   }
-
   const settings = ChatSettingsSchema.safeParse(parsed);
-  const state = StoredChatStateSchema.safeParse(parsed.state);
-
   return {
     raw: parsed,
     settings: settings.success ? settings.data : undefined,
-    state: state.success ? state.data : StoredChatStateSchema.parse({}),
     unreadable: false,
   };
 }
 
-function recordPath(dir: ChatDir): AbsolutePath {
-  return chatSettingsPath(dir);
+function stateFrom(raw: JsonRecord): ChatState {
+  const state = StoredChatStateSchema.safeParse(raw);
+  return state.success ? state.data : emptyState();
 }
 
-/**
- * A record with `changes` applied to its state half, ready to be written.
- *
- * The raw state is spread *under* the parsed one, which is the whole point of
- * this existing: `StoredChatStateSchema` is a plain object schema and strips
- * keys it does not know, so writing the parsed view back would quietly delete a
- * field a newer build had written. The top level is protected by spreading
- * `raw`, and this is the same protection one level down -- which is where it
- * matters more, since the top level is a closed set and `state` is the half
- * that keeps growing.
- */
-function recordWithState(
-  record: ChatRecord,
-  changes: Partial<ChatState>,
-): Record<string, unknown> {
-  const raw = record.raw.state;
-  return {
-    ...record.raw,
-    state: {
-      ...(isRecord(raw) ? raw : {}),
-      ...record.state,
-      ...changes,
-    },
-  };
+function statePath(dir: ChatDir): AbsolutePath {
+  return chatStatePath(dir, getWorkspaceConfig().deviceId);
 }

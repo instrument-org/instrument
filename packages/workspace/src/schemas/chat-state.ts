@@ -92,19 +92,18 @@ export const AskSchema = z.discriminatedUnion("kind", [
 
 export type Ask = z.output<typeof AskSchema>;
 
-// Where the user left off in a chat. Read on open, and across chats only by
-// the chat list for its open asks, through `openAsks` -- which is what
-// separates it from the settings around it, and why it is one nested key
-// rather than a flat spread.
+// Where this device left off in a chat, in its own `state.<device>.json`.
+// Read on open, and across chats only by the chat list for its open cards,
+// through `openAsks`.
 export const StoredChatStateSchema = z
   .object({
-    // The apps whose guide this chat has read, so `instrument app request` hands the
-    // guide over once and then gets out of the way.
-    appGuidesRead: z.array(z.string()).optional(),
-    // What the agent is waiting on the person to answer, oldest first. One
-    // that will not parse costs the chat its open asks alone.
-    asks: z.array(AskSchema).optional().catch(undefined),
+    // The apps whose guide this chat was handed, so `instrument app request`
+    // hands the guide over once and then gets out of the way.
+    appGuidesShown: z.array(z.string()).optional(),
     browserTabs: z.array(HeldTabSchema).default([]),
+    // What the agent is waiting on the person to answer, oldest first. One
+    // that will not parse costs the chat its open cards alone.
+    waitingOn: z.array(AskSchema).optional().catch(undefined),
   })
   .default(() => ({ browserTabs: [] }));
 

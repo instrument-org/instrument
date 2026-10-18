@@ -12,7 +12,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 - One log file per session per device, and one marks file per device. Every file has exactly one writer: the device its name carries.
 - A change is a new line, never an edit. The newest snapshot of a message or part wins.
 - Only settled records are written. Streaming deltas are never persisted, and there is no journal for them; a crash mid-reply loses the unfinished part, which then reads as interrupted.
-- Live data (a tool call's `activity` while its input streams, the task page's streaming text) stays in memory and goes to the window only. A card the person has not answered is the exception: it is kept under `state.asks` in the chat's `settings.json`, because the chat list reads every chat's open asks, and because a card is a question that has to be there again after a relaunch.
+- Live data (a tool call's `activity` while its input streams, the task page's streaming text) stays in memory and goes to the window only. A card the person has not answered is the exception: it is kept under `waitingOn` in this device's state file for the chat (`state.<device>.json`), because the chat list reads every chat's open asks, and because a card is a question that has to be there again after a relaunch.
 - Images and every other binary a tool returns become blobs named by their hash in the chat's `blobs/`, which travel with the chat.
 - Big command output stays on this computer, in `work/<chat>/.tool-output/`, as today; the log keeps its head, tail and path.
 - One SQLite database per workspace on this computer, `workspace.db`: the index and the activity log.

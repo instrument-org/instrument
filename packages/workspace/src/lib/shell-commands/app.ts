@@ -386,9 +386,9 @@ function jsonFrom(
 async function markGuideRead(chatId: ChatId, slug: string) {
   const dir = chatDir(chatId);
   const state = await getChatState(dir);
-  const read = state.appGuidesRead ?? [];
+  const read = state.appGuidesShown ?? [];
   if (!read.includes(slug)) {
-    await setChatState(dir, { appGuidesRead: [...read, slug] });
+    await setChatState(dir, { appGuidesShown: [...read, slug] });
   }
 }
 
@@ -1061,7 +1061,7 @@ async function runRequest(
   // The guide is the app's only documentation, so it enters the context
   // before the first real request in this task.
   const state = await getChatState(chatDir(context.chatId));
-  if (!(state.appGuidesRead ?? []).includes(app.slug)) {
+  if (!(state.appGuidesShown ?? []).includes(app.slug)) {
     const guide = await readAppGuide(app.dir);
     if (guide === null) {
       throw new Error(

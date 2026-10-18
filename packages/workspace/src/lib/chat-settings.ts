@@ -76,7 +76,7 @@ async function writeMergedSettings(
   chatId: ChatId,
   updates: ChatSettingsUpdate,
 ): Promise<void> {
-  await updateChatRecord(chatDir(chatId), "settings", (record) => {
+  await updateChatRecord(chatDir(chatId), (record) => {
     // Raw first so `state` and anything this build cannot read survive the
     // write, then the parsed settings, then the change.
     //

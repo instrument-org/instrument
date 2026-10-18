@@ -40,7 +40,7 @@ export async function followTitle(
       title,
     });
     if (folder.name !== from) {
-      await updateChatRecord(dir, "settings", (current) => ({
+      await updateChatRecord(dir, (current) => ({
         ...current.raw,
         folder: folder.name,
       }));

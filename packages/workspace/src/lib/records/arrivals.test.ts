@@ -112,6 +112,20 @@ describe("another device's records reaching a running app", () => {
     expect(await messageIds(reader)).toEqual([messageId(1), messageId(2)]);
   });
 
+  // Each device's state is its own, read by nothing on this one.
+  it("brings nothing for another device's state file", async () => {
+    await otherDeviceStarted();
+    await arrivals.start();
+    await fs.writeFile(
+      path.join(recordsDir(), `state.${DEVICE_B}.json`),
+      JSON.stringify({ browserTabs: [] }),
+    );
+
+    await arrivals.look();
+
+    expect(arrived).toEqual([]);
+  });
+
   it("folds a log another device started in a chat already held", async () => {
     await otherDeviceStarted();
     await reader.read(CHAT);

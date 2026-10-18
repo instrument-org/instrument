@@ -130,6 +130,8 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
         "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
         "(deny mach-lookup (global-name "com.apple.dt.CommandLineTools.installondemand"))",
         "(deny mach-lookup (global-name "com.apple.siri.VoiceShortcuts.xpc") (global-name "com.apple.siriactionsd.xpc") (global-name "com.apple.shortcuts.systemshortcutservice.runner") (xpc-service-name "com.apple.WorkflowKit.BackgroundShortcutRunner"))",
+        "(deny signal)",
+        "(allow signal (target same-sandbox))",
       ]
     `);
     },
@@ -736,6 +738,30 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
       reject: false,
     });
     expect(result.exitCode).toBe(0);
+  });
+
+  it("signals its own children, and nothing it did not start", async () => {
+    const outside = execa("/bin/sleep", ["98711"], { reject: false });
+    try {
+      const pid = String(outside.pid);
+      for (const [file, args] of [
+        ["/bin/kill", [pid]],
+        ["/usr/bin/pkill", ["-f", "sleep 98711"]],
+      ] as const) {
+        const result = await run(file, [...args]);
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr).toContain("Operation not permitted");
+      }
+      const own = await run("/bin/sh", [
+        "-c",
+        "sleep 98712 & kill $!; wait $!; echo $?",
+      ]);
+      expect(own.stdout.trim()).toBe("143");
+      expect(outside.exitCode).toBeNull();
+    } finally {
+      outside.kill();
+      await outside;
+    }
   });
 
   it("holds a node child the command starts", async () => {

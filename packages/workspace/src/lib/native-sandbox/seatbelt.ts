@@ -248,6 +248,11 @@ export function seatbeltProfile(
     );
     texts.push(`(deny mach-lookup ${filters.join(" ")})`);
   }
+  // A program signals only what started inside this same command: its own
+  // children, and itself. The person's other processes, and what an earlier
+  // command left running, are out of reach; the agent stops its own through
+  // `kill`, which runs in the app and checks the pid is one it started.
+  texts.push("(deny signal)", "(allow signal (target same-sandbox))");
   return ["(version 1)", "(allow default)", ...texts].join("\n");
 }
 

@@ -3,7 +3,7 @@ import {
   type ChatBoxDrafts,
   type Draft,
   draftsAtom,
-} from "@/client/atoms/window";
+} from "@/client/atoms/drafts";
 import { renderWithProviders } from "@/tests/render";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";

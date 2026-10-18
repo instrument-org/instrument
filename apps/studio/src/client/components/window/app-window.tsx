@@ -1,10 +1,8 @@
+import { type Draft, draftGroupOf, draftsAtom } from "@/client/atoms/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
   chatGroupAtom,
-  type Draft,
-  draftGroupOf,
-  draftsAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
   chatsOutOf,

@@ -1,9 +1,9 @@
+import { draftGroupOf } from "@/client/atoms/drafts";
 import {
   composeAtom,
   type ComposeEntry,
   composeKeyOf,
   type ComposePlacement,
-  draftGroupOf,
 } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { type ChatId } from "@instrument-org/workspace/client";

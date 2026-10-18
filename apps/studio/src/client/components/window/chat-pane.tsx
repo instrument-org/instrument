@@ -1,4 +1,5 @@
-import { chatFiltersAtom, type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
+import { chatFiltersAtom } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";

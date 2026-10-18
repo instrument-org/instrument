@@ -1,11 +1,13 @@
 import {
-  chatFiltersAtom,
   type ChosenItem,
   type Draft,
   draftGroupOf,
   draftsAtom,
   forgetDraftWords,
   draftSnapshotsAtom,
+} from "@/client/atoms/drafts";
+import {
+  chatFiltersAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
 } from "@/client/atoms/window";

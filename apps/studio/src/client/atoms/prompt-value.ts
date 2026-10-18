@@ -1,6 +1,6 @@
 import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { chatDraftWordsAtom, draftWordsAtom } from "@/client/atoms/window";
+import { chatDraftWordsAtom, draftWordsAtom } from "@/client/atoms/drafts";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 

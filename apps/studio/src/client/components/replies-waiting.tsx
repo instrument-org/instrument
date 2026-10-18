@@ -3,7 +3,7 @@ import {
   draftsAtom,
   otherRepliesOf,
   replyDraftOf,
-} from "@/client/atoms/window";
+} from "@/client/atoms/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { useAtomValue } from "jotai";

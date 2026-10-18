@@ -3,8 +3,6 @@ import {
   promptDraftRefAtom,
 } from "@/client/atoms/prompt-value";
 import {
-  APPS_HREF,
-  BROWSER_HREF,
   chatBoxDraftsAtom,
   draftsAtom,
   holdDraftWhileSending,
@@ -12,7 +10,8 @@ import {
   replyDraftOf,
   replySentAtom,
   swapInReplyDraftAtom,
-} from "@/client/atoms/window";
+} from "@/client/atoms/drafts";
+import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";

@@ -15,7 +15,7 @@ import {
   replyDraftOf,
   replySentAtom,
   swapInReplyDraftAtom,
-} from "./window";
+} from "./drafts";
 
 const DRAFT: Draft = { createdAt: 0, id: "d1", updatedAt: 0, words: "kept" };
 const CHAT = "2026-10-14-a-chat" as ChatId;

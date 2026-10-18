@@ -1,4 +1,5 @@
-import { type AppPlace, type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
+import { type AppPlace } from "@/client/atoms/window";
 import {
   type ChatId,
   type SessionMessageDataPart,

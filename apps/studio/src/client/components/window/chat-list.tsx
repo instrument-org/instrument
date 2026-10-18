@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { cn } from "@/client/lib/utils";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";

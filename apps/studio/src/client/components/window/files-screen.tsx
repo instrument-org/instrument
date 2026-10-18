@@ -1,5 +1,5 @@
+import { type ChosenItem } from "@/client/atoms/drafts";
 import {
-  type ChosenItem,
   type FileTab,
   finderBesideWidthAtom,
   fileTreeOpenAtom,

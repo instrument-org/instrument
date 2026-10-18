@@ -1,4 +1,4 @@
-import { type Draft, draftGroupOf } from "@/client/atoms/window";
+import { type Draft, draftGroupOf } from "@/client/atoms/drafts";
 import {
   ContextMenu,
   ContextMenuContent,

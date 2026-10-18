@@ -1,4 +1,4 @@
-import { type Draft, type DraftAttachment } from "@/client/atoms/window";
+import { type Draft, type DraftAttachment } from "@/client/atoms/drafts";
 import { rpcClient } from "@/client/rpc/client";
 import type { FileUpload } from "@instrument-org/workspace/client";
 import { isEqual } from "radashi";

@@ -1,12 +1,14 @@
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import {
-  APPS_HREF,
-  BROWSER_HREF,
-  type ComposePlacement,
   type Draft,
   type DraftAttachment,
   draftGroupOf,
   draftSnapshotsAtom,
+} from "@/client/atoms/drafts";
+import {
+  APPS_HREF,
+  BROWSER_HREF,
+  type ComposePlacement,
   NEW_TAB_HREF,
 } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";

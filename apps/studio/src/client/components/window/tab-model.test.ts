@@ -1,6 +1,6 @@
+import { draftGroupOf } from "@/client/atoms/drafts";
 import {
   BROWSER_HREF,
-  draftGroupOf,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";

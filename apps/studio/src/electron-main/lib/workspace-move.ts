@@ -27,10 +27,14 @@ import { z } from "zod";
 
 import { rewriteRecentFiles } from "../browser-view/history-store";
 import { rewriteFolderAddresses } from "../stores/workspace/kept-state";
-import { FolderRefusalSchema } from "../../shared/workspace-folder-refusal";
+import {
+  FolderRefusalSchema,
+  type FolderWarning,
+  FolderWarningSchema,
+} from "../../shared/workspace-folder-refusal";
 import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
-import { folderRefusalHere } from "./workspace-folder-check";
+import { folderConcernHere } from "./workspace-folder-check";
 import {
   hasWorkspaceIdentity,
   liveHolderOf,
@@ -53,7 +57,7 @@ import {
  * move before any store opens (`finishPendingMove`).
  */
 
-/** Why a folder cannot take the workspace: anywhere a workspace can't be (`folderRefusal`), or a reason of moving's own. */
+/** Why a folder cannot take the workspace: anywhere a workspace can't be (`folderConcern`), or a reason of moving's own. */
 const MoveRefusalSchema = z.enum([
   ...FolderRefusalSchema.options,
   /** The workspace's own folder, or one inside or around it. */
@@ -84,9 +88,13 @@ const MoveRefusalSchema = z.enum([
 
 type MoveRefusal = z.output<typeof MoveRefusalSchema>;
 
+/** What the person is warned of before they go ahead (`folderConcern`). */
+const WarningField = { warning: FolderWarningSchema.optional() };
+
 const OpenInsteadSchema = z.object({
   kind: z.literal("workspace"),
   name: z.string(),
+  ...WarningField,
 });
 
 const RefusedSchema = z.object({
@@ -103,10 +111,11 @@ export const NotMovableSchema = z.discriminatedUnion("kind", [
 /**
  * What a picked folder is to the workspace: one it can move to, one that is
  * already a workspace (to open instead, never to move into), or one it
- * cannot take, with why.
+ * cannot take, with why. The first two carry what the person is warned of
+ * about the place, if anything.
  */
 export const MoveVerdictSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("movable") }),
+  z.object({ kind: z.literal("movable"), ...WarningField }),
   OpenInsteadSchema,
   RefusedSchema,
 ]);
@@ -155,22 +164,27 @@ export function checkMoveTarget({
   if (!stats.isDirectory()) {
     return refused("missing");
   }
-  const where = refusalOfPlace({
+  const { refusal, warning } = checkPlace({
     from: workspace.path,
     id: workspace.id,
     target,
     temporaryDirs,
     userDataDir,
   });
-  if (where !== undefined) {
-    return refused(where);
+  if (refusal !== undefined) {
+    return refused(refusal);
   }
+  const warned = warning === undefined ? {} : { warning };
   const dataDir = workspaceLayout(target).dataDir;
   if (entryExists(dataDir)) {
     // A link is no workspace's: it would have the move or the open act on
     // whatever it points to.
     return isDirectorySync(dataDir) && hasWorkspaceIdentity(target)
-      ? { kind: "workspace", name: readWorkspaceIdentity(target).name }
+      ? {
+          kind: "workspace",
+          name: readWorkspaceIdentity(target).name,
+          ...warned,
+        }
       : refused("taken");
   }
   if (!canWrite(target)) {
@@ -179,22 +193,23 @@ export function checkMoveTarget({
   if (pathWithin(workspace.path, userDataDir) && !isSettled(workspace.path)) {
     return refused("unfinished");
   }
-  return { kind: "movable" };
+  return { kind: "movable", ...warned };
 }
 
 /**
  * Why `target` cannot take the workspace with registry id `id`, now in
  * `from`, by where it is, compared where the folders really are: the
  * workspace's own folder or one around or inside it, anywhere no workspace
- * can be (`folderRefusal`), a folder the computer keeps for something of
+ * can be (`folderConcern`), a folder the computer keeps for something of
  * its own, a place of sign-ins or of what runs at login, or a temporary
- * folder. The folder becomes
- * the output folder, which every chat may change, so a place holding more
- * than the person's own work is refused. Asked when the person picks the
- * folder and again when the move is made, since the folder can change in
- * between.
+ * folder. The folder becomes the output folder, which every chat may change,
+ * so a place holding more than the person's own work is refused, or, where
+ * `folderConcern` only warns, answered with the warning to show. Asked when
+ * the person picks the folder and again when the move is made, since the
+ * folder can change in between; the move goes past a warning, which the
+ * person saw when they picked.
  */
-export function refusalOfPlace({
+export function checkPlace({
   from,
   id,
   target,
@@ -206,20 +221,21 @@ export function refusalOfPlace({
   target: string;
   temporaryDirs: string[];
   userDataDir: string;
-}): MoveRefusal | undefined {
+}): { refusal?: MoveRefusal; warning?: FolderWarning } {
   if (samePath(target, from)) {
-    return "current";
+    return { refusal: "current" };
   }
-  const anywhere = folderRefusalHere({
+  const concern = folderConcernHere({
     folder: target,
     otherWorkspaces: readRegistry(userDataDir)
       .workspaces.filter((entry) => entry.id !== id)
       .map((entry) => entry.path),
     userDataDir,
   });
-  if (anywhere !== undefined) {
-    return anywhere;
+  if (concern?.kind === "refused") {
+    return { refusal: concern.reason };
   }
+  const warning = concern?.reason;
   const home = os.homedir();
   const places = placePaths(home);
   if (
@@ -232,27 +248,30 @@ export function refusalOfPlace({
       ...startupPaths(home),
     ].some((placePath) => pathWithin(target, placePath))
   ) {
-    return "sign-ins";
+    return { refusal: "sign-ins" };
   }
+  // A place `folderConcern` warns of (the folder of disks, the apps' data)
+  // is the person's to pick past the warning.
   if (
-    places.some(
+    warning === undefined &&
+    (places.some(
       (place) =>
         place.id !== "output" &&
         place.id !== "passwords" &&
         place.paths.some((placePath) => samePath(target, placePath)),
     ) ||
-    (samePath(path.dirname(target), home) &&
-      path.basename(target).startsWith("."))
+      (samePath(path.dirname(target), home) &&
+        path.basename(target).startsWith(".")))
   ) {
-    return "place";
+    return { refusal: "place" };
   }
   if (temporaryDirs.some((dir) => pathWithin(target, dir))) {
-    return "temporary";
+    return { refusal: "temporary" };
   }
   if (pathWithin(target, from) || pathWithin(from, target)) {
-    return "current";
+    return { refusal: "current" };
   }
-  return undefined;
+  return { warning };
 }
 
 /**
@@ -470,13 +489,13 @@ function makeMove({
             );
             return { done, workspace };
           }
-          const where = refusalOfPlace({
+          const where = checkPlace({
             from,
             id: workspace.id,
             target: to,
             temporaryDirs,
             userDataDir,
-          });
+          }).refusal;
           if (where !== undefined) {
             clearPendingMove(userDataDir, workspace.id);
             done.push(

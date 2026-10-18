@@ -1,20 +1,24 @@
 import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
-import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { type FolderRefusal } from "../../shared/workspace-folder-refusal";
+import {
+  type FolderRefusal,
+  type FolderWarning,
+} from "../../shared/workspace-folder-refusal";
 import { pathKey } from "./path-identity";
 
 /**
- * Whether a folder can be an Instrument folder at all, for every way one
- * reaches the app: picked to move the workspace to, picked to open, or
- * found in the registry at launch. The places refused are the ones whose
- * contents are more than the person's own work, since the workspace's top
- * level is the folder every chat may change.
+ * Whether a folder can be an Instrument folder, for every way one reaches the
+ * app: picked to move the workspace to, picked to open, or found in the
+ * registry at launch. Refused, with no way past, are only the places a
+ * workspace would break or take over: the home folder, the app's own files,
+ * and another workspace. Places whose contents are more than the person's own
+ * work, which every chat may change from the workspace's top level, are a
+ * warning they can go past, since a refusal that is wrong strands them.
  *
- * `folderRefusal` is pure, so it answers for any of the three systems on any
- * of them; `folderRefusalHere` feeds it this computer's facts with every path
+ * `folderConcern` is pure, so it answers for any of the three systems on any
+ * of them; `folderConcernHere` feeds it this computer's facts with every path
  * resolved as its volume knows it (`pathKey`).
  */
 
@@ -32,11 +36,14 @@ export interface FolderFacts {
   systemDrive?: string;
   /** Electron's userData. */
   userDataDir: string;
-  /** The folder is the top of a volume, by its device (`isVolumeRoot`). */
-  volumeRoot?: boolean;
 }
 
-/** Folders the system keeps for itself, refused at or inside. */
+/** A place no workspace can be, or one the person is warned about before picking it. */
+export type FolderConcern =
+  | { kind: "refused"; reason: FolderRefusal }
+  | { kind: "warning"; reason: FolderWarning };
+
+/** Folders the system keeps for itself, warned of at or inside. */
 const SYSTEM_FOLDERS: Record<
   FolderPlatform,
   (systemDrive: string) => string[]
@@ -80,8 +87,8 @@ const SYSTEM_FOLDERS: Record<
 };
 
 /**
- * Where apps keep their own settings and data in the home folder, refused at
- * or inside, but for the folders inside them that sync the person's own files
+ * Where apps keep their own settings and data in the home folder, warned of
+ * at or inside, but for the folders inside them that sync the person's own files
  * (iCloud Drive, and Dropbox or Google Drive through the system's cloud
  * storage), which are taken as any folder of theirs is.
  */
@@ -120,11 +127,15 @@ const DISK_CONTAINERS: Record<FolderPlatform, [string, number][]> = {
   win32: [],
 };
 
-/** Why `folder` can't be an Instrument folder, or undefined when it can. */
-export function folderRefusal(
+/**
+ * What's wrong with `folder` as an Instrument folder: a place it can never
+ * be, a place the person is warned about and can still pick, or undefined
+ * when nothing is.
+ */
+export function folderConcern(
   folder: string,
   facts: FolderFacts,
-): FolderRefusal | undefined {
+): FolderConcern | undefined {
   const { home, platform } = facts;
   const paths = platform === "win32" ? path.win32 : path.posix;
   const key = (spelled: string) => {
@@ -141,29 +152,43 @@ export function folderRefusal(
     );
   };
   const target = key(folder);
+  const refused = (reason: FolderRefusal) => ({
+    kind: "refused" as const,
+    reason,
+  });
+  const warned = (reason: FolderWarning) => ({
+    kind: "warning" as const,
+    reason,
+  });
 
   if (target === key(home)) {
-    return "home";
-  }
-  if (within(home, folder)) {
-    return "around-home";
+    return refused("home");
   }
   if (
     within(folder, facts.userDataDir) ||
     within(folder, facts.installDir) ||
     within(folder, paths.join(home, PRIVATE_FOLDER_NAME))
   ) {
-    return "own-data";
+    return refused("own-data");
+  }
+  if (
+    facts.otherWorkspaces.some(
+      (other) => within(folder, other) || within(other, folder),
+    )
+  ) {
+    return refused("other-workspace");
+  }
+  if (within(home, folder)) {
+    return warned("around-home");
   }
   if (
     SYSTEM_FOLDERS[platform](facts.systemDrive ?? "C:").some((system) =>
       within(folder, system),
     )
   ) {
-    return "system";
+    return warned("system");
   }
   if (
-    facts.volumeRoot === true ||
     paths.dirname(target) === target ||
     DISK_CONTAINERS[platform].some(([container, depth]) => {
       if (!within(folder, container)) {
@@ -173,9 +198,10 @@ export function folderRefusal(
       return relative === "" || relative.split(paths.sep).length <= depth;
     })
   ) {
-    return "drive";
+    return warned("drive");
   }
   if (
+    within(facts.userDataDir, folder) ||
     APPS_DATA_FOLDERS[platform].some(
       ({ at, except = [] }) =>
         within(folder, paths.join(home, ...at)) &&
@@ -185,17 +211,7 @@ export function folderRefusal(
         }),
     )
   ) {
-    return "apps-data";
-  }
-  if (within(facts.userDataDir, folder)) {
-    return "own-data";
-  }
-  if (
-    facts.otherWorkspaces.some(
-      (other) => within(folder, other) || within(other, folder),
-    )
-  ) {
-    return "other-workspace";
+    return warned("apps-data");
   }
   return undefined;
 }
@@ -220,10 +236,10 @@ export function installDirOf(
 }
 
 /**
- * `folderRefusal` for this computer: links and junctions resolved where the
+ * `folderConcern` for this computer: links and junctions resolved where the
  * folders exist, and case folded where their volume ignores it.
  */
-export function folderRefusalHere({
+export function folderConcernHere({
   folder,
   otherWorkspaces,
   userDataDir,
@@ -231,31 +247,17 @@ export function folderRefusalHere({
   folder: string;
   otherWorkspaces: string[];
   userDataDir: string;
-}): FolderRefusal | undefined {
+}): FolderConcern | undefined {
   const platform =
     process.platform === "win32" || process.platform === "darwin"
       ? process.platform
       : "linux";
-  return folderRefusal(pathKey(folder), {
+  return folderConcern(pathKey(folder), {
     home: pathKey(os.homedir()),
     installDir: pathKey(installDirOf(process.execPath, platform)),
     otherWorkspaces: otherWorkspaces.map(pathKey),
     platform,
     systemDrive: process.env.SystemDrive,
     userDataDir: pathKey(userDataDir),
-    volumeRoot: isVolumeRoot(folder),
   });
-}
-
-/** The top of a disk: a folder on another device than the one holding it. */
-function isVolumeRoot(dir: string) {
-  const parent = path.dirname(dir);
-  if (parent === dir) {
-    return true;
-  }
-  try {
-    return fs.statSync(dir).dev !== fs.statSync(parent).dev;
-  } catch {
-    return false;
-  }
 }

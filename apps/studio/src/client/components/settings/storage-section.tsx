@@ -28,7 +28,10 @@ import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/client/lib/toast";
-import { folderRefusalSentence } from "@/shared/workspace-folder-refusal";
+import {
+  folderRefusalSentence,
+  folderWarningSentence,
+} from "@/shared/workspace-folder-refusal";
 
 type InvalidFolder =
   RPCOutput["workspace"]["storage"]["invalidFolders"]["list"][number];
@@ -226,13 +229,9 @@ type MoveRefusal = Extract<FolderVerdict, { kind: "refused" }>["reason"];
 
 /** Why a folder the person picked can't take their Instrument folder, said to them. */
 const REFUSALS: Record<MoveRefusal, string> = {
-  "apps-data": folderRefusalSentence("apps-data"),
-  "around-home": folderRefusalSentence("around-home"),
-  drive: folderRefusalSentence("drive"),
   home: folderRefusalSentence("home"),
   "other-workspace": folderRefusalSentence("other-workspace"),
   "own-data": folderRefusalSentence("own-data"),
-  system: folderRefusalSentence("system"),
   current: "That’s your Instrument folder, or a folder inside it or around it.",
   missing: "That folder isn’t there anymore.",
   "not-absolute": "That folder isn’t there anymore.",
@@ -250,7 +249,8 @@ const REFUSALS: Record<MoveRefusal, string> = {
 /**
  * Where the person's Instrument folder is, and moving it: a folder picked
  * in the system's own panel, then a confirmation that the app restarts to
- * move it there, or to open the Instrument folder already in it.
+ * move it there, or to open the Instrument folder already in it, which
+ * leads with the warning when the place is a risky one.
  */
 function InstrumentFolder() {
   const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
@@ -342,6 +342,7 @@ function InstrumentFolder() {
   // “Instrument”" reads as moving it into itself.
   const where = picked ? typedHostPath(picked.path, window.api.homeDir) : "";
   const opensInstead = picked?.verdict.kind === "workspace";
+  const warning = picked?.verdict.warning;
 
   return (
     <section className="space-y-2" {...settingAnchor("instrument-folder")}>
@@ -398,6 +399,11 @@ function InstrumentFolder() {
                 ? `“${where}” is already an Instrument folder`
                 : `Move your Instrument folder to “${where}”?`}
             </AlertDialogTitle>
+            {warning !== undefined && (
+              <AlertDialogDescription className="text-warning-700 dark:text-warning-300">
+                {folderWarningSentence(warning)}
+              </AlertDialogDescription>
+            )}
             <AlertDialogDescription>
               {opensInstead
                 ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
@@ -415,9 +421,13 @@ function InstrumentFolder() {
             >
               {restarting
                 ? "Restarting…"
-                : opensInstead
-                  ? "Restart and Open"
-                  : "Restart and Move"}
+                : warning !== undefined
+                  ? opensInstead
+                    ? "Open Anyway"
+                    : "Move Anyway"
+                  : opensInstead
+                    ? "Restart and Open"
+                    : "Restart and Move"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

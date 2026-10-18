@@ -8,7 +8,7 @@ import {
   type ResolvedWorkspace,
   WorkspaceIdentitySchema,
   WORKSPACE_FORMAT_VERSION,
-  workspacePlaceRefusal,
+  workspacePlaceConcern,
 } from "./workspaces";
 
 /**
@@ -16,7 +16,7 @@ import {
  * window of its own (`workspace-refusal-window.ts`) rather than thrown: a
  * folder made by a newer build, which this one could only damage; a folder
  * it cannot read, which it never stands a new one in for; or a folder in a
- * place no workspace can be (`folderRefusal`), such as the home folder.
+ * place no workspace can be (`folderConcern`), such as the home folder.
  */
 export type WorkspaceRefusal =
   | { kind: "misplaced"; reason: FolderRefusal; workspace: ResolvedWorkspace }
@@ -51,7 +51,8 @@ export function setWorkspaceRefusal(refused: WorkspaceRefusal): void {
  *   data, or one pinned for the process, is made again instead, as a first
  *   launch makes the default one;
  * - a folder the person picked is somewhere no workspace can be, as an
- *   earlier build let it be. One in the app's own data was made there by
+ *   earlier build let it be. One somewhere the person is only warned about
+ *   opens as any other does. One in the app's own data was made there by
  *   the app, and one pinned for the process is the pin's to place.
  */
 export function inspectWorkspaceFolder({
@@ -78,13 +79,13 @@ export function inspectWorkspaceFolder({
       : { kind: "unreadable", why: "missing", workspace };
   }
   if (!workspace.pinned && !pathWithin(workspace.path, userDataDir)) {
-    const reason = workspacePlaceRefusal({
+    const concern = workspacePlaceConcern({
       dir: workspace.path,
       id: workspace.id,
       userDataDir,
     });
-    if (reason !== undefined) {
-      return { kind: "misplaced", reason, workspace };
+    if (concern?.kind === "refused") {
+      return { kind: "misplaced", reason: concern.reason, workspace };
     }
   }
   let identity: unknown;

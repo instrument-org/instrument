@@ -13,13 +13,16 @@ import { restartNow } from "./relaunch";
 import { createStudioAppUpdater } from "./update";
 import { type AppUpdaterStatus } from "./update-status";
 import { startWorkspaceAfresh } from "./workspace-management";
-import { FOLDER_REFUSAL_COPY } from "../../shared/workspace-folder-refusal";
+import {
+  FOLDER_REFUSAL_COPY,
+  folderWarningSentence,
+} from "../../shared/workspace-folder-refusal";
 import { type WorkspaceRefusal } from "./workspace-refusal";
 import {
   registerWorkspaceFolder,
   updateRegistry,
   workspaceFolderState,
-  workspacePlaceRefusal,
+  workspacePlaceConcern,
 } from "./workspaces";
 
 /**
@@ -30,7 +33,8 @@ import {
  * updater with no workspace; for one it cannot read, or one somewhere no
  * workspace can be, to choose the folder again (the system's own panel,
  * which is also how macOS gives back access to Documents) or to start over
- * with a new one. Closing it quits.
+ * with a new one. A chosen folder somewhere the person is only warned of
+ * says why, and opens if they go ahead. Closing it quits.
  */
 
 /** The links the page's buttons are, read here rather than followed. */
@@ -43,6 +47,7 @@ type Action =
   | "check-for-updates"
   | "choose-folder"
   | "download"
+  | "open-anyway"
   | "quit"
   | "start-over"
   | "start-over-confirmed";
@@ -189,6 +194,9 @@ export async function showWorkspaceRefusal({
     }
   };
 
+  /** A chosen folder the person was warned of, opened if they go ahead. */
+  let warnedOf: string | undefined;
+
   const chooseFolder = async () => {
     const result = await dialog.showOpenDialog(window, {
       buttonLabel: "Choose",
@@ -219,22 +227,39 @@ export async function showWorkspaceRefusal({
       });
       return;
     }
-    const misplaced =
+    const concern =
       found === "workspace"
-        ? workspacePlaceRefusal({ dir, userDataDir })
+        ? workspacePlaceConcern({ dir, userDataDir })
         : undefined;
-    if (misplaced !== undefined) {
+    if (concern?.kind === "refused") {
       await show({
         body: [
-          `${FOLDER_REFUSAL_COPY[misplaced].why}. Choose a different one, or start over with a new one.`,
+          `${FOLDER_REFUSAL_COPY[concern.reason].why}. Choose a different one, or start over with a new one.`,
         ],
         buttons: folderButtons,
         title: `${APP_NAME} can’t use that folder`,
       });
       return;
     }
+    if (concern?.kind === "warning") {
+      warnedOf = dir;
+      await show({
+        body: [folderWarningSentence(concern.reason)],
+        buttons: [
+          { action: "choose-folder", label: "Choose Folder…" },
+          { action: "open-anyway", label: "Open Anyway", primary: true },
+        ],
+        title: "Open your Instrument folder from there?",
+      });
+      return;
+    }
+    await openChosen(dir);
+  };
+
+  /** Opens the Instrument folder in `dir`, or says there's none there. */
+  const openChosen = async (dir: string) => {
     const registered =
-      found === "workspace"
+      workspaceFolderState(dir) === "workspace"
         ? registerWorkspaceFolder({ dir, userDataDir })
         : undefined;
     if (registered === undefined) {
@@ -383,6 +408,12 @@ export async function showWorkspaceRefusal({
       }
       case "download": {
         await shell.openExternal(MANUAL_DOWNLOAD_URL);
+        return;
+      }
+      case "open-anyway": {
+        if (warnedOf !== undefined) {
+          await openChosen(warnedOf);
+        }
         return;
       }
       case "quit": {

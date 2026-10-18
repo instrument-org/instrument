@@ -13,7 +13,7 @@ import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   checkMoveTarget,
   finishPendingMove,
-  refusalOfPlace,
+  checkPlace,
   requestWorkspaceMove,
 } from "./workspace-move";
 import {
@@ -93,18 +93,23 @@ afterEach(() => {
   fs.rmSync(root, { force: true, recursive: true });
 });
 
-/** Why `target` is refused by where it is, whether or not it is on this computer. */
-function refusalOf(
+/** What's wrong with `target` by where it is, whether or not it is on this computer. */
+function placeOf(
   target: string,
   { temporaryDirs }: { temporaryDirs: string[] },
 ) {
-  return refusalOfPlace({
+  return checkPlace({
     from: workspace.path,
     id: workspace.id,
     target,
     temporaryDirs,
     userDataDir,
   });
+}
+
+/** Why `target` is refused by where it is, whether or not it is on this computer. */
+function refusalOf(target: string, options: { temporaryDirs: string[] }) {
+  return placeOf(target, options).refusal;
 }
 
 function check(target: string, at: ResolvedWorkspace = workspace) {
@@ -143,14 +148,9 @@ describe("checkMoveTarget", () => {
       () => path.join(userDataDir, "elsewhere"),
       "own-data",
     ],
-    ["one holding the app's data", () => root, "own-data"],
+    ["one holding the app's data and the workspace", () => root, "current"],
     ["the workspace's own folder", () => workspace.path, "current"],
     ["the home folder", () => os.homedir(), "home"],
-    [
-      "the top of the disk the home folder is on",
-      () => path.parse(os.homedir()).root,
-      "around-home",
-    ],
     ["one that is not there", () => path.join(root, "nowhere"), "missing"],
     ["a file", () => path.join(picked, "report.pdf"), "missing"],
     ["a path that is not whole", () => "Documents/Instrument", "not-absolute"],
@@ -175,12 +175,6 @@ describe("checkMoveTarget", () => {
             reason: "place",
             target: home("Library", "Mobile Documents", "com~apple~CloudDocs"),
           },
-          {
-            name: "the apps' data",
-            reason: "apps-data",
-            target: home("Library"),
-          },
-          { name: "the folder of disks", reason: "drive", target: "/Volumes" },
         ]
       : []),
     {
@@ -191,16 +185,44 @@ describe("checkMoveTarget", () => {
     { name: "the SSH folder", reason: "sign-ins", target: home(".ssh") },
     {
       name: "a folder inside a sign-in place",
-      reason: process.platform === "linux" ? "apps-data" : "sign-ins",
+      reason: "sign-ins",
       target: home(".config", "gh", "Instrument"),
     },
     {
       name: "a startup folder",
-      reason: process.platform === "darwin" ? "apps-data" : "sign-ins",
+      reason: "sign-ins",
       target: home("Library", "LaunchAgents"),
     },
   ])("refuses $name", ({ reason, target }) => {
     expect(refusalOf(target, { temporaryDirs: [] })).toBe(reason);
+  });
+
+  it.each(
+    process.platform === "darwin"
+      ? [
+          ["the apps' data", home("Library"), "apps-data"],
+          ["the folder of disks", "/Volumes", "drive"],
+          ["the folder of home folders", "/Users", "around-home"],
+          ["a system folder", "/usr/local/Instrument", "system"],
+        ]
+      : process.platform === "linux"
+        ? [
+            ["the apps' data", home(".config"), "apps-data"],
+            ["a disk", "/mnt/usb", "drive"],
+            ["the folder of home folders", "/home", "around-home"],
+            ["a system folder", "/opt/Instrument", "system"],
+          ]
+        : [["a system folder", "C:\\Windows\\Instrument", "system"]],
+  )("warns of %s and lets it through", (_name, target, warning) => {
+    expect(placeOf(target, { temporaryDirs: [] })).toEqual({ warning });
+  });
+
+  it("carries the warning into the verdict", () => {
+    const around = path.join(root, "Application Support");
+    expect(check(around, { ...workspace, path: picked })).toEqual({
+      kind: "movable",
+      warning: "apps-data",
+    });
   });
 
   it("refuses a temporary folder and one inside it, and takes a folder inside Documents", () => {

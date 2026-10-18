@@ -13,9 +13,11 @@ import path from "node:path";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { type FolderRefusal } from "../../shared/workspace-folder-refusal";
 import { pathKey, pathWithin, samePath } from "./path-identity";
-import { folderRefusalHere } from "./workspace-folder-check";
+import {
+  type FolderConcern,
+  folderConcernHere,
+} from "./workspace-folder-check";
 
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
@@ -448,12 +450,12 @@ export function registerWorkspaceFolder({
 }
 
 /**
- * Why the workspace in `dir` can't be kept where it is (`folderRefusal`),
+ * What's wrong with keeping the workspace in `dir` where it is (`folderConcern`),
  * against every other workspace this computer knows: entries naming the
  * same folder, the workspace with registry id `id`, or the same workspace
  * by the id in its `workspace.json` (one moved by hand) are its own.
  */
-export function workspacePlaceRefusal({
+export function workspacePlaceConcern({
   dir,
   id,
   userDataDir,
@@ -461,9 +463,9 @@ export function workspacePlaceRefusal({
   dir: string;
   id?: string;
   userDataDir: string;
-}): FolderRefusal | undefined {
+}): FolderConcern | undefined {
   const workspaceId = readWorkspaceIdentity(dir).id;
-  return folderRefusalHere({
+  return folderConcernHere({
     folder: dir,
     otherWorkspaces: readRegistry(userDataDir)
       .workspaces.filter(

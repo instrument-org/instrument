@@ -30,7 +30,7 @@ import {
   updateRegistry,
   WorkspaceColorSchema,
   WorkspaceIdentitySchema,
-  workspacePlaceRefusal,
+  workspacePlaceConcern,
 } from "@/electron-main/lib/workspaces";
 import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
@@ -354,7 +354,8 @@ const move = base
  * Open the Instrument folder in a folder the person picked that already
  * holds one, in place of this one, which stays where it is: checked for a
  * place no workspace can be, registered and made the one to open, then the
- * app restarted.
+ * app restarted. A place the person is only warned of was shown to them
+ * when they picked it (`checkFolder`), so it opens.
  */
 const open = base
   .input(z.object({ path: z.string() }))
@@ -378,12 +379,12 @@ const open = base
           "This instance is pinned to its workspace by INSTRUMENT_WORKSPACE",
       });
     }
-    const reason = workspacePlaceRefusal({
+    const concern = workspacePlaceConcern({
       dir: input.path,
       userDataDir: getUserDataDir(),
     });
-    if (reason !== undefined) {
-      return { outcome: "refused" as const, reason };
+    if (concern?.kind === "refused") {
+      return { outcome: "refused" as const, reason: concern.reason };
     }
     const registered = registerWorkspaceFolder({
       dir: input.path,

@@ -133,9 +133,12 @@ export function listNotices(now = Date.now()): BellNotice[] {
   if (updated && updated.to === app.getVersion()) {
     all.push(updatedNotice(updated));
   }
-  const { missingFolders } = getNoticesStore().store;
+  const { chatsLeftBehind, missingFolders } = getNoticesStore().store;
   if (missingFolders) {
     all.push(missingFoldersNotice(missingFolders));
+  }
+  if (chatsLeftBehind) {
+    all.push(chatsLeftBehindNotice(chatsLeftBehind));
   }
   return all
     .filter(
@@ -196,6 +199,56 @@ function missingFoldersNotice({
         ? "Some of your folders are gone"
         : `Your ${listed} folder is gone`,
   };
+}
+
+/**
+ * The notice for chats the conversion left on their database, which read as
+ * empty until a later launch brings them over. The app makes it itself.
+ *
+ * It says how many rather than which: a chat's title comes from its records,
+ * and a chat with none is listed by its id, which says nothing to anyone.
+ * Its id carries the count and when, so a chat that is left behind after the
+ * person dismissed the last notice is a notice of its own.
+ */
+function chatsLeftBehindNotice({
+  at,
+  count,
+}: NonNullable<NoticesStore["chatsLeftBehind"]>): Omit<BellNotice, "seen"> {
+  return {
+    body:
+      count > 1
+        ? `${APP_NAME} couldn't finish bringing ${count.toString()} of your chats over, so they look empty right now. Their conversations are safe where they are, and ${APP_NAME} tries again the next time it starts.`
+        : `${APP_NAME} couldn't finish bringing one of your chats over, so it looks empty right now. The conversation is safe where it is, and ${APP_NAME} tries again the next time it starts.`,
+    id: `chats-left-behind-${count.toString()}-${at}`,
+    kind: "announcement",
+    publishedAt: new Date(at).toISOString(),
+    severity: "important",
+    title:
+      count > 1
+        ? "Some chats are still being brought over"
+        : "One chat is still being brought over",
+  };
+}
+
+/**
+ * Records how many chats the conversion left on their database, or clears the
+ * record when it left none.
+ *
+ * Writing the same count again changes nothing, so a launch that leaves the
+ * same chats behind does not remake a notice the person dismissed.
+ */
+export function noteChatsLeftBehind(count: number): void {
+  const held = getNoticesStore().store.chatsLeftBehind;
+  if (count <= 0) {
+    if (held) {
+      getNoticesStore().delete("chatsLeftBehind");
+    }
+    return;
+  }
+  if (held?.count === count) {
+    return;
+  }
+  getNoticesStore().set("chatsLeftBehind", { at: Date.now(), count });
 }
 
 /**

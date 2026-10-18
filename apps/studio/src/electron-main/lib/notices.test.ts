@@ -217,4 +217,62 @@ describe("notices", () => {
 
     expect(notices.listNotices()).toEqual([]);
   });
+
+  describe("chats the conversion left on their database", () => {
+    it("says how many are still to come over, and that they are safe", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(1);
+
+      expect(notices.listNotices()).toMatchObject([
+        {
+          body: "Instrument couldn't finish bringing one of your chats over, so it looks empty right now. The conversation is safe where it is, and Instrument tries again the next time it starts.",
+          severity: "important",
+          title: "One chat is still being brought over",
+        },
+      ]);
+
+      notices.noteChatsLeftBehind(3);
+
+      expect(notices.listNotices()).toMatchObject([
+        {
+          body: "Instrument couldn't finish bringing 3 of your chats over, so they look empty right now. Their conversations are safe where they are, and Instrument tries again the next time it starts.",
+          title: "Some chats are still being brought over",
+        },
+      ]);
+    });
+
+    it("goes once a launch brings them over", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(2);
+      notices.noteChatsLeftBehind(0);
+
+      expect(notices.listNotices()).toEqual([]);
+    });
+
+    // The conversion runs at every launch, so the same chats left behind
+    // must not raise the notice the person has already dismissed.
+    it("stays dismissed while the same chats are left behind", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(2);
+      notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+
+      notices.noteChatsLeftBehind(2);
+
+      expect(notices.listNotices()).toEqual([]);
+    });
+
+    // A chat that converts while another is left behind is news: the count
+    // is what the person reads, so a new count is a notice of its own.
+    it("comes back for a different number of them", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(2);
+      notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+
+      notices.noteChatsLeftBehind(1);
+
+      expect(notices.listNotices()).toMatchObject([
+        { title: "One chat is still being brought over" },
+      ]);
+    });
+  });
 });

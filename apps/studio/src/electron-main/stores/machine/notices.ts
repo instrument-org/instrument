@@ -25,6 +25,15 @@ const NoticeMarksSchema = z.object({
  * and what was done with each notice.
  */
 const NoticesStoreSchema = z.object({
+  /**
+   * How many chats of the workspace open now are still on a database the
+   * conversion would not replace, so they read as empty. One slot, like
+   * `missingFolders` below, and a different count is a different notice.
+   */
+  chatsLeftBehind: z
+    .object({ at: z.number(), count: z.number().min(1) })
+    .optional()
+    .catch(undefined),
   etag: z.string().optional(),
   fetchedAt: z.number().default(0),
   marks: z.record(z.string(), NoticeMarksSchema).default({}),

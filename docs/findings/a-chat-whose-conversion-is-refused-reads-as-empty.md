@@ -1,6 +1,6 @@
 # A chat whose conversion is refused reads as empty, and nobody is told
 
-**Status:** open, and bounded: nothing is lost on disk and every launch tries again. What is missing is a word to the person.
+**Status:** half closed. Nothing is lost on disk, every launch tries again, and the bell now says how many chats are still to come over and that their conversations are safe (`noteChatsLeftBehind`). What is still open is the chat itself, which opens with nothing in it and says nothing about why.
 
 The converter writes a chat's records into a work folder and moves them into place only once they read back as the database does. A chat it refuses (`different`, `half-written`, `failed`, `unreadable`) therefore keeps its `chat.db` and gains no records: `setAsideStores` moves a database out of the workspace for a converted chat alone, so the conversation is still there, whole, in the file it was always in.
 
@@ -10,10 +10,8 @@ For a transient failure that resolves itself on the next launch. For a refusal t
 
 ## What would close it
 
-Either of these, and the second is the smaller:
-
-- A read that falls back to the database for a chat that has one and no records. This is the thing the branch deliberately removed: one write door, one read gate. Putting a second read path back for a case that has not been seen in 392 real chats buys little for what it costs.
-- A word to the person for a chat the converter refused: the chat says it could not be brought over yet and its conversation is safe, rather than opening empty. Nothing else in the app has to change, and the logs already name the chats.
+- The chat saying it for itself: a chat with a database and no records opens on a line about being brought over rather than on an empty conversation. The bell carries the count, which is what a person who has not opened that chat needs; the chat is where someone who did open it looks. It needs a signal per chat, which `ChatReads` does not answer today, and an empty state of its own.
+- A read that falls back to the database for a chat that has one and no records would close it whole, and is the thing the branch deliberately removed: one write door, one read gate. Putting a second read path back for a case that has not been seen in 392 real chats buys little for what it costs.
 
 ## What is already true
 

@@ -12,7 +12,10 @@ import {
   recordFoldersThere,
   watchKeyFolders,
 } from "@/electron-main/lib/missing-key-folders";
-import { noteMissingFolders } from "@/electron-main/lib/notices";
+import {
+  noteChatsLeftBehind,
+  noteMissingFolders,
+} from "@/electron-main/lib/notices";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
@@ -581,6 +584,10 @@ async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
         `Chat records: left ${where} on its database and will try again next launch: ${reason}`,
       );
     }
+    // A chat left behind opens with nothing in it while its conversation
+    // sits in the database beside it, so the bell says so rather than
+    // leaving the person to wonder where it went.
+    noteChatsLeftBehind(converted.left.length);
   } catch (error) {
     captureServerException(
       error instanceof Error ? error : new Error(String(error)),

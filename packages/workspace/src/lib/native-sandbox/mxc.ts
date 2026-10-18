@@ -185,16 +185,31 @@ export function mxcFilesystemPolicy(
   for (const folder of reach.readWrite) {
     disk.makeFolder(folder);
   }
-  type Access = "deny" | "read" | "write";
+  /**
+   * `list` is a closed folder with an open one below it, which a program may
+   * list but not read in (`enumeratePaths`).
+   */
+  type Access = "deny" | "list" | "read" | "write";
   const entries = new Map<
     string,
-    { access: Access; path: string; rank: number }
+    {
+      access: Access;
+      /** Set by a rule closing the app's own data. */
+      appData?: true;
+      path: string;
+      rank: number;
+    }
   >();
   const fold = (target: string) =>
     process.platform === "win32" || process.platform === "darwin"
       ? target.toLowerCase()
       : target;
-  const add = (target: string, access: Access, rank: number) => {
+  const add = (
+    target: string,
+    access: Access,
+    rank: number,
+    appData?: true,
+  ) => {
     // MXC refuses the whole request (`ERROR_PATH_NOT_FOUND`) for a Windows
     // path with no drive, which names nothing it can hold and would read the
     // working folder to resolve, and for a path whose folder is not there.
@@ -210,7 +225,12 @@ export function mxcFilesystemPolicy(
       const key = fold(spelled);
       const held = entries.get(key);
       if (!held || rank >= held.rank) {
-        entries.set(key, { access, path: spelled, rank });
+        entries.set(key, {
+          access,
+          ...(appData && { appData }),
+          path: spelled,
+          rank,
+        });
       }
     }
   };
@@ -233,7 +253,12 @@ export function mxcFilesystemPolicy(
     for (const target of rule.dotEntries
       ? dotEntriesIn(rule.path, disk)
       : [rule.path]) {
-      add(target, access, ruleRank(rule));
+      add(
+        target,
+        access,
+        ruleRank(rule),
+        rule.appData && access === "deny" ? true : undefined,
+      );
     }
   }
   for (const folder of [...appFolders, ...reach.readOnly]) {
@@ -304,12 +329,47 @@ export function mxcFilesystemPolicy(
       entries.delete(key);
     }
   }
-  // A denied folder whose nearest listed folder above is denied too adds
-  // nothing to what the deny above closes, and MXC refuses it `lstat` even
-  // when it is named to look at, so a program cannot reach what is open
-  // below it (the runtime folder's own folders under the app's denied data
-  // folder). Left out, it is closed by the deny above like any folder on
-  // the way, and named to look at below.
+  const opened = [...entries.values()].filter(
+    (entry) => entry.access === "read" || entry.access === "write",
+  );
+  /** Whether an open entry is inside `folder`, below it. */
+  const opensBelow = (folder: string) =>
+    opened.some(
+      (entry) =>
+        fold(entry.path) !== fold(folder) &&
+        hostPathWithin(folder, entry.path) !== null,
+    );
+  /** The reach's own folders, which a program works in, below `folder`. */
+  const working = reach.readWrite.flatMap((folder) => [
+    folder,
+    disk.real(folder),
+  ]);
+  const worksBelow = (folder: string) =>
+    working.some(
+      (inside) =>
+        fold(inside) !== fold(folder) &&
+        hostPathWithin(folder, inside) !== null,
+    );
+  // A folder denied by name breaks a program working anywhere below it:
+  // git's look up the folders for a repository fails on the first it cannot
+  // stat ("failed to stat '...': Permission denied"), and Windows PowerShell
+  // 5.1 starts in `C:\` instead. So a closed folder with an open one below
+  // it is listed rather than denied: its names and theirs all the way down
+  // can be listed and stat'd, until a folder denied by name, and nothing in
+  // it read or changed. A folder of the app's own data is listed only on
+  // the way to one of the reach's own folders, where programs work (the
+  // chat's work folder, the runtime's caches); what else opens in it (the
+  // attachments a chat reads) is reached through it denied by name, which
+  // still answers `lstat`, so none of its names show.
+  for (const entry of entries.values()) {
+    if (
+      entry.access === "deny" &&
+      (entry.appData ? worksBelow(entry.path) : opensBelow(entry.path))
+    ) {
+      entry.access = "list";
+    }
+  }
+  /** The nearest entry at or above `folder`, if any. */
   const nearestListed = (folder: string) => {
     for (let at = folder; ; at = path.dirname(at)) {
       const held = entries.get(fold(at));
@@ -318,6 +378,38 @@ export function mxcFilesystemPolicy(
       }
     }
   };
+  // The app's own data listed that way would show every name in it: each
+  // workspace's work, every other chat's. So in a listed folder of the
+  // app's, and in every folder below it on the way to an open one, each
+  // folder off that way is denied by name, closing the names in it too. A
+  // folder of the person's that is listed shows its names, which is what
+  // asking first about it costs.
+  const offTheWay = (folder: string) => {
+    for (const child of disk.list(folder) ?? []) {
+      if (!child.isDirectory()) {
+        continue;
+      }
+      const inside = path.join(folder, child.name);
+      if (entries.has(fold(inside))) {
+        continue;
+      }
+      if (opensBelow(inside)) {
+        offTheWay(inside);
+      } else {
+        add(inside, "deny", 5);
+      }
+    }
+  };
+  for (const entry of [...entries.values()]) {
+    if (entry.access === "list" && entry.appData) {
+      offTheWay(entry.path);
+    }
+  }
+  // A denied folder whose nearest listed folder above is denied too adds
+  // nothing to what the deny above closes, and MXC refuses it `lstat` even
+  // when it is named to look at, so a program cannot reach what is open
+  // below it. Left out, it is closed by the deny above like any folder on
+  // the way. Under a listed folder it stays, so its names do not show.
   for (const [key, entry] of entries) {
     if (
       entry.access === "deny" &&
@@ -332,20 +424,19 @@ export function mxcFilesystemPolicy(
       .map((entry) => entry.path)
       .toSorted();
   // A program opening a file in an open folder looks at each folder above
-  // it on the way (Node's realpath lstats every one), so a closed folder on
-  // that way answers what it is, as the Seatbelt profile's metadata reads
-  // do; its deny still refuses listing it and reading anything in it. Only
-  // a closed one: MXC gives a folder named for looking at that access and
-  // no more, so naming a readable one would take its reads away. And only
-  // one closed by a deny above it: a folder denied by name already answers
-  // lstat, and MXC drops a look entry that is denied as well.
-  const closedAt = (folder: string) =>
-    accessAt(folder) === "deny" && entries.get(fold(folder)) === undefined;
+  // it on the way (Node's realpath lstats every one), so each closed folder
+  // on that way is listed too. Only a closed one: MXC gives a folder named
+  // for looking at that access and no more, so naming a readable one would
+  // take its reads away.
+  const closedAt = (folder: string) => {
+    const access = accessAt(folder);
+    return (
+      (access === "deny" || access === "list") &&
+      entries.get(fold(folder)) === undefined
+    );
+  };
   const above = new Map<string, string>();
-  for (const entry of entries.values()) {
-    if (entry.access === "deny") {
-      continue;
-    }
+  for (const entry of opened) {
     for (
       let folder = path.dirname(entry.path);
       folder !== path.dirname(folder);
@@ -355,6 +446,9 @@ export function mxcFilesystemPolicy(
         above.set(fold(folder), folder);
       }
     }
+  }
+  for (const folder of listed("list")) {
+    above.set(fold(folder), folder);
   }
   return {
     deniedPaths: listed("deny"),

@@ -83,6 +83,13 @@ function policyOf(reach: NativeReach, closed: string[] = []) {
       .toSorted();
   return {
     deniedPaths: spell(policy.deniedPaths),
+    // What is above the test's home depends on the host's temp folder.
+    enumeratePaths: spell(
+      policy.enumeratePaths.filter(
+        (folder) =>
+          folder.startsWith(reach.rules.home) || folder.startsWith(app),
+      ),
+    ),
     readonlyPaths: spell(policy.readonlyPaths),
     readwritePaths: spell(policy.readwritePaths),
   };
@@ -127,6 +134,8 @@ describe("mxcFilesystemPolicy", () => {
           "<app>/state",
           "~/.ssh",
           "~/Desktop",
+        ],
+        "enumeratePaths": [
           "~/Documents",
         ],
         "readonlyPaths": [
@@ -293,8 +302,10 @@ describe("mxcFilesystemPolicy", () => {
         if (policy.readonlyPaths.includes(above)) {
           return "read";
         }
+        // A folder listed to look at is read in no more than a denied one.
         if (
           policy.deniedPaths.includes(above) ||
+          policy.enumeratePaths.includes(above) ||
           above === path.dirname(above)
         ) {
           return "deny";
@@ -338,7 +349,7 @@ describe("mxcFilesystemPolicy's missing paths", () => {
 });
 
 describe("mxcFilesystemPolicy's folders to look at", () => {
-  it("are the folders a deny above closes on the way to an open one", () => {
+  it("are a folder closed by name with an open one below it, and each folder on the way", () => {
     const at = home("AppData/Local/Temp/chat");
     const appData = path.join(at, "AppData");
     const chat = path.join(appData, "Local", "Temp", "chat");
@@ -350,20 +361,65 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
       ),
       { appFolders: [], closed: [], root: ROOT },
     );
-    expect(policy.deniedPaths).toEqual([appData]);
+    // Denied by name, it would break git and PowerShell in the chat.
+    expect(policy.deniedPaths).toEqual([]);
     // What is above the test's home depends on the host's temp folder.
     expect(
       policy.enumeratePaths.filter((folder) => folder.startsWith(at)),
     ).toEqual([
+      appData,
       path.join(appData, "Local"),
       path.join(appData, "Local", "Temp"),
     ]);
   });
 
-  it("leave out a denied folder inside a denied one, and look through it", () => {
+  it("leave a closed folder with nothing open below it denied by name", () => {
+    const at = home("Documents/probe", "Desktop/inside");
+    const asks = (folder: string): Rule => ({
+      level: "ask",
+      path: path.join(at, folder),
+      place: "documents",
+      source: "place",
+    });
+    const policy = policyOf(
+      reachOver(at, [
+        asks("Documents"),
+        asks("Desktop"),
+        {
+          level: "allow",
+          path: path.join(at, "Documents", "probe"),
+          source: "grant",
+        },
+      ]),
+    );
+    expect(policy.deniedPaths).toEqual(["~/Desktop"]);
+    expect(policy.enumeratePaths).toEqual(["~/Documents"]);
+  });
+
+  it("leave out a denied folder inside a denied one with nothing open below", () => {
+    const at = home("AppData/Roaming/Instrument/machine");
+    const appData = path.join(at, "AppData");
+    const data = path.join(appData, "Roaming", "Instrument");
+    const policy = policyOf(
+      reachOver(at, [
+        { level: "ask", path: appData, place: "appFiles", source: "place" },
+        { appData: true, level: "never", path: data, source: "system" },
+        {
+          appData: true,
+          level: "never",
+          path: path.join(data, "machine"),
+          source: "system",
+        },
+      ]),
+    );
+    expect(policy.deniedPaths).toEqual(["~/AppData"]);
+    expect(policy.enumeratePaths).toEqual([]);
+  });
+
+  it("list the app's data folder and the runtime folder in it on the way to the runtime's caches", () => {
     // The app's data folder under AppData, closed, with the runtime folder
-    // in it closed too and its caches open: MXC refuses lstat on a denied
-    // folder whose nearest listed folder above is denied as well.
+    // in it closed too and its caches open. The sandbox's own folder beside
+    // the caches stays denied by name, so its names do not show.
     const at = home("AppData/Roaming/Instrument/runtime/caches");
     const appData = path.join(at, "AppData");
     const data = path.join(appData, "Roaming", "Instrument");
@@ -401,15 +457,150 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
     }).toMatchInlineSnapshot(`
       {
         "deniedPaths": [
-          "~/AppData",
+          "~/AppData/Roaming/Instrument/runtime/sandbox",
         ],
         "enumeratePaths": [
+          "~/AppData",
           "~/AppData/Roaming",
           "~/AppData/Roaming/Instrument",
           "~/AppData/Roaming/Instrument/runtime",
         ],
         "readwritePaths": [
           "~/AppData/Roaming/Instrument/runtime/caches",
+        ],
+      }
+    `);
+  });
+});
+
+describe("mxcFilesystemPolicy over a chat's real layout", () => {
+  it("lists only the way to the chat's own folders, and denies by name what is off it", () => {
+    // As the app lays it out on Windows: the app's data under
+    // `AppData\Roaming`, every workspace's chats' work in `~/.instrument`,
+    // a grant inside Documents, which asks first, and the places in
+    // `AppData` whose names say what the person has been doing.
+    const at = home(
+      ".instrument/work/instrument-abcd/2026-10-13-chat",
+      ".instrument/work/instrument-abcd/2026-10-13-other",
+      ".instrument/work/taxes-wxyz/2026-10-13-chat",
+      "AppData/Local/Packages",
+      "AppData/Local/Programs",
+      "AppData/Local/Microsoft/Credentials",
+      "AppData/Roaming/Microsoft/Windows/Recent/AutomaticDestinations",
+      "AppData/Roaming/Instrument/machine/default/keys",
+      "AppData/Roaming/Instrument/runtime/caches",
+      "AppData/Roaming/Instrument/runtime/sandbox",
+      "AppData/Roaming/Instrument/workspace/.instrument/chats/2026-10-13-chat/attachments",
+      "AppData/Roaming/Instrument/workspace/.instrument/chats/2026-10-13-other/attachments",
+      "Documents/probe",
+      "Documents/taxes",
+    );
+    const data = path.join(at, "AppData", "Roaming", "Instrument");
+    const work = path.join(at, ".instrument", "work", "instrument-abcd");
+    const chat = path.join(work, "2026-10-13-chat");
+    const records = path.join(data, "workspace", ".instrument");
+    const record = path.join(records, "chats", "2026-10-13-chat");
+    const appData = (folder: string): Rule => ({
+      appData: true,
+      level: "never",
+      path: folder,
+      source: "system",
+    });
+    const policy = policyOf(
+      reachOver(
+        at,
+        [
+          {
+            level: "ask",
+            path: path.join(at, "AppData"),
+            place: "appFiles",
+            source: "place",
+          },
+          {
+            level: "ask",
+            path: path.join(at, "Documents"),
+            place: "documents",
+            source: "place",
+          },
+          {
+            level: "never",
+            path: path.join(at, "AppData", "Roaming", "Microsoft", "Windows", "Recent"),
+            place: "appFiles",
+            source: "place",
+          },
+          {
+            level: "never",
+            path: path.join(at, "AppData", "Local", "Microsoft", "Credentials"),
+            place: "passwords",
+            source: "place",
+          },
+          {
+            level: "allow",
+            path: path.join(at, "Documents", "probe"),
+            source: "grant",
+          },
+          appData(data),
+          appData(path.join(data, "machine", "default")),
+          appData(path.join(data, "runtime")),
+          appData(records),
+          appData(path.join(at, ".instrument")),
+          { level: "allow", path: chat, source: "system" },
+          {
+            level: "readOnly",
+            path: path.join(record, "attachments"),
+            source: "system",
+          },
+          {
+            level: "allow",
+            path: path.join(at, "AppData", "Local", "Packages"),
+            source: "system",
+          },
+          {
+            level: "readOnly",
+            path: path.join(at, "AppData", "Local", "Programs"),
+            source: "system",
+          },
+        ],
+        { readWrite: [chat, path.join(data, "runtime", "caches")] },
+      ),
+    );
+    expect(policy).toMatchInlineSnapshot(`
+      {
+        "deniedPaths": [
+          "~/.instrument/work/instrument-abcd/2026-10-13-other",
+          "~/.instrument/work/taxes-wxyz",
+          "~/AppData/Local/Microsoft/Credentials",
+          "~/AppData/Roaming/Instrument/machine",
+          "~/AppData/Roaming/Instrument/runtime/sandbox",
+          "~/AppData/Roaming/Instrument/workspace/.instrument",
+          "~/AppData/Roaming/Microsoft/Windows/Recent",
+        ],
+        "enumeratePaths": [
+          "~/.instrument",
+          "~/.instrument/work",
+          "~/.instrument/work/instrument-abcd",
+          "~/AppData",
+          "~/AppData/Local",
+          "~/AppData/Roaming",
+          "~/AppData/Roaming/Instrument",
+          "~/AppData/Roaming/Instrument/runtime",
+          "~/AppData/Roaming/Instrument/workspace",
+          "~/AppData/Roaming/Instrument/workspace/.instrument/chats",
+          "~/AppData/Roaming/Instrument/workspace/.instrument/chats/2026-10-13-chat",
+          "~/Documents",
+        ],
+        "readonlyPaths": [
+          "/",
+          "<app>/bin",
+          "~",
+          "~/AppData/Local/Programs",
+          "~/AppData/Roaming/Instrument/workspace/.instrument/chats/2026-10-13-chat/attachments",
+        ],
+        "readwritePaths": [
+          "~/.instrument/work/instrument-abcd/2026-10-13-chat",
+          "~/AppData/Local/Packages",
+          "~/AppData/Roaming/Instrument/runtime/caches",
+          "~/Documents/probe",
         ],
       }
     `);

@@ -131,6 +131,31 @@ const PASSWORD_PLACES = [
   "AppData/Roaming/Mozilla/Firefox",
   "AppData/Local/Vivaldi/User Data",
   "AppData/Roaming/Opera Software",
+  // Windows' own stores of saved sign-ins and the keys that unlock them.
+  "AppData/Local/Microsoft/Credentials",
+  "AppData/Roaming/Microsoft/Credentials",
+  "AppData/Roaming/Microsoft/Protect",
+  "AppData/Local/Microsoft/Vault",
+  "AppData/Roaming/Microsoft/Vault",
+];
+
+/**
+ * Folders under `AppData` on Windows whose names alone say what the person
+ * has been doing: the files they opened lately (and each app's jump list in
+ * there), Office's recent files, their PowerShell history, the web cache and
+ * history, and Windows' activity history. No job needs them, and while the
+ * app-files place asks first the sandbox can show the names in `AppData`
+ * (`windows-sandbox.md`), so they stay Not allowed until the place is
+ * Allowed.
+ */
+const WINDOWS_ACTIVITY_PLACES = [
+  "AppData/Roaming/Microsoft/Windows/Recent",
+  "AppData/Roaming/Microsoft/Office/Recent",
+  "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine",
+  "AppData/Local/Microsoft/Windows/History",
+  "AppData/Local/Microsoft/Windows/INetCache",
+  "AppData/Local/Microsoft/Windows/WebCache",
+  "AppData/Local/ConnectedDevicesPlatform",
 ];
 
 /**
@@ -278,7 +303,11 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
   } else {
     places.push(
       { id: "drives", paths: windowsDrives() },
-      { id: "appFiles", paths: inHome("AppData") },
+      {
+        closedUnlessAllowed: inHome(...WINDOWS_ACTIVITY_PLACES),
+        id: "appFiles",
+        paths: inHome("AppData"),
+      },
     );
   }
   return places;

@@ -539,11 +539,6 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
             source: "system",
           },
           {
-            level: "allow",
-            path: path.join(at, "AppData", "Local", "Packages"),
-            source: "system",
-          },
-          {
             level: "readOnly",
             path: path.join(at, "AppData", "Local", "Programs"),
             source: "system",
@@ -583,7 +578,6 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
         "readwritePaths": [
           "~/.instrument/work",
           "~/.instrument/work/instrument-abcd/2026-10-13-chat",
-          "~/AppData/Local/Packages",
           "~/AppData/Roaming/Instrument/runtime/caches",
           "~/Documents/probe",
         ],

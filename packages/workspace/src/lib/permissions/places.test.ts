@@ -41,12 +41,7 @@ describe("windowsProgramFolders", () => {
         place: "passwords" as const,
         source: "place" as const,
       },
-      ...programs.readWrite.map((folder) => ({
-        level: "allow" as const,
-        path: folder,
-        source: "system" as const,
-      })),
-      ...programs.readOnly.map((folder) => ({
+      ...programs.map((folder) => ({
         level: "readOnly" as const,
         path: folder,
         source: "system" as const,
@@ -54,7 +49,7 @@ describe("windowsProgramFolders", () => {
     ],
   };
 
-  it("opens Packages, lets Programs be read, and leaves the rest asking", () => {
+  it("lets Programs be read, and leaves the rest asking", () => {
     expect(
       (
         [
@@ -70,7 +65,7 @@ describe("windowsProgramFolders", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "write AppData/Local/Packages/PythonSoftwareFoundation/x: allow",
+        "write AppData/Local/Packages/PythonSoftwareFoundation/x: ask",
         "read AppData/Local/Programs/Python/python.exe: allow",
         "write AppData/Local/Programs/Python/python.exe: never",
         "read AppData/Local/Other/x: ask",

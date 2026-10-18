@@ -845,7 +845,7 @@ export function shellPathOfHostSpelling(
  * programs it runs write, and its managed Python, skills, skill
  * environments, preload and `bin` links, which they read; its build
  * folders stay closed. Outside it, the temp folders open, and on Windows
- * the folders under `AppData` programs keep for themselves
+ * the folders under `AppData` programs keep for themselves are readable
  * (`windowsProgramFolders`). A person's rule inside the app's own data opens
  * nothing there, and one on a folder holding it is outranked by the deeper
  * rule that closes it.
@@ -870,9 +870,7 @@ function layoutRules(
   const config = getWorkspaceConfig();
   const runtime = runtimeLayout(config.runtimeDir);
   const programs =
-    process.platform === "win32"
-      ? windowsProgramFolders(given.home)
-      : { readOnly: [], readWrite: [] };
+    process.platform === "win32" ? windowsProgramFolders(given.home) : [];
   const appData: Rule[] = [
     config.userDataDir,
     workspaceMachineDir(),
@@ -916,8 +914,7 @@ function layoutRules(
       runtime.skills,
     ].map((path) => system("readOnly", path)),
     ...layout.temp.map((mount) => system("allow", mount.hostRoot)),
-    ...programs.readWrite.map((folder) => system("allow", folder)),
-    ...programs.readOnly.map((folder) => system("readOnly", folder)),
+    ...programs.map((folder) => system("readOnly", folder)),
   ];
   // Inside it by name or by where the rule's path really leads: a folder
   // named anywhere that is a link into the app's data opens nothing there.

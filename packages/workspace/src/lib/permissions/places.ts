@@ -198,21 +198,13 @@ const STARTUP_PLACES = [
 
 /**
  * Folders under `AppData` on Windows that programs keep for themselves, and
- * people keep no files in, open to every chat as the temp folder is, so the
- * app-files place does not ask about them. `Packages` is where Windows puts
- * each packaged app's data, and the temp folder of a program the sandbox
- * holds (which uv and pip write); `Programs` is where per-user installs go
- * (Python from python.org, VS Code, Cursor), which a program on the PATH
- * reads to run. A rule deeper in either still decides there.
+ * people keep no files in, readable by every chat so the app-files place
+ * does not ask about them: `Programs`, where per-user installs go (Python
+ * from python.org, VS Code, Cursor), which a program on the PATH reads to
+ * run. A rule deeper in it still decides there.
  */
-export function windowsProgramFolders(home = os.homedir()): {
-  readOnly: string[];
-  readWrite: string[];
-} {
-  return {
-    readOnly: [path.join(home, "AppData", "Local", "Programs")],
-    readWrite: [path.join(home, "AppData", "Local", "Packages")],
-  };
+export function windowsProgramFolders(home = os.homedir()): string[] {
+  return [path.join(home, "AppData", "Local", "Programs")];
 }
 
 /** The startup places as paths in `home`. */

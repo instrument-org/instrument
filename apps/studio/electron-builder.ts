@@ -316,6 +316,14 @@ const config: Configuration = {
     uninstallDisplayName: "${productName}",
   },
   productName: APP_PRODUCT_NAME,
+  // The AppImage's static runtime mounts it with whichever fusermount the
+  // system has, where the default toolset links libfuse2, which Ubuntu has not
+  // installed since 22.04. electron-builder's AppRun adds `--no-sandbox` where
+  // Ubuntu closes user namespaces, so a fresh install starts the AppImage as
+  // downloaded. 1.0.3 rather than 1.0.2 for electron-builder#9598.
+  toolsets: {
+    appimage: "1.0.3",
+  },
   protocols: [
     {
       // Required for Linux deep linking

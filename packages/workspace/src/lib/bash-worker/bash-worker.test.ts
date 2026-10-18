@@ -20,7 +20,10 @@ import {
 import { resolveChat, chatDir } from "../record-folders";
 import { workDir } from "../work-dir";
 import { withShellOutputSink } from "../shell-commands/output-sink";
-import { SubprocessTreeTerminationError } from "../subprocess-tree";
+import {
+  SubprocessTreeTerminationError,
+  withSubprocessTreeListener,
+} from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
@@ -334,6 +337,23 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     );
     expect(result.exitCode).toBe(0);
     expect(lines.join("")).toBe("line 0\nline 1\nline 2\n");
+  });
+
+  it("tells the run on main the pid of each program the worker starts", async () => {
+    const started: number[] = [];
+    const settled: number[] = [];
+    const result = await withShellOutputSink(noop, () =>
+      withSubprocessTreeListener(
+        {
+          settled: (pid) => settled.push(pid),
+          started: (pid) => started.push(pid),
+        },
+        () => remoteBash().exec(`node -e 'console.log(process.pid)'`),
+      ),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(started).toHaveLength(1);
+    expect(settled).toEqual(started);
   });
 
   it("settles a run whose sink throws, and reports the failure", async () => {

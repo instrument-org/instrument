@@ -1,5 +1,6 @@
 import { execa } from "execa";
 import ms from "ms";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { noop } from "radashi";
 
@@ -32,6 +33,28 @@ export function setSubprocessTreeObserver(next: SubprocessTreeObserver): void {
   observer = next;
 }
 
+/**
+ * Told of every tree started beneath it on this thread: how a `bash` run
+ * learns the real pids of what it started, so `jobs -l` can show them and
+ * `kill` can tell the agent's own processes from the person's. The bash
+ * worker reports its trees through the observer instead, and main hands each
+ * to the listener of the run it belongs to.
+ */
+const listeners = new AsyncLocalStorage<SubprocessTreeObserver>();
+
+export function withSubprocessTreeListener<T>(
+  listener: SubprocessTreeObserver,
+  run: () => T,
+): T {
+  return listeners.run(listener, run);
+}
+
+export function currentSubprocessTreeListener():
+  | SubprocessTreeObserver
+  | undefined {
+  return listeners.getStore();
+}
+
 /** Ends a process tree, resolving whether it was confirmed stopped. */
 export async function terminateSubprocessTree(pid: number): Promise<boolean> {
   if (process.platform === "win32") {
@@ -61,6 +84,26 @@ export async function terminateSubprocessTree(pid: number): Promise<boolean> {
   return await waitForProcessGroupExit(pid, FORCE_EXIT_MS);
 }
 
+/**
+ * Ends one process with the same escalation and confirmation as a tree, for
+ * a pid inside a tree: the rest of the tree is left running.
+ */
+export async function terminateProcess(pid: number): Promise<boolean> {
+  if (process.platform === "win32") {
+    return await terminateSubprocessTree(pid);
+  }
+  if (!signalProcess(pid, "SIGTERM")) {
+    return true;
+  }
+  if (await waitForExit(() => processExists(pid), GRACEFUL_EXIT_MS)) {
+    return true;
+  }
+  if (!signalProcess(pid, "SIGKILL")) {
+    return true;
+  }
+  return await waitForExit(() => processExists(pid), FORCE_EXIT_MS);
+}
+
 export function watchSubprocessTree({
   pid,
   signal,
@@ -68,8 +111,10 @@ export function watchSubprocessTree({
   pid: number | undefined;
   signal: AbortSignal | undefined;
 }) {
+  const listener = listeners.getStore();
   if (pid !== undefined) {
     observer?.started(pid);
+    listener?.started(pid);
   }
   let termination: Promise<void> | undefined;
   const terminate = () => {
@@ -98,6 +143,7 @@ export function watchSubprocessTree({
     signal?.removeEventListener("abort", terminate);
     if (pid !== undefined) {
       observer?.settled(pid);
+      listener?.settled(pid);
     }
     await termination;
   };
@@ -107,7 +153,7 @@ function isNoSuchProcess(error: unknown) {
   return error instanceof Error && "code" in error && error.code === "ESRCH";
 }
 
-function processExists(pid: number) {
+export function processExists(pid: number) {
   try {
     process.kill(pid, 0);
     return true;
@@ -126,8 +172,13 @@ function processGroupExists(pid: number) {
 }
 
 function signalProcessGroup(pid: number, signal: NodeJS.Signals): boolean {
+  return signalProcess(-pid, signal);
+}
+
+/** Sends `signal`, false only when nothing by that id is left to get it. */
+function signalProcess(pid: number, signal: NodeJS.Signals): boolean {
   try {
-    process.kill(-pid, signal);
+    process.kill(pid, signal);
     return true;
   } catch (error) {
     if (isNoSuchProcess(error)) {
@@ -137,9 +188,13 @@ function signalProcessGroup(pid: number, signal: NodeJS.Signals): boolean {
   }
 }
 
-async function waitForProcessGroupExit(pid: number, waitMs: number) {
+function waitForProcessGroupExit(pid: number, waitMs: number) {
+  return waitForExit(() => processGroupExists(pid), waitMs);
+}
+
+async function waitForExit(exists: () => boolean, waitMs: number) {
   const deadline = getCurrentDate().getTime() + waitMs;
-  while (processGroupExists(pid)) {
+  while (exists()) {
     const remaining = deadline - getCurrentDate().getTime();
     if (remaining <= 0) {
       return false;

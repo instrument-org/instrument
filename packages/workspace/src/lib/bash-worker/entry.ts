@@ -96,10 +96,10 @@ setSkillMutationForwarder((skillPath) => {
 });
 setSubprocessTreeObserver({
   settled: (pid) => {
-    post({ pid, state: "settled", type: "tree" });
+    post({ id: currentExec.getStore(), pid, state: "settled", type: "tree" });
   },
   started: (pid) => {
-    post({ pid, state: "started", type: "tree" });
+    post({ id: currentExec.getStore(), pid, state: "started", type: "tree" });
   },
 });
 setVenvCreator(

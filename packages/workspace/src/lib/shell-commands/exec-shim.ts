@@ -1,6 +1,7 @@
 import { execa, type Options } from "execa";
 import { bytesOutput, unsafeBytesFromLatin1 } from "just-bash";
 import { isUtf8 } from "node:buffer";
+import { statSync } from "node:fs";
 import path from "node:path";
 
 import { commandLineToolsNote } from "../command-line-tools-env";
@@ -285,8 +286,16 @@ export function withShimNotes({
   // past that, rather than asked about a folder that holds no work.
   const packageScope =
     exitCode === 0 ? undefined : packageScopeNote(`${stderr}\n${stdout}`);
+  // A program that runs as another user is refused whole, and the path the
+  // refusal names is the program's, which no card or administrator opens.
+  const setuid =
+    reach && exitCode !== 0 ? setuidRefusalNote(file, stderr) : undefined;
+  const signals =
+    exitCode === 0
+      ? undefined
+      : signalRefusalNote(file, `${stderr}\n${stdout}`);
   const refused =
-    !reach || walks || packageScope
+    !reach || walks || packageScope || setuid
       ? undefined
       : exitCode === 0
         ? refusedPathIn(stderr, reach, cwd, { appDataOnly: true })
@@ -305,6 +314,8 @@ export function withShimNotes({
       : undefined;
   const notes = [
     ...(packageScope ? [`${packageScope}\n`] : []),
+    ...(setuid ? [`${setuid}\n`] : []),
+    ...(signals ? [`${signals}\n`] : []),
     ...(refusal ? [`${refusal}\n`] : []),
     ...(missingTools ? [missingTools] : []),
   ].join("");
@@ -314,6 +325,75 @@ export function withShimNotes({
       ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${notes}`
       : stderr,
   };
+}
+
+/** Programs that signal processes by pid or name. */
+const SIGNALING_PROGRAMS: ReadonlySet<string> = new Set([
+  "kill",
+  "killall",
+  "pkill",
+]);
+
+/**
+ * What the agent reads when `kill`, `pkill` or `killall` ran as a program and
+ * the sandbox kept it from a process: each command runs in a sandbox of its
+ * own, which reaches only what that command started. On macOS the signal is
+ * refused; on Linux the process is not there to be found.
+ */
+export function signalRefusalNote(
+  file: string,
+  output: string,
+): string | undefined {
+  const name = path.basename(file);
+  if (!SIGNALING_PROGRAMS.has(name)) {
+    return undefined;
+  }
+  const refused =
+    output.includes("Operation not permitted") ||
+    (process.platform === "linux" &&
+      /No such process|no process found/.test(output));
+  return refused
+    ? `${name} reaches only processes started in this same command. Stop one you started earlier with the shell's \`kill <pid>\` or \`kill bg_1\`; any other process belongs to the person.`
+    : undefined;
+}
+
+/** What to use instead of a process lister that cannot run here. */
+const PROCESS_LISTERS: Record<string, string> = {
+  ps: "`pgrep -lf <name>` finds processes by name, `lsof -i :<port>` by the port they hold, and `jobs -l` lists the ones you started.",
+  top: "`pgrep -lf <name>` finds processes by name, `vm_stat` and `uptime` show memory and load, and `jobs -l` lists the ones you started.",
+};
+
+/**
+ * The note for a program macOS kept from starting inside the sandbox because
+ * it runs as another user (`ps`, `top`, `sudo`), in place of the note for a
+ * refused path, which would send the agent to an administrator for its own
+ * binary.
+ */
+export function setuidRefusalNote(
+  file: string,
+  stderr: string,
+): string | undefined {
+  if (process.platform !== "darwin" || !stderr.includes(file)) {
+    return undefined;
+  }
+  if (!/Operation not permitted/.test(stderr) || !runsAsOwner(file)) {
+    return undefined;
+  }
+  const name = path.basename(file);
+  const instead = PROCESS_LISTERS[name];
+  return `\`${name}\` can't run here: it runs as another user, which the sandbox refuses.${instead ? ` ${instead}` : ""}`;
+}
+
+/** The set-user-id bit of a file's mode, which Node's constants leave out. */
+const SET_USER_ID = 0o4000;
+
+/** Whether a program runs as its file's owner (setuid) rather than its caller. */
+function runsAsOwner(file: string): boolean {
+  try {
+    return (statSync(file).mode & SET_USER_ID) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Apply a text transform to both streams of a finished shim. */

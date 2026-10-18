@@ -20,11 +20,12 @@ Out of scope entirely: the person themselves, malware already on the computer, a
 2. **The app's secrets.** Provider keys, the account sign-in, connected apps' credentials, and the per-launch keys the app's own local servers check. The agent never reads or changes them, and never changes the person's permission settings.
 3. **The sandbox itself.** Code the agent writes or downloads runs inside the sandbox. Nothing the app runs outside it (a connected app's local server, the installer for the managed Python, the app's own code) is loaded from or configured by a place the agent can write, but for pnpm's install step, which runs outside because MXC refuses the links an install makes: it is the app's own pnpm running no package's code, it reads a project the agent may change only once the project is checked to name npm registry packages alone, and it writes only that project and a store chats only read. The agent cannot change what runs at login or when a shell starts (login items, shell startup files). No AppleScript the agent writes runs. On macOS the app's own fixed scripts drive Mail, Notes and Messages, and what the agent passes reaches them as data, never as script text; Calendar, Reminders and Contacts go through the app's own Swift helper. Each of these apps is used only once the person allows it, for one chat or always, on its card or in Settings › Permissions, and macOS asks them once besides. The scripts run outside the sandbox, since an app takes no commands from a sandboxed sender, so an app they drive does what the script asks of it, such as sending a message.
 4. **The person's files through the app's own operations.** A migration, a move of the Instrument folder, or a cleanup never loses or overwrites the person's files.
+5. **The person's other processes.** The agent may stop the processes its own commands started, and nothing else on the computer: the shell's `kill` refuses any other pid, and a program the agent starts can signal only what its own command started (Seatbelt's signal rule on macOS, a pid namespace on Linux). Looking at them (`pgrep`, `lsof`, `kill -0`) stays allowed. On Windows this holds for `kill` alone until MXC is measured to hold it ([background-processes.md](background-processes.md)).
 
 ## What we do not protect
 
 - **Separation between chats.** Every chat belongs to the same person. One chat can leave files, installed packages, or skills that another chat later uses, and that is expected.
-- **The agent's choices inside the workspace.** Inside the workspace (its chats, its topics and their folders, the Instrument folder), what the agent chooses to do is not defended, whether or not something steered it: a chat the agent tags with a topic, for example, reaches that topic's folders. The four lines guard everything outside the workspace.
+- **The agent's choices inside the workspace.** Inside the workspace (its chats, its topics and their folders, the Instrument folder), what the agent chooses to do is not defended, whether or not something steered it: a chat the agent tags with a topic, for example, reaches that topic's folders. The five lines guard everything outside the workspace.
 - **Network access.** The agent can reach any address. Network rules are too fine-grained for most people to reason about, and the agent drives a real browser, which could not work behind them anyway. So if planted instructions steer the agent into sending something it was allowed to read, Instrument does not stop it. What limits that is the folder settings (what the agent can read at all) and the model's judgment.
 - **The in-app browser's sessions.** The in-app browser is the agent's as much as the person's: the agent browses as the person, with the sessions the person signed in to there. The person's other browsers stay closed (line 1).
 - **What the agent leaves in folders it may change.** If a folder is open to the agent, it can leave a script or file there that runs or is opened later. Line 3 keeps that out of the app's own programs and out of login and shell startup, not out of every program the person uses.
@@ -74,6 +75,7 @@ Fix it when it lets the agent, by mistake or because content steered it:
 - read or change a folder the person's settings refuse, without asking them;
 - read or change the app's secrets or the person's permission settings;
 - get code run outside the sandbox, or at login or shell start;
+- stop or signal a process on the computer that none of its commands started;
 
 or when one of the app's own operations can lose the person's files.
 
@@ -87,4 +89,4 @@ Do not fix it, and say so in the review, when the finding is:
 - a Windows gap that the Windows sandbox will close;
 - a program on Windows renaming a repository's `.git` to write its hooks, which is accepted (above).
 
-A fix with no cost (no new special case, no second code path, nothing more for the model to read) can still be taken for any finding. A fix that adds any of those has to protect one of the four lines.
+A fix with no cost (no new special case, no second code path, nothing more for the model to read) can still be taken for any finding. A fix that adds any of those has to protect one of the five lines.

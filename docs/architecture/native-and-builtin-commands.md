@@ -73,7 +73,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `uname` | uutils | uutils | uutils | uutils coreutils |  |
 | `uniq` | uutils | uutils | uutils | uutils coreutils |  |
 | `wc` | uutils | uutils | uutils | uutils coreutils |  |
-| `xargs` | uutils | uutils | uutils | uutils findutils | `-P`, `--max-procs` |
+| `xargs` | uutils | uutils | uutils | uutils findutils | `-P`, `--max-procs`, starting `kill` |
 
 <!-- end generated -->
 

@@ -37,6 +37,36 @@ describe("BashTool", () => {
       `);
     });
 
+    it("announces a trailing `&` the way a shell announces a job", () => {
+      const result = BashTool.toModelOutput({
+        input: { command: "pnpm dev &", yieldMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          backgrounded: true,
+          command: "pnpm dev &",
+          durationMs: 310,
+          exitCode: undefined,
+          logFilePath: RelativePathSchema.parse(".tool-output/bg_3.log"),
+          pids: [4242],
+          processId: "bg_3",
+        },
+        toolCallId: "1",
+      });
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "type": "text",
+          "value": "[3] bg_3 4242
+
+        No output yet.
+
+        <instrument-system-note>
+        bg_3 is still running. Follow it with \`fg bg_3\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`kill bg_3\`. \`jobs\` lists everything still running. Its bounded process log is at .tool-output/bg_3.log.
+        Do not start a second copy of a process that is already running. A process you leave running stays running after your turn ends, so kill anything the user does not need -- but leave a server running if they still want to reach it.
+        </instrument-system-note>",
+        }
+      `);
+    });
+
     it("includes exit code, duration, and output on success", () => {
       const result = BashTool.toModelOutput({
         input: { command: "echo hi", yieldMs: 1000 },

@@ -12,7 +12,11 @@ import {
   currentShellOutputSink,
   type ShellOutputSink,
 } from "../shell-commands/output-sink";
-import { terminateSubprocessTree } from "../subprocess-tree";
+import {
+  currentSubprocessTreeListener,
+  type SubprocessTreeObserver,
+  terminateSubprocessTree,
+} from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
@@ -55,6 +59,8 @@ interface PendingExec {
   sink?: ShellOutputSink;
   /** Chunks delivered to the sink so far, in order. Never rejects. */
   sinkDone: Promise<void>;
+  /** Told the pid of each process tree the worker starts for this exec. */
+  trees?: SubprocessTreeObserver;
 }
 
 /**
@@ -126,6 +132,7 @@ export function createRemoteBash(
           signal,
           sink,
           sinkDone: Promise.resolve(),
+          trees: currentSubprocessTreeListener(),
         };
         instance.pending.set(id, entry);
         // A worker with nothing in flight must not hold the process open, and
@@ -292,10 +299,16 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       return;
     }
     case "tree": {
+      const listener =
+        message.id === undefined
+          ? undefined
+          : instance.pending.get(message.id)?.trees;
       if (message.state === "started") {
         instance.trees.add(message.pid);
+        listener?.started(message.pid);
       } else {
         instance.trees.delete(message.pid);
+        listener?.settled(message.pid);
       }
       return;
     }

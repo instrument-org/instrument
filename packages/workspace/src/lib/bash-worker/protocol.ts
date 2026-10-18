@@ -73,7 +73,13 @@ export type FromWorker =
     }
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
-  | { pid: number; state: "settled" | "started"; type: "tree" }
+  | {
+      /** The exec that started it, whose run on main is told its pid. */
+      id: number | undefined;
+      pid: number;
+      state: "settled" | "started";
+      type: "tree";
+    }
   /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
   | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath }

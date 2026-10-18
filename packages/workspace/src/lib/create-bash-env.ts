@@ -9,6 +9,7 @@ import {
   getCommandNames,
   getNetworkCommandNames,
   type ScriptNode,
+  type SimpleCommandNode,
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
@@ -36,6 +37,7 @@ import {
   JOBS_COMMAND,
   KILL_COMMAND,
   type SessionCommandContext,
+  WAIT_MARKER,
 } from "./shell-commands/background-jobs";
 import {
   createInstrumentCommand,
@@ -214,7 +216,10 @@ const STATIC_STUB_COMMANDS = [
  */
 function forEachCommandName(
   ast: ScriptNode,
-  visit: (name: { type: "Literal"; value: string }) => void,
+  visit: (
+    name: { type: "Literal"; value: string },
+    command: SimpleCommandNode,
+  ) => void,
 ) {
   walkScript(ast);
 
@@ -266,7 +271,7 @@ function forEachCommandName(
       case "SimpleCommand": {
         const part = node.name?.parts[0];
         if (part?.type === "Literal") {
-          visit(part);
+          visit(part, node);
         }
         for (const arg of node.args) {
           for (const p of arg.parts) {
@@ -282,13 +287,14 @@ function forEachCommandName(
 }
 
 /**
- * Rewrites `wait` to the `fg` command.
+ * Rewrites `wait` to the `fg` command, marked so it answers as `wait`.
  *
  * `wait` is an interpreter builtin, so a custom command cannot shadow it the way
  * `jobs` and `kill` are shadowed. Left alone it exits 0 with no output, which
  * reads as "the process finished and wrote nothing" -- the one wrong answer here
- * that looks right. Nothing can legitimately reach the builtin either, since `&`
- * is unsupported and there are never shell jobs to wait for.
+ * that looks right. Nothing can legitimately reach the builtin either, since a
+ * trailing `&` makes a background process rather than a shell job, and any
+ * other `&` is refused, so there are never shell jobs to wait for.
  *
  * Its own plugin rather than a line inside `command-order`, because this decides
  * what runs. A rewrite that rides along inside a plugin registered to collect
@@ -298,9 +304,13 @@ function forEachCommandName(
 const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
   name: "wait-alias",
   transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
-    forEachCommandName(context.ast, (name) => {
+    forEachCommandName(context.ast, (name, command) => {
       if (name.value === "wait") {
         name.value = FG_COMMAND.name;
+        command.args.unshift({
+          parts: [{ type: "Literal", value: WAIT_MARKER }],
+          type: "Word",
+        });
       }
     });
     return { ast: context.ast };
@@ -682,7 +692,7 @@ export function createBashDescription() {
     IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
-    A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
+    A command goes to the background when it outlives \`yieldMs\`, or at once when the call ends with \`&\` (\`pnpm dev &\`); \`&\` anywhere else is refused. A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` (or \`wait\`) and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a trailing \`&\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
     Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
     Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.

@@ -1,5 +1,6 @@
 import { defineCommand } from "just-bash";
 import ms from "ms";
+import os from "node:os";
 
 import { type StoreId } from "../../schemas/store-id";
 import {
@@ -8,7 +9,10 @@ import {
   listBackgroundProcesses,
   markBackgroundProcessesReported,
   readBackgroundProcess,
+  sessionPrograms,
 } from "../background-processes";
+import { jobOwning, readProcessTable } from "../own-processes";
+import { processExists, terminateProcess } from "../subprocess-tree";
 import { interruptibleWait } from "../wait-interrupts";
 import {
   FG_COMMAND,
@@ -39,14 +43,33 @@ export interface SessionCommandContext {
   sessionId: StoreId.Session;
 }
 
+/**
+ * The first argument of an `fg` that was typed as `wait`, which the shell's
+ * rewrite puts there (`create-bash-env.ts`), so it answers as `wait`.
+ */
+export const WAIT_MARKER = "--called-as-wait";
+
+/** The job that started the program with this pid, if one of the session's did. */
+function jobStarting(
+  pid: number,
+  sessionId: StoreId.Session,
+): string | undefined {
+  return sessionPrograms(sessionId).find(
+    (job) => job.running.has(pid) || job.ended.has(pid),
+  )?.id;
+}
+
 export function createFgCommand({
   remainingYieldMs,
   sessionId,
 }: SessionCommandContext) {
-  return defineCommand(FG_COMMAND.name, async (args, ctx) => {
+  return defineCommand(FG_COMMAND.name, async (given, ctx) => {
+    // `wait` runs this under its own name, and says so in what it prints.
+    const called = given[0] === WAIT_MARKER ? "wait" : FG_COMMAND.name;
+    const args = given[0] === WAIT_MARKER ? given.slice(1) : given;
     const { ids, timeoutMs: requested } = parseFgArgs(args);
     if (requested === "invalid") {
-      return fail(FG_COMMAND.name, "--timeout takes a number of milliseconds.");
+      return fail(called, "--timeout takes a number of milliseconds.");
     }
     // The wait lives inside a tool call that yields on its own schedule, and a
     // wait that outlasts it gets the whole call promoted: the agent asked to
@@ -79,7 +102,11 @@ export function createFgCommand({
     const interrupt = interruptibleWait(sessionId);
     try {
       for (const argument of targets) {
-        const id = normalizeId(argument);
+        const id =
+          normalizeId(argument) ??
+          (/^\d+$/.test(argument)
+            ? jobStarting(Number(argument), sessionId)
+            : undefined);
         const read = id
           ? await readBackgroundProcess({
               id,
@@ -93,7 +120,9 @@ export function createFgCommand({
         if (!read) {
           failed = true;
           sections.push(
-            `${FG_COMMAND.name}: no background process "${argument}".`,
+            /^\d+$/.test(argument)
+              ? `${called}: pid ${argument} is not a background process this conversation started. \`${JOBS_COMMAND.name} -l\` lists them.`
+              : `${called}: no background process "${argument}".`,
           );
           continue;
         }
@@ -129,48 +158,324 @@ export function createJobsCommand({ sessionId }: SessionCommandContext) {
 
 export function createKillCommand({ sessionId }: SessionCommandContext) {
   return defineCommand(KILL_COMMAND.name, async (args) => {
-    // A signal flag is what a shell user would reach for and changes nothing
-    // here, so it is accepted rather than made into an error to recover from.
-    const ids = args.filter((argument) => !argument.startsWith("-"));
-    if (ids.length === 0) {
-      return fail(KILL_COMMAND.name, "no process id given. Try `jobs`.");
+    const parsed = parseKillArgs(args);
+    if ("error" in parsed) {
+      return fail(KILL_COMMAND.name, parsed.error);
     }
-
-    const lines: string[] = [];
-    let failed = false;
-    for (const argument of ids) {
-      const id = normalizeId(argument);
-      if (!id) {
-        failed = true;
-        lines.push(
-          `${KILL_COMMAND.name}: "${argument}" is not a background process id. Only ids from \`jobs\` (e.g. bg_1) can be stopped.`,
-        );
-        continue;
-      }
-      const killed = await killBackgroundProcess({
-        by: "agent",
-        id,
-        sessionId,
-      });
-      if (!killed) {
-        failed = true;
-        lines.push(`${KILL_COMMAND.name}: no background process "${id}".`);
-        continue;
-      }
-      lines.push(
-        killed.terminationConfirmed
-          ? killed.stoppedByThisCall
-            ? `Stopped ${id} (\`${killed.info.command}\`) after ${ms(killed.info.durationMs, { long: true })}.`
-            : `${id} (\`${killed.info.command}\`) had already finished.`
-          : `Could not confirm ${id} (\`${killed.info.command}\`) stopped after ${ms(killed.info.durationMs, { long: true })}; it may still be running.`,
+    if ("list" in parsed) {
+      return listSignals(parsed.list);
+    }
+    if (parsed.targets.length === 0) {
+      return fail(
+        KILL_COMMAND.name,
+        `no process given. \`${JOBS_COMMAND.name} -l\` lists what you can stop.`,
       );
     }
 
-    const text = `${lines.join("\n")}\n`;
-    return failed
-      ? { exitCode: 1, stderr: text, stdout: "" }
-      : { exitCode: 0, stderr: "", stdout: text };
+    const out: string[] = [];
+    const errors: string[] = [];
+    // Read once, and only for a pid: listing every process costs a `ps`.
+    let table:
+      | Promise<Awaited<ReturnType<typeof readProcessTable>>>
+      | undefined;
+    for (const argument of parsed.targets) {
+      const id = normalizeId(argument);
+      const pid = /^\d+$/.test(argument) ? Number(argument) : undefined;
+      if (id) {
+        const line = await signalJob({ id, sessionId, signal: parsed.signal });
+        (line.failed ? errors : out).push(...line.text);
+      } else if (pid !== undefined && pid > 0) {
+        table ??= readProcessTable();
+        const line = await signalPid({
+          pid,
+          sessionId,
+          signal: parsed.signal,
+          table: await table,
+        });
+        (line.failed ? errors : out).push(...line.text);
+      } else {
+        errors.push(
+          `${KILL_COMMAND.name}: ${argument}: arguments must be process ids or job ids (bg_1, %1).`,
+        );
+      }
+    }
+
+    return {
+      exitCode: errors.length > 0 ? 1 : 0,
+      stderr: errors.length > 0 ? `${errors.join("\n")}\n` : "",
+      stdout: out.length > 0 ? `${out.join("\n")}\n` : "",
+    };
   });
+}
+
+/**
+ * What `kill` stops a process with: anything else a shell user would type to
+ * end one. Each of them gets the stop that escalates and waits until the
+ * process is really gone, since reporting a port free while it is not is
+ * worse than taking a second longer. Any other signal goes straight through.
+ */
+const STOP_SIGNALS: ReadonlySet<string> = new Set(["INT", "KILL", "TERM"]);
+
+/** Names a signal has besides its own, left out of `kill -l`. */
+const SIGNAL_ALIASES: ReadonlySet<string> = new Set([
+  "CLD",
+  "IOT",
+  "POLL",
+  "UNUSED",
+]);
+
+/** The signals this computer has, by number, without aliases. */
+function signalTable(): Map<number, string> {
+  const table = new Map<number, string>();
+  for (const [name, number] of Object.entries(os.constants.signals)) {
+    const short = name.replace(/^SIG/, "");
+    if (!SIGNAL_ALIASES.has(short) && !table.has(number)) {
+      table.set(number, short);
+    }
+  }
+  return new Map([...table].toSorted(([a], [b]) => a - b));
+}
+
+/** A signal as a shell user spells it (`9`, `KILL`, `SIGKILL`, `kill`). */
+function signalName(spelled: string): string | undefined {
+  if (/^\d+$/.test(spelled)) {
+    const number = Number(spelled);
+    return number === 0 ? "0" : signalTable().get(number);
+  }
+  const name = spelled.toUpperCase().replace(/^SIG/, "");
+  return [...signalTable().values()].includes(name) ? name : undefined;
+}
+
+/** A signal's number on this computer, from its name; 0 for `0`. */
+function signalNumber(name: string): number {
+  for (const [number, each] of signalTable()) {
+    if (each === name) {
+      return number;
+    }
+  }
+  return 0;
+}
+
+function parseKillArgs(
+  args: string[],
+):
+  | { error: string }
+  | { list: string[] }
+  | { signal: string; targets: string[] } {
+  let signal = "TERM";
+  const targets: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const argument = args[index] ?? "";
+    if (argument === "--") {
+      targets.push(...args.slice(index + 1));
+      break;
+    }
+    if (argument === "-l" || argument === "-L") {
+      return { list: args.slice(index + 1) };
+    }
+    if (argument === "-s" || argument === "-n") {
+      const value = args[++index] ?? "";
+      const name = signalName(value);
+      if (!name) {
+        return { error: `${value}: invalid signal specification` };
+      }
+      signal = name;
+      continue;
+    }
+    if (argument.startsWith("-") && targets.length === 0) {
+      const name = signalName(argument.slice(1));
+      if (!name) {
+        return { error: `${argument.slice(1)}: invalid signal specification` };
+      }
+      signal = name;
+      continue;
+    }
+    targets.push(argument);
+  }
+  return { signal, targets };
+}
+
+/** `kill -l`, as bash prints it: every signal, or each one asked about. */
+function listSignals(asked: string[]) {
+  const table = signalTable();
+  if (asked.length > 0) {
+    const lines: string[] = [];
+    for (const each of asked) {
+      const name = signalName(each);
+      if (!name || name === "0") {
+        return fail(KILL_COMMAND.name, `${each}: invalid signal specification`);
+      }
+      lines.push(/^\d+$/.test(each) ? name : String(signalNumber(name)));
+    }
+    return ok(`${lines.join("\n")}\n`);
+  }
+  const cells = [...table].map(
+    ([number, name]) => `${String(number).padStart(2)}) SIG${name}`,
+  );
+  const rows: string[] = [];
+  for (let at = 0; at < cells.length; at += 5) {
+    rows.push(cells.slice(at, at + 5).join("\t"));
+  }
+  return ok(`${rows.join("\n")}\n`);
+}
+
+/** What one target of `kill` printed, and whether it failed. */
+interface KillLine {
+  failed: boolean;
+  text: string[];
+}
+
+async function signalJob({
+  id,
+  sessionId,
+  signal,
+}: {
+  id: string;
+  sessionId: StoreId.Session;
+  signal: string;
+}): Promise<KillLine> {
+  if (STOP_SIGNALS.has(signal)) {
+    return await stopJob({ id, sessionId });
+  }
+  const info = listBackgroundProcesses(sessionId).find(
+    (process) => process.id === id,
+  );
+  if (!info) {
+    return {
+      failed: true,
+      text: [`${KILL_COMMAND.name}: no background process "${id}".`],
+    };
+  }
+  if (info.status !== "running") {
+    return {
+      failed: true,
+      text: [`${KILL_COMMAND.name}: ${id} is no longer running.`],
+    };
+  }
+  if (signal === "0") {
+    return { failed: false, text: [] };
+  }
+  if (info.pids.length === 0) {
+    return {
+      failed: true,
+      text: [
+        `${KILL_COMMAND.name}: ${id} has no program running to send SIG${signal} to.`,
+      ],
+    };
+  }
+  // To the whole job, the way a shell signals `%1`: each program it started
+  // leads its own process group on macOS and Linux.
+  const errors = info.pids.flatMap((pid) =>
+    sendSignal(process.platform === "win32" ? pid : -pid, signal),
+  );
+  return errors.length > 0
+    ? {
+        failed: true,
+        text: errors.map((error) => `${KILL_COMMAND.name}: ${id}: ${error}`),
+      }
+    : { failed: false, text: [] };
+}
+
+async function stopJob({
+  id,
+  pid,
+  sessionId,
+}: {
+  id: string;
+  pid?: number;
+  sessionId: StoreId.Session;
+}): Promise<KillLine> {
+  const killed = await killBackgroundProcess({ by: "agent", id, sessionId });
+  if (!killed) {
+    return {
+      failed: true,
+      text: [`${KILL_COMMAND.name}: no background process "${id}".`],
+    };
+  }
+  const name = pid === undefined ? id : `${pid} (${id})`;
+  const after = ms(killed.info.durationMs, { long: true });
+  return {
+    failed: false,
+    text: [
+      killed.terminationConfirmed
+        ? killed.stoppedByThisCall
+          ? `Stopped ${name} (\`${killed.info.command}\`) after ${after}.`
+          : `${name} (\`${killed.info.command}\`) had already finished.`
+        : `Could not confirm ${name} (\`${killed.info.command}\`) stopped after ${after}; it may still be running.`,
+    ],
+  };
+}
+
+async function signalPid({
+  pid,
+  sessionId,
+  signal,
+  table,
+}: {
+  pid: number;
+  sessionId: StoreId.Session;
+  signal: string;
+  table: Awaited<ReturnType<typeof readProcessTable>>;
+}): Promise<KillLine> {
+  const exists = table ? table.has(pid) : processExists(pid);
+  if (!exists) {
+    return {
+      failed: true,
+      text: [`${KILL_COMMAND.name}: (${pid}) - No such process`],
+    };
+  }
+  // Whether a process is there is a question about the computer, not a step
+  // that changes it, so it is answered for any pid.
+  if (signal === "0") {
+    return { failed: false, text: [] };
+  }
+  const owner = jobOwning(pid, sessionPrograms(sessionId), table);
+  if (!owner) {
+    return { failed: true, text: [notOwnProcess(pid)] };
+  }
+  if (!STOP_SIGNALS.has(signal)) {
+    const errors = sendSignal(pid, signal);
+    return errors.length > 0
+      ? {
+          failed: true,
+          text: errors.map(
+            (error) => `${KILL_COMMAND.name}: (${pid}) - ${error}`,
+          ),
+        }
+      : { failed: false, text: [] };
+  }
+  const job =
+    owner.id === undefined
+      ? undefined
+      : listBackgroundProcesses(sessionId).find(
+          (process) => process.id === owner.id,
+        );
+  // The program a job is running stops the job, so `jobs` says so too.
+  if (job?.status === "running" && job.pids.includes(pid)) {
+    return await stopJob({ id: job.id, pid, sessionId });
+  }
+  const name = job ? `${pid} (in ${job.id})` : String(pid);
+  return (await terminateProcess(pid))
+    ? { failed: false, text: [`Stopped ${name}.`] }
+    : {
+        failed: false,
+        text: [`Could not confirm ${name} stopped; it may still be running.`],
+      };
+}
+
+/** The refusal for a pid outside this conversation's own processes. */
+export function notOwnProcess(pid: number): string {
+  return `${KILL_COMMAND.name}: ${pid} is not a process this conversation started, so it can't be stopped from here. \`${JOBS_COMMAND.name} -l\` lists the ones you can stop.`;
+}
+
+/** Sends a signal, returning why it could not be sent, if it could not. */
+function sendSignal(pid: number, signal: string): string[] {
+  try {
+    process.kill(pid, signalNumber(signal));
+    return [];
+  } catch (error) {
+    return [error instanceof Error ? error.message : String(error)];
+  }
 }
 
 function describeStatus(process: BackgroundProcessInfo) {
@@ -282,28 +587,42 @@ function listJobs(args: string[], sessionId: StoreId.Session) {
   if (args.includes("--json")) {
     return ok(`${JSON.stringify(processes.map(toJson), null, 2)}\n`);
   }
+  const flags = new Set(
+    args.filter((arg) => /^-[a-z]+$/.test(arg)).flatMap((arg) => arg.slice(1)),
+  );
+  // Only the pids, one a line, as a shell's `jobs -p` prints them.
+  if (flags.has("p")) {
+    const pids = processes.flatMap((process) => process.pids);
+    return ok(pids.length > 0 ? `${pids.join("\n")}\n` : "");
+  }
   if (processes.length === 0) {
     return ok("No background processes.\n");
   }
 
   const rows = processes.map((process) => [
     process.id,
+    ...(flags.has("l")
+      ? [process.pids.length > 0 ? process.pids.join(",") : "-"]
+      : []),
     describeStatus(process),
     ms(Math.max(1000, process.durationMs)),
     process.command,
   ]);
-  // Padded per column so ids, statuses and durations line up; the command is
-  // last and so needs no width of its own.
-  const widths = [0, 1, 2].map((column) =>
-    Math.max(...rows.map((row) => (row[column] ?? "").length)),
-  );
+  // Padded per column so ids, pids, statuses and durations line up; the
+  // command is last and so needs no width of its own.
+  const last = (rows[0]?.length ?? 1) - 1;
+  const widths = rows[0]
+    ? rows[0].map((_, column) =>
+        Math.max(...rows.map((row) => (row[column] ?? "").length)),
+      )
+    : [];
 
   return ok(
     `${rows
       .map((row) =>
         row
           .map((cell, column) =>
-            column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
+            column === last ? cell : cell.padEnd(widths[column] ?? 0),
           )
           .join("  "),
       )
@@ -313,8 +632,8 @@ function listJobs(args: string[], sessionId: StoreId.Session) {
 
 /**
  * The id forms a shell user would reach for: our own `bg_1`, and `%1`, which is
- * how a real shell names its first job. A bare number is a host pid, which is
- * deliberately not addressable from here.
+ * how a real shell names its first job. A bare number is a pid, which `kill`
+ * checks is one of the session's own before it reaches it.
  */
 export function normalizeId(argument: string): string | undefined {
   if (/^bg_\d+$/.test(argument)) {
@@ -384,6 +703,7 @@ function toJson(process: BackgroundProcessInfo) {
     exitCode: process.exitCode,
     id: process.id,
     logFilePath: process.logFilePath,
+    pids: process.pids,
     status: process.status,
   };
 }

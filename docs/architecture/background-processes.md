@@ -27,7 +27,7 @@ bash(command, yieldMs = 30s)
                                         └── agent uses `jobs` / `fg` / `kill`
 ```
 
-`&`, `nohup` and `disown` are **not** how something goes to the background. They are unsupported, and the agent's own route is outliving `yieldMs`. That is stated in the tool description at [`create-bash-env.ts:535`](../../packages/workspace/src/lib/create-bash-env.ts#L535).
+A call that ends with `&` (`pnpm dev &`, `cd app && pnpm dev &`) goes to the background at once: the call returns as soon as the command has started its program, or failed before it could, and answers the way a shell announces a job, `[1] bg_1 4242`. The shell runs every statement in the foreground, so `&` anywhere else (`pnpm dev & echo $!`, a loop of `cmd &`, `(cmd &)`) is refused before anything runs rather than run in the foreground with nothing said ([`background-ampersand.ts`](../../packages/workspace/src/lib/background-ampersand.ts)). `disown` has nothing to act on, and `nohup cmd &` is a trailing `&` like any other.
 
 The other trigger is a message for the session arriving mid-call: the person typing into the chat's working turn, the chat writing to its task, a task's finish waking the chat. The session machine ends the session's waits ([`lib/wait-interrupts.ts`](../../packages/workspace/src/lib/wait-interrupts.ts)), and a foreground command is one: it is promoted on the spot rather than holding the message until it ends, and the call returns so the message is heard at the next step ([`lib/chat/mid-turn.ts`](../../packages/workspace/src/lib/chat/mid-turn.ts)). A message never ends the command; it runs to completion, and one that ends after the turn wakes the session like any other. The 1 s grace lets a command about to finish answer for itself, an `fg` the same message ended most of all. A message that calls the work off ("stop") stops the turn instead, and its running command with it, like the Stop button.
 
@@ -38,7 +38,7 @@ The other trigger is a message for the session arriving mid-call: the person typ
 | Wait parameter | `timeoutMs` — expiry kills the command | `yieldMs` — expiry hands it off |
 | Tools | `bash` | `bash` (no new tools) |
 | Commands | — | `jobs`, `fg`, `kill` |
-| `bash` output | `exitCode`, `output` | adds `processId`, `logFilePath`, `omittedBytes`, `logOmittedBytes`, `logWriteError`; `exitCode` becomes optional |
+| `bash` output | `exitCode`, `output` | adds `processId`, `pids`, `backgrounded`, `logFilePath`, `omittedBytes`, `logOmittedBytes`, `logWriteError`; `exitCode` becomes optional |
 
 Management is **commands, not tools**, which buys two things a tool could not:
 
@@ -96,7 +96,8 @@ Ownership moves in one case: when the chat hands work to a task partway, `instru
 
 | Trigger | Reaches | Where |
 |---|---|---|
-| `kill bg_1` | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
+| `kill bg_1`, or the pid of a program it runs | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
+| `kill <pid>` of a child inside a job | that one program; the job runs on | the same |
 | Task stopped (the person's stop on its row or page, or `instrument task stop --all`) | that task's processes, handed-over jobs included; the chat's own Stop ends only its turn | `stopRunningProcesses`, from `session.stop` in [`rpc/routes/session.ts`](../../packages/workspace/src/rpc/routes/session.ts) and [`task/stop.ts`](../../packages/workspace/src/lib/shell-commands/task/stop.ts) |
 | Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-chat.ts`](../../packages/workspace/src/lib/trash-chat.ts) |
 | App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
@@ -107,6 +108,15 @@ Ownership moves in one case: when the chat hands work to a task partway, `instru
 
 - The 2-hour cap is **absolute age, not idle time**. A dev server the user is actively using dies at two hours. The browser subsystem solved the same problem with idle-based reaping; this has not been changed to match.
 - Nothing survives an app restart, and nothing tries to. A record describes a live child process; after a restart there is no process to describe.
+
+## What the agent may stop
+
+The agent may stop the processes it started, and nothing else on the person's computer. Looking stays allowed.
+
+- **Each run knows its real pids.** Every program a `bash` call starts is watched as a process tree (`watchSubprocessTree`), and the run's listener (`withSubprocessTreeListener`, installed by `startBackgroundRun`) is told each one's pid as it starts and ends. In the bash worker the worker reports the tree with its exec's id and main hands it to that run's listener. On macOS and Linux each program is spawned detached, so it leads a process group of its own. `jobs -l` and `jobs -p` print the pids a job is running; on Linux that is bubblewrap's pid on the computer, since the program runs in a pid namespace of its own and sees other numbers for itself.
+- **`kill` takes a job or a pid.** `bg_1`, `%1`, or any pid in the session's own trees: a program one of its jobs is running, a process in the group one of its programs leads, or one whose parents lead back to either. The app reads the computer's process table to answer that (`ps` on macOS, `/proc` on Linux, [`own-processes.ts`](../../packages/workspace/src/lib/own-processes.ts)), outside any sandbox. A program that has ended keeps its group, since what it left running there is the agent's too, but not its pid, which the system may give to an unrelated process; while it does, the old group is taken as gone. What a call that finished in the foreground started is kept too (the latest 256 pids per session), so a program it left behind in its group can still be stopped. On Windows there is no table, and only a program a job is running counts. Anything else is refused: "kill: 611 is not a process this conversation started, so it can't be stopped from here."
+- **Signals.** No signal, TERM, INT or KILL stop the process with the escalation and confirmation below; a job's own program stops the job, so `jobs` says so. Any other signal (`-HUP`, `-USR1`) goes straight to the pid, or to each program's group for a job, as a shell signals `%1`. `-0` answers for any pid, the person's included, since whether a process is there is a question about the computer rather than a step that changes it. `kill -l` lists signals as bash does. `xargs kill` runs the builtin xargs, which runs this `kill` (`xargsRunsKill` in `native-text.ts`), so `lsof -ti :3000 | xargs kill` frees a port the agent's own server holds.
+- **The sandbox draws the same line for programs.** On macOS the Seatbelt profile denies signals outside the command's own sandbox, so `/bin/kill`, `pkill` and `killall` reach only what that same command started, and get EPERM for anything else; `signalRefusalNote` tells the agent to use the shell's `kill`. On Linux each command's pid namespace already confines a program to what its own command started. `ps` and `top` cannot run under Seatbelt at all, since it refuses a program that runs as another user; `pgrep -lf`, `lsof`, `uptime` and `vm_stat` do run, and the note says so.
 
 ## Caps
 
@@ -139,8 +149,8 @@ A server that never exits wakes nothing until the age cap stops it.
 
 ## Two Unix metaphors we sit on
 
-- **`kill`** normally takes a pid. Ours takes `bg_1` or `%1` and **refuses a bare number**, so there is no route from the sandbox to the host's own processes.
-- **`wait`** is a `just-bash` interpreter builtin that no custom command can shadow, and it exits **0 with empty output** — which reads as "the process finished and wrote nothing", the one wrong answer here that looks right. A transform in `create-bash-env.ts` rewrites `wait` to `fg` in the AST so the agent's strongest prior cannot produce it.
+- **`kill`** takes a pid, as a shell's does, and `bg_1` or `%1` besides; a pid outside the session's own trees is refused (above).
+- **`wait`** is a `just-bash` interpreter builtin that no custom command can shadow, and it exits **0 with empty output** — which reads as "the process finished and wrote nothing", the one wrong answer here that looks right. A transform in `create-bash-env.ts` rewrites `wait` to `fg` in the AST, with a first argument that has it answer as `wait`, so the agent's strongest prior cannot produce the builtin's answer. `wait <pid>` waits on the job that started that pid.
 
 ## What the user sees
 

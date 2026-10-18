@@ -130,14 +130,34 @@ const XARGS_LONG_VALUE = new Set([
  * and runs one at a time; the builtin runs that many at once.
  */
 export function xargsRunsParallel(args: string[]): boolean {
+  return scanXargs(args).parallel;
+}
+
+/**
+ * Starts `kill`, which the builtin xargs runs as the shell's own: the one
+ * that can reach the agent's processes, where the program on the PATH runs
+ * in a sandbox of its own and reaches none of them.
+ */
+export function xargsRunsKill(args: string[]): boolean {
+  return scanXargs(args).command === "kill";
+}
+
+/** xargs' options, up to the command it starts. */
+function scanXargs(args: string[]): { command?: string; parallel: boolean } {
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
-    if (arg === undefined || arg === "--" || !/^-./.test(arg)) {
-      return false;
+    if (arg === undefined) {
+      return { parallel: false };
+    }
+    if (arg === "--") {
+      return { command: args[index + 1], parallel: false };
+    }
+    if (!/^-./.test(arg)) {
+      return { command: arg, parallel: false };
     }
     if (arg.startsWith("--")) {
       if (arg === "--max-procs" || arg.startsWith("--max-procs=")) {
-        return true;
+        return { parallel: true };
       }
       if (XARGS_LONG_VALUE.has(arg)) {
         index++;
@@ -147,7 +167,7 @@ export function xargsRunsParallel(args: string[]): boolean {
     for (let at = 1; at < arg.length; at++) {
       const flag = arg.charAt(at);
       if (flag === "P") {
-        return true;
+        return { parallel: true };
       }
       if ("adEILns".includes(flag)) {
         // The rest of the cluster is its value, or else the next argument.
@@ -162,7 +182,7 @@ export function xargsRunsParallel(args: string[]): boolean {
       }
     }
   }
-  return false;
+  return { parallel: false };
 }
 
 /**
@@ -271,7 +291,10 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   {
     binary: "xargs",
     name: "xargs",
-    builtinFor: { args: "`-P`, `--max-procs`", matches: xargsRunsParallel },
+    builtinFor: {
+      args: "`-P`, `--max-procs`, starting `kill`",
+      matches: (args) => xargsRunsParallel(args) || xargsRunsKill(args),
+    },
   },
 ];
 

@@ -24,7 +24,6 @@ describe("isRefusedByName", () => {
   const rule = userDataViewRule({
     home: HOME,
     userDataDir: USER_DATA,
-    workFoldersDir: work("workspace-x"),
     workspaceDir: path.join(path.parse(process.cwd()).root, "elsewhere"),
   });
 
@@ -45,7 +44,7 @@ describe("isRefusedByName", () => {
     [
       "another workspace's work folder",
       work("workspace-y", "c", "a.md"),
-      true,
+      false,
     ],
     [
       "what else the app keeps in the home folder",
@@ -106,12 +105,12 @@ describe("isRefusedByName", () => {
       true,
     ],
     [
-      "another workspace's work folder spelled in upper case",
-      path.join(HOME, ".INSTRUMENT", "WORK", "WORKSPACE-Y", "c", "a.md"),
+      "something else in the home folder's .instrument spelled in upper case",
+      path.join(HOME, ".INSTRUMENT", "OTHER.JSON"),
       true,
     ],
     [
-      "the open workspace's work folder spelled in upper case",
+      "a work folder spelled in upper case",
       path.join(HOME, ".INSTRUMENT", "WORK", "WORKSPACE-X", "c", "a.md"),
       !FOLDS_CASE,
     ],

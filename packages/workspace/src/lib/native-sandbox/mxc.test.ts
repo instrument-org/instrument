@@ -474,7 +474,7 @@ describe("mxcFilesystemPolicy's folders to look at", () => {
 });
 
 describe("mxcFilesystemPolicy over a chat's real layout", () => {
-  it("lists only the way to the chat's own folders, and denies by name what is off it", () => {
+  it("lists only the way to what opens in the app's data, and denies by name what is off it", () => {
     // As the app lays it out on Windows: the app's data under
     // `AppData\Roaming`, every workspace's chats' work in `~/.instrument`,
     // a grant inside Documents, which asks first, and the places in
@@ -544,6 +544,11 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
           appData(path.join(data, "runtime")),
           appData(records),
           appData(path.join(at, ".instrument")),
+          {
+            level: "allow",
+            path: path.join(at, ".instrument", "work"),
+            source: "system",
+          },
           { level: "allow", path: chat, source: "system" },
           {
             level: "readOnly",
@@ -567,8 +572,6 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
     expect(policy).toMatchInlineSnapshot(`
       {
         "deniedPaths": [
-          "~/.instrument/work/instrument-abcd/2026-10-13-other",
-          "~/.instrument/work/taxes-wxyz",
           "~/AppData/Local/Microsoft/Credentials",
           "~/AppData/Roaming/Instrument/machine",
           "~/AppData/Roaming/Instrument/runtime/sandbox",
@@ -577,8 +580,6 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
         ],
         "enumeratePaths": [
           "~/.instrument",
-          "~/.instrument/work",
-          "~/.instrument/work/instrument-abcd",
           "~/AppData",
           "~/AppData/Local",
           "~/AppData/Roaming",
@@ -597,6 +598,7 @@ describe("mxcFilesystemPolicy over a chat's real layout", () => {
           "~/AppData/Roaming/Instrument/workspace/.instrument/chats/2026-10-13-chat/attachments",
         ],
         "readwritePaths": [
+          "~/.instrument/work",
           "~/.instrument/work/instrument-abcd/2026-10-13-chat",
           "~/AppData/Local/Packages",
           "~/AppData/Roaming/Instrument/runtime/caches",

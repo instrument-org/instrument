@@ -326,19 +326,20 @@ function reachTable(p: Paths) {
       `${p.otherRecord}/attachments/a.pdf`,
       "never",
     ],
-    ["another chat's work folder", "read", `${p.otherWork}/notes.md`, "never"],
-    ["another chat's work folder", "write", `${p.otherWork}/notes.md`, "never"],
+    // Chats share their work as they share everything of the person's.
+    ["another chat's work folder", "read", `${p.otherWork}/notes.md`, "allow"],
+    ["another chat's work folder", "write", `${p.otherWork}/notes.md`, "allow"],
     [
       "another workspace's work folder",
       "read",
       `${p.otherWorkspaceWork}/notes.md`,
-      "never",
+      "allow",
     ],
     [
       "another workspace's work folder",
       "write",
       `${p.otherWorkspaceWork}/notes.md`,
-      "never",
+      "allow",
     ],
     [
       "what else the app keeps in the home folder",
@@ -606,7 +607,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it.each([
       ["the keys", `${paths.workspaceMachine}/keys/x`],
       ["the registry of workspaces", `${paths.userData}/workspaces.json`],
-      ["another chat's work folder", `${paths.otherWork}/notes.md`],
       ["another chat's settings", `${paths.otherRecord}/settings.json`],
       ["its own chat.db", `${paths.record}/chat.db`],
     ])(
@@ -633,7 +633,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         });
         const result = await bash.exec(
           [
-            `ls '${paths.otherWork}'`,
+            `ls '${paths.otherRecord}'`,
             `cat '${paths.workspaceMachine}/keys/x'`,
             `cat '${paths.userData}/workspaces.json'`,
             `ls '${paths.userData}'`,
@@ -720,26 +720,30 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
       ["refuses the keys", `cat '${paths.workspaceMachine}/keys/x'`, 1],
       [
-        "refuses another chat's work folder",
+        "reads another chat's work folder",
         `cat '${paths.otherWork}/notes.md'`,
-        1,
+        0,
       ],
       [
-        "refuses another workspace's work folder",
-        `cat '${paths.otherWorkspaceWork}/notes.md'`,
-        1,
+        "writes another workspace's work folder",
+        `echo x > '${paths.otherWorkspaceWork}/new.md'`,
+        0,
       ],
       [
-        "refuses a listing of the workspace's work folders",
-        `ls '${paths.workFolders}'`,
-        1,
-      ],
-      [
-        "refuses a listing of every workspace's work folders",
+        "lists every workspace's work folders",
         `ls '${path.dirname(paths.workFolders)}'`,
+        0,
+      ],
+      [
+        "refuses a listing of the app's folder in the home folder",
+        `ls '${paths.homeData}'`,
         1,
       ],
-      ["refuses a listing of the app's folder in the home folder", `ls '${paths.homeData}'`, 1],
+      [
+        "refuses what else the app keeps in the home folder",
+        `cat '${paths.homeData}/other.json'`,
+        1,
+      ],
       [
         "refuses another chat's records",
         `cat '${paths.otherRecord}/chat.db'`,
@@ -808,12 +812,12 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it.each([
       [
         "says why when stderr names the app's own data",
-        `cat '${paths.otherWork}/notes.md' || true`,
+        `cat '${paths.otherRecord}/chat.db' || true`,
         true,
       ],
       [
         "leaves the same line on stdout alone",
-        `cat '${paths.otherWork}/notes.md' 2>&1 || true`,
+        `cat '${paths.otherRecord}/chat.db' 2>&1 || true`,
         false,
       ],
       [
@@ -1078,16 +1082,14 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     it("closes this computer's folder, passing through to what opens in it", () => {
       expect(args).toContain(`--perms 0111 --tmpfs ${paths.userData}`);
       expect(args).toContain(`--perms 0111 --tmpfs ${paths.homeData}`);
-      expect(args).toContain(`--bind ${paths.work} ${paths.work}`);
+      const work = path.dirname(paths.workFolders);
+      expect(args).toContain(`--bind ${work} ${work}`);
       expect(args).toContain(
         `--ro-bind ${paths.runtime}/python ${paths.runtime}/python`,
       );
-      expect(args).not.toContain(`--bind ${paths.otherWork}`);
     });
 
     it.each([
-      ["every workspace's work folders", path.dirname(paths.workFolders)],
-      ["the workspace's work folders", paths.workFolders],
       ["the chats' records", paths.data.chatsDir],
       ["its own record folder", paths.record],
     ])(
@@ -1100,8 +1102,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     // An empty folder answers a name in it as missing, and the note says
     // why; nothing is listed to stand in for what the folder holds.
     it.each([
-      ["another chat's work folder", paths.otherWork],
-      ["another workspace's work folder", paths.otherWorkspaceWork],
       ["another chat's records", paths.otherRecord],
       ["the keys", path.join(paths.workspaceMachine, "keys")],
       [
@@ -1144,7 +1144,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
       [
         "Node's missing file",
-        `Error: ENOENT: no such file or directory, open '${paths.otherWork}/notes.md'`,
+        `Error: ENOENT: no such file or directory, open '${paths.otherRecord}/chat.db'`,
       ],
       [
         "cat's missing file",
@@ -1152,7 +1152,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       ],
       [
         "Node's refused listing",
-        `Error: EACCES: permission denied, scandir '${paths.workFolders}'`,
+        `Error: EACCES: permission denied, scandir '${paths.homeData}'`,
       ],
     ])(
       "tells the agent %s there is the app's own, whatever the exit",

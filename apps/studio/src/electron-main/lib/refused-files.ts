@@ -28,9 +28,9 @@ import {
  * anywhere but in the folders there that hold the person's own files
  * ({@link isRecordPath}). And this computer's folder, Electron's userData,
  * which keeps each workspace's keys, sign-ins and Chromium profiles under
- * names nothing else marks as private, and `~/.instrument`, every
- * workspace's work folders; only the folders in them that are the person's
- * to view are shown, which {@link userDataViewRule} names.
+ * names nothing else marks as private, and `~/.instrument`; only the
+ * folders in them that are the person's to view are shown, every chat's
+ * work folder among them, which {@link userDataViewRule} names.
  */
 
 /**
@@ -41,7 +41,7 @@ export interface ViewRule {
   refused: readonly string[];
   viewable: readonly string[];
   /**
-   * Viewable folders inside `~/.instrument`, the open workspace's work
+   * Viewable folders inside `~/.instrument`, every workspace's work
    * folders: a file in one is a record only by a `.instrument` below it.
    */
   work: readonly string[];
@@ -55,32 +55,30 @@ export interface ViewRule {
 const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
 
 /**
- * This computer's folders' rule: all of the app's data is refused, and so
- * is every workspace's work in `~/.instrument`, but the workspaces the
- * app's data keeps, the default one and those made from the dev panel, the
- * workspace this process has open wherever it is, and that workspace's
- * chats' work folders.
+ * This computer's folders' rule: all of the app's data is refused, in its
+ * own folder and in `~/.instrument`, but the workspaces it keeps, the
+ * default one and those made from the dev panel, the workspace this process
+ * has open wherever it is, and every chat's work folder.
  */
 export function userDataViewRule({
   home = os.homedir(),
   userDataDir,
-  workFoldersDir,
   workspaceDir,
 }: {
   home?: string;
   userDataDir: string;
-  workFoldersDir?: string;
   workspaceDir: string | undefined;
 }): ViewRule {
+  const homeData = homeDataLayout(home);
   return {
-    refused: [userDataDir, homeDataLayout(home).dataDir],
+    refused: [userDataDir, homeData.dataDir],
     viewable: [
       defaultWorkspacePath(userDataDir),
       createdWorkspacesDir(userDataDir),
       ...(workspaceDir === undefined ? [] : [workspaceDir]),
-      ...(workFoldersDir === undefined ? [] : [workFoldersDir]),
+      homeData.workDir,
     ],
-    work: workFoldersDir === undefined ? [] : [workFoldersDir],
+    work: [homeData.workDir],
   };
 }
 
@@ -188,9 +186,8 @@ let cached: undefined | { key: string; rule: ViewRule };
 function appViewRule(): ViewRule {
   const userData = getUserDataDir();
   let workspaceDir: string | undefined;
-  let workFoldersDir: string | undefined;
   try {
-    ({ path: workspaceDir, workFoldersDir } = getResolvedWorkspace());
+    workspaceDir = getResolvedWorkspace().path;
   } catch {
     // Not resolved yet: only the workspaces this computer's folder keeps are shown.
   }
@@ -201,7 +198,6 @@ function appViewRule(): ViewRule {
       rule: withRealPaths(
         userDataViewRule({
           userDataDir: userData,
-          workFoldersDir,
           workspaceDir,
         }),
         userData,

@@ -28,9 +28,10 @@ const RESOURCES = path.resolve(
  * A chat's shell with MXC holding its native commands, on Windows only, in a
  * work folder where the app makes it, `~/.instrument/work/<workspace>/`, and
  * in a granted folder inside Documents, which asks first: git and Windows
- * PowerShell work in both, the chat's sibling and another workspace's work
- * are refused, and a file in the Documents folder around the grant is
- * refused to a read though its name can be listed. Run it in the interactive
+ * PowerShell work in both, every chat's work folder is open, the rest of
+ * `~/.instrument` and the app's data are closed, and a file in the
+ * Documents folder around the grant is refused to a read though its name
+ * can be listed. Run it in the interactive
  * session, as the canary's test.
  */
 const held =
@@ -48,6 +49,7 @@ let sibling: string;
 let otherWorkspace: string;
 let probe: string;
 let listOnlyFile: string;
+let appFile: string;
 
 async function run(command: string, cwd?: string) {
   const bash = await createBashEnv({
@@ -89,7 +91,6 @@ beforeAll(async () => {
     uutilsDir: AbsolutePathSchema.parse(path.join(RESOURCES, "uutils")),
     uvBinPath: AbsolutePathSchema.parse(path.join(RESOURCES, "uv", "uv.exe")),
     workFoldersDir: AbsolutePathSchema.parse(workFolders),
-    workspaceMachineDir: AbsolutePathSchema.parse(path.join(tmpDir, "machine")),
   });
   work = workDir(chatId);
   await fs.mkdir(work, { recursive: true });
@@ -108,6 +109,10 @@ beforeAll(async () => {
   await fs.mkdir(probe, { recursive: true });
   listOnlyFile = path.join(documents, `${tag}-list-only.txt`);
   await fs.writeFile(listOnlyFile, secret);
+  appFile = path.join(homeDataLayout(os.homedir()).dataDir, `${tag}.json`);
+  await fs.writeFile(appFile, secret);
+  // The workspace's machine folder in the app's data, which the rules close.
+  await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, { recursive: true });
   await updatePermissionSettings((settings) => ({
     ...settings,
     folders: [
@@ -129,6 +134,8 @@ afterAll(async () => {
     path.dirname(otherWorkspace),
     probe,
     listOnlyFile,
+    appFile,
+    path.join(path.dirname(appFile), `${tag}-new.json`),
   ]) {
     await fs.rm(made, { force: true, recursive: true });
   }
@@ -196,6 +203,7 @@ describe.runIf(held)("a chat's work folder under MXC", () => {
     // The first run installs the managed Python.
   }, 300_000);
 
+  // Chats share their work as they share everything of the person's.
   it.each([
     [
       "read a sibling chat's file",
@@ -203,30 +211,41 @@ describe.runIf(held)("a chat's work folder under MXC", () => {
       () => path.join(sibling, "secret.txt"),
     ],
     [
-      "write a sibling chat's folder",
-      "fs.writeFileSync(p, 'x')",
-      () => path.join(sibling, "new.txt"),
-    ],
-    ["list a sibling chat's folder", "fs.readdirSync(p)", () => sibling],
-    [
-      "read another workspace's file",
-      "fs.readFileSync(p, 'utf8')",
-      () => path.join(otherWorkspace, "secret.txt"),
-    ],
-    [
-      "write another workspace's folder",
+      "write another workspace's work folder",
       "fs.writeFileSync(p, 'x')",
       () => path.join(otherWorkspace, "new.txt"),
     ],
     [
-      "list another workspace's folder",
-      "fs.readdirSync(p)",
-      () => path.dirname(otherWorkspace),
+      "list every workspace's work folders",
+      "fs.readdirSync(p).filter((n) => n.startsWith('${tag}') || n.startsWith('instrument-mxc-test-'))",
+      () => path.dirname(path.dirname(work)),
     ],
+  ])("lets a program %s", async (_name, call, target) => {
+    const result = await run(nodeOn(call.replace("${tag}", tag), target()), work);
+    console.log("reaches", _name, JSON.stringify(result));
+    expect(result.stdout).toMatch(/^ok /);
+  });
+
+  it.each([
     [
       "read a file in the list-only Documents",
       "fs.readFileSync(p, 'utf8')",
       () => listOnlyFile,
+    ],
+    [
+      "read what else the app keeps in ~/.instrument",
+      "fs.readFileSync(p, 'utf8')",
+      () => appFile,
+    ],
+    [
+      "write beside the work folders in ~/.instrument",
+      "fs.writeFileSync(p, 'x')",
+      () => path.join(path.dirname(appFile), `${tag}-new.json`),
+    ],
+    [
+      "list the app's data folder's machine folders",
+      "fs.readdirSync(p)",
+      () => path.join(getWorkspaceConfig().userDataDir, "machine"),
     ],
   ])("refuses a program trying to %s", async (_name, call, target) => {
     const result = await run(nodeOn(call, target()), work);
@@ -235,7 +254,7 @@ describe.runIf(held)("a chat's work folder under MXC", () => {
     expect(result.stdout).toMatch(/^refused E(PERM|ACCES)/);
   });
 
-  it("shows a program the names in the list-only Documents, and in the work folders, only the chat's way", async () => {
+  it("shows a program the names in the list-only Documents", async () => {
     const documents = await run(
       nodeOn(
         "fs.readdirSync(p).filter((n) => n.startsWith('mxc-'))",
@@ -243,12 +262,7 @@ describe.runIf(held)("a chat's work folder under MXC", () => {
       ),
       work,
     );
-    const workFolders = await run(
-      nodeOn("fs.readdirSync(p)", path.dirname(work)),
-      work,
-    );
-    console.log("listings", JSON.stringify({ documents, workFolders }));
+    console.log("listing", JSON.stringify(documents));
     expect(documents.stdout).toContain(path.basename(listOnlyFile));
-    expect(workFolders.stdout).toMatch(/^ok /);
   });
 });

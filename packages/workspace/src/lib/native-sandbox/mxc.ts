@@ -379,7 +379,7 @@ export function mxcFilesystemPolicy(
     }
   };
   // The app's own data listed that way would show every name in it: each
-  // workspace's work, every other chat's. So in a listed folder of the
+  // workspace's keys, profiles and records. So in a listed folder of the
   // app's, and in every folder below it on the way to an open one, each
   // folder off that way is denied by name, closing the names in it too. A
   // folder of the person's that is listed shows its names, which is what

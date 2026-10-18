@@ -378,8 +378,8 @@ export function buildWorkspaceFsLayout({
 /**
  * The access a folder actually gets: read and write, unless it overlaps the
  * app's own data: one inside this computer's folder for the app, inside
- * the workspace's `.instrument/` or inside `~/.instrument/`, or one holding
- * this computer's folder whole.
+ * the workspace's `.instrument/` or inside `~/.instrument/` but for the
+ * work folders, or one holding this computer's folder whole.
  *
  * That folder keeps every workspace's keys, browser profiles and folder
  * rules, so a write grant over it would reach all of them; the rules close it to every command, and the mount is
@@ -414,16 +414,17 @@ export function effectiveFolderAccess(folder: {
   const workspaceData = canonicalizeThroughMissing(
     workspaceLayout(config.rootDir).dataDir,
   );
-  const homeData = canonicalizeThroughMissing(
-    homeDataLayout(os.homedir()).dataDir,
-  );
+  const home = homeDataLayout(os.homedir());
+  const homeData = canonicalizeThroughMissing(home.dataDir);
+  const workFolders = canonicalizeThroughMissing(home.workDir);
   // A path failing to resolve means the overlap cannot be ruled out, so the
   // grant is refused rather than assumed safe.
   if (
     folderPath === null ||
     userData === null ||
     workspaceData === null ||
-    homeData === null
+    homeData === null ||
+    workFolders === null
   ) {
     return "read-only";
   }
@@ -431,7 +432,8 @@ export function effectiveFolderAccess(folder: {
     pathIsWithin(folderPath, userData) ||
     pathIsWithin(userData, folderPath) ||
     pathIsWithin(folderPath, workspaceData) ||
-    pathIsWithin(folderPath, homeData);
+    (pathIsWithin(folderPath, homeData) &&
+      !pathIsWithin(folderPath, workFolders));
   return overlapsAppData ? "read-only" : "read-write";
 }
 
@@ -815,10 +817,11 @@ export function shellPathOfHostSpelling(
  * The app's own data is closed to every command, and refused plainly: this
  * computer's folder (each workspace's keys, browser profiles and folder
  * rules, and the runtime folder), the workspace's `.instrument/`, its
- * records, and `~/.instrument/`, every workspace's chats' work folders. The
- * workspace's own folder around that is the person's, and follows their
- * rules like any folder: once they picked it, it is the output folder. In
- * the app's own data only these open: the chat's own work folder, and in its record folder
+ * records, and `~/.instrument/`. The workspace's own folder around that is
+ * the person's, and follows their rules like any folder: once they picked
+ * it, it is the output folder. In the app's own data only these open: every
+ * chat's work folder, in `~/.instrument/work/`, which chats share as they
+ * share everything of the person's, and in the chat's record folder
  * the attachments it reads and the handoff notes it writes; the skills it
  * reads and the apps it writes; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
@@ -861,6 +864,9 @@ function layoutRules(
   ].map((path) => ({ appData: true, ...system("never", path) }));
   const own: Rule[] = [
     ...appData,
+    // Every chat's work folder, in every workspace, so a chat can pick up
+    // what another made; the chat's own may be elsewhere (a test's).
+    system("allow", homeDataLayout(given.home).workDir),
     system("allow", layout.chat.hostRoot),
     ...(layout.record
       ? [

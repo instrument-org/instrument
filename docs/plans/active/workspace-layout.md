@@ -1,6 +1,6 @@
 # Plan: the workspace is a folder you pick; this machine keeps the rest
 
-Status: in progress on branch `workspace-layout`. Nothing merges to main until it has been reviewed.
+Status: built and landed. Every phase below says what it built; what is left of this plan is phase 6's relative paths, and a workspace folder the person moves by hand carrying the window's tabs and the recent files with it.
 
 A chat's folder today is two things at once: the agent's working directory (its files, uploads, downloads, `.venv`, `node_modules`, copied skills, its tasks' work) and the home of the app's records for that chat (`.instrument/chat.db`, `settings.json`), which every layer then has to hide from the agent. The workspace mixes portable data (chats, drafts, topics, skills) with things that only make sense on one computer (encrypted keys, browser cookies, window state, tool caches). Most of the folder-management code in the repo exists to keep those mixtures from leaking: masking, the package template copied into every chat, the "your folder is a package root" rule, the venv pinned to the chat, skills copied into the chat.
 

@@ -1,6 +1,6 @@
 # Plan: everything visible in the Instrument folder
 
-Status: approved to build on branch `chat-records`, after the records phases of [chat-records.md](chat-records.md).
+Status: built and landed, apart from the items marked still to build in the table at [Phases](#phases). Follows the records phases of [chat-records.md](chat-records.md).
 
 F1 is built, down to the delete screen's box and a sync engine's conflict copy of `CHAT.md` deleted on sight. F2 is built apart from `Drafts/` being a folder the agent reaches, which waits for every workspace to be a folder the person picked. F3 is built: an attachment is opened where it lies on all three systems, the copy and `$INSTRUMENT_ATTACHMENTS` are gone, and the migration moves what old chats hold. F4 is built apart from two paths still open inside `.instrument`, which the same wait closes; a test pins that set so it can only shrink deliberately. F5 and F6 are built, F6 down to every stored path being written where its folder went. What is left is per phase and in the table at [Phases](#phases): mostly the gestures each asks to be driven on the three systems.
 

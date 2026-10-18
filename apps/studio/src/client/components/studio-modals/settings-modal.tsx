@@ -480,7 +480,7 @@ function SettingsSectionBody({
   tab: SettingsTab;
 }) {
   switch (tab) {
-    case "Usage": {
+    case "Activity": {
       return <ActivitySection />;
     }
     case "Debug": {
@@ -524,7 +524,7 @@ const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
   Providers: CpuIcon,
   Skills: CubeIcon,
   Storage: HardDrivesIcon,
-  Usage: PulseIcon,
+  Activity: PulseIcon,
 };
 
 function useNavItems(): NavItem[] {

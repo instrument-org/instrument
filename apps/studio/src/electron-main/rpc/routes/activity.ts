@@ -23,7 +23,7 @@ const saveCsv = base
     const stamp = new Date().toISOString().slice(0, 10);
     const defaultPath = path.join(
       app.getPath("downloads"),
-      `${APP_NAME.toLowerCase()}-ai-usage-${stamp}.csv`,
+      `${APP_NAME.toLowerCase()}-activity-${stamp}.csv`,
     );
     const parent = getCallingWindow(context.webContentsId);
     // Parented so macOS presents a sheet on the window rather than blocking

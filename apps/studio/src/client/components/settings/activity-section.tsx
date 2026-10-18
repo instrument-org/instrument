@@ -146,7 +146,7 @@ type ColumnPrefs = {
 /** The columns a person hid and the widths they dragged, kept per viewer. */
 const columnPrefsAtom = keptAtom<ColumnPrefs>(
   "view",
-  "usage.columns.v1",
+  "activity.columns.v1",
   { hidden: [], widths: {} },
   (value, initial) => {
     if (typeof value !== "object" || value === null) {
@@ -500,7 +500,7 @@ export function ActivitySection() {
   }
 
   return (
-    <UsageLog
+    <ActivityLog
       filter={filter}
       onOpen={setOpenId}
       period={period}
@@ -512,7 +512,7 @@ export function ActivitySection() {
   );
 }
 
-function UsageLog({
+function ActivityLog({
   filter,
   onOpen,
   period,
@@ -602,12 +602,12 @@ function UsageLog({
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <div
         className="flex shrink-0 items-start gap-4"
-        {...settingAnchor("usage")}
+        {...settingAnchor("activity")}
       >
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold">Usage</h3>
+          <h3 className="text-base font-semibold">Activity</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {`Every request ${APP_NAME} sends to an AI shows up here, with the model that answered and the tokens it used. We keep these details on your computer, but we don't keep what was said.`}
+            {`Every request ${APP_NAME} sends to an AI shows up here, with the model that answered and the tokens it used. We keep these details in your Instrument folder, but we don't keep what was said.`}
           </p>
         </div>
         <Button
@@ -1225,7 +1225,7 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
           type="button"
         >
           <ArrowLeftIcon className="size-4" />
-          Usage
+          Activity
         </button>
         <span className="flex-1" />
         {row ? (

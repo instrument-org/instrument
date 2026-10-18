@@ -15,7 +15,7 @@ export function useSettingsTabs(): SettingsTab[] {
     "Memory",
     "Permissions",
     "Providers",
-    "Usage",
+    "Activity",
     "Skills",
     "Storage",
     ...(isDeveloperMode ? (["Features"] as const) : []),

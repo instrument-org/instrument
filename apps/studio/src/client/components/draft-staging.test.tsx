@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDraftStaging } from "./draft-staging";
 import { type AttachedItem } from "./prompt-input";
 
-const stage = vi.fn();
+// Made with the mock rather than beside it: the factory below is hoisted
+// above everything this file declares.
+const { stage } = vi.hoisted(() => ({
+  stage: vi.fn<(input: unknown) => Promise<{ path: string; size: number }>>(),
+}));
 
 vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    drafts: { stage: { call: (...args: unknown[]) => stage(...args) } },
-  },
+  rpcClient: { drafts: { stage: { call: stage } } },
 }));
 
 /** What the composer holds for bytes that arrived without a file. */

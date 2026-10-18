@@ -128,6 +128,38 @@ describe("writeUploadedAttachments", () => {
 
   // Pasted bytes have no file behind them, so they are written into the
   // chat's own folder, where the person can open what they sent.
+  // What the person pasted into a draft is the app's own copy, in the
+  // draft's folder, and sending the draft takes that folder away. The
+  // message has to carry its own copy or it carries nothing.
+  it("copies a file pasted into a draft rather than pointing at the draft", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    });
+    const pasted = path.join(
+      root,
+      "workspace",
+      "Drafts",
+      "2026-10-17",
+      "photo.jpg",
+    );
+    const file = await writeSourceFile(pasted);
+
+    const [attached] = await attach([file]);
+
+    expect(attached?.filePath).toBe(
+      `${CHAT_FOLDER_NAMES.attachments}/photo.jpg`,
+    );
+    await expect(
+      fs.readFile(
+        path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+        "utf8",
+      ),
+    ).resolves.toBe(CONTENT);
+    // The draft's own copy is left for the draft to take away.
+    await expect(fs.readFile(pasted, "utf8")).resolves.toBe(CONTENT);
+  });
+
   it("writes pasted bytes into the chat's own folder", async () => {
     const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
     await fs.mkdir(folder, { recursive: true });

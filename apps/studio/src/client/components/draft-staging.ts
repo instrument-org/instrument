@@ -7,6 +7,15 @@ import { ulid } from "ulid";
 
 import { type AttachedItem } from "./prompt-input";
 
+/**
+ * The name at the end of a path this computer wrote, whichever way it
+ * writes one. `node:path` is the main process's; a renderer has the path as
+ * a string and nothing to read it with.
+ */
+function writtenName(at: string): string {
+  return at.split(/[/\\]/).pop() ?? at;
+}
+
 /** What a composer hands over to be sent: the files among it are what this is about. */
 interface Sending {
   files?: FileUpload.Input[];
@@ -63,15 +72,19 @@ export function useDraftStaging({
      *
      * Matched by name, each staged file taken once, since the box hands over
      * what it holds without the ids it holds them under and two pastes can
-     * carry one name.
+     * carry one name. Only what the box still holds is matched: a paste the
+     * person took out again is still written in the draft's folder under the
+     * name they both carry, and matching every written file by name would
+     * send the one they removed.
      */
     asStaged: <T extends Sending>(send: T): T => {
       if (!send.files) {
         return send;
       }
-      const spare = [...staged.current.values()].flatMap((item) =>
-        item?.kind === "file" ? [item] : [],
-      );
+      const spare = latestItems.current.flatMap((item) => {
+        const written = staged.current.get(item.id);
+        return written?.kind === "file" ? [written] : [];
+      });
       return {
         ...send,
         files: send.files.map((file) => {
@@ -82,7 +95,11 @@ export function useDraftStaging({
           const [item] = at === -1 ? [] : spare.splice(at, 1);
           return item
             ? {
-                filename: item.name,
+                // The name it was written under, which is numbered where the
+                // folder already held one of that name. The check on the way
+                // in reads the name off the path and refuses a send whose
+                // name says otherwise.
+                filename: writtenName(item.path),
                 mimeType: item.mimeType,
                 path: item.path,
                 size: item.size,

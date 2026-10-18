@@ -18,8 +18,11 @@ import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getMimeType } from "./get-mime-type";
 import { chatFolderTheyOpen } from "./chat/output-folder";
+import { draftsFolderDir } from "./drafts/draft-folder";
 import { chatOwnFolder } from "./record-folders";
 import { pathExists } from "./path-exists";
+import { pathIsWithin } from "./path-is-within";
+import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { sanitizeFilename } from "./sanitize-filename";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
@@ -62,6 +65,19 @@ export async function writeUploadedAttachments({
           const buffer = Buffer.from(preparedFile.input.content, "base64");
           yield* ResultAsync.fromPromise(
             fs.writeFile(preparedFile.filePath, buffer),
+            (error) =>
+              new TypedError.FileSystem(
+                error instanceof Error ? error.message : "Unknown error",
+                { cause: error },
+              ),
+          );
+        }
+        // A file pasted into a draft, copied out of the folder that is about
+        // to go.
+        if (!preparedFile.inPlace && "path" in preparedFile.input) {
+          const from = preparedFile.input.path;
+          yield* ResultAsync.fromPromise(
+            fs.copyFile(from, preparedFile.filePath),
             (error) =>
               new TypedError.FileSystem(
                 error instanceof Error ? error.message : "Unknown error",
@@ -164,7 +180,12 @@ function prepareUploadedFiles({
       // is. Copying it into `attachments/` would fork it: the agent would work
       // on the copy while the original the user pointed at silently went
       // stale, and a 2 GB video would be cloned to say so.
-      if ("path" in file) {
+      //
+      // What they pasted into a draft is the exception. The app wrote that
+      // file itself, into the draft's own folder, and sending the draft takes
+      // that folder away, so a message left pointing at it would point at
+      // nothing. It is copied into the chat like the bytes it came from.
+      if ("path" in file && !pastedIntoADraft(file.path)) {
         yield* await validatePathUpload({ file });
 
         preparedFiles.push({
@@ -176,6 +197,9 @@ function prepareUploadedFiles({
           storedPath: file.path,
         });
         continue;
+      }
+      if ("path" in file) {
+        yield* await validatePathUpload({ file });
       }
 
       const sanitized = sanitizeFilename(file.filename);
@@ -202,6 +226,18 @@ function prepareUploadedFiles({
 
     return ok(preparedFiles);
   });
+}
+
+/**
+ * Whether a path names a file in the drafts folder, which is the app's own
+ * copy of something pasted rather than a file of the person's that it may
+ * point at where it lies.
+ */
+function pastedIntoADraft(given: string): boolean {
+  if (!hasWorkspaceConfig()) {
+    return false;
+  }
+  return pathIsWithin(given, draftsFolderDir(getWorkspaceConfig().rootDir));
 }
 
 function validatePathUpload({ file }: { file: PathFileUpload }) {

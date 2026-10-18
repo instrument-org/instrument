@@ -70,7 +70,7 @@ describe("createBashDescription", () => {
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. Works in any folder the chat can reach (\`git -C <folder> log\`, or \`cd\` there first); in a read-only one it may only read (log, show, diff, blame, status), and committing there needs write on the repository's own folder. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.
-        node - Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`app call\` does and returns the result as a value (\`tools["<slug>"]\` for a slug with a hyphen); only the script \`node\` runs has \`tools\`, not a process that script starts.
+        node - Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`instrument app call\` does and returns the result as a value (\`tools["<slug>"]\` for a slug with a hyphen); only the script \`node\` runs has \`tools\`, not a process that script starts.
         shortcuts - Run the user's own Shortcuts on this Mac: whatever they have automated becomes something you can do. \`shortcuts list [--folder-name <folder>]\` names them; \`shortcuts run '<name>' [-i <file>]... [-o <file>]\` runs one, with files as its input and its result written to a file. A shortcut can do anything its steps do, including things the user sees and things that change their data, so run one only when the user asked for it or for what it plainly does.
         mail - Read, search, draft, send, and file email in Mail on this Mac, across every account added to it. \`mail list\`, \`mail search <words>\` and \`mail read <id>\` read it, with lists as one JSON object per line; \`mail draft\` opens a message in Mail for the person to look over and send, and \`mail send\` sends one (\`--to\`, \`--subject\`, \`--attach <file>\`, and the message on stdin); \`mail accounts\`, \`mail mailboxes\` and \`mail move <id> <mailbox>\` cover the rest, and \`mail help\` has every flag. The first time a chat uses Mail the person is asked to allow it, and macOS asks them once to let Instrument control it.
         notes - Read and write the person's notes in Notes on this Mac, iCloud's included. \`notes list\` and \`notes search <words>\` find them, one JSON object per line, \`notes read <id>\` prints one, \`notes create --title <title>\` makes one and \`notes append <id>\` adds to one, with the text on stdin; \`notes folders\` names the folders, and \`notes help\` has every flag. The first time a chat uses Notes the person is asked to allow it, and macOS asks them once to let Instrument control it.
@@ -95,10 +95,10 @@ describe("createBashDescription", () => {
         kill - Stop background processes started by \`bash\`, waiting until each has really exited.
       Usage: \`kill <id>...\`, where each id is one \`jobs\` reports (\`bg_1\`). A signal flag (\`-9\`) is accepted and ignored; termination always escalates on its own. Killing one that already finished is harmless.
       Only these ids can be stopped -- there is no access to the machine's own processes, so a bare number is refused.
-        task - Start, message, stop and read your tasks: you, carrying on in the background with this conversation in hand. \`task help\` prints the full surface.
-        chat - Read the user's other chats: \`chat list [--topic <name>] [-n <count>]\` lists them with where each stands, \`chat read <id or title words> [--tail <n>]\` reads the end of one, \`chat search <words>\` finds a line across all of them, \`chat topics\` names the topics, \`chat tag <chat> <topic>\` files a chat under one. The chat you are in is in front of you; these are for the others.
-        memory - What you keep about the user for every chat: \`memory list\` names it all, \`memory save <name>\` keeps or corrects one (the text on stdin through a quoted heredoc), \`memory show <name>\` reads one whole, \`memory forget <name>\` drops it.
-        tab - The tabs of the user's window, each named by the id the note on their message gives it, pages, files, folders and screens alike: \`tab open <url or path>...\` opens each in a tab of its own and shows it, printing the tab's id, which a task takes with --tab; \`tab replace <id> <url or path>\` shows something else in a tab; \`tab close <id>...\` closes tabs; \`tab show <id>\` brings an open tab forward; \`tab read <id>\` prints the text of the page in a tab, as the user sees it, signed in where they are. A path is a file or folder you can read. It opens nothing in the user's own applications and downloads nothing."
+        instrument task - Start, message, stop and read your tasks: you, carrying on in the background with this conversation in hand. \`instrument task help\` prints the full surface.
+        instrument chat - Read the user's other chats: \`instrument chat list [--topic <name>] [-n <count>]\` lists them with where each stands, \`instrument chat read <id or title words> [--tail <n>]\` reads the end of one, \`instrument chat search <words>\` finds a line across all of them, \`instrument chat topics\` names the topics, \`instrument chat tag <chat> <topic>\` files a chat under one. The chat you are in is in front of you; these are for the others.
+        instrument memory - What you keep about the user for every chat: \`instrument memory list\` names it all, \`instrument memory save <name>\` keeps or corrects one (the text on stdin through a quoted heredoc), \`instrument memory show <name>\` reads one whole, \`instrument memory forget <name>\` drops it.
+        instrument tab - The tabs of the user's window, each named by the id the note on their message gives it, pages, files, folders and screens alike: \`instrument tab open <url or path>...\` opens each in a tab of its own and shows it, printing the tab's id, which a task takes with --tab; \`instrument tab replace <id> <url or path>\` shows something else in a tab; \`instrument tab close <id>...\` closes tabs; \`instrument tab show <id>\` brings an open tab forward; \`instrument tab read <id>\` prints the text of the page in a tab, as the user sees it, signed in where they are. A path is a file or folder you can read. It opens nothing in the user's own applications and downloads nothing."
     `);
   });
 
@@ -155,5 +155,68 @@ describe("osascript", () => {
       "osascript: AppleScript you write doesn't run here.",
     );
     expect(result.stderr).toContain("`mail`, `notes` and `messages` commands");
+  });
+});
+
+describe("instrument", () => {
+  async function shell(name: string, role: "chat" | "task") {
+    const chatId = createMockChatConfig(ChatIdSchema.parse(name));
+    await mkdir(chatDir(chatId), { recursive: true });
+    return createLocalBashEnv({
+      chatId,
+      role,
+      sessionId: StoreId.newSessionId(),
+    });
+  }
+
+  it("lists the chat's own commands, bare or asked for help", async () => {
+    const bash = await shell("instrument-chat-help", "chat");
+    const bare = await bash.exec("instrument");
+    expect(bare.exitCode).toBe(0);
+    expect(bare.stdout).toMatchInlineSnapshot(`
+      "Usage: instrument <command> ...
+
+        app     Connect services and call their tools.
+        chat    Read the user's other chats.
+        memory  What you keep about the user for every chat.
+        tab     Open, show, read and close the tabs of the user's window.
+        task    Start, message, stop and read your tasks.
+
+      \`instrument <command> help\` prints one command's own usage.
+      "
+    `);
+    expect((await bash.exec("instrument help")).stdout).toBe(bare.stdout);
+  });
+
+  it("runs a subcommand with the rest of its words", async () => {
+    const bash = await shell("instrument-chat-run", "chat");
+    const result = await bash.exec("instrument memory help");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Usage: instrument memory <subcommand>");
+  });
+
+  it("refuses a command it does not have", async () => {
+    const bash = await shell("instrument-unknown", "chat");
+    const result = await bash.exec("instrument mail list");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('instrument: unknown command "mail".');
+  });
+
+  it("gives a task only `app`, and says the rest are the chat's", async () => {
+    const bash = await shell("instrument-task", "task");
+    expect((await bash.exec("instrument")).stdout).toMatchInlineSnapshot(`
+      "Usage: instrument <command> ...
+
+        app  Connect services and call their tools.
+
+      \`instrument <command> help\` prints one command's own usage.
+      "
+    `);
+    const result = await bash.exec("instrument memory save x <<< 'y'");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument memory: only the chat has this. Say in your report what the chat should do with it.
+      "
+    `);
   });
 });

@@ -71,7 +71,7 @@ export function pythonBaseText(): string | undefined {
  * The agent the user talks to, and the only one: it does the work itself,
  * with its own files, shell, browser, web search, and skills, and what is
  * multi-step or slow it starts as a task, a fork of itself that carries the
- * conversation and works in the same folder (`task new`, in
+ * conversation and works in the same folder (`instrument task new`, in
  * `lib/shell-commands/task/fork.ts`). A fork runs this same agent, so its
  * system prompt and tool definitions are the chat's byte for byte and a
  * provider's prefix cache serves the conversation it inherits.

@@ -12,7 +12,7 @@ import { type AppInfo, listApps, readAppGuide } from "./store";
  * the workspace has and where each stands, what the directory knows, so
  * a request naming a well-known service needs no lookup, and the
  * instructions of every app that is connected. What changes after this
- * arrives as app events on later turns; `app list` is the ground truth.
+ * arrives as app events on later turns; `instrument app list` is the ground truth.
  */
 export async function buildAppsContextText(): Promise<string> {
   const { apps: config, appsDir } = getWorkspaceConfig();

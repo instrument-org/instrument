@@ -7,11 +7,11 @@
  * outright, so a run that does the work in the chat says nothing about them,
  * and score what the store holds as well as what the user got:
  *
- * - **It starts one task, as t1.** One `task new`, one session of the chat's
+ * - **It starts one task, as t1.** One `instrument task new`, one session of the chat's
  *   with a parent and a fork point, and the work done there.
  * - **It steers that task by its handle.** A change of plan reaches t1
- *   through `task send t1` or `task stop t1`, rather than a second task.
- * - **It hands the task the user's tab.** `task new --tab` makes the task
+ *   through `instrument task send t1` or `instrument task stop t1`, rather than a second task.
+ * - **It hands the task the user's tab.** `instrument task new --tab` makes the task
  *   the tab's one driver, and the tab goes back to the chat when the task
  *   finishes.
  * - **It leaves a task the user stopped alone.** Stop on t1 writes the chat
@@ -73,7 +73,8 @@ function commandsIn(sessions: Session.WithMessagesAndParts[]): string[] {
 function starts(commands: string[]): number {
   return commands.reduce(
     (count, command) =>
-      count + [...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g)].length,
+      count +
+      [...command.matchAll(/(?:^|[\n;&|])\s*instrument task new\b/g)].length,
     0,
   );
 }
@@ -144,7 +145,7 @@ const steeredT1: Assertion = {
     const text = "steered t1 by its handle, starting no second task";
     const commands = commandsIn(ctx.sessions);
     const steered = commands.filter((command) =>
-      /(?:^|[\n;&|])\s*task (?:send|stop) t1\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task (?:send|stop) t1\b/.test(command),
     );
     const children = await ctx.childSessions();
     return (steered.length > 0 && children.length === 1 ? pass : fail)(
@@ -168,7 +169,7 @@ const handedTheTab: Assertion = {
     const text = `handed the task tab ${PAGE_TAB}`;
     const handed = commandsIn(ctx.sessions).filter(
       (command) =>
-        /(?:^|[\n;&|])\s*task new\b/.test(command) &&
+        /(?:^|[\n;&|])\s*instrument task new\b/.test(command) &&
         new RegExp(`--tab[ =]['"]?${PAGE_TAB}`).test(command),
     );
     return (handed.length > 0 ? pass : fail)(
@@ -260,7 +261,7 @@ const leftItStopped: Assertion = {
     const text = "started nothing again after the stop";
     const after = afterTheStop(ctx.sessions);
     const restarted = (after?.commands ?? []).filter((command) =>
-      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task (?:new|send)\b/.test(command),
     );
     return (restarted.length === 0 ? pass : fail)(
       text,
@@ -353,7 +354,7 @@ const restartedNothing: Assertion = {
     const after = afterTheQuestion(ctx.sessions);
     const restarted = (after?.commands ?? []).filter(
       (command) =>
-        /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command) ||
+        /(?:^|[\n;&|])\s*instrument task (?:new|send)\b/.test(command) ||
         /\bsleep\s+\d/.test(command),
     );
     const children = await ctx.childSessions();
@@ -440,7 +441,7 @@ const retriedOrOfferedTo: Assertion = {
       return fail(text, "no timeout note");
     }
     const retried = after.commands.some((command) =>
-      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task (?:new|send)\b/.test(command),
     );
     const offered =
       /\b(?:try(?:ing)? (?:it )?again|retry|re-?run|restart|resume|pick (?:it |that )?(?:back )?up|send it (?:back|again)|start (?:it )?(?:over|again))\b/i.test(

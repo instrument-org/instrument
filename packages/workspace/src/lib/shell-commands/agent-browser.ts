@@ -1080,7 +1080,7 @@ async function recordHeldTabHosts({
  * which are the user's and outlive the task, and tabs it opened itself, each
  * opened behind whatever the user has up, so every page the agent works in
  * is one the user can find in the chat's tabs and none is put in front of
- * them. A page the user has open is handed to a task (`task new --tab`).
+ * them. A page the user has open is handed to a task (`instrument task new --tab`).
  */
 async function refuseBrowserFor(
   id: ChatId,

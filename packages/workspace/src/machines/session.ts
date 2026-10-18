@@ -81,7 +81,7 @@ export const sessionMachine = setup({
     clearAgentRef: assign({ agentRef: undefined }),
 
     // The person's Stop outranks one that lands after it, such as the chat's
-    // own `task stop` on the same task a moment later: theirs is the one the
+    // own `instrument task stop` on the same task a moment later: theirs is the one the
     // chat is told of.
     rememberStopNotice: assign({
       stopNotice: ({ context, event }) =>

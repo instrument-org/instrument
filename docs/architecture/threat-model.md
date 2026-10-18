@@ -63,7 +63,7 @@ Each of these holds one of the lines above, and a change that weakens one needs 
 - The runtime folders (the managed Python, the skill environments, the preload, `bin`) are read-only to chats, and the skills the app ships are built in folders no chat reaches (line 3).
 - Installs are held to hash and release-age checks (line 3).
 - pnpm's install step outside the sandbox runs no package's code, and goes outside only for a project the rules let the chat write that names registry packages alone and has no link out of its `node_modules` (lines 1 and 3).
-- The browser bridge passes only the commands on its list, a local file is checked before a page loads it, and `tab read` refuses a file the agent could not open itself (line 1).
+- The browser bridge passes only the commands on its list, a local file is checked before a page loads it, and `instrument tab read` refuses a file the agent could not open itself (line 1).
 - App credentials are bound to their service's origin, and an app's manifest cannot name a command line (lines 2 and 3).
 - `git` and `rg` check their arguments, and `rg` and `du` leave the app's own data out of their walks: a second layer on macOS and Linux, and the only one on Windows.
 

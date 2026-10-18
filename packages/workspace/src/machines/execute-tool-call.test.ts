@@ -575,7 +575,7 @@ describe("executeToolCallMachine", () => {
     });
 
     // The person reads the same words either way; the model is told which.
-    it("keeps that the chat's `task stop` was what stopped a call", async () => {
+    it("keeps that the chat's `instrument task stop` was what stopped a call", async () => {
       const part = createShellCommandPart("sleep 30");
       await ChatWrites.savePart(part, taskConfig);
 

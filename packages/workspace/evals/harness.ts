@@ -210,7 +210,7 @@ export interface RunMetrics {
    * counts the ones that ran a `task` command, the hand-off calls.
    */
   refusals: { all: number; task: number };
-  /** `task new` commands the run's own agent ran. */
+  /** `instrument task new` commands the run's own agent ran. */
   taskCommands: { new: number };
   /** Tasks the run started, however deep. */
   tasksCreated: number;
@@ -1152,7 +1152,7 @@ export async function runEvals(
         if (stoppedBy || outcome === "timeout") {
           break;
         }
-        // A slow model can still be writing `task new` when `afterMs` has
+        // A slow model can still be writing `instrument task new` when `afterMs` has
         // passed since the message that asked for it.
         const taskToStop =
           "stopTask" in followUp
@@ -1619,7 +1619,7 @@ async function metricsFor(
         if (part.type === "tool-bash" && part.input?.command) {
           const command: string = part.input.command;
           taskCommands.new += [
-            ...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g),
+            ...command.matchAll(/(?:^|[\n;&|])\s*instrument task new\b/g),
           ].length;
         }
       }
@@ -1644,7 +1644,9 @@ async function metricsFor(
           if (REFUSED.test(said)) {
             refusals.all += 1;
             if (
-              /(?:^|[\n;&|(])\s*task\s+[a-z]/.test(part.input?.command ?? "")
+              /(?:^|[\n;&|(])\s*instrument\s+task\s+[a-z]/.test(
+                part.input?.command ?? "",
+              )
             ) {
               refusals.task += 1;
             }

@@ -55,7 +55,7 @@ async function appWithStdin(stdin: string | undefined, ...args: string[]) {
   );
 }
 
-/** The app `app new` just wrote, as everything that reads one reads it. */
+/** The app `instrument app new` just wrote, as everything that reads one reads it. */
 async function appOf(slug: string) {
   const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
   return loaded._unsafeUnwrap();
@@ -159,7 +159,7 @@ describe("app new --mac-app", () => {
 });
 
 describe("app test and the guide skeleton", () => {
-  // `app new` writes the guide as a form, and the check that gated connecting
+  // `instrument app new` writes the guide as a form, and the check that gated connecting
   // only asked whether the file was non-empty, so the form passed. The cost
   // landed one turn later: the first request in a task is answered with the
   // guide, and an unanswered one teaches the agent nothing about the service.
@@ -271,7 +271,7 @@ describe("app test and the guide skeleton", () => {
     );
 
     expect(await guideOf("unknown-mcp")).toMatchInlineSnapshot(`
-      "Reached through its MCP server at https://mcp.unknown.invalid/mcp: \`app tools <slug>\` lists what it can do, \`app call <slug> <tool> '<json>'\` runs one.
+      "Reached through its MCP server at https://mcp.unknown.invalid/mcp: \`instrument app tools <slug>\` lists what it can do, \`instrument app call <slug> <tool> '<json>'\` runs one.
       "
     `);
 
@@ -358,7 +358,7 @@ describe("app new with a key already stored", () => {
     const result = await newApiApp("stored-key", "--auth", "basic", "--force");
 
     expect(result.stdout).toContain(
-      "A key for this app is already stored for https://api.wakatime.com: run `app test stored-key`",
+      "A key for this app is already stored for https://api.wakatime.com: run `instrument app test stored-key`",
     );
     expect(result.stdout).not.toContain(
       "Ask the user for the key with connect_app",
@@ -517,7 +517,7 @@ describe("app new --web", () => {
     const result = await app("call", "zoom-call", "list_meetings");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`app\` call reaches it. Work it in a tab: open https://zoom.us, where the sign-in holds, or use a tab already open there.
+      "instrument app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`instrument app\` call reaches it. Work it in a tab: open https://zoom.us, where the sign-in holds, or use a tab already open there.
       "
     `);
   });

@@ -2,7 +2,7 @@
  * Does the agent the user talks to answer in proportion to the ask?
  *
  * The chat is one agent: it does quick work itself and forks what is slow
- * (`task new`), and either way the user reads one conversation. Whether it
+ * (`instrument task new`), and either way the user reads one conversation. Whether it
  * answers in a line, puts a result where the user said, and keeps one job
  * one job when the user changes it midway is a property of a prompt and a
  * model rather than of code, so none of it can be read off the source, and
@@ -84,7 +84,7 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
  * word. Anchored the way the turn-ending rule anchors it, so both agree on
  * what a fork is.
  */
-const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/g;
+const STARTS_A_TASK = /(?:^|[\n;&|])\s*instrument task new\b/g;
 
 // Counted per start rather than per command: a conversation that forks
 // three tasks in one call, one heredoc after another, started three.
@@ -169,10 +169,13 @@ function startedAtMost(count: number): Assertion {
       const started = taskNewCount(sessions);
       const commands = bashCommands(sessions);
       return started <= count
-        ? pass(text, `${started} \`task new\` in ${commands.length} commands`)
+        ? pass(
+            text,
+            `${started} \`instrument task new\` in ${commands.length} commands`,
+          )
         : fail(
             text,
-            `${started} \`task new\`: ${commands
+            `${started} \`instrument task new\`: ${commands
               .map((command) => command.split("\n")[0])
               .join(" | ")}`,
           );

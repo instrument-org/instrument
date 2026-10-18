@@ -169,7 +169,7 @@ describe("task stop, for what a task left running", () => {
     const result = await runStop([CHILD_ID, "--all"], context);
 
     expect(shown(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped <id>. Its turn ended where it was; \`task send\` gives it the next thing to do.
+      "Stopped <id>. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.
       Stopped bg_N \`node work/server.js\` (1 second).
       "
     `);
@@ -194,8 +194,8 @@ describe("task stop, for what a task left running", () => {
     const result = await runStop([CHILD_ID], context);
 
     expect(shown(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped <id>. Its turn ended where it was; \`task send\` gives it the next thing to do.
-      It left running in the background: bg_N \`node work/server.js\` (1 second). \`task stop <id> <bg id>\` stops one, \`task stop <id> --all\` every one.
+      "Stopped <id>. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.
+      It left running in the background: bg_N \`node work/server.js\` (1 second). \`instrument task stop <id> <bg id>\` stops one, \`instrument task stop <id> --all\` every one.
       "
     `);
     expect(stillRunning()).toEqual([server.id]);
@@ -210,7 +210,7 @@ describe("task stop, for what a task left running", () => {
 
     expect(shown(result.stdout)).toMatchInlineSnapshot(`
       "<id> is not running.
-      It left running in the background: bg_N \`node work/server.js\` (1 second). \`task stop <id> <bg id>\` stops one, \`task stop <id> --all\` every one.
+      It left running in the background: bg_N \`node work/server.js\` (1 second). \`instrument task stop <id> <bg id>\` stops one, \`instrument task stop <id> --all\` every one.
       "
     `);
     expect(stillRunning()).toEqual([server.id]);
@@ -251,7 +251,7 @@ describe("task stop, for what a task left running", () => {
     const server = leave("node work/server.js");
     const here = { ...context, chatId: await chatFor() };
     await expect(runStop([CHILD_ID, "--all"], here)).rejects.toThrow(
-      `no task "${CHILD_ID}" of yours. See \`task list\`.`,
+      `no task "${CHILD_ID}" of yours. See \`instrument task list\`.`,
     );
     await expect(runLog([CHILD_ID], here)).rejects.toThrow(
       `no task "${CHILD_ID}" of yours.`,
@@ -265,10 +265,10 @@ describe("task stop, for what a task left running", () => {
   // miss cost a turn and two more minutes of the process it meant to stop.
   it("offers the nearest of its own tasks for a mistyped name", async () => {
     await expect(runStop(["find the vaults"], context)).rejects.toThrow(
-      'no task "find the vaults" of yours. Did you mean t1 ("Find the vault")? See `task list`.',
+      'no task "find the vaults" of yours. Did you mean t1 ("Find the vault")? See `instrument task list`.',
     );
     await expect(runStop(["draft-a-brief"], context)).rejects.toThrow(
-      'no task "draft-a-brief" of yours. See `task list`.',
+      'no task "draft-a-brief" of yours. See `instrument task list`.',
     );
   });
 

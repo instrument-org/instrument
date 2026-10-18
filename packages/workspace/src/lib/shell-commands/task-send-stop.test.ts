@@ -234,7 +234,7 @@ describe("task stop", () => {
     };
     const result = await runStop(["t1"], context);
     expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
-      "Stopped <id>. Its turn ended where it was; \`task send\` gives it the next thing to do.
+      "Stopped <id>. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.
       "
     `);
     expect(sent.events).toEqual([
@@ -256,7 +256,7 @@ describe("task stop", () => {
       remainingYieldMs: () => 700,
     });
     expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
-      "Told <id> to stop, and it is still ending; \`task list\` will say when it has.
+      "Told <id> to stop, and it is still ending; \`instrument task list\` will say when it has.
       "
     `);
   });
@@ -316,7 +316,7 @@ describe("task stop", () => {
     );
     const result = await runStop(["t1"], context);
     expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
-      "Stopped <id>, which was waiting on the person's answer to a card; an answer no longer wakes it. \`task send\` gives it the next thing to do.
+      "Stopped <id>, which was waiting on the person's answer to a card; an answer no longer wakes it. \`instrument task send\` gives it the next thing to do.
       "
     `);
     expect(await openAsks(CHAT_ID)).toEqual([]);

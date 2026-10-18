@@ -8,7 +8,7 @@ import { ownFolder, readOwnFile, writeOwnFile } from "../own-file";
  * An app's own icon: a file in its folder, drawn in place of its Mac app's
  * icon and its site's. The agent authors it (a mark drawn for a service whose
  * site has none worth showing, a local server with no Mac app, or one the
- * user asked for) and `app icon` puts it there after checking it draws well.
+ * user asked for) and `instrument app icon` puts it there after checking it draws well.
  * SVG first, since it is sharp at every size.
  */
 const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;

@@ -41,7 +41,7 @@ describe("memoryModelNote", () => {
       - roofer: Your roofer is Dale at Summit Roofing.
       From no chat, 18 days ago:
       - address: Your address is 1420 Alder St, Portland.
-      Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`memory save\` under the same name corrects it.
+      Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`instrument memory save\` under the same name corrects it.
       </instrument-system-note>"
     `);
   });
@@ -89,7 +89,7 @@ describe("memoryModelNote", () => {
         tells: "whole",
       }),
     ).toContain(
-      "(71):\nFrom no chat, 0 seconds ago:\n- one: One.\n...and 70 more; `memory list` names them all.",
+      "(71):\nFrom no chat, 0 seconds ago:\n- one: One.\n...and 70 more; `instrument memory list` names them all.",
     );
   });
 
@@ -117,7 +117,7 @@ describe("memoryModelNote", () => {
       From "Roofer call", 2 minutes ago:
       - roofer: Your roofer is Dale at Summit Roofing.
       Forgotten: old-roofer.
-      Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`memory save\` under the same name corrects it.
+      Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`instrument memory save\` under the same name corrects it.
       </instrument-system-note>"
     `);
   });
@@ -136,7 +136,7 @@ describe("memoryModelNote", () => {
       <instrument-system-note>
       Memory changed since you were last told.
       Forgotten: old-roofer, stevia.
-      Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`memory save\` under the same name corrects it.
+      Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`instrument memory save\` under the same name corrects it.
       </instrument-system-note>"
     `);
   });

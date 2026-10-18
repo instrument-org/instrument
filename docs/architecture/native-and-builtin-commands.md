@@ -7,11 +7,13 @@ Which commands in the agent's shell run as real programs and which run as just-b
 `create-bash-env.ts` builds the shell. A command name resolves in this order:
 
 1. **The shell's own builtins and keywords** (`cd`, `export`, `printf`, `test`, `[[`, functions the script defines). Nothing shadows these.
-2. **Our custom commands**, registered after just-bash's bundled commands so each shadows the bundled command of the same name: the GNU text commands below, `rg`, `du`, `git`, the interpreters, the Mac helpers, `which`, `jobs`/`fg`/`kill`, and a chat's `task`, `chat`, `memory`, `tab` and `app`.
+2. **Our custom commands**, registered after just-bash's bundled commands so each shadows the bundled command of the same name: the GNU text commands below, `rg`, `du`, `git`, the interpreters, the Mac helpers, `which`, `jobs`/`fg`/`kill`, and `instrument`, whose subcommands are Instrument's own: `app` in every shell, and a chat's `task`, `chat`, `memory` and `tab`.
 3. **just-bash's bundled commands** (`cat`, `ls`, `sed`, `awk`, `jq`, `curl`, ...), less `which`, which ours replaces.
 4. **Any program on the computer's PATH**, through the `resolveExternalCommand` hook our just-bash patch adds (`shell-commands/path-program.ts`): the first regular file this user may execute, or on Windows the name with each PATHEXT extension. A name with a `/` runs natively when it names a `#!` script or a Mach-O, ELF or PE binary.
 
 A name found nowhere is `command not found`, status 127. `command -v`, `type` and our `which` answer from the same lookup, naming a native command by the program it runs.
+
+Since step 4 reaches every program on the PATH, a name in step 2 hides the real program by that name. Commands about Instrument itself rather than a tool are therefore words under one `instrument` command (`shell-commands/instrument.ts`): a bare `chat` or `task` at the top level would hide `/usr/sbin/chat` or a Taskwarrior install. Wrappers of real tools keep the tool's own name, since hiding the real one is what they are for.
 
 ## Preference order
 

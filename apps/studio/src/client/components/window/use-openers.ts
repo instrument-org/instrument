@@ -461,7 +461,7 @@ export function useOpeners({
         const text = await browser?.readPageText(tab.id);
         return text === undefined
           ? {
-              error: `tab ${tab.id} has no page loaded to read; \`tab show ${tab.id}\` loads it.`,
+              error: `tab ${tab.id} has no page loaded to read; \`instrument tab show ${tab.id}\` loads it.`,
             }
           : { tabId: tab.id, text };
       }

@@ -973,7 +973,7 @@ describe("listChats", () => {
       const sessionId = await session(chatId, "Groceries", 1);
       await userSays(chatId, sessionId, "make me a grocery list", 1);
       await agentSays(chatId, sessionId, "A task is on it.", {
-        commands: ["task new 'Count the lines'"],
+        commands: ["instrument task new 'Count the lines'"],
         minute: 2,
       });
       await noteSays(sessionId, 3, (metadata) => ({
@@ -1165,8 +1165,8 @@ describe("listChats", () => {
       "Here it is.\n\n```files\n/Users/sam/Instrument/groceries/list.md\n```",
       {
         commands: [
-          'app call notion search \'{"query":"groceries"}\'',
-          "tab open https://www.instacart.com/store",
+          'instrument app call notion search \'{"query":"groceries"}\'',
+          "instrument tab open https://www.instacart.com/store",
         ],
         minute: 2,
       },
@@ -1249,7 +1249,7 @@ describe("listChats", () => {
       chatId,
       sessionId,
       "Priced.\n\n```files\n/Users/sam/Instrument/groceries/prices.csv\n```",
-      { commands: ["tab open https://www.costco.com/"], minute: 2 },
+      { commands: ["instrument tab open https://www.costco.com/"], minute: 2 },
     );
     await userSays(
       chatId,

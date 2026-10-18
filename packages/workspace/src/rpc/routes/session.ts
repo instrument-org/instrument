@@ -137,7 +137,7 @@ const stop = base
         ? input.sessionId
         : undefined;
     // A task the person stops ends what it runs in the background too, as
-    // the agent's `task stop --all` does. A job handed to the task is the
+    // the agent's `instrument task stop --all` does. A job handed to the task is the
     // task's, so this reaches it. A process can take seconds to go, so the
     // turn is not kept waiting on it; the note the stop leaves the chat waits
     // instead (`wake.ts`), so it names nothing as still running.

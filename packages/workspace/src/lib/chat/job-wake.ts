@@ -51,7 +51,7 @@ const stopped = new Set<StoreId.Session>();
  * Only a session at rest is woken. One with a turn running hears of it
  * through `fg` and `jobs` as it works, and what it never read by the end of
  * that turn wakes it once the turn is over. A stop somebody asked for (the
- * agent's own `kill`, the user's, the conversation's `task stop`, the app's
+ * agent's own `kill`, the user's, the conversation's `instrument task stop`, the app's
  * quit) is never news, and each process is reported once: the wake marks it
  * told before it is sent, so the turn it starts cannot start another.
  */

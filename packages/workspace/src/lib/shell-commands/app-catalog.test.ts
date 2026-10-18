@@ -79,7 +79,7 @@ describe("app catalog", () => {
   it("names the MCP server as the way in when a service has one", async () => {
     const text = await catalog("linear");
     expect(text).toContain(
-      "set up: app new linear --name 'Linear' --mcp https://mcp.linear.app/mcp",
+      "set up: instrument app new linear --name 'Linear' --mcp https://mcp.linear.app/mcp",
     );
   });
 
@@ -90,7 +90,7 @@ describe("app catalog", () => {
   it("sets a keyed API up at its own base", async () => {
     const text = await catalog("github");
     expect(text).toContain(
-      "set up: app new github --name 'GitHub' --api https://api.github.com --auth bearer --test",
+      "set up: instrument app new github --name 'GitHub' --api https://api.github.com --auth bearer --test",
     );
     expect(text).not.toContain("<base-url>");
   });
@@ -102,7 +102,7 @@ describe("app catalog", () => {
   it("carries a keyed API's own auth placement into the set-up line", async () => {
     const text = await catalog("wakatime");
     expect(text).toContain(
-      "set up: app new wakatime --name 'WakaTime' --api https://api.wakatime.com/api/v1 --auth basic --test",
+      "set up: instrument app new wakatime --name 'WakaTime' --api https://api.wakatime.com/api/v1 --auth basic --test",
     );
   });
 
@@ -112,7 +112,7 @@ describe("app catalog", () => {
   it("puts --auth none on a keyless MCP server's line", async () => {
     const text = await catalog("figma");
     expect(text).toContain(
-      "set up: app new figma --name 'Figma' --mcp http://127.0.0.1:3845/mcp --auth none",
+      "set up: instrument app new figma --name 'Figma' --mcp http://127.0.0.1:3845/mcp --auth none",
     );
   });
 
@@ -121,9 +121,9 @@ describe("app catalog", () => {
   it.each([
     [
       "google-drive",
-      "app new google-drive --name 'Google Drive' --web https://drive.google.com",
+      "instrument app new google-drive --name 'Google Drive' --web https://drive.google.com",
     ],
-    ["zoom", "app new zoom --name 'Zoom' --web https://zoom.us"],
+    ["zoom", "instrument app new zoom --name 'Zoom' --web https://zoom.us"],
   ])(
     "sets %s up as a web app when every way in needs a client the card cannot make",
     async (slug, line) => {
@@ -191,7 +191,7 @@ describe("app catalog", () => {
   it("reaches Gmail through Mail until its sign-in client clears", async () => {
     const text = await catalogOnMac("gmail");
     expect(text).toContain(
-      "set up: nothing to connect, and no `app new`: when the user asks for something in Mail",
+      "set up: nothing to connect, and no `instrument app new`: when the user asks for something in Mail",
     );
     expect(text).toContain("only when its account is added to Mail");
   });

@@ -251,7 +251,7 @@ export async function newMessage({
   // later.
   //
   // Only where a person is the one who went quiet. A task's messages come from
-  // the chat by way of `task send`, so the same gap there measures how
+  // the chat by way of `instrument task send`, so the same gap there measures how
   // long the app took to say something back, which is neither the task's to
   // reason about nor what its instructions tell it to do with the answer.
   if (isChat) {

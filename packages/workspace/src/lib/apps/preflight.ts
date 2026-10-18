@@ -1,6 +1,6 @@
 /**
  * What can be learned about a way in before the user is asked to use it, so
- * `app new` refuses a set-up that cannot work instead of handing the user a
+ * `instrument app new` refuses a set-up that cannot work instead of handing the user a
  * card that fails on the first press. Each check answers "unknown" when the
  * network or the server does not say, and only a clear "no" refuses: a
  * check that cannot reach a server is no evidence against it.

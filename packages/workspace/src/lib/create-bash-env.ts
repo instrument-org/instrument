@@ -38,6 +38,8 @@ import {
   type SessionCommandContext,
 } from "./shell-commands/background-jobs";
 import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
+import { createInstrumentCommand } from "./shell-commands/instrument";
+import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
@@ -755,15 +757,22 @@ function folderVariables(
  */
 const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
   AGENT_BROWSER_COMMAND.name,
-  APP_COMMAND.name,
-  CHAT_COMMAND.name,
   FG_COMMAND.name,
+  INSTRUMENT_COMMAND.name,
   JOBS_COMMAND.name,
   KILL_COMMAND.name,
-  MEMORY_COMMAND.name,
-  TAB_COMMAND.name,
-  TASK_COMMAND.name,
 ]);
+
+/**
+ * What a task's `instrument` says of the chat's own subcommands: the task
+ * reports to the chat, which has them.
+ */
+const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
+  [CHAT_COMMAND, MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
+    command.word,
+    "only the chat has this. Say in your report what the chat should do with it.",
+  ]),
+);
 
 /**
  * The agent's shell: in the bash worker when the host set one up (see
@@ -816,30 +825,45 @@ export async function createLocalBashEnv({
     ...getNetworkCommandNames(),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  // What sets the chat's shell apart from a task's: it gets `task`, `chat`,
-  // `memory` and `tab` beside the native hatches every shell has. Putting a
-  // thing on the user's screen is the chat's `tab`: a task's reply is read
-  // by the chat, and a pane of the task's own has nobody looking.
+  // What sets the chat's shell apart from a task's: its `instrument` has
+  // `task`, `chat`, `memory` and `tab` beside the `app` every shell has.
+  // Putting a thing on the user's screen is the chat's `tab`: a task's reply
+  // is read by the chat, and a pane of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
     cmd.factory({ chatId, invokeTool, layout }),
   );
-  const specializedCommands = [
-    ...(role === "chat"
-      ? [
-          createTaskCommand({
-            callPartId,
-            chatId,
-            remainingYieldMs,
-            sessionId,
-          }),
-          createChatCommand(),
-          createMemoryCommand({ chatId, sessionId }),
-          createTabCommand({ chatId, layout }),
-        ]
-      : []),
-    createAppCommand({ chatId }),
-    ...nativeCommands,
-  ];
+  const instrumentCommand = createInstrumentCommand({
+    missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
+    subcommands: [
+      { ...APP_COMMAND, command: createAppCommand({ chatId }) },
+      ...(role === "chat"
+        ? [
+            {
+              ...CHAT_COMMAND,
+              command: createChatCommand(),
+            },
+            {
+              ...MEMORY_COMMAND,
+              command: createMemoryCommand({ chatId, sessionId }),
+            },
+            {
+              ...TAB_COMMAND,
+              command: createTabCommand({ chatId, layout }),
+            },
+            {
+              ...TASK_COMMAND,
+              command: createTaskCommand({
+                callPartId,
+                chatId,
+                remainingYieldMs,
+                sessionId,
+              }),
+            },
+          ]
+        : []),
+    ],
+  });
+  const specializedCommands = [instrumentCommand, ...nativeCommands];
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [

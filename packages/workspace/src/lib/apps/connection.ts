@@ -67,7 +67,7 @@ export function describeConnection(
   manifestHash: string,
 ): string {
   if (!connection) {
-    return "not connected (run `app test`)";
+    return "not connected (run `instrument app test`)";
   }
   switch (connection.status) {
     case "connected": {
@@ -78,7 +78,7 @@ export function describeConnection(
           : `, ${connection.toolCount} tools`;
       return connection.manifestHash === manifestHash
         ? `connected${who}${tools}`
-        : "connected, but the manifest changed since it was tested (run `app test`)";
+        : "connected, but the manifest changed since it was tested (run `instrument app test`)";
     }
     case "declined": {
       return "declined by the user; ask again only if they bring it up";

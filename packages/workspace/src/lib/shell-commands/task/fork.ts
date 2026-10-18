@@ -44,7 +44,7 @@ const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... [
 `;
 
 /**
- * `task new`: starts a task, which is always a fork of the chat. No flag
+ * `instrument task new`: starts a task, which is always a fork of the chat. No flag
  * hands it folders, files or apps, since it reaches exactly the chat's.
  */
 export const newSubcommand = subcommand<TaskCommandContext>({
@@ -132,7 +132,7 @@ function handedJobs(args: string[], sessionId: StoreId.Session): string[] {
 
 /**
  * The last of the chat's messages a task carries on from: the one before the
- * step whose call (`callPartId`, the `bash` part `task new` runs in) starts
+ * step whose call (`callPartId`, the `bash` part `instrument task new` runs in) starts
  * it, which is the last message the request that wrote that call was sent.
  * The task's first request then sends that same prefix, which the provider
  * has cached, and nothing of the step still under way, whose calls have no

@@ -69,7 +69,7 @@ export namespace Session {
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     /**
      * Who ended a task's last turn with a stop: the user, from the task or
-     * the chat's Stop, the chat's agent with `task stop`, or the app, which
+     * the chat's Stop, the chat's agent with `instrument task stop`, or the app, which
      * quit while the task worked. Absent when the turn ended on its own, and
      * on the chat's own session.
      */

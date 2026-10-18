@@ -133,7 +133,7 @@ function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`tab open <url>\` opens one.
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`instrument tab open <url>\` opens one.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -241,7 +241,7 @@ function taskNote(data: ViewContext) {
         : "which is working now"
       : "which has finished";
   return systemNote`
-    When the user sent this, the Tasks screen showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`task send ${task.id}\`, stop it with \`task stop ${task.id}\`, read it with \`task log ${task.id}\`.
+    When the user sent this, the Tasks screen showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`instrument task send ${task.id}\`, stop it with \`instrument task stop ${task.id}\`, read it with \`instrument task log ${task.id}\`.
   `;
 }
 

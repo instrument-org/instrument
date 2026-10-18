@@ -3,13 +3,13 @@
  *
  * The conversation acts on the window's tabs with `tab` (open, replace, close,
  * show), browses pages of its own with `agent-browser`, and hands a tab the
- * user has open to a fork with `task new --tab`. `tab open` is for showing the
+ * user has open to a fork with `instrument task new --tab`. `instrument tab open` is for showing the
  * user something and never a step in starting work. Every case here starts from a note
  * naming the tabs the user has open, answered by the harness's stand-in
  * window, and scores the commands the conversation ran.
  *
  * - **A new page is the browser's to open.** The failure that prompted this: a
- *   conversation ran `open` and `task new` in one command, told the task the
+ *   conversation ran `open` and `instrument task new` in one command, told the task the
  *   tab id would come from `open`, and passed no `--tab`, so the task had
  *   nothing and stopped.
  * - **A page on screen is handed over, not opened again.**
@@ -52,15 +52,15 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
 
 /** The `tab <verb>` invocations in a command, each with its arguments. */
 function tabCalls(command: string): { args: string[]; verb: string }[] {
-  return [...command.matchAll(/(?:^|[\n;&|])\s*tab\s+(\w+)([^\n;&|]*)/g)].map(
-    (match) => ({
-      args: (match[2] ?? "").trim().split(/\s+/).filter(Boolean),
-      verb: match[1] ?? "",
-    }),
-  );
+  return [
+    ...command.matchAll(/(?:^|[\n;&|])\s*instrument\s+tab\s+(\w+)([^\n;&|]*)/g),
+  ].map((match) => ({
+    args: (match[2] ?? "").trim().split(/\s+/).filter(Boolean),
+    verb: match[1] ?? "",
+  }));
 }
 
-const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/;
+const STARTS_A_TASK = /(?:^|[\n;&|])\s*instrument task new\b/;
 
 /** The work was browsed: by the chat in a page of its own, or by a fork. */
 const browsedOrForked: Assertion = {
@@ -180,7 +180,7 @@ function pointedAtPage(tabId: string, url: string): Assertion {
       return {
         evidence:
           shown.length > 0
-            ? `tab show ${tabId}`
+            ? `instrument tab show ${tabId}`
             : linked
               ? `linked ${url}`
               : said.slice(-600) || "no reply",

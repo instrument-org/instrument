@@ -1,6 +1,6 @@
 /**
  * The app directory's order, grouping, and search, shared so the agent's
- * `app catalog` and the Apps page find and rank services the same way.
+ * `instrument app catalog` and the Apps page find and rank services the same way.
  */
 
 /** The directory's categories, in the order the Apps page lists them. */

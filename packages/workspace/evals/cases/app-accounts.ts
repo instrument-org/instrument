@@ -5,7 +5,7 @@
  * second app of the same service. What the user should end up with is two
  * apps both called Gmail, told apart by the account each is signed in as,
  * and a sign-in card that opens Google's page for adding an account rather
- * than the inbox already signed in. `app new` enforces the name and picks
+ * than the inbox already signed in. `instrument app new` enforces the name and picks
  * the sign-in page; what is scored is that the conversation reaches it: a
  * new app of its own beside the first, and a card asking to sign it in.
  */
@@ -43,7 +43,7 @@ function connectedSlugs(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
-const NEW_APP = /(?:^|[\n;&|])\s*app new ([a-z0-9-]+)/;
+const NEW_APP = /(?:^|[\n;&|])\s*instrument app new ([a-z0-9-]+)/;
 
 /** A new app beside the first, set up as another account of Gmail. */
 const setUpAnotherAccount: Assertion = {

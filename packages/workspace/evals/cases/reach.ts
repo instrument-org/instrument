@@ -60,7 +60,7 @@ function chooseQuestions(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
-const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/;
+const STARTS_A_TASK = /(?:^|[\n;&|])\s*instrument task new\b/;
 
 /** `command` run as a command: first in the script, or after a separator. */
 function runs(command: string): RegExp {
@@ -103,7 +103,7 @@ const connectedNothingUnasked: Assertion = {
       ),
     );
     const appNew = bashCommands(sessions).filter((command) =>
-      /(?:^|[\n;&|])\s*app new\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument app new\b/.test(command),
     );
     return result(
       text,

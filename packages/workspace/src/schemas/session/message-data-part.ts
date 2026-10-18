@@ -558,7 +558,7 @@ export namespace SessionMessageDataPart {
 
   /**
    * Words the chat's agent wrote to one of its tasks, rather than the user's:
-   * the assignment a fork starts on (`assignment`), and what `task send`
+   * the assignment a fork starts on (`assignment`), and what `instrument task send`
    * passes on later (`message`). Written on a user message with no text, so
    * the record says who spoke, and the transcript can draw it as one agent
    * writing to another. The model reads it as the text it carries, with the
@@ -877,7 +877,7 @@ export namespace SessionMessageDataPart {
    * each one's title, topics, latest line, and when it last moved, on the
    * root message of a chat an earlier build opened. Nothing writes it and
    * the model is not shown it; the agent searches and reads earlier chats
-   * with `chat search` and `chat read` when the user refers to earlier work.
+   * with `instrument chat search` and `instrument chat read` when the user refers to earlier work.
    * Kept so those stored messages still parse, and shown only on the
    * developer view of the transcript.
    */

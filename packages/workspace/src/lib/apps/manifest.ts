@@ -127,7 +127,7 @@ function isAllowedBaseUrl(value: string): boolean {
   return url.protocol === "http:" && isLoopbackHost(url.hostname);
 }
 
-// An "api" app: authenticated HTTP requests through `app request`.
+// An "api" app: authenticated HTTP requests through `instrument app request`.
 /**
  * Which account of the service this app is signed in as, in the user's
  * words or the agent's ("jeremy@pileofturtles.com", "Acme workspace"), so
@@ -172,7 +172,7 @@ const ApiAppManifestSchema = z.strictObject({
 export type ApiAppManifest = z.output<typeof ApiAppManifestSchema>;
 
 // An "mcp" app: tools discovered and called on a hosted MCP server
-// (Streamable HTTP) through `app tools` and `app call`.
+// (Streamable HTTP) through `instrument app tools` and `instrument app call`.
 const McpAppManifestSchema = z.strictObject({
   account: AccountSchema,
   auth: McpAuthSchema,

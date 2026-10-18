@@ -15,8 +15,8 @@ import { createBashEnv } from "./create-bash-env";
  * shell's defense layer swaps `process.env` for a proxy, and unpatched,
  * assigning a variable that already exists from code outside the script
  * throws "'process.env' only accepts a configurable, writable, and enumerable
- * data descriptor". In the app the main-thread commands (`task`, `app`,
- * `chat`, `memory`, `tab`, `agent-browser`, `jobs`, `fg`, `kill`) run here,
+ * data descriptor". In the app the main-thread commands (`instrument`,
+ * `agent-browser`, `jobs`, `fg`, `kill`) run here,
  * and the Agent SDK stamps its version into the environment on every
  * `query()`, so every Claude Code start in that window failed.
  */

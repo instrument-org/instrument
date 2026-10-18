@@ -172,7 +172,7 @@ Module._extensions[".js"] = function (module, filename) {
  * handle does not reach a program MXC holds. The port and the token that
  * opens it come in `INSTRUMENT_TOOLS`, which the preload takes out of the
  * environment before the script runs, so a process the script starts gets
- * neither; a program that read it anyway could call what `app call` can.
+ * neither; a program that read it anyway could call what `instrument app call` can.
  *
  * It keeps out of the way of the script's own code: it defines nothing when
  * there is no channel or when `tools` already exists, the global is
@@ -300,7 +300,7 @@ const TOKEN_LINE_LIMIT = 256;
 /**
  * Where one `node` process calls tools: a listener on 127.0.0.1 that takes
  * a connection only once its first line is the token, then answers each
- * call line with `answer`. The token opens exactly what `app call` opens:
+ * call line with `answer`. The token opens exactly what `instrument app call` opens:
  * every call goes through the same `answer` the command was given.
  */
 export interface ToolsChannel {

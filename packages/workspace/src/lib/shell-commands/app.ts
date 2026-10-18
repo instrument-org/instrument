@@ -237,7 +237,7 @@ const runApp = defineSubcommands<AppCommandContext>({
       run: ({ positional }, _context, { signal }) =>
         runTest(positional, signal),
     }),
-    // `app tools linear save_comment` is how the singular gets reached for,
+    // `instrument app tools linear save_comment` is how the singular gets reached for,
     // so the two mean the same thing.
     tool: subcommand({
       positional: 2,
@@ -1160,7 +1160,7 @@ async function runTools(
     );
   }
   // A line each: a big app lists dozens, and the schemas would make the
-  // listing longer than a turn should read. `app tool` has the whole of one.
+  // listing longer than a turn should read. `instrument app tool` has the whole of one.
   const lines = result.value.map(
     (tool) => `- ${tool.name}: ${firstSentence(redact(tool.description))}`,
   );

@@ -108,7 +108,7 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
  * Who stopped a task's working turn, and whether the chat hears of it.
- * The chat's own `task stop` is a step it took, and the user's Stop on the
+ * The chat's own `instrument task stop` is a step it took, and the user's Stop on the
  * whole chat stops the chat too, so the chat hears of neither. The user
  * stopping one task while the chat carries on is written into the chat as a
  * note, so its agent knows the task did not finish and leaves it stopped,
@@ -512,7 +512,7 @@ async function onSessionDone(
   const said = await lastAssistantText(ref);
   // A turn with no words ended on a stop, the step limit, or a model error,
   // and the note has to say which: the chat continues one of those
-  // with `task send`, and leaves one the user stopped alone.
+  // with `instrument task send`, and leaves one the user stopped alone.
   const ending = said === undefined ? await endedWithoutWords(ref) : undefined;
   // What the task cannot go on without, read the same way and listed apart
   // from its words, so a turn that ended blocked reads as waiting rather than
@@ -529,7 +529,7 @@ async function onSessionDone(
   const tabs = await openTabsOf(ref);
   await returnTabsToChat(chatId, sessionId);
   // Its agent-browser daemons, which would otherwise idle out on their own
-  // clock; a later `task send` starts them again.
+  // clock; a later `instrument task send` starts them again.
   void closeAgentBrowserSessionsForSessions([sessionId]).catch(
     getWorkspaceConfig().captureException,
   );
@@ -617,7 +617,7 @@ function cardNeed(card: Ask): string {
  * Says a task that was waiting on a card was stopped, as the end of a turn
  * stopped the same way does: its row keeps who stopped it, and when the
  * person did, its chat gets the note, which starts no turn. The chat's own
- * `task stop` says so in its output instead. Such a task has no turn for the
+ * `instrument task stop` says so in its output instead. Such a task has no turn for the
  * stop to end, so no session's end says it.
  */
 export async function noteTaskStoppedOnCard(

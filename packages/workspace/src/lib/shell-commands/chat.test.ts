@@ -256,7 +256,7 @@ describe("chat tag", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      'chat tag: no topic called "work". The topics: #Home.\n',
+      'instrument chat tag: no topic called "work". The topics: #Home.\n',
     );
   });
 

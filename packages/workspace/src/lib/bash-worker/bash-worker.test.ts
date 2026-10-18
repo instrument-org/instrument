@@ -167,6 +167,18 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     expect(remote.exitCode).toBe(onMain.exitCode);
   });
 
+  it("runs an `instrument` subcommand on the main thread", async () => {
+    const bashOptions = options();
+    const local = await createLocalBashEnv(bashOptions);
+    const command = "instrument app list | head -1; instrument | head -1";
+    const [remote, onMain] = await Promise.all([
+      remoteBash(bashOptions).exec(command),
+      local.exec(command),
+    ]);
+    expect(remote.stdout).toBe(onMain.stdout);
+    expect(remote.stdout).toContain("Usage: instrument <command> ...");
+  });
+
   it("makes a script's tool calls on the main thread", async () => {
     const result = await remoteBash().exec(
       `node --input-type=module -e 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,

@@ -46,7 +46,7 @@ export async function writtenIn(chatId: ChatId) {
 }
 
 /**
- * A task of a chat's, the way `task new` makes one: a session in the chat's
+ * A task of a chat's, the way `instrument task new` makes one: a session in the chat's
  * store started from the chat's own, under the chat's next handle. Carries on
  * from nothing of the chat's unless `forkedAtMessageId` says where. Returns
  * its session.

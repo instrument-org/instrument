@@ -16,7 +16,7 @@ import { getToolByType } from "../tools/all";
 
 /**
  * Why a run was stopped: the user stopped it, the chat stopped one of its
- * tasks with `task stop`, the user wrote again while the conversation was
+ * tasks with `instrument task stop`, the user wrote again while the conversation was
  * still replying, which starts the reply over, or the app is quitting.
  */
 export type StopReason = "chat" | "manual" | "quit" | "superseded";

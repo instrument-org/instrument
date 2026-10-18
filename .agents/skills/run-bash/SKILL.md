@@ -110,8 +110,8 @@ Same environment as the real agent:
 - **FS**: the chat's work folder is the working directory, at its real path under the system temp dir, with what the person sent in the record folder's `attachments/` (`$INSTRUMENT_ATTACHMENTS`); skills are reached at their real directories; `--attach` folders are reached at their own paths; everything else in the shell is a read-only empty root, so a builtin cannot reach the rest of the host filesystem. Native commands (`python`, `node`, `ffmpeg`, any program on the PATH, ...) are spawned under the same rules through Seatbelt on macOS and bubblewrap on Linux (the runner turns `nativeSandbox` on), and unwrapped elsewhere
 - **Network**: full internet access, the local network and loopback included
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
-- **Custom shims**: `python`/`python3` (the nearest `.venv`'s interpreter, or the managed Python's with none near), `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `mail`/`notes`/`messages`, `app`, `jobs`/`fg`/`kill`
-- **Not here**: the commands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `.instrument/apps/` folder; this runner builds a task's shell
+- **Custom shims**: `python`/`python3` (the nearest `.venv`'s interpreter, or the managed Python's with none near), `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `mail`/`notes`/`messages`, `instrument` (with only `app` in a task's shell), `jobs`/`fg`/`kill`
+- **Not here**: the `instrument` subcommands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `.instrument/apps/` folder; this runner builds a task's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing
 

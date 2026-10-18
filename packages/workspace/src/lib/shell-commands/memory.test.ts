@@ -77,7 +77,7 @@ describe("memory", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Nothing remembered yet. memory save <name> keeps something.
+      "Nothing remembered yet. instrument memory save <name> keeps something.
       "
     `);
   });
@@ -97,7 +97,7 @@ describe("memory", () => {
 
     const listed = await run(["list"]);
     expect(listed.stdout).toMatch(
-      /^1 memory, newest first \(memory show <name> for one whole\):\n {2}pacific-time {2}from "Roofer call" · \d{4}-\d{2}-\d{2}\n {4}You are on Pacific time and mornings are best for calls\.\n$/,
+      /^1 memory, newest first \(instrument memory show <name> for one whole\):\n {2}pacific-time {2}from "Roofer call" · \d{4}-\d{2}-\d{2}\n {4}You are on Pacific time and mornings are best for calls\.\n$/,
     );
   });
 
@@ -150,7 +150,7 @@ describe("memory", () => {
     const again = await run(["forget", "answers"]);
     expect(again.exitCode).toBe(1);
     expect(again.stderr).toBe(
-      'memory: no memory named "answers". memory list names them.\n',
+      'instrument memory: no memory named "answers". instrument memory list names them.\n',
     );
   });
 
@@ -158,12 +158,14 @@ describe("memory", () => {
     const badName = await run(["save", "Pacific Time"], "fine");
     expect(badName.exitCode).toBe(1);
     expect(badName.stderr).toMatch(
-      /^memory: save: "Pacific Time" is not a name a memory can have\./,
+      /^instrument memory: save: "Pacific Time" is not a name a memory can have\./,
     );
 
     const noText = await run(["save", "pacific-time"]);
     expect(noText.exitCode).toBe(1);
-    expect(noText.stderr).toMatch(/^memory: save: the memory is required/);
+    expect(noText.stderr).toMatch(
+      /^instrument memory: save: the memory is required/,
+    );
   });
 
   // The memory folder sits inside the workspace, and the workspace inside the
@@ -175,7 +177,7 @@ describe("memory", () => {
     const shown = await run(["show", "../notes"]);
     expect(shown.exitCode).toBe(1);
     expect(shown.stderr).toBe(
-      'memory: no memory named "../notes". memory list names them.\n',
+      'instrument memory: no memory named "../notes". instrument memory list names them.\n',
     );
 
     const forgotten = await run(["forget", "../notes"]);
@@ -189,6 +191,8 @@ describe("memory", () => {
     const result = await run(["remember", "x"]);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/^memory: unknown subcommand "remember"\./);
+    expect(result.stderr).toMatch(
+      /^instrument memory: unknown subcommand "remember"\./,
+    );
   });
 });

@@ -90,7 +90,7 @@ const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
 });
 
 const taskNew = bash(
-  "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
+  "instrument task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
   [
     {
@@ -128,7 +128,7 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant(
             text("Making it now."),
             bash(
-              "task new --name 'cat.md' --folder /Users/sam/Desktop <<'EOF'\nWrite cat.md.\nEOF",
+              "instrument task new --name 'cat.md' --folder /Users/sam/Desktop <<'EOF'\nWrite cat.md.\nEOF",
               'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/Users/sam/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
             ),
           ),
@@ -145,7 +145,7 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant(
             text("Steering it."),
             bash(
-              "task send lisbon-hotel <<'EOF'\nA submarine.\nEOF",
+              "instrument task send lisbon-hotel <<'EOF'\nA submarine.\nEOF",
               "Sent to lisbon-hotel. It is busy and will hear this at its next step.\n",
               [
                 {
@@ -277,7 +277,7 @@ describe("shouldContinueAfterHandingOff", () => {
           user(text("find me a hotel in lisbon")),
           assistant(
             text("On it."),
-            bash("task new", "task: new: a brief is required"),
+            bash("instrument task new", "task: new: a brief is required"),
           ),
         ],
       }),
@@ -328,7 +328,9 @@ describe("instrumentAgent", () => {
     expect(prompt).toContain(
       "A task is you, continuing in the background with this conversation in hand",
     );
-    expect(prompt).toContain("task new --name '<title>' [--tab <id>]");
+    expect(prompt).toContain(
+      "instrument task new --name '<title>' [--tab <id>]",
+    );
     expect(prompt).toContain(
       "this same folder, and the same folders and apps at the same paths",
     );
@@ -373,7 +375,7 @@ describe("instrumentAgent", () => {
   it("keeps the rules the chat and the worker each had", () => {
     for (const kept of [
       "One line, then act, in the same reply",
-      "memory save <name> <<'EOF'",
+      "instrument memory save <name> <<'EOF'",
       "the save and the start go in one command, the save first",
       "name scratch files and folders after the job",
       "Nothing of theirs is deleted or overwritten unless they said so",

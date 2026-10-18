@@ -17,7 +17,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 
 /** How many memories a whole note lists before the rest are counted. */
 const MEMORIES_IN_NOTE = 64;
-/** How much of a memory's first line the note carries; the whole is a `memory show` away. */
+/** How much of a memory's first line the note carries; the whole is an `instrument memory show` away. */
 const HEADLINE_MAX = 240;
 
 /** Each memory the session has been told of, by name, with a digest of what it held. */

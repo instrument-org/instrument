@@ -98,7 +98,7 @@ export type Ask = z.output<typeof AskSchema>;
 // rather than a flat spread.
 export const StoredChatStateSchema = z
   .object({
-    // The apps whose guide this chat has read, so `app request` hands the
+    // The apps whose guide this chat has read, so `instrument app request` hands the
     // guide over once and then gets out of the way.
     appGuidesRead: z.array(z.string()).optional(),
     // What the agent is waiting on the person to answer, oldest first. One

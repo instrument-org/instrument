@@ -55,7 +55,7 @@ export function formatAppTestReport(report: AppTestReport): string {
   );
   const summary = report.passed
     ? `App "${report.slug}" passed every check and is connected.`
-    : `App "${report.slug}" failed. Fix what failed and run \`app test ${report.slug}\` again.`;
+    : `App "${report.slug}" failed. Fix what failed and run \`instrument app test ${report.slug}\` again.`;
   return [summary, "", ...lines].join("\n");
 }
 

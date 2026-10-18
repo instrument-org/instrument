@@ -44,7 +44,7 @@ interface AppLoadError {
 /**
  * Read every app folder under `appsDir`. A folder with no `APP.md` is not an
  * app's and is passed over; one whose `APP.md` names an app this build cannot
- * read is returned separately, so callers (the Apps screen, `app list`) can
+ * read is returned separately, so callers (the Apps screen, `instrument app list`) can
  * say so instead of letting the app disappear.
  *
  * Two folders carrying one `id` is a copy-paste: the first by name is the

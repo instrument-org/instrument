@@ -185,7 +185,9 @@ describe("app call in a pipeline", () => {
       sessionId: StoreId.newSessionId(),
       chatId,
     });
-    const result = await bash.exec(`app call ${slug} json_text | jq 'length'`);
+    const result = await bash.exec(
+      `instrument app call ${slug} json_text | jq 'length'`,
+    );
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("3\n");
   });
@@ -231,7 +233,7 @@ ${use}`,
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`
       "tools.tracker.broken: project is required
-      The tool refused the call. If the arguments were the problem, \`app tool tracker broken\` shows the JSON it takes.
+      The tool refused the call. If the arguments were the problem, \`instrument app tool tracker broken\` shows the JSON it takes.
       "
     `);
   });

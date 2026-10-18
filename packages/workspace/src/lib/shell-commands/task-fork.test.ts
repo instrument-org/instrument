@@ -98,7 +98,7 @@ beforeEach(async () => {
   );
   chatMessages = conversation(chatSessionId);
   context = {
-    // The `bash` part `task new` runs in: the last call of the reply in
+    // The `bash` part `instrument task new` runs in: the last call of the reply in
     // flight.
     callPartId: callOf(chatMessages).metadata.id,
     chatId,
@@ -139,7 +139,7 @@ afterEach(async () => {
 
 /**
  * A chat mid-turn: its baseline, the user's ask, a finished command, and the
- * reply in flight whose last call is the `task new` itself, still unanswered.
+ * reply in flight whose last call is the `instrument task new` itself, still unanswered.
  */
 function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   const createdAt = new Date("2026-10-06T10:00:00.000Z");
@@ -232,7 +232,7 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
         },
         {
           input: {
-            command: "task new --name 'Rename photos'",
+            command: "instrument task new --name 'Rename photos'",
             explanation: "Forking",
             yieldMs: 1000,
           },
@@ -247,7 +247,7 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   ];
 }
 
-/** The `task new` call of the reply in flight at the conversation's end. */
+/** The `instrument task new` call of the reply in flight at the conversation's end. */
 function callOf(messages: SessionMessage.WithParts[]) {
   const call = messages.at(-1)?.parts.find((part) => part.type === "tool-bash");
   if (!call) {
@@ -307,7 +307,7 @@ describe("task new", () => {
     const session = (
       await ChatReads.session({ chatId: context.chatId, sessionId: id })
     )._unsafeUnwrap();
-    // The last message the step that called `task new` was sent: the
+    // The last message the step that called `instrument task new` was sent: the
     // finished `ls`, not the reply still in flight.
     expect(session).toMatchObject({
       forkedAtMessageId: chatMessages[2]?.id,
@@ -385,14 +385,14 @@ describe("task new", () => {
           part.type === "tool-bash"
             ? {
                 input: {
-                  command: "task new --name 'Rename photos'",
+                  command: "instrument task new --name 'Rename photos'",
                   explanation: "Forking",
                   yieldMs: 1000,
                 },
                 metadata: { ...part.metadata, endedAt: new Date() },
                 output: {
-                  command: "task new --name 'Rename photos'",
-                  commands: ["task new --name 'Rename photos'"],
+                  command: "instrument task new --name 'Rename photos'",
+                  commands: ["instrument task new --name 'Rename photos'"],
                   durationMs: 1000,
                   omittedBytes: 0,
                   output: "",
@@ -502,7 +502,7 @@ describe("task new", () => {
         // Where the cache breakpoints sit moves with the newest message, and
         // is a request option rather than bytes of the prefix.
         .map(({ providerOptions: _options, ...message }) => message);
-    // What the chat sent for the step that called `task new`: everything
+    // What the chat sent for the step that called `instrument task new`: everything
     // before the reply that step wrote.
     const reply = chatMessages.at(-1);
     if (!reply) {

@@ -133,7 +133,7 @@ export interface BackgroundRunHandle {
 /**
  * Who asked a process to stop. The agent reads each differently: its own
  * `kill` is a step it took, the user's stop button is a decision it must not
- * undo by starting the process again, and the conversation's `task stop` is
+ * undo by starting the process again, and the conversation's `instrument task stop` is
  * the chat stepping in on a task's command.
  */
 export type StoppedBy = "agent" | "conversation" | "user";
@@ -272,7 +272,7 @@ const stopsUnderWay = new Map<StoreId.Session, Promise<void>>();
 /**
  * Stops what a session has running in the background, every process or the
  * one named, keeping each record so `jobs` says who stopped it: the chat's
- * agent through `task stop`, or the person stopping a task, which ends what
+ * agent through `instrument task stop`, or the person stopping a task, which ends what
  * the task runs with its turn. A stop somebody asked for wakes nothing.
  * Counted under way from the call, for `processStopsSettled`.
  */
@@ -385,7 +385,7 @@ export async function killChatBackgroundProcesses(
 
 /**
  * Moves processes to another session, for work a chat hands to a task
- * partway (`task new --job`): the task carries the work on, so what the chat
+ * partway (`instrument task new --job`): the task carries the work on, so what the chat
  * left running is the task's to read, wait on and stop, under the same ids.
  * A task works in its chat's folder, so the logs stay where they are.
  */

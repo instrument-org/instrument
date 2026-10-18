@@ -192,7 +192,7 @@ export const CUT_OFF_TOOL_CALL_ERROR_TEXT =
   "This action was cut off before it could run.";
 
 /**
- * What a tool call reads when the user's Stop, or the chat's `task stop` on
+ * What a tool call reads when the user's Stop, or the chat's `instrument task stop` on
  * a task, ended it. Matched by what reads the chat's turn as stopped by the
  * user rather than finished. The person reads it; the model reads words of
  * its own in its place (`SessionMessage.toUIMessages`).

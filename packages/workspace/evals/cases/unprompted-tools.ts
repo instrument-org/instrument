@@ -10,7 +10,7 @@
  * long enough to outlast a quick question asked partway through. This is a
  * measurement, not a target: each case scores the outcome, and `toolsChosen`
  * records which of the tools it used (tasks, the browser, skills, `chat
- * search`/`chat read`, `request_folder`) as evidence without scoring it, so a
+ * search`/`instrument chat read`, `request_folder`) as evidence without scoring it, so a
  * run that does the job without them passes.
  */
 import fs from "node:fs";
@@ -86,15 +86,24 @@ const toolsChosen: Assertion = {
         : [],
     );
     const tally = {
-      "task new": count(commands, /(?:^|[\n;&|])\s*task new\b/g),
-      "task send": count(commands, /(?:^|[\n;&|])\s*task send\b/g),
-      "task stop": count(commands, /(?:^|[\n;&|])\s*task stop\b/g),
-      "task list/log": count(commands, /(?:^|[\n;&|])\s*task (?:list|log)\b/g),
+      "task new": count(commands, /(?:^|[\n;&|])\s*instrument task new\b/g),
+      "task send": count(commands, /(?:^|[\n;&|])\s*instrument task send\b/g),
+      "task stop": count(commands, /(?:^|[\n;&|])\s*instrument task stop\b/g),
+      "task list/log": count(
+        commands,
+        /(?:^|[\n;&|])\s*instrument task (?:list|log)\b/g,
+      ),
       browser: count(commands, /\bagent-browser\b/g),
-      tab: count(commands, /(?:^|[\n;&|])\s*tab (?:open|show|replace)\b/g),
+      tab: count(
+        commands,
+        /(?:^|[\n;&|])\s*instrument tab (?:open|show|replace)\b/g,
+      ),
       web_fetch: parts.filter((part) => part.type === "tool-web_fetch").length,
-      "chat search": count(commands, /(?:^|[\n;&|])\s*chat search\b/g),
-      "chat read": count(commands, /(?:^|[\n;&|])\s*chat read\b/g),
+      "chat search": count(
+        commands,
+        /(?:^|[\n;&|])\s*instrument chat search\b/g,
+      ),
+      "chat read": count(commands, /(?:^|[\n;&|])\s*instrument chat read\b/g),
       "permission asks": parts.filter(
         (part) =>
           "output" in part &&

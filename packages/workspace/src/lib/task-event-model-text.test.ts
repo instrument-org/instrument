@@ -44,7 +44,7 @@ describe("taskEventModelNote", () => {
             \`\`\`files
             /Users/sam/Instrument/report.md
             \`\`\`
-        It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D <bg id>\`, or all of it with \`task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D --all\`; a server they are using stays.
+        It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`instrument task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D <bg id>\`, or all of it with \`instrument task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D --all\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
@@ -99,7 +99,7 @@ describe("taskEventModelNote", () => {
     expect(note).not.toContain("background");
   });
 
-  it("names the pages a task left open by the tab ids `tab show` takes", () => {
+  it("names the pages a task left open by the tab ids `instrument tab show` takes", () => {
     const note = taskEventModelNote({
       events: [
         {

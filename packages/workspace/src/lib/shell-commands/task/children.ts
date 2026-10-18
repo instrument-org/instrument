@@ -12,7 +12,7 @@ export async function requireChild(
   { chatId }: TaskCommandContext,
 ): Promise<ChatTask> {
   if (!rawId) {
-    throw new Error("a task id (t1) is required. See `task list`.");
+    throw new Error("a task id (t1) is required. See `instrument task list`.");
   }
   const children = await listChildTasks(chatId);
   const named = rawId.trim().toLowerCase();
@@ -22,10 +22,10 @@ export async function requireChild(
   if (!task) {
     // An id is most often mistyped from the title it was given rather than
     // copied from what `new` printed, so the nearest of the chat's own
-    // tasks is offered in the same reply, where `task list` costs a turn.
+    // tasks is offered in the same reply, where `instrument task list` costs a turn.
     const nearest = nearestChild(rawId, children);
     throw new Error(
-      `no task "${rawId}" of yours.${nearest ? ` Did you mean ${nearest.handle} ("${nearest.title}")?` : ""} See \`task list\`.`,
+      `no task "${rawId}" of yours.${nearest ? ` Did you mean ${nearest.handle} ("${nearest.title}")?` : ""} See \`instrument task list\`.`,
     );
   }
   return task;

@@ -73,7 +73,7 @@ const AppCatalogEntrySchema = z.object({
    */
   accountHome: z.string().optional(),
   /**
-   * The ways in, tried in the order `app catalog` describes: a hosted MCP
+   * The ways in, tried in the order `instrument app catalog` describes: a hosted MCP
    * server, one that runs here, an API a key opens, the Mac's own app, and
    * last the web app at `home`.
    */

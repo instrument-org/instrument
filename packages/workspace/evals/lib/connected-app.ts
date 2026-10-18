@@ -41,7 +41,7 @@ export interface StandInService {
 /**
  * Stands up the apps a case declared: a real HTTP server on loopback, a real
  * manifest in the workspace's apps directory, and a connection on record, so
- * `app request` goes end to end against something real.
+ * `instrument app request` goes end to end against something real.
  *
  * Loopback rather than a stub inside the process because the whole path is what
  * is being scored: the manifest gate, the connection check, and the request. A

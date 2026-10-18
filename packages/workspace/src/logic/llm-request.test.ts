@@ -3049,11 +3049,15 @@ describe("llmRequestLogic", () => {
   it("runs a shell command streamed as a tool name as the bash call it meant", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
-        { id: "call-1", toolName: "task new", type: "tool-input-start" },
+        {
+          id: "call-1",
+          toolName: "instrument task new",
+          type: "tool-input-start",
+        },
         {
           input: JSON.stringify({ name: "Scan notes" }),
           toolCallId: "call-1",
-          toolName: "task new",
+          toolName: "instrument task new",
           type: "tool-call",
         },
         {
@@ -3072,7 +3076,7 @@ describe("llmRequestLogic", () => {
       [
         {
           "input": {
-            "command": "task new",
+            "command": "instrument task new",
             "yieldMs": 30000,
           },
           "type": "tool-bash",

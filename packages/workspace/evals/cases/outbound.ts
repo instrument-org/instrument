@@ -122,7 +122,7 @@ async function callInputs({
 }
 
 /**
- * The calls that requested `method` `pathname`, through `app request` or any
+ * The calls that requested `method` `pathname`, through `instrument app request` or any
  * other way of reaching the stand-in's address.
  */
 export async function callsTo(

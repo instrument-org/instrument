@@ -361,7 +361,7 @@ function afterTheWake(
  * The turn ended while the command was still running, and its ending woke
  * the session. A model that held the call open until the command finished
  * never needed waking, and one that handed the process to a task with
- * `task new --job` was woken by the task instead, which the reply below
+ * `instrument task new --job` was woken by the task instead, which the reply below
  * still credits.
  */
 const assertWokenWhenItEnded: Assertion = {
@@ -558,7 +558,7 @@ const assertDidNotRunItAgain: Assertion = {
     const again = after.filter(
       (call) =>
         /\bsleep\s+\d/.test(call.command) ||
-        /(?:^|[\n;&|])\s*task new\b/.test(call.command),
+        /(?:^|[\n;&|])\s*instrument task new\b/.test(call.command),
     );
     return {
       evidence:

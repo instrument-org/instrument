@@ -372,7 +372,7 @@ const filedHosts = indexedByRecords<string[]>("task_hosts");
  * last launch draws its row without its transcript being read.
  */
 interface ChatDigest {
-  /** Commands' `app call` and `app request` slugs. */
+  /** Commands' `instrument app call` and `instrument app request` slugs. */
   calledApps: string[];
   lastAsk: string;
   lastMessageAt?: number;
@@ -396,15 +396,15 @@ interface ChatDigest {
 }
 
 /**
- * The app slugs a shell command calls or asks the user to connect: `app call`
- * or `app request` where a command begins, followed by a slug's own letters.
+ * The app slugs a shell command calls or asks the user to connect: `instrument app call`
+ * or `instrument app request` where a command begins, followed by a slug's own letters.
  * Anchored to the command's start and to a slug's shape so the same words
  * inside a brief's prose ("keep the app request intact.") name nothing.
  */
 function appSlugsIn(command: string): string[] {
   return [
     ...command.matchAll(
-      /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
+      /(?:^|[\n;&|]|\$\()\s*instrument\s+app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
     ),
   ].flatMap((match) => (match[1] ? [match[1]] : []));
 }
@@ -792,11 +792,11 @@ function newestLast(items: string[]): string[] {
   return [...seen];
 }
 
-/** The hostnames a shell command opens for the user with `tab open <url>`. */
+/** The hostnames a shell command opens for the user with `instrument tab open <url>`. */
 function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
   for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*tab\s+(?:open|replace\s+\S+)\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    /(?:^|[\n;&|])\s*instrument\s+tab\s+(?:open|replace\s+\S+)\s+['"]?(https?:\/\/[^\s'"]+)/g,
   )) {
     try {
       hosts.push(new URL(match[1] ?? "").hostname);
@@ -920,7 +920,7 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
 
 /**
  * The hostnames the chat's work touched: what its agent opened for the user
- * with `tab open <url>`, then every host the browsers of the tasks it started
+ * with `instrument tab open <url>`, then every host the browsers of the tasks it started
  * have been on, each task's newest last. A task's hosts come from its browser
  * state, one small read per task, rather than from its transcript.
  */

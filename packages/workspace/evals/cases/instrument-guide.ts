@@ -87,7 +87,7 @@ const withoutATask: Assertion = {
   check: ({ sessions }) => {
     const text = "answered without starting a task";
     const started = bashCommands(sessions).filter((command) =>
-      /(?:^|[\n;&|])\s*task new\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task new\b/.test(command),
     );
     return result(
       started.length === 0,

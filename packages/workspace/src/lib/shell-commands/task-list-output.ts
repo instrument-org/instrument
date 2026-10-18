@@ -14,7 +14,7 @@ const SPAN_UNITS: Record<string, number> = {
 };
 
 /**
- * How many tasks `task list` shows before it asks to be narrowed.
+ * How many tasks `instrument task list` shows before it asks to be narrowed.
  *
  * A conversation that has run for months has hundreds of tasks, and the whole
  * list is both more than an answer needs and more than the bash tool will
@@ -26,7 +26,7 @@ const SPAN_UNITS: Record<string, number> = {
  */
 export const TASK_LIST_WINDOW = 25;
 
-/** What a `task list` invocation asked for. */
+/** What an `instrument task list` invocation asked for. */
 export interface TaskListQuery {
   all?: boolean;
   limit?: number;

@@ -464,7 +464,7 @@ async function signalPid({
 }
 
 /** The refusal for a pid outside this conversation's own processes. */
-export function notOwnProcess(pid: number): string {
+function notOwnProcess(pid: number): string {
   return `${KILL_COMMAND.name}: ${pid} is not a process this conversation started, so it can't be stopped from here. \`${JOBS_COMMAND.name} -l\` lists the ones you can stop.`;
 }
 

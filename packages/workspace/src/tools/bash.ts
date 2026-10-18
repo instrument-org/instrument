@@ -155,7 +155,7 @@ const AMPERSAND_START_MS = 1000;
 const AMPERSAND_SETTLE_MS = 300;
 
 /** What a call using `&` other than at its very end is told. Nothing ran. */
-export const AMPERSAND_REFUSAL = `Nothing ran: \`&\` sends a command to the background only at the very end of a call, as in \`pnpm dev &\` or \`cd app && pnpm dev &\`. Start each background command in a call of its own ending in \`&\`, then run the rest; \`${JOBS_COMMAND.name} -l\` lists them and \`wait\` waits for them.`;
+const AMPERSAND_REFUSAL = `Nothing ran: \`&\` sends a command to the background only at the very end of a call, as in \`pnpm dev &\` or \`cd app && pnpm dev &\`. Start each background command in a call of its own ending in \`&\`, then run the rest; \`${JOBS_COMMAND.name} -l\` lists them and \`wait\` waits for them.`;
 
 /**
  * Resolves with the run's outcome if it ends soon after starting, and with

@@ -138,7 +138,7 @@ export function xargsRunsParallel(args: string[]): boolean {
  * that can reach the agent's processes, where the program on the PATH runs
  * in a sandbox of its own and reaches none of them.
  */
-export function xargsRunsKill(args: string[]): boolean {
+function xargsRunsKill(args: string[]): boolean {
   return scanXargs(args).command === "kill";
 }
 

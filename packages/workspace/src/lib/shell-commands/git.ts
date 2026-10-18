@@ -267,13 +267,23 @@ export function createGitCommand({
       (result) => ({
         exitCode: result.exitCode ?? 1,
         ...mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
-          filterShellOutput(collapseProgress(text)),
+          filterShellOutput(withoutStatPadding(collapseProgress(text))),
         ),
         ...binaryStdout(result),
       }),
     );
   });
   return { ...command, acceptsPipeHandoff: true };
+}
+
+/**
+ * git's `failed to stat '<path>'` without the spaces git puts before the
+ * path: its message pads the path to the length of a prefix it leaves out
+ * (`%*s` where `%.*s` was meant), so the path reads as one starting with
+ * two dozen spaces.
+ */
+export function withoutStatPadding(text: string): string {
+  return text.replaceAll(/(failed to stat ')[ \t]+/g, "$1");
 }
 
 /** The path an argument names: the value of a `--flag=value` path flag, else the argument. */

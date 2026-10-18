@@ -43,7 +43,15 @@ function pathsNamedIn(
   const quoted = [
     ...line.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`|‘([^’]*)’|“([^”]*)”/g),
   ]
-    .map((match) => match.slice(1).find((group) => group !== undefined) ?? "")
+    // Without the spaces around it: git pads the path in `failed to stat
+    // '<path>'` with as many spaces as a prefix it leaves out is long.
+    .map(
+      (match) =>
+        match
+          .slice(1)
+          .find((group) => group !== undefined)
+          ?.trim() ?? "",
+    )
     .filter((span) => SEPARATOR.test(span));
   if (quoted.length > 0) {
     return quoted.toReversed();
@@ -130,7 +138,11 @@ export function refusedPathIn(
       }
       const op = missing ? "read" : "write";
       const decided = reachOf(reach.rules, hostPath, op);
+      // A `:` past the drive, which the rules read as a stream, comes here
+      // from reading the line wrongly (a path run into a word or another
+      // path), so it raises no note about streams.
       if (
+        !decided.stream &&
         decided.level !== "allow" &&
         (!appDataOnly || decided.rule?.appData === true)
       ) {

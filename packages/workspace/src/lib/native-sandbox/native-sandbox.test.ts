@@ -279,6 +279,36 @@ describe("inheritedEnv", () => {
   });
 });
 
+describe.runIf(onWindows)("refusedPathIn on Windows", () => {
+  const home = "C:\\Users\\someone";
+  const reach = reachOver(home, [
+    { level: "never", path: `${home}\\.ssh`, source: "place" },
+  ]);
+  const cwd = `${home}\\work`;
+
+  it("reads the folder git pads with spaces as the folder", () => {
+    // git's own `%*s` pads the path it failed to stat by the length of a
+    // prefix it does not print.
+    const refused = refusedPathIn(
+      "fatal: failed to stat '                        C:/Users/someone/AppData': Permission denied\n",
+      reach,
+      cwd,
+    );
+    expect(refused?.hostPath).toBe(`${home}\\AppData`);
+    expect(refused?.reach.stream).toBeUndefined();
+  });
+
+  it("names no stream for a path read wrongly out of the output", () => {
+    expect(
+      refusedPathIn(
+        `cat: 'notes C:\\Users\\someone\\a.txt': Permission denied`,
+        reach,
+        cwd,
+      ),
+    ).toBeUndefined();
+  });
+});
+
 describe.skipIf(onWindows)("refusedPathIn", () => {
   const reach = reachOver("/Users/someone", [
     { level: "never", path: "/Users/someone/.ssh", source: "place" },

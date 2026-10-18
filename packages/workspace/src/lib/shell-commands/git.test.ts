@@ -21,8 +21,24 @@ import {
 import { gitBinaryPath, gitSubprocessEnv } from "../git";
 import { hostPathOf, shellPath } from "../workspace-fs-layout";
 import { collapseProgress } from "./exec-shim";
-import { createGitCommand } from "./git";
+import { createGitCommand, withoutStatPadding } from "./git";
 import { chatLayout } from "../../test/helpers/chat-layout";
+
+describe("withoutStatPadding", () => {
+  it.each([
+    [
+      "fatal: failed to stat '                        C:/Users/sam/AppData': Permission denied\n",
+      "fatal: failed to stat 'C:/Users/sam/AppData': Permission denied\n",
+    ],
+    [
+      "fatal: failed to stat 'C:/Users/sam/AppData': Permission denied\n",
+      "fatal: failed to stat 'C:/Users/sam/AppData': Permission denied\n",
+    ],
+    ["echo '   kept'\n", "echo '   kept'\n"],
+  ])("reads %j as %j", (output, shown) => {
+    expect(withoutStatPadding(output)).toBe(shown);
+  });
+});
 
 const ctxIn = (cwd: string) =>
   createCommandContext({

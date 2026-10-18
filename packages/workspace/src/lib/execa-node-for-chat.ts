@@ -41,7 +41,7 @@ export function execaNodeForChat<
   const workingDir = cwd ?? workDir(chatId);
   // Only what a program needs of the app's own environment; see native-env.
   const env = {
-    ...inheritedEnv(process.env, spawned.reach),
+    ...inheritedEnv(process.env, spawned),
     ...baseEnv,
     // Covers what resolveCommandContext cannot: the user's own app processes
     // (spawn-runtime) and anything else spawned for a task. A build script

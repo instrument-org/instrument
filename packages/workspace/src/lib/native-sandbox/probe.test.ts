@@ -72,6 +72,7 @@ describe("the sandbox probe on macOS", () => {
       args: ["x"],
       file: "cat",
       kind: "unwrapped",
+      unheld: reach,
     });
     wrapNativeCommand("cat", ["x"], reach);
     expect(execFileSync).toHaveBeenCalledOnce();

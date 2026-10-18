@@ -73,7 +73,17 @@ export class NativeSandboxUnavailableError extends Error {
  * `launchNative` builds once the working folder and environment are known.
  */
 export type WrappedCommand =
-  | { args: string[]; file: string; kind: "unwrapped"; reach?: undefined }
+  | {
+      args: string[];
+      file: string;
+      kind: "unwrapped";
+      reach?: undefined;
+      /**
+       * The reach the rules give the command where no sandbox here holds it
+       * to them, which still decides what it inherits from the app.
+       */
+      unheld?: NativeReach;
+    }
   | { args: string[]; file: string; kind: "sandboxed"; reach: NativeReach }
   | (MxcCommand & { kind: "mxc"; reach: NativeReach });
 
@@ -91,6 +101,7 @@ export function wrapNativeCommand(
     args: [...args],
     file,
     kind: "unwrapped",
+    unheld: reach ?? undefined,
   };
   // A binary that is not there is left to fail as itself, so the shim's
   // not-found diagnostic names it rather than sandbox-exec's execvp error.

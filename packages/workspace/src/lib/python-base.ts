@@ -525,7 +525,7 @@ async function importEverything(
       appNativeReach([temp]),
     );
     const env = {
-      ...inheritedEnv(process.env, spawned.reach),
+      ...inheritedEnv(process.env, spawned),
       MPLBACKEND: "Agg",
       TMPDIR: temp,
     };

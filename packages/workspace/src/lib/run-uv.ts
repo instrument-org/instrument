@@ -84,7 +84,7 @@ export async function runUvCommand({
     throw error;
   }
   const env = {
-    ...inheritedEnv(process.env, spawned.reach),
+    ...inheritedEnv(process.env, spawned),
     ...(lockfilePinned ? pinnedEnv : { ...pinnedEnv, UV_EXCLUDE_NEWER }),
   };
   const launch = launchNative(spawned, { cwd, env });

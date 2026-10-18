@@ -149,7 +149,7 @@ export async function execShim(
   // Only what a program needs of the app's own environment, so a key or
   // token set for the app never reaches a script the agent runs.
   const env = {
-    ...(ownEnvOnly ? {} : inheritedEnv(process.env, spawned.reach)),
+    ...(ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
     ...subprocessOptions.env,
   };
   const launch = launchNative(spawned, {

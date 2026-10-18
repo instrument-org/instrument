@@ -243,19 +243,36 @@ describe("inheritedEnv", () => {
     source: "place",
   };
 
+  const asks = reachOver(home, [signIns]);
+  const granted = reachOver(home, [
+    signIns,
+    { level: "allow", path: `${home}/.ssh`, source: "grant" },
+  ]);
+
   it.each([
-    ["no reach", undefined, false],
-    ["rules where .ssh asks", reachOver(home, [signIns]), false],
+    ["no command", undefined, false],
+    ["a command held to rules where .ssh asks", { reach: asks }, false],
+    ["a command held to rules with .ssh granted", { reach: granted }, true],
+    // A program that is not there comes back unwrapped on every platform,
+    // as every command does where no sandbox can hold it (Windows without
+    // MXC), and is decided by the same rules.
     [
-      "rules with .ssh granted",
-      reachOver(home, [
-        signIns,
-        { level: "allow", path: `${home}/.ssh`, source: "grant" },
-      ]),
+      "an unwrapped command whose rules ask for .ssh",
+      wrapNativeCommand("/nope/missing", [], asks),
+      false,
+    ],
+    [
+      "an unwrapped command whose rules grant .ssh",
+      wrapNativeCommand("/nope/missing", [], granted),
       true,
     ],
-  ])("keeps the ssh-agent's socket for %s: %s", (_name, reach, kept) => {
-    expect(inheritedEnv(env, reach)).toEqual({
+    [
+      "an app the person allowed, run with no rules",
+      wrapNativeCommand("/nope/missing", [], null),
+      false,
+    ],
+  ])("keeps the ssh-agent's socket for %s: %s", (_name, spawned, kept) => {
+    expect(inheritedEnv(env, spawned)).toEqual({
       PATH: "/usr/bin",
       ...(kept && { SSH_AUTH_SOCK: "/tmp/agent" }),
     });

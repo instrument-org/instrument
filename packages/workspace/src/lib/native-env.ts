@@ -74,14 +74,17 @@ const INHERITED = new Set(
 /**
  * The app's environment as a native command may see it. Names compare
  * without case, as Windows does, and every locale variable (`LC_*`) is kept.
- * The ssh-agent's socket is kept for a command held to rules that allow
- * `~/.ssh`, so `ssh` signs in with the keys the agent holds once the person
- * allowed that folder.
+ * The ssh-agent's socket is kept for a command whose rules allow `~/.ssh`,
+ * so `ssh` signs in with the keys the agent holds once the person allowed
+ * that folder. The rules decide it whether or not a sandbox holds the
+ * command to them: one nothing holds could read the keys themselves.
  */
 export function inheritedEnv(
   env: NodeJS.ProcessEnv = process.env,
-  reach?: NativeReach,
+  /** The command as `wrapNativeCommand` left it. */
+  spawned?: { reach?: NativeReach; unheld?: NativeReach },
 ): Record<string, string> {
+  const reach = spawned?.reach ?? spawned?.unheld;
   const kept: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     const upper = name.toUpperCase();

@@ -264,7 +264,7 @@ export function startPipeStage(
   let child: ChildProcess;
   try {
     const env = {
-      ...(options.ownEnvOnly ? {} : inheritedEnv(process.env, spawned.reach)),
+      ...(options.ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
       ...options.env,
     };
     const launch = launchNative(spawned, {

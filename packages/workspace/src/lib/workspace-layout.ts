@@ -31,6 +31,12 @@ export const WORKSPACE_DATA_ENTRIES = {
    */
   chats: "chats",
   /**
+   * One folder per device that has opened the workspace, named by its device
+   * id: what only that device writes and every device reads, its activity
+   * log a file per month (`activity/<YYYY-MM>.jsonl`).
+   */
+  devices: "devices",
+  /**
    * Where earlier builds kept the drafts, a folder each: the words in
    * `draft.md`, what was pasted into them beside those, and the rest of each
    * record in its own `.instrument/settings.json`. A draft is in `Drafts/` at
@@ -103,6 +109,7 @@ export function workspaceLayout(workspaceDir: string) {
      * below.
      */
     dataDir,
+    devicesDir: entry(WORKSPACE_DATA_ENTRIES.devices),
     draftsDir: entry(WORKSPACE_DATA_ENTRIES.drafts),
     memoryDir: entry(WORKSPACE_DATA_ENTRIES.memory),
     setAsideDir: entry(WORKSPACE_DATA_ENTRIES.setAside),

@@ -1,8 +1,17 @@
+import fs from "node:fs";
+import path from "node:path";
 import { type DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { ulid } from "ulid";
 
 import { getWorkspaceConfig } from "../workspace-config";
 import { versionMatches, workspaceTables } from "../workspace-db";
+import {
+  activityFileOf,
+  activityFiles,
+  lineOf,
+  readLinesFrom,
+  rowOf,
+} from "./log-file";
 import {
   ACTIVITY_FACETS,
   type ActivityEntry,
@@ -14,20 +23,28 @@ import {
 } from "./schema";
 
 /**
- * The activity log: every model request the app made for the workspace, in
- * the `activity` table of its `workspace.db` on this computer. Unlike the
- * index beside it this is the only copy of what it holds, so a change to the
- * table migrates it rather than starting over.
+ * The activity log's index: every device's requests, as the files in the
+ * workspace hold them (`log-file.ts`), in the `activity` table of
+ * `workspace.db` on this computer, for the Settings panel to filter, sort
+ * and count. The files are the record and the table is rebuilt from them;
+ * `activity_files` keeps how far each file has been read, so a look reads
+ * only what a file gained. A request this device makes goes to its own file
+ * and into the table at once.
+ *
+ * Version 2 adds `device` to a table version 1 kept as the only copy of
+ * this computer's requests; those rows, `device` still empty, are written
+ * into this device's files the first time the table is opened, and then
+ * carry its id like any other.
  */
-const ACTIVITY_VERSION = 1;
+const ACTIVITY_VERSION = 2;
 
 const COLUMNS = {
   cacheReadTokens: "cache_read_tokens",
   cacheWriteTokens: "cache_write_tokens",
   chatId: "chat_id",
-  connectionId: "connection_id",
   connectionName: "connection_name",
   connectionType: "connection_type",
+  device: "device",
   durationMs: "duration_ms",
   error: "error",
   finishReason: "finish_reason",
@@ -46,6 +63,10 @@ const COLUMNS = {
   surface: "surface",
   totalTokens: "total_tokens",
 } as const satisfies Record<keyof ActivityRow, string>;
+
+const KEYS = Object.keys(COLUMNS) as (keyof ActivityRow)[]; // Object.keys widens to string[]
+
+const INSERT_ROW = `INSERT OR IGNORE INTO activity (${KEYS.map((key) => COLUMNS[key]).join(", ")}) VALUES (${KEYS.map(() => "?").join(", ")})`;
 
 const SELECT_ROW = Object.entries(COLUMNS)
   .map(([key, column]) => `${column} AS "${key}"`)
@@ -86,9 +107,10 @@ const SORT_EXPRESSIONS: Record<ActivitySort["column"], string> = {
 let reported = false;
 
 /**
- * Makes the activity table in a workspace's database where it is missing:
- * at first use, and before the activity an earlier build kept in its own
- * file moves in.
+ * Makes the activity tables in a workspace's database where they are
+ * missing, and gives a version 1 table its `device` column: at first use,
+ * and before the activity an earlier build kept in its own file moves in.
+ * A version 1 table's `connection_id` stays, unread.
  */
 export function makeActivityTable(database: DatabaseSync): void {
   database.exec("BEGIN");
@@ -107,7 +129,6 @@ export function makeActivityTable(database: DatabaseSync): void {
         session_id TEXT,
         chat_id TEXT,
         surface TEXT,
-        connection_id TEXT,
         connection_type TEXT,
         connection_name TEXT,
         model_requested TEXT,
@@ -118,8 +139,24 @@ export function makeActivityTable(database: DatabaseSync): void {
         cache_write_tokens INTEGER,
         output_tokens INTEGER,
         reasoning_tokens INTEGER,
-        total_tokens INTEGER
+        total_tokens INTEGER,
+        device TEXT
       ) STRICT;
+      CREATE TABLE IF NOT EXISTS activity_files (
+        path TEXT PRIMARY KEY,
+        size INTEGER NOT NULL,
+        mtime_ms REAL NOT NULL,
+        read_to INTEGER NOT NULL
+      ) STRICT;
+    `);
+    const columns = database
+      .prepare("SELECT name FROM pragma_table_info('activity')")
+      .all()
+      .map((row) => row.name);
+    if (!columns.includes("device")) {
+      database.exec("ALTER TABLE activity ADD COLUMN device TEXT");
+    }
+    database.exec(`
       CREATE INDEX IF NOT EXISTS activity_started ON activity (started_at, id);
       CREATE INDEX IF NOT EXISTS activity_kind ON activity (kind, started_at);
       CREATE INDEX IF NOT EXISTS activity_purpose ON activity (purpose, started_at);
@@ -136,14 +173,119 @@ export function makeActivityTable(database: DatabaseSync): void {
 }
 
 /**
- * The served workspace's database with its activity table, or undefined
+ * The served workspace's database with its activity tables, or undefined
  * where there is nowhere to keep one (tests and scripts with no
  * `workspaceDbFile`) or it could not be opened, which leaves recording off.
  */
 const openStore = workspaceTables((database) => {
   makeActivityTable(database);
+  writeOutEarlierRows(database);
   return database;
 });
+
+/**
+ * Writes the rows an earlier build kept only in the table, `device` still
+ * empty, into this device's files, then gives them its id. A launch cut short
+ * between the two writes them again, which a read of the files takes once,
+ * by id.
+ */
+function writeOutEarlierRows(database: DatabaseSync): void {
+  const { deviceId, rootDir } = getWorkspaceConfig();
+  const earlier = database
+    .prepare(
+      `SELECT ${SELECT_ROW} FROM activity WHERE device IS NULL ORDER BY started_at, id`,
+    )
+    .all()
+    .map((row) => ActivityRowSchema.parse({ ...row, device: deviceId }));
+  if (earlier.length === 0) {
+    return;
+  }
+  const byFile = new Map<string, string[]>();
+  for (const row of earlier) {
+    const file = activityFileOf(rootDir, deviceId, row.startedAt);
+    byFile.set(file, [...(byFile.get(file) ?? []), lineOf(row)]);
+  }
+  for (const [file, lines] of byFile) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, lines.join(""));
+  }
+  database
+    .prepare("UPDATE activity SET device = ? WHERE device IS NULL")
+    .run(deviceId);
+}
+
+/**
+ * Brings the table up to every device's files: reads what each file gained
+ * since it was last read, whole lines only, and adds the rows it has not
+ * seen. A file that shrank, which one writer appending never does but a
+ * sync engine replacing it might, is read again from its start. A file that
+ * cannot be read now (not downloaded yet) is left for the next look. Cheap
+ * when nothing changed: a stat per file.
+ */
+function catchUpActivity(database: DatabaseSync): void {
+  const { rootDir } = getWorkspaceConfig();
+  const known = new Map(
+    database
+      .prepare("SELECT path, size, mtime_ms, read_to FROM activity_files")
+      .all()
+      .map((row) => [
+        String(row.path),
+        {
+          mtimeMs: Number(row.mtime_ms),
+          readTo: Number(row.read_to),
+          size: Number(row.size),
+        },
+      ]),
+  );
+  const insert = database.prepare(INSERT_ROW);
+  const remember = database.prepare(
+    "INSERT INTO activity_files (path, size, mtime_ms, read_to) VALUES (?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET size = excluded.size, mtime_ms = excluded.mtime_ms, read_to = excluded.read_to",
+  );
+  for (const { device, file } of activityFiles(rootDir)) {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(file);
+    } catch {
+      continue;
+    }
+    const seen = known.get(file);
+    if (seen && seen.size === stat.size && seen.mtimeMs === stat.mtimeMs) {
+      continue;
+    }
+    const from = seen && stat.size >= seen.readTo ? seen.readTo : 0;
+    let read: ReturnType<typeof readLinesFrom>;
+    try {
+      read = readLinesFrom(file, from);
+    } catch {
+      continue;
+    }
+    database.exec("BEGIN");
+    try {
+      for (const line of read.lines) {
+        const row = rowOf(line, device);
+        if (row) {
+          insert.run(...KEYS.map((key) => row[key]));
+        }
+      }
+      remember.run(file, stat.size, stat.mtimeMs, read.end);
+      database.exec("COMMIT");
+    } catch (error) {
+      if (database.isTransaction) {
+        database.exec("ROLLBACK");
+      }
+      report(error);
+    }
+  }
+}
+
+/** The index brought up to the files, ready to read. */
+function readable(): DatabaseSync | undefined {
+  const db = openStore();
+  if (db) {
+    catchUpActivity(db);
+  }
+  return db;
+}
 
 function report(error: unknown) {
   if (reported) {
@@ -163,7 +305,8 @@ function totalOf(entry: ActivityEntry): null | number {
 }
 
 /**
- * Stores one request. Never throws and never waits on the caller's behalf: a
+ * Records one request: a line in this device's file for the month, and a
+ * row in the index. Never throws and never waits on the caller's behalf: a
  * record that cannot be written loses the row rather than slow or break the
  * request it describes.
  */
@@ -172,13 +315,14 @@ export function insertActivity(entry: ActivityEntry): void {
   if (!db) {
     return;
   }
+  const { deviceId, rootDir } = getWorkspaceConfig();
   const row: ActivityRow = {
     cacheReadTokens: entry.cacheReadTokens ?? null,
     cacheWriteTokens: entry.cacheWriteTokens ?? null,
     chatId: entry.chatId ?? null,
-    connectionId: entry.connectionId ?? null,
     connectionName: entry.connectionName ?? null,
     connectionType: entry.connectionType ?? null,
+    device: deviceId,
     durationMs: entry.durationMs == null ? null : Math.round(entry.durationMs),
     error: entry.error ?? null,
     finishReason: entry.finishReason ?? null,
@@ -197,11 +341,11 @@ export function insertActivity(entry: ActivityEntry): void {
     surface: entry.surface ?? null,
     totalTokens: totalOf(entry),
   };
-  const keys = Object.keys(COLUMNS) as (keyof ActivityRow)[]; // Object.keys widens to string[]
   try {
-    db.prepare(
-      `INSERT INTO activity (${keys.map((key) => COLUMNS[key]).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
-    ).run(...keys.map((key) => row[key]));
+    const file = activityFileOf(rootDir, deviceId, row.startedAt);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, lineOf(row));
+    db.prepare(INSERT_ROW).run(...KEYS.map((key) => row[key]));
   } catch (error) {
     report(error);
   }
@@ -249,7 +393,7 @@ export function listActivity({
   offset: number;
   sort: ActivitySort;
 }): ActivityRow[] {
-  const db = openStore();
+  const db = readable();
   if (!db) {
     return [];
   }
@@ -267,7 +411,7 @@ export function listActivity({
 
 /** One request by its id. */
 export function getActivity(id: string): ActivityRow | undefined {
-  const row = openStore()
+  const row = readable()
     ?.prepare(`SELECT ${SELECT_ROW} FROM activity WHERE id = ?`)
     .get(id);
   return row ? ActivityRowSchema.parse(row) : undefined;
@@ -286,7 +430,7 @@ type FacetEntry = {
  * own, so picking one value leaves its alternatives countable.
  */
 export function summarizeActivity(filter: ActivityFilter) {
-  const db = openStore();
+  const db = readable();
   const facets = Object.fromEntries(
     ACTIVITY_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
   ) as Record<ActivityFacet, FacetEntry[]>; // filled per facet below
@@ -326,6 +470,7 @@ const CSV_COLUMNS: [
   ["Chat", (row) => row.chatId],
   ["Session", (row) => row.sessionId],
   ["Surface", (row) => row.surface],
+  ["Device", (row) => row.device],
   ["Connection", (row) => row.connectionName ?? row.connectionType],
   ["Model asked for", (row) => row.modelRequested],
   ["Model answered", (row) => row.modelServed],
@@ -352,7 +497,7 @@ function csvCell(value: null | number | string): string {
 /** Every row under the filters as CSV, newest first, with a header line. */
 export function activityCsv(filter: ActivityFilter): string {
   const lines = [CSV_COLUMNS.map(([header]) => csvCell(header)).join(",")];
-  const db = openStore();
+  const db = readable();
   if (db) {
     const { params, sql } = where(filter);
     for (const row of db

@@ -3,22 +3,27 @@ import { MockLanguageModelV4 } from "ai/test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { DeviceIdSchema } from "../records/device-id";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { closeWorkspaceDb } from "../workspace-db";
+import { lineOf } from "./log-file";
 import { activityTelemetry, registerActivityTelemetry } from "./record";
 import { type ActivityEntry } from "./schema";
 import {
   activityCsv,
   insertActivity,
   listActivity,
+  makeActivityTable,
   summarizeActivity,
 } from "./store";
 
 const SECRET = "the words nobody may keep";
 const NEWEST_FIRST = { column: "startedAt", direction: "desc" } as const;
+const DEVICE = DeviceIdSchema.parse("dev_A1B2C3D4");
 
 let dir: string;
 const original = getWorkspaceConfig();
@@ -27,6 +32,8 @@ beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "activity-test-"));
   setWorkspaceConfig({
     ...original,
+    deviceId: DEVICE,
+    rootDir: WorkspaceDirSchema.parse(dir),
     workspaceDbFile: AbsolutePathSchema.parse(path.join(dir, "workspace.db")),
   });
 });
@@ -259,7 +266,186 @@ describe("the store", () => {
     expect(header?.split(",").length).toBe(row?.split(",").length);
     // The request id is generated, so the line is compared without it.
     expect(row?.replace(/,[0-9A-Z]{26},/, ",<id>,")).toMatchInlineSnapshot(
-      `"2026-10-09T00:00:00.000Z,,finished,decision,settings-search,,,settings,,,clef,5000,,,,,5000,,,<id>,"`,
+      `"2026-10-09T00:00:00.000Z,,finished,decision,settings-search,,,settings,dev_A1B2C3D4,,,clef,5000,,,,,5000,,,<id>,"`,
     );
+  });
+});
+
+describe("the log in the workspace", () => {
+  const OTHER = DeviceIdSchema.parse("dev_Z9Y8X7W6");
+
+  const entry = (over: Partial<ActivityEntry>): ActivityEntry => ({
+    kind: "language",
+    purpose: "chat",
+    startedAt: Date.UTC(2026, 9, 10, 10),
+    status: "finished",
+    ...over,
+  });
+
+  /** A row as another device would have logged it. */
+  const theirs = (id: string, startedAt = Date.UTC(2026, 9, 12)) =>
+    lineOf({
+      cacheReadTokens: null,
+      cacheWriteTokens: null,
+      chatId: "c-kyoto",
+      connectionName: "Anthropic",
+      connectionType: "anthropic",
+      device: OTHER,
+      durationMs: 600,
+      error: null,
+      finishReason: "stop",
+      id,
+      inputTokens: 1401,
+      kind: "language",
+      modelRequested: "claude-haiku-5-5",
+      modelServed: null,
+      outputTokens: 18,
+      purpose: "chat-title",
+      reasoningTokens: null,
+      responseId: "msg_1",
+      sessionId: null,
+      startedAt,
+      status: "finished",
+      surface: null,
+      totalTokens: 1419,
+    });
+
+  const fileOf = (device: string, month: string) =>
+    path.join(
+      dir,
+      ".instrument",
+      "devices",
+      device,
+      "activity",
+      `${month}.jsonl`,
+    );
+
+  async function writeTheirs(month: string, contents: string) {
+    await fs.mkdir(path.dirname(fileOf(OTHER, month)), { recursive: true });
+    await fs.appendFile(fileOf(OTHER, month), contents);
+  }
+
+  const ids = () =>
+    listActivity({
+      filter: {},
+      limit: 100,
+      offset: 0,
+      sort: NEWEST_FIRST,
+    }).map((row) => `${row.device ?? "none"}:${row.id}`);
+
+  it("appends each request to this device's file for its month, without the connection's id", async () => {
+    insertActivity(
+      entry({
+        connectionName: "Anthropic",
+        connectionType: "anthropic",
+        inputTokens: 10,
+        outputTokens: 2,
+      }),
+    );
+
+    const [line] = (await fs.readFile(fileOf(DEVICE, "2026-10"), "utf8"))
+      .trim()
+      .split("\n");
+    expect(JSON.parse(line ?? "")).toMatchObject({
+      at: "2026-10-10T10:00:00.000Z",
+      connection: { name: "Anthropic", type: "anthropic" },
+      kind: "language",
+      purpose: "chat",
+      status: "finished",
+      tokens: { input: 10, output: 2, total: 12 },
+    });
+    expect(line).not.toContain("connectionId");
+    expect(line).not.toContain("null");
+  });
+
+  it.each([
+    [
+      "the last moment of October",
+      Date.UTC(2026, 9, 31, 23, 59, 59),
+      "2026-10",
+    ],
+    ["the first of November", Date.UTC(2026, 10, 1), "2026-11"],
+  ])("files a request at %s under %s", async (_when, startedAt, month) => {
+    insertActivity(entry({ startedAt }));
+
+    expect(await fs.readdir(path.dirname(fileOf(DEVICE, month)))).toEqual([
+      `${month}.jsonl`,
+    ]);
+  });
+
+  it("reads every device's files into the index, and rebuilds it from them", async () => {
+    insertActivity(entry({}));
+    await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
+    await writeTheirs(
+      "2026-09",
+      theirs("01THEIRS0000000000000000B", Date.UTC(2026, 8, 1)),
+    );
+
+    expect(ids()).toHaveLength(3);
+    expect(ids().filter((id) => id.startsWith(OTHER))).toEqual([
+      `${OTHER}:01THEIRS0000000000000000A`,
+      `${OTHER}:01THEIRS0000000000000000B`,
+    ]);
+
+    closeWorkspaceDb();
+    await fs.rm(path.join(dir, "workspace.db"));
+
+    expect(ids()).toHaveLength(3);
+  });
+
+  it("reads only what a file gained, once per line", async () => {
+    await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
+    expect(ids()).toHaveLength(1);
+
+    await writeTheirs("2026-10", theirs("01THEIRS0000000000000000B"));
+    // A sync engine's second copy of a line already read changes nothing.
+    await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
+
+    expect(ids().toSorted()).toEqual([
+      `${OTHER}:01THEIRS0000000000000000A`,
+      `${OTHER}:01THEIRS0000000000000000B`,
+    ]);
+  });
+
+  it("leaves a last line with no newline yet until it is whole", async () => {
+    const line = theirs("01THEIRS0000000000000000B");
+    await writeTheirs(
+      "2026-10",
+      theirs("01THEIRS0000000000000000A") + line.slice(0, 40),
+    );
+    expect(ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
+
+    await writeTheirs("2026-10", line.slice(40));
+
+    expect(ids()).toHaveLength(2);
+  });
+
+  it("writes rows an earlier build kept only in the table into this device's file", async () => {
+    const database = new DatabaseSync(path.join(dir, "workspace.db"));
+    database.exec(
+      "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
+    );
+    makeActivityTable(database);
+    database
+      .prepare(
+        "INSERT INTO activity (id, started_at, status, kind, purpose, input_tokens) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "01EARLIER000000000000000A",
+        Date.UTC(2026, 9, 3),
+        "finished",
+        "language",
+        "chat",
+        7,
+      );
+    database.close();
+
+    expect(ids()).toEqual([`${DEVICE}:01EARLIER000000000000000A`]);
+    const written = await fs.readFile(fileOf(DEVICE, "2026-10"), "utf8");
+    expect(written).toContain('"id":"01EARLIER000000000000000A"');
+
+    // Its own line read back is the row the index already has.
+    closeWorkspaceDb();
+    expect(ids()).toEqual([`${DEVICE}:01EARLIER000000000000000A`]);
   });
 });

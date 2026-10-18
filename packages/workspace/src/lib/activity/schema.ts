@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /** What kind of model answered: the column a person filters to tell a reply from a quick choice. */
 const ACTIVITY_KINDS = ["language", "decision", "search", "image"] as const;
-const ActivityKindSchema = z.enum(ACTIVITY_KINDS);
+export const ActivityKindSchema = z.enum(ACTIVITY_KINDS);
 export type ActivityKind = z.output<typeof ActivityKindSchema>;
 
 /**
@@ -40,16 +40,20 @@ export const ActivitySurfaceSchema = z.enum(ACTIVITY_SURFACES);
 export type ActivitySurface = z.output<typeof ActivitySurfaceSchema>;
 
 const ACTIVITY_STATUSES = ["finished", "failed", "stopped"] as const;
-const ActivityStatusSchema = z.enum(ACTIVITY_STATUSES);
+export const ActivityStatusSchema = z.enum(ACTIVITY_STATUSES);
 
-/** One request, as stored and as the log reads it back. Metadata only: nothing anyone wrote. */
+/** One request, as its device logged it and the index reads it back. Metadata only: nothing anyone wrote. */
 export const ActivityRowSchema = z.object({
   cacheReadTokens: z.number().nullable(),
   cacheWriteTokens: z.number().nullable(),
   chatId: z.string().nullable(),
-  connectionId: z.string().nullable(),
   connectionName: z.string().nullable(),
   connectionType: z.string().nullable(),
+  /**
+   * The device that made the request, by its id; none for a row an earlier
+   * build recorded, until this device writes it into its own log.
+   */
+  device: z.string().nullable(),
   durationMs: z.number().nullable(),
   error: z.string().nullable(),
   finishReason: z.string().nullable(),
@@ -70,11 +74,17 @@ export const ActivityRowSchema = z.object({
 });
 export type ActivityRow = z.output<typeof ActivityRowSchema>;
 
-/** A row before it is stored: the id and total are the store's to fill in. */
+/** A row before it is stored: the id, the device and the total are the store's to fill in. */
 export type ActivityEntry = Partial<
   Omit<
     ActivityRow,
-    "id" | "kind" | "purpose" | "startedAt" | "status" | "totalTokens"
+    | "device"
+    | "id"
+    | "kind"
+    | "purpose"
+    | "startedAt"
+    | "status"
+    | "totalTokens"
   >
 > &
   Pick<ActivityRow, "kind" | "purpose" | "startedAt" | "status">;

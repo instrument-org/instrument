@@ -7,9 +7,9 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 /**
  * `workspace.db`, the one SQLite database this computer keeps for a
  * workspace, at the top of the workspace's machine folder: never in the
- * workspace, which a sync engine may carry mid-write. It holds the index,
- * which is rebuilt from the workspace's records whenever its tables'
- * version changes, and what exists nowhere else: the activity log.
+ * workspace, which a sync engine may carry mid-write. It holds indexes,
+ * each rebuilt from what the workspace keeps (the chats' records, every
+ * device's activity log) whenever its tables' version changes.
  *
  * Each module that keeps tables here makes them on first use
  * (`workspaceTables`), and keeps the version they were made under in `meta`
@@ -29,8 +29,8 @@ let reported = false;
 /**
  * Opens the database at `file`, making it and its folder where they are
  * missing. A file SQLite says is no database it can read is moved aside
- * beside itself and the database made again, which loses what only it held:
- * the activity log, which nothing depends on. Throws for any other failure
+ * beside itself and the database made again, which loses nothing the
+ * workspace does not hold: every table is rebuilt. Throws for any other failure
  * (another process holding a lock, a full disk), which leaves the file as it
  * is.
  */

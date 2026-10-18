@@ -70,7 +70,6 @@ export function recordActivity(
   setImmediate(() => {
     insertActivity({
       chatId: call.chatId ?? null,
-      connectionId: call.connection?.id ?? null,
       // Our own connection carries no name, so it goes by the app's.
       connectionName:
         call.connection?.displayName ??

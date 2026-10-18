@@ -21,7 +21,7 @@ const FORMER_INDEX_DIR = "index";
 /** The file earlier builds kept the activity log in, in the workspace's `.instrument/`. */
 const FORMER_ACTIVITY_FILE = "ai-usage.db";
 
-/** The columns of the activity log, the same in its former file's `requests` table. */
+/** The columns of the activity log its former file's `requests` table shares with the index. */
 const ACTIVITY_COLUMNS = [
   "id",
   "started_at",
@@ -34,7 +34,6 @@ const ACTIVITY_COLUMNS = [
   "session_id",
   "chat_id",
   "surface",
-  "connection_id",
   "connection_type",
   "connection_name",
   "model_requested",

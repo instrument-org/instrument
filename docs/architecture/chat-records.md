@@ -39,7 +39,7 @@ The views (`records/views.ts`) are what callers actually use: `list` (the chat l
 
 ## The index
 
-`workspace.db`, on this computer, holds what the files say so the app does not refold every chat to draw a list: per-file cursors, the chats, sessions and messages tables, and the activity log of model requests, which exists only there. Index tables are rebuildable and are dropped and refolded when their schema version moves (`records-index.ts`, `workspace-index.ts`).
+`workspace.db`, on this computer, holds what the files say so the app does not refold every chat to draw a list: per-file cursors, the chats, sessions and messages tables, and the index of every device's activity log of model requests, whose lines live in the workspace's `.instrument/devices/<device>/activity/<YYYY-MM>.jsonl`, one writer per file like the chat logs. Index tables are rebuildable and are dropped and refolded when their schema version moves (`records-index.ts`, `workspace-index.ts`).
 
 ## A chat's id, and `chat.db`
 

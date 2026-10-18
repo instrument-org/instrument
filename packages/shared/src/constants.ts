@@ -155,8 +155,8 @@ export const WORKSPACE_MACHINE_ENTRIES = {
    */
   claudeAccount: "claude-account",
   /**
-   * `workspace.db`: the index of the workspace's chats, rebuilt from them
-   * whenever it is missing, and the activity log.
+   * `workspace.db`: the index of the workspace's chats and of every
+   * device's activity log, rebuilt from the workspace whenever it is missing.
    */
   database: "workspace.db",
   /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */

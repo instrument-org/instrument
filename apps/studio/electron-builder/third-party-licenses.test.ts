@@ -125,6 +125,24 @@ describe("writeThirdPartyLicenses", () => {
     ).toThrow(/Tool is 1\.3\.0, but the texts in licenses\/tool\//);
   });
 
+  it("leaves out a component that ships on other platforms", () => {
+    const { checkedInDir, component } = fixture();
+    const outDir = path.join(tempDir(), "licenses");
+
+    const entries = writeThirdPartyLicenses({
+      checkedInDir,
+      components: [
+        component,
+        { ...component, id: "windows-only", platforms: ["win32"] },
+      ],
+      outDir,
+      platformName: "darwin",
+    });
+
+    expect(entries.map(({ folder }) => folder)).toEqual(["tool"]);
+    expect(existsSync(path.join(outDir, "windows-only"))).toBe(false);
+  });
+
   it("fails when a license file is missing", () => {
     const { checkedInDir, component } = fixture();
 

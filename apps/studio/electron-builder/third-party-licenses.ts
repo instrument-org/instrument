@@ -78,6 +78,8 @@ export type ThirdPartyComponent = {
    * covered by one (verify-licenses.ts).
    */
   ships: string[];
+  /** The platforms it ships on; every platform when left out. */
+  platforms?: ElectronPlatform[];
   /** For a GPL program, where its source and build recipe live upstream. */
   source?: (platform: ElectronPlatform) => string[];
   version: (originDir: string) => string;
@@ -167,6 +169,20 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     ships: ["resources/uv/"],
     version: (dir) =>
       readFileSync(path.join(dir, ".version"), "utf8").trim().split("-")[0] ??
+      "",
+  },
+  {
+    files: ["LICENSE.md"],
+    id: "mxc",
+    license: () => "MIT",
+    name: "MXC launcher (wxc-exec)",
+    // Vendored on Windows by scripts/download-mxc.ts, which writes the version
+    // marker and the license text beside the launcher.
+    origin: { dir: path.join(STUDIO_DIR, "resources", "mxc") },
+    platforms: ["win32"],
+    ships: ["resources/mxc/"],
+    version: (dir) =>
+      readFileSync(path.join(dir, ".version"), "utf8").trim().split(" ")[0] ??
       "",
   },
   {
@@ -362,7 +378,12 @@ export function writeThirdPartyLicenses({
   rmSync(outDir, { force: true, recursive: true });
   mkdirSync(outDir, { recursive: true });
 
-  const entries = components.map((component): LicenseEntry => {
+  const shipped = components.filter(
+    (component) =>
+      component.platforms === undefined ||
+      component.platforms.includes(platformName),
+  );
+  const entries = shipped.map((component): LicenseEntry => {
     const dir = resolveOrigin(component.origin);
     const target = path.join(outDir, component.id);
     mkdirSync(target, { recursive: true });

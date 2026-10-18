@@ -984,6 +984,56 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
     rmSync(home, { force: true, recursive: true });
   });
 
+  it("binds the caches open, with a browser's and the updater's closed in them", () => {
+    const home = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "bwrap-cache-")),
+    );
+    const at = (relative: string) => path.join(home, relative);
+    for (const folder of [
+      ".config/app",
+      ".cache/pip",
+      ".cache/google-chrome",
+      ".cache/instrument-desktop-updater",
+    ]) {
+      mkdirSync(at(folder), { recursive: true });
+    }
+    const args = bwrapArgs(
+      reachOver(home, [
+        {
+          level: "ask",
+          path: at(".config"),
+          place: "appFiles",
+          source: "place",
+        },
+        {
+          level: "allow",
+          path: at(".cache"),
+          place: "appFiles",
+          source: "place",
+        },
+        {
+          level: "never",
+          path: at(".cache/google-chrome"),
+          place: "passwords",
+          source: "place",
+        },
+        {
+          appData: true,
+          level: "never",
+          path: at(".cache/instrument-desktop-updater"),
+          source: "system",
+        },
+      ]),
+    )
+      .join(" ")
+      .replaceAll(home, "~");
+    expect(args).toContain("--tmpfs ~/.config ");
+    expect(args).toContain("--bind ~/.cache ~/.cache");
+    expect(args).toContain("--tmpfs ~/.cache/google-chrome ");
+    expect(args).toContain("--tmpfs ~/.cache/instrument-desktop-updater ");
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("refuses a closed folder or file rather than showing it empty", () => {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
     for (const folder of ["Documents/Acme", "Secrets"]) {

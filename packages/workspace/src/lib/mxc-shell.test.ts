@@ -115,6 +115,31 @@ describe.runIf(held)("a chat's shell under MXC", () => {
     expect(result.stderr).toMatch(/asks first|ask|allow/i);
   });
 
+  it("shows a program the names and sizes in App files, and none in the folders closed in it", async () => {
+    const recent = path.join(
+      process.env.APPDATA ?? tmpDir,
+      "Microsoft",
+      "Windows",
+      "Recent",
+    );
+    const encoded = Buffer.from(
+      JSON.stringify([path.dirname(closedFile), closedFile, recent]),
+    ).toString("base64");
+    const script = [
+      "const fs = require('fs')",
+      `const [folder, file, recent] = JSON.parse(Buffer.from('${encoded}', 'base64').toString())`,
+      "const tried = (f) => { try { return f() } catch (error) { return error.code } }",
+      "console.log(JSON.stringify({ names: tried(() => fs.readdirSync(folder)), size: tried(() => fs.statSync(file).size), recent: tried(() => fs.readdirSync(recent).length) }))",
+    ].join("; ");
+    const result = await run(`node -e "${script}"`);
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      names: ["secret.txt"],
+      recent: "EPERM",
+      size: secret.length,
+    });
+  });
+
   it("refuses each pipeline stage on its own", async () => {
     const result = await run(
       `set -o pipefail; sort words.txt | ${readsClosed()} | sort; echo "status \${PIPESTATUS[@]}"`,

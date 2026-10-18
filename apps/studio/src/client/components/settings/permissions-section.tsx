@@ -25,7 +25,7 @@ import {
   segmentsOf,
 } from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isMacOS, isWindows } from "@/client/lib/utils";
+import { isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -337,6 +337,97 @@ export function PermissionsSection() {
             </div>
           </CollapsibleContent>
         </Collapsible>
+      </div>
+      <AlwaysOpen
+        appFiles={placeById.get("appFiles")?.level}
+        home={view.home}
+        places={view.alwaysOpen}
+      />
+    </div>
+  );
+}
+
+/**
+ * The places every chat reaches whatever the list above says, because the
+ * app needs them, and what programs can see without asking.
+ */
+function AlwaysOpen({
+  appFiles,
+  home,
+  places,
+}: {
+  appFiles: Level | undefined;
+  home: string;
+  places: View["alwaysOpen"];
+}) {
+  const status = (text: string) => (
+    <span className="px-3 text-sm text-muted-foreground">{text}</span>
+  );
+  const rows = [
+    {
+      line: fromHome(places.workFolders, home),
+      name: "Chat work folders",
+      path: places.workFolders,
+      status: "Allowed",
+    },
+    {
+      line: fromHome(places.chats, home),
+      name: "Chat history",
+      path: places.chats,
+      status: "Read only",
+    },
+    ...(places.caches.length > 0
+      ? [
+          {
+            line: places.caches.map((each) => fromHome(each, home)).join(", "),
+            name: "Caches",
+            path: places.caches[0] ?? "",
+            status: appFiles === "never" ? "Not allowed" : "Allowed",
+          },
+        ]
+      : []),
+    ...places.programs.map((path) => ({
+      line: fromHome(path, home),
+      name: "Installed programs",
+      path,
+      status: "Read only",
+    })),
+  ];
+  const listed = appFiles === "ask" && !isLinux();
+  return (
+    <div className="space-y-2" {...settingAnchor("always-open")}>
+      <h4 className="text-sm font-medium text-muted-foreground">Always open</h4>
+      <p className="text-xs text-muted-foreground">
+        Instrument needs these to work, so every chat can use them.
+      </p>
+      <div className="divide-y overflow-hidden rounded-lg border">
+        {rows.map((row) => (
+          <PermissionRow
+            control={status(row.status)}
+            key={row.path}
+            line={row.line}
+            mark={<FolderMark size="row" path={row.path} />}
+            name={row.name}
+          />
+        ))}
+      </div>
+      <div className="space-y-1 text-xs text-muted-foreground">
+        {isWindows() ? (
+          <p>
+            {listed
+              ? "Programs the agent runs can see the names of what's in Other apps' files, and in a folder set to Ask first when you've allowed a folder inside it. Instrument still asks you before a program opens anything there."
+              : "Programs the agent runs can see the names of what's in a folder set to Ask first when you've allowed a folder inside it. Instrument still asks you before a program opens anything there."}
+          </p>
+        ) : listed ? (
+          <p>
+            Programs the agent runs can see the names, sizes and dates of what's
+            in Other apps' files, but Instrument asks you before a program opens
+            anything there.
+          </p>
+        ) : null}
+        {places.caches.length > 0 ? (
+          <p>Your browsers' caches stay closed.</p>
+        ) : null}
       </div>
     </div>
   );

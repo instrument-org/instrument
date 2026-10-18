@@ -133,6 +133,12 @@ export const SETTINGS_INDEX = [
     title: "Use folders without asking",
   },
   {
+    detail: `Places every chat can use because ${APP_NAME} needs them.`,
+    id: "always-open",
+    tab: "Permissions",
+    title: "Always open",
+  },
+  {
     detail: "Ask for a skill that teaches a new way of working.",
     id: "new-skill",
     tab: "Skills",

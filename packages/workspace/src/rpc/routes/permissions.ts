@@ -3,6 +3,8 @@ import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
+import { homeDataLayout, workspaceLayout } from "../../lib/workspace-layout";
 import { nativeSandboxEnforced } from "../../lib/native-sandbox";
 import {
   type Level,
@@ -10,6 +12,7 @@ import {
   PLACE_DEFAULTS,
   PlaceIdSchema,
   placePaths,
+  windowsProgramFolders,
 } from "../../lib/permissions/places";
 import {
   type PermissionSettings,
@@ -30,6 +33,20 @@ import { AskSchema } from "../../schemas/chat-state";
 import { distinct, liveRead } from "../live-read";
 
 const PermissionsViewSchema = z.object({
+  /**
+   * What every chat reaches whatever the list says, because the app needs
+   * it (`layoutRules`), and the caches the app-files place opens unless it
+   * is Not allowed.
+   */
+  alwaysOpen: z.object({
+    caches: z.array(z.string()),
+    /** Every chat's records, read-only. */
+    chats: z.string(),
+    /** Program folders every chat reads, on Windows. */
+    programs: z.array(z.string()),
+    /** Every chat's work folder, in every workspace. */
+    workFolders: z.string(),
+  }),
   apps: z.array(
     z.object({ addedAt: z.date(), level: LevelSchema, name: z.string() }),
   ),
@@ -56,12 +73,20 @@ function view(
   settings: PermissionSettings,
 ): z.output<typeof PermissionsViewSchema> {
   const home = os.homedir();
+  const places = placePaths(home);
   return {
+    alwaysOpen: {
+      caches:
+        places.find((place) => place.id === "appFiles")?.openUnlessClosed ?? [],
+      chats: workspaceLayout(getWorkspaceConfig().rootDir).chatsDir,
+      programs: process.platform === "win32" ? windowsProgramFolders(home) : [],
+      workFolders: homeDataLayout(home).workDir,
+    },
     apps: settings.apps,
     enforced: nativeSandboxEnforced(),
     folders: settings.folders,
     home,
-    places: placePaths(home).map((place) => ({
+    places: places.map((place) => ({
       id: place.id,
       level:
         place.id === "output"

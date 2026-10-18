@@ -472,6 +472,43 @@ export interface MxcCommand {
 }
 
 /**
+ * `argv` started through uutils' `env`, which sets TEMP and TMP back to the
+ * values in `env` inside the container. Windows starts a container's first
+ * program with TEMP, TMP and LOCALAPPDATA moved into a profile made for that
+ * launch and removed when it ends, so a file a program leaves in its temp
+ * folder would be gone, and would never be in the shell's `/tmp`. A program
+ * `env` starts keeps the environment it is given, and the temp folder it
+ * names is one the policy already opens, so nothing is reached that was not
+ * before. Left as it is: a `cmd.exe` line, which `env` would requote; a batch
+ * file, whose arguments Rust's `Command` escapes its own way; and a run with
+ * no uutils or no temp folder to give.
+ */
+function withTempRestored(
+  argv: readonly string[],
+  env: Record<string, string | undefined>,
+  verbatim = false,
+): readonly string[] {
+  const uutilsDir = getWorkspaceConfig().uutilsDir;
+  const uutils = uutilsDir && path.join(uutilsDir, "coreutils.exe");
+  const restored = (["TEMP", "TMP"] as const).flatMap((name) =>
+    env[name] === undefined ? [] : [`${name}=${env[name]}`],
+  );
+  const [program = ""] = argv;
+  if (
+    verbatim ||
+    !uutils ||
+    !existsSync(uutils) ||
+    restored.length === 0 ||
+    /\.(?:bat|cmd)$/i.test(program) ||
+    // `env` reads a leading `NAME=VALUE` as a variable, not a program.
+    program.includes("=")
+  ) {
+    return argv;
+  }
+  return [uutils, "env", ...restored, ...argv];
+}
+
+/**
  * The launcher and its arguments for a command held under MXC, now that its
  * working folder and environment are known.
  */
@@ -486,7 +523,11 @@ export function mxcLaunch(
   const request = JSON.stringify(
     mxcRequest({
       commandLine: windowsCommandLine(
-        command.argv,
+        withTempRestored(
+          command.argv,
+          context.env,
+          context.windowsVerbatimArguments,
+        ),
         context.windowsVerbatimArguments,
       ),
       cwd: context.cwd,

@@ -10,7 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Disk, liveDisk } from "./disk";
 import { mxcPolicyFor } from "./mxc";
@@ -23,6 +23,8 @@ import {
   windowsCommandLine,
 } from "./index";
 import { reachOf, type Rule } from "../permissions/rules";
+import { AbsolutePathSchema } from "../../schemas/paths";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
 const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "mxc-policy-")));
 afterAll(() => rmSync(base, { force: true, recursive: true }));
@@ -547,6 +549,71 @@ describe("launchNative", () => {
       cwd: "/work",
       env: ["SYSTEMROOT=C:\\Windows"],
       timeout: 0,
+    });
+  });
+
+  describe("with uutils to start the program", () => {
+    const uutils = path.join(base, "uutils");
+    const coreutils = path.join(uutils, "coreutils.exe");
+    const temp = "C:\\Users\\sam\\AppData\\Local\\Temp";
+    let config: ReturnType<typeof getWorkspaceConfig>;
+    beforeAll(() => {
+      mkdirSync(uutils, { recursive: true });
+      writeFileSync(coreutils, "");
+      config = getWorkspaceConfig();
+      setWorkspaceConfig({
+        ...config,
+        uutilsDir: AbsolutePathSchema.parse(uutils),
+      });
+    });
+    afterAll(() => setWorkspaceConfig(config));
+
+    function commandLine(
+      argv: string[],
+      env: Record<string, string>,
+      verbatim = false,
+    ) {
+      const launch = launchNative(
+        { argv, file: "wxc-exec.exe", filesystem, kind: "mxc", reach },
+        { env, windowsVerbatimArguments: verbatim },
+      );
+      return (
+        JSON.parse(
+          Buffer.from(launch.args[1] ?? "", "base64").toString("utf8"),
+        ) as ReturnType<typeof mxcRequest>
+      ).process.commandLine;
+    }
+
+    it("gives the program back the temp folder Windows moves into the container", () => {
+      expect(
+        commandLine(["python.exe", "-c", "print(1)"], {
+          TEMP: temp,
+          TMP: temp,
+        }),
+      ).toBe(
+        windowsCommandLine([
+          coreutils,
+          "env",
+          `TEMP=${temp}`,
+          `TMP=${temp}`,
+          "python.exe",
+          "-c",
+          "print(1)",
+        ]),
+      );
+    });
+
+    it.each([
+      ["a cmd.exe line", ["cmd.exe", "/d", "/s", '/c "a b"'], true],
+      ["a batch file", ["C:\\tools\\npx.cmd", "x"], false],
+    ])("leaves %s as it is", (_, argv, verbatim) => {
+      expect(commandLine(argv, { TEMP: temp }, verbatim)).toBe(
+        windowsCommandLine(argv, verbatim),
+      );
+    });
+
+    it("leaves a program with no temp folder to give as it is", () => {
+      expect(commandLine(["node", "a b"], {})).toBe('node "a b"');
     });
   });
 

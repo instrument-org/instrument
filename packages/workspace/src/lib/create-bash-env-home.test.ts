@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import { type ChatId } from "../schemas/chat-id";
-import { ChatDirSchema } from "../schemas/paths";
+import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
@@ -42,9 +42,21 @@ beforeAll(async () => {
   // Where Windows reads the home folder from.
   vi.stubEnv("USERPROFILE", home);
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
-  // The system's own temp folders, which hold this test's planted home.
+  // The system's own temp folders, which hold this test's planted home. Held
+  // by MXC, a program starts through uutils, as in the app, which gives it
+  // back the temp folder Windows takes from it.
   const { tempFolders: _tests, ...system } = getWorkspaceConfig();
-  setWorkspaceConfig(system);
+  setWorkspaceConfig({
+    ...system,
+    ...(system.mxcExecPath && {
+      uutilsDir: AbsolutePathSchema.parse(
+        path.resolve(
+          import.meta.dirname,
+          "../../../../apps/studio/resources/uutils",
+        ),
+      ),
+    }),
+  });
 });
 
 afterAll(async () => {
@@ -83,33 +95,42 @@ function inProgramTemp(name: string, body: string): string {
   return `node -e "const file = require('path').join(require('os').tmpdir(), '${name}'); ${body}"`;
 }
 
-it("names by /tmp on Windows, and by $TMPDIR anywhere, the file a program finds in its temp folder", async () => {
-  const name = `bash-home-shared-${process.pid}`;
-  const shellTemp = process.platform === "win32" ? "/tmp" : '"$TMPDIR"';
-  try {
-    const written = await run(`echo from-shell > ${shellTemp}/${name}`);
-    expect(written.exitCode).toBe(0);
-    // A program the shell starts, held by the native sandbox where one
-    // runs, finds it through the temp folder its language gives it.
-    const read = await run(
-      inProgramTemp(
-        name,
-        "process.stdout.write(require('fs').readFileSync(file, 'utf8'))",
-      ),
-    );
-    expect(read).toMatchObject({ exitCode: 0, stdout: "from-shell\n" });
-    await expect(
-      fs.readFile(path.join(os.tmpdir(), name), "utf8"),
-    ).resolves.toBe("from-shell\n");
-    const wrote = await run(
-      inProgramTemp(name, "require('fs').writeFileSync(file, 'from-program')"),
-    );
-    expect(wrote).toMatchObject({ exitCode: 0, stderr: "" });
-    expect((await run(`cat ${shellTemp}/${name}`)).stdout).toBe("from-program");
-  } finally {
-    await fs.rm(path.join(os.tmpdir(), name), { force: true });
-  }
-});
+it(
+  "names by /tmp on Windows, and by $TMPDIR anywhere, the file a program finds in its temp folder",
+  { timeout: 30_000 },
+  async () => {
+    const name = `bash-home-shared-${process.pid}`;
+    const shellTemp = process.platform === "win32" ? "/tmp" : '"$TMPDIR"';
+    try {
+      const written = await run(`echo from-shell > ${shellTemp}/${name}`);
+      expect(written.exitCode).toBe(0);
+      // A program the shell starts, held by the native sandbox where one
+      // runs, finds it through the temp folder its language gives it.
+      const read = await run(
+        inProgramTemp(
+          name,
+          "process.stdout.write(require('fs').readFileSync(file, 'utf8'))",
+        ),
+      );
+      expect(read).toMatchObject({ exitCode: 0, stdout: "from-shell\n" });
+      await expect(
+        fs.readFile(path.join(os.tmpdir(), name), "utf8"),
+      ).resolves.toBe("from-shell\n");
+      const wrote = await run(
+        inProgramTemp(
+          name,
+          "require('fs').writeFileSync(file, 'from-program')",
+        ),
+      );
+      expect(wrote).toMatchObject({ exitCode: 0, stderr: "" });
+      expect((await run(`cat ${shellTemp}/${name}`)).stdout).toBe(
+        "from-program",
+      );
+    } finally {
+      await fs.rm(path.join(os.tmpdir(), name), { force: true });
+    }
+  },
+);
 
 it("asks before changing the home folder a temp folder holds", async () => {
   const result = await run("touch ~/notes.txt");

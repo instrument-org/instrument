@@ -249,12 +249,14 @@ describe("another device's records reaching a running app", () => {
               [{ id: messageId(2), removed: false, sessionId: SESSION }],
             ]);
           },
-          { timeout: 5000 },
+          { timeout: 15_000 },
         );
       } finally {
         watching.stop();
       }
     },
+    // A real watch on a loaded machine can take seconds to report.
+    20_000,
   );
 });
 

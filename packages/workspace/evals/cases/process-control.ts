@@ -505,15 +505,17 @@ export const PROCESS_CONTROL_EVALS: EvalCase[] = [
       {
         check: ({ sessions }) => {
           const checks = callsAfter(sessions, STILL_UP).filter((call) =>
-            /(?:^|[\s;|&(])(?:jobs|fg)\b|\bkill\s+-0\b/.test(call.command),
+            /(?:^|[\s;|&(])(?:jobs|fg|curl|wget|lsof|nc|pgrep|ps)\b|\bkill\s+-0\b|\bfetch\(|\bhttp\.get\(/.test(
+              call.command,
+            ),
           );
           return {
             evidence: describeCommands(callsAfter(sessions, STILL_UP)),
             passed: checks.length > 0,
-            text: "Checked with jobs, fg or kill -0",
+            text: "Checked the server it started",
           };
         },
-        text: "Checked with jobs, fg or kill -0",
+        text: "Checked the server it started",
       },
       assertStartedOnce(/server\.js/),
       assertPortStillServing("process-is-it-still-up", 3957),

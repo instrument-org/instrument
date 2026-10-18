@@ -111,8 +111,17 @@ const config: Configuration = {
   // linker-signed ad-hoc signature. A signed build re-signs it anyway; an
   // unsigned one (`identity: null`, the smoke test) is SIGKILLed on its first
   // fuse read on Apple Silicon unless the ad-hoc signature is reset.
+  //
+  // The asar is checked against the hash packaging records (Info.plist on
+  // macOS, a resource on Windows; Linux has no check), and nothing else is
+  // loaded as the app, so code that rewrites app.asar on disk does not run
+  // with Instrument's signature and grants on the next launch. Only the asar is
+  // covered, not app.asar.unpacked. Anything that edits the asar after
+  // packaging makes the app exit at launch; afterPack only reads it.
   electronFuses: {
+    enableEmbeddedAsarIntegrityValidation: true,
     enableNodeCliInspectArguments: false,
+    onlyLoadAppFromAsar: true,
     resetAdHocDarwinSignature: true,
   },
   // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)

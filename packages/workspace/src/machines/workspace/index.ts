@@ -1,11 +1,9 @@
 import {
   type AIGatewayApp,
   type AIGatewayModel,
-  type GetProviderConfigs,
-  type ModelCache,
 } from "@instrument-org/ai-gateway";
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import ms from "ms";
+import { omit } from "radashi";
 import {
   type ActorRefFrom,
   assign,
@@ -40,13 +38,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type StopNotice } from "../../schemas/stop-notice";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
-import { type WebSearchClient } from "../../schemas/web-search";
-import {
-  type BrowserConfig,
-  type BrowserTargetId,
-  type WorkspaceAppsConfig,
-  type WorkspaceConfig,
-} from "../../types";
+import { type BrowserTargetId, type WorkspaceConfig } from "../../types";
 import { type StopReason } from "../execute-tool-call";
 import {
   type SessionActorRef,
@@ -145,6 +137,49 @@ function findLiveSessionRef(
         ref.getSnapshot().context.sessionId === sessionId &&
         ref.getSnapshot().status === "active",
     );
+}
+
+/** The config's paths, which a caller passes as plain strings. */
+type WorkspaceInputPath =
+  | "macHelperBinPath"
+  | "mxcExecPath"
+  | "outputDir"
+  | "pnpmBinPath"
+  | "registryDir"
+  | "runtimeDir"
+  | "seatbeltHelperPath"
+  | "systemSkillsDir"
+  | "userDataDir"
+  | "uutilsDir"
+  | "uvBinPath"
+  | "workFoldersDir"
+  | "workspaceDbFile"
+  | "workspaceMachineDir";
+
+/**
+ * The workspace config as a caller gives it: its paths as strings, and
+ * without the folders the workspace's layout derives from its root.
+ */
+type WorkspaceInput = Omit<
+  WorkspaceConfig,
+  "appsDir" | "chatsDir" | "legacyTasksDir" | "rootDir" | WorkspaceInputPath
+> & {
+  [K in keyof Pick<
+    WorkspaceConfig,
+    WorkspaceInputPath
+  >]: WorkspaceConfig[K] extends AbsolutePath ? string : string | undefined;
+} & {
+  aiGatewayApp: AIGatewayApp;
+  /**
+   * Whether 1.x may have left tasks at the workspace's top level, which it
+   * did only in the app's own data: then `legacyTasksDir` is its `tasks/`.
+   */
+  legacyTasks?: boolean;
+  rootDir: string;
+};
+
+function optionalPath(path: string | undefined) {
+  return path === undefined ? undefined : AbsolutePathSchema.parse(path);
 }
 
 export const workspaceMachine = setup({
@@ -247,52 +282,7 @@ export const workspaceMachine = setup({
   types: {
     context: {} as WorkspaceContext,
     events: {} as WorkspaceEvent,
-    input: {} as {
-      aiGatewayApp: AIGatewayApp;
-      apps: WorkspaceAppsConfig;
-      appVersion: string;
-      browser: BrowserConfig;
-      captureException: CaptureExceptionFunction;
-      deviceId: WorkspaceConfig["deviceId"];
-      driveNames?: WorkspaceConfig["driveNames"];
-      ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
-      finderEntries?: WorkspaceConfig["finderEntries"];
-      resolveAlias?: WorkspaceConfig["resolveAlias"];
-      isRefusedFile?: WorkspaceConfig["isRefusedFile"];
-      getAIProviderConfigs: GetProviderConfigs;
-      getUser?: WorkspaceConfig["getUser"];
-      /**
-       * Whether 1.x may have left tasks at the workspace's top level, which
-       * it did only in the app's own data: then `legacyTasksDir` is its
-       * `tasks/`.
-       */
-      legacyTasks?: boolean;
-      userDataDir: string;
-      workspaceDbFile?: string;
-      workspaceMachineDir: string;
-      /** Where each chat's work folder is made, a folder per chat. */
-      workFoldersDir: string;
-      modelCache: ModelCache;
-      modelRoutes?: WorkspaceConfig["modelRoutes"];
-      nativeSandbox?: WorkspaceConfig["nativeSandbox"];
-      nodeExecEnv: Record<string, string>;
-      outputDir?: string;
-      pnpmBinPath: string;
-      refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
-      registryDir: string;
-      rootDir: string;
-      runtimeDir: string;
-      systemSkillsDir: string;
-      trashItem: (path: AbsolutePath) => Promise<void>;
-      uvBinPath: string;
-      uutilsDir?: string;
-      uutilsOutsideSandbox?: boolean;
-      macHelperBinPath?: string;
-      seatbeltHelperPath?: string;
-      mxcExecPath?: string;
-      knownFolders?: WorkspaceConfig["knownFolders"];
-      webSearch: WebSearchClient;
-    },
+    input: {} as WorkspaceInput,
     output: {},
   },
 }).createMachine({
@@ -300,67 +290,27 @@ export const workspaceMachine = setup({
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const layout = workspaceLayout(rootDir);
     const workspaceConfig: WorkspaceConfig = {
-      apps: input.apps,
+      ...omit(input, ["aiGatewayApp", "legacyTasks"]),
       appsDir: AbsolutePathSchema.parse(layout.appsDir),
-      appVersion: input.appVersion,
-      browser: input.browser,
-      captureException: input.captureException,
-      deviceId: input.deviceId,
-      getAIProviderConfigs: input.getAIProviderConfigs,
-      ...(input.ensureOutputFolderIcon
-        ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
-        : {}),
-      ...(input.driveNames ? { driveNames: input.driveNames } : {}),
-      ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
-      ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
-      ...(input.isRefusedFile ? { isRefusedFile: input.isRefusedFile } : {}),
-      ...(input.getUser ? { getUser: input.getUser } : {}),
-      ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
-      userDataDir: AbsolutePathSchema.parse(input.userDataDir),
-      ...(input.workspaceDbFile && {
-        workspaceDbFile: AbsolutePathSchema.parse(input.workspaceDbFile),
-      }),
-      workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
-      workFoldersDir: AbsolutePathSchema.parse(input.workFoldersDir),
-      modelCache: input.modelCache,
-      ...(input.modelRoutes && { modelRoutes: input.modelRoutes }),
-      ...(input.nativeSandbox && {
-        nativeSandbox: input.nativeSandbox,
-      }),
-      nodeExecEnv: input.nodeExecEnv,
-      ...(input.outputDir && {
-        outputDir: AbsolutePathSchema.parse(input.outputDir),
-      }),
-      pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
-      ...(input.refreshExpiredCredentials
-        ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
-        : {}),
-      registryDir: AbsolutePathSchema.parse(input.registryDir),
-      rootDir,
-      runtimeDir: AbsolutePathSchema.parse(input.runtimeDir),
-      systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
       chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
       ...(input.legacyTasks && {
         legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       }),
-      trashItem: input.trashItem,
+      macHelperBinPath: optionalPath(input.macHelperBinPath),
+      mxcExecPath: optionalPath(input.mxcExecPath),
+      outputDir: optionalPath(input.outputDir),
+      pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
+      registryDir: AbsolutePathSchema.parse(input.registryDir),
+      rootDir,
+      runtimeDir: AbsolutePathSchema.parse(input.runtimeDir),
+      seatbeltHelperPath: optionalPath(input.seatbeltHelperPath),
+      systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
+      userDataDir: AbsolutePathSchema.parse(input.userDataDir),
+      uutilsDir: optionalPath(input.uutilsDir),
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
-      ...(input.macHelperBinPath === undefined
-        ? {}
-        : {
-            macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
-          }),
-      ...(input.seatbeltHelperPath && {
-        seatbeltHelperPath: AbsolutePathSchema.parse(input.seatbeltHelperPath),
-      }),
-      ...(input.mxcExecPath && {
-        mxcExecPath: AbsolutePathSchema.parse(input.mxcExecPath),
-      }),
-      ...(input.uutilsDir && {
-        uutilsDir: AbsolutePathSchema.parse(input.uutilsDir),
-      }),
-      ...(input.uutilsOutsideSandbox && { uutilsOutsideSandbox: true }),
-      webSearch: input.webSearch,
+      workFoldersDir: AbsolutePathSchema.parse(input.workFoldersDir),
+      workspaceDbFile: optionalPath(input.workspaceDbFile),
+      workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
     };
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every ChatId.

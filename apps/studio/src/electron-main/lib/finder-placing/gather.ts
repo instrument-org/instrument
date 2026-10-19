@@ -1,5 +1,5 @@
 import { type Identity, identityOf } from "../file-journal";
-import { finderEntries } from "../mac-native";
+import { caseSensitivity, finderEntries } from "../mac-native";
 import {
   type Answer,
   type ItemKind,
@@ -62,43 +62,84 @@ async function finderPackages(folder: string): Promise<ReadonlySet<string>> {
   );
 }
 
+/** A name with each letter's case flipped; the same name where it has none. */
+function flipCase(name: string) {
+  return Array.from(name)
+    .map((char) =>
+      char.toLowerCase() === char ? char.toUpperCase() : char.toLowerCase(),
+    )
+    .join("");
+}
+
+/** What `probeNames` reads, for a test to stand a disk in for. */
+export type NameProbe = {
+  /** The disk's own answer, where it gives one (the Mac's `pathconf`). */
+  caseSensitivity: (folder: string) => Promise<boolean | undefined>;
+  identity: (at: string) => Promise<Identity | null>;
+  list: (folder: string) => Promise<readonly string[]>;
+  platform: NodeJS.Platform;
+};
+
 /**
- * Whether the disk under `folder` tells names apart by case, read without
- * writing anything: the same path with one letter's case flipped names the
- * same folder on a disk that does not. Where no letter is on the way up, the
- * system's default disk answers. The Mac's disks also treat a composed and a
- * decomposed accent as one name, and the others do not.
+ * Whether the disk under `folder` tells names apart by case. The disk's own
+ * answer where it gives one; else read without writing anything: the same
+ * path with one letter's case flipped names the same thing on a disk that
+ * does not. Only names on the destination's own disk are tried, the folders
+ * from it up to where that disk is mounted and then what is in it, since a
+ * folder above the mount point is on another disk and answers for that one.
+ * Where nothing has a letter, the system's default disk answers. The Mac's
+ * disks also treat a composed and a decomposed accent as one name, and the
+ * others do not.
  */
-async function probeNames(folder: string): Promise<NameRules> {
-  const unicodeSensitive = process.platform !== "darwin";
-  const real = await fs.realpath(folder).catch(() => folder);
-  let here = real;
+export async function probeNames(
+  folder: string,
+  {
+    caseSensitivity: asked = caseSensitivity,
+    identity = identityOf,
+    list = (at) => fs.readdir(at),
+    platform = process.platform,
+  }: Partial<NameProbe> = {},
+): Promise<NameRules> {
+  const unicodeSensitive = platform !== "darwin";
+  const said = await asked(folder).catch(() => undefined);
+  if (said !== undefined) {
+    return { caseSensitive: said, unicodeSensitive };
+  }
+  const sameThing = async (one: string, other: string) => {
+    const [left, right] = await Promise.all([identity(one), identity(other)]);
+    return left !== null && right !== null && sameIdentity(left, right);
+  };
+  const disk = (await identity(folder))?.dev;
+  let here = folder;
   for (;;) {
-    const base = path.basename(here);
-    const flipped = Array.from(base)
-      .map((char) =>
-        char.toLowerCase() === char ? char.toUpperCase() : char.toLowerCase(),
-      )
-      .join("");
-    if (flipped !== base) {
-      const [one, other] = await Promise.all([
-        identityOf(here),
-        identityOf(path.join(path.dirname(here), flipped)),
-      ]);
-      return {
-        caseSensitive: !(one && other && sameIdentity(one, other)),
-        unicodeSensitive,
-      };
-    }
     const up = path.dirname(here);
-    if (up === here) {
+    // The mount point's own name is looked up on the disk above it.
+    if (up === here || (await identity(up))?.dev !== disk) {
+      break;
+    }
+    const base = path.basename(here);
+    const flipped = flipCase(base);
+    if (flipped !== base) {
       return {
-        caseSensitive: process.platform === "linux",
+        caseSensitive: !(await sameThing(here, path.join(up, flipped))),
         unicodeSensitive,
       };
     }
     here = up;
   }
+  for (const name of await list(folder).catch(() => [])) {
+    const flipped = flipCase(name);
+    if (flipped !== name) {
+      return {
+        caseSensitive: !(await sameThing(
+          path.join(folder, name),
+          path.join(folder, flipped),
+        )),
+        unicodeSensitive,
+      };
+    }
+  }
+  return { caseSensitive: platform === "linux", unicodeSensitive };
 }
 
 /**

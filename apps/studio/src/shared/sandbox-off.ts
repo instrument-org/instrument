@@ -6,7 +6,7 @@ export const SANDBOX_OFF_TITLE =
   "Programs the agent runs can reach all your files";
 
 export const SANDBOX_OFF_NOTICE =
-  "Instrument couldn't put a sandbox around programs the agent runs, like Python scripts, so they can reach any file you can. Its own tools still follow your permissions.";
+  "Instrument couldn't put a sandbox around programs the agent runs, like Python scripts, so they can reach any file you can.";
 
 /** Why it happened, as far as the computer's own settings show, for each reason. */
 export const SANDBOX_OFF_REASONS = {

@@ -152,7 +152,9 @@ function useToastLoudNotices(
           if (!granted) {
             return;
           }
-          toast.info(notice.title, {
+          const show =
+            notice.severity === "critical" ? toast.warning : toast.info;
+          show(notice.title, {
             action: notice.action && {
               label: notice.action.label,
               onClick: () => {

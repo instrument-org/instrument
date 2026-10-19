@@ -172,23 +172,34 @@ describe("notices", () => {
     expect(notices.listNotices()[0]?.seen).toBe(true);
   });
 
-  it("lets an important notice toast once, and only one per launch", async () => {
+  it("lets an important notice toast once, one per launch, and a critical one always", async () => {
     let notices = await load();
     answer([
       notice({ id: "quiet" }),
       notice({ id: "loud", severity: "important" }),
+      notice({ id: "also-loud", severity: "important" }),
       notice({ id: "louder", severity: "critical" }),
     ]);
     await notices.fetchNotices();
 
     expect(notices.claimNoticeToast("quiet")).toBe(false);
     expect(notices.claimNoticeToast("loud")).toBe(true);
-    expect(notices.claimNoticeToast("louder")).toBe(false);
+    expect(notices.claimNoticeToast("also-loud")).toBe(false);
+    expect(notices.claimNoticeToast("louder")).toBe(true);
 
-    // The next launch gets one more, and never the one already toasted.
+    // The next launch gets one more, and never one already toasted.
     notices = await load();
     expect(notices.claimNoticeToast("loud")).toBe(false);
-    expect(notices.claimNoticeToast("louder")).toBe(true);
+    expect(notices.claimNoticeToast("louder")).toBe(false);
+    expect(notices.claimNoticeToast("also-loud")).toBe(true);
+  });
+
+  it("toasts a notice the app makes itself", async () => {
+    const notices = await load();
+    sandbox.off = "no-bubblewrap";
+    const [warning] = notices.listNotices();
+    expect(notices.claimNoticeToast(warning?.id ?? "")).toBe(true);
+    sandbox.off = undefined;
   });
   it("lists only the last update this computer launched into", async () => {
     const notices = await load();

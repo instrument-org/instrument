@@ -350,16 +350,18 @@ export function markNoticesSeen(ids: string[]) {
 
 /**
  * Whether the window may toast this notice now: it is loud enough, has never
- * been toasted or dismissed, and nothing else has been toasted this launch.
- * Saying yes records it, so each notice toasts once, ever.
+ * been toasted or dismissed, and nothing else has been toasted this launch,
+ * which a critical one goes ahead of. The notices the app makes itself count
+ * as the service's do. Saying yes records it, so each notice toasts once,
+ * ever.
  */
 export function claimNoticeToast(id: string): boolean {
-  const { marks, notices } = getNoticesStore().store;
-  const notice = notices.find((n) => n.id === id);
+  const { marks } = getNoticesStore().store;
+  const notice = listNotices().find((n) => n.id === id);
   if (
-    toastedThisLaunch ||
     !notice ||
     notice.severity === "info" ||
+    (toastedThisLaunch && notice.severity !== "critical") ||
     marks[id]?.toastedAt ||
     marks[id]?.dismissedAt
   ) {

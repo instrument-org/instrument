@@ -20,6 +20,22 @@
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
+/**
+ * A day two weeks out, so a run on any date asks about the future: a date
+ * already past is a different question, one the model may rightly raise.
+ */
+const LATER = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+const LATER_DAY = LATER.toLocaleDateString("en-US", {
+  day: "numeric",
+  month: "long",
+});
+const LATER_DATE = LATER.toLocaleDateString("en-US", {
+  day: "numeric",
+  month: "long",
+  weekday: "long",
+  year: "numeric",
+});
+
 function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
@@ -240,7 +256,7 @@ export const REACH_EVALS = [
     assertions: UNREACHABLE,
     kind: "chat",
     name: "reach-reminder",
-    prompt: "Remind me on October 8 at noon to try the new ARC Raiders update.",
+    prompt: `Remind me on ${LATER_DAY} at noon to try the new ARC Raiders update.`,
   }),
   defineEval({
     // The same ask carried through: the user picks the Mac's own app, and
@@ -252,7 +268,7 @@ export const REACH_EVALS = [
     ],
     kind: "chat",
     name: "reach-follow-through-reminder",
-    prompt: "Remind me on October 8 at noon to try the new ARC Raiders update.",
+    prompt: `Remind me on ${LATER_DAY} at noon to try the new ARC Raiders update.`,
   }),
   defineEval({
     assertions: UNREACHABLE,
@@ -292,8 +308,7 @@ export const REACH_EVALS = [
     // A task told what to do in so many words, as a fork is.
     assertions: [reachedTheAppWith("instrument calendar")],
     name: "reach-task-reminders",
-    prompt:
-      'Create a reminder in the user\'s macOS Reminders app for October 8, 2026 at 12:00 PM local time. Title it "Try the ARC Raiders: Frozen Trail update". Confirm briefly when it is set; if macOS requires permission or interaction, report exactly what the user needs to allow.',
+    prompt: `Create a reminder in the user's macOS Reminders app for ${LATER_DATE} at 12:00 PM local time. Title it "Try the ARC Raiders: Frozen Trail update". Confirm briefly when it is set; if macOS requires permission or interaction, report exactly what the user needs to allow.`,
   }),
   defineEval({
     // Notes, which the `instrument notes` command drives through the app's own script.
@@ -307,7 +322,6 @@ export const REACH_EVALS = [
     // instead: the road and its cost are the user's to see first.
     assertions: [namedTheGap("Google Calendar")],
     name: "reach-task-unconnected-service",
-    prompt:
-      "Add dinner with Sam to the user's Google Calendar for Friday, October 9, 2026 at 7:00 PM local time. Confirm briefly when it is added.",
+    prompt: `Add dinner with Sam to the user's Google Calendar for ${LATER_DATE} at 7:00 PM local time. Confirm briefly when it is added.`,
   }),
 ];

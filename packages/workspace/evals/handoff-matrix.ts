@@ -74,6 +74,7 @@ const CASES: Record<string, string> = {
   injection: "scenario",
   "injection-fork": "scenario",
   "slow-wake": "scenario",
+  "carry-facts": "scenario",
   // Messages typed mid-work (`cases/interruptions.ts`): run only when named.
   "interrupt-fragments": "interruption",
   "interrupt-correction": "interruption",

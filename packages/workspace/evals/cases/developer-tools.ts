@@ -21,8 +21,10 @@ import { type Assertion, defineEval } from "../harness";
  * PATH that fails as a real one does inside the sandbox. A stub run by its
  * path still finds the tools.
  */
+const NO_CLT_PREFIX = "eval-no-clt-";
+
 async function withoutDeveloperTools() {
-  const bin = await fs.mkdtemp(path.join(os.tmpdir(), "eval-no-clt-"));
+  const bin = await fs.mkdtemp(path.join(os.tmpdir(), NO_CLT_PREFIX));
   const refused =
     "no developer tools were found, and no install could be requested (perhaps no UI is present), please install manually from developer.apple.com.";
   await Promise.all(
@@ -37,6 +39,17 @@ async function withoutDeveloperTools() {
     ),
   );
   process.env.PATH = `${bin}${path.delimiter}${process.env.PATH ?? ""}`;
+}
+
+/**
+ * PATH is the whole process's, so the stand-ins come off it once the case
+ * settles rather than following every case that starts after it.
+ */
+function withDeveloperToolsBack() {
+  process.env.PATH = (process.env.PATH ?? "")
+    .split(path.delimiter)
+    .filter((entry) => !path.basename(entry).startsWith(NO_CLT_PREFIX))
+    .join(path.delimiter);
 }
 
 function bashCalls(sessions: Session.WithMessagesAndParts[]) {
@@ -133,5 +146,6 @@ export const DEVELOPER_TOOLS_EVALS = [
     prompt:
       "Write a tiny C program, work/hello.c, that prints hello, then compile it with the system compiler and run it. Tell me what it printed.",
     setup: withoutDeveloperTools,
+    teardown: withDeveloperToolsBack,
   }),
 ];

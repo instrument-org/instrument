@@ -74,14 +74,24 @@ function isBashCall(
   return part.type === "tool-bash";
 }
 
-/** Ran the named command, as a command rather than as part of a word. */
-function makeAssertUsedCommand(name: string, why: string): Assertion {
+/**
+ * Ran the named command, or a name the shell rewrites to it, as a command
+ * rather than as part of a word.
+ */
+function makeAssertUsedCommand(
+  name: string,
+  why: string,
+  aliases: string[] = [],
+): Assertion {
   const text = `Used \`${name}\` ${why}`;
+  const names = [name, ...aliases].join("|");
   return {
     check: ({ sessions }) => {
       const calls = bashCalls(sessions);
       const used = calls.filter((call) =>
-        new RegExp(String.raw`(^|[\n;|&(])\s*${name}\b`).test(call.command),
+        new RegExp(String.raw`(^|[\n;|&(])\s*(?:${names})\b`).test(
+          call.command,
+        ),
       );
       return {
         evidence:
@@ -191,12 +201,18 @@ const assertStoppedWhatItStarted: Assertion = {
           command,
         ),
       );
+    // `kill` takes the job's id, `%N`, or a pid, and a pid's stop names the
+    // job it was in (`Stopped 4242 (bg_1)`), so `lsof -ti :3000 | xargs kill`
+    // counts by what it printed.
     const unstopped = ids.filter(
       (id) =>
         !killCommands.some(
           (command) =>
             command.includes(id) ||
             command.includes(`%${id.replace("bg_", "")}`),
+        ) &&
+        !calls.some((call) =>
+          new RegExp(String.raw`\bStopped [^\n]*\b${id}\b`).test(call.output),
         ),
     );
     return {
@@ -313,7 +329,9 @@ const assertFoundTheError: Assertion = {
 const assertTheWaitDidNotGetPromoted: Assertion = {
   check: ({ sessions }) => {
     const promotedWaits = promoted(sessions).filter((call) =>
-      new RegExp(String.raw`^\s*${FG_COMMAND.name}\b`).test(call.command),
+      new RegExp(String.raw`^\s*(?:${FG_COMMAND.name}|wait)\b`).test(
+        call.command,
+      ),
     );
     return {
       evidence:
@@ -606,7 +624,10 @@ export const BACKGROUND_PROCESS_EVALS = [
   defineEval({
     assertions: [
       assertPromotedAProcess,
-      makeAssertUsedCommand(FG_COMMAND.name, "to wait the command out"),
+      // The shell rewrites `wait` to `fg`, and the `&` refusal suggests it.
+      makeAssertUsedCommand(FG_COMMAND.name, "to wait the command out", [
+        "wait",
+      ]),
       assertFgReportedTheExitCode,
       assertReportedExitCodeSeven,
     ],

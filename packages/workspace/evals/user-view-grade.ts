@@ -8,7 +8,7 @@
  * never a gate: the rubric is the user's expectations, not the product's
  * mechanics, so a reply can pass every assertion and still read wrong.
  *
- *   node --import tsx evals/user-view-grade.ts <matrix-dir> [--trials 1]
+ *   node --import tsx evals/user-view-grade.ts <matrix-dir> [--concurrency 4]
  *
  * Writes `grades.json` and `grades.md` into the matrix folder. Runs whose
  * slug starts `holdout-` are tabulated apart, since they are kept back from

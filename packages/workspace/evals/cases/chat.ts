@@ -396,7 +396,8 @@ export const CHAT_EVALS = [
 
   defineEval({
     // A folder other than the workspace one, which the chat reaches only once
-    // it is added (`task folder --add`, or the user's pick).
+    // the user allows the card it asks with.
+    allowsFolders: 1,
     assertions: [wroteInto("Downloads"), linkedAFileThatExists],
     kind: "chat",
     name: "chat-writes-into-downloads",
@@ -417,9 +418,10 @@ export const CHAT_EVALS = [
 
   defineEval({
     // A follow-up that widens the work to a folder nobody has added yet. The
-    // folder is added where the work stands (`task folder --add` reaches a
-    // running fork too); a second fork for the copies pays for the first
-    // one's context again.
+    // user allows it once, and a fork reaches exactly the chat's folders, so
+    // a running one can make the copies; a second fork for them pays for the
+    // first one's context again.
+    allowsFolders: 1,
     assertions: [startedAtMost(1), wroteInto("Downloads")],
     followUps: ["Put copies of those in my Downloads folder as well."],
     kind: "chat",

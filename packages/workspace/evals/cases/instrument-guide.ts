@@ -14,6 +14,7 @@
  * - **It was a reply, not a task.** A how-to question is the conversation's
  *   to answer in a sentence.
  */
+import { SKILL_NAMES } from "../../src/lib/skill-names";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -49,20 +50,32 @@ const result = (
   evidence: string,
 ): AssertionResult => ({ evidence, passed, text });
 
+/** Every tool call's input, as JSON, so a load_skill or read_file reads the same as a command. */
+function toolInputs(sessions: Session.WithMessagesAndParts[]) {
+  return sessions.flatMap((session) =>
+    session.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type.startsWith("tool-") && "input" in part
+          ? [JSON.stringify(part.input ?? "")]
+          : [],
+      ),
+    ),
+  );
+}
+
 const readTheGuide: Assertion = {
   check: ({ sessions }) => {
     const text = "read the guide before answering";
-    const reads = bashCommands(sessions).filter((command) =>
-      command.includes("instrument-guide/"),
+    const inputs = toolInputs(sessions);
+    const reads = inputs.filter((input) =>
+      input.includes(SKILL_NAMES.instrumentGuide),
     );
     return result(
       reads.length > 0,
       text,
       reads.length > 0
-        ? reads.map((command) => command.split("\n")[0]).join(" | ")
-        : `never read it: ${bashCommands(sessions)
-            .map((command) => command.split("\n")[0])
-            .join(" | ")}`,
+        ? reads.join(" | ").slice(0, 400)
+        : `never read it: ${inputs.join(" | ").slice(0, 400)}`,
     );
   },
   text: "read the guide before answering",
@@ -100,25 +113,26 @@ const withoutATask: Assertion = {
 
 export const INSTRUMENT_GUIDE_EVALS = [
   defineEval({
-    // The user's words are not the setting's: the reference calls it Zoom.
+    // The user's words are not the setting's, and the system prompt's own
+    // example links name other places, so only the reference has this one.
     assertions: [
       readTheGuide,
-      linksTo("instrument://settings/zoom"),
+      linksTo("instrument://settings/notifications"),
       withoutATask,
     ],
     kind: "chat",
     name: "instrument-guide-links-a-setting",
-    prompt: "How do I make the text bigger?",
+    prompt: "Can it ping me when something I left running is done?",
   }),
 
   defineEval({
     assertions: [
       readTheGuide,
-      linksTo("instrument://screen/shortcuts"),
+      linksTo("instrument://screen/apps"),
       withoutATask,
     ],
     kind: "chat",
     name: "instrument-guide-links-a-screen",
-    prompt: "Is there a list of all the keyboard shortcuts somewhere?",
+    prompt: "Where can I see which of my services are hooked up?",
   }),
 ];

@@ -10,7 +10,7 @@
  * long enough to outlast a quick question asked partway through. This is a
  * measurement, not a target: each case scores the outcome, and `toolsChosen`
  * records which of the tools it used (tasks, the browser, skills, reading
- * other chats' records, `request_folder`) as evidence without scoring it, so a
+ * other chats' records, `ask_permission`) as evidence without scoring it, so a
  * run that does the job without them passes.
  */
 import fs from "node:fs";

@@ -39,8 +39,7 @@ const ensure = base
       void context.workspaceConfig
         .ensureOutputFolderIcon?.(outputFolderPath())
         .catch((error: unknown) => {
-          context.workspaceConfig.captureException(error,
-          );
+          context.workspaceConfig.captureException(error);
         });
     }
     return { folders: await folderReach(WINDOW_ID) };

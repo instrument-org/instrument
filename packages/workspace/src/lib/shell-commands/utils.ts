@@ -71,7 +71,9 @@ export function parseScriptRunnerArgs<
       {
         data: {
           command: commandName,
-          options: unknownTokens.map((t) => (isOptionToken(t) ? t.rawName : "")),
+          options: unknownTokens.map((t) =>
+            isOptionToken(t) ? t.rawName : "",
+          ),
         },
       },
     );

@@ -9,7 +9,8 @@ const { logger, storeExceptionEvent, unreachable } = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: {
-    getAppPath: () => "/Applications/Instrument.app/Contents/Resources/app.asar",
+    getAppPath: () =>
+      "/Applications/Instrument.app/Contents/Resources/app.asar",
   },
 }));
 vi.mock("@/electron-main/platform-api/reachability", () => ({
@@ -19,7 +20,12 @@ vi.mock("./electron-logger", () => ({ logger }));
 vi.mock("./exception-store", () => ({ storeExceptionEvent }));
 vi.mock("./event-contexts", () => ({
   eventContexts: () => ({
-    app: { channel: "latest", flavor: "release", packaged: true, version: "2.0.0" },
+    app: {
+      channel: "latest",
+      flavor: "release",
+      packaged: true,
+      version: "2.0.0",
+    },
     culture: { locale: "en-US", timeZone: "UTC" },
     os: { arch: "arm64", platform: "darwin", version: "26.1" },
     process: { rssMb: 400, uptimeMs: 1000 },
@@ -27,12 +33,10 @@ vi.mock("./event-contexts", () => ({
   }),
 }));
 
-const { captureFor, captureServerException } = await import(
-  "./capture-server-exception"
-);
-const { ForwardedException, serializeError } = await import(
-  "@instrument-org/shared/exceptions"
-);
+const { captureFor, captureServerException } =
+  await import("./capture-server-exception");
+const { ForwardedException, serializeError } =
+  await import("@instrument-org/shared/exceptions");
 
 // Recorded from a task that hit this: OpenRouter reports upstream throttling as
 // one chunk in an otherwise successful stream, and the chunk is thrown verbatim
@@ -78,7 +82,9 @@ describe("captureServerException", () => {
       process: "main",
     });
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringMatching(/^\[Exception\] \[studio, rpc, handled, error, main\].*\nError: plain failure\n {2}at /),
+      expect.stringMatching(
+        /^\[Exception\] \[studio, rpc, handled, error, main\].*\nError: plain failure\n {2}at /,
+      ),
     );
   });
 
@@ -92,14 +98,19 @@ describe("captureServerException", () => {
 
   it("reads a forwarded error as the process that threw it", () => {
     captureServerException(
-      new ForwardedException(serializeError(new Error("worker")), "bash-worker"),
+      new ForwardedException(
+        serializeError(new Error("worker")),
+        "bash-worker",
+      ),
     );
     expect(stored()?.process).toBe("bash-worker");
   });
 
   it("leaves out a network drop while the platform API is unreachable", () => {
     unreachable.value = true;
-    captureServerException(new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }));
+    captureServerException(
+      new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }),
+    );
     expect(storeExceptionEvent).not.toHaveBeenCalled();
   });
 

@@ -58,7 +58,7 @@ describe("parseScriptRunnerArgs", () => {
 
     expect(captureException).toHaveBeenCalledOnce();
     expect(captureException.mock.calls[0]).toMatchInlineSnapshot(
-    `
+      `
       [
         [Error: Unrecognized options ignored],
         {
@@ -70,7 +70,8 @@ describe("parseScriptRunnerArgs", () => {
           },
         },
       ]
-    `);
+    `,
+    );
     captureException.mockRestore();
   });
 });

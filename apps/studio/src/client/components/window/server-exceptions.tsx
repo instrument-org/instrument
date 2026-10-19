@@ -108,7 +108,9 @@ function formatExceptionsForCopy(exceptions: GroupedException[]) {
 }
 
 /** One entry per fingerprint, which the main process already counted. */
-function groupExceptions(events: readonly ExceptionEvent[]): GroupedException[] {
+function groupExceptions(
+  events: readonly ExceptionEvent[],
+): GroupedException[] {
   return events.toReversed().map((event) => {
     const captured = event.exceptions.at(-1);
     const code: unknown = captured?.data?.code;

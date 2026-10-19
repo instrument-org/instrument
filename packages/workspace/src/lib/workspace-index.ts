@@ -173,8 +173,7 @@ function guarded<T>(operation: () => T): T | undefined {
   } catch (error) {
     if (!reported) {
       reported = true;
-      getWorkspaceConfig().captureException(error,
-      );
+      getWorkspaceConfig().captureException(error);
     }
     return undefined;
   }

@@ -29,10 +29,17 @@ describe("captureOnce", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     window.api.captureException = send;
 
-    captureComponentError(new Error("render"), { componentStack: "\n    at Row" });
+    captureComponentError(new Error("render"), {
+      componentStack: "\n    at Row",
+    });
 
     expect(send.mock.lastCall).toMatchObject([
-      { context: { componentStack: "\n    at Row", mechanism: "error-boundary" } },
+      {
+        context: {
+          componentStack: "\n    at Row",
+          mechanism: "error-boundary",
+        },
+      },
     ]);
   });
 });

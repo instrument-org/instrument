@@ -162,7 +162,9 @@ export function fromWireError({
   }
   Object.assign(error, data);
   if (errors.length > 0) {
-    Object.assign(error, { errors: errors.map((link) => fromWireError(link.error)) });
+    Object.assign(error, {
+      errors: errors.map((link) => fromWireError(link.error)),
+    });
   }
   error.name = type;
   error.stack = stack;

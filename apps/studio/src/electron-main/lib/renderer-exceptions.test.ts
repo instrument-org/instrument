@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const { buildMainExceptionEvent, handlers, recordExceptionEvent } = vi.hoisted(
   () => ({
-    buildMainExceptionEvent: vi.fn(() => ({ fingerprint: "f".repeat(32), id: "1".repeat(32) })),
+    buildMainExceptionEvent: vi.fn(() => ({
+      fingerprint: "f".repeat(32),
+      id: "1".repeat(32),
+    })),
     handlers: new Map<string, (event: unknown, payload: unknown) => unknown>(),
     recordExceptionEvent: vi.fn(),
   }),
@@ -11,7 +14,10 @@ const { buildMainExceptionEvent, handlers, recordExceptionEvent } = vi.hoisted(
 
 vi.mock("electron", () => ({
   ipcMain: {
-    handle: (channel: string, handler: (event: unknown, payload: unknown) => unknown) => {
+    handle: (
+      channel: string,
+      handler: (event: unknown, payload: unknown) => unknown,
+    ) => {
       handlers.set(channel, handler);
     },
   },

@@ -12,7 +12,12 @@ import {
 import { registerCrashDiagnostics } from "./register-crash-diagnostics";
 
 const CONTEXTS = {
-  app: { channel: "latest", flavor: "release", packaged: true, version: "2.0.0" },
+  app: {
+    channel: "latest",
+    flavor: "release",
+    packaged: true,
+    version: "2.0.0",
+  },
   culture: { locale: "en-US", timeZone: "UTC" },
   os: { arch: "arm64", platform: "darwin", version: "26.1" },
   process: { rssMb: 400, uptimeMs: 1000 },
@@ -155,7 +160,11 @@ describe("registerCrashDiagnostics", () => {
     expect(buildMainExceptionEvent).toHaveBeenCalledWith(
       expect.objectContaining({ name: "RenderProcessGone" }),
       {
-        data: { exitCode: 133, reason: "crashed", webContents: "type=webview id=7" },
+        data: {
+          exitCode: 133,
+          reason: "crashed",
+          webContents: "type=webview id=7",
+        },
         handled: false,
         level: "fatal",
         mechanism: "process-gone",
@@ -308,7 +317,9 @@ describe("registerCrashDiagnostics", () => {
     addedMonitorListeners()[0]?.(error, "uncaughtException");
     addedUncaughtListeners()[0]?.(error, "uncaughtException");
 
-    const record: unknown = JSON.parse(fs.readFileSync(crashRecordPath(), "utf8"));
+    const record: unknown = JSON.parse(
+      fs.readFileSync(crashRecordPath(), "utf8"),
+    );
     expect(buildMainExceptionEvent).toHaveBeenCalledOnce();
     expect(recordExceptionEvent).toHaveBeenCalledWith(record);
   });
@@ -376,7 +387,9 @@ describe("registerCrashDiagnostics", () => {
     // Not through the logger, whose file transport queues and never drains on
     // the way out.
     expect(log.error).not.toHaveBeenCalled();
-    expect(JSON.parse(fs.readFileSync(crashRecordPath(), "utf8"))).toMatchObject({
+    expect(
+      JSON.parse(fs.readFileSync(crashRecordPath(), "utf8")),
+    ).toMatchObject({
       exceptions: [{ type: "Error", value: "boom" }],
       handled: false,
       mechanism: "uncaughtException",

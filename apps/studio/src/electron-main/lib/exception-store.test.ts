@@ -5,13 +5,22 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { getPath: () => "" } }));
-vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: { publish: vi.fn() } }));
-vi.mock("@/electron-main/lib/electron-logger", () => ({ logger: { error: vi.fn() } }));
+vi.mock("@/electron-main/rpc/publisher", () => ({
+  publisher: { publish: vi.fn() },
+}));
+vi.mock("@/electron-main/lib/electron-logger", () => ({
+  logger: { error: vi.fn() },
+}));
 
 const { collapseEvent } = await import("./exception-store");
 
 const CONTEXTS = {
-  app: { channel: "latest", flavor: "release", packaged: true, version: "2.0.0" },
+  app: {
+    channel: "latest",
+    flavor: "release",
+    packaged: true,
+    version: "2.0.0",
+  },
   culture: { locale: "en-US", timeZone: "UTC" },
   os: { arch: "arm64", platform: "darwin", version: "26.1" },
   process: { rssMb: 400, uptimeMs: 1000 },
@@ -56,7 +65,9 @@ describe("collapseEvent", () => {
       none,
     );
 
-    expect(collapsed.map((stored) => [stored.exceptions[0]?.value, stored.count])).toEqual([
+    expect(
+      collapsed.map((stored) => [stored.exceptions[0]?.value, stored.count]),
+    ).toEqual([
       ["b", 1],
       ["a again", 2],
     ]);
@@ -67,6 +78,9 @@ describe("collapseEvent", () => {
       (kept, fn, index) => collapseEvent(kept, event(fn, index, fn), 2),
       collapseEvent([], event("f0", 0, "f0"), 2),
     );
-    expect(events.map((stored) => stored.exceptions[0]?.value)).toEqual(["f2", "f3"]);
+    expect(events.map((stored) => stored.exceptions[0]?.value)).toEqual([
+      "f2",
+      "f3",
+    ]);
   });
 });

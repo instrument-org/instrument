@@ -67,7 +67,12 @@ const crashEvent = (stack = THROW, message = "EPIPE: broken pipe, write") =>
       breadcrumbs: [],
       context: { handled: false, mechanism: "uncaughtException" },
       contexts: {
-        app: { channel: "latest", flavor: "release", packaged: true, version: "2.0.4" },
+        app: {
+          channel: "latest",
+          flavor: "release",
+          packaged: true,
+          version: "2.0.4",
+        },
         culture: { locale: "en-US", timeZone: "UTC" },
         os: { arch: "arm64", platform: "darwin", version: "26.1" },
         process: { rssMb: 400, uptimeMs: 1000 },
@@ -182,8 +187,13 @@ describe("problem reports", () => {
 
     const [problem] = reports.listPendingProblems();
     expect(problem?.fingerprint).toBe(`crash:${crash.fingerprint}`);
-    expect(problem?.events?.map((event) => event.id)).toEqual([crash.id, other.id]);
-    expect(problem?.details).toContain("The error:\n[studio, uncaughtException, unhandled");
+    expect(problem?.events?.map((event) => event.id)).toEqual([
+      crash.id,
+      other.id,
+    ]);
+    expect(problem?.details).toContain(
+      "The error:\n[studio, uncaughtException, unhandled",
+    );
     expect(problem?.details).toContain("Another recent error:");
     expect(problem?.details).toContain("Error: Cannot render");
     stored.events = [];
@@ -198,18 +208,23 @@ describe("problem reports", () => {
     });
     stored.events = [1, 2, 3, 4, 5, 6].map(huge);
 
-    const { details, events } = reports.describeProblem({ surface: "help-menu" });
+    const { details, events } = reports.describeProblem({
+      surface: "help-menu",
+    });
 
     // Each is in the details and in the events, so two of the six fit.
     expect(events.map((event) => event.lastAt)).toEqual([6, 5]);
-    expect(
-      Buffer.byteLength(JSON.stringify({ details, events })),
-    ).toBeLessThan(2_000_000);
+    expect(Buffer.byteLength(JSON.stringify({ details, events }))).toBeLessThan(
+      2_000_000,
+    );
     stored.events = [];
   });
 
   it("writes the home folder as ~ in what it sends", () => {
-    const event = crashEvent(THROW, `ENOENT: open '${os.homedir()}/Documents/notes.md'`);
+    const event = crashEvent(
+      THROW,
+      `ENOENT: open '${os.homedir()}/Documents/notes.md'`,
+    );
     const { details } = reports.describeProblem({
       lead: event,
       surface: "route-error",

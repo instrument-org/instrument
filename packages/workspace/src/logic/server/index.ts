@@ -33,35 +33,29 @@ export const workspaceServerLogic = fromCallback<
 >(({ input }) => {
   const app = new Hono();
 
-  app.use<string, AIGatewayEnv>(
-    `${AI_GATEWAY_API_PATH}/*`,
-    async (c, next) => {
-      if (input.workspaceConfig.refreshExpiredCredentials) {
-        c.set(
-          "refreshExpiredCredentials",
-          input.workspaceConfig.refreshExpiredCredentials,
-        );
-      }
+  app.use<string, AIGatewayEnv>(`${AI_GATEWAY_API_PATH}/*`, async (c, next) => {
+    if (input.workspaceConfig.refreshExpiredCredentials) {
       c.set(
-        "getAIProviderConfigs",
-        input.workspaceConfig.getAIProviderConfigs,
+        "refreshExpiredCredentials",
+        input.workspaceConfig.refreshExpiredCredentials,
       );
-      // What the gateway captures is the gateway's, wherever it is mounted.
-      c.set("captureException", (error, context) => {
-        input.workspaceConfig.captureException(error, {
-          area: "ai-gateway",
-          ...context,
-        });
+    }
+    c.set("getAIProviderConfigs", input.workspaceConfig.getAIProviderConfigs);
+    // What the gateway captures is the gateway's, wherever it is mounted.
+    c.set("captureException", (error, context) => {
+      input.workspaceConfig.captureException(error, {
+        area: "ai-gateway",
+        ...context,
       });
-      c.set("clientInfo", {
-        clientArch: process.arch,
-        clientName: APP_CLIENT_NAME_STUDIO,
-        clientPlatform: process.platform,
-        clientVersion: input.workspaceConfig.appVersion,
-      });
-      await next();
-    },
-  );
+    });
+    c.set("clientInfo", {
+      clientArch: process.arch,
+      clientName: APP_CLIENT_NAME_STUDIO,
+      clientPlatform: process.platform,
+      clientVersion: input.workspaceConfig.appVersion,
+    });
+    await next();
+  });
   app.route("/", input.aiGatewayApp);
 
   let server: null | ServerType = null;

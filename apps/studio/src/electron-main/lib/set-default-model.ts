@@ -52,23 +52,11 @@ export async function setChatGPTAccountDefaultModel({
  * makes the model Claude Code recommends the default. Answers with the
  * model's name, so the connection can say what changed.
  */
-export function setClaudeAccountDefaultModel(): Promise<string | undefined> {
-  return setAccountDefaultModel("claude-account");
-}
-
-/**
- * Signing in with Grok is asked for to use the subscription, so it makes the
- * account's default-tagged model the default, as the Claude account does.
- */
-export function setGrokAccountDefaultModel(): Promise<string | undefined> {
-  return setAccountDefaultModel("grok-account");
-}
-
-async function setAccountDefaultModel(
-  type: "claude-account" | "grok-account",
-): Promise<string | undefined> {
+export async function setClaudeAccountDefaultModel(): Promise<
+  string | undefined
+> {
   const config = getAIProviderConfigs().find(
-    (candidate) => candidate.type === type,
+    (candidate) => candidate.type === "claude-account",
   );
   if (!config) {
     return undefined;
@@ -80,6 +68,37 @@ async function setAccountDefaultModel(
   const models = result?.ok ? result.value : [];
   const chosen =
     models.find((model) => model.tags.includes("default")) ?? models[0];
+  if (!chosen) {
+    return undefined;
+  }
+  setDefaultModelURI(chosen.uri);
+  return chosen.name.trim();
+}
+
+/**
+ * Signing in with Grok is asked for to use the subscription, so it makes the
+ * account's default-tagged model the default. Only for the first account:
+ * adding another leaves the default where it was.
+ */
+export async function setGrokAccountDefaultModel({
+  accountId,
+}: {
+  accountId: string;
+}): Promise<string | undefined> {
+  const grokConfigs = getAIProviderConfigs().filter(
+    (candidate) => candidate.type === "grok-account",
+  );
+  const [config] = grokConfigs;
+  if (grokConfigs.length !== 1 || config?.id !== accountId) {
+    return undefined;
+  }
+  const [result] = await fetchModelResultsForProviders([config], {
+    captureException: captureFor("ai-gateway"),
+    modelCache: diskModelCache,
+  });
+  const chosen = result?.ok
+    ? result.value.find((model) => model.tags.includes("default"))
+    : undefined;
   if (!chosen) {
     return undefined;
   }

@@ -2,9 +2,9 @@ import { liveRead } from "@instrument-org/workspace/electron";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   cancelGrokSignIn,
-  checkGrokAccess,
+  checkGrokSubscriptions,
   type GrokSignInResult,
-  grokAccountStatus,
+  grokAccountsStatus,
   signInWithGrok,
   signOutOfGrok,
 } from "@/electron-main/lib/grok-account";
@@ -12,10 +12,8 @@ import { setGrokAccountDefaultModel } from "@/electron-main/lib/set-default-mode
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
-import {
-  AIProviderConfigIdSchema,
-  GROK_ACCOUNT_PROVIDER_CONFIG,
-} from "@instrument-org/shared";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
+import { z } from "zod";
 
 import { publisher } from "../publisher";
 
@@ -24,14 +22,15 @@ const live = {
     const changes = publisher.subscribe("grok-account.updated", { signal });
     // A subscription can lapse or start while the app runs, and xAI says so
     // only when asked, so the card asks when it opens.
-    void checkGrokAccess({ recent: true });
-    yield* liveRead({ changes: [changes], read: grokAccountStatus });
+    void checkGrokSubscriptions({ recent: true });
+    yield* liveRead({ changes: [changes], read: grokAccountsStatus });
   }),
 };
 
 /**
- * Signs in with a Grok subscription in the browser, through xAI's device
- * code. Answers how it ended, with what went wrong when it failed.
+ * Signs in with a Grok account in the browser, through xAI's device code,
+ * adding it when it is new. Answers how it ended, with what went wrong when
+ * it failed.
  */
 const signIn = base.handler(
   async (): Promise<
@@ -39,7 +38,7 @@ const signIn = base.handler(
   > => {
     try {
       const result = await signInWithGrok();
-      if (result.outcome === "signed-in") {
+      if (result.account?.state === "signed-in") {
         getWorkspaceState().set("hasCompletedProviderSetup", true);
       }
       return result;
@@ -56,31 +55,40 @@ const signIn = base.handler(
   },
 );
 
-/** Makes the account's default model the default, and answers with its name. */
-const chooseDefaultModel = base.handler(async () => ({
-  name: await setGrokAccountDefaultModel(),
-}));
+/**
+ * Makes the account's default model the default when it is the only Grok
+ * account, and answers with the model's name.
+ */
+const chooseDefaultModel = base
+  .input(z.object({ accountId: z.string() }))
+  .handler(async ({ input }) => ({
+    name: await setGrokAccountDefaultModel(input),
+  }));
 
-const signOut = base.handler(async () => {
-  await signOutOfGrok();
-  setProviderConfigEnabled(
-    AIProviderConfigIdSchema.parse(GROK_ACCOUNT_PROVIDER_CONFIG.id),
-    true,
-  );
-});
+const signOut = base
+  .input(z.object({ accountId: z.string() }))
+  .handler(async ({ input }) => {
+    await signOutOfGrok(input);
+    setProviderConfigEnabled(
+      AIProviderConfigIdSchema.parse(input.accountId),
+      true,
+    );
+  });
 
 const cancelSignIn = base.handler(() => {
   cancelGrokSignIn();
 });
 
-/** Asks xAI again whether a refused account may use its models now. */
-const checkAccess = base.handler(async () => {
-  await checkGrokAccess();
-});
+/** Asks xAI again which subscription the account has. */
+const checkSubscription = base
+  .input(z.object({ accountId: z.string() }))
+  .handler(async ({ input }) => {
+    await checkGrokSubscriptions(input);
+  });
 
 export const grokAccount = {
   cancelSignIn,
-  checkAccess,
+  checkSubscription,
   chooseDefaultModel,
   live,
   signIn,

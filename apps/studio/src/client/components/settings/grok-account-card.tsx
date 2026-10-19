@@ -20,37 +20,37 @@ import {
   useProviderSwitch,
 } from "@/client/components/settings/provider-switch";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { toast } from "@/client/lib/toast";
-import {
-  AIProviderConfigIdSchema,
-  APP_NAME,
-  GROK_ACCOUNT_PROVIDER_CONFIG,
-} from "@instrument-org/shared";
+import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
-const ACCOUNT_ID = AIProviderConfigIdSchema.parse(
-  GROK_ACCOUNT_PROVIDER_CONFIG.id,
-);
+type Account = NonNullable<
+  Exclude<RPCOutput["grokAccount"]["signIn"], { outcome: "failed" }>["account"]
+>;
 
 /**
- * The Grok account as a row among the providers, laid out like the ChatGPT
- * account's. Signing in shows the code xAI's page asks for while it waits.
+ * The Grok accounts as a row among the providers, laid out like the ChatGPT
+ * account's: one account reads like any other card, several each get a line
+ * of their own, and adding another is in the more menu. Signing in shows the
+ * code xAI's page asks for while it waits.
  */
 export function GrokAccountCard() {
   const { data: status } = useQuery(
     rpcClient.grokAccount.live.status.experimental_liveOptions(),
   );
   const [waiting, setWaiting] = useState(false);
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState<Account | null>(
+    null,
+  );
   // Counts presses, so a sign-in that settles after a newer one started
   // leaves the button to the newer one.
   const attempts = useRef(0);
   const signIn = useMutation(rpcClient.grokAccount.signIn.mutationOptions());
   const signOut = useMutation(rpcClient.grokAccount.signOut.mutationOptions());
-  const checkAccess = useMutation(
-    rpcClient.grokAccount.checkAccess.mutationOptions(),
+  const checkSubscription = useMutation(
+    rpcClient.grokAccount.checkSubscription.mutationOptions(),
   );
   const providerSwitch = useProviderSwitch();
 
@@ -69,19 +69,21 @@ export function GrokAccountCard() {
       toast.error("Couldn't sign in with Grok", { cause: result.error });
       return;
     }
-    if (result.outcome !== "signed-in") {
+    const { account } = result;
+    if (result.outcome !== "signed-in" || !account) {
       return;
     }
-    if (result.refusal) {
-      toast.error("xAI won't let this account use Grok here", {
-        cause: result.refusal,
+    if (account.state === "no-subscription") {
+      toast.error(`${account.label} has no Grok subscription`, {
+        description:
+          "Subscribe to SuperGrok, or to X Premium with Grok, and it works here.",
       });
       return;
     }
-    const title = "Signed in with Grok";
+    const title = `Signed in to ${account.label}`;
     const id = toast.success(title);
     const { name } = await rpcClient.grokAccount.chooseDefaultModel
-      .call()
+      .call({ accountId: account.id })
       .catch(() => ({ name: undefined }));
     toast.success(title, {
       description: name
@@ -96,19 +98,53 @@ export function GrokAccountCard() {
     void rpcClient.grokAccount.cancelSignIn.call();
   };
 
-  const account = status?.account;
+  const accounts = status?.accounts ?? [];
   const pending = status?.pending;
-  const off =
-    account?.state === "signed-in" && providerSwitch.isOff(ACCOUNT_ID);
+  const single = accounts.length === 1 ? accounts[0] : undefined;
+  const isOff = (account: Account) =>
+    account.state === "signed-in" && providerSwitch.isOff(account.id);
+  const actionsFor = (account: Account) => ({
+    checking: checkSubscription.isPending,
+    off: isOff(account),
+    onCheckAgain: () => {
+      checkSubscription.mutate({ accountId: account.id });
+    },
+    onSetEnabled: (enabled: boolean) => {
+      providerSwitch.setEnabled(
+        AIProviderConfigIdSchema.parse(account.id),
+        enabled,
+      );
+    },
+    onSignIn: () => {
+      void continueWithGrok();
+    },
+    onSignOut: () => {
+      setConfirmingSignOut(account);
+    },
+  });
+  const addAnother = (
+    <DropdownMenuItem
+      onSelect={() => {
+        void continueWithGrok();
+      }}
+    >
+      Add another account
+    </DropdownMenuItem>
+  );
 
   return (
-    <StateArrival state={status && (account?.state ?? "none")}>
+    <StateArrival
+      state={
+        status &&
+        accounts.map((account) => `${account.id}:${account.state}`).join(" ")
+      }
+    >
       <Card className="gap-0 p-4">
         <div className="flex items-start justify-between gap-4">
           <div
             className={cn(
               "flex min-w-0 flex-1 items-start gap-3",
-              off && "opacity-50 grayscale",
+              single && isOff(single) && "opacity-50 grayscale",
             )}
           >
             <div className="flex size-8 shrink-0 items-center justify-center">
@@ -118,35 +154,35 @@ export function GrokAccountCard() {
               <h3 className="truncate font-medium text-foreground">
                 Grok account
               </h3>
-              <p className="text-sm text-muted-foreground">
-                {waiting && pending ? (
-                  <>
-                    Enter{" "}
-                    <span className="font-mono font-medium text-foreground select-all">
-                      {pending.userCode}
-                    </span>{" "}
-                    on the page that opened in your browser.
-                  </>
-                ) : waiting ? (
-                  "Finish signing in with Grok in your browser."
-                ) : !account ? (
-                  "Pay for SuperGrok or X Premium? Use it here."
-                ) : (
-                  `${account.label}${
-                    account.state === "signed-out"
-                      ? " · Signed out"
-                      : account.state === "refused"
-                        ? " · xAI says this account can't use Grok here. It needs a SuperGrok subscription, or X Premium that includes Grok."
-                        : off
-                          ? ` · Disabled, so ${APP_NAME} won’t use it`
-                          : ""
-                  }`
-                )}
-              </p>
+              {waiting ? (
+                <p className="text-sm text-muted-foreground">
+                  {pending ? (
+                    <>
+                      Enter{" "}
+                      <span className="font-mono font-medium text-foreground select-all">
+                        {pending.userCode}
+                      </span>{" "}
+                      on the page that opened in your browser.
+                    </>
+                  ) : (
+                    "Finish signing in with Grok in your browser."
+                  )}
+                </p>
+              ) : single ? (
+                <p className="text-sm text-muted-foreground">
+                  {describe(single, isOff(single))}
+                </p>
+              ) : (
+                accounts.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Pay for SuperGrok or X Premium? Use it here.
+                  </p>
+                )
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {!account || account.state === "signed-out" || waiting ? (
+            {accounts.length === 0 || waiting ? (
               <BrowserHandoffButton
                 onCancel={cancelSignIn}
                 onStart={() => {
@@ -154,57 +190,58 @@ export function GrokAccountCard() {
                 }}
                 waiting={waiting}
               >
-                {account ? "Sign in again" : "Continue with Grok"}
+                {accounts.length === 0
+                  ? "Continue with Grok"
+                  : "Add another account"}
               </BrowserHandoffButton>
-            ) : account.state === "refused" ? (
-              <Button
-                disabled={checkAccess.isPending}
-                onClick={() => {
-                  checkAccess.mutate({});
-                }}
-                variant="outline"
-              >
-                Check again
-              </Button>
+            ) : single ? (
+              <AccountActions account={single} {...actionsFor(single)}>
+                {addAnother}
+              </AccountActions>
             ) : (
-              off && (
-                <Button
-                  onClick={() => {
-                    providerSwitch.setEnabled(ACCOUNT_ID, true);
-                  }}
-                  variant="outline"
-                >
-                  Enable
-                </Button>
-              )
-            )}
-            {account && (
               <ProviderMoreMenu label="Grok account">
-                {account.state === "signed-in" && !off && (
-                  <DisableItem
-                    onSelect={() => {
-                      providerSwitch.setEnabled(ACCOUNT_ID, false);
-                    }}
-                  />
-                )}
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setConfirmingSignOut(true);
-                  }}
-                >
-                  Sign out…
-                </DropdownMenuItem>
+                {addAnother}
               </ProviderMoreMenu>
             )}
           </div>
         </div>
+        {accounts.length > 1 && (
+          <div className="mt-1 flex flex-col gap-1 pl-11">
+            {accounts.map((account) => (
+              <div
+                className="flex min-h-8 items-center justify-between gap-4"
+                key={account.id}
+              >
+                <p
+                  className={cn(
+                    "min-w-0 text-sm text-muted-foreground",
+                    isOff(account) && "opacity-60",
+                  )}
+                >
+                  {describe(account, isOff(account))}
+                </p>
+                <AccountActions
+                  account={account}
+                  {...actionsFor(account)}
+                  size="sm"
+                />
+              </div>
+            ))}
+          </div>
+        )}
         <AlertDialog
-          onOpenChange={setConfirmingSignOut}
-          open={confirmingSignOut}
+          onOpenChange={(open) => {
+            if (!open) {
+              setConfirmingSignOut(null);
+            }
+          }}
+          open={confirmingSignOut !== null}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Sign out of {account?.label}?</AlertDialogTitle>
+              <AlertDialogTitle>
+                Sign out of {confirmingSignOut?.label}?
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 Chats on this account’s models will need another model. Signing
                 in again brings it back.
@@ -214,7 +251,9 @@ export function GrokAccountCard() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  signOut.mutate({});
+                  if (confirmingSignOut) {
+                    signOut.mutate({ accountId: confirmingSignOut.id });
+                  }
                 }}
               >
                 Sign out
@@ -224,5 +263,94 @@ export function GrokAccountCard() {
         </AlertDialog>
       </Card>
     </StateArrival>
+  );
+}
+
+/** An account's label, its plan, and where it stands when that needs saying. */
+function describe(account: Account, off: boolean) {
+  const named = account.tier
+    ? `${account.label} · ${account.tier}`
+    : account.label;
+  return `${named}${
+    account.state === "signed-out"
+      ? " · Signed out"
+      : account.state === "no-subscription"
+        ? " · No Grok subscription, so it can't be used here. SuperGrok, or X Premium with Grok, turns it on."
+        : off
+          ? ` · Disabled, so ${APP_NAME} won’t use it`
+          : ""
+  }`;
+}
+
+/**
+ * What can be done with one account: sign in again, check its subscription
+ * again, or enable it when it needs that, then its more menu with `children`
+ * above Sign out.
+ */
+function AccountActions({
+  account,
+  checking,
+  children,
+  off,
+  onCheckAgain,
+  onSetEnabled,
+  onSignIn,
+  onSignOut,
+  size,
+}: {
+  account: Account;
+  checking: boolean;
+  children?: ReactNode;
+  off: boolean;
+  onCheckAgain: () => void;
+  onSetEnabled: (enabled: boolean) => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  /** `sm` on an account's own line under the name. */
+  size?: "sm";
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      {account.state === "signed-out" ? (
+        <Button onClick={onSignIn} size={size} variant="outline">
+          Sign in again
+        </Button>
+      ) : account.state === "no-subscription" ? (
+        <Button
+          disabled={checking}
+          onClick={onCheckAgain}
+          size={size}
+          variant="outline"
+        >
+          Check again
+        </Button>
+      ) : (
+        off && (
+          <Button
+            onClick={() => {
+              onSetEnabled(true);
+            }}
+            size={size}
+            variant="outline"
+          >
+            Enable
+          </Button>
+        )
+      )}
+      <ProviderMoreMenu
+        label={account.label}
+        size={size === "sm" ? "icon-sm" : "icon"}
+      >
+        {account.state === "signed-in" && !off && (
+          <DisableItem
+            onSelect={() => {
+              onSetEnabled(false);
+            }}
+          />
+        )}
+        {children}
+        <DropdownMenuItem onSelect={onSignOut}>Sign out…</DropdownMenuItem>
+      </ProviderMoreMenu>
+    </div>
   );
 }

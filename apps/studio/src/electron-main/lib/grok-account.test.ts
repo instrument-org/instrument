@@ -22,6 +22,10 @@ vi.mock("@/electron-main/lib/electron-logger", () => {
   return { logger: { scope: () => scoped } };
 });
 
+vi.mock("@/electron-main/platform-api/headers", () => ({
+  getAnonymousPlatformApiHeaders: () => ({ "user-agent": "Instrument/test" }),
+}));
+
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
@@ -50,32 +54,47 @@ vi.mock("electron-store", () => ({
 
 const DEVICE_URL = "https://auth.x.ai/oauth2/device/code";
 const TOKEN_URL = "https://auth.x.ai/oauth2/token";
-const RESPONSES_URL = "https://api.x.ai/v1/responses";
+const USER_URL = "https://cli-chat-proxy.grok.com/v1/user?include=subscription";
+const API_BASE_URL = "https://api.test";
+const SETUP_URL = `${API_BASE_URL}/grok/sign-in-setup`;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
-function idToken(claims: Record<string, unknown>) {
+function jwt(claims: Record<string, unknown>) {
   const part = (value: unknown) =>
     Buffer.from(JSON.stringify(value)).toString("base64url");
   return `${part({ alg: "RS256" })}.${part(claims)}.signature`;
 }
 
+/** Tokens for one xAI account, named by its subject. */
+function tokensFor(subject: string, email = `${subject}@example.com`) {
+  return json({
+    access_token: jwt({ principal_id: subject }),
+    expires_in: 3600,
+    id_token: jwt({ email, sub: subject }),
+    refresh_token: `refresh-${subject}`,
+  });
+}
+
 let grok: typeof GrokAccountModule;
 /** What the token endpoint answers, one per poll; the last repeats. */
 let tokenAnswers: Response[];
-/** What xAI answers the access check with. */
-let accessAnswer: Response;
+/** The subscription tier xAI names for the account asked about. */
+let tier: null | string;
+/** What our API serves for the sign-in setup; undefined fails the request. */
+let servedSetup: unknown;
 const requests: { body: URLSearchParams; url: string }[] = [];
 
 beforeEach(async () => {
   vi.useFakeTimers();
   vi.resetModules();
-  stored = {};
+  stored = { registrations: {} };
   requests.length = 0;
   openExternal.mockReset();
-  accessAnswer = json({ output: [] });
+  tier = "SuperGrok";
+  servedSetup = undefined;
   grok = await import("./grok-account");
   vi.stubGlobal(
     "fetch",
@@ -85,7 +104,12 @@ beforeEach(async () => {
           ? init.body
           : new URLSearchParams();
       requests.push({ body, url });
-      if (url === DEVICE_URL) {
+      if (url === SETUP_URL) {
+        return servedSetup === undefined
+          ? Promise.reject(new Error("offline"))
+          : Promise.resolve(json(servedSetup));
+      }
+      if (url === DEVICE_URL || url.endsWith("/device/code")) {
         return Promise.resolve(
           json({
             device_code: "device-1",
@@ -103,8 +127,8 @@ beforeEach(async () => {
           tokenAnswers.length > 1 ? tokenAnswers.shift() : tokenAnswers[0];
         return Promise.resolve(answer?.clone() ?? json({}, 500));
       }
-      if (url === RESPONSES_URL) {
-        return Promise.resolve(accessAnswer.clone());
+      if (url === USER_URL) {
+        return Promise.resolve(json({ subscriptionTier: tier }));
       }
       return Promise.reject(new Error(`unexpected fetch ${url}`));
     }),
@@ -114,30 +138,40 @@ beforeEach(async () => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
+async function signIn() {
+  const signingIn = grok.signInWithGrok();
+  await vi.advanceTimersByTimeAsync(10_000);
+  return signingIn;
+}
+
 describe("Grok sign-in", () => {
-  it("polls past pending and slow_down, then saves the account", async () => {
+  it("polls past pending and slow_down, then saves the account with its plan", async () => {
     tokenAnswers = [
       json({ error: "authorization_pending" }, 400),
       json({ error: "slow_down" }, 400),
-      json({
-        access_token: "access-1",
-        expires_in: 3600,
-        id_token: idToken({ email: "grok@example.com", sub: "user-1" }),
-        refresh_token: "refresh-1",
-      }),
+      tokensFor("user-1"),
     ];
     const signingIn = grok.signInWithGrok();
     await vi.advanceTimersByTimeAsync(0);
     expect(openExternal).toHaveBeenCalledWith(
       "https://accounts.x.ai/device?user_code=ABCD-1234",
     );
-    expect(grok.grokAccountStatus().pending?.userCode).toBe("ABCD-1234");
+    expect(grok.grokAccountsStatus().pending?.userCode).toBe("ABCD-1234");
     await vi.advanceTimersByTimeAsync(10_000);
 
-    expect(await signingIn).toEqual({ outcome: "signed-in" });
-    const [device] = requests;
+    const result = await signingIn;
+    expect(result).toMatchObject({
+      account: {
+        label: "user-1@example.com",
+        state: "signed-in",
+        tier: "SuperGrok",
+      },
+      outcome: "signed-in",
+    });
+    const device = requests.find((request) => request.url === DEVICE_URL);
     expect(Object.fromEntries(device?.body ?? [])).toMatchInlineSnapshot(`
       {
         "client_id": "b1a00492-073a-47ea-816f-4c329264a828",
@@ -145,53 +179,89 @@ describe("Grok sign-in", () => {
         "scope": "openid profile email offline_access grok-cli:access api:access",
       }
     `);
-    expect(grok.grokAccountStatus()).toEqual({
-      account: {
-        email: "grok@example.com",
-        label: "grok@example.com",
-        state: "signed-in",
-      },
-    });
     expect(grok.grokAccountProviderConfigs()).toMatchObject([
-      { apiKey: "access-1", id: "grok-account", type: "grok-account" },
+      { id: result.account?.id, type: "grok-account" },
     ]);
   });
 
-  it("signs in an account xAI refuses, says why, and lists none of its models", async () => {
-    tokenAnswers = [
-      json({
-        access_token: "access-1",
-        expires_in: 3600,
-        id_token: idToken({ email: "free@example.com", sub: "user-2" }),
-        refresh_token: "refresh-1",
-      }),
-    ];
-    const refusal =
-      "You have either run out of available resources or do not have an active Grok subscription.";
-    accessAnswer = json({ code: "forbidden", error: refusal }, 403);
-    const signingIn = grok.signInWithGrok();
-    await vi.advanceTimersByTimeAsync(2000);
+  it("signs in to the client and issuer our API serves", async () => {
+    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", API_BASE_URL);
+    servedSetup = {
+      apiBaseURL: "https://api.x.ai/v1",
+      clientId: "served-client",
+      issuer: "https://auth.x.ai/oauth2",
+      referrer: "instrument",
+      scope: "openid offline_access api:access",
+      userURL: USER_URL,
+    };
+    tokenAnswers = [tokensFor("user-1")];
 
-    expect(await signingIn).toEqual({ outcome: "signed-in", refusal });
-    expect(grok.grokAccountStatus().account).toMatchObject({
-      refusal,
-      state: "refused",
-    });
+    await signIn();
+
+    const device = requests.find((request) => request.url === DEVICE_URL);
+    expect(device?.body.get("client_id")).toBe("served-client");
+    expect(device?.body.get("scope")).toBe("openid offline_access api:access");
+  });
+
+  it("refuses a served setup that points away from xAI", async () => {
+    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", API_BASE_URL);
+    servedSetup = {
+      apiBaseURL: "https://api.x.ai/v1",
+      clientId: "served-client",
+      issuer: "https://auth.example.com/oauth2",
+      referrer: "instrument",
+      scope: "openid",
+      userURL: USER_URL,
+    };
+    tokenAnswers = [tokensFor("user-1")];
+
+    await signIn();
+
+    expect(requests.map((request) => request.url)).toContain(DEVICE_URL);
+  });
+
+  it("keeps an account with no subscription, says so, and lists none of its models", async () => {
+    tier = null;
+    tokenAnswers = [tokensFor("free")];
+
+    const result = await signIn();
+
+    expect(result.account?.state).toBe("no-subscription");
     expect(grok.grokAccountProviderConfigs()).toEqual([]);
 
     // Subscribed since: the next check lets the account through.
-    accessAnswer = json({ output: [] });
-    await grok.checkGrokAccess();
-    expect(grok.grokAccountStatus().account?.state).toBe("signed-in");
+    tier = "SuperGrok";
+    await grok.checkGrokSubscriptions();
+    expect(grok.grokAccountsStatus().accounts[0]?.state).toBe("signed-in");
     expect(grok.grokAccountProviderConfigs()).toHaveLength(1);
+  });
+
+  it("holds several accounts, and signing in to one again updates it", async () => {
+    tokenAnswers = [tokensFor("first")];
+    const first = await signIn();
+    tokenAnswers = [tokensFor("second")];
+    await signIn();
+    tokenAnswers = [tokensFor("first")];
+    const again = await signIn();
+
+    expect(again.account?.id).toBe(first.account?.id);
+    expect(
+      grok.grokAccountsStatus().accounts.map((account) => account.label),
+    ).toEqual(["first@example.com", "second@example.com"]);
+    expect(
+      grok.grokAccountProviderConfigs().map((config) => config.displayName),
+    ).toEqual(["first@example.com", "second@example.com"]);
+
+    await grok.signOutOfGrok({ accountId: first.account?.id ?? "" });
+    expect(
+      grok.grokAccountsStatus().accounts.map((account) => account.label),
+    ).toEqual(["second@example.com"]);
   });
 
   it("answers declined when the person says no on xAI's page", async () => {
     tokenAnswers = [json({ error: "access_denied" }, 400)];
-    const signingIn = grok.signInWithGrok();
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(await signingIn).toEqual({ outcome: "declined" });
-    expect(grok.grokAccountStatus()).toEqual({});
+    expect(await signIn()).toEqual({ outcome: "declined" });
+    expect(grok.grokAccountsStatus().accounts).toEqual([]);
   });
 
   it("answers canceled when given up in the app", async () => {
@@ -200,20 +270,37 @@ describe("Grok sign-in", () => {
     await vi.advanceTimersByTimeAsync(0);
     grok.cancelGrokSignIn();
     expect(await signingIn).toEqual({ outcome: "canceled" });
-    expect(grok.grokAccountStatus().pending).toBeUndefined();
+    expect(grok.grokAccountsStatus().pending).toBeUndefined();
   });
 });
 
 describe("Grok account refresh", () => {
-  it("replaces an expired token before a request goes out", async () => {
+  function seed(overrides: Record<string, unknown> = {}) {
     stored = {
-      account: {
-        accessToken: "old",
-        email: "grok@example.com",
-        expiresAt: Date.now() - 1,
-        refreshToken: "refresh-1",
+      registrations: {
+        "account-1": {
+          accessToken: "old",
+          addedAt: 1,
+          email: "grok@example.com",
+          expiresAt: Date.now() - 1,
+          id: "account-1",
+          refreshToken: "refresh-1",
+          subject: "user-1",
+          tier: "SuperGrok",
+          ...overrides,
+        },
       },
     };
+  }
+
+  function account() {
+    return (stored.registrations as Record<string, Record<string, unknown>>)[
+      "account-1"
+    ];
+  }
+
+  it("replaces an expired token before a request goes out", async () => {
+    seed();
     tokenAnswers = [
       json({
         access_token: "new",
@@ -221,33 +308,25 @@ describe("Grok account refresh", () => {
         refresh_token: "refresh-2",
       }),
     ];
-    await grok.refreshExpiredGrokTokens("grok-account");
-    expect(stored.account).toMatchObject({
+    await grok.refreshExpiredGrokTokens("account-1");
+    expect(account()).toMatchObject({
       accessToken: "new",
       email: "grok@example.com",
       refreshToken: "refresh-2",
+      tier: "SuperGrok",
     });
   });
 
   it("keeps the account, signed out, when xAI refuses the refresh token", async () => {
-    stored = {
-      account: {
-        accessToken: "old",
-        email: "grok@example.com",
-        expiresAt: Date.now() - 1,
-        refreshToken: "refresh-1",
-      },
-    };
+    seed();
     tokenAnswers = [json({ error: "invalid_grant" }, 400)];
     await grok.refreshExpiredGrokTokens();
-    expect(grok.grokAccountStatus().account?.state).toBe("signed-out");
+    expect(grok.grokAccountsStatus().accounts[0]?.state).toBe("signed-out");
     expect(grok.grokAccountProviderConfigs()).toEqual([]);
   });
 
   it("waits on nothing for another provider's config", async () => {
-    stored = {
-      account: { accessToken: "old", expiresAt: 0, refreshToken: "refresh-1" },
-    };
+    seed();
     await grok.refreshExpiredGrokTokens("some-other-config");
     expect(requests).toEqual([]);
   });

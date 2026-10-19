@@ -323,14 +323,12 @@ export const CHATGPT_ACCOUNT_PROVIDER_CONFIG = {
 } as const;
 
 /**
- * The Grok account's config, synthesized in the main process while a Grok
- * subscription (SuperGrok, or X Premium through a linked X account) is signed
- * in. Its key is the account's current OAuth access token.
+ * What every signed-in Grok account's config shares. Each is synthesized in
+ * the main process: its id and cache identifier come from the account's
+ * registration, and its key is the account's current OAuth access token.
  */
 export const GROK_ACCOUNT_PROVIDER_CONFIG = {
-  cacheIdentifier: "grok-account",
   displayName: "Grok account",
-  id: "grok-account",
   type: "grok-account",
 } as const;
 

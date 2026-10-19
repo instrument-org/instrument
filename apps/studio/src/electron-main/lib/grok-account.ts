@@ -11,37 +11,37 @@ import {
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { safeStorage, shell } from "electron";
 import Store from "electron-store";
+import { ulid } from "ulid";
 import { type Actor, createActor, fromPromise, waitFor } from "xstate";
 import { z } from "zod";
 
 import { grantMachine, type RefreshOutcome } from "./chatgpt-grant";
+import {
+  BUILT_IN_GROK_SIGN_IN_SETUP,
+  fetchGrokSignInSetup,
+  type GrokSignInSetup,
+  GrokSignInSetupSchema,
+} from "./grok-sign-in-setup";
 
 /**
  * Sign in with a Grok subscription (SuperGrok, or X Premium through a linked
- * X account): xAI's device-code flow against the Grok CLI's public OAuth
- * client, which xAI lets agent hosts share, then the account's access token as
- * the bearer on xAI's API. One account at a time.
+ * X account): xAI's device-code flow against the public client our API names
+ * (`grok-sign-in-setup.ts`), then each account's access token as the bearer
+ * on xAI's API. A person can hold several accounts, and each is its own
+ * provider config, so a chat runs on the account its model names.
  *
- * Tokens never leave the main process; the gateway reads the current one
- * through the synthesized provider config.
+ * Tokens never leave the main process; the gateway reads the current ones
+ * through the synthesized provider configs.
  */
 
 const log = logger.scope("grok-account");
 
-const ISSUER = "https://auth.x.ai/oauth2";
-const CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
-const SCOPE = "openid profile email offline_access grok-cli:access api:access";
-/** How xAI tells which agent host a sign-in came from. */
-const REFERRER = "instrument";
-const API_BASE_URL = "https://api.x.ai/v1";
 const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const MAX_REFRESH_BACKOFF_MS = 5 * 60 * 1000;
 const EXPIRED_REFRESH_WAIT_MS = 10 * 1000;
-const ACCOUNT_ID = AIProviderConfigIdSchema.parse(
-  GROK_ACCOUNT_PROVIDER_CONFIG.id,
-);
+const SUBSCRIPTION_CHECK_EVERY_MS = 30 * 1000;
 
 const TokenResponseSchema = z.object({
   access_token: z.string(),
@@ -59,47 +59,61 @@ const DeviceCodeSchema = z.object({
   verification_uri_complete: z.string().optional(),
 });
 
-const AccountSchema = z.object({
+const RegistrationSchema = z.object({
   accessToken: z.string().optional(),
+  /** Unix milliseconds of the first sign-in, which orders the accounts. */
+  addedAt: z.number(),
   email: z.string().optional(),
   expiresAt: z.number().optional(),
+  /** Ours, and the provider config id its models' URIs carry. */
+  id: AIProviderConfigIdSchema,
   name: z.string().optional(),
   refreshToken: z.string().optional(),
+  /** Who the account is to xAI, which two sign-ins to one account share. */
+  subject: z.string(),
   /**
-   * What xAI said when it turned the account away at the last check, such as
-   * an account with no Grok subscription. Absent once a check goes through.
+   * The subscription xAI last named for the account: a tier such as
+   * "SuperGrok", null for none, absent until xAI has been asked.
    */
-  refusal: z.string().optional(),
+  tier: z.string().nullable().optional(),
 });
-type Account = z.output<typeof AccountSchema>;
+type Registration = z.output<typeof RegistrationSchema>;
 
 const StoreSchema = z.object({
-  // Kept without tokens when the session ended elsewhere, so the card can say
-  // so; signing out removes it.
-  account: AccountSchema.optional(),
+  // Keyed by `id`. One whose session ended elsewhere stays, without tokens,
+  // so the card can say so; signing out removes it.
+  registrations: z.record(z.string(), RegistrationSchema).default({}),
+  // The last setup our API served, kept so refreshes follow it after a
+  // restart. One that no longer validates is dropped rather than failing the
+  // whole store.
+  signInSetup: GrokSignInSetupSchema.optional().catch(undefined),
 });
 type StoreShape = z.output<typeof StoreSchema>;
 
 let STORE: null | Store<StoreShape> = null;
 
-export type GrokAccountState = "refused" | "signed-in" | "signed-out";
+export type GrokAccountState = "no-subscription" | "signed-in" | "signed-out";
 
 export interface GrokAccountStatus {
-  account?: {
-    email?: string;
-    label: string;
-    /** xAI's words, while the account is refused. */
-    refusal?: string;
-    state: GrokAccountState;
-  };
+  email?: string;
+  id: string;
+  /** What the account is called wherever accounts sit side by side. */
+  label: string;
+  state: GrokAccountState;
+  /** The subscription xAI names, such as "SuperGrok", when it named one. */
+  tier?: string;
+}
+
+export interface GrokAccountsStatus {
+  /** In the order they were first signed in to. */
+  accounts: GrokAccountStatus[];
   /** The code to enter on xAI's page while a sign-in waits on it. */
   pending?: { userCode: string; verificationUri: string };
 }
 
 export interface GrokSignInResult {
+  account?: GrokAccountStatus;
   outcome: Extract<SignInOutcome, "canceled" | "declined" | "signed-in">;
-  /** Signed in, but xAI turned the account away with these words. */
-  refusal?: string;
 }
 
 let pending:
@@ -110,40 +124,39 @@ let pending:
       verificationUri: string;
     };
 
+/**
+ * A provider config for each account that may use Grok. An account xAI names
+ * no subscription for lists nothing to pick, rather than models that fail.
+ */
 export function grokAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
-  const account = getStore().get("account");
-  // A refused account lists nothing to pick, rather than models that fail.
-  if (!account?.accessToken || account.refusal !== undefined) {
-    return [];
-  }
-  if (isDue(account)) {
-    grant().send({ type: "refreshDue" });
-  }
-  return [
-    {
-      ...GROK_ACCOUNT_PROVIDER_CONFIG,
-      apiKey: account.accessToken,
-      baseURL: API_BASE_URL,
-      id: ACCOUNT_ID,
-    },
-  ];
+  const all = registrations();
+  return all.flatMap((registration) => {
+    if (!registration.accessToken || !hasSubscription(registration)) {
+      return [];
+    }
+    if (isDue(registration)) {
+      grantOf(registration.id).send({ type: "refreshDue" });
+    }
+    return [
+      {
+        ...GROK_ACCOUNT_PROVIDER_CONFIG,
+        apiKey: registration.accessToken,
+        baseURL: currentSetup().apiBaseURL,
+        cacheIdentifier: `grok-account-${registration.id}`,
+        displayName:
+          all.length === 1
+            ? GROK_ACCOUNT_PROVIDER_CONFIG.displayName
+            : labelFor(registration, all),
+        id: registration.id,
+      },
+    ];
+  });
 }
 
-export function grokAccountStatus(): GrokAccountStatus {
-  const account = getStore().get("account");
+export function grokAccountsStatus(): GrokAccountsStatus {
+  const all = registrations();
   return {
-    ...(account && {
-      account: {
-        email: account.email,
-        label: account.email ?? account.name ?? "Grok account",
-        refusal: account.refusal,
-        state: !account.refreshToken
-          ? "signed-out"
-          : account.refusal === undefined
-            ? "signed-in"
-            : "refused",
-      },
-    }),
+    accounts: all.map((registration) => accountStatus(registration, all)),
     ...(pending && {
       pending: {
         userCode: pending.userCode,
@@ -153,9 +166,63 @@ export function grokAccountStatus(): GrokAccountStatus {
   };
 }
 
+function accountStatus(
+  registration: Registration,
+  all: Registration[],
+): GrokAccountStatus {
+  return {
+    email: registration.email,
+    id: registration.id,
+    label: labelFor(registration, all),
+    state: !registration.refreshToken
+      ? "signed-out"
+      : hasSubscription(registration)
+        ? "signed-in"
+        : "no-subscription",
+    ...(registration.tier && { tier: registration.tier }),
+  };
+}
+
+/**
+ * Whether xAI named a subscription, or has not been asked yet: an account is
+ * held back only on xAI's word that it has none.
+ */
+function hasSubscription(registration: Registration): boolean {
+  return (
+    registration.tier === undefined ||
+    (registration.tier !== null &&
+      registration.tier.trim().toLowerCase() !== "free")
+  );
+}
+
+/** The account's email, numbered from the second one on the same email. */
+function labelFor(
+  registration: Pick<Registration, "email" | "id" | "name">,
+  all: Pick<Registration, "email" | "id">[],
+): string {
+  const label = registration.email ?? registration.name ?? "Grok account";
+  const sameEmail = all.filter(
+    (candidate) => candidate.email === registration.email,
+  );
+  const position = sameEmail.findIndex(
+    (candidate) => candidate.id === registration.id,
+  );
+  return position > 0 ? `${label} (${String(position + 1)})` : label;
+}
+
+function registrations(): Registration[] {
+  return Object.values(getStore().get("registrations")).toSorted(
+    (a, b) => a.addedAt - b.addedAt,
+  );
+}
+
+function registrationById(id: string): Registration | undefined {
+  return getStore().get("registrations")[id];
+}
+
 function getStore(): Store<StoreShape> {
   if (!STORE) {
-    const defaults: StoreShape = {};
+    const defaults: StoreShape = { registrations: {} };
     STORE = new Store<StoreShape>({
       cwd: workspaceKeysDir(),
       defaults,
@@ -194,16 +261,39 @@ function getStore(): Store<StoreShape> {
   return STORE;
 }
 
+/** The setup to follow now: the last one our API served, or the built-in one. */
+function currentSetup(): GrokSignInSetup {
+  return getStore().get("signInSetup") ?? BUILT_IN_GROK_SIGN_IN_SETUP;
+}
+
 /**
- * Writes `next` (or, with null, forgets the account) only when the stored
- * tokens are still the ones `spent` read, so an answer about tokens a sign-in
- * or sign-out replaced while it was out is dropped. Answers whether it wrote.
+ * Asks our API for the current setup before a sign-in, keeping what it serves
+ * for later refreshes. When it cannot answer, the last one it served stands.
+ */
+async function loadSignInSetup(): Promise<GrokSignInSetup> {
+  const fetched = await fetchGrokSignInSetup();
+  if (fetched) {
+    getStore().set("signInSetup", fetched);
+  }
+  return fetched ?? currentSetup();
+}
+
+/**
+ * The one writer of the registrations. Writes `next` (or, with null, forgets
+ * the registration) only when the stored one is still `spent`, the one the
+ * caller read before it went out: undefined for an account not stored yet.
+ * Otherwise a sign-in or sign-out replaced the grant while the request was
+ * out, and its answer is dropped. Answers whether it wrote.
  */
 function saveUnlessReplaced(
-  spent: Account | undefined,
-  next: Account | null,
+  spent: Registration | undefined,
+  next: null | Registration,
 ): boolean {
-  const stored = getStore().get("account");
+  const id = spent?.id ?? next?.id;
+  if (id === undefined) {
+    return false;
+  }
+  const stored = registrationById(id);
   const unchanged =
     spent === undefined
       ? stored === undefined
@@ -214,11 +304,9 @@ function saveUnlessReplaced(
     log.info("Grok grant changed while a request was out; dropping its answer");
     return false;
   }
-  if (next) {
-    getStore().set("account", next);
-  } else {
-    getStore().delete("account");
-  }
+  const store = getStore();
+  const { [id]: _replaced, ...rest } = store.get("registrations");
+  store.set("registrations", next ? { ...rest, [id]: next } : rest);
   return true;
 }
 
@@ -265,115 +353,117 @@ async function postForm(
   return body;
 }
 
-function accountFromTokens(
+const ClaimsSchema = z.object({
+  email: z.string().optional(),
+  name: z.string().optional(),
+  principal_id: z.string().optional(),
+  sub: z.string().optional(),
+});
+
+/**
+ * A JWT's claims, read without checking its signature: the token came
+ * straight from xAI's token endpoint over TLS, and the claims only name the
+ * account.
+ */
+function readClaims(jwt: string): z.output<typeof ClaimsSchema> {
+  const payload = jwt.split(".")[1];
+  if (!payload) {
+    return {};
+  }
+  try {
+    return ClaimsSchema.parse(
+      JSON.parse(Buffer.from(payload, "base64url").toString()),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function registrationFromTokens(
   tokens: z.output<typeof TokenResponseSchema>,
-  previous?: Account,
-): Account {
-  const claims = tokens.id_token ? readClaims(tokens.id_token) : undefined;
+  identity: Pick<Registration, "addedAt" | "id" | "subject">,
+  previous?: Registration,
+): Registration {
+  const claims = tokens.id_token ? readClaims(tokens.id_token) : {};
   return {
     accessToken: tokens.access_token,
-    email: claims?.email ?? previous?.email,
+    addedAt: identity.addedAt,
+    email: claims.email ?? previous?.email,
     expiresAt: Date.now() + (tokens.expires_in ?? 3600) * 1000,
-    name: claims?.name ?? previous?.name,
+    id: identity.id,
+    name: claims.name ?? previous?.name,
     refreshToken: tokens.refresh_token ?? previous?.refreshToken,
-    refusal: previous?.refusal,
+    subject: identity.subject,
+    ...(previous?.tier !== undefined && { tier: previous.tier }),
   };
 }
 
-const ACCESS_CHECK_EVERY_MS = 30 * 1000;
-let lastAccessCheck = 0;
+/** Who the tokens belong to, as xAI names the account. */
+function subjectOf(tokens: z.output<typeof TokenResponseSchema>): string {
+  const idClaims = tokens.id_token ? readClaims(tokens.id_token) : {};
+  const accessClaims = readClaims(tokens.access_token);
+  return (
+    idClaims.sub ??
+    accessClaims.principal_id ??
+    accessClaims.sub ??
+    // No claim names the account: every sign-in is an account of its own.
+    `unnamed-${ulid()}`
+  );
+}
 
-/** The smallest request a Grok subscription's model answers. */
-const ACCESS_CHECK = {
-  input: "Reply with ok.",
-  max_output_tokens: 16,
-  model: "grok-4.20-non-reasoning",
-  store: false,
-};
+const UserSchema = z.object({
+  subscriptionTier: z.string().nullable().optional(),
+});
+
+const lastSubscriptionCheck = new Map<string, number>();
 
 /**
- * Ask xAI whether the account may use its models, with one tiny request. An
- * xAI account signs in whether or not it has a Grok subscription, and one
- * without is refused only when it asks for something, so the card says so
- * up front rather than at a chat's first reply. A network failure or another
- * status leaves the last answer standing.
+ * Ask xAI which subscription each account has, or the one `accountId` names.
+ * Any xAI account signs in, subscription or not, and one without is turned
+ * away only when it asks a model for something, so the card says so up front
+ * and the account lists no models. `recent` skips an account asked in the last
+ * half minute, as opening Settings does. A failed answer leaves the last one
+ * standing.
  */
-export async function checkGrokAccess({
+export async function checkGrokSubscriptions({
+  accountId,
   recent = false,
-}: {
-  /** Skip the check when one ran in the last half minute, as opening Settings does. */
-  recent?: boolean;
-} = {}): Promise<void> {
-  const account = getStore().get("account");
-  if (
-    !account?.accessToken ||
-    (recent && Date.now() - lastAccessCheck < ACCESS_CHECK_EVERY_MS)
-  ) {
-    return;
-  }
-  lastAccessCheck = Date.now();
-  try {
-    const response = await fetch(`${API_BASE_URL}/responses`, {
-      body: JSON.stringify(ACCESS_CHECK),
-      headers: {
-        authorization: `Bearer ${account.accessToken}`,
-        "content-type": "application/json",
-      },
-      method: "POST",
-    });
-    if (response.ok) {
-      saveUnlessReplaced(account, { ...account, refusal: undefined });
-      return;
-    }
-    if (response.status === 401 || response.status === 403) {
-      const body = await response.text().catch(() => "");
-      log.warn(`xAI refused the Grok account (${String(response.status)})`);
-      saveUnlessReplaced(account, {
-        ...account,
-        refusal: refusalWords(body) || `Refused (${String(response.status)})`,
-      });
-    }
-  } catch (error) {
-    log.warn("Couldn't check the Grok account", error);
-  }
-}
-
-/** The sentence in an xAI error body, which is JSON or plain text. */
-function refusalWords(body: string): string {
-  try {
-    const parsed = z
-      .object({
-        code: z.string().optional(),
-        error: z
-          .union([z.string(), z.object({ message: z.string().optional() })])
-          .optional(),
-      })
-      .parse(JSON.parse(body));
-    const error =
-      typeof parsed.error === "string" ? parsed.error : parsed.error?.message;
-    return (error ?? parsed.code ?? body).trim();
-  } catch {
-    return body.trim();
-  }
-}
-
-/**
- * The ID token's name and email, read without checking its signature: it came
- * straight from xAI's token endpoint over TLS, and names the account only for
- * the card.
- */
-function readClaims(idToken: string) {
-  const payload = idToken.split(".")[1];
-  if (!payload) {
-    return undefined;
-  }
-  try {
-    return z
-      .object({ email: z.string().optional(), name: z.string().optional() })
-      .parse(JSON.parse(Buffer.from(payload, "base64url").toString()));
-  } catch {
-    return undefined;
-  }
+}: { accountId?: string; recent?: boolean } = {}): Promise<void> {
+  const { userURL } = currentSetup();
+  await Promise.all(
+    registrations()
+      .filter(
+        (registration) =>
+          registration.accessToken &&
+          (accountId === undefined || registration.id === accountId) &&
+          !(
+            recent &&
+            Date.now() - (lastSubscriptionCheck.get(registration.id) ?? 0) <
+              SUBSCRIPTION_CHECK_EVERY_MS
+          ),
+      )
+      .map(async (registration) => {
+        lastSubscriptionCheck.set(registration.id, Date.now());
+        try {
+          const response = await fetch(userURL, {
+            headers: { authorization: `Bearer ${registration.accessToken}` },
+          });
+          if (!response.ok) {
+            log.warn(
+              `Couldn't read the Grok account's subscription (${String(response.status)})`,
+            );
+            return;
+          }
+          const user = UserSchema.parse(await response.json());
+          saveUnlessReplaced(registration, {
+            ...registration,
+            tier: user.subscriptionTier ?? null,
+          });
+        } catch (error) {
+          log.warn("Couldn't read the Grok account's subscription", error);
+        }
+      }),
+  );
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -392,18 +482,24 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 /**
  * Start a sign-in: ask xAI for a device code, open its page in the browser
- * with the code filled in, and wait for the person to approve it there.
- * Asking again while one waits replaces it.
+ * with the code filled in, and wait for the person to approve it there. An
+ * account already signed in to is updated rather than listed twice. Asking
+ * again while one waits replaces it.
  */
 export async function signInWithGrok(): Promise<GrokSignInResult> {
   pending?.controller.abort();
   const controller = new AbortController();
   const { signal } = controller;
   try {
+    const setup = await loadSignInSetup();
     const device = DeviceCodeSchema.parse(
       await postForm(
-        `${ISSUER}/device/code`,
-        { client_id: CLIENT_ID, referrer: REFERRER, scope: SCOPE },
+        `${setup.issuer}/device/code`,
+        {
+          client_id: setup.clientId,
+          referrer: setup.referrer,
+          scope: setup.scope,
+        },
         signal,
       ),
     );
@@ -423,29 +519,19 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
       if (Date.now() > deadline) {
         throw new Error("The Grok sign-in code expired. Try again.");
       }
+      let tokens: z.output<typeof TokenResponseSchema>;
       try {
-        const tokens = TokenResponseSchema.parse(
+        tokens = TokenResponseSchema.parse(
           await postForm(
-            `${ISSUER}/token`,
+            `${setup.issuer}/token`,
             {
-              client_id: CLIENT_ID,
+              client_id: setup.clientId,
               device_code: device.device_code,
               grant_type: DEVICE_GRANT,
             },
             signal,
           ),
         );
-        const account = accountFromTokens(tokens);
-        if (!account.refreshToken) {
-          throw new Error("Grok sign-in left the account without a session");
-        }
-        getStore().set("account", account);
-        grant().send({ type: "signedIn" });
-        await checkGrokAccess();
-        // The person approved on xAI's page; bring them back to the app.
-        focusAppWindow();
-        const refusal = getStore().get("account")?.refusal;
-        return { outcome: "signed-in", ...(refusal && { refusal }) };
       } catch (error) {
         if (!(error instanceof TokenError)) {
           throw error;
@@ -465,6 +551,34 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
         }
         throw error;
       }
+      if (!tokens.refresh_token) {
+        throw new Error("Grok sign-in left the account without a session");
+      }
+      const subject = subjectOf(tokens);
+      const existing = registrations().find(
+        (candidate) => candidate.subject === subject,
+      );
+      const registration = registrationFromTokens(
+        tokens,
+        {
+          addedAt: existing?.addedAt ?? Date.now(),
+          id: existing?.id ?? AIProviderConfigIdSchema.parse(ulid()),
+          subject,
+        },
+        existing,
+      );
+      // Over whatever is stored now: the person's sign-in wins over any
+      // answer still out for the tokens it replaces.
+      saveUnlessReplaced(registrationById(registration.id), registration);
+      grantOf(registration.id).send({ type: "signedIn" });
+      await checkGrokSubscriptions({ accountId: registration.id });
+      // The person approved on xAI's page; bring them back to the app.
+      focusAppWindow();
+      const saved = registrationById(registration.id) ?? registration;
+      return {
+        account: accountStatus(saved, registrations()),
+        outcome: "signed-in",
+      };
     }
     return { outcome: "canceled" };
   } catch (error) {
@@ -492,44 +606,48 @@ const UNUSABLE_REFRESH_CODES = new Set([
   "token_expired",
 ]);
 
-let grantActor: Actor<typeof grantMachine> | undefined;
-
 /**
- * The account's grant (chatgpt-grant.ts), which holds its refresh clock and
+ * Each account's grant (chatgpt-grant.ts), which holds its refresh clock and
  * runs one refresh at a time, since the refresh token rotates.
  */
-function grant(): Actor<typeof grantMachine> {
-  if (grantActor) {
-    return grantActor;
+const grants = new Map<string, Actor<typeof grantMachine>>();
+
+function grantOf(id: string): Actor<typeof grantMachine> {
+  const existing = grants.get(id);
+  if (existing) {
+    return existing;
   }
-  const actor = createActor(
+  const grant = createActor(
     grantMachine.provide({
       actions: {
         endSession: (_, { accessToken }) => {
-          const stored = getStore().get("account");
+          const stored = registrationById(id);
           if (stored?.accessToken === accessToken) {
             saveUnlessReplaced(stored, withoutTokens(stored));
           }
         },
       },
       actors: {
-        refresh: fromPromise<RefreshOutcome, { id: string }>(() =>
-          refreshTokens(),
+        refresh: fromPromise<RefreshOutcome, { id: string }>(({ input }) =>
+          refreshTokens(input.id),
         ),
-        revoke: fromPromise<{ revoked: boolean }, { id: string }>(() => {
-          // xAI publishes no revocation endpoint for the shared client, so
-          // signing out forgets the tokens here.
-          saveUnlessReplaced(getStore().get("account"), null);
-          return Promise.resolve({ revoked: false });
-        }),
+        revoke: fromPromise<{ revoked: boolean }, { id: string }>(
+          ({ input }) => {
+            // xAI publishes no revocation endpoint for the shared client, so
+            // signing out forgets the tokens here.
+            saveUnlessReplaced(registrationById(input.id), null);
+            lastSubscriptionCheck.delete(input.id);
+            return Promise.resolve({ revoked: false });
+          },
+        ),
       },
       delays: {
         refreshDelay: ({ context }) => {
-          const account = getStore().get("account");
-          if (!account) {
+          const registration = registrationById(context.id);
+          if (!registration) {
             return MAX_REFRESH_BACKOFF_MS;
           }
-          const due = (account.expiresAt ?? 0) - REFRESH_MARGIN_MS;
+          const due = (registration.expiresAt ?? 0) - REFRESH_MARGIN_MS;
           const backoff =
             context.failures === 0
               ? 0
@@ -538,49 +656,60 @@ function grant(): Actor<typeof grantMachine> {
         },
       },
       guards: {
-        hasSession: () => Boolean(getStore().get("account")?.refreshToken),
-        isDue: () => isDue(getStore().get("account")),
+        hasSession: ({ context }) =>
+          Boolean(registrationById(context.id)?.refreshToken),
+        isDue: ({ context }) => isDue(registrationById(context.id)),
       },
     }),
-    { input: { id: ACCOUNT_ID } },
+    { input: { id } },
   );
-  grantActor = actor;
-  actor.subscribe({
+  grants.set(id, grant);
+  grant.subscribe({
     complete: () => {
-      if (grantActor === actor) {
-        grantActor = undefined;
+      if (grants.get(id) === grant) {
+        grants.delete(id);
       }
     },
   });
-  actor.start();
-  return actor;
+  grant.start();
+  return grant;
 }
 
-function isDue(account: Account | undefined): boolean {
+function isDue(registration: Registration | undefined): boolean {
   return (
-    account?.refreshToken !== undefined &&
-    (account.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS
+    registration?.refreshToken !== undefined &&
+    (registration.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS
   );
 }
 
-function withoutTokens(account: Account): Account {
-  return { email: account.email, name: account.name };
+function withoutTokens(registration: Registration): Registration {
+  return {
+    addedAt: registration.addedAt,
+    email: registration.email,
+    id: registration.id,
+    name: registration.name,
+    subject: registration.subject,
+  };
 }
 
-async function refreshTokens(): Promise<RefreshOutcome> {
-  const account = getStore().get("account");
-  if (!account?.refreshToken) {
+async function refreshTokens(id: string): Promise<RefreshOutcome> {
+  const registration = registrationById(id);
+  if (!registration?.refreshToken) {
     return "ended";
   }
+  const { clientId, issuer } = currentSetup();
   try {
     const tokens = TokenResponseSchema.parse(
-      await postForm(`${ISSUER}/token`, {
-        client_id: CLIENT_ID,
+      await postForm(`${issuer}/token`, {
+        client_id: clientId,
         grant_type: "refresh_token",
-        refresh_token: account.refreshToken,
+        refresh_token: registration.refreshToken,
       }),
     );
-    return saveUnlessReplaced(account, accountFromTokens(tokens, account))
+    return saveUnlessReplaced(
+      registration,
+      registrationFromTokens(tokens, registration, registration),
+    )
       ? "refreshed"
       : "replaced";
   } catch (error) {
@@ -589,7 +718,7 @@ async function refreshTokens(): Promise<RefreshOutcome> {
       UNUSABLE_REFRESH_CODES.has(error.code ?? "")
     ) {
       log.warn("Grok session ended; signing in again is required");
-      return saveUnlessReplaced(account, withoutTokens(account))
+      return saveUnlessReplaced(registration, withoutTokens(registration))
         ? "ended"
         : "replaced";
     }
@@ -599,52 +728,60 @@ async function refreshTokens(): Promise<RefreshOutcome> {
 }
 
 /**
- * Replace the access token if it has already expired, and wait for it, so a
- * request right after a long sleep or a cold launch carries a good one. An id
- * that names another provider's config waits on nothing.
+ * Replace the access token of `accountId`, or of every account, if it has
+ * already expired, and wait for it, so a request right after a long sleep or
+ * a cold launch carries a good one. An id that names another provider's
+ * config waits on nothing.
  */
 export async function refreshExpiredGrokTokens(
   accountId?: string,
 ): Promise<void> {
-  if (accountId !== undefined && accountId !== ACCOUNT_ID) {
-    return;
-  }
-  const account = getStore().get("account");
-  if (!account?.refreshToken || (account.expiresAt ?? 0) > Date.now()) {
-    return;
-  }
-  const actor = grant();
-  actor.send({ type: "refreshDue" });
-  await waitFor(
-    actor,
-    (snapshot) => !snapshot.matches({ active: "refreshing" }),
-    {
-      timeout: EXPIRED_REFRESH_WAIT_MS,
-    },
-  ).catch(() => {
-    // A refresh still running past its wait is left to finish on its own.
-  });
+  await Promise.all(
+    registrations()
+      .filter(
+        (registration) =>
+          (accountId === undefined || registration.id === accountId) &&
+          registration.refreshToken &&
+          (registration.expiresAt ?? 0) <= Date.now(),
+      )
+      .map(async (registration) => {
+        const grant = grantOf(registration.id);
+        grant.send({ type: "refreshDue" });
+        await waitFor(
+          grant,
+          (snapshot) => !snapshot.matches({ active: "refreshing" }),
+          { timeout: EXPIRED_REFRESH_WAIT_MS },
+        ).catch(() => {
+          // A refresh still running past its wait is left to finish on its own.
+        });
+      }),
+  );
 }
 
-/** Keep the token fresh; call once at startup. */
+/** Keep every account's token fresh; call once at startup. */
 export function scheduleGrokRefresh(): void {
-  if (getStore().get("account")) {
-    grant();
+  for (const registration of registrations()) {
+    grantOf(registration.id);
   }
 }
 
-/** Catch the token up after the machine wakes; see chatgpt-account.ts. */
+/** Catch the tokens up after the machine wakes; see chatgpt-account.ts. */
 export function refreshGrokAfterWake(): void {
-  if (getStore().get("account")) {
-    grant().send({ type: "woke" });
+  for (const registration of registrations()) {
+    grantOf(registration.id).send({ type: "woke" });
   }
 }
 
-export async function signOutOfGrok(): Promise<void> {
-  if (!getStore().get("account")) {
+/** Sign out of one account and forget it. */
+export async function signOutOfGrok({
+  accountId,
+}: {
+  accountId: string;
+}): Promise<void> {
+  if (!registrationById(accountId)) {
     return;
   }
-  const actor = grant();
-  actor.send({ type: "signOut" });
-  await waitFor(actor, (snapshot) => snapshot.status === "done");
+  const grant = grantOf(accountId);
+  grant.send({ type: "signOut" });
+  await waitFor(grant, (snapshot) => snapshot.status === "done");
 }

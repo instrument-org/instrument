@@ -332,6 +332,36 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
 
+      # The reports viewer reads a build's maps from its own bucket, keyed by
+      # version and by the platform a report names (Node's process.platform),
+      # to turn the minified frames in a report back into source. A release
+      # whose maps fail to copy still ships: its reports read minified until
+      # `reports sourcemaps <tag>` in the internal repo copies them by hand.
+      - name: Copy source maps to the reports bucket
+        continue-on-error: true
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for file in artifacts/sourcemaps-"$GITHUB_REF_NAME"-*.tar.gz; do
+            rest="${file#artifacts/sourcemaps-"$GITHUB_REF_NAME"-}"
+            arch="${rest%.tar.gz}"
+            arch="${arch##*-}"
+            case "$rest" in
+              macos*) platform=darwin ;;
+              windows*) platform=win32 ;;
+              ubuntu*) platform=linux ;;
+              *) echo "::warning::Skipping $file: no platform for it"; continue ;;
+            esac
+            aws s3 cp "$file" "s3://instrument-reports-production/sourcemaps/$version/$platform-$arch.tar.gz" \
+              --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
+              --content-type application/gzip \
+              --no-progress
+          done
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+
       - name: Build Slack summary and release body
         id: slack_summary
         env:

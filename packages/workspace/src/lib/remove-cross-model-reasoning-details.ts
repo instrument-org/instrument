@@ -6,7 +6,6 @@ import { type ProviderMetadata } from "ai";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
-import { isToolPart } from "./is-tool-part";
 
 export function removeCrossModelReasoningDetails({
   messages,
@@ -31,9 +30,10 @@ export function removeCrossModelReasoningDetails({
       return message;
     }
 
-    // Encrypted reasoning, OpenRouter's or OpenAI's, is provider-private
-    // continuation state. It is only safe to replay to the model that wrote
-    // it.
+    // OpenAI's encrypted reasoning is provider-private continuation state,
+    // only safe to replay to the model that wrote it. OpenRouter's
+    // `reasoning_details` stay: it accepts another model's, tool calls
+    // included.
     const sanitizedParts = message.parts.map((part) => {
       const result = removeEncryptedReasoningFromPart(part);
       redactedReasoningDetailsCount += result.redactedReasoningDetailsCount;
@@ -95,17 +95,6 @@ function removeEncryptedReasoningFromPart(part: SessionMessagePart.Type): {
   let result = part;
   let redactedReasoningDetailsCount = 0;
 
-  if ("providerMetadata" in result) {
-    const removeResult = removeOpenRouterReasoningDetails(
-      result.providerMetadata,
-    );
-    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
-
-    if (removeResult.redactedReasoningDetailsCount > 0) {
-      result = { ...result, providerMetadata: removeResult.metadata };
-    }
-  }
-
   if (result.type === "reasoning") {
     const removeResult = removeOpenAIEncryptedReasoning(
       result.providerMetadata,
@@ -114,17 +103,6 @@ function removeEncryptedReasoningFromPart(part: SessionMessagePart.Type): {
 
     if (removeResult.redactedReasoningDetailsCount > 0) {
       result = { ...result, providerMetadata: removeResult.metadata };
-    }
-  }
-
-  if (isToolPart(result)) {
-    const removeResult = removeOpenRouterReasoningDetails(
-      result.callProviderMetadata,
-    );
-    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
-
-    if (removeResult.redactedReasoningDetailsCount > 0) {
-      result = { ...result, callProviderMetadata: removeResult.metadata };
     }
   }
 
@@ -153,39 +131,5 @@ function removeOpenAIEncryptedReasoning(
       ? remainingMetadata
       : undefined,
     redactedReasoningDetailsCount: 1,
-  };
-}
-
-function removeOpenRouterReasoningDetails(
-  metadata: ProviderMetadata | undefined,
-): {
-  metadata: ProviderMetadata | undefined;
-  redactedReasoningDetailsCount: number;
-} {
-  const openrouterMetadata = metadata?.openrouter;
-
-  if (!openrouterMetadata || !("reasoning_details" in openrouterMetadata)) {
-    return { metadata, redactedReasoningDetailsCount: 0 };
-  }
-
-  const { reasoning_details: reasoningDetails, ...remainingOpenRouter } =
-    openrouterMetadata;
-  const redactedReasoningDetailsCount = Array.isArray(reasoningDetails)
-    ? reasoningDetails.length
-    : 1;
-
-  const remainingMetadata: ProviderMetadata = { ...metadata };
-
-  if (hasDefinedValues(remainingOpenRouter)) {
-    remainingMetadata.openrouter = remainingOpenRouter;
-  } else {
-    delete remainingMetadata.openrouter;
-  }
-
-  return {
-    metadata: hasDefinedValues(remainingMetadata)
-      ? remainingMetadata
-      : undefined,
-    redactedReasoningDetailsCount,
   };
 }

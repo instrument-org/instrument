@@ -12,7 +12,7 @@ You can choose to run them anyway, with the switch in that warning in Settings â
 
 ## Why it can happen
 
-**Linux, with user namespaces closed.** The sandbox Instrument uses on Linux, bubblewrap, needs a kernel feature called user namespaces. Some systems turn it off for apps the system hasn't been told about. Ubuntu does this, and one known way to run into it is starting Instrument from its AppImage, since the `.deb` package installs the setting that lets Instrument use the feature. Installing Instrument from the `.deb` package is the first thing to try.
+**Linux, with user namespaces closed.** The sandbox Instrument uses on Linux, bubblewrap, needs a kernel feature called user namespaces. Some systems turn it off for apps the system hasn't been told about. Ubuntu does this, and one known way to run into it is starting Instrument from its AppImage on Ubuntu 24.04, since the `.deb` package installs the setting that lets Instrument use the feature. Ubuntu 25.04 and later let bubblewrap itself use the feature, so the AppImage's sandbox works there. Installing Instrument from the `.deb` package is the first thing to try.
 
 **Linux, without bubblewrap.** Instrument looks for bubblewrap at `/usr/bin/bwrap`. Installing your distribution's `bubblewrap` package puts it there.
 

@@ -31,7 +31,7 @@ export const SANDBOX_OFF_REASONS = {
     // oxlint-disable-next-line studio/no-os-words -- shown only on macOS
     "This Mac is missing the system tool Instrument uses for the sandbox, which we don't expect. Please tell us with Report a Problem in the Help menu.",
   "user-namespaces-closed":
-    "Linux on this computer is set to block the kind of sandbox Instrument uses. One known cause is running Instrument from its AppImage on Ubuntu, and installing the .deb package is the first thing to try.",
+    "Linux on this computer is set to block the kind of sandbox Instrument uses. One known cause is running Instrument from its AppImage on Ubuntu 24.04, and installing the .deb package is the first thing to try.",
 } satisfies Record<
   "did-not-start" | "no-bubblewrap" | "no-seatbelt" | "user-namespaces-closed",
   string

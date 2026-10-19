@@ -171,35 +171,18 @@ export namespace SessionMessageDataPart {
     typeof BackgroundProcessesDataPartSchema
   >;
 
-  const BrowserTargetSchema = z.object({
-    title: z.string().optional(),
-    url: z.string(),
+  /** The tabs of the user's chat a task holds, each by the id `agent-browser tab` takes. */
+  const BrowserStatusDataPartSchema = z.object({
+    status: z.literal("tabs"),
+    tabs: z.array(
+      z.object({
+        id: z.string(),
+        openedBy: z.enum(["handed", "task"]),
+        title: z.string().optional(),
+        url: z.string(),
+      }),
+    ),
   });
-
-  const BrowserStatusDataPartSchema = z.discriminatedUnion("status", [
-    z.object({
-      previousTarget: BrowserTargetSchema.optional(),
-      status: z.literal("closed"),
-    }),
-    z.object({
-      status: z.literal("open"),
-      target: BrowserTargetSchema,
-    }),
-    z.object({
-      status: z.literal("reopened"),
-      target: BrowserTargetSchema,
-    }),
-    /** The tabs of the user's chat a task holds, each by the id `agent-browser tab` takes. */
-    z.object({
-      status: z.literal("tabs"),
-      tabs: z.array(
-        BrowserTargetSchema.extend({
-          id: z.string(),
-          openedBy: z.enum(["handed", "task"]),
-        }),
-      ),
-    }),
-  ]);
 
   export type BrowserStatusDataPart = z.output<
     typeof BrowserStatusDataPartSchema

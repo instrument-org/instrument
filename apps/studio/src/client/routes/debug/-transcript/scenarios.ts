@@ -1369,8 +1369,15 @@ done`,
         "Great, keep going and check it in the browser.",
         {
           data: {
-            status: "open",
-            target: { title: "Landing preview", url: "https://example.com" },
+            status: "tabs",
+            tabs: [
+              {
+                id: "t1",
+                openedBy: "task",
+                title: "Landing preview",
+                url: "https://example.com",
+              },
+            ],
           },
           type: "data-browserStatus",
         },

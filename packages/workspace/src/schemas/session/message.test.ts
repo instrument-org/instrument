@@ -307,11 +307,15 @@ describe("SessionMessage.toModelMessages", () => {
           },
           {
             data: {
-              status: "open",
-              target: {
-                title: "Example",
-                url: "https://example.com",
-              },
+              status: "tabs",
+              tabs: [
+                {
+                  id: "t1",
+                  openedBy: "task",
+                  title: "Example",
+                  url: "https://example.com",
+                },
+              ],
             },
             metadata: { ...partMetadata, id: StoreId.newPartId() },
             type: "data-browserStatus",
@@ -345,72 +349,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
-      </instrument-system-note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("injects closed browser status on a user message", async () => {
-    const { messageId, messageMetadata, partMetadata } = baseMetadata();
-
-    const messages: SessionMessage.WithParts[] = [
-      {
-        id: messageId,
-        metadata: messageMetadata,
-        parts: [
-          {
-            metadata: partMetadata,
-            state: "done",
-            text: "Continue where you left off.",
-            type: "text",
-          },
-          {
-            data: {
-              previousTarget: {
-                title: "Example",
-                url: "https://example.com/work",
-              },
-              status: "closed",
-            },
-            metadata: { ...partMetadata, id: StoreId.newPartId() },
-            type: "data-browserStatus",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const result = await SessionMessage.toModelMessages(
-      messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "<user_message>",
-              "type": "text",
-            },
-            {
-              "text": "Continue where you left off.",
-              "type": "text",
-            },
-            {
-              "text": "</user_message>",
-              "type": "text",
-            },
-            {
-              "text": "
-      <instrument-system-note>
-      This session previously had an in-app browser tab open, but it is no longer open. Last known URL: https://example.com/work. Page title: Example. If browser work needs to continue, use \`agent-browser\` to reopen the relevant page and restore any required page state before proceeding.
+      Your browser is these tabs of the user's chat, first one first: t1 at https://example.com ("Example"), which you opened. \`agent-browser\` starts on the first; \`agent-browser tab <id>\` switches to another, and \`agent-browser tab list\` shows them all.
       </instrument-system-note>",
               "type": "text",
             },
@@ -459,11 +398,15 @@ describe("SessionMessage.toModelMessages", () => {
     const first = baseMetadata();
     const second = baseMetadata();
     const browserStatus = {
-      status: "open" as const,
-      target: {
-        title: "Example",
-        url: "https://example.com",
-      },
+      status: "tabs" as const,
+      tabs: [
+        {
+          id: "t1",
+          openedBy: "task" as const,
+          title: "Example",
+          url: "https://example.com",
+        },
+      ],
     };
 
     const messages: SessionMessage.WithParts[] = [
@@ -535,7 +478,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
+      Your browser is these tabs of the user's chat, first one first: t1 at https://example.com ("Example"), which you opened. \`agent-browser\` starts on the first; \`agent-browser tab <id>\` switches to another, and \`agent-browser tab list\` shows them all.
       </instrument-system-note>",
               "type": "text",
             },

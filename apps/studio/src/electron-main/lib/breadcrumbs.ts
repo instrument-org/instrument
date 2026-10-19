@@ -13,7 +13,7 @@ const crumbs: Breadcrumb[] = [];
  * a log line, an RPC call and how it went. Kept in memory, the last
  * `MAX_BREADCRUMBS` of them.
  */
-export function addBreadcrumb({
+function addBreadcrumb({
   timestamp = Date.now(),
   ...crumb
 }: Omit<Breadcrumb, "timestamp"> & { timestamp?: number }) {

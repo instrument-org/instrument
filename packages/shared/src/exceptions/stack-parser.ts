@@ -37,7 +37,7 @@ export type ParsedFrame = {
 /** The most frames a stack keeps, counted from the frame that threw. */
 export const STACK_FRAME_LIMIT = 50;
 
-export const UNKNOWN_FUNCTION = "?";
+const UNKNOWN_FUNCTION = "?";
 
 // Lines over this are cut before matching: the expressions backtrack, and a
 // minified URL can make that take seconds.
@@ -170,7 +170,7 @@ export function parseStackLine(line: string): ParsedFrame | undefined {
  * (`node:internal/...`), Electron's (`electron/js2c/...`) and native frames
  * are not.
  */
-export function filenameIsInApp(filename: string, isNative = false): boolean {
+function filenameIsInApp(filename: string, isNative = false): boolean {
   const isInternal =
     isNative ||
     (filename &&

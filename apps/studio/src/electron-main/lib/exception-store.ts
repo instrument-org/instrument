@@ -9,7 +9,7 @@ import Store from "electron-store";
 import { z } from "zod";
 
 /** How many distinct problems are kept, the least recently seen dropped first. */
-export const MAX_STORED_PROBLEMS = 50;
+const MAX_STORED_PROBLEMS = 50;
 
 /** How long a capture waits to be written, so a burst is one write. */
 const WRITE_DELAY_MS = 1000;
@@ -139,7 +139,7 @@ function scheduleWrite() {
 }
 
 /** Write what is kept now, synchronously. Also run on exit. */
-export function flushExceptionStore() {
+function flushExceptionStore() {
   clearTimeout(writeTimer);
   writeTimer = undefined;
   if (EVENTS === null) {

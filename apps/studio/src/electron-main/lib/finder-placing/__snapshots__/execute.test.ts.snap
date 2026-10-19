@@ -26,5 +26,7 @@ exports[`carrying out a plan > does all of a move and one undo puts everything b
   "dest/pics/": "",
   "dest/pics/x.jpg": "x",
   "src/": "",
+  "src/pics/": "",
+  "src/pics/x.jpg": "x",
 }
 `;

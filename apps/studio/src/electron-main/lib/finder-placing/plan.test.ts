@@ -462,7 +462,7 @@ describe("planning a drop, a paste or a move", () => {
     `);
   });
 
-  it("moves onto another disk by copying, then sending the source to the Trash", () => {
+  it("copies rather than moves onto another disk, leaving the source where it is, as the Finder does", () => {
     expect(
       read(
         request({
@@ -472,7 +472,7 @@ describe("planning a drop, a paste or a move", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "copy-and-trash-source /other/notes.txt -> /dest/notes.txt via /dest/.instrument-placing-t-0",
+        "copy /other/notes.txt -> /dest/notes.txt via /dest/.instrument-placing-t-0",
       ]
     `);
   });

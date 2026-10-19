@@ -44,12 +44,10 @@ export type JournalEntry = { at: number; id: string } & (
       kind: "move";
       /** What a drop of the Finder's own rows moved, from where to where, and what each was. */
       moved: { from: string; identity: Identity; to: string }[];
-      /** What the same drop copied instead, onto another disk. */
+      /** What the same drop copied instead, onto another disk, its source left where it was. */
       made: { identity: Identity; path: string }[];
       /** What a moved or copied item took the place of, moved to the Trash. */
       replaced: Trashed[];
-      /** What was moved onto another disk, copied there and then moved to the Trash. */
-      left: Trashed[];
     }
   | { identity: Identity; kind: "new-folder"; made: string }
   | {
@@ -536,19 +534,16 @@ export async function restoreFromTrash(
 
 /**
  * Takes back a drop or paste into a folder: what was moved goes back where it
- * came from, what was copied goes to the Trash, and what was moved to the
- * Trash along the way (what was replaced, and the sources of a move onto
- * another disk) comes back out. Every piece is checked before any is
+ * came from, what was copied goes to the Trash, and what was replaced
+ * comes back out of the Trash. Every piece is checked before any is
  * touched, so it all comes back or none of it does.
  */
 async function undoPlacing(
   {
-    left = [],
     made,
     moved = [],
     replaced,
   }: {
-    left?: readonly Trashed[];
     made: readonly { identity: Identity; path: string }[];
     moved?: readonly { from: string; identity: Identity; to: string }[];
     replaced: readonly Trashed[];
@@ -593,29 +588,20 @@ async function undoPlacing(
       );
     }
   }
-  for (const item of left) {
-    await refuseTrashedBack(item, platform);
-    if (!(await isFreeFor(item.from, item.identity))) {
-      throw new UndoRefusedError(
-        `Something named ${nameOf(item.from)} is already there.`,
-        { permanent: false },
-      );
-    }
-  }
   for (const item of moved) {
     await fs.rename(item.to, item.from);
   }
   for (const item of made) {
     await trash(item.path);
   }
-  for (const item of [...left, ...replaced]) {
+  for (const item of replaced) {
     if (item.trashed !== null) {
       await putTrashedBack({ ...item, trashed: item.trashed }, platform);
     }
   }
   return {
     already: false,
-    path: moved[0]?.from ?? left[0]?.from ?? null,
+    path: moved[0]?.from ?? null,
   };
 }
 

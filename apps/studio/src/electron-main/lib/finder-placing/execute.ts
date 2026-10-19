@@ -59,8 +59,8 @@ const nameOf = (at: string) => `“${path.basename(at)}”`;
 /**
  * Carries out a plan's steps in order, and nothing the plan does not say.
  * Each placed item goes: its copy staged and measured (a copy), what it
- * replaces to the Trash, itself into place exclusively, and for a move onto
- * another disk its source to the Trash. A step that fails puts its own item
+ * replaces to the Trash, then itself into place exclusively. A step that
+ * fails puts its own item
  * back as it was and stops the rest; what was done before it is journaled.
  * See `plan.ts` for the invariants this keeps.
  */
@@ -72,7 +72,6 @@ export async function executePlacing(
   const moved: { from: string; identity: Identity; to: string }[] = [];
   const made: { identity: Identity; path: string }[] = [];
   const replaced: Trashed[] = [];
-  const left: Trashed[] = [];
   const placed: Placed[] = [];
   const skipped: PlacingOutcome["skipped"] = [];
   let failure: null | string = null;
@@ -146,28 +145,15 @@ export async function executePlacing(
       }
       placed.push({
         from: step.source,
-        how: step.how === "copy" ? "copied" : "moved",
+        how: "copied",
         path: step.to,
         replaced: step.replaces !== null,
       });
-      if (step.how === "copy-and-trash-source") {
-        const gone = await ops.trash(step.source);
-        if (gone) {
-          left.push(gone);
-        }
-      }
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
       if (isPlaced) {
-        // In place; only what follows failed. A move onto another disk whose
-        // source could not go to the Trash is a copy, its source untouched.
-        const last = placed.at(-1);
-        if (last && step.how === "copy-and-trash-source") {
-          last.how = "copied";
-          failure = `${nameOf(step.to)} was copied, but ${nameOf(step.source)} is still where it was: ${failure}`;
-        } else {
-          failure = `${nameOf(step.to)} is in place, but then: ${failure}`;
-        }
+        // In place; only what follows it failed.
+        failure = `${nameOf(step.to)} is in place, but then: ${failure}`;
         break;
       }
       // Back as it was: what it replaced out of the Trash, its copy gone.
@@ -186,15 +172,14 @@ export async function executePlacing(
     }
   }
 
-  const anything =
-    moved.length + made.length + replaced.length + left.length > 0;
+  const anything = moved.length + made.length + replaced.length > 0;
   return {
     failure,
     journal: !anything
       ? null
       : op === "copy"
         ? { kind: "copy", made, replaced }
-        : { kind: "move", left, made, moved, replaced },
+        : { kind: "move", made, moved, replaced },
     placed,
     skipped,
   };

@@ -17,17 +17,17 @@
  *   the same request. `replaceable` says whether Replace may be answered.
  * - `Plan`: a refusal, when nothing may happen at all; otherwise one step per
  *   source, in order. A step skips the source (answered Skip, or already where
- *   it is going) or places it: how (rename on one disk, copy, or copy and then
- *   move the source to the Trash for a move onto another disk), the path it
+ *   it is going) or places it: how (a rename, for a move on one disk, or a
+ *   copy, for a copy and for a move onto another disk, which copies as the
+ *   Finder's own drag does and leaves the source where it is), the path it
  *   takes, the staging path a copy is written to first, and the entry it
  *   replaces. What undoes it is the journal entry the executor writes from
  *   the steps it carried out, since a copy's identity exists only once made.
  *
  * The invariants (each has a test in `execute.test.ts`)
  *
- * 1. Nothing that existed before is deleted. What is replaced, and the
- *    source of a move onto another disk, go to the Trash. The only thing ever
- *    removed is a staging copy this made itself.
+ * 1. Nothing that existed before is deleted. What is replaced goes to the
+ *    Trash. The only thing ever removed is a staging copy this made itself.
  * 2. What is replaced goes to the Trash only once what takes its place is
  *    complete: a copy is written to a staging path in the destination and
  *    measured against its source first; a moved item is whole where it is.
@@ -107,7 +107,7 @@ export type Clash = {
 export type Step =
   | { kind: "skip"; source: string; why: "already-there" | "answered" }
   | {
-      how: "copy" | "copy-and-trash-source" | "rename";
+      how: "copy" | "rename";
       itemKind: ItemKind;
       kind: "place";
       /** What it takes the place of, by where it is and what it is. */
@@ -269,12 +269,8 @@ export function planPlacing(request: PlaceRequest): Plan {
         ? firstFree((n) => `${stem} ${n.toString()}${extension}`, 2)
         : source.name;
     taken.add(nameKey(name, names));
-    const how =
-      op === "copy"
-        ? "copy"
-        : source.onDestinationDisk
-          ? "rename"
-          : "copy-and-trash-source";
+    // A move onto another disk copies, as the Finder's own drag does.
+    const how = op === "move" && source.onDestinationDisk ? "rename" : "copy";
     return {
       how,
       itemKind: source.kind,

@@ -1,7 +1,7 @@
 // How a code file looks in the editor: the same type, measure and colors as
 // the highlighted view Studio draws a code file with elsewhere (Shiki's GitHub
 // Light and GitHub Dark themes), so a file reads the same whether it is being
-// glanced at or edited. The colors are CSS variables set in code-editor.css,
+// glanced at or edited. The colors are CSS variables set in code-colors.css,
 // so the theme follows the app's light and dark without a reconfigure.
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";

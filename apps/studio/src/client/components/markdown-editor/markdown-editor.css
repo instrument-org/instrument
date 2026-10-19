@@ -1,3 +1,5 @@
+@import "../code-editor/code-colors.css";
+
 /* The Markdown editor (Milkdown's Crepe) drawn in Studio's tokens and set as a
    page to read and write on: a size above the interface's, open leading, and
    a measure its host caps (markdown-editor.tsx). Scoped under `.md-editor`;
@@ -23,16 +25,6 @@
   --html-bg: color-mix(in srgb, var(--yellow-50) 70%, var(--card));
   --html-line: var(--yellow-100);
   --html-tag: var(--yellow-700);
-  --hl-keyword: #a626a4;
-  --hl-string: #50a14f;
-  --hl-number: #986801;
-  --hl-comment: #8e908c;
-  --hl-function: #4078f2;
-  --hl-type: #c18401;
-  --hl-tag: #e45649;
-  --hl-attr: #986801;
-  --hl-variable: #383a42;
-  --hl-punct: #5c5f66;
 }
 
 .dark .md-editor,
@@ -53,16 +45,6 @@
   --html-bg: rgb(241 204 142 / 6%);
   --html-line: rgb(241 204 142 / 16%);
   --html-tag: var(--yellow-300);
-  --hl-keyword: #c678dd;
-  --hl-string: #98c379;
-  --hl-number: #d19a66;
-  --hl-comment: #7f848e;
-  --hl-function: #61afef;
-  --hl-type: #e5c07b;
-  --hl-tag: #e06c75;
-  --hl-attr: #d19a66;
-  --hl-variable: #d7dae0;
-  --hl-punct: #abb2bf;
 }
 
 .md-editor {

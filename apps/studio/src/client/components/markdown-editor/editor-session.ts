@@ -14,11 +14,10 @@ import {
   flushOnLeave,
   type SaveStatus,
 } from "@/client/lib/live-file";
+import { codeHighlighting } from "@/client/components/code-editor/theme";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { splitFrontMatter } from "@/shared/front-matter";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags as t } from "@lezer/highlight";
 import { Crepe } from "@milkdown/crepe";
 import {
   commandsCtx,
@@ -128,40 +127,6 @@ const BLOCK_NAMES: Record<string, string> = {
   paragraph: "Paragraph",
   table: "Table",
 };
-
-// Token colors come from CSS variables, so code blocks follow the theme.
-const codeColors = syntaxHighlighting(
-  HighlightStyle.define([
-    {
-      color: "var(--hl-keyword)",
-      tag: [t.keyword, t.modifier, t.operatorKeyword, t.controlKeyword],
-    },
-    {
-      color: "var(--hl-string)",
-      tag: [t.string, t.special(t.string), t.regexp],
-    },
-    { color: "var(--hl-number)", tag: [t.number, t.bool, t.null, t.atom] },
-    {
-      color: "var(--hl-comment)",
-      fontStyle: "italic",
-      tag: [t.comment, t.lineComment, t.blockComment],
-    },
-    {
-      color: "var(--hl-function)",
-      tag: [t.function(t.variableName), t.function(t.propertyName)],
-    },
-    { color: "var(--hl-type)", tag: [t.typeName, t.className, t.namespace] },
-    { color: "var(--hl-tag)", tag: [t.tagName, t.angleBracket] },
-    { color: "var(--hl-attr)", tag: [t.attributeName, t.propertyName] },
-    {
-      color: "var(--hl-variable)",
-      tag: [t.variableName, t.definition(t.variableName)],
-    },
-    { color: "var(--hl-punct)", tag: [t.punctuation, t.operator] },
-    { color: "var(--hl-keyword)", fontWeight: "bold", tag: t.heading },
-    { color: "var(--hl-string)", tag: t.link, textDecoration: "underline" },
-  ]),
-);
 
 const ASK_ICON = `<span class="md-ask">${instrumentMark(14)}<span>Ask</span></span>`;
 
@@ -700,7 +665,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
           icon(previewOnly ? "pencilSimple" : "check", 12),
         previewToggleText: (previewOnly) => (previewOnly ? "Edit" : "Done"),
         renderPreview: renderPreview(options.renderFence),
-        theme: codeColors,
+        theme: codeHighlighting,
       },
       [Crepe.Feature.LinkTooltip]: {
         confirmButton: icon("check", 14),

@@ -1,15 +1,12 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { FolderRow } from "@/client/components/folder-row";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
-import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { showInFolder } from "@/client/lib/show-in-files";
 import {
   isFolderPath,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { useContext } from "react";
-
-import { Button } from "./ui/button";
 
 /**
  * The folders a sent message carried: the same anatomy the composer and the
@@ -57,25 +54,10 @@ function SentFolderPreview({
   };
 
   return (
-    <Button
-      className="h-auto w-full justify-start gap-x-2.5 rounded-none px-3 py-2"
-      onClick={(event) => void handleClick(event)}
-      type="button"
-      variant="ghost"
-    >
-      <MacFolderIcon className="size-8 shrink-0" />
-      <div className="flex min-w-0 flex-1 flex-col text-left">
-        {/* The folder's own name and where it lives. */}
-        <span className="truncate text-xs font-medium">
-          {folderLabel(folder.path)}
-        </span>
-        <span
-          className="truncate text-xs text-muted-foreground"
-          title={folder.path}
-        >
-          {displayPath(folder.path)}
-        </span>
-      </div>
-    </Button>
+    <FolderRow
+      className="px-3 py-2 hover:bg-accent"
+      onOpen={(event) => void handleClick(event)}
+      path={folder.path}
+    />
   );
 }

@@ -1,4 +1,4 @@
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { FolderRow } from "@/client/components/folder-row";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,11 +31,12 @@ import {
   ColorRow,
   TopicMarkPicker,
 } from "@/client/components/window/topic-mark-picker";
-import { displayPath, folderLabel } from "@/client/lib/path-utils";
+import { folderLabel } from "@/client/lib/path-utils";
 import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRef, useState } from "react";
@@ -231,6 +232,9 @@ function TopicFolders({
   folders: TopicFolder[];
   onChange: (folders: TopicFolder[]) => void;
 }) {
+  const remove = (folder: TopicFolder) => {
+    onChange(folders.filter((entry) => entry !== folder));
+  };
   const add = async () => {
     const picked = await rpcClient.utils.showFolderPicker
       .call({ buttonLabel: "Add" })
@@ -265,42 +269,36 @@ function TopicFolders({
       ) : (
         <ul className="-mx-2 grid">
           {folders.map((folder) => (
-            <li
-              className="group flex min-w-0 items-center gap-1 rounded-md pr-1.5 hover:bg-muted/50"
-              key={folder.path}
-            >
-              {/* The folder's own name and where it lives, which opens it. */}
-              <button
-                className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pl-2 text-left"
-                onClick={() => {
+            <li key={folder.path}>
+              <FolderRow
+                className="gap-1 rounded-md py-1.5 pr-1.5 pl-2 hover:bg-muted/50"
+                end={
+                  // Out of the way until the row is pointed at.
+                  <button
+                    aria-label={`Remove ${folderLabel(folder.path)}`}
+                    className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 group-hover/folder-row:opacity-100 hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100"
+                    onClick={() => {
+                      remove(folder);
+                    }}
+                    type="button"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                }
+                menu={[
+                  {
+                    icon: <MinusCircleIcon className="size-4" />,
+                    label: "Remove",
+                    onSelect: () => {
+                      remove(folder);
+                    },
+                  },
+                ]}
+                onOpen={() => {
                   void showInFolder(folder.path, { kind: "folder" });
                 }}
-                type="button"
-              >
-                <MacFolderIcon className="size-8 shrink-0" />
-                <span className="flex min-w-0 flex-1 flex-col text-xs">
-                  <span className="truncate font-medium">
-                    {folderLabel(folder.path)}
-                  </span>
-                  <span
-                    className="truncate text-muted-foreground"
-                    title={folder.path}
-                  >
-                    {displayPath(folder.path)}
-                  </span>
-                </span>
-              </button>
-              {/* Out of the way until the row is pointed at. */}
-              <button
-                aria-label={`Remove ${folderLabel(folder.path)}`}
-                className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100"
-                onClick={() => {
-                  onChange(folders.filter((entry) => entry !== folder));
-                }}
-                type="button"
-              >
-                <XIcon className="size-3" />
-              </button>
+                path={folder.path}
+              />
             </li>
           ))}
         </ul>

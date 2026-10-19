@@ -1,3 +1,4 @@
+import { FolderPath } from "@/client/components/folder-row";
 import { displayPath } from "@/client/lib/path-utils";
 import { hasFilesView, showInFolder } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
@@ -49,14 +50,13 @@ export function RevealPath({
       type="button"
     >
       {hideIcon ? null : <FolderOpenIcon className="size-4 shrink-0" />}
-      <span
-        className={cn(
-          "font-mono",
-          allowWrap ? "text-left break-all whitespace-normal" : "truncate",
-        )}
-      >
-        {displayPath(path)}
-      </span>
+      {allowWrap ? (
+        <span className="text-left break-all whitespace-normal">
+          {displayPath(path)}
+        </span>
+      ) : (
+        <FolderPath path={path} />
+      )}
     </button>
   );
 }

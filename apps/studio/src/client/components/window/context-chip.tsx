@@ -11,6 +11,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -320,7 +321,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
       <span>{said}</span>
       {paths.map((path) => (
         <span className="break-all opacity-70" key={path}>
-          {path}
+          {displayPath(path)}
         </span>
       ))}
     </span>

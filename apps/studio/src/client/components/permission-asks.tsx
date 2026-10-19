@@ -1,9 +1,6 @@
 import { rpcClient } from "@/client/rpc/client";
-import {
-  isInside,
-  nameOf,
-  segmentsOf,
-} from "@/client/components/window/host-path";
+import { FolderRow } from "@/client/components/folder-row";
+import { isInside, segmentsOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
 import {
   askTargetName,
@@ -13,7 +10,6 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -184,28 +180,19 @@ function PermissionAskCard({
             `Instrument needs access to ${askTargetName(ask.kind, ask.target)} to finish your task.`}
         </p>
       ) : null}
-      <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
-        {isFolder ? (
-          <MacFolderIcon className="size-8 shrink-0" />
-        ) : (
+      {isFolder ? (
+        <FolderRow
+          className="mt-2.5 rounded-xl bg-muted/50 px-3 py-2"
+          path={ask.target}
+        />
+      ) : (
+        <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
           <span className="grid size-8 shrink-0 place-items-center">
             <AppWindowIcon className="size-6 text-muted-foreground" />
           </span>
-        )}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm">
-            {isFolder ? nameOf(ask.target) : ask.target}
-          </span>
-          {isFolder ? (
-            <span
-              className="truncate text-xs text-muted-foreground"
-              title={ask.target}
-            >
-              {ask.target}
-            </span>
-          ) : null}
+          <span className="min-w-0 flex-1 truncate text-sm">{ask.target}</span>
         </div>
-      </div>
+      )}
       {holds ? (
         <p className="mt-2 flex items-start gap-1.5 text-[13px] text-warning-700 dark:text-warning-300">
           <ShieldWarningIcon className="mt-0.5 size-3.5 shrink-0" />

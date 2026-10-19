@@ -41,16 +41,19 @@ afterEach(installWindowStubs);
 
 describe("PermissionAsksFoot", () => {
   it.each([
-    ["/Users/sam/Desktop", "Desktop"],
+    ["/Users/sam/Desktop", "Desktop", "sam/Desktop"],
     // A backslash is a character a name can hold on a Mac or Linux.
-    ["/Users/sam/Documents/a\\b", "a\\b"],
-    ["D:\\Projects\\Clients", "Clients"],
-  ])("names %s as %s over its whole path", async (target, name) => {
-    showAsks([{ target }]);
+    ["/Users/sam/Documents/a\\b", "a\\b", "sam/Documents/a\\b"],
+    ["D:\\Projects\\Clients", "Clients", "D:\\Projects\\Clients"],
+  ])(
+    "names %s as %s over its path from the home folder's name",
+    async (target, name, shown) => {
+      showAsks([{ target }]);
 
-    expect(await screen.findByText(name)).toBeDefined();
-    expect(screen.getByText(target)).toBeDefined();
-  });
+      expect(await screen.findByText(name)).toBeDefined();
+      expect(screen.getByTitle(shown)).toBeDefined();
+    },
+  );
 
   it("asks about an app by its name, with no path", async () => {
     showAsks([{ kind: "app", target: "Calendar" }]);
@@ -135,9 +138,17 @@ describe("PermissionAsksFoot", () => {
         "Instrument needs access to “Desktop” to finish your task.",
       ),
     ).toBeDefined();
-    expect(screen.getAllByRole("button").map((button) => button.textContent))
-      .toMatchInlineSnapshot(`
+    // The test window has no Files view, so the folder's own button names
+    // the Finder, as the onboarding window's would.
+    expect(
+      screen
+        .getAllByRole("button")
+        .map(
+          (button) => button.getAttribute("aria-label") ?? button.textContent,
+        ),
+    ).toMatchInlineSnapshot(`
       [
+        "Show in Finder: Desktop",
         "Allow",
         "Open System Settings",
         "Don’t allow",

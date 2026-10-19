@@ -79,7 +79,7 @@ export function bwrapState(): ProbeResult {
  * installed it. Read only once a probe has failed, so a restriction the
  * profile lifted is never taken for one in force.
  */
-export function userNamespacesClosed(): boolean {
+function userNamespacesClosed(): boolean {
   const reads = (file: string) => {
     try {
       return readFileSync(file, "utf8").trim();

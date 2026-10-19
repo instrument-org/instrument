@@ -38,6 +38,7 @@ import {
   type EvalCase,
 } from "../harness";
 import { deliveredFile } from "../lib/delivered-file";
+import { leavesChatsToConversations } from "./work-folder";
 import { sheetHasAChart, sheetRecomputes, wroteADocument } from "./worker";
 
 export type Context = Parameters<Assertion["check"]>[0];
@@ -170,8 +171,12 @@ export function recentFilesUnder(
           continue;
         }
         walk(full, level + 1);
-      } else if (fs.statSync(full).mtimeMs >= since) {
-        found.push(full);
+      } else {
+        // A link to nothing has no time of its own, so it is never new.
+        const changed = fs.statSync(full, { throwIfNoEntry: false })?.mtimeMs;
+        if (changed !== undefined && changed >= since) {
+          found.push(full);
+        }
       }
     }
   };
@@ -346,7 +351,18 @@ const OLDER_PDFS = [
 
 function seedDownloads() {
   const downloads = path.join(HOME, "Downloads");
-  fs.rmSync(downloads, { force: true, recursive: true });
+  // Every model's run of this case seeds the same Downloads, and checks run
+  // once all of them are done, so an earlier run's summaries stay; they are
+  // older than this run, which the checks already leave out.
+  fs.mkdirSync(downloads, { recursive: true });
+  for (const entry of fs
+    .readdirSync(downloads, { withFileTypes: true })
+    .filter((one) => !(one.isDirectory() && PDF_SUMMARIES.test(one.name)))) {
+    fs.rmSync(path.join(downloads, entry.name), {
+      force: true,
+      recursive: true,
+    });
+  }
   RECENT_PDFS.forEach(({ file, lines }, index) => {
     writeAged(
       path.join(downloads, file),
@@ -2620,7 +2636,12 @@ const SCENARIOS: Scenario[] = [
     allowsFolders: 1,
     // Seen: the brief added "directly in Downloads", and the newest PDFs
     // were all in subfolders.
-    assertions: [wroteThreeSummaries, summarizedTheRightPdfs, toldWhichPdfs],
+    assertions: [
+      wroteThreeSummaries,
+      summarizedTheRightPdfs,
+      toldWhichPdfs,
+      leavesChatsToConversations,
+    ],
     prompt:
       "Look through the PDFs in my Downloads folder, pick the three most recent, and write a one-page summary of each into a folder called PDF summaries. Tell me which ones you picked.",
     setup: seedDownloads,

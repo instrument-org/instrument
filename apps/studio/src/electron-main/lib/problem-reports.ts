@@ -2,6 +2,9 @@ import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import {
+  MAX_REPORT_BYTES,
+  MAX_REPORT_DETAILS,
+  MAX_REPORT_EVENTS,
   type PendingProblem,
   type ReportInput,
 } from "@/shared/problem-reports";
@@ -17,6 +20,7 @@ import os from "node:os";
 import { z } from "zod";
 
 import { createScopedLogger, getMainLogFilePath } from "./electron-logger";
+import { listExceptionEvents } from "./exception-store";
 
 const log = createScopedLogger("ProblemReports");
 
@@ -108,17 +112,17 @@ export function recordEndedSession(session: EndedSession) {
         kind: "hang" as const,
         title: "Instrument didn't close properly",
       };
-  const details = describeProblem({
+  const { details, events } = describeProblem({
     ended: crashed
       ? session.crashRecord
         ? "crashed after an uncaught error"
         : `crashed (${session.dumps} crash dump${session.dumps === 1 ? "" : "s"} kept on ${osConventionsFor(process.platform).thisComputer})`
       : "ended without closing, with no crash on record",
-    error: session.crashRecord && formatExceptionEvent(session.crashRecord),
+    lead: session.crashRecord,
     surface: problem.kind,
     version: session.previousVersion,
   });
-  addPendingProblem({ ...problem, details, lastAt: session.endedAt });
+  addPendingProblem({ ...problem, details, events, lastAt: session.endedAt });
 }
 
 /**
@@ -135,6 +139,7 @@ export async function sendPendingAutomatically() {
       await sendReport({
         automatic: true,
         details: problem.details,
+        events: problem.events,
         fingerprint: problem.fingerprint,
         kind: problem.kind,
         surface: problem.kind,
@@ -150,36 +155,75 @@ export async function sendPendingAutomatically() {
 }
 
 /**
- * The text a report carries, which is also exactly what Show details shows:
- * versions, where it came from, the error, and the last lines of the log.
- * The home folder reads `~`. Which account sent it is the reports service's
- * to know, from the token the request carries.
+ * What a report carries, which is also exactly what Show details shows: the
+ * details text (versions, where it came from, the recent exceptions in
+ * readable form, and the last lines of the log) and those exceptions' events
+ * whole. `lead` is the exception the report is about, first; the others are
+ * the recorded problems seen most recently. The oldest are left out until
+ * the details fit their cap and the whole report fits the service's. The
+ * home folder reads `~`. Which account sent it is the reports service's to
+ * know, from the token the request carries.
  */
 export function describeProblem({
   ended,
-  error,
+  lead,
   surface,
   version = app.getVersion(),
 }: {
   ended?: string;
-  error?: string;
+  lead?: ExceptionEvent;
   surface: string;
   version?: string;
-}): string {
-  const lines = [
+}): { details: string; events: ExceptionEvent[] } {
+  const others = listExceptionEvents()
+    .filter((event) => event.fingerprint !== lead?.fingerprint)
+    .toSorted((a, b) => b.lastAt - a.lastAt);
+  const head = [
     `appVersion: ${version}`,
     `platform: ${process.platform} ${process.getSystemVersion()} ${process.arch}`,
     `surface: ${surface}`,
     ...(ended ? [`ended: ${ended}`] : []),
-  ];
-  if (error) {
-    lines.push("", error.trim());
-  }
+  ].join("\n");
   const tail = readLogTail();
-  if (tail.length > 0) {
-    lines.push("", "Last log lines:", ...tail);
+  const logLines =
+    tail.length > 0 ? ["Last log lines:", ...tail].join("\n") : undefined;
+  const compose = (events: readonly ExceptionEvent[]) =>
+    scrubHome(
+      [
+        head,
+        ...events.map((event, index) =>
+          [
+            index === 0 && lead ? "The error:" : "Another recent error:",
+            formatExceptionEvent(event, {
+              breadcrumbs: index === 0 ? undefined : 0,
+            }),
+          ].join("\n"),
+        ),
+        ...(logLines ? [logLines] : []),
+      ].join("\n\n"),
+    );
+
+  const events = [...(lead ? [lead] : []), ...others].slice(
+    0,
+    MAX_REPORT_EVENTS,
+  );
+  let details = compose(events);
+  while (
+    events.length > 0 &&
+    (details.length > MAX_REPORT_DETAILS ||
+      reportBytes(details, events) > REPORT_BUDGET_BYTES)
+  ) {
+    events.pop();
+    details = compose(events);
   }
-  return scrubHome(lines.join("\n"));
+  return { details: details.slice(0, MAX_REPORT_DETAILS), events };
+}
+
+// Room left in the service's cap for the note, the title, and the rest.
+const REPORT_BUDGET_BYTES = MAX_REPORT_BYTES - 64 * 1024;
+
+function reportBytes(details: string, events: readonly ExceptionEvent[]) {
+  return Buffer.byteLength(JSON.stringify({ details, events }));
 }
 
 function readLogTail(): string[] {
@@ -208,30 +252,23 @@ function scrubHome(text: string) {
   return home ? text.split(home).join("~") : text;
 }
 
-/**
- * What identifies a throw across builds: its first line and top frames, with
- * line and column numbers, bundle chunk hashes and timestamps taken out, so
- * the same bug in two versions is one problem.
- */
-export function stackSignature(text: string): string {
-  const lines = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const head = (lines[0] ?? "").replace(
-    /^\S+ (?=uncaughtException|unhandledRejection)/,
-    "",
-  );
-  const frames = lines.filter((line) => line.startsWith("at ")).slice(0, 3);
-  return [head, ...frames]
-    .join("\n")
-    .replaceAll(/:\d+(:\d+)?/g, "")
-    .replaceAll(/-[\w-]{8}\.js/g, ".js")
-    .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, "");
-}
-
 export function fingerprintOf(signature: string, kind: string) {
   return `${kind}:${createHash("sha256").update(signature).digest("hex").slice(0, 16)}`;
+}
+
+/**
+ * A report as JSON, its oldest events left out while it is over the
+ * service's cap. A report described here already fits; this is for one
+ * waiting since an earlier build, or a note that tipped it over.
+ */
+function reportBody(input: ReportInput): string {
+  const events = [...(input.events ?? [])];
+  let body = JSON.stringify({ ...input, events });
+  while (events.length > 0 && Buffer.byteLength(body) > MAX_REPORT_BYTES) {
+    events.pop();
+    body = JSON.stringify({ ...input, events });
+  }
+  return body;
 }
 
 /**
@@ -245,7 +282,7 @@ export async function sendReport(input: ReportInput): Promise<{ id: string }> {
     throw new Error("This build has nowhere to send reports.");
   }
   const response = await fetch(new URL("/reports", base), {
-    body: JSON.stringify(input),
+    body: reportBody(input),
     headers: {
       ...getPlatformApiHeaders(),
       "content-type": "application/json",

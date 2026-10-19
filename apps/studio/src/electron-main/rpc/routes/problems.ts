@@ -3,11 +3,10 @@ import { captureServerException } from "@/electron-main/lib/capture-server-excep
 import {
   clearPendingProblem,
   describeProblem,
-  fingerprintOf,
   listPendingProblems,
   sendReport,
-  stackSignature,
 } from "@/electron-main/lib/problem-reports";
+import { findExceptionEvent } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
@@ -23,24 +22,28 @@ const live = {
 };
 
 /**
- * The details a report about the app carries, for the dialog to show before
- * anything is sent: versions, where it started, the error when there is one,
- * and the log's last lines. An error also gets the fingerprint that makes
- * every report of it one problem.
+ * What a report about the app carries, for the dialog to show before
+ * anything is sent: the details text and the exception events behind it.
+ * `exception` is the fingerprint of the captured exception the report is
+ * about, which leads, and whose fingerprint becomes the report's, so every
+ * report of it is one problem.
  */
 const describe = base
   .input(
     z.object({
-      error: z.string().max(20_000).optional(),
+      exception: z.string().optional(),
       surface: z.string(),
     }),
   )
-  .handler(({ input }) => ({
-    details: describeProblem(input),
-    fingerprint: input.error
-      ? fingerprintOf(stackSignature(input.error), "error")
-      : undefined,
-  }));
+  .handler(({ input }) => {
+    const lead = input.exception
+      ? findExceptionEvent(input.exception)
+      : undefined;
+    return {
+      ...describeProblem({ lead, surface: input.surface }),
+      fingerprint: lead ? `error:${lead.fingerprint}` : undefined,
+    };
+  });
 
 /**
  * Sends a report. `pending` names the waiting problem it answers, which

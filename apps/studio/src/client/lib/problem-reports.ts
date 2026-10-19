@@ -1,6 +1,9 @@
 import { type ReportRequest } from "@/client/atoms/report-dialog";
 import { type PendingProblem } from "@/shared/problem-reports";
+import { captureOnce } from "@/client/lib/capture-exception";
+import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 
 /** A report the person starts from the Help menu, with nothing detected. */
 export function helpMenuReport(): ReportRequest {
@@ -8,7 +11,7 @@ export function helpMenuReport(): ReportRequest {
     dialogTitle: `Report a problem with ${APP_NAME}`,
     focusNote: true,
     intro:
-      "This report includes version numbers and the app's recent log, which can mention the names of files and chats you worked on.",
+      "This report includes version numbers, the errors the app recorded recently, and its recent log, which can mention the names of files and chats you worked on.",
     kind: "feedback",
     noteLabel: "What went wrong?",
     offerAlwaysSend: false,
@@ -27,8 +30,9 @@ export function pendingProblemReport(problem: PendingProblem): ReportRequest {
       : `${APP_NAME} didn't close properly`,
     fingerprint: problem.fingerprint,
     intro: crashed
-      ? `${APP_NAME} quit unexpectedly the last time it ran. This report includes what it recorded about the crash, version numbers, and the last lines of its log. None of your chats are included.`
-      : `${APP_NAME} ended without closing the last time it ran, which usually means it stopped responding and was quit. This report includes version numbers and the last lines of its log. None of your chats are included.`,
+      ? `${APP_NAME} quit unexpectedly the last time it ran. This report includes what it recorded about the crash, other errors from around then, version numbers, and the last lines of its log. None of your chats are included.`
+      : `${APP_NAME} ended without closing the last time it ran, which usually means it stopped responding and was quit. This report includes version numbers, the errors it recorded recently, and the last lines of its log. None of your chats are included.`,
+    events: problem.events ?? [],
     kind: problem.kind,
     noteLabel: `What were you doing when ${APP_NAME} ${crashed ? "quit" : "stopped"}?`,
     offerAlwaysSend: true,
@@ -48,26 +52,53 @@ export function errorReport({
   onSent?: () => void;
   surface: "route-error" | "window-error";
 }): ReportRequest {
-  const text = errorText(error);
   return {
     dialogTitle: `Report this problem to ${APP_NAME}?`,
-    error: text,
+    error,
     intro:
-      "This report includes the error, version numbers, and the app's recent log. The log can mention the names of files and chats you worked on, so you can read it under Show details before you send.",
+      "This report includes the error, other errors the app recorded recently, version numbers, and its recent log. The log can mention the names of files and chats you worked on, so you can read it under Show details before you send.",
     kind: "error",
     noteLabel: "What were you doing when this happened?",
     offerAlwaysSend: true,
     onSent,
-    reportTitle: text.split("\n")[0]?.slice(0, 300) || "Unknown error",
+    reportTitle: errorTitle(error),
     surface,
   };
 }
 
-function errorText(error: unknown): string {
-  if (error instanceof Error) {
-    return error.stack?.includes(error.message)
-      ? error.stack
-      : `${error.name}: ${error.message}\n${error.stack ?? ""}`;
+function errorTitle(error: unknown): string {
+  const text =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : typeof error === "string"
+        ? error
+        : "Unknown error";
+  return text.split("\n")[0]?.slice(0, 300) || "Unknown error";
+}
+
+/**
+ * What a report carries, for the dialog to show and send: what the request
+ * already has, or what the main process describes, led by the exception
+ * the request's error was captured as.
+ */
+export async function describeReport(request: ReportRequest): Promise<{
+  details: string;
+  events: ExceptionEvent[];
+  fingerprint?: string;
+}> {
+  if (request.details !== undefined) {
+    return {
+      details: request.details,
+      events: request.events ?? [],
+      fingerprint: request.fingerprint,
+    };
   }
-  return String(error);
+  const captured =
+    request.error === undefined
+      ? null
+      : await captureOnce(request.error, { mechanism: "report" });
+  return rpcClient.problems.describe.call({
+    exception: captured?.fingerprint,
+    surface: request.surface,
+  });
 }

@@ -1,6 +1,6 @@
 import { type ReportRequest } from "@/client/atoms/report-dialog";
 import { StandaloneReportDialog } from "@/client/components/studio-modals/report-dialog";
-import { errorReport } from "@/client/lib/problem-reports";
+import { describeReport, errorReport } from "@/client/lib/problem-reports";
 import { rpcClient } from "@/client/rpc/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
@@ -91,14 +91,12 @@ function useSendAutomatically({
     sentFor.current = error;
     const request = errorReport({ error, surface });
     void (async () => {
-      const described = await rpcClient.problems.describe.call({
-        error: request.error,
-        surface,
-      });
+      const described = await describeReport(request);
       await rpcClient.problems.send.call({
         report: {
           automatic: true,
           details: described.details,
+          events: described.events,
           fingerprint: described.fingerprint,
           kind: request.kind,
           surface,

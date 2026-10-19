@@ -3,17 +3,25 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildExceptionEvent } from "@instrument-org/shared/exceptions";
+import {
+  buildExceptionEvent,
+  type ExceptionEvent,
+} from "@instrument-org/shared/exceptions";
 
 import { type EndedSession } from "./problem-reports";
 
 // Loaded fresh for each test, so its store opens in that test's folder.
 let reports: typeof import("./problem-reports");
 
-const { electronApp, publish, userData } = vi.hoisted(() => ({
+const { electronApp, publish, stored, userData } = vi.hoisted(() => ({
   electronApp: { isPackaged: true },
   publish: vi.fn(),
+  stored: { events: [] as ExceptionEvent[] },
   userData: { dir: "" },
+}));
+
+vi.mock("./exception-store", () => ({
+  listExceptionEvents: () => stored.events,
 }));
 
 vi.mock("electron", () => ({
@@ -50,9 +58,9 @@ const THROW = [
 const APP = "/Applications/Instrument.app/Contents/Resources/app.asar";
 
 /** The event an uncaught throw leaves in the crash record. */
-const crashEvent = (stack = THROW) =>
+const crashEvent = (stack = THROW, message = "EPIPE: broken pipe, write") =>
   buildExceptionEvent(
-    Object.assign(new Error("EPIPE: broken pipe, write"), {
+    Object.assign(new Error(message), {
       stack: stack.replace(/^\S+ uncaughtException: /, ""),
     }),
     {
@@ -162,23 +170,52 @@ describe("problem reports", () => {
     expect(publish).toHaveBeenCalledWith("problems.updated", null);
   });
 
-  it("keeps one fingerprint for a throw across builds and line numbers", () => {
-    const later = THROW.replace("161:15", "170:3")
-      .replace("Bq3k9xZa", "Lm22pQrT")
-      .replace("2026-10-09T16:12:04.000Z", "2026-10-11T08:00:00.000Z");
-
-    expect(reports.fingerprintOf(reports.stackSignature(later), "crash")).toBe(
-      reports.fingerprintOf(reports.stackSignature(THROW), "crash"),
+  it("carries the crash's event first, then the other recent problems", () => {
+    const other = crashEvent(
+      "x: y\n    at render (/Applications/Instrument.app/Contents/Resources/app.asar/out/main/index.js:1:1)",
+      "Cannot render",
     );
+    stored.events = [other];
+    const crash = crashEvent();
+
+    ended({ crashRecord: crash });
+
+    const [problem] = reports.listPendingProblems();
+    expect(problem?.fingerprint).toBe(`crash:${crash.fingerprint}`);
+    expect(problem?.events?.map((event) => event.id)).toEqual([crash.id, other.id]);
+    expect(problem?.details).toContain("The error:\n[studio, uncaughtException, unhandled");
+    expect(problem?.details).toContain("Another recent error:");
+    expect(problem?.details).toContain("Error: Cannot render");
+    stored.events = [];
+  });
+
+  it("leaves out the oldest events until the report fits", () => {
+    const huge = (index: number) => ({
+      ...crashEvent(THROW, `big ${index}`),
+      data: { blob: "x".repeat(400_000) },
+      fingerprint: `fp${index}`,
+      lastAt: index,
+    });
+    stored.events = [1, 2, 3, 4, 5, 6].map(huge);
+
+    const { details, events } = reports.describeProblem({ surface: "help-menu" });
+
+    // Each is in the details and in the events, so two of the six fit.
+    expect(events.map((event) => event.lastAt)).toEqual([6, 5]);
+    expect(
+      Buffer.byteLength(JSON.stringify({ details, events })),
+    ).toBeLessThan(2_000_000);
+    stored.events = [];
   });
 
   it("writes the home folder as ~ in what it sends", () => {
-    const details = reports.describeProblem({
-      error: `Error: ENOENT: open '${os.homedir()}/Documents/notes.md'`,
+    const event = crashEvent(THROW, `ENOENT: open '${os.homedir()}/Documents/notes.md'`);
+    const { details } = reports.describeProblem({
+      lead: event,
       surface: "route-error",
     });
 
-    expect(details).toContain("Error: ENOENT: open '~/Documents/notes.md'");
+    expect(details).toContain("ENOENT: open '~/Documents/notes.md'");
     expect(details).not.toContain(os.homedir());
   });
 });

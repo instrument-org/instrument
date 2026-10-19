@@ -119,7 +119,7 @@ describe("instrument x search", () => {
         [
           {
             "text": "The latest posts by @sam.
-      At most 3 posts.",
+      Newest first, at most 3 posts.",
             "type": "text",
           },
         ],
@@ -127,15 +127,67 @@ describe("instrument x search", () => {
           {
             "text": "The latest posts by @sam.
       Posted on or before 2026-10-19.
-      At most 2 posts.",
+      Newest first, at most 2 posts.",
             "type": "text",
           },
         ],
       ]
     `);
+    // xAI's end date is exclusive, so the day itself is asked for as the next.
     expect(getXSearchModel).toHaveBeenLastCalledWith(
-      expect.objectContaining({ handles: ["sam"], toDate: "2026-10-19" }),
+      expect.objectContaining({
+        options: { allowedXHandles: ["sam"], toDate: "2026-10-20" },
+      }),
     );
+  });
+
+  it("reads a post's thread oldest first", async () => {
+    const prompts: unknown[] = [];
+    getXSearchModel.mockResolvedValue(
+      searched(answering((sent) => prompts.push(sent))),
+    );
+
+    const result = await run([
+      "thread",
+      "https://x.com/sam/status/111",
+      "--media",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(prompts).toMatchInlineSnapshot(`
+      [
+        [
+          {
+            "text": "The thread of this post: https://x.com/sam/status/111
+      The posts it replies to, the post itself, and its replies, oldest first.
+      At most 10 posts.",
+            "type": "text",
+          },
+        ],
+      ]
+    `);
+    expect(getXSearchModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: {
+          enableImageUnderstanding: true,
+          enableVideoUnderstanding: true,
+        },
+      }),
+    );
+  });
+
+  it("refuses --from with --exclude, which xAI takes one at a time", async () => {
+    const result = await run([
+      "search",
+      "news",
+      "--from",
+      "sam",
+      "--exclude",
+      "kim",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(getXSearchModel).not.toHaveBeenCalled();
   });
 
   it("prints the posts as JSON to pipe", async () => {
@@ -184,7 +236,7 @@ describe("instrument x search", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument x: no Grok account is signed in, so X can't be searched. The user can sign in with Grok under Settings › Providers.
+      "instrument x: there is no Grok account to search X with: none is signed in, or xAI refused the one that is. The user can sign in with Grok, or see why it was refused, under Settings › Providers.
       "
     `);
   });

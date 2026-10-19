@@ -253,6 +253,10 @@ export async function nativeSearchTools(
   };
 }
 
+export type XSearchOptions = NonNullable<
+  Parameters<typeof import("@ai-sdk/xai").xaiTools.xSearch>[0]
+>;
+
 /**
  * xAI's alias for its newest non-reasoning Grok, for an account whose catalog
  * was never read.
@@ -266,19 +270,18 @@ const X_SEARCH_FALLBACK_MODEL = "grok-4.20-non-reasoning";
  */
 export async function getXSearchModel({
   configs,
-  fromDate,
-  handles,
   modelCache,
-  toDate,
+  options,
   workspaceServerURL,
 }: {
   configs: AIGatewayProviderConfig.Type[];
-  /** `YYYY-MM-DD`, inclusive. */
-  fromDate?: string;
-  /** Only posts by these accounts, without the `@`. */
-  handles?: string[];
   modelCache?: ModelCache;
-  toDate?: string;
+  /**
+   * xAI's own: handles without the `@` (allowed or excluded, never both),
+   * `fromDate` inclusive and `toDate` exclusive as `YYYY-MM-DD`, and whether
+   * Grok looks at the images and video in posts.
+   */
+  options: XSearchOptions;
   workspaceServerURL: WorkspaceServerURL;
 }) {
   const config = configs.find((candidate) => candidate.type === "grok-account");
@@ -301,13 +304,7 @@ export async function getXSearchModel({
   return Result.ok({
     config,
     model: sdk.responses(modelId),
-    tools: {
-      x_search: sdk.tools.xSearch({
-        ...(handles?.length && { allowedXHandles: handles }),
-        ...(fromDate && { fromDate }),
-        ...(toDate && { toDate }),
-      }),
-    },
+    tools: { x_search: sdk.tools.xSearch(options) },
   });
 }
 

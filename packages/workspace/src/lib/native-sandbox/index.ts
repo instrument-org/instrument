@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import {
+  getWorkspaceConfig,
+  hasWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../workspace-config";
 import {
   bwrapAvailable,
   bwrapCommand,
@@ -85,6 +89,11 @@ export function allowProgramsWithoutSandbox(allowed: boolean): void {
 export function nativeSandboxOff(): SandboxOff | undefined {
   if (simulatedOff) {
     return simulatedOff;
+  }
+  // Before the workspace starts nothing runs a command, and the probes read
+  // its config.
+  if (!hasWorkspaceConfig()) {
+    return undefined;
   }
   const states = [seatbeltState(), bwrapState(), mxcState()];
   if (states.includes("works")) {

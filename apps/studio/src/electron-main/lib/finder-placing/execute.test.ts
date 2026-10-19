@@ -495,6 +495,25 @@ describe("carrying out a plan", () => {
     `);
   });
 
+  // A hard link already in the destination is the same file there already:
+  // nothing moves, and the person is told rather than left to wonder.
+  it("says a source is already in the destination under another name", async () => {
+    await write({ "src/a.txt": "a" });
+    await fs.link(at("src/a.txt"), at("dest/A copy.txt"));
+    const steps = await planFor({
+      answers: {},
+      op: "move",
+      sources: ["src/a.txt"],
+    });
+
+    const outcome = await executePlacing("move", steps, ops());
+
+    expect(outcome.skipped).toEqual([
+      { source: at("src/a.txt"), why: "already-there" },
+    ]);
+    expect(outcome.journal).toBeNull();
+  });
+
   it("copies a link as a link, and replaces a link without touching what it points at", async () => {
     await write({ "dest/target.txt": "target", "src/real.txt": "real" });
     await fs.symlink("real.txt", at("src/latest"));

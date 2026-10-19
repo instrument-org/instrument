@@ -57,8 +57,11 @@ export type PlacingOutcome = {
    */
   journal: NewJournalEntry | null;
   placed: Placed[];
-  /** Sources left where they were: answered Skip, or changed since the plan. */
-  skipped: { source: string; why: "answered" | "changed" }[];
+  /** Sources left where they were: answered Skip, already in the destination under another name, or changed since the plan. */
+  skipped: {
+    source: string;
+    why: "already-there" | "answered" | "changed";
+  }[];
   /** What a Replace moved to the Trash, by where it was and where it landed when known. */
   trashed: ({ from: string } & InTrash)[];
 };
@@ -88,8 +91,8 @@ export async function executePlacing(
 
   for (const step of steps) {
     if (step.kind === "skip") {
-      if (step.why === "answered") {
-        skipped.push({ source: step.source, why: "answered" });
+      if (step.why !== "in-place") {
+        skipped.push({ source: step.source, why: step.why });
       }
       continue;
     }

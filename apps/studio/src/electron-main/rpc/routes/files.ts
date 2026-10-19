@@ -281,7 +281,7 @@ function placeRoute(op: "copy" | "move") {
         skipped: z.array(
           z.object({
             source: z.string(),
-            why: z.enum(["answered", "changed"]),
+            why: z.enum(["already-there", "answered", "changed"]),
           }),
         ),
         /** What a Replace moved to the Trash, and where it landed when the system said. */

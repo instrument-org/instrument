@@ -125,7 +125,16 @@ export type Clash = {
 };
 
 export type Step =
-  | { kind: "skip"; source: string; why: "already-there" | "answered" }
+  | {
+      kind: "skip";
+      source: string;
+      /**
+       * Answered Skip; in the destination already under another name (a hard
+       * link there), which is said; or dropped back on its own folder, which
+       * is nothing to say.
+       */
+      why: "already-there" | "answered" | "in-place";
+    }
   | {
       how: "copy" | "rename";
       itemKind: ItemKind;
@@ -282,7 +291,16 @@ export function planPlacing(request: PlaceRequest): Plan {
     const { extension, stem } = stemAndExtension(source.name, source.kind);
     const inDestination = isAlreadyThere(source, request);
     if (inDestination && op === "move") {
-      return { kind: "skip", source: source.path, why: "already-there" };
+      const [inside] = source.above;
+      const [destination] = folder.chain;
+      return {
+        kind: "skip",
+        source: source.path,
+        why:
+          inside && destination && sameIdentity(inside, destination)
+            ? "in-place"
+            : "already-there",
+      };
     }
     const clash = inDestination ? undefined : clashes.get(source.path);
     const answer = clash ? answers[source.path] : undefined;

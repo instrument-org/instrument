@@ -272,7 +272,7 @@ describe("planning a drop, a paste or a move", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "skip /dest/notes.txt (already-there)",
+        "skip /dest/notes.txt (in-place)",
       ]
     `);
   });

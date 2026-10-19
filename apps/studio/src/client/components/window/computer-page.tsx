@@ -932,6 +932,15 @@ export function ComputerPage({
             : `${changed.length.toString()} items changed before they could be put there, so they were left where they were.`,
         );
       }
+      const there = skipped.filter((each) => each.why === "already-there");
+      const [firstThere] = there;
+      if (firstThere) {
+        toast(
+          there.length === 1
+            ? `“${nameOf(firstThere.source)}” is already in “${folderName}”.`
+            : `${there.length.toString()} of these are already in “${folderName}”.`,
+        );
+      }
       if (failure) {
         toast.error(
           mode === "move"

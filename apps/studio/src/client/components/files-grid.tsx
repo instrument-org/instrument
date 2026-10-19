@@ -51,7 +51,6 @@ interface FilesGridProps {
   // everything a turn touched, which is a judgment already made here, and they
   // drop anything outside the chat's folder -- including a shared folder's files.
   preserveOrder?: boolean;
-  prioritizeUserFiles?: boolean;
 }
 
 export function FilesGrid({
@@ -60,7 +59,6 @@ export function FilesGrid({
   files,
   pendingFilePath,
   preserveOrder = false,
-  prioritizeUserFiles = false,
 }: FilesGridProps) {
   const showChatFile = useShowChatFile();
 
@@ -70,9 +68,7 @@ export function FilesGrid({
     showChatFile(chatPathOf(file));
   };
 
-  const mainFiles = preserveOrder
-    ? files
-    : bucketByChatFolder(files, prioritizeUserFiles);
+  const mainFiles = preserveOrder ? files : bucketByChatFolder(files);
 
   const mediaFiles = compact ? [] : mainFiles.filter(isMediaFile);
   const listFiles = compact
@@ -214,7 +210,7 @@ export function FilesGrid({
 // Groups a turn's changed files into the folders that reach the user, richest
 // preview first within each. Root files cover a deliverable an agent saved to
 // the root of the chat's folder.
-function bucketByChatFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
+function bucketByChatFolder(files: ViewerFile[]) {
   const [attachmentFiles, nonAttachmentFiles] = fork(files, (file) =>
     isFileInChatFolder(chatPathOf(file), CHAT_FOLDER_NAMES.attachments),
   );
@@ -229,9 +225,7 @@ function bucketByChatFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
   const sortedDownloadFiles = sortByRichPreview(downloadFiles);
   const sortedRootFiles = sortByRichPreview(rootFiles);
 
-  return prioritizeUserFiles
-    ? [...sortedAttachmentFiles, ...sortedRootFiles, ...sortedDownloadFiles]
-    : [...sortedRootFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
+  return [...sortedRootFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
 }
 
 // Which types get a full-width preview row rather than a compact chip. Images

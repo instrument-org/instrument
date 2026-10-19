@@ -46,9 +46,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import {
   Fragment,
-  type MouseEventHandler,
   type ReactNode,
-  type Ref,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -79,7 +77,6 @@ import {
 export function TabLocationRow({
   canGoBack,
   canGoForward,
-  field,
   fieldEnd,
   fillsTab = false,
   leading,
@@ -90,14 +87,11 @@ export function TabLocationRow({
   onForward,
   onSite,
   onVisit,
-  ref,
   reload,
   trailing,
 }: {
   canGoBack?: boolean;
   canGoForward?: boolean;
-  /** What stands in for the field: a page's own address bar and controls. */
-  field?: ReactNode;
   /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
   fieldEnd?: ReactNode;
   /** Whether the row is over a screen that has the whole tab, where Quick Look's view of a file would be smaller than the one already up. */
@@ -116,8 +110,6 @@ export function TabLocationRow({
   onSite?: (url: string) => void;
   /** Where a screen typed into the field goes, for a row over a tab the router does not follow. */
   onVisit?: (href: string) => void;
-  /** The row itself, so the window can put the caret in the field it holds. */
-  ref?: Ref<HTMLDivElement>;
   /** A page's reload, beside the arrows where a browser keeps it. */
   reload?: ReactNode;
   /** What this page can do with itself, held at the row's right edge. */
@@ -140,7 +132,6 @@ export function TabLocationRow({
       // up its words for its mark when the row is narrow.
       className="@container/tabrow flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
       data-tab-location=""
-      ref={ref}
     >
       {leading}
       {onBack && onForward && (
@@ -162,48 +153,46 @@ export function TabLocationRow({
         </>
       )}
       {reload}
-      {field ?? (
-        // The box is the field everywhere the place itself is not: a press on
-        // one of the places you are under goes there, and a press anywhere
-        // else, edge to edge, puts the caret in the input the way a browser's
-        // address bar does.
-        <div
-          className={cn(
-            "group/field relative flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
-            // The app's icon sits in the field's round end, with room to
-            // breathe inside the curve.
-            openIn && "pr-2",
-          )}
-          onPointerDown={(event) => {
-            if (
-              event.target instanceof Element &&
-              event.target.closest("button")
-            ) {
-              return;
-            }
-            const input = event.currentTarget.querySelector("input");
-            if (input && event.target !== input) {
-              event.preventDefault();
-              input.focus();
-            }
-          }}
-        >
-          <Omnibar
-            initial={locationText(location)}
-            key={locationText(location)}
-            location={location}
-            {...(onSite ? { onSite } : {})}
-            {...(onVisit ? { onVisit } : {})}
-            resting={
-              location.kind === "newTab" ? undefined : (
-                <Field location={location} />
-              )
-            }
-          />
-          {fieldEnd}
-          {openIn && <OpenInAppButton target={openIn} />}
-        </div>
-      )}
+      {/* The box is the field everywhere the place itself is not: a press on
+        one of the places you are under goes there, and a press anywhere else,
+        edge to edge, puts the caret in the input the way a browser's address
+        bar does. */}
+      <div
+        className={cn(
+          "group/field relative flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
+          // The app's icon sits in the field's round end, with room to
+          // breathe inside the curve.
+          openIn && "pr-2",
+        )}
+        onPointerDown={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("button")
+          ) {
+            return;
+          }
+          const input = event.currentTarget.querySelector("input");
+          if (input && event.target !== input) {
+            event.preventDefault();
+            input.focus();
+          }
+        }}
+      >
+        <Omnibar
+          initial={locationText(location)}
+          key={locationText(location)}
+          location={location}
+          {...(onSite ? { onSite } : {})}
+          {...(onVisit ? { onVisit } : {})}
+          resting={
+            location.kind === "newTab" ? undefined : (
+              <Field location={location} />
+            )
+          }
+        />
+        {fieldEnd}
+        {openIn && <OpenInAppButton target={openIn} />}
+      </div>
       {trailing}
       {/* The file up at the size Quick Look gives it, over the window,
         unless the row's own Expand grows what is shown instead. */}
@@ -242,18 +231,13 @@ export function TabRowControl({
   disabled,
   icon,
   label,
-  onAuxClick,
   onClick,
-  onContextMenu,
 }: {
   chord?: WindowShortcutId;
   disabled: boolean;
   icon: ReactNode;
   label: string;
-  /** The gestures a control that opens a place answers, where it opens one. */
-  onAuxClick?: MouseEventHandler;
   onClick: () => void;
-  onContextMenu?: MouseEventHandler;
 }) {
   return (
     <ToolbarTooltip chord={chord} label={label}>
@@ -265,9 +249,7 @@ export function TabRowControl({
             : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
         )}
         disabled={disabled}
-        onAuxClick={onAuxClick}
         onClick={onClick}
-        onContextMenu={onContextMenu}
         type="button"
       >
         {icon}

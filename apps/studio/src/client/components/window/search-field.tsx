@@ -7,17 +7,15 @@ import { type Ref } from "react";
  * The search as a field beside the view picker, the way mail puts it: it
  * narrows the list as it is typed into, and an x or Escape empties it. A
  * pill with its glass at the left and the view it reads named in its
- * placeholder. Nothing here takes focus on its own unless asked to.
+ * placeholder. Nothing here takes focus on its own.
  */
 export function SearchField({
-  autoFocus = false,
   inputRef,
   onChange,
   onFocusChange,
   placeholder,
   value,
 }: {
-  autoFocus?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   onChange: (value: string) => void;
   /** Told when the field takes focus and when it lets it go. */
@@ -30,7 +28,6 @@ export function SearchField({
       <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         aria-label="Search chats"
-        autoFocus={autoFocus}
         className="h-9 rounded-full pr-7 pl-8 text-[13px] md:text-[13px]"
         onBlur={() => {
           onFocusChange?.(false);

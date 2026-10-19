@@ -85,15 +85,12 @@ function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,
-  said = SENT_WITH_MESSAGE,
   tab,
 }: {
   appsBySlug: AppsBySlug;
   /** What the thing points at on this computer, which the chip names in place of the tab. */
   items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
-  /** What the chip's tooltip says it is. */
-  said?: string;
   tab: WindowTab;
 }) {
   const volumes = useComputerVolumes();
@@ -105,7 +102,10 @@ function IncludedChip({
   return (
     <ContextChip
       label={
-        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
+        <ChipLabel
+          paths={(items ?? []).map((item) => item.path)}
+          said={SENT_WITH_MESSAGE}
+        />
       }
       mark={
         items?.length === 1 && one !== undefined ? (

@@ -14,7 +14,7 @@ import { showInFolder, showInFolderLabel } from "../lib/show-in-files";
 import { isMacOS } from "../lib/utils";
 import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { OpenInAppMenuItems } from "./open-in-app";
-import { Button, type ButtonVariant } from "./ui/button";
+import { Button } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,20 +25,11 @@ import {
   type MenuComponents,
 } from "./ui/menu-components";
 
-export function FileActionsMenu({
-  file,
-  onAddToChat,
-  variant = "ghost",
-}: {
-  file: ViewerFile;
-  onAddToChat?: () => void;
-  variant?: ButtonVariant;
-}) {
+export function FileActionsMenu({ file }: { file: ViewerFile }) {
   const fileActions = useFileActionVisibility(file);
   const { showOpen } = useFileOpenTarget(file);
 
   if (
-    !onAddToChat &&
     !fileActions.showCopy &&
     !fileActions.showDownload &&
     !showOpen &&
@@ -56,7 +47,7 @@ export function FileActionsMenu({
         <Button
           aria-label={`Actions for ${file.filename}`}
           size="sm"
-          variant={variant}
+          variant="ghost"
         >
           <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
         </Button>
@@ -65,7 +56,6 @@ export function FileActionsMenu({
         <FileActionsMenuItems
           file={file}
           menuComponents={dropdownMenuComponents}
-          onAddToChat={onAddToChat}
         />
       </DropdownMenuContent>
     </DropdownMenu>

@@ -2,40 +2,16 @@ import type { Context, Env } from "hono";
 import type { ReadStream, Stats } from "node:fs";
 
 import { createReadStream, statSync } from "node:fs";
-import path from "node:path";
 import { Readable } from "node:stream";
 
 import { getMimeType } from "../../lib/get-mime-type";
 
 interface ServeStaticFileOptions {
-  /**
-   * Absolute path to the file to serve
-   */
+  /** Absolute path to the file to serve. */
   filePath: string;
-  /**
-   * Index file name for directory requests (default: 'index.html')
-   */
-  index?: string;
-  /** Called with the final file path after index and compression resolution. */
-  isPathAllowed?: (filePath: string) => boolean;
-  /** Called with the final file metadata before response streaming begins. */
-  onFound?: (file: { filePath: string; stats: Stats }) => Promise<void> | void;
-  /**
-   * Whether to support precompressed files
-   */
-  precompressed?: boolean;
+  /** Called with the file's metadata before response streaming begins. */
+  onFound: (file: { stats: Stats }) => Promise<void> | void;
 }
-
-const COMPRESSIBLE_CONTENT_TYPE_REGEX =
-  /^\s*(?:text\/[^;\s]+|application\/(?:javascript|json|xml|xml-dtd|ecmascript|dart|postscript|rtf|tar|toml|vnd\.dart|vnd\.ms-fontobject|vnd\.ms-opentype|wasm|x-httpd-php|x-javascript|x-ns-proxy-autoconfig|x-sh|x-tar|x-virtualbox-hdd|x-virtualbox-ova|x-virtualbox-ovf|x-virtualbox-vbox|x-virtualbox-vdi|x-virtualbox-vhd|x-virtualbox-vmdk|x-www-form-urlencoded)|font\/(?:otf|ttf)|image\/(?:bmp|vnd\.adobe\.photoshop|vnd\.microsoft\.icon|vnd\.ms-dds|x-icon|x-ms-bmp)|message\/rfc822|model\/gltf-binary|x-shader\/x-fragment|x-shader\/x-vertex|[^;\s]+?\+(?:json|text|xml|yaml))(?:[;\s]|$)/i;
-const ENCODINGS = {
-  br: ".br",
-  gzip: ".gz",
-  zstd: ".zst",
-} as const;
-const ENCODINGS_ORDERED_KEYS = Object.keys(
-  ENCODINGS,
-) as (keyof typeof ENCODINGS)[];
 
 const createStreamBody = (stream: ReadStream) => {
   return Readable.toWeb(stream) as ReadableStream;
@@ -77,57 +53,16 @@ export async function serveStaticFile<E extends Env = Env>(
   c: Context<E>,
   options: ServeStaticFileOptions,
 ) {
-  let filePath = options.filePath;
-  let stats: Stats | undefined;
-
-  stats = getStats(filePath);
-
-  if (stats?.isDirectory()) {
-    const indexFile = options.index ?? "index.html";
-    filePath = path.join(filePath, indexFile);
-    stats = getStats(filePath);
-  }
-
-  if (!stats) {
+  const { filePath } = options;
+  // Exactly the file asked for: a folder is not resolved to an index page.
+  const stats = getStats(filePath);
+  if (!stats?.isFile()) {
     return null;
   }
+
+  await options.onFound({ stats });
 
   const mimeType = getMimeType(filePath);
-
-  // Check for precompressed files
-  if (
-    options.precompressed &&
-    (!mimeType || COMPRESSIBLE_CONTENT_TYPE_REGEX.test(mimeType))
-  ) {
-    const acceptEncodingSet = new Set(
-      c.req
-        .header("Accept-Encoding")
-        ?.split(",")
-        .map((encoding) => encoding.trim()),
-    );
-
-    for (const encoding of ENCODINGS_ORDERED_KEYS) {
-      if (!acceptEncodingSet.has(encoding)) {
-        continue;
-      }
-      const precompressedPath = filePath + ENCODINGS[encoding];
-      const precompressedStats = getStats(precompressedPath);
-      if (precompressedStats) {
-        c.header("Content-Encoding", encoding);
-        c.header("Vary", "Accept-Encoding", { append: true });
-        stats = precompressedStats;
-        filePath = precompressedPath;
-        break;
-      }
-    }
-  }
-
-  if (options.isPathAllowed && !options.isPathAllowed(filePath)) {
-    return null;
-  }
-
-  await options.onFound?.({ filePath, stats });
-
   const rangeHeader = c.req.header("range");
   const size = stats.size;
   c.header("Content-Type", mimeType);

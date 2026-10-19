@@ -177,9 +177,6 @@ app.all("/*", async (c) => {
   }
   const result = await serveStaticFile(c, {
     filePath: hostPath,
-    // Exactly the file asked for: a folder is not resolved to an index page
-    // and nothing beside the file stands in for it.
-    isPathAllowed: (filePath) => filePath === hostPath,
     onFound: ({ stats }) => {
       // A caller that learned the file's mtime and names it earns an immutable
       // answer; any other claim is unrecognized and not kept.

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { serveStaticFile } from "./serve-static";
 
@@ -12,38 +12,29 @@ describe("serveStaticFile", () => {
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "serve-static-"));
     await fs.writeFile(path.join(root, "style.css"), "plain");
-    await fs.writeFile(path.join(root, "style.css.br"), "compressed");
   });
 
   afterEach(async () => {
     await fs.rm(root, { force: true, recursive: true });
   });
 
-  it("serves precompressed content with the original MIME type and live mtime", async () => {
-    const response = await requestStatic();
-
-    expect(response.status).toBe(200);
-    await expect(response.text()).resolves.toBe("compressed");
-    expect(response.headers.get("content-encoding")).toBe("br");
-    expect(response.headers.get("content-type")).toBe("text/css");
-    const compressedStats = await fs.stat(path.join(root, "style.css.br"));
-    expect(response.headers.get("last-modified")).toBe(
-      compressedStats.mtime.toUTCString(),
-    );
-  });
-
-  it("checks the final precompressed path before opening it", async () => {
-    const isPathAllowed = vi.fn(() => false);
-    const response = await requestStatic({ isPathAllowed });
+  it("serves nothing for a folder", async () => {
+    const app = new Hono();
+    app.get("/*", async (c) => {
+      const result = await serveStaticFile(c, {
+        filePath: root,
+        onFound: () => undefined,
+      });
+      return result ?? c.notFound();
+    });
+    const response = await app.request("http://localhost/");
 
     expect(response.status).toBe(404);
-    expect(isPathAllowed).toHaveBeenCalledWith(path.join(root, "style.css.br"));
   });
 
   it("streams only the requested byte range", async () => {
     const response = await requestStatic({
       headers: { range: "bytes=1-3" },
-      precompressed: false,
     });
 
     expect(response.status).toBe(206);
@@ -63,7 +54,6 @@ describe("serveStaticFile", () => {
   ])("answers %s with %i", async (range, status, body, contentRange) => {
     const response = await requestStatic({
       headers: { range },
-      precompressed: false,
     });
 
     expect(response.status).toBe(status);
@@ -71,21 +61,12 @@ describe("serveStaticFile", () => {
     expect(response.headers.get("content-range")).toBe(contentRange);
   });
 
-  function requestStatic({
-    headers = { "accept-encoding": "br" },
-    isPathAllowed,
-    precompressed = true,
-  }: {
-    headers?: Record<string, string>;
-    isPathAllowed?: (filePath: string) => boolean;
-    precompressed?: boolean;
-  } = {}) {
+  function requestStatic({ headers }: { headers: Record<string, string> }) {
     const app = new Hono();
     app.get("/*", async (c) => {
       const result = await serveStaticFile(c, {
         filePath: path.join(root, "style.css"),
-        isPathAllowed,
-        precompressed,
+        onFound: () => undefined,
       });
       return result ?? c.notFound();
     });

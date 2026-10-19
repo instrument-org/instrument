@@ -96,6 +96,7 @@ describe("createBashDescription", () => {
         kill - Stop a process you started, waiting until it has really exited.
       Usage: \`kill [-SIGNAL] <bg_1|%1|pid>...\`. Takes a \`jobs\` id or the pid of anything your commands started, their children included, so \`lsof -ti :3000 | xargs kill\` frees a port your own server holds. Without a signal, or with TERM, INT or KILL, it escalates on its own until the process is gone; any other signal (\`-HUP\`, \`-0\`) is sent as given. \`kill -l\` lists signals.
       Processes you did not start belong to the person and are refused.
+        instrument x - Searches posts on X (Twitter) through the user's Grok account, whatever model you run on: \`instrument x search "<query>"\`, with \`--from <handle>\` for one account's posts and \`--since\`/\`--until YYYY-MM-DD\`. It prints the posts themselves, each with its author, date, words and link, which x.com shows only to a signed-in browser. A shell command, not a skill. When it fails it says why (no Grok account, a usage limit, a refusal), which is what to tell the user.
         instrument task - Start, message, stop and read your tasks: you, carrying on in the background with this conversation in hand. \`instrument task help\` prints the full surface.
         instrument memory - What you keep about the user for every chat: \`instrument memory list\` names it all, \`instrument memory save <name>\` keeps or corrects one (the text on stdin through a quoted heredoc), \`instrument memory show <name>\` reads one whole, \`instrument memory forget <name>\` drops it.
         instrument tab - The tabs of the user's window, each named by the id the note on their message gives it, pages, files, folders and screens alike: \`instrument tab open <url or path>...\` opens each in a tab of its own and shows it, printing the tab's id, which a task takes with --tab; \`instrument tab replace <id> <url or path>\` shows something else in a tab; \`instrument tab close <id>...\` closes tabs; \`instrument tab show <id>\` brings an open tab forward; \`instrument tab read <id>\` prints the text of the page in a tab, as the user sees it, signed in where they are. A path is a file or folder you can read. It opens nothing in the user's own applications and downloads nothing."
@@ -191,6 +192,7 @@ describe("instrument", () => {
         memory  What you keep about the user for every chat.
         tab     Open, show, read and close the tabs of the user's window.
         task    Start, message, stop and read your tasks.
+        x       Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "
@@ -245,7 +247,7 @@ describe("instrument", () => {
         const listed = (await bash.exec("instrument")).stdout
           .split("\n")
           .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
-        expect(listed).toEqual(["app", ...words]);
+        expect(listed).toEqual(["app", ...words, "x"]);
       } finally {
         setWorkspaceConfig(config);
       }
@@ -258,6 +260,7 @@ describe("instrument", () => {
       "Usage: instrument <command> ...
 
         app  Connect services and call their tools.
+        x    Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "

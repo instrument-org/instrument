@@ -15,6 +15,7 @@ const ACTIVITY_PURPOSES = [
   "chat-title",
   "title-check",
   "web-search",
+  "x-search",
   "image",
   "emoji-suggestion",
   "topic-suggestion",

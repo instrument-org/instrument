@@ -232,6 +232,55 @@ export async function getAISDKWebSearchModel({
   return Result.ok({ ...result, config });
 }
 
+/** Stands in for the account's default model when its catalog was never read. */
+const X_SEARCH_FALLBACK_MODEL = "grok-4.7";
+
+/**
+ * A model that searches posts on X with xAI's hosted `x_search`, on the
+ * signed-in Grok account whatever model the chat runs on: X search is the
+ * subscription's to give, so no other connection stands in for it.
+ */
+export async function getXSearchModel({
+  configs,
+  fromDate,
+  handles,
+  modelCache,
+  toDate,
+  workspaceServerURL,
+}: {
+  configs: AIGatewayProviderConfig.Type[];
+  /** `YYYY-MM-DD`, inclusive. */
+  fromDate?: string;
+  /** Only posts by these accounts, without the `@`. */
+  handles?: string[];
+  modelCache?: ModelCache;
+  toDate?: string;
+  workspaceServerURL: WorkspaceServerURL;
+}) {
+  const config = configs.find((candidate) => candidate.type === "grok-account");
+  if (!config) {
+    return Result.error(
+      new TypedError.NotFound("No Grok account is signed in."),
+    );
+  }
+  const sdk = await createXAISDK(config, workspaceServerURL);
+  const listed = modelCache?.read(config.cacheIdentifier) ?? [];
+  const modelId =
+    listed.find((model) => model.tags.includes("default"))?.providerId ??
+    X_SEARCH_FALLBACK_MODEL;
+  return Result.ok({
+    config,
+    model: sdk.responses(modelId),
+    tools: {
+      x_search: sdk.tools.xSearch({
+        ...(handles?.length && { allowedXHandles: handles }),
+        ...(fromDate && { fromDate }),
+        ...(toDate && { toDate }),
+      }),
+    },
+  });
+}
+
 export async function getWebSearchModel({
   callingModel,
   configs,

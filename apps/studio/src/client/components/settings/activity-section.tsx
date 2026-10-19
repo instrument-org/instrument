@@ -201,6 +201,7 @@ const PURPOSE_LABELS: Record<Row["purpose"], string> = {
   "topic-backfill": "Topic sorting",
   "topic-suggestion": "Topic suggestion",
   "web-search": "Web search",
+  "x-search": "X search",
 };
 
 const SURFACE_LABELS: Record<NonNullable<Row["surface"]>, string> = {

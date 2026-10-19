@@ -27,6 +27,7 @@ import {
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
+import { createXCommand, X_COMMAND } from "./shell-commands/x";
 import { type AppToolInvoker, appToolHook } from "./app-tool-hook";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
@@ -719,6 +720,7 @@ export function createBashDescription() {
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...macAppSubcommands().map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    `  ${X_COMMAND.name} - ${X_COMMAND.description}`,
     ...CHAT_COMMAND_LINES,
   ];
 
@@ -884,6 +886,7 @@ export async function createLocalBashEnv({
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       { ...APP_COMMAND, command: createAppCommand({ chatId }) },
+      { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       ...(role === "chat"
         ? [
             {

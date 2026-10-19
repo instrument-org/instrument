@@ -38,14 +38,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function FilePreviewCard({
   file,
-  hideActionsMenu,
-  isSelected,
   onClick,
   shape,
 }: {
   file: ViewerFile;
-  hideActionsMenu?: boolean;
-  isSelected?: boolean;
   onClick: () => void;
   /** The box a media card takes; ignored by the types drawn as a row. */
   shape?: MediaCardShape;
@@ -98,9 +94,7 @@ export function FilePreviewCard({
     fileType === "image" ? (
       <ImagePreviewCard
         file={file}
-        hideActionsMenu={hideActionsMenu}
         isMissing={isMissing}
-        isSelected={isSelected}
         onClick={onClick}
         shape={shape}
       />
@@ -109,10 +103,8 @@ export function FilePreviewCard({
         file={file}
         handleMouseEnter={handleMouseEnter}
         handleMouseLeave={handleMouseLeave}
-        hideActionsMenu={hideActionsMenu}
         isMissing={isMissing}
         isPlaying={isPlaying}
-        isSelected={isSelected}
         onClick={onClick}
         onLoadedMetadata={(e) => {
           setVideoDuration(e.currentTarget.duration);
@@ -129,13 +121,7 @@ export function FilePreviewCard({
         videoRef={videoRef}
       />
     ) : (
-      <FileRowCard
-        file={file}
-        hideActionsMenu={hideActionsMenu}
-        isMissing={isMissing}
-        isSelected={isSelected}
-        onClick={onClick}
-      />
+      <FileRowCard file={file} isMissing={isMissing} onClick={onClick} />
     );
 
   return <div ref={ref}>{card}</div>;
@@ -182,15 +168,11 @@ export function FolderRowCard({
 
 function FileRowCard({
   file,
-  hideActionsMenu,
   isMissing,
-  isSelected,
   onClick,
 }: {
   file: ViewerFile;
-  hideActionsMenu?: boolean;
   isMissing?: boolean;
-  isSelected?: boolean;
   onClick: () => void;
 }) {
   const { filename, hostPath } = file;
@@ -207,11 +189,9 @@ function FileRowCard({
     <div
       className={cn(
         "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 select-none",
-        isSelected
-          ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
-          : isMissing
-            ? "bg-card opacity-60 shadow-xs dark:border dark:border-black/5"
-            : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
+        isMissing
+          ? "bg-card opacity-60 shadow-xs dark:border dark:border-black/5"
+          : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
       onClick={isMissing ? undefined : onClick}
       onMouseEnter={() => {
@@ -233,11 +213,7 @@ function FileRowCard({
         disabled={isMissing}
         type="button"
       />
-      <FileThumbnail
-        file={file}
-        isActive={isSelected ?? false}
-        variant="primary"
-      />
+      <FileThumbnail file={file} isActive={false} variant="primary" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -258,7 +234,7 @@ function FileRowCard({
           wanted. Collapsed rather than removed: it stays in the tab order,
           and focus reaching it is what opens it back up. Held open while
           its menu is, which the pointer has left the row to reach. */}
-      {!hideActionsMenu && hasFileActions && !isMissing && (
+      {hasFileActions && !isMissing && (
         <div
           className="relative z-10 -ml-3 flex w-0 shrink-0 items-center overflow-hidden opacity-0 group-focus-within:ml-0 group-focus-within:w-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-hover:ml-0 group-hover:w-auto group-hover:opacity-100 has-data-[state=open]:ml-0 has-data-[state=open]:w-auto has-data-[state=open]:opacity-100"
           data-slot="file-row-actions"
@@ -297,16 +273,12 @@ function formatTime(seconds: number): string {
 
 function ImagePreviewCard({
   file,
-  hideActionsMenu,
   isMissing,
-  isSelected,
   onClick,
   shape,
 }: {
   file: ViewerFile;
-  hideActionsMenu?: boolean;
   isMissing?: boolean;
-  isSelected?: boolean;
   onClick: () => void;
   shape?: MediaCardShape;
 }) {
@@ -331,8 +303,7 @@ function ImagePreviewCard({
   };
 
   const hasActions =
-    !hideActionsMenu &&
-    (showCopy || fileActions.showDownload || openControl.showOpen);
+    showCopy || fileActions.showDownload || openControl.showOpen;
 
   return (
     <MediaCardShell
@@ -341,8 +312,6 @@ function ImagePreviewCard({
       className={cn(isMissing && "opacity-60")}
       disabled={isMissing}
       file={file}
-      hideActionsMenu={hideActionsMenu}
-      isSelected={isSelected}
       onClick={onClick}
       onMouseEnter={() => {
         setResolveOpenTarget(true);
@@ -428,10 +397,8 @@ function VideoPreviewCard({
   file,
   handleMouseEnter,
   handleMouseLeave,
-  hideActionsMenu,
   isMissing,
   isPlaying,
-  isSelected,
   onClick,
   onLoadedMetadata,
   onTimeUpdate,
@@ -444,10 +411,8 @@ function VideoPreviewCard({
   file: ViewerFile;
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
-  hideActionsMenu?: boolean;
   isMissing?: boolean;
   isPlaying: boolean;
-  isSelected?: boolean;
   onClick: () => void;
   onLoadedMetadata: React.ReactEventHandler<HTMLVideoElement>;
   onTimeUpdate: React.ReactEventHandler<HTMLVideoElement>;
@@ -462,8 +427,7 @@ function VideoPreviewCard({
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
 
-  const hasActions =
-    !hideActionsMenu && (fileActions.showDownload || openControl.showOpen);
+  const hasActions = fileActions.showDownload || openControl.showOpen;
 
   const displayTime =
     isPlaying && timeRemaining !== null ? timeRemaining : videoDuration;
@@ -490,8 +454,6 @@ function VideoPreviewCard({
       className={cn(isMissing && "opacity-60")}
       disabled={isMissing}
       file={file}
-      hideActionsMenu={hideActionsMenu}
-      isSelected={isSelected}
       onClick={onClick}
       onMouseEnter={() => {
         setResolveOpenTarget(true);

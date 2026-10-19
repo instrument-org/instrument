@@ -323,6 +323,18 @@ export const CHATGPT_ACCOUNT_PROVIDER_CONFIG = {
 } as const;
 
 /**
+ * The Grok account's config, synthesized in the main process while a Grok
+ * subscription (SuperGrok, or X Premium through a linked X account) is signed
+ * in. Its key is the account's current OAuth access token.
+ */
+export const GROK_ACCOUNT_PROVIDER_CONFIG = {
+  cacheIdentifier: "grok-account",
+  displayName: "Grok account",
+  id: "grok-account",
+  type: "grok-account",
+} as const;
+
+/**
  * The Claude account's config, synthesized in the main process while
  * Instrument's own copy of Claude Code is signed in to a Claude subscription.
  * It carries no key: Claude Code holds the sign-in, and requests run through

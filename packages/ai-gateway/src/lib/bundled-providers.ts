@@ -161,6 +161,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     exportName: "createGateway",
     package: "@ai-sdk/gateway",
   },
+  "grok-account": {
+    envVars: {
+      apiKey: "XAI_OAUTH_ACCESS_TOKEN",
+      baseURL: "XAI_BASE_URL",
+    },
+    exportName: "createXai",
+    package: "@ai-sdk/xai",
+  },
   "x-ai": {
     envVars: {
       apiKey: "XAI_API_KEY",

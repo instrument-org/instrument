@@ -1,5 +1,6 @@
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
+import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
@@ -259,7 +260,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
-      refreshExpiredCredentials: refreshExpiredTokens,
+      refreshExpiredCredentials: async (providerConfigId) => {
+        await Promise.all([
+          refreshExpiredTokens(providerConfigId),
+          refreshExpiredGrokTokens(providerConfigId),
+        ]);
+      },
       registryDir: getRegistryDir(),
       rootDir,
       runtimeDir: getRuntimeDir(),

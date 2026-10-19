@@ -102,6 +102,7 @@ const PROVIDER_ICON_MAP: Record<
   deepseek: DeepSeek,
   fireworks: Fireworks,
   google: SiGooglegemini,
+  "grok-account": XAI,
   groq: Groq,
   huggingface: HuggingFace,
   jan: Jan,

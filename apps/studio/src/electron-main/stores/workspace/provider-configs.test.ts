@@ -35,6 +35,9 @@ vi.mock("@/electron-main/lib/chatgpt-account", () => ({
 vi.mock("@/electron-main/lib/claude-account", () => ({
   claudeAccountProviderConfigs: () => [],
 }));
+vi.mock("@/electron-main/lib/grok-account", () => ({
+  grokAccountProviderConfigs: () => [],
+}));
 
 const KEY = {
   apiKey: "sk-or-1",

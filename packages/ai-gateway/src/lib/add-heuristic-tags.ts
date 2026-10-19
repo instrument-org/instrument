@@ -20,6 +20,7 @@ const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   anthropic: /^claude-sonnet-/,
   cerebras: /^gpt-oss-120b$/,
   google: /^gemini-3\.7-flash$/,
+  "grok-account": /^grok-4\.6$/,
   groq: /^gpt-oss-120b$/,
   openai: /^gpt-5\.6-terra$/,
   "x-ai": /^grok-4\.6$/,

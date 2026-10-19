@@ -12,6 +12,7 @@ import { debug } from "./debug";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
+import { grokAccount } from "./grok-account";
 import { history } from "./history";
 import { mac } from "./mac";
 import { notices } from "./notices";
@@ -44,6 +45,7 @@ export const router = {
   features,
   files,
   gateway,
+  grokAccount,
   history,
   mac,
   notices,

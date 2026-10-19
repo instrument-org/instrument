@@ -118,6 +118,19 @@ const PROVIDER_METADATA = {
     type: "google",
     url: addRef("https://ai.google.dev/gemini-api/docs"),
   },
+  "grok-account": {
+    api: {
+      defaultBaseURL: "https://api.x.ai/v1",
+    },
+    // Added by signing in with a Grok or X account, never with a key.
+    canAddManually: false,
+    description: "Grok models on your SuperGrok or X Premium subscription",
+    name: "Grok",
+    // Searches with xAI's hosted `web_search` and `x_search` tools.
+    tags: ["webSearch"],
+    type: "grok-account",
+    url: addRef("https://grok.com"),
+  },
   groq: {
     api: {
       defaultBaseURL: "https://api.groq.com/openai/v1",

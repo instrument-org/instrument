@@ -52,11 +52,23 @@ export async function setChatGPTAccountDefaultModel({
  * makes the model Claude Code recommends the default. Answers with the
  * model's name, so the connection can say what changed.
  */
-export async function setClaudeAccountDefaultModel(): Promise<
-  string | undefined
-> {
+export function setClaudeAccountDefaultModel(): Promise<string | undefined> {
+  return setAccountDefaultModel("claude-account");
+}
+
+/**
+ * Signing in with Grok is asked for to use the subscription, so it makes the
+ * account's default-tagged model the default, as the Claude account does.
+ */
+export function setGrokAccountDefaultModel(): Promise<string | undefined> {
+  return setAccountDefaultModel("grok-account");
+}
+
+async function setAccountDefaultModel(
+  type: "claude-account" | "grok-account",
+): Promise<string | undefined> {
   const config = getAIProviderConfigs().find(
-    (candidate) => candidate.type === "claude-account",
+    (candidate) => candidate.type === type,
   );
   if (!config) {
     return undefined;

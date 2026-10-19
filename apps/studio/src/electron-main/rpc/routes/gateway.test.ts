@@ -19,6 +19,9 @@ vi.mock("@/electron-main/lib/claude-account", () => ({
 vi.mock("@/electron-main/lib/chatgpt-account", () => ({
   refreshExpiredTokens: mocks.refreshChatGPT,
 }));
+vi.mock("@/electron-main/lib/grok-account", () => ({
+  refreshExpiredGrokTokens: vi.fn(),
+}));
 vi.mock("@instrument-org/ai-gateway", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@instrument-org/ai-gateway")>()),
   fetchModelResultsForProviders: mocks.fetchModels,

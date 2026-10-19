@@ -57,6 +57,9 @@ interface PublisherEvents {
   // The ChatGPT account's sign-in state changed: signed in or out, a sign-in
   // started or ended, or a token was refreshed.
   "chatgpt-account.updated": null;
+  // The Grok account signed in or out, a sign-in started or ended, or its
+  // token was refreshed.
+  "grok-account.updated": null;
   // What the Claude Code CLI on this computer says about its sign-in changed.
   "claude-account.updated": null;
   "debug.browser-view-manager.updated": null;

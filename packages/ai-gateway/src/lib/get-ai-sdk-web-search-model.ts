@@ -40,6 +40,7 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   // Last, so a search from a chat on another provider spends the user's
   // plan only when nothing else can search.
   "chatgpt-account",
+  "grok-account",
   "claude-account",
 ];
 
@@ -145,6 +146,21 @@ export async function getAISDKWebSearchModel({
         model: sdk("gemini-3.7-flash"),
         tools: {
           web_search: sdk.tools.googleSearch({}),
+        },
+      };
+      break;
+    }
+    case "grok-account": {
+      // The subscription's token reaches xAI's hosted search over X as well
+      // as the web, so a search on the account can read posts too.
+      const sdk = await createXAISDK(config, workspaceServerURL);
+      result = {
+        model: sdk.responses(
+          isCallingModelSameProvider ? callingModel.providerId : "grok-4.6",
+        ),
+        tools: {
+          web_search: sdk.tools.webSearch(),
+          x_search: sdk.tools.xSearch(),
         },
       };
       break;

@@ -1,5 +1,6 @@
 import { chatGPTAccountProviderConfigs } from "@/electron-main/lib/chatgpt-account";
 import { claudeAccountProviderConfigs } from "@/electron-main/lib/claude-account";
+import { grokAccountProviderConfigs } from "@/electron-main/lib/grok-account";
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
   getDisabledProviderConfigIds,
@@ -36,6 +37,7 @@ export function getAllAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
 
   keyBasedProviderConfigs.push(...chatGPTAccountProviderConfigs());
   keyBasedProviderConfigs.push(...claudeAccountProviderConfigs());
+  keyBasedProviderConfigs.push(...grokAccountProviderConfigs());
 
   return keyBasedProviderConfigs;
 }

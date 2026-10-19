@@ -7,6 +7,10 @@ import {
   scheduleRefresh as scheduleChatGPTAccountRefresh,
 } from "@/electron-main/lib/chatgpt-account";
 import {
+  refreshGrokAfterWake,
+  scheduleGrokRefresh,
+} from "@/electron-main/lib/grok-account";
+import {
   keepClaudeCodeCurrent,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
@@ -294,6 +298,8 @@ async function bootstrapPrimaryInstance() {
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();
   powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
+  scheduleGrokRefresh();
+  powerMonitor.on("resume", refreshGrokAfterWake);
 
   // The Claude account is whatever the CLI says: someone installs it or signs
   // in from a terminal, then comes back to the app.

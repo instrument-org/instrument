@@ -2,7 +2,7 @@ import {
   closeMarkdownEditors,
   openMarkdownEditor,
 } from "@/tests/markdown-editor";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 // See openMarkdownEditor; the links plugin also asks which linked files are missing.
@@ -14,33 +14,67 @@ vi.mock("@/client/rpc/client", () => ({
 
 afterEach(closeMarkdownEditors);
 
-test("clicking the address in the link tooltip opens what it names in the app", async () => {
-  const onOpenLink = vi.fn();
-  const view = await openMarkdownEditor("See [the plan](plan.md) here.\n", {
-    onOpenLink,
-  });
-  // The preview shows on hover, and only while the editor has focus.
-  view.focus();
-  await userEvent.hover(view.dom.querySelector("a") ?? view.dom);
-  const address = await vi.waitUntil(() =>
-    document.querySelector<HTMLElement>(
-      ".milkdown-link-preview[data-show='true'] a.link-display[href]:not([href=''])",
-    ),
-  );
-  let defaultPrevented = false;
+/** Whether the next click anywhere in the page was kept from its default. */
+function nextClickPrevented() {
+  const seen = { prevented: false };
   window.addEventListener(
     "click",
     (e) => {
-      defaultPrevented = e.defaultPrevented;
+      seen.prevented = e.defaultPrevented;
     },
     { once: true },
   );
+  return seen;
+}
 
-  await userEvent.click(address);
+const CASES = [
+  ["plan.md", { kind: "path", path: "/plan.md" }],
+  [
+    "instrument://chat/2026-09-16-ascii-dog-generation",
+    { href: "/chats/2026-09-16-ascii-dog-generation", kind: "screen" },
+  ],
+] as const;
 
-  expect(defaultPrevented).toBe(true);
-  expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(
-    { kind: "path", path: "/plan.md" },
-    false,
-  );
-});
+it.each(CASES)(
+  "clicking %s in the link tooltip opens what it names in the app",
+  async (href, target) => {
+    const onOpenLink = vi.fn();
+    const view = await openMarkdownEditor(`See [the plan](${href}) here.\n`, {
+      onOpenLink,
+    });
+    // The preview shows on hover, and only while the editor has focus.
+    view.focus();
+    await userEvent.hover(view.dom.querySelector("a") ?? view.dom);
+    const address = await vi.waitUntil(() =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          ".milkdown-link-preview[data-show='true'] a.link-display",
+        ),
+      ].find((a) => a.textContent),
+    );
+    const click = nextClickPrevented();
+
+    await userEvent.click(address);
+
+    expect(click.prevented).toBe(true);
+    expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, false);
+  },
+);
+
+it.each(CASES)(
+  "Cmd-clicking %s in the text opens what it names in the app",
+  async (href, target) => {
+    const onOpenLink = vi.fn();
+    const view = await openMarkdownEditor(`See [the plan](${href}) here.\n`, {
+      onOpenLink,
+    });
+    const click = nextClickPrevented();
+
+    await userEvent.click(view.dom.querySelector("a") ?? view.dom, {
+      modifiers: ["ControlOrMeta"],
+    });
+
+    expect(click.prevented).toBe(true);
+    expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, false);
+  },
+);

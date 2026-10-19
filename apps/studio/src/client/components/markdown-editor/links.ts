@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type OpenTarget } from "@/client/lib/open-target";
+import { type OpenTarget, openTargetOfHref } from "@/client/lib/open-target";
 import { commandKeyHeld } from "@/client/lib/utils";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
@@ -20,39 +20,6 @@ import { $prose } from "@milkdown/kit/utils";
 const MIDDLE_BUTTON = 1;
 
 const brokenKey = new PluginKey<number>("broken-links");
-
-/**
- * The path on this computer a link in the file names, or none for a web
- * address or a place in the file itself: a relative link is read against
- * the file's folder, as any Markdown app reads it.
- */
-function hostPathOfHref(href: string, folder: string): string | undefined {
-  if (!href || href.startsWith("#") || href.startsWith("//")) {
-    return undefined;
-  }
-  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase();
-  // A Windows path's drive letter reads as a scheme of one letter.
-  if (scheme && scheme !== "file" && scheme.length > 1) {
-    return undefined;
-  }
-  try {
-    const url =
-      scheme === "file"
-        ? new URL(href)
-        : new URL(href, `file://${encodeURI(folder.replaceAll("\\", "/"))}`);
-    return decodeURIComponent(url.pathname);
-  } catch {
-    return undefined;
-  }
-}
-
-/** What a link names, as something the app can open: a file by its path, or a page. */
-function targetOf(href: string, folder: string): OpenTarget {
-  const path = hostPathOfHref(href, folder);
-  return path === undefined
-    ? { kind: "page", url: href }
-    : { kind: "path", path };
-}
 
 /** A web address on its own, as a paste over a selection makes a link of. */
 const URL_ONLY = /^(?:https?:\/\/|mailto:)\S+$/i;
@@ -113,11 +80,21 @@ export function linksPlugin({
     check(true);
   };
 
-  /** The link under a pointer event in the document, by its address. */
-  const hrefAt = (event: Event) => {
+  /**
+   * The link under a pointer event in the document, by its address as the
+   * file has it. The anchor drawn for it carries an address only for the
+   * schemes the editor deems safe, so an `instrument://` link reads as none.
+   */
+  const hrefAt = (view: EditorView, event: Event) => {
     const target = event.target instanceof Element ? event.target : null;
-    const anchor = target?.closest("a[href]");
-    return anchor && root.contains(anchor) ? anchor.getAttribute("href") : null;
+    const anchor = target?.closest("a");
+    if (!anchor || !view.dom.contains(anchor)) {
+      return null;
+    }
+    const link = view.state.doc
+      .nodeAt(view.posAtDOM(anchor, 0))
+      ?.marks.find((mark) => mark.type.name === "link");
+    return link ? String(link.attrs.href ?? "") || null : null;
   };
 
   const follow = (href: string, newTab: boolean) => {
@@ -128,25 +105,31 @@ export function linksPlugin({
         ?.scrollIntoView({ block: "start" });
       return;
     }
-    open(targetOf(href, folder), newTab);
+    const target = openTargetOfHref(href, folder);
+    if (target) {
+      open(target, newTab);
+    }
   };
 
   // The link tooltip draws the address as a plain `target="_blank"` anchor
-  // outside the document's view, which on its own would open a relative
-  // link against the app's own page. A click on it follows the link here.
+  // outside the document's view, which on its own would open a relative link
+  // against the app's own page, and one whose scheme the editor deems unsafe
+  // (`instrument://`) as that page itself. A click on it follows the link
+  // here, by the address it shows, which is the one the file has.
   const onTooltipLink = (event: MouseEvent) => {
     if (event.type === "auxclick" && event.button !== MIDDLE_BUTTON) {
       return;
     }
     const target = event.target instanceof Element ? event.target : null;
-    const href = target
-      ?.closest(".milkdown-link-preview a.link-display")
-      ?.getAttribute("href");
-    if (!href) {
+    const anchor = target?.closest(".milkdown-link-preview a.link-display");
+    if (!anchor) {
       return;
     }
     event.preventDefault();
-    follow(href, event.type === "auxclick" || event.shiftKey);
+    const href = anchor.textContent?.trim();
+    if (href) {
+      follow(href, event.type === "auxclick" || event.shiftKey);
+    }
   };
 
   return $prose(
@@ -165,8 +148,9 @@ export function linksPlugin({
               : null;
           },
           handleDOMEvents: {
-            auxclick(_view, event) {
-              const href = event.button === MIDDLE_BUTTON && hrefAt(event);
+            auxclick(view, event) {
+              const href =
+                event.button === MIDDLE_BUTTON && hrefAt(view, event);
               if (!href) {
                 return false;
               }
@@ -174,8 +158,8 @@ export function linksPlugin({
               follow(href, true);
               return true;
             },
-            click(_view, event) {
-              const href = commandKeyHeld(event) && hrefAt(event);
+            click(view, event) {
+              const href = commandKeyHeld(event) && hrefAt(view, event);
               if (!href) {
                 return false;
               }
@@ -184,8 +168,8 @@ export function linksPlugin({
               return true;
             },
             // Kept from starting a scroll or, on Linux, pasting the selection.
-            mousedown(_view, event) {
-              if (event.button === MIDDLE_BUTTON && hrefAt(event)) {
+            mousedown(view, event) {
+              if (event.button === MIDDLE_BUTTON && hrefAt(view, event)) {
                 event.preventDefault();
               }
               return false;
@@ -248,9 +232,9 @@ function linkedPaths(doc: PMNode, folder: string) {
       if (mark.type.name !== "link") {
         continue;
       }
-      const path = hostPathOfHref(String(mark.attrs.href ?? ""), folder);
-      if (path !== undefined) {
-        out.push({ from: pos, path, to: pos + node.nodeSize });
+      const target = openTargetOfHref(String(mark.attrs.href ?? ""), folder);
+      if (target?.kind === "path") {
+        out.push({ from: pos, path: target.path, to: pos + node.nodeSize });
       }
     }
   });

@@ -79,7 +79,6 @@ export function TopicPicker({
       >
         <TopicPickList
           chosen={chosen}
-          files
           onNew={(name) => {
             setOpen(false);
             onNew(name);

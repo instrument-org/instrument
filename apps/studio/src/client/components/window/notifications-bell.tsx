@@ -1,5 +1,4 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
-import { type Condition } from "@/shared/problem-reports";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -8,10 +7,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useAppTabs } from "@/client/components/window/app-tabs";
-import {
-  conditionReport,
-  pendingProblemReport,
-} from "@/client/lib/problem-reports";
+import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { cn } from "@/client/lib/utils";
@@ -133,16 +129,6 @@ export function NotificationsBell() {
                 onAction={() => {
                   openAction(notice);
                 }}
-                onReport={(condition) => {
-                  setOpen(false);
-                  openReportDialog(
-                    conditionReport({
-                      condition,
-                      surface: "bell",
-                      title: notice.title,
-                    }),
-                  );
-                }}
               />
             ))}
           </div>
@@ -227,11 +213,9 @@ const NOTICE_ICON = {
 function NoticeItem({
   notice,
   onAction,
-  onReport,
 }: {
   notice: BellNotice;
   onAction: () => void;
-  onReport: (condition: Condition) => void;
 }) {
   const dismiss = useMutation({
     mutationFn: () => rpcClient.notices.dismiss.call({ id: notice.id }),
@@ -269,19 +253,6 @@ function NoticeItem({
           {notice.action && (
             <Button onClick={onAction} size="xs" variant="outline">
               {notice.action.label}
-            </Button>
-          )}
-          {notice.report && (
-            <Button
-              onClick={() => {
-                if (notice.report) {
-                  onReport(notice.report);
-                }
-              }}
-              size="xs"
-              variant="outline"
-            >
-              Send a report
             </Button>
           )}
           <Button

@@ -66,32 +66,27 @@ export function errorReport({
   };
 }
 
-/**
- * Something wrong the app found and showed the person, like no sandbox for
- * the programs the agent runs. Titled by what the person read.
- */
+/** Something wrong the app found, reported from where it says so. */
 export function conditionReport({
   condition,
   onSent,
-  surface,
   title,
 }: {
   condition: Condition;
   onSent?: () => void;
-  surface: "bell" | "settings";
   title: string;
 }): ReportRequest {
   return {
     condition,
-    dialogTitle: `Report this problem to ${APP_NAME}?`,
+    dialogTitle: "Send a report",
     focusNote: true,
-    intro: `This report includes what ${APP_NAME} found on this computer, version numbers, the errors it recorded recently, and its recent log. The log can mention the names of files and chats you worked on, so you can read it under Show details before you send.`,
+    intro: `It includes what ${APP_NAME} found, version numbers, recent errors and the app's log, which can name your files and chats.`,
     kind: "error",
-    noteLabel: "Anything you'd like us to know?",
+    noteLabel: "Note",
     offerAlwaysSend: false,
     onSent,
     reportTitle: title,
-    surface: `${condition}-${surface}`,
+    surface: condition,
   };
 }
 

@@ -22,11 +22,11 @@ export type ReportKind = z.output<typeof ReportKindSchema>;
 
 /**
  * Something wrong the app found on this computer rather than an error it
- * threw: no sandbox for the programs the agent runs, or chats it couldn't
- * finish bringing over. A report about one carries what the main process
- * found, so it says what the app saw rather than what a screen claimed.
+ * threw: no sandbox for the programs the agent runs. A report about one
+ * carries what the main process found, so it says what the app saw rather
+ * than what a screen claimed.
  */
-export const ConditionSchema = z.enum(["sandbox-off", "chats-left-behind"]);
+export const ConditionSchema = z.enum(["sandbox-off"]);
 
 export type Condition = z.output<typeof ConditionSchema>;
 

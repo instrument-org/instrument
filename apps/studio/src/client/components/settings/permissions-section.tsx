@@ -807,7 +807,6 @@ function SandboxOffWarning({
               conditionReport({
                 condition: "sandbox-off",
                 onSent,
-                surface: "settings",
                 title: copy.title,
               })
             }

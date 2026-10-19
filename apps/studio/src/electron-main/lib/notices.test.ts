@@ -264,7 +264,7 @@ describe("notices", () => {
     sandbox.off = "user-namespaces-closed";
     const [warning] = notices.listNotices();
     expect(warning).toMatchObject({
-      action: { label: "See why", settings: "Permissions" },
+      action: { label: "Open Settings", settings: "Permissions" },
       kind: "security",
       severity: "critical",
       title: "The agent can't run programs right now",
@@ -291,28 +291,15 @@ describe("notices", () => {
     ]);
   });
 
-  it("offers a report on what it found about the sandbox, one problem per cause", async () => {
+  it("describes what it found about the sandbox for a report, one problem per cause", async () => {
     const notices = await load();
     sandbox.off = "no-seatbelt";
-    expect(notices.listNotices()).toMatchObject([{ report: "sandbox-off" }]);
     expect(notices.describeCondition("sandbox-off")).toEqual({
       fingerprint: "condition:sandbox-off:no-seatbelt",
       found: expect.arrayContaining([
         "sandboxOff: no-seatbelt",
         "runProgramsWithoutSandbox: false",
       ]),
-    });
-  });
-
-  it("offers a report on chats left behind that says how many", async () => {
-    const notices = await load();
-    notices.noteChatsLeftBehind(2);
-    expect(notices.listNotices()).toMatchObject([
-      { report: "chats-left-behind" },
-    ]);
-    expect(notices.describeCondition("chats-left-behind")).toEqual({
-      fingerprint: "condition:chats-left-behind",
-      found: ["chatsLeftBehind: 2"],
     });
   });
 

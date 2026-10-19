@@ -45,4 +45,4 @@ About 25 more spread across small codes: resource cleanup 9, schema 6, main-thre
 - Category 10: message writes are one transaction; the live transcript reads one change feed.
 - Category 15: the agent works at real host paths, and the bridge is gone.
 
-Still open: the record-kind type (6), a test that names in prompt text exist (5), and versioned keys for file bytes everywhere a viewer reads them (11).
+Still open: a test that names in prompt text exist (5), and versioned keys for file bytes everywhere a viewer reads them (11). Category 6 needed no type of its own: re-measured on 2026-10-19, none of the 845 commits since 2026-10-13 fixed a read of the wrong record, and the window, the record most often mistaken for a chat, no longer has a record folder, so the chat readers and writers refuse its id.

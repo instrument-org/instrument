@@ -160,8 +160,7 @@ function useToastLoudNotices(
           if (!granted) {
             return;
           }
-          const show =
-            notice.severity === "critical" ? toast.warning : toast.info;
+          const show = warns(notice) ? toast.warning : toast.info;
           show(notice.title, {
             action: notice.action && {
               label: notice.action.label,
@@ -191,6 +190,17 @@ function openNoticeLink(notice: BellNotice) {
     });
 }
 
+/**
+ * Whether a notice warns, drawn with the warning shield and toasted as a
+ * warning: a critical one, and a security one loud enough to toast.
+ */
+function warns(notice: BellNotice): boolean {
+  return (
+    notice.severity === "critical" ||
+    (notice.kind === "security" && notice.severity === "important")
+  );
+}
+
 const NOTICE_ICON = {
   account: UserCircleIcon,
   announcement: MegaphoneSimpleIcon,
@@ -213,17 +223,14 @@ function NoticeItem({
       toast.error("Couldn't dismiss it", { cause: error });
     },
   });
-  const Icon =
-    notice.severity === "critical"
-      ? ShieldWarningIcon
-      : NOTICE_ICON[notice.kind];
+  const Icon = warns(notice) ? ShieldWarningIcon : NOTICE_ICON[notice.kind];
 
   return (
     <div className="flex gap-3 px-4 py-3">
       <span
         className={cn(
           "mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted",
-          notice.severity === "critical"
+          warns(notice)
             ? "text-warning-700 dark:text-warning-300"
             : notice.kind === "fixed"
               ? "text-success-700"

@@ -24,7 +24,7 @@ export const SANDBOX_OFF_COPY = {
 /** What the person reads when web pages in the browser have no sandbox. */
 export const BROWSER_SANDBOX_OFF_COPY = {
   notice:
-    "Instrument started without Chromium's sandbox, which its AppImage does when Linux blocks it, so a harmful page could reach your files. Installing the .deb package fixes this on Ubuntu.",
+    "A harmful page could reach your files. Installing Instrument's .deb package fixes this on Ubuntu.",
   title: "Web pages in the browser aren't sandboxed",
 } as const;
 

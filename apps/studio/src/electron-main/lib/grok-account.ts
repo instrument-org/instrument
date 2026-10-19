@@ -446,7 +446,10 @@ export async function checkGrokSubscriptions({
         lastSubscriptionCheck.set(registration.id, Date.now());
         try {
           const response = await fetch(userURL, {
-            headers: { authorization: `Bearer ${registration.accessToken}` },
+            // The filter above kept only accounts holding a token.
+            headers: {
+              authorization: `Bearer ${registration.accessToken ?? ""}`,
+            },
           });
           if (!response.ok) {
             log.warn(

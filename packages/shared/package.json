@@ -17,6 +17,7 @@
     "./app-directory": "./src/app-directory.ts",
     "./constants": "./src/constants.ts",
     "./decision-bars": "./src/decision-bars.ts",
+    "./exceptions": "./src/exceptions/index.ts",
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
     "./shim": "./src/shim.ts",
@@ -27,6 +28,8 @@
     "check:lint": "oxlint --type-aware",
     "check:types": "tsc --noEmit",
     "fix:lint": "oxlint --type-aware --fix",
+    "test": "vitest",
+    "test:ci": "cross-env CI=true vitest --maxWorkers=40%",
     "turbo:check": "turbo run check:types check:lint"
   },
   "dependencies": {
@@ -35,7 +38,8 @@
   "devDependencies": {
     "@instrument-org/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=24.21.0"

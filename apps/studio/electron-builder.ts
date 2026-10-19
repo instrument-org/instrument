@@ -233,6 +233,37 @@ const config: Configuration = {
       ? ["AppImage", "tar.gz"]
       : ["AppImage", "deb", "rpm", "tar.gz"],
   },
+  // electron-builder's own dependencies for each package, which `depends`
+  // replaces rather than adds to, plus bubblewrap: the sandbox the agent's
+  // programs run in, which they don't run without unless the person allows
+  // it (docs/architecture/native-sandbox-off.md).
+  deb: {
+    depends: [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxss1",
+      "libxtst6",
+      "xdg-utils",
+      "libatspi2.0-0",
+      "libuuid1",
+      "libsecret-1-0",
+      "bubblewrap",
+    ],
+  },
+  rpm: {
+    depends: [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libXScrnSaver",
+      "(libXtst or libXtst6)",
+      "xdg-utils",
+      "at-spi2-core",
+      "(libuuid or libuuid1)",
+      "bubblewrap",
+    ],
+  },
   mac: {
     category: "public.app-category.productivity",
     // Split deliberately. The app's own entitlements carry what the

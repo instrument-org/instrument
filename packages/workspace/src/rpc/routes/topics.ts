@@ -47,7 +47,8 @@ const TopicInstructionsSchema = z.string().max(100_000);
 
 /**
  * Makes a topic under a name, with its instructions and the folders granted
- * under it, or returns the one already called that as it is.
+ * under it, or returns the one already called that as it is when given only
+ * the name. A name in use given instructions or folders is a bad request.
  */
 const createTopicRoute = base
   .input(

@@ -158,7 +158,7 @@ it("puts a retired topic back as it was when its folders cannot be granted", asy
   });
 });
 
-it("returns a topic in use under the name as it is", async () => {
+it("returns a topic in use under the name as it is, given only the name", async () => {
   const first = await call(
     topics.create,
     { instructions: "Keep these", name: "Garden" },
@@ -167,11 +167,34 @@ it("returns a topic in use under the name as it is", async () => {
 
   const again = await call(
     topics.create,
-    { folders: [{ path: folder }], instructions: "Not these", name: "garden" },
+    { name: "garden" },
     { context: createContext() },
   );
 
   expect(again.id).toBe(first.id);
+});
+
+it("refuses a name in use given instructions or folders, leaving that topic alone", async () => {
+  await call(
+    topics.create,
+    { instructions: "Keep these", name: "Garden" },
+    { context: createContext() },
+  );
+
+  await expect(
+    call(
+      topics.create,
+      {
+        folders: [{ path: folder }],
+        instructions: "Not these",
+        name: "garden",
+      },
+      { context: createContext() },
+    ),
+  ).rejects.toMatchObject({
+    code: "BAD_REQUEST",
+    message: "There is already a topic called “Garden”",
+  });
   const [listed] = await list();
   expect(listed?.instructions).toBe("Keep these");
   expect(listed?.folders).toBeUndefined();

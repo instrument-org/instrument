@@ -236,6 +236,24 @@ describe("topic folders", () => {
     const [listed] = await listTopics();
     expect(listed?.retired).toBeUndefined();
   });
+
+  it.each([
+    ["instructions", { instructions: "Window seats." }],
+    ["folders", { folders: [{ path: os.tmpdir() }] }],
+  ])(
+    "refuses a name in use given %s, leaving that topic as it was",
+    async (_case, given) => {
+      const made = await createTopic({ name: "Trips" });
+      await updateTopic(made.id, { instructions: "Aisle seats." });
+
+      await expect(createTopic({ name: "trips", ...given })).rejects.toThrow(
+        new TopicNameError("There is already a topic called “Trips”"),
+      );
+      expect(await listTopics()).toEqual([
+        { ...made, instructions: "Aisle seats." },
+      ]);
+    },
+  );
 });
 
 /**

@@ -74,7 +74,9 @@ export class TopicNameError extends Error {}
 /**
  * Makes a topic and returns it, with its instructions and the folders granted
  * under it on this computer. A name already in use returns that topic as it
- * is instead, since its folder is its name; one retired under that name comes
+ * is instead, since its folder is its name, and is refused with a
+ * `TopicNameError` when instructions or folders were given, which would
+ * otherwise be dropped without a word; one retired under that name comes
  * back, with the instructions and folders it had unless new ones are given.
  * A grant that fails takes back the topic it was for, so no topic is left
  * made without the folders it was made with.
@@ -91,6 +93,14 @@ export async function createTopic({
   name: string;
 }): Promise<Topic> {
   const made = await Promise.resolve().then(() => createTopicNow(topic));
+  if (
+    made.was === "in use" &&
+    (folders.length > 0 || Boolean(topic.instructions?.trim()))
+  ) {
+    throw new TopicNameError(
+      `There is already a topic called “${made.topic.name}”`,
+    );
+  }
   if (made.was === "in use" || folders.length === 0) {
     return made.topic;
   }

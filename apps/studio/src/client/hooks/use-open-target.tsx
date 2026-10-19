@@ -28,7 +28,9 @@ export async function showOpenMenu(destinations: OpenDestination[]) {
   const rows: RPCInput["utils"]["showContextMenu"]["items"] =
     destinations.flatMap((destination, index) => [
       // The places a thing opens, then the clipboard, are two groups.
-      ...(destination.id === "copy" && index > 0 ? [{ separator: true }] : []),
+      ...(destination.id === "copy" && index > 0
+        ? [{ separator: true as const }]
+        : []),
       { id: destination.id, label: destination.label },
     ]);
   const picked = await rpcClient.utils.showContextMenu.call({ items: rows });

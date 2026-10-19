@@ -148,12 +148,10 @@ const showContextMenu = base
   .input(
     z.object({
       items: z.array(
-        z.object({
-          enabled: z.boolean().optional(),
-          id: z.string().optional(),
-          label: z.string().optional(),
-          separator: z.boolean().optional(),
-        }),
+        z.union([
+          z.object({ separator: z.literal(true) }),
+          z.object({ id: z.string(), label: z.string() }),
+        ]),
       ),
     }),
   )
@@ -164,14 +162,13 @@ const showContextMenu = base
     const picked: { id: null | string } = { id: null };
     const menu = Menu.buildFromTemplate(
       input.items.map((item) =>
-        item.separator
+        "separator" in item
           ? { type: "separator" as const }
           : {
               click: () => {
-                picked.id = item.id ?? null;
+                picked.id = item.id;
               },
-              enabled: item.enabled ?? true,
-              label: item.label ?? "",
+              label: item.label,
             },
       ),
     );

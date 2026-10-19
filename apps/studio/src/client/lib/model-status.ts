@@ -49,10 +49,11 @@ export type ModelStatus =
       provider?: string;
       /**
        * Why it is gone, as far as the list can tell: the connection it came
-       * through lists nothing at all any more (removed, or signed out of), or
-       * still lists models and this one is not among them.
+       * through lists nothing at all any more (removed, or signed out of), is
+       * turned off in Settings, or still lists models and this one is not
+       * among them.
        */
-      reason: "disconnected" | "dropped";
+      reason: "disconnected" | "dropped" | "off";
     }
   /** Chosen through a provider whose list failed to load, so whether it is still offered is unknown. */
   | { kind: "provider-failed"; message: string; name: string; provider: string }
@@ -105,6 +106,7 @@ export function reachModel(
 
 export function readModelStatus({
   connections,
+  disabled,
   dismissedOffers,
   errors = [],
   isError = false,
@@ -116,6 +118,8 @@ export function readModelStatus({
 }: {
   /** This computer's connections and routes, from the list, for `reachModel`. */
   connections?: readonly ModelConnection[];
+  /** The connections turned off in Settings, by id. */
+  disabled?: ReadonlySet<string>;
   dismissedOffers: ReadonlySet<string>;
   errors?: ModelListError[];
   isError?: boolean;
@@ -199,7 +203,11 @@ export function readModelStatus({
     return {
       kind: "gone",
       name,
-      reason: stillListed ? "dropped" : "disconnected",
+      reason: stillListed
+        ? "dropped"
+        : source && disabled?.has(source.providerConfigId)
+          ? "off"
+          : "disconnected",
       ...(provider && { provider }),
       ...withFix(fix),
       ...(fix &&
@@ -372,6 +380,11 @@ function goneText({
   provider,
   reason,
 }: Extract<ModelStatus, { kind: "gone" }>) {
+  if (reason === "off") {
+    return provider
+      ? `${provider} is turned off, so ${name} isn't available`
+      : `${name} isn't available while its provider is turned off`;
+  }
   if (!provider) {
     return `${name} isn't available anymore`;
   }

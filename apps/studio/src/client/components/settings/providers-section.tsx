@@ -7,6 +7,7 @@ import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { ProviderConfigListItem } from "@/client/components/provider-config-list-item";
 import { ChatGPTAccountCard } from "@/client/components/settings/chatgpt-account-card";
 import { ClaudeAccountCard } from "@/client/components/settings/claude-account-card";
+import { useProviderSwitch } from "@/client/components/settings/provider-switch";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
@@ -28,6 +29,7 @@ export function ProvidersSection({
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
+  const providerSwitch = useProviderSwitch();
 
   const [showAddProvider, setShowAddProvider] = useState(autoOpenAddProvider);
   const [selectedConfig, setSelectedConfig] =
@@ -101,8 +103,12 @@ export function ProvidersSection({
               config={config}
               key={config.id}
               metadata={providerMetadataMap.get(config.type)}
+              off={providerSwitch.isOff(config.id)}
               onConfigure={() => {
                 setSelectedConfig(config);
+              }}
+              onSetEnabled={(enabled) => {
+                providerSwitch.setEnabled(config.id, enabled);
               }}
             />
           ))

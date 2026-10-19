@@ -290,8 +290,12 @@ export const PromptInput = ({
   // policy change, a withdrawn model or a newer release can change underneath
   // the user without anything here being touched.
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
+  const { data: disabledProviders } = useQuery(
+    rpcClient.providerConfig.live.disabled.experimental_liveOptions(),
+  );
   const modelStatus = readModelStatus({
     connections: modelsData?.connections,
+    disabled: new Set(disabledProviders),
     dismissedOffers: new Set(dismissedOffers),
     errors: modelsErrors,
     isError: modelsIsError,

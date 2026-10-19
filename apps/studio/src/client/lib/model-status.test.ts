@@ -62,6 +62,10 @@ describe("readModelStatus and noticeFor", () => {
           "notice": "[problem] Claude Haiku 4.5 isn't available anymore → Switch to instrument",
           "status": "gone",
         },
+        "provider turned off, same model elsewhere": {
+          "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
+          "status": "gone",
+        },
         "restricted, with Auto to fall back on": {
           "notice": "[problem] Claude Opus 5.5 is unavailable → Switch to Auto",
           "status": "restricted",

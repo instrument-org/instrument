@@ -1,4 +1,9 @@
 import { Button } from "@/client/components/ui/button";
+import {
+  ProviderMoreMenu,
+  TURNED_OFF_LINE,
+  TurnOffItem,
+} from "@/client/components/settings/provider-switch";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Card } from "@/client/components/ui/card";
 import { cn } from "@/client/lib/utils";
@@ -17,19 +22,24 @@ export function ProviderConfigListItem({
   className,
   config,
   metadata,
+  off = false,
   onConfigure,
+  onSetEnabled,
 }: {
   className?: string;
   config: ClientAIProviderConfig;
   metadata?: ProviderMetadata;
+  /** Turned off: grayed, saying so, with Turn on in place of the menu. */
+  off?: boolean;
   onConfigure: () => void;
+  onSetEnabled: (enabled: boolean) => void;
 }) {
   const { data: openRouterCredits, isLoading: isLoadingCredits } = useQuery({
     ...rpcClient.providerConfig.credits.queryOptions({
       input: { id: config.id },
     }),
     // Only OpenRouter supports credit querying right now
-    enabled: config.type === "openrouter",
+    enabled: config.type === "openrouter" && !off,
     refetchInterval: 30_000,
   });
 
@@ -44,7 +54,12 @@ export function ProviderConfigListItem({
         className="flex items-start justify-between"
         {...settingAnchor(`provider:${config.id}`)}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-start gap-3",
+            off && "opacity-50 grayscale",
+          )}
+        >
           <div className="flex size-8 shrink-0 items-center justify-center">
             <AIProviderIcon type={config.type} />
           </div>
@@ -57,7 +72,9 @@ export function ProviderConfigListItem({
                 {originalName}
               </p>
             )}
-            {config.type === "openai-compatible" && config.baseURL ? (
+            {off ? (
+              <p className="text-sm text-muted-foreground">{TURNED_OFF_LINE}</p>
+            ) : config.type === "openai-compatible" && config.baseURL ? (
               <p className="truncate font-mono text-xs text-muted-foreground">
                 {config.baseURL}
               </p>
@@ -66,7 +83,7 @@ export function ProviderConfigListItem({
                 {metadata?.description ?? "Metadata not found"}
               </p>
             )}
-            {config.type === "openrouter" && (
+            {config.type === "openrouter" && !off && (
               <p className="truncate text-sm text-muted-foreground">
                 {isLoadingCredits
                   ? "Loading credits..."
@@ -77,9 +94,30 @@ export function ProviderConfigListItem({
             )}
           </div>
         </div>
-        <Button className="shrink-0" onClick={onConfigure} variant="outline">
-          Manage
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {off && (
+            <Button
+              onClick={() => {
+                onSetEnabled(true);
+              }}
+              variant="outline"
+            >
+              Turn on
+            </Button>
+          )}
+          <Button onClick={onConfigure} variant={off ? "ghost" : "outline"}>
+            Manage
+          </Button>
+          {!off && (
+            <ProviderMoreMenu label={displayName ?? "this provider"}>
+              <TurnOffItem
+                onSelect={() => {
+                  onSetEnabled(false);
+                }}
+              />
+            </ProviderMoreMenu>
+          )}
+        </div>
       </div>
     </Card>
   );

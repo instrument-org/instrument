@@ -158,6 +158,13 @@ export const modelStatusScenarios = {
     modelURI: goneURI("claude-haiku-4.5", "removed-key"),
     providerNames: new Map([["anthropic", "Anthropic"]]),
   },
+  "provider turned off, same model elsewhere": {
+    disabled: new Set(["off-key"]),
+    dismissedOffers: none,
+    models: listed,
+    modelURI: goneURI("claude-haiku-4.5", "off-key"),
+    providerNames: new Map([["anthropic", "Anthropic"]]),
+  },
   "provider removed, same model through OpenRouter and Instrument": {
     dismissedOffers: none,
     // Instrument listed last, so only the preference can put it first.

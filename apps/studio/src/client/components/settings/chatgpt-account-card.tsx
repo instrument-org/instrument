@@ -14,9 +14,16 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { StateArrival } from "@/client/components/state-arrival";
 import { Card } from "@/client/components/ui/card";
+import { DropdownMenuItem } from "@/client/components/ui/dropdown-menu";
+import {
+  ProviderMoreMenu,
+  TurnOffItem,
+  useProviderSwitch,
+} from "@/client/components/settings/provider-switch";
+import { cn } from "@/client/lib/utils";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -106,6 +113,7 @@ export function ChatGPTAccountCard() {
   };
 
   const accounts = status?.accounts ?? [];
+  const providerSwitch = useProviderSwitch();
 
   return (
     // The accounts signed in, so the card settles in when a sign-in finished
@@ -164,7 +172,17 @@ export function ChatGPTAccountCard() {
               <AccountRow
                 account={account}
                 key={account.id}
+                off={
+                  account.state === "signed-in" &&
+                  providerSwitch.isOff(account.id)
+                }
                 onCancelSignIn={cancelSignIn}
+                onSetEnabled={(enabled) => {
+                  providerSwitch.setEnabled(
+                    AIProviderConfigIdSchema.parse(account.id),
+                    enabled,
+                  );
+                }}
                 onSignIn={() => {
                   void continueWithChatGPT(account.id);
                 }}
@@ -235,26 +253,37 @@ export function ChatGPTAccountCard() {
 
 function AccountRow({
   account,
+  off,
   onCancelSignIn,
+  onSetEnabled,
   onSignIn,
   onSignOut,
   waiting,
 }: {
   account: Account;
+  off: boolean;
   onCancelSignIn: () => void;
+  onSetEnabled: (enabled: boolean) => void;
   onSignIn: () => void;
   onSignOut: () => void;
   waiting: boolean;
 }) {
   return (
     <div className="flex min-h-8 items-center justify-between gap-4">
-      <p className="min-w-0 truncate text-sm text-muted-foreground">
+      <p
+        className={cn(
+          "min-w-0 truncate text-sm text-muted-foreground",
+          off && "opacity-60",
+        )}
+      >
         {account.label}
         {waiting
           ? " · Finish in your browser"
           : account.state === "plan-disabled"
             ? ` · ${APP_NAME} isn't allowed to use this plan yet`
-            : account.state === "signed-out" && " · Signed out"}
+            : account.state === "signed-out"
+              ? " · Signed out"
+              : off && ` · Turned off, so ${APP_NAME} won’t use it`}
       </p>
       <div className="flex shrink-0 items-center gap-2">
         {account.state !== "signed-in" && (
@@ -269,9 +298,27 @@ function AccountRow({
               : "Sign in again"}
           </BrowserHandoffButton>
         )}
-        <Button onClick={onSignOut} size="sm" variant="ghost">
-          Sign out
-        </Button>
+        {off && (
+          <Button
+            onClick={() => {
+              onSetEnabled(true);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Turn on
+          </Button>
+        )}
+        <ProviderMoreMenu label={account.label} size="icon-sm">
+          {account.state === "signed-in" && !off && (
+            <TurnOffItem
+              onSelect={() => {
+                onSetEnabled(false);
+              }}
+            />
+          )}
+          <DropdownMenuItem onSelect={onSignOut}>Sign out…</DropdownMenuItem>
+        </ProviderMoreMenu>
       </div>
     </div>
   );

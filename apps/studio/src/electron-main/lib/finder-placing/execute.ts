@@ -2,11 +2,10 @@ import {
   type Identity,
   identityOf,
   type NewJournalEntry,
-  restoreFromTrash,
-  type Trashed,
 } from "../file-journal";
 import { renameExclusive } from "../exclusive-rename";
 import { renameExclusive as nativeRenameExclusive } from "../mac-native";
+import { type Leftovers } from "./leftovers";
 import { sameIdentity, STAGING_PREFIX, type Step } from "./plan";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -19,6 +18,9 @@ type Measure = {
   links: number;
 };
 
+/** Where something moved to the Trash landed, when the system says; null when it does not. */
+export type InTrash = { inTrash: null | string };
+
 /**
  * What carrying out a plan does to the file system, as one seam: the real
  * thing in the app, a stand-in Trash and injected failures in a test.
@@ -27,15 +29,15 @@ export type PlacingOps = {
   /** Copies a thing to a path nothing is at, links as links. */
   copy: (from: string, to: string) => Promise<void>;
   identity: (at: string) => Promise<Identity | null>;
+  /** The record of staging copies, so a quit or crash mid-copy leaves none for good. */
+  leftovers: Pick<Leftovers, "add" | "remove">;
   measure: (at: string) => Promise<Measure>;
   /** Puts a thing at a path nothing is at, failing when something is. */
   place: (from: string, to: string) => Promise<void>;
   /** Takes away a staging copy this made, and nothing else. */
   removeStaging: (at: string) => Promise<void>;
-  /** Puts something the step in hand trashed back where it was. */
-  restore: (item: Trashed) => Promise<void>;
-  /** Moves a thing to the Trash, saying where it landed. */
-  trash: (at: string) => Promise<null | Trashed>;
+  /** Moves what a Replace displaces to the Trash. */
+  trash: (at: string) => Promise<InTrash>;
 };
 
 /** What was placed, for the toast and the selection. */
@@ -49,11 +51,16 @@ type Placed = {
 export type PlacingOutcome = {
   /** Why it stopped short, and what that left where, when it did. */
   failure: null | string;
-  /** What undoes everything that was done; null when nothing was. */
+  /**
+   * What undoes everything that was done; null when nothing was, and when
+   * anything was replaced, since what went to the Trash cannot be put back.
+   */
   journal: NewJournalEntry | null;
   placed: Placed[];
   /** Sources left where they were: answered Skip, or changed since the plan. */
   skipped: { source: string; why: "answered" | "changed" }[];
+  /** What a Replace moved to the Trash, by where it was and where it landed when known. */
+  trashed: ({ from: string } & InTrash)[];
 };
 
 const nameOf = (at: string) => `“${path.basename(at)}”`;
@@ -62,9 +69,10 @@ const nameOf = (at: string) => `“${path.basename(at)}”`;
  * Carries out a plan's steps in order, and nothing the plan does not say.
  * Each placed item goes: its copy staged and measured (a copy), what it
  * replaces to the Trash, then itself into place exclusively. A step that
- * fails puts its own item
- * back as it was and stops the rest; what was done before it is journaled.
- * See `plan.ts` for the invariants this keeps.
+ * fails before anything went to the Trash takes back its own staging copy;
+ * after, it leaves things as they are and says where each is. Either way the
+ * rest stop. What was done is journaled for undo unless something was
+ * replaced. See `plan.ts` for the invariants this keeps.
  */
 export async function executePlacing(
   op: "copy" | "move",
@@ -73,9 +81,9 @@ export async function executePlacing(
 ): Promise<PlacingOutcome> {
   const moved: { from: string; identity: Identity; to: string }[] = [];
   const made: { identity: Identity; path: string }[] = [];
-  const replaced: Trashed[] = [];
   const placed: Placed[] = [];
   const skipped: PlacingOutcome["skipped"] = [];
+  const trashed: PlacingOutcome["trashed"] = [];
   let failure: null | string = null;
 
   for (const step of steps) {
@@ -92,10 +100,14 @@ export async function executePlacing(
     }
 
     let staged: null | string = null;
-    let trashedHere: null | Trashed = null;
-    let isPlaced = false;
+    let isReplaced = false;
     try {
       if (step.staging !== null) {
+        ops.leftovers.add({
+          identity: null,
+          kind: "staging",
+          path: step.staging,
+        });
         await ops.copy(step.source, step.staging);
         staged = step.staging;
         const [original, copy] = await Promise.all([
@@ -115,75 +127,62 @@ export async function executePlacing(
             `${nameOf(step.replaces.path)} changed after you chose to replace it.`,
           );
         }
-        trashedHere = await ops.trash(step.replaces.path);
-        if (!trashedHere) {
-          throw new Error(
-            `${nameOf(step.replaces.path)} couldn’t be moved to the Trash.`,
-          );
-        }
+        const gone = await ops.trash(step.replaces.path);
+        trashed.push({ from: step.replaces.path, ...gone });
+        isReplaced = true;
       }
       await ops.place(staged ?? step.source, step.to);
-      isPlaced = true;
-      staged = null;
+      if (staged !== null) {
+        ops.leftovers.remove(staged);
+        staged = null;
+      }
       const identity = await ops.identity(step.to);
-      if (trashedHere) {
-        replaced.push(trashedHere);
-        trashedHere = null;
-      }
-      if (step.how === "rename") {
-        if (identity) {
-          moved.push({ from: step.source, identity, to: step.to });
-        }
-        placed.push({
-          from: step.source,
-          how: "moved",
-          path: step.to,
-          replaced: step.replaces !== null,
-        });
-        continue;
-      }
-      if (identity) {
+      if (identity && step.how === "rename") {
+        moved.push({ from: step.source, identity, to: step.to });
+      } else if (identity) {
         made.push({ identity, path: step.to });
       }
       placed.push({
         from: step.source,
-        how: "copied",
+        how: step.how === "rename" ? "moved" : "copied",
         path: step.to,
         replaced: step.replaces !== null,
       });
     } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
-      if (isPlaced) {
-        // In place; only what follows it failed.
-        failure = `${nameOf(step.to)} is in place, but then: ${failure}`;
-        break;
-      }
-      // Back as it was: what it replaced out of the Trash, its copy gone.
-      if (trashedHere) {
-        try {
-          await ops.restore(trashedHere);
-        } catch {
-          failure += ` ${nameOf(trashedHere.from)} is in the Trash.`;
-          replaced.push(trashedHere);
+      const why = error instanceof Error ? error.message : String(error);
+      if (isReplaced && step.replaces) {
+        // What was there is in the Trash already, and stays there; the copy
+        // that was to take its place is left where it was staged.
+        failure = `${nameOf(step.replaces.path)} is in the Trash, but ${nameOf(step.source)} couldn’t be put in its place${staged ? `, so its copy is still at ${nameOf(staged)}` : ""}: ${why}`;
+      } else {
+        failure = why;
+        // Its staging copy, whole or a part a failed copy left, goes.
+        const staging = step.staging;
+        if (staging !== null) {
+          await ops
+            .removeStaging(staging)
+            .then(() => {
+              ops.leftovers.remove(staging);
+            })
+            .catch(() => undefined);
         }
-      }
-      if (staged !== null) {
-        await ops.removeStaging(staged).catch(() => undefined);
       }
       break;
     }
   }
 
-  const anything = moved.length + made.length + replaced.length > 0;
+  const anything = moved.length + made.length > 0;
   return {
     failure,
-    journal: !anything
-      ? null
-      : op === "copy"
-        ? { kind: "copy", made, replaced }
-        : { kind: "move", made, moved, replaced },
+    journal:
+      !anything || trashed.length > 0
+        ? null
+        : op === "copy"
+          ? { kind: "copy", made }
+          : { kind: "move", made, moved },
     placed,
     skipped,
+    trashed,
   };
 }
 
@@ -226,9 +225,11 @@ function cannotLink(error: unknown) {
  * `renameExclusive`, which says what that leaves open.
  */
 export function fileSystemOps({
+  leftovers,
   trash,
 }: {
-  trash: (at: string) => Promise<null | Trashed>;
+  leftovers: PlacingOps["leftovers"];
+  trash: PlacingOps["trash"];
 }): PlacingOps {
   return {
     copy: (from, to) =>
@@ -278,7 +279,7 @@ export function fileSystemOps({
       }
       await fs.rm(at, { force: true, recursive: true });
     },
-    restore: (item) => restoreFromTrash(item),
+    leftovers,
     trash,
   };
 }

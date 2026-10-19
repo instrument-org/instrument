@@ -343,6 +343,30 @@ static napi_value renameExclusive(napi_env env, napi_callback_info info) {
   });
 }
 
+/// Moves a thing to the Trash and says where it landed, which the app could
+/// not find by reading the Trash without Full Disk Access.
+static napi_value trashItem(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 1);
+  NSString *path = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  return answer(env, ^(Done done) {
+    if (path == nil) {
+      done(@{@"error" : @"a path is required"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSURL *landed = nil;
+      NSError *error = nil;
+      if (![NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:path]
+                                       resultingItemURL:&landed
+                                                  error:&error]) {
+        done(@{@"error" : error.localizedDescription ?: @"it could not be moved to the Trash"});
+        return;
+      }
+      done(landed.path != nil ? @{@"trashed" : landed.path} : @{@"trashed" : NSNull.null});
+    });
+  });
+}
+
 /// Whether the disk a path is on tells names apart by case, as the disk
 /// itself says: APFS and HFS+ answer either way, and most others do too.
 static napi_value caseSensitivity(napi_env env, napi_callback_info info) {
@@ -372,6 +396,7 @@ static const struct {
     {"pasteboardFiles", pasteboardFiles},
     {"renameExclusive", renameExclusive},
     {"caseSensitivity", caseSensitivity},
+    {"trashItem", trashItem},
     {"resolveAlias", resolveAlias},
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},

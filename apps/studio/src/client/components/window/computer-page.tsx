@@ -860,13 +860,12 @@ export function ComputerPage({
         return;
       }
       const route = mode === "move" ? "moveInto" : "copyInto";
-      const { failure, journalId, placed, skipped } = await rpcClient.files[
-        route
-      ].call({
-        folder: into.hostPath,
-        paths,
-        resolutions,
-      });
+      const { failure, journalId, placed, skipped, trashed } =
+        await rpcClient.files[route].call({
+          folder: into.hostPath,
+          paths,
+          resolutions,
+        });
       const folders = new Set(
         sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
       );
@@ -884,7 +883,24 @@ export function ComputerPage({
         placed,
         skipped: skipped.filter((each) => each.why === "answered").length,
       });
-      if (message) {
+      // What a Replace put in the Trash cannot be put back from here, so
+      // that toast shows where it went instead of offering Undo. Showing it
+      // is the Mac's: the Finder reveals it, or opens the Trash.
+      const [firstTrashed] = trashed;
+      if (message && firstTrashed) {
+        toast(message, {
+          action: isMacOS()
+            ? {
+                label: "Show in Trash",
+                onClick: () => {
+                  void rpcClient.files.showInTrash.call({
+                    inTrash: firstTrashed.inTrash,
+                  });
+                },
+              }
+            : undefined,
+        });
+      } else if (message) {
         toastWithUndo(
           message,
           journalId === null
@@ -3140,12 +3156,20 @@ export function placedMessage({
         ? "Copied"
         : "Moved and copied";
   const replaced = placed.filter((each) => each.replaced).length;
+  const inTrash =
+    replaced === 0
+      ? ""
+      : placed.length === 1
+        ? " The one it replaced is in the Trash."
+        : replaced === 1
+          ? " The one they replaced is in the Trash."
+          : ` The ${replaced.toString()} items they replaced are in the Trash.`;
   const [only] = placed;
   if (placed.length === 1 && only) {
     const name = only.path.split(/[\\/]/).at(-1) ?? only.path;
-    return `${verb} “${name}” into “${folderName}”${replaced ? ", replacing the one there" : ""}`;
+    return `${verb} “${name}” into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
   }
-  return `${verb} ${placed.length} items into “${folderName}”${replaced ? ` and replaced ${replaced}` : ""}`;
+  return `${verb} ${placed.length.toString()} items into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
 }
 
 /**

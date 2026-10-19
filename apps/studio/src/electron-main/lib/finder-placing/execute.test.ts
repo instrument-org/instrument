@@ -3,22 +3,30 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fileJournal, identityOf, undoEntry } from "../file-journal";
+import { fileJournal, type UndoOps, undoEntry } from "../file-journal";
 import { executePlacing, fileSystemOps, type PlacingOps } from "./execute";
 import { gatherPlaceRequest } from "./gather";
-import { type Answer, planPlacing, type Step } from "./plan";
+import { createLeftovers, type Leftover } from "./leftovers";
+import { type Answer, planPlacing } from "./plan";
 
 // No bridge: placing goes the way it does off the Mac, by hard link and
 // checked rename, which the Mac module's own test covers the rest of.
 vi.mock("../mac-native", () => ({
+  caseSensitivity: () => Promise.resolve(undefined),
   finderEntries: () => Promise.resolve([]),
   renameExclusive: () => Promise.resolve(false),
 }));
 
 let root: string;
+let trashed = 0;
+let leftoverRecords: readonly Leftover[] = [];
 beforeEach(async () => {
   trashed = 0;
-  root = await fs.mkdtemp(path.join(tmpdir(), "finder-placing-"));
+  leftoverRecords = [];
+  // Resolved, since placing works from the destination's real path.
+  root = await fs.realpath(
+    await fs.mkdtemp(path.join(tmpdir(), "finder-placing-")),
+  );
   await fs.mkdir(path.join(root, "trash"));
   await fs.mkdir(path.join(root, "dest"));
 });
@@ -28,43 +36,54 @@ afterEach(async () => {
 
 const at = (...parts: string[]) => path.join(root, ...parts);
 
-/** A Trash in the test's own folder: what goes there is moved in and found by where it went. */
-let trashed = 0;
+/** A Trash in the test's own folder, which says where each thing landed. */
 async function testTrash(where: string) {
-  const identity = await identityOf(where);
-  if (!identity) return null;
   trashed += 1;
   const into = at("trash", `${trashed.toString()}-${path.basename(where)}`);
   await fs.rename(where, into);
-  return { from: where, identity, trashed: into };
+  return { inTrash: into };
 }
 
-const ops = () => fileSystemOps({ trash: testTrash });
+const leftovers = createLeftovers({
+  read: () => leftoverRecords,
+  write: (next) => {
+    leftoverRecords = next;
+  },
+});
 
-/** Fails the `n`th change it is asked to make, counting from 1, and counts them all. */
-function failingAt(n: number, base: PlacingOps) {
+const ops = () => fileSystemOps({ leftovers, trash: testTrash });
+
+/**
+ * Fails the `n`th change it is asked to make, counting from 1, and counts
+ * them all. `midway` changes fail after they have done their work instead
+ * of before: a copy written and then a throw, a placement made and then one.
+ */
+function failingAt(n: number, base: PlacingOps, { midway = false } = {}) {
   const made = { count: 0 };
   const change =
     <Args extends unknown[], Result>(run: (...args: Args) => Promise<Result>) =>
     async (...args: Args) => {
       made.count += 1;
-      if (made.count === n) {
+      if (made.count === n && !midway) {
         throw new Error("injected");
       }
-      return run(...args);
+      const result = await run(...args);
+      if (made.count === n) {
+        throw new Error("injected after");
+      }
+      return result;
     };
   const failing: PlacingOps = {
     ...base,
     copy: change(base.copy),
     place: change(base.place),
     removeStaging: change(base.removeStaging),
-    restore: change(base.restore),
     trash: change(base.trash),
   };
   return { made, ops: failing };
 }
 
-/** Every file under the test's folder, Trash included, by where it is and what it says or points at. */
+/** Every file under the test's folder, Trash included unless left out, by where it is and what it says or points at. */
 async function tree(options: { trash?: boolean } = {}) {
   const found: Record<string, string> = {};
   const visit = async (here: string) => {
@@ -87,10 +106,24 @@ async function tree(options: { trash?: boolean } = {}) {
   return found;
 }
 
-/** Whether every file's contents in `before` are still somewhere: at their place, placed, or in the Trash. */
-async function everyByteSurvives(before: Record<string, string>) {
-  const now = new Set(Object.values(await tree({ trash: true })));
-  return Object.values(before).filter((content) => !now.has(content));
+/**
+ * The original files whose contents are now in fewer places than before,
+ * each content counted as often as it appears: every original byte must be
+ * at its own path, placed, or in the Trash.
+ */
+async function lostContents(before: Record<string, string>) {
+  const count = (files: Record<string, string>) => {
+    const counts = new Map<string, number>();
+    for (const [where, content] of Object.entries(files)) {
+      if (!where.endsWith("/")) {
+        counts.set(content, (counts.get(content) ?? 0) + 1);
+      }
+    }
+    return counts;
+  };
+  const was = count(before);
+  const now = count(await tree({ trash: true }));
+  return [...was].filter(([content, n]) => (now.get(content) ?? 0) < n);
 }
 
 async function write(files: Record<string, string>) {
@@ -136,10 +169,9 @@ async function planFor({
   return plan.steps;
 }
 
-/** A copy of three things, one replacing, one kept beside, one a folder with a link in it. */
+/** A copy of three things, one kept beside a taken name, one a folder with a link in it. */
 async function copyScenario() {
   await write({
-    "dest/a.txt": "old a",
     "dest/b.txt": "old b",
     "src/a.txt": "new a",
     "src/b.txt": "new b",
@@ -149,18 +181,16 @@ async function copyScenario() {
   return {
     op: "copy" as const,
     steps: await planFor({
-      answers: { "src/a.txt": "replace", "src/b.txt": "keepBoth" },
+      answers: { "src/b.txt": "keepBoth" },
       op: "copy",
       sources: ["src/a.txt", "src/b.txt", "src/pics"],
     }),
   };
 }
 
-/** A move of a file over another on one disk, and of a folder over another onto "another disk". */
+/** A move of two files on one disk, and of a folder onto "another disk", which copies. */
 async function moveScenario() {
   await write({
-    "dest/a.txt": "old a",
-    "dest/pics/old.jpg": "old pics",
     "src/a.txt": "new a",
     "src/c.txt": "c",
     "src/pics/x.jpg": "x",
@@ -168,7 +198,7 @@ async function moveScenario() {
   return {
     op: "move" as const,
     steps: await planFor({
-      answers: { "src/a.txt": "replace", "src/pics": "replace" },
+      answers: {},
       offDisk: ["src/pics"],
       op: "move",
       sources: ["src/a.txt", "src/pics", "src/c.txt"],
@@ -176,24 +206,49 @@ async function moveScenario() {
   };
 }
 
-const SCENARIOS = { copy: copyScenario, move: moveScenario };
+/** A copy over a file and a move over a folder, both replacing. */
+async function replaceScenario() {
+  await write({
+    "dest/a.txt": "old a",
+    "dest/pics/old.jpg": "old pics",
+    "other/pics/x.jpg": "x",
+    "src/a.txt": "new a",
+  });
+  const copy = await planFor({
+    answers: { "src/a.txt": "replace" },
+    op: "copy",
+    sources: ["src/a.txt"],
+  });
+  const move = await planFor({
+    answers: { "other/pics": "replace" },
+    op: "move",
+    sources: ["other/pics"],
+  });
+  return { op: "copy" as const, steps: [...copy, ...move] };
+}
+
+const UNDOABLE = { copy: copyScenario, move: moveScenario };
+const ALL = { ...UNDOABLE, replace: replaceScenario };
 
 async function undo(
   journal: Awaited<ReturnType<typeof executePlacing>>["journal"],
+  options: Pick<Partial<UndoOps>, "rename"> = {},
 ) {
   if (!journal) return;
   await undoEntry(fileJournal.record(journal), {
+    leftovers,
     trash: async (where) => {
       await testTrash(where);
     },
+    ...options,
   });
 }
 
 describe("carrying out a plan", () => {
-  it.each(Object.keys(SCENARIOS) as (keyof typeof SCENARIOS)[])(
+  it.each(Object.keys(UNDOABLE) as (keyof typeof UNDOABLE)[])(
     "does all of a %s and one undo puts everything back",
     async (scenario) => {
-      const { op, steps } = await SCENARIOS[scenario]();
+      const { op, steps } = await UNDOABLE[scenario]();
       const before = await tree();
 
       const outcome = await executePlacing(op, steps, ops());
@@ -202,41 +257,154 @@ describe("carrying out a plan", () => {
       expect(await tree()).toMatchSnapshot();
       await undo(outcome.journal);
       expect(await tree()).toEqual(before);
+      expect(leftoverRecords).toEqual([]);
     },
   );
 
+  // What a Replace displaces goes to the Trash once what takes its place is
+  // whole, and stays there: nothing is journaled, so there is no undo.
+  it("sends what a replace displaces to the Trash, says where, and journals nothing", async () => {
+    const { op, steps } = await replaceScenario();
+
+    const outcome = await executePlacing(op, steps, ops());
+
+    expect(outcome.failure).toBeNull();
+    expect(outcome.journal).toBeNull();
+    expect(
+      outcome.trashed.map((each) => [
+        path.relative(root, each.from),
+        each.inTrash && path.relative(root, each.inTrash),
+      ]),
+    ).toEqual([
+      ["dest/a.txt", "trash/1-a.txt"],
+      ["dest/pics", "trash/2-pics"],
+    ]);
+    expect(await tree({ trash: true })).toMatchSnapshot();
+  });
+
   // Every original byte is at its own path, placed, or in the Trash after a
-  // failure at any step, and undoing what was done puts back the rest.
-  it.each(Object.keys(SCENARIOS) as (keyof typeof SCENARIOS)[])(
-    "loses nothing when any one step of a %s fails",
-    async (scenario) => {
+  // failure at any step, before or midway through it; and where nothing was
+  // replaced, undoing what was done puts back the rest.
+  it.each(
+    (Object.keys(ALL) as (keyof typeof ALL)[]).flatMap((scenario) => [
+      [scenario, "before"] as const,
+      [scenario, "midway"] as const,
+    ]),
+  )(
+    "loses nothing when any one step of a %s fails %s it",
+    async (scenario, when) => {
       const counting = failingAt(0, ops());
       {
-        const { op, steps } = await SCENARIOS[scenario]();
+        const { op, steps } = await ALL[scenario]();
         await executePlacing(op, steps, counting.ops);
       }
       const changes = counting.made.count;
-      expect(changes).toBeGreaterThan(3);
+      expect(changes).toBeGreaterThan(2);
 
       for (let n = 1; n <= changes; n += 1) {
         await fs.rm(root, { force: true, recursive: true });
         await fs.mkdir(at("trash"), { recursive: true });
         await fs.mkdir(at("dest"));
-        const { op, steps } = await SCENARIOS[scenario]();
+        leftoverRecords = [];
+        const { op, steps } = await ALL[scenario]();
         const before = await tree();
 
         const outcome = await executePlacing(
           op,
           steps,
-          failingAt(n, ops()).ops,
+          failingAt(n, ops(), { midway: when === "midway" }).ops,
         );
 
-        expect(outcome.failure, `step ${n.toString()}`).not.toBeNull();
-        expect(await everyByteSurvives(before), `step ${n.toString()}`).toEqual(
-          [],
+        const label = `${when} step ${n.toString()}`;
+        // The step goes with what is checked, so a failure names it.
+        expect({
+          failed: outcome.failure !== null,
+          lost: await lostContents(before),
+          step: label,
+        }).toEqual({ failed: true, lost: [], step: label });
+        if (scenario !== "replace") {
+          await undo(outcome.journal);
+          // A placement that failed only after it was made is in place but
+          // not journaled; everything else is back.
+          const now = await tree();
+          if (outcome.placed.length === 0 && when === "before") {
+            expect({ step: label, tree: now }).toEqual({
+              step: label,
+              tree: before,
+            });
+          }
+        }
+      }
+    },
+  );
+
+  // The incoming copy is whole and the old one in the Trash when the last
+  // step fails: nothing comes out of the Trash, the copy stays staged, and
+  // the failure says where each is.
+  it("leaves things as they are, and says so, when placing fails after a replace", async () => {
+    const { op, steps } = await replaceScenario();
+    const base = ops();
+
+    const outcome = await executePlacing(op, steps, {
+      ...base,
+      place: () => Promise.reject(new Error("the disk is full")),
+    });
+
+    expect(outcome.failure).toMatch(
+      /^“a\.txt” is in the Trash, but “a\.txt” couldn’t be put in its place, so its copy is still at “\.instrument-placing-.+”: the disk is full$/,
+    );
+    expect(outcome.journal).toBeNull();
+    expect(await fs.readFile(at("trash/1-a.txt"), "utf8")).toBe("old a");
+    expect(await fs.readFile(at("src/a.txt"), "utf8")).toBe("new a");
+    expect(leftoverRecords.map((each) => each.kind)).toEqual(["staging"]);
+  });
+
+  // Undo is all or nothing however far it gets: a rename failing at any
+  // step puts back the ones before it, so the tree is as the drop left it.
+  it.each(Object.keys(UNDOABLE) as (keyof typeof UNDOABLE)[])(
+    "takes back nothing of a %s when any step of its undo fails",
+    async (scenario) => {
+      let renames = 0;
+      {
+        const { op, steps } = await UNDOABLE[scenario]();
+        const outcome = await executePlacing(op, steps, ops());
+        await undo(outcome.journal, {
+          rename: async (from, to) => {
+            renames += 1;
+            await fs.rename(from, to);
+          },
+        });
+      }
+      expect(renames).toBeGreaterThan(1);
+
+      for (let n = 1; n <= renames; n += 1) {
+        await fs.rm(root, { force: true, recursive: true });
+        await fs.mkdir(at("trash"), { recursive: true });
+        await fs.mkdir(at("dest"));
+        const { op, steps } = await UNDOABLE[scenario]();
+        const outcome = await executePlacing(op, steps, ops());
+        const after = await tree({ trash: true });
+        let count = 0;
+
+        const refusal = await undo(outcome.journal, {
+          rename: async (from, to) => {
+            count += 1;
+            if (count === n) throw new Error("injected");
+            await fs.rename(from, to);
+          },
+        }).then(
+          () => "undid it",
+          (error: unknown) =>
+            error instanceof Error ? error.message : String(error),
         );
-        await undo(outcome.journal);
-        expect(await tree(), `undo after step ${n.toString()}`).toEqual(before);
+        const step = `step ${n.toString()}`;
+        expect({ refusal, step, tree: await tree({ trash: true }) }).toEqual({
+          refusal: expect.stringContaining(
+            "so everything was put back as it was",
+          ),
+          step,
+          tree: after,
+        });
       }
     },
   );
@@ -244,7 +412,7 @@ describe("carrying out a plan", () => {
   // What is replaced goes to the Trash only once what takes its place is
   // whole: a copy that comes out different stops before anything is trashed.
   it("trashes nothing for a copy that did not come out whole", async () => {
-    const { op, steps } = await copyScenario();
+    const { op, steps } = await replaceScenario();
     const before = await tree();
     const base = ops();
     let measured = 0;
@@ -264,6 +432,7 @@ describe("carrying out a plan", () => {
     );
     expect(await tree()).toEqual(before);
     expect(await fs.readdir(at("trash"))).toEqual([]);
+    expect(leftoverRecords).toEqual([]);
   });
 
   // A name taken after the plan is never written over: that item stops, and
@@ -295,7 +464,7 @@ describe("carrying out a plan", () => {
 
   it("leaves a source that changed since the plan where it is, and says so", async () => {
     await write({ "src/a.txt": "a", "src/b.txt": "b" });
-    const steps: Step[] = await planFor({
+    const steps = await planFor({
       answers: {},
       op: "move",
       sources: ["src/a.txt", "src/b.txt"],
@@ -343,37 +512,6 @@ describe("carrying out a plan", () => {
       }
     `);
   });
-
-  // Undo is all or nothing: anything changed since puts nothing back.
-  it.each([
-    [
-      "what it replaced has left the Trash",
-      async () => {
-        const [first] = (await fs.readdir(at("trash"))).toSorted();
-        if (first) await fs.rm(at("trash", first), { recursive: true });
-      },
-      /is no longer in the/,
-    ],
-    [
-      "the name it replaced is taken by something else",
-      async () => {
-        await fs.rename(at("dest/a.txt"), at("dest/renamed.txt"));
-        await write({ "dest/a.txt": "someone else's a" });
-      },
-      /“a\.txt” has been moved or replaced since it was copied/,
-    ],
-  ])(
-    "refuses to undo a replace once %s, changing nothing",
-    async (_case, change, reason) => {
-      const { op, steps } = await copyScenario();
-      const outcome = await executePlacing(op, steps, ops());
-      await change();
-      const after = await tree({ trash: true });
-
-      await expect(undo(outcome.journal)).rejects.toThrow(reason);
-      expect(await tree({ trash: true })).toEqual(after);
-    },
-  );
 
   // A file placed by a hard link whose old name cannot be let go of (its
   // folder is read only) is taken back out of the destination, so it is

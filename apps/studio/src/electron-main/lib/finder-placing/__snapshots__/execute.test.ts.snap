@@ -30,3 +30,19 @@ exports[`carrying out a plan > does all of a move and one undo puts everything b
   "src/pics/x.jpg": "x",
 }
 `;
+
+exports[`carrying out a plan > sends what a replace displaces to the Trash, says where, and journals nothing 1`] = `
+{
+  "dest/": "",
+  "dest/a.txt": "new a",
+  "dest/pics/": "",
+  "dest/pics/x.jpg": "x",
+  "other/": "",
+  "src/": "",
+  "src/a.txt": "new a",
+  "trash/": "",
+  "trash/1-a.txt": "old a",
+  "trash/2-pics/": "",
+  "trash/2-pics/old.jpg": "old pics",
+}
+`;

@@ -26,23 +26,36 @@
  *
  * The invariants (each has a test in `execute.test.ts`)
  *
- * 1. Nothing that existed before is deleted. What is replaced goes to the
- *    Trash. The only thing ever removed is a staging copy this made itself.
+ * 1. Nothing that existed before is deleted. A replaced item's only
+ *    destination is the Trash. The only things ever removed are staging
+ *    copies this made itself, each a copy of something still at its own
+ *    place, and only under its own prefix.
  * 2. What is replaced goes to the Trash only once what takes its place is
  *    complete: a copy is written to a staging path in the destination and
  *    measured against its source first; a moved item is whole where it is.
  * 3. Every write into place is exclusive: it fails rather than take a name
  *    something else took after the plan, and that failure stops the rest.
- * 4. A failure puts the item in hand back as it was (what it replaced back
- *    out of the Trash, its staging copy removed) and stops, so every original
- *    byte is at its own path, in the destination, or in the Trash.
- * 5. What was done before a failure is journaled as one entry, and undo
- *    checks every piece before it moves any: all of it comes back, or none.
+ *    On the Mac the disk checks and renames in one step; elsewhere the name
+ *    is checked just before the rename (see `exclusive-rename.ts`).
+ * 4. A failure before anything went to the Trash takes back the item in
+ *    hand (its staging copy removed); after, nothing is taken out of the
+ *    Trash and what is where is said. Either way the rest stop, and every
+ *    original byte is at its own path, in the destination, or in the Trash.
+ * 5. An operation that replaced anything cannot be undone: what went to the
+ *    Trash stays there, and the toast shows where. One that replaced nothing
+ *    is journaled as one entry, and its undo is all or nothing: every piece
+ *    is checked first, every step is a rename taken back in reverse if a
+ *    later one fails, and only then do the copies it took back go to the
+ *    Trash.
  * 6. Links are moved and copied as links and never followed; replacing one
  *    trashes the link. A package (an app, a library) is one item.
  * 7. Whatever the answers, nothing goes into itself, nothing replaces one of
  *    the sources or a folder holding one, and a source already in the
  *    destination is never moved onto itself.
+ *
+ * Known gaps: ⌘Z reaches the journal from the Finder that is up, not from
+ * any window; a copied folder does not carry its own extended attributes
+ * (its Finder tags and color), since `fs.cp` makes folders afresh.
  */
 
 import { type Identity } from "../file-journal";

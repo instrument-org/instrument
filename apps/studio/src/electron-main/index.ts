@@ -10,10 +10,12 @@ import {
   keepClaudeCodeCurrent,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
+import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -272,6 +274,9 @@ async function bootstrapPrimaryInstance() {
   // Detect whether the app was updated since the last launch so the bell can
   // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
+  // What a quit or crash left mid-placing in the Finder, finished before
+  // anything is placed again.
+  void finishPlacingLeftovers().catch(captureServerException);
 
   // Chosen before the workspace starts, which writes every chat record
   // under it.

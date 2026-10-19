@@ -1,3 +1,4 @@
+import { renameExclusive } from "@/electron-main/lib/exclusive-rename";
 import { osConventionsFor } from "@/shared/os-conventions";
 import { APP_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
@@ -24,7 +25,7 @@ import path from "node:path";
 export type Identity = { dev: number; ino: string };
 
 /** Something moved to the Trash: from where, what it was, and where it landed, or null when the Trash could not be read to find it. */
-export type Trashed = {
+type Trashed = {
   from: string;
   identity: Identity;
   trashed: null | string;
@@ -37,8 +38,6 @@ export type JournalEntry = { at: number; id: string } & (
       kind: "copy";
       /** Each copy made into the folder, by where it was made and what it was. */
       made: { identity: Identity; path: string }[];
-      /** What a copy took the place of, moved to the Trash. */
-      replaced: Trashed[];
     }
   | {
       kind: "move";
@@ -46,8 +45,6 @@ export type JournalEntry = { at: number; id: string } & (
       moved: { from: string; identity: Identity; to: string }[];
       /** What the same drop copied instead, onto another disk, its source left where it was. */
       made: { identity: Identity; path: string }[];
-      /** What a moved or copied item took the place of, moved to the Trash. */
-      replaced: Trashed[];
     }
   | { identity: Identity; kind: "new-folder"; made: string }
   | {
@@ -512,46 +509,46 @@ async function putTrashedBack(
   }
 }
 
-/**
- * Something moved to the Trash a moment ago put back where it was, by a
- * step that failed after it: refused with the reason when it cannot be.
- */
-export async function restoreFromTrash(
-  item: Trashed,
-  platform: NodeJS.Platform = process.platform,
-) {
-  await refuseTrashedBack(item, platform);
-  if (!(await isFreeFor(item.from, item.identity))) {
-    throw new UndoRefusedError(
-      `Something named ${nameOf(item.from)} is already there.`,
-      { permanent: false },
-    );
-  }
-  if (item.trashed !== null) {
-    await putTrashedBack({ ...item, trashed: item.trashed }, platform);
-  }
-}
+/** How the name of a copy an undo set aside on its way to the Trash starts. */
+export const UNDONE_PREFIX = ".instrument-undone-";
+
+/** How an undo renames, and sends what it took back to the Trash. */
+export type UndoOps = {
+  /** The record of copies set aside on their way to the Trash, for the next launch to finish (`finder-placing/leftovers.ts`). */
+  leftovers?: {
+    add: (leftover: {
+      identity: Identity;
+      kind: "undone";
+      path: string;
+    }) => void;
+    remove: (at: string) => void;
+  };
+  /** Renames to a path nothing is at, failing rather than replace what is there. */
+  rename: (from: string, to: string) => Promise<void>;
+  trash: (at: string) => Promise<unknown>;
+};
 
 /**
  * Takes back a drop or paste into a folder: what was moved goes back where it
- * came from, what was copied goes to the Trash, and what was replaced
- * comes back out of the Trash. Every piece is checked before any is
- * touched, so it all comes back or none of it does.
+ * came from, and what was copied goes to the Trash. A drop or paste that
+ * replaced anything has no journal entry, so never comes here.
+ *
+ * All of it or none of it. Every piece is checked before any is touched;
+ * then every step is a rename, each copy first set aside beside itself under
+ * a hidden name and each moved item put back, and a step that fails puts
+ * back the ones before it in reverse. Only once all of them are done do the
+ * set-aside copies go to the Trash, the one step that cannot be taken back;
+ * one that will not go is left set aside, recorded for the next launch.
  */
 async function undoPlacing(
   {
     made,
     moved = [],
-    replaced,
   }: {
     made: readonly { identity: Identity; path: string }[];
     moved?: readonly { from: string; identity: Identity; to: string }[];
-    replaced: readonly Trashed[];
   },
-  {
-    platform,
-    trash,
-  }: { platform: NodeJS.Platform; trash: (at: string) => Promise<void> },
+  { leftovers, rename, trash }: UndoOps,
 ): Promise<Undone> {
   for (const item of moved) {
     if (!sameIdentity(await identityOf(item.to), item.identity)) {
@@ -575,34 +572,58 @@ async function undoPlacing(
       );
     }
   }
-  // What was replaced goes back to its own name, which only what replaced
-  // it may hold now: that is taken back first.
-  const placed = [...moved, ...made].map((item) => item.identity);
-  for (const item of replaced) {
-    await refuseTrashedBack(item, platform);
-    const there = await identityOf(item.from);
-    if (there && !placed.some((each) => sameIdentity(each, there))) {
-      throw new UndoRefusedError(
-        `Something named ${nameOf(item.from)} is already there.`,
-        { permanent: false },
-      );
+
+  const done: { from: string; to: string }[] = [];
+  const asides = made.map((item) => ({
+    ...item,
+    aside: path.join(
+      path.dirname(item.path),
+      `${UNDONE_PREFIX}${crypto.randomUUID().slice(0, 8)}-${path.basename(item.path)}`,
+    ),
+  }));
+  try {
+    for (const item of asides) {
+      leftovers?.add({
+        identity: item.identity,
+        kind: "undone",
+        path: item.aside,
+      });
+      await rename(item.path, item.aside);
+      done.push({ from: item.path, to: item.aside });
     }
-  }
-  for (const item of moved) {
-    await fs.rename(item.to, item.from);
-  }
-  for (const item of made) {
-    await trash(item.path);
-  }
-  for (const item of replaced) {
-    if (item.trashed !== null) {
-      await putTrashedBack({ ...item, trashed: item.trashed }, platform);
+    for (const item of moved) {
+      await rename(item.to, item.from);
+      done.push({ from: item.to, to: item.from });
     }
+  } catch (error) {
+    const stuck: string[] = [];
+    for (const step of done.toReversed()) {
+      await rename(step.to, step.from).catch(() => {
+        stuck.push(step.to);
+      });
+    }
+    for (const item of asides) {
+      if (!stuck.includes(item.aside)) {
+        leftovers?.remove(item.aside);
+      }
+    }
+    const why = error instanceof Error ? error.message : String(error);
+    throw new UndoRefusedError(
+      stuck.length === 0
+        ? `Undo stopped partway, so everything was put back as it was: ${why}`
+        : `Undo stopped partway, and ${stuck.map(nameOf).join(", ")} couldn’t be put back: ${why}`,
+      { permanent: false },
+    );
   }
-  return {
-    already: false,
-    path: moved[0]?.from ?? null,
-  };
+  for (const item of asides) {
+    await trash(item.aside).then(
+      () => {
+        leftovers?.remove(item.aside);
+      },
+      () => undefined,
+    );
+  }
+  return { already: false, path: moved[0]?.from ?? null };
 }
 
 /**
@@ -613,9 +634,14 @@ async function undoPlacing(
 export async function undoEntry(
   entry: JournalEntry,
   {
+    leftovers,
     platform = process.platform,
+    rename = renameExclusive,
     trash,
-  }: { platform?: NodeJS.Platform; trash: (at: string) => Promise<void> },
+  }: Partial<UndoOps> & {
+    platform?: NodeJS.Platform;
+    trash: (at: string) => Promise<void>;
+  },
 ): Promise<Undone> {
   switch (entry.kind) {
     case "rename": {
@@ -645,7 +671,11 @@ export async function undoEntry(
       return { already: false, path: null };
     case "copy":
     case "move":
-      return undoPlacing(entry, { platform, trash });
+      return undoPlacing(entry, {
+        ...(leftovers ? { leftovers } : {}),
+        rename,
+        trash,
+      });
     case "new-folder": {
       if (!sameIdentity(await identityOf(entry.made), entry.identity)) {
         throw new UndoRefusedError(

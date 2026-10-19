@@ -41,6 +41,16 @@ vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
 vi.mock("@/electron-main/browser-view/history-store", () => ({
   getHistoryStore: () => ({ moveFiles: () => undefined }),
 }));
+// The record of what placing leaves under its own names, kept in memory.
+vi.mock("@/electron-main/stores/machine/state", () => {
+  const kept = new Map<string, unknown>();
+  return {
+    getMachineState: () => ({
+      get: (key: string) => kept.get(key),
+      set: (key: string, value: unknown) => kept.set(key, value),
+    }),
+  };
+});
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
   getMachinePreferences: () => ({
     get: () => ({ pinned: [], unpinned: [] }),
@@ -445,7 +455,13 @@ it("leaves a row dropped on its own folder where it is, and refuses a folder int
 
   expect(
     await call(files.moveInto, { folder: from, paths: sources }, options),
-  ).toEqual({ failure: null, journalId: null, placed: [], skipped: [] });
+  ).toEqual({
+    failure: null,
+    journalId: null,
+    placed: [],
+    skipped: [],
+    trashed: [],
+  });
   await expect(
     call(
       files.moveInto,

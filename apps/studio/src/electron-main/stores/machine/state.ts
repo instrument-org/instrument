@@ -34,6 +34,21 @@ const MachineStateSchema = z.object({
     .record(z.string(), z.array(KeyFolderNameSchema))
     .optional()
     .catch(undefined),
+  /**
+   * What the Finder's placing left on disk under names of its own, for the
+   * next launch to finish should a quit or crash come first; see
+   * `lib/finder-placing/leftovers.ts`.
+   */
+  placingLeftovers: z
+    .array(
+      z.object({
+        identity: z.object({ dev: z.number(), ino: z.string() }).nullable(),
+        kind: z.enum(["staging", "undone"]),
+        path: z.string(),
+      }),
+    )
+    .optional()
+    .catch(undefined),
 });
 
 type MachineState = z.output<typeof MachineStateSchema>;

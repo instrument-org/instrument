@@ -5,7 +5,6 @@ import {
   type Identity,
   identityOf,
   type NewJournalEntry,
-  type Trashed,
   undoEntry,
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
@@ -13,21 +12,32 @@ import { captureServerException } from "@/electron-main/lib/capture-server-excep
 import {
   executePlacing,
   fileSystemOps,
+  type InTrash,
 } from "@/electron-main/lib/finder-placing/execute";
 import { gatherPlaceRequest } from "@/electron-main/lib/finder-placing/gather";
 import {
   clashesOf,
   planPlacing,
 } from "@/electron-main/lib/finder-placing/plan";
-import { pasteboardFiles, resolveAlias } from "@/electron-main/lib/mac-native";
+import {
+  createLeftovers,
+  finishLeftovers,
+} from "@/electron-main/lib/finder-placing/leftovers";
+import {
+  trashItem as nativeTrashItem,
+  pasteboardFiles,
+  resolveAlias,
+} from "@/electron-main/lib/mac-native";
 import {
   isRefusedByName,
   isRefusedFile,
 } from "@/electron-main/lib/refused-files";
+import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { getMachineState } from "@/electron-main/stores/machine/state";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
@@ -35,6 +45,7 @@ import { eventIterator, ORPCError } from "@orpc/server";
 import { clipboard, ClipboardItem, shell, webContents } from "electron";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -186,17 +197,34 @@ const duplicate = base
     }
   });
 
-/** Something in the way moved to the Trash, and where it landed there. */
-async function trashFound(at: string): Promise<Trashed | null> {
-  const identity = await identityOf(at);
+/**
+ * What a Replace displaces, moved to the Trash, and where it landed when the
+ * system says: the Mac's own call answers that, which reading the Trash could
+ * not without Full Disk Access.
+ */
+async function trashReplaced(at: string): Promise<InTrash> {
+  const landed = await nativeTrashItem(at);
+  if (landed !== undefined) {
+    return { inTrash: landed };
+  }
   await shell.trashItem(at);
-  return identity
-    ? {
-        from: at,
-        identity,
-        trashed: await findInTrash(identity, { from: at }),
-      }
-    : null;
+  return { inTrash: null };
+}
+
+/** What placing and its undo leave under names of their own until each is done with, kept in the machine's state. */
+const placingLeftovers = createLeftovers({
+  read: () => getMachineState().get("placingLeftovers") ?? [],
+  write: (leftovers) => {
+    getMachineState().set("placingLeftovers", [...leftovers]);
+  },
+});
+
+/** Finishes what a quit or crash left mid-placing: once, at launch. */
+export function finishPlacingLeftovers() {
+  return finishLeftovers(placingLeftovers, {
+    identity: identityOf,
+    trash: (at) => shell.trashItem(at),
+  });
 }
 
 const ClashSchema = z.object({
@@ -251,6 +279,10 @@ function placeRoute(op: "copy" | "move") {
             why: z.enum(["answered", "changed"]),
           }),
         ),
+        /** What a Replace moved to the Trash, and where it landed when the system said. */
+        trashed: z.array(
+          z.object({ from: z.string(), inTrash: z.string().nullable() }),
+        ),
       }),
     )
     .handler(async ({ errors, input }) => {
@@ -268,7 +300,7 @@ function placeRoute(op: "copy" | "move") {
       const outcome = await executePlacing(
         op,
         plan.steps,
-        fileSystemOps({ trash: trashFound }),
+        fileSystemOps({ leftovers: placingLeftovers, trash: trashReplaced }),
       );
       for (const each of outcome.placed) {
         if (each.how === "moved") {
@@ -282,6 +314,7 @@ function placeRoute(op: "copy" | "move") {
           : null,
         placed: outcome.placed,
         skipped: outcome.skipped,
+        trashed: outcome.trashed,
       };
     });
 }
@@ -291,6 +324,23 @@ const copyInto = placeRoute("copy");
 
 /** Moves the Finder's own rows into a folder they were dropped on. */
 const moveInto = placeRoute("move");
+
+/**
+ * Shows something a Replace moved to the Trash: the item itself when the
+ * system said where it landed, else the Trash, which the Finder opens without
+ * the app reading it. The Mac only; elsewhere the toast offers nothing.
+ */
+const showInTrash = base
+  .input(z.object({ inTrash: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    if (input.inTrash !== null) {
+      shell.showItemInFolder(input.inTrash);
+      return;
+    }
+    if (process.platform === "darwin") {
+      await openPathOnComputer(path.join(os.homedir(), ".Trash"));
+    }
+  });
 
 /** What a drop or paste into a folder would land on, to ask about before anything is touched. */
 const clashes = base
@@ -580,6 +630,7 @@ const undo = base
       }
       try {
         const undone = await undoEntry(entry, {
+          leftovers: placingLeftovers,
           trash: (at) => shell.trashItem(at),
         });
         fileJournal.remove(entry.id);
@@ -828,6 +879,7 @@ export const files = {
   paste,
   read,
   rename,
+  showInTrash,
   trash,
   undo,
   write,

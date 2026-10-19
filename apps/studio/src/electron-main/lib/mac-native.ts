@@ -74,6 +74,7 @@ interface MacModule {
   pasteboardFiles: () => Promise<string>;
   renameExclusive: (from: string, to: string) => Promise<string>;
   caseSensitivity: (path: string) => Promise<string>;
+  trashItem: (path: string) => Promise<string>;
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
@@ -143,6 +144,30 @@ export async function caseSensitivity(
     ])
     .parse(JSON.parse(await native.caseSensitivity(folder)));
   return "error" in answer ? undefined : answer.caseSensitive;
+}
+
+/**
+ * Moves a thing to the Trash and answers where it landed, or null when the
+ * system does not say. Undefined off macOS and in a build without the
+ * module, where the caller trashes another way.
+ */
+export async function trashItem(
+  at: string,
+): Promise<null | string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  const answer = z
+    .union([
+      z.object({ trashed: z.string().nullable() }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.trashItem(at)));
+  if ("error" in answer) {
+    throw new Error(answer.error);
+  }
+  return answer.trashed;
 }
 
 function loadModule(): MacModule | null {

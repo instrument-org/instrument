@@ -1469,6 +1469,46 @@ textarea.md-input {
 .md-editor .ProseMirror > .md-html-inner:has(+ .md-html-inner) {
   padding-bottom: 0.55em;
 }
+/* A code block in a body: the body's background, which draws its rule,
+   would take the block's own, and its label sits at the block's top edge,
+   where the body's spacing is padding. The block is set in by margin
+   instead, keeping its own background and corners, and the rule is drawn
+   beside it, across the spacing above and below. */
+.md-editor .milkdown .ProseMirror > .milkdown-code-block.md-html-inner {
+  --block-top: 0.55em;
+  --block-bottom: 0px;
+  margin: var(--block-top) 0 var(--block-bottom) var(--html-indent) !important;
+  padding: 0;
+  background: var(--muted);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > .milkdown-code-block.md-html-inner:has(+ .md-html-inner) {
+  --block-bottom: 0.55em;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > .md-html-open:has(.md-html-details)
+  + .milkdown-code-block.md-html-inner {
+  --block-top: 0.35em;
+}
+.md-editor .milkdown .ProseMirror > .milkdown-code-block.md-html-inner::after {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--block-top));
+  bottom: calc(-1 * var(--block-bottom));
+  left: calc(-1 * var(--html-indent));
+  width: var(--html-indent);
+  pointer-events: none;
+  background: repeating-linear-gradient(
+      to right,
+      var(--html-line) 0 1px,
+      transparent 1px 16px
+    )
+    5px 0 / var(--html-indent) 100% no-repeat;
+}
 /* A quote in a body: the quote's own rules would take the indent and the
    spacing above, which are padding here, and draw its bar at the left edge,
    ahead of the body's rule. Its bar is drawn as a background instead, after

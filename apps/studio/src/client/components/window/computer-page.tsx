@@ -1071,17 +1071,24 @@ export function ComputerPage({
   // Only the Finder in the window's tab that is up: every tab stays mounted,
   // and one behind another is not where the keyboard is.
   const isActiveTab = useIsActiveTab();
+  // Beside a file, the file has the keyboard: the folder takes it only for an
+  // address opened in it, never as the tab comes up or the file opens.
+  const focusedOpening = useRef(isBesideOpen ? openings : null);
   useEffect(() => {
     if (!hasRows || !isActiveTab || isTypingTarget(document.activeElement)) {
       return;
     }
+    if (isBesideOpen && focusedOpening.current === openings) {
+      return;
+    }
+    focusedOpening.current = openings;
     const row = browserRef.current?.querySelector<HTMLElement>(
       '[role="option"][tabindex="0"]',
     );
     row?.focus({ preventScroll: true });
     // Once per opening, when its rows are first there, or when its tab comes
     // up.
-  }, [openings, hasRows, isActiveTab]);
+  }, [openings, hasRows, isActiveTab, isBesideOpen]);
 
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
@@ -1265,18 +1272,26 @@ export function ComputerPage({
   // ⌘Z takes back the newest thing the Finder did to the computer's files (a
   // rename, a duplicate, a new folder, a move to the Trash), the way the
   // Finder's own Edit > Undo does. What was put back is selected; what cannot
-  // be taken back safely says why.
+  // be taken back safely says why. Only while the keyboard is in the folder,
+  // or nowhere with no file open beside it: a ⌘Z over a file is the file's.
+  const frameRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!isActiveTab || isRecents) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
+      const inFolder =
+        event.target instanceof Node &&
+        frameRef.current?.contains(event.target) === true;
+      const nowhere = event.target === document.body && !isBesideOpen;
       if (
         event.key.toLowerCase() !== "z" ||
         event.shiftKey ||
         event.altKey ||
         !commandKeyHeld(event) ||
-        isTypingTarget(event.target)
+        event.defaultPrevented ||
+        isTypingTarget(event.target) ||
+        !(inFolder || nowhere)
       ) {
         return;
       }
@@ -1299,7 +1314,7 @@ export function ComputerPage({
     // `reread` and `selectUndone` are rebuilt each render and read nothing
     // that changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActiveTab, isRecents]);
+  }, [isActiveTab, isRecents, isBesideOpen]);
 
   // Quick Look stays up while the arrows walk the folder, and shows whatever
   // the selection lands on. The panel holds the keyboard, so the keys are
@@ -1770,7 +1785,10 @@ export function ComputerPage({
     // head of the tab's row.
     <div
       className="@container/finder relative flex h-full min-h-0"
-      ref={setFrame}
+      ref={(element) => {
+        frameRef.current = element;
+        setFrame(element);
+      }}
     >
       {/* At the row's far left where the tab has one, the way a file's tree
           toggle is, and as wide as the places beside the folder so the

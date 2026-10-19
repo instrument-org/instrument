@@ -1,14 +1,7 @@
-import type { ForkOptions } from "node:child_process";
-
 import { fork } from "node:child_process";
 
 // Consider replacing with execa if it works the same
-export async function forkExecCommand(
-  modulePath: string,
-  args?: string[],
-  options?: ForkOptions,
-  signal?: AbortSignal,
-) {
+export async function forkExecCommand(modulePath: string, args: string[]) {
   return new Promise<{
     exitCode: number;
     stderr: string;
@@ -16,14 +9,7 @@ export async function forkExecCommand(
   }>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
-    // `fork`'s own signal handling covers an already-aborted signal (the child
-    // is never spawned) and tears the listener down with the child. Hooking
-    // `abort` by hand did neither.
-    const child = fork(modulePath, args, {
-      signal,
-      stdio: "pipe",
-      ...options,
-    });
+    const child = fork(modulePath, args, { stdio: "pipe" });
 
     child.stdout?.on("data", (data: Buffer) => {
       stdout += data.toString();

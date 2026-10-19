@@ -68,7 +68,7 @@ export function environmentChangeModelNote(
     change.homeFolder && `- The user's home folder: ${change.homeFolder}`,
     ...VARIABLE_FOLDERS.map(
       ([fact, name, variable]) =>
-        change[fact] && `- ${name} (\`$${variable}\`): ${change[fact]}`,
+        change[fact] && `- ${name} (\`$${variable}\`): \`${change[fact]}\``,
     ),
   ].filter((fact) => typeof fact === "string");
   if (facts.length === 0) {

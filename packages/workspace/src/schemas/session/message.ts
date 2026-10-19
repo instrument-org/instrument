@@ -579,7 +579,7 @@ const USER_TURN_NOTES = [
     const attachmentDescriptions = data.files
       .map(
         (file) =>
-          `- ${attachmentPathForModel(file.filePath, options)} (${formatBytes(file.size)})`,
+          `- \`${attachmentPathForModel(file.filePath, options)}\` (${formatBytes(file.size)})`,
       )
       .join("\n");
     return dedent`

@@ -17,8 +17,8 @@ describe("folderChangesModelNote", () => {
       "
       <instrument-system-note>
       You have been given these folders since your last activity. They are ready to read now, alongside the ones your folders context lists:
-      - "Downloads" at /base/Downloads
-      - "Photos" at /base/Photos
+      - "Downloads" at \`/base/Downloads\`
+      - "Photos" at \`/base/Photos\`
       </instrument-system-note>"
     `);
   });
@@ -33,7 +33,7 @@ describe("folderChangesModelNote", () => {
       "
       <instrument-system-note>
       These folders were taken back from this chat since your last activity, so do not attempt to read or search them:
-      - "Downloads" at /base/Downloads
+      - "Downloads" at \`/base/Downloads\`
       </instrument-system-note>"
     `);
   });
@@ -48,10 +48,10 @@ describe("folderChangesModelNote", () => {
       "
       <instrument-system-note>
       You have been given these folders since your last activity. They are ready to read now, alongside the ones your folders context lists:
-      - "Photos" at /base/Photos
+      - "Photos" at \`/base/Photos\`
 
       These folders were taken back from this chat since your last activity, so do not attempt to read or search them:
-      - "Old" at /base/Old
+      - "Old" at \`/base/Old\`
       </instrument-system-note>"
     `);
   });

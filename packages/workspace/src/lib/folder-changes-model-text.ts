@@ -18,7 +18,7 @@ export function folderChangesModelNote(
     const added = data.added
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at ${shellPath(folder.path)}`,
+          `- "${folderLabel(folder.path)}" at \`${shellPath(folder.path)}\``,
       )
       .join("\n");
     lines.push(
@@ -30,7 +30,7 @@ export function folderChangesModelNote(
     const removed = data.removed
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at ${shellPath(folder.path)}`,
+          `- "${folderLabel(folder.path)}" at \`${shellPath(folder.path)}\``,
       )
       .join("\n");
     lines.push(

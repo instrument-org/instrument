@@ -877,8 +877,8 @@ describe("SessionMessage.toModelMessages", () => {
       [
         "<uploaded_files>
       The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
-      - /workspace/chats/c/attachments/screen.png (18KB)
-      - work/report.md (120B)
+      - \`/workspace/chats/c/attachments/screen.png\` (18KB)
+      - \`work/report.md\` (120B)
       </uploaded_files>",
       ]
     `);
@@ -886,8 +886,8 @@ describe("SessionMessage.toModelMessages", () => {
       [
         "<uploaded_files>
       The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
-      - attachments/screen.png (18KB)
-      - work/report.md (120B)
+      - \`attachments/screen.png\` (18KB)
+      - \`work/report.md\` (120B)
       </uploaded_files>",
       ]
     `);
@@ -944,11 +944,11 @@ describe("SessionMessage.toModelMessages", () => {
 
     expect(await listed({ workspaceRoot: "/home/alex/Instrument" }))
       .toMatchInlineSnapshot(`
-      [
-        "- /home/alex/Instrument/Notes/plan.md (120B)",
-        "- /Users/jeremy/Instrument/Notes/old.md (120B)",
-      ]
-    `);
+        [
+          "- \`/home/alex/Instrument/Notes/plan.md\` (120B)",
+          "- \`/Users/jeremy/Instrument/Notes/old.md\` (120B)",
+        ]
+      `);
     expect(
       await listed({
         shellPath: (hostPath) =>
@@ -957,8 +957,8 @@ describe("SessionMessage.toModelMessages", () => {
       }),
     ).toMatchInlineSnapshot(`
       [
-        "- /c/Users/alex/Instrument/Notes/plan.md (120B)",
-        "- /Users/jeremy/Instrument/Notes/old.md (120B)",
+        "- \`/c/Users/alex/Instrument/Notes/plan.md\` (120B)",
+        "- \`/Users/jeremy/Instrument/Notes/old.md\` (120B)",
       ]
     `);
   });

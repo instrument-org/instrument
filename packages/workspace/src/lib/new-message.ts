@@ -36,7 +36,6 @@ export async function newMessage({
   folders,
   fromChat,
   fromDraft,
-  intent,
   modelURI,
   prompt,
   replyTo,
@@ -57,7 +56,6 @@ export async function newMessage({
   fromChat?: SessionMessageDataPart.FromChatDataPart;
   /** The draft this was sent from, by its id; see the message's metadata. */
   fromDraft?: string;
-  intent?: string;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
@@ -120,19 +118,6 @@ export async function newMessage({
         sessionId,
       },
       type: "data-skillMentions",
-    });
-  }
-
-  if (intent?.trim()) {
-    parts.push({
-      data: { text: intent.trim() },
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-intent",
     });
   }
 

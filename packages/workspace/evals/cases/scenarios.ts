@@ -849,10 +849,7 @@ const exportedAndToldWithoutPolling: Assertion = {
       .flatMap((message) =>
         message.parts.flatMap((part) =>
           part.type === "data-taskEvent"
-            ? part.data.events.map(
-                (event) =>
-                  `${event.status}${event.askedAfterMs ? ` (asked ${Math.round(event.askedAfterMs / 1000)}s)` : ""}`,
-              )
+            ? part.data.events.map((event) => event.status)
             : [],
         ),
       );

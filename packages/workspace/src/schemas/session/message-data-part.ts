@@ -264,9 +264,9 @@ export namespace SessionMessageDataPart {
   // as a system note on the next user turn so it knows the prior run was cut
   // off at the cap rather than finished.
   /**
-   * Why the task was started, phrased for the agent by the surface that opened
-   * it. Carried beside the user's own text so a launcher can brief the agent
-   * without putting words in the user's mouth or cluttering the composer.
+   * A note for the agent beside the user's own words, which the transcript
+   * shows only to developers: what the session machine adds to a message sent
+   * while a turn was running (`withNote`).
    */
   export const IntentDataPartSchema = z.object({
     text: z.string().trim().min(1).max(2000),
@@ -387,12 +387,6 @@ export namespace SessionMessageDataPart {
         z.object({
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
-          /**
-           * Set when the chat asked to be woken about this task after
-           * a delay of its own, rather than the clock deciding. The delay it
-           * asked for, so the note can say so.
-           */
-          askedAfterMs: z.number().nonnegative().optional(),
           /**
            * How many of the input tokens were cache reads, which cost a
            * fraction of the rest. Without it a long task's total reads as

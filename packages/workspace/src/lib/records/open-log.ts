@@ -18,6 +18,7 @@ import {
 import {
   type LogCursor,
   type OnWrite,
+  chatRecordFormat,
   RecordWriter,
   tailHash,
   type Unsequenced,
@@ -115,7 +116,8 @@ export async function openLog({
       [newest.stem]: current.lastSeq,
     });
   }
-  return new RecordWriter(path.join(dir, newest.name), "log", current, {
+  const file = path.join(dir, newest.name);
+  return new RecordWriter(file, chatRecordFormat("log", file), current, {
     onWrite,
   });
 }
@@ -137,7 +139,7 @@ export async function openSettingsFile(
   const bytes = await readIfThere(file);
   return new RecordWriter(
     file,
-    "settings",
+    chatRecordFormat("settings", file),
     { bytes, lastSeq: readSettings(bytes).cursor.lastSeq },
     { onWrite },
   );
@@ -259,7 +261,7 @@ async function startLog(
   await syncDirectory(dir);
   const writer = new RecordWriter(
     file,
-    "log",
+    chatRecordFormat("log", file),
     { bytes: new Uint8Array(), lastSeq: -1 },
     { onWrite },
   );

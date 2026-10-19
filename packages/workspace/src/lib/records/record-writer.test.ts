@@ -11,7 +11,7 @@ import {
 } from "./file-names";
 import { openLog, openSettingsFile } from "./open-log";
 import { readLog, readSettings } from "./read-records";
-import { RecordWriter, tailHash } from "./record-writer";
+import { chatRecordFormat, RecordWriter, tailHash } from "./record-writer";
 import {
   at,
   CHAT,
@@ -245,7 +245,7 @@ describe("RecordWriter", () => {
 
   it("keeps a header first and marks out of logs", async () => {
     const file = path.join(dir.path, "raw.jsonl");
-    const writer = new RecordWriter(file, "log", {
+    const writer = new RecordWriter(file, chatRecordFormat("log", file), {
       bytes: new Uint8Array(),
       lastSeq: -1,
     });

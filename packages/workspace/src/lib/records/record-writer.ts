@@ -42,7 +42,58 @@ export function tailHash(bytes: Uint8Array): string {
  */
 export type OnWrite = (bytes: Uint8Array, offset: number) => void;
 
-type Op =
+/**
+ * What a writer's file holds: how a record becomes its line, and which
+ * records the file refuses.
+ */
+export interface RecordFormat<R> {
+  /** The record as its line, newline included, once it has its `seq`. */
+  line(record: Unsequenced<R>, seq: number): string;
+  /**
+   * Why a record cannot follow a file whose last `seq` is `lastSeq`, checked
+   * as its line is about to be written, or nothing when it can.
+   */
+  misplaced?(record: Unsequenced<R>, lastSeq: number): string | undefined;
+  /** Why a record would not read back from the file, or nothing when it would. */
+  refusal(record: Unsequenced<R>): string | undefined;
+}
+
+/** A chat's log (`<session>.<device>.jsonl`) or settings file (`settings.<device>.jsonl`). */
+export function chatRecordFormat(
+  kind: "log" | "settings",
+  path: string,
+): RecordFormat<LogRecord | SettingRecord> {
+  return {
+    line: (record, seq) => recordLine({ ...record, seq }),
+    // A log's header is its first line, and only that.
+    misplaced: (record, lastSeq) => {
+      if (
+        kind === "settings" ||
+        (record.t === "session") === (lastSeq === -1)
+      ) {
+        return undefined;
+      }
+      return record.t === "session"
+        ? `${path} already has its header`
+        : `${path} has no header to come after`;
+    },
+    refusal: (record) => {
+      if ((record.t === "set") !== (kind === "settings")) {
+        return `A ${record.t} record does not belong in a ${kind} file`;
+      }
+      // The seq is a placeholder: any count reads, and the real one is given
+      // when the line is written.
+      const line = recordLine({ ...record, seq: 0 });
+      const parsed =
+        kind === "log" ? parseLogLine(line) : parseSettingLine(line);
+      return parsed === undefined
+        ? `This ${record.t} record would not read back from ${path}`
+        : undefined;
+    },
+  };
+}
+
+type Op<R> =
   | {
       kind: "commit";
       reject: (error: unknown) => void;
@@ -50,14 +101,15 @@ type Op =
     }
   | {
       kind: "line";
-      record: Unsequenced<LogRecord | SettingRecord>;
+      record: Unsequenced<R>;
       reject: (error: unknown) => void;
       resolve: (seq: number) => void;
     };
 
 /**
- * Appends records to one log or settings file. One writer per file in the
- * process, which is the file's only writer anywhere:
+ * Appends records to one file of them: a chat's log or settings file, or a
+ * device's log of a synced store. One writer per file in the process, which
+ * is the file's only writer anywhere:
  *
  * - Each record is one `write()` of its whole line, newline included, to a
  *   handle opened `O_APPEND`, and appends queue behind each other, so lines
@@ -70,15 +122,15 @@ type Op =
  * - `commit()` syncs the file to disk once the lines queued before it are
  *   written. Commits that queue together share one sync.
  */
-export class RecordWriter {
-  readonly kind: "log" | "settings";
+export class RecordWriter<R = LogRecord | SettingRecord> {
   readonly path: string;
   /** Lines written since the file was last synced. */
   #dirty = false;
   #draining = false;
+  readonly #format: RecordFormat<R>;
   #lastSeq: number;
   readonly #onWrite: OnWrite | undefined;
-  #pending: Op[] = [];
+  #pending: Op<R>[] = [];
   #size: number;
   /** The file's last bytes, to hash for its cursor without reading it back. */
   #tail: Uint8Array;
@@ -89,12 +141,12 @@ export class RecordWriter {
    */
   constructor(
     path: string,
-    kind: "log" | "settings",
+    format: RecordFormat<R>,
     file: { bytes: Uint8Array; lastSeq: number },
     { onWrite }: { onWrite?: OnWrite } = {},
   ) {
     this.path = path;
-    this.kind = kind;
+    this.#format = format;
     this.#lastSeq = file.lastSeq;
     this.#onWrite = onWrite;
     this.#size = file.bytes.length;
@@ -106,8 +158,8 @@ export class RecordWriter {
    * which is not yet on disk: `commit()` is. A record that would not read
    * back is refused without writing anything.
    */
-  append(record: Unsequenced<LogRecord | SettingRecord>): Promise<number> {
-    const refusal = this.#refusal(record);
+  append(record: Unsequenced<R>): Promise<number> {
+    const refusal = this.#format.refusal(record);
     if (refusal) {
       return Promise.reject(new Error(refusal));
     }
@@ -137,20 +189,6 @@ export class RecordWriter {
     };
   }
 
-  #refusal(record: Unsequenced<LogRecord | SettingRecord>): string | undefined {
-    if ((record.t === "set") !== (this.kind === "settings")) {
-      return `A ${record.t} record does not belong in a ${this.kind} file`;
-    }
-    // The seq is a placeholder: any count reads, and the real one is given
-    // when the line is written.
-    const line = recordLine({ ...record, seq: 0 });
-    const parsed =
-      this.kind === "log" ? parseLogLine(line) : parseSettingLine(line);
-    return parsed === undefined
-      ? `This ${record.t} record would not read back from ${this.path}`
-      : undefined;
-  }
-
   #drain(): void {
     if (this.#draining) {
       return;
@@ -171,7 +209,7 @@ export class RecordWriter {
    */
   async #burst(): Promise<void> {
     let handle: FileHandle | undefined;
-    let batch: Op[] = [];
+    let batch: Op<R>[] = [];
     try {
       handle = await fs.open(this.path, "a+");
       await this.#checkEnd(handle);
@@ -190,14 +228,14 @@ export class RecordWriter {
   }
 
   /** Writes a batch's lines in order, then syncs once for every commit in it. */
-  async #write(handle: FileHandle, batch: Op[]): Promise<void> {
+  async #write(handle: FileHandle, batch: Op<R>[]): Promise<void> {
     let commits = false;
     for (const op of batch) {
       if (op.kind === "commit") {
         commits = true;
         continue;
       }
-      const misplaced = this.#misplaced(op.record);
+      const misplaced = this.#format.misplaced?.(op.record, this.#lastSeq);
       if (misplaced) {
         op.reject(new Error(misplaced));
         continue;
@@ -215,27 +253,12 @@ export class RecordWriter {
     }
   }
 
-  /** A log's header is its first line, and only that. */
-  #misplaced(
-    record: Unsequenced<LogRecord | SettingRecord>,
-  ): string | undefined {
-    if (
-      this.kind === "settings" ||
-      (record.t === "session") === (this.#lastSeq === -1)
-    ) {
-      return undefined;
-    }
-    return record.t === "session"
-      ? `${this.path} already has its header`
-      : `${this.path} has no header to come after`;
-  }
-
   async #writeLine(
     handle: FileHandle,
-    record: Unsequenced<LogRecord | SettingRecord>,
+    record: Unsequenced<R>,
   ): Promise<number> {
     const seq = this.#lastSeq + 1;
-    const line = Buffer.from(recordLine({ ...record, seq }));
+    const line = Buffer.from(this.#format.line(record, seq));
     // Taken before the write: a line cut short still holds this seq, and the
     // next one must not reuse it.
     this.#lastSeq = seq;

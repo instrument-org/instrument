@@ -18,7 +18,11 @@ import {
 import { ChatFold, type FoldedSession } from "../fold";
 import { partFromRecord, partToRecord, type SaveBlob } from "../part-blobs";
 import { type LogRecord, type SettingRecord, RECORD_FORMAT } from "../record";
-import { RecordWriter, type Unsequenced } from "../record-writer";
+import {
+  chatRecordFormat,
+  RecordWriter,
+  type Unsequenced,
+} from "../record-writer";
 import { readLog, readSettings } from "../read-records";
 import { syncDirectory } from "../sync-directory";
 import {
@@ -433,7 +437,7 @@ async function writeFile(
   kind: "log" | "settings",
   records: Unsequenced<LogRecord | SettingRecord>[],
 ): Promise<Difference[]> {
-  const writer = new RecordWriter(file, kind, {
+  const writer = new RecordWriter(file, chatRecordFormat(kind, file), {
     bytes: new Uint8Array(),
     lastSeq: -1,
   });

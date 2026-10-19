@@ -38,7 +38,7 @@ import {
   sentAt,
   toEval,
   treeSessions,
-  WORKSPACE,
+  workspaceFolder,
 } from "./handoff";
 
 // ---------------------------------------------------------------------------
@@ -492,7 +492,7 @@ const listedTheActionItems: Assertion = {
     const text =
       "wrote action-items.md in the workspace folder with at least 90% of the items";
     const since = runStartedAt(ctx.sessions);
-    const file = recentFilesUnder(WORKSPACE, since, 3).find((one) =>
+    const file = recentFilesUnder(workspaceFolder(), since, 3).find((one) =>
       /action/i.test(path.basename(one)),
     );
     if (!file) {
@@ -743,7 +743,11 @@ const summarizedTheArticle: Assertion = {
     const replies = said(ctx.sessions)
       .map((one) => one.text)
       .join("\n");
-    const files = recentFilesUnder(WORKSPACE, runStartedAt(ctx.sessions), 3)
+    const files = recentFilesUnder(
+      workspaceFolder(),
+      runStartedAt(ctx.sessions),
+      3,
+    )
       .map(readText)
       .join("\n");
     const children = await ctx.childSessions();

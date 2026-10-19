@@ -20,7 +20,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import { AGENT_MESSAGE_LANGUAGE } from "../../src/constants";
+import { AGENT_MESSAGE_LANGUAGE, CHATS_FOLDER_NAME } from "../../src/constants";
 import {
   chatOutputFolder,
   outputFolderPath,
@@ -45,8 +45,14 @@ export type Context = Parameters<Assertion["check"]>[0];
 /** The sandbox home: `evals/lib/sandbox-home` has set `$HOME` by now. */
 export const HOME = os.homedir();
 
-/** The folder results go to when nobody said where. */
-export const WORKSPACE = outputFolderPath();
+/**
+ * The run's Instrument folder, where results go when nobody said where. Read
+ * when a check runs: the harness points the config at the run's workspace
+ * after the cases are loaded.
+ */
+export function workspaceFolder(): string {
+  return outputFolderPath();
+}
 
 export function fail(text: string, evidence: string): AssertionResult {
   return { evidence, passed: false, text };
@@ -177,7 +183,28 @@ export function recentFilesUnder(
 async function writtenFiles(ctx: Context): Promise<string[]> {
   const dirs = [HOME, ...treeDirs(ctx)];
   const since = runStartedAt(ctx.sessions);
-  return [...new Set(dirs.flatMap((dir) => recentFilesUnder(dir, since)))];
+  // The top of the Instrument folder too, where "in my workspace folder"
+  // puts a file, leaving out other chats' own folders under Chats/.
+  const otherChats = path.join(workspaceFolder(), CHATS_FOLDER_NAME);
+  const top = recentFilesUnder(workspaceFolder(), since).filter(
+    (file) => !pathIsInside(file, otherChats),
+  );
+  return [
+    ...new Set([
+      ...dirs.flatMap((dir) => recentFilesUnder(dir, since)),
+      ...top,
+    ]),
+  ];
+}
+
+/** Every tool call's input in the run, as text, to tell what it named. */
+function toolInputs(sessions: Session.WithMessagesAndParts[]): string {
+  return sessions
+    .flatMap((session) => session.messages)
+    .flatMap((message) => message.parts)
+    .filter(isToolPart)
+    .map((part) => JSON.stringify(part.input ?? ""))
+    .join("\n");
 }
 
 export function readText(file: string): string {
@@ -474,8 +501,8 @@ export function inWorkspace(
   return {
     check: ({ sessions }) => {
       const since = runStartedAt(sessions);
-      const files = recentFilesUnder(WORKSPACE, since, 2).filter((file) =>
-        name.test(path.basename(file)),
+      const files = recentFilesUnder(workspaceFolder(), since, 2).filter(
+        (file) => name.test(path.basename(file)),
       );
       const evidence = files
         .map((file) => {
@@ -576,7 +603,7 @@ const savedTheDraftShown: Assertion = {
       return fail(text, "no draft was shown before the save was asked for");
     }
     const files = recentFilesUnder(
-      WORKSPACE,
+      workspaceFolder(),
       runStartedAt(ctx.sessions),
       2,
     ).filter((file) => /\.(?:md|markdown)$/i.test(file));
@@ -1770,7 +1797,7 @@ const BIO_SNAPSHOT = () => path.join(HOME, ".eval-snapshots", "bio-v1.json");
 
 /** Keeps the bio as it stood when the user asked for a shorter one. */
 function snapshotBio() {
-  const files = recentFilesUnder(WORKSPACE, 0, 2).filter((file) =>
+  const files = recentFilesUnder(workspaceFolder(), 0, 2).filter((file) =>
     /bio.*\.(?:md|txt)$/i.test(path.basename(file)),
   );
   fs.mkdirSync(path.dirname(BIO_SNAPSHOT()), { recursive: true });
@@ -1802,7 +1829,7 @@ const shortenedTheBio: Assertion = {
       return fail(text, "no bio existed when the follow-up was sent");
     }
     const since = sentAtOr(sessions, "make it shorter");
-    const after = recentFilesUnder(WORKSPACE, since, 2)
+    const after = recentFilesUnder(workspaceFolder(), since, 2)
       .filter((file) => /bio.*\.(?:md|txt)$/i.test(path.basename(file)))
       .toSorted((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
     if (!after) {
@@ -2203,11 +2230,15 @@ const noStrayFiles: Assertion = {
   check: async (ctx) => {
     const text = "wrote nothing outside the workspace folder and its own";
     const own = treeDirs(ctx);
+    // Every case in a trial shares the sandbox home, so a file counts only
+    // when this run's own tool calls named it, not another case's seed.
+    const named = toolInputs(ctx.sessions);
     const stray = recentFilesUnder(HOME, runStartedAt(ctx.sessions))
       .filter(
         (file) =>
-          !pathIsInside(file, WORKSPACE) &&
-          !own.some((dir) => pathIsInside(file, dir)),
+          !pathIsInside(file, workspaceFolder()) &&
+          !own.some((dir) => pathIsInside(file, dir)) &&
+          named.includes(path.basename(file)),
       )
       .map((file) => path.relative(HOME, file));
     return stray.length === 0

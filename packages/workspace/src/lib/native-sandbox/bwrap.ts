@@ -2,6 +2,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   type Stats,
   statSync,
@@ -46,6 +47,11 @@ function closingInheritedFds(): string[] {
 
 let bwrapProbe: ProbeResult | undefined;
 
+/** Whether bubblewrap is installed where the app runs it from. */
+export function bwrapInstalled(): boolean {
+  return existsSync(BWRAP);
+}
+
 /**
  * Whether bubblewrap can make a sandbox from this process: Linux with bwrap
  * installed and user namespaces open to it. Ubuntu closes them to
@@ -60,13 +66,32 @@ export function bwrapState(): ProbeResult {
     bwrapProbe = probeSandbox(
       BWRAP,
       ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "/usr/bin/true"],
-      // User namespaces closed: `No permissions to create new namespace`,
-      // `setting up uid map: Permission denied`, `Creating new namespace
-      // failed: Operation not permitted`.
-      ["No permissions", "Permission denied", "Operation not permitted"],
+      userNamespacesClosed,
     );
   }
   return bwrapProbe;
+}
+
+/**
+ * The kernel settings that close user namespaces to an unprivileged program,
+ * which bubblewrap needs: Debian's switch, a limit of none, and Ubuntu's
+ * AppArmor restriction, which the app's own profile lifts where the `.deb`
+ * installed it. Read only once a probe has failed, so a restriction the
+ * profile lifted is never taken for one in force.
+ */
+export function userNamespacesClosed(): boolean {
+  const reads = (file: string) => {
+    try {
+      return readFileSync(file, "utf8").trim();
+    } catch {
+      return undefined;
+    }
+  };
+  return (
+    reads("/proc/sys/kernel/unprivileged_userns_clone") === "0" ||
+    reads("/proc/sys/user/max_user_namespaces") === "0" ||
+    reads("/proc/sys/kernel/apparmor_restrict_unprivileged_userns") === "1"
+  );
 }
 
 /** Whether bubblewrap holds the native commands this process starts. */

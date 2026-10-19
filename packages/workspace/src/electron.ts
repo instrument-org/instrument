@@ -221,3 +221,8 @@ export {
   type OAuthClientInformationFull,
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
+export {
+  nativeSandboxOff,
+  type SandboxOff,
+  simulateSandboxOff,
+} from "./lib/native-sandbox";

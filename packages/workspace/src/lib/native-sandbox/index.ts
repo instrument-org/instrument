@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { getWorkspaceConfig } from "../workspace-config";
-import { bwrapAvailable, bwrapCommand, bwrapState } from "./bwrap";
+import {
+  bwrapAvailable,
+  bwrapCommand,
+  bwrapInstalled,
+  bwrapState,
+} from "./bwrap";
 import { type MxcCommand, mxcLaunch, mxcPolicyFor, mxcState } from "./mxc";
 import { currentReach, type NativeReach } from "./reach";
 import { seatbeltAvailable, seatbeltCommand, seatbeltState } from "./seatbelt";
@@ -39,6 +44,45 @@ export function nativeSandboxEnforced(): boolean {
     bwrapState() !== "unavailable" ||
     mxcState() !== "unavailable"
   );
+}
+
+/**
+ * Why native commands here run with no system sandbox, by what the system
+ * itself shows: no `sandbox-exec` on a Mac, no bubblewrap or user namespaces
+ * closed on Linux, and Windows until MXC holds them. Undefined where a
+ * sandbox holds them, or will once a probe that gave no answer gets one.
+ */
+export type SandboxOff =
+  | "no-bubblewrap"
+  | "no-seatbelt"
+  | "user-namespaces-closed"
+  | "windows";
+
+let simulatedOff: SandboxOff | undefined;
+
+/**
+ * Reports the sandbox as off for this reason, or as it really is with
+ * undefined, so the app's warnings can be seen on a computer whose sandbox
+ * works. Changes only what is reported, never what holds a command.
+ */
+export function simulateSandboxOff(off: SandboxOff | undefined): void {
+  simulatedOff = off;
+}
+
+export function nativeSandboxOff(): SandboxOff | undefined {
+  if (simulatedOff) {
+    return simulatedOff;
+  }
+  if (nativeSandboxEnforced()) {
+    return undefined;
+  }
+  if (process.platform === "darwin") {
+    return "no-seatbelt";
+  }
+  if (process.platform === "linux") {
+    return bwrapInstalled() ? "user-namespaces-closed" : "no-bubblewrap";
+  }
+  return "windows";
 }
 
 /**

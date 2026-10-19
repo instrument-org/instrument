@@ -27,7 +27,6 @@ describe("PermissionsSection", () => {
           workFolders: home,
         },
         apps: [],
-        enforced: true,
         folders: [{ addedAt: new Date(0), level: "allow", path }],
         home,
         places: [],
@@ -39,6 +38,32 @@ describe("PermissionsSection", () => {
       ).toBeDefined();
       expect(screen.getByText(name)).toBeDefined();
       expect(screen.getByText(where)).toBeDefined();
+    },
+  );
+
+  it.each([
+    ["user-namespaces-closed", /AppImage on Ubuntu/],
+    ["no-bubblewrap", /bubblewrap package/],
+  ] as const)(
+    "warns that the agent's programs reach every file, %s",
+    async (sandboxOff, reason) => {
+      const { queryClient } = renderWithProviders(<PermissionsSection />);
+      queryClient.setQueryData(rpcClient.workspace.permissions.get.queryKey(), {
+        alwaysOpen: { caches: [], chats: "", programs: [], workFolders: "" },
+        apps: [],
+        dangerouslyAllowEveryFolder: false,
+        folders: [],
+        home: "/home/sam",
+        places: [],
+        sandboxOff,
+      });
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(
+        "Programs the agent runs can reach all your files",
+      );
+      expect(alert.textContent).toMatch(reason);
+      expect(screen.getByRole("button", { name: "Learn more" })).toBeDefined();
     },
   );
 
@@ -59,7 +84,6 @@ describe("PermissionsSection", () => {
         },
         apps: [],
         dangerouslyAllowEveryFolder: false,
-        enforced: true,
         folders: [],
         home: "/Users/sam",
         places: [{ id: "appFiles", level, paths: ["/Users/sam/Library"] }],

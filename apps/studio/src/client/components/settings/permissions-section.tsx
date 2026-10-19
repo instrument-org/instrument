@@ -1,4 +1,9 @@
-import { WINDOWS_SANDBOX_URL } from "@instrument-org/shared";
+import { SANDBOX_OFF_URL, WINDOWS_SANDBOX_URL } from "@instrument-org/shared";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/client/components/ui/alert";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -25,9 +30,10 @@ import {
   segmentsOf,
 } from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isLinux, isMacOS, isWindows } from "@/client/lib/utils";
+import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
+import { SANDBOX_OFF_REASONS, SANDBOX_OFF_TITLE } from "@/shared/sandbox-off";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -36,6 +42,7 @@ import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { ImagesIcon } from "@phosphor-icons/react/Images";
 import { InfoIcon } from "@phosphor-icons/react/Info";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { KeyIcon } from "@phosphor-icons/react/Key";
 import { MusicNotesIcon } from "@phosphor-icons/react/MusicNotes";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -47,11 +54,6 @@ type Level = View["folders"][number]["level"];
 type Place = View["places"][number];
 
 const SEPARATOR = " › ";
-
-// oxlint-disable studio/no-os-words -- shown only on macOS, where Seatbelt does not nest inside another sandbox
-const MAC_SANDBOX_OFF =
-  "A program the agent runs, like Python, can reach folders this list closes. Instrument's own tools still follow the list, and what the system usually adds on top of it is unavailable on this Mac.";
-// oxlint-enable studio/no-os-words
 
 const LEVEL_LABELS = {
   allow: "Allowed",
@@ -161,36 +163,52 @@ export function PermissionsSection() {
       <h3 className="text-base font-semibold" {...settingAnchor("permissions")}>
         Permissions
       </h3>
-      {view.enforced ? null : (
+      {view.sandboxOff === "windows" ? (
         <div className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
           <InfoIcon className="mt-0.5 size-4 shrink-0" />
-          {isWindows() ? (
-            <p>
-              On Windows, Instrument's own tools follow this list, but programs
-              the agent runs, including its Python and Node scripts, can reach
-              any file you can. That changes once Instrument can use Windows'
-              own sandbox.{" "}
-              <button
-                className="underline underline-offset-2 hover:text-foreground"
-                onClick={() => {
-                  openLink(WINDOWS_SANDBOX_URL, { addReferral: false });
-                }}
-                type="button"
-              >
-                Learn more
-              </button>
-            </p>
-          ) : isMacOS() ? (
-            <p>{MAC_SANDBOX_OFF}</p>
-          ) : (
-            <p>
-              On Linux, Instrument follows this list as closely as it can. Its
-              own tools stay inside it and the agent is told to, but a program
-              the agent runs, like Python, could still reach other folders.
-            </p>
-          )}
+          <p>
+            On Windows, Instrument's own tools follow this list, but programs
+            the agent runs, including its Python and Node scripts, can reach any
+            file you can. That changes once Instrument can use Windows' own
+            sandbox.{" "}
+            <button
+              className="underline underline-offset-2 hover:text-foreground"
+              onClick={() => {
+                openLink(WINDOWS_SANDBOX_URL, { addReferral: false });
+              }}
+              type="button"
+            >
+              Learn more
+            </button>
+          </p>
         </div>
-      )}
+      ) : view.sandboxOff ? (
+        <Alert variant="warning">
+          <ShieldWarningIcon />
+          <AlertTitle className="line-clamp-none">
+            {SANDBOX_OFF_TITLE}
+          </AlertTitle>
+          <AlertDescription>
+            <p>{SANDBOX_OFF_REASONS[view.sandboxOff]}</p>
+            <p>
+              Instrument's own tools still follow this list, but a program the
+              agent runs, like a Python script, can reach any file you can. Once
+              you've changed something, quit and reopen Instrument so it checks
+              again.
+            </p>
+            <Button
+              className="mt-1"
+              onClick={() => {
+                openLink(SANDBOX_OFF_URL, { addReferral: false });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Learn more
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <Card className="p-0" {...settingAnchor("use-folders-without-asking")}>
         <label className="flex items-center justify-between gap-4 p-4">
           <span className="space-y-1">

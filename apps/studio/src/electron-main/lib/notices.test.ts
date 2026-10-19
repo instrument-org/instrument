@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { env, prefs, userData } = vi.hoisted(() => ({
+const { env, prefs, sandbox, userData } = vi.hoisted(() => ({
   env: { version: "2.0.0-beta.58" },
+  sandbox: { off: undefined as string | undefined },
   prefs: { releaseChannel: undefined as string | undefined },
   userData: { dir: "" },
 }));
@@ -15,6 +16,10 @@ vi.mock("electron", () => ({
     getVersion: () => env.version,
     on: vi.fn(),
   },
+}));
+// The real check probes this computer's sandbox, which differs by machine.
+vi.mock("@instrument-org/workspace/electron", () => ({
+  nativeSandboxOff: () => sandbox.off,
 }));
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
@@ -205,6 +210,27 @@ describe("notices", () => {
     // Running another build, the update no longer describes this one.
     env.version = "2.0.0-beta.60";
     expect(notices.listNotices()).toEqual([]);
+  });
+
+  it("warns loudly while the agent's programs have no sandbox, and comes back with the next build", async () => {
+    const notices = await load();
+    sandbox.off = "user-namespaces-closed";
+    const [warning] = notices.listNotices();
+    expect(warning).toMatchObject({
+      action: { label: "See why", settings: "Permissions" },
+      kind: "security",
+      severity: "critical",
+      title: "Programs the agent runs can reach all your files",
+    });
+    notices.dismissNotice(warning?.id ?? "");
+    expect(notices.listNotices()).toEqual([]);
+
+    env.version = "2.0.0-beta.59";
+    expect(notices.listNotices()).toHaveLength(1);
+    // Windows says so in Settings alone, as it does on every Windows computer.
+    sandbox.off = "windows";
+    expect(notices.listNotices()).toEqual([]);
+    sandbox.off = undefined;
   });
 
   it("keeps an update dismissed, and never toasts it", async () => {

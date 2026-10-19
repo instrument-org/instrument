@@ -2,10 +2,11 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 /**
- * What starting a sandbox from this process came to: it works, or the system
- * said it cannot (no bubblewrap installed, user namespaces closed, Seatbelt
- * already applied to this process, which does not nest), or the probe gave
- * no answer (it timed out under load, or the system was out of processes).
+ * What starting a sandbox from this process came to: it works, or the
+ * system's own settings say it cannot (the sandbox program is not
+ * installed, user namespaces are closed), or the probe gave no answer (it
+ * timed out under load, the system was out of processes, or it failed for a
+ * reason the settings do not show).
  */
 export type ProbeResult = "failed" | "unavailable" | "works";
 
@@ -14,13 +15,15 @@ const PROBE_TIMEOUT_MS = 5000;
 /**
  * Runs a sandbox's probe. Only an answer is kept by the callers: a probe
  * that gave none is run again the next time a command needs it, since
- * keeping it would run every later command with no rules at all.
+ * keeping it would run every later command with no rules at all. A probe
+ * that fails is "unavailable" only when `cannot` says, from the system's
+ * own settings, that no sandbox can be made here; any other failure is no
+ * answer, and the command waiting on it does not run.
  */
 export function probeSandbox(
   file: string,
   args: readonly string[],
-  /** What the system prints when it refuses to make the sandbox here. */
-  refusals: readonly string[],
+  cannot: () => boolean,
 ): ProbeResult {
   try {
     execFileSync(file, args, {
@@ -36,18 +39,16 @@ export function probeSandbox(
       status?: number | null;
       stderr?: Buffer | string;
     };
-    const stderr = String(failure.stderr ?? "");
-    if (
-      failure.code === "ENOENT" ||
-      (typeof failure.status === "number" &&
-        refusals.some((refusal) => stderr.includes(refusal)))
-    ) {
+    if (failure.code === "ENOENT") {
+      return "unavailable";
+    }
+    if (typeof failure.status === "number" && cannot()) {
       return "unavailable";
     }
     console.warn(
       `The native sandbox probe (${path.basename(file)}) gave no answer: ${
         failure.code ?? failure.signal ?? `exit ${String(failure.status)}`
-      } ${stderr.trim()}`.trim(),
+      } ${String(failure.stderr ?? "").trim()}`.trim(),
     );
     return "failed";
   }

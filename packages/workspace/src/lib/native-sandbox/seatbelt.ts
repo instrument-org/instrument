@@ -303,20 +303,22 @@ function regexEscape(value: string): string {
 let seatbeltProbe: ProbeResult | undefined;
 
 /**
- * Whether a Seatbelt profile can be applied from this process: macOS, unless
- * this process is itself sandboxed (Seatbelt does not nest), which is the
- * case under some agent harnesses and in a test runner run inside one.
+ * Whether a Seatbelt profile can be applied from this process: macOS, with
+ * `sandbox-exec` where the system keeps it. A process that is itself
+ * sandboxed in a way that refuses another profile gets no answer, and runs
+ * no native command.
  */
 export function seatbeltState(): ProbeResult {
   if (process.platform !== "darwin") {
     return "unavailable";
   }
   if (seatbeltProbe === undefined || seatbeltProbe === "failed") {
+    // Only a missing sandbox-exec says Seatbelt cannot be had here; a probe
+    // that fails beside it is no answer, and nothing runs unsandboxed on it.
     seatbeltProbe = probeSandbox(
       SANDBOX_EXEC,
       ["-p", "(version 1)(allow default)", "/usr/bin/true"],
-      // `sandbox_apply: Operation not permitted` inside another sandbox.
-      ["sandbox_apply", "Operation not permitted"],
+      () => false,
     );
   }
   return seatbeltProbe;

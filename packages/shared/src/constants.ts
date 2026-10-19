@@ -121,6 +121,9 @@ export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
 // runs are not yet held to the list. Kept to this one constant so the link
 // can move behind a redirect on the website.
 export const WINDOWS_SANDBOX_URL = `${APP_REPO_URL}/blob/main/docs/architecture/windows-sandbox.md`;
+// What the sandbox-off warning on macOS and Linux links to, written for the
+// person who sees it.
+export const SANDBOX_OFF_URL = `${APP_REPO_URL}/blob/main/docs/architecture/native-sandbox-off.md`;
 export const SKILLS_MARKETPLACE_URL = "https://skills.sh";
 export const X_HANDLE = "@tryinstrument";
 export const X_URL = `https://x.com/${X_HANDLE}`;

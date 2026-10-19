@@ -7,6 +7,7 @@ import {
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { noteUpdate } from "@/electron-main/lib/notices";
+import { simulateSandboxOff } from "@instrument-org/workspace/electron";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { openAppWindow } from "@/electron-main/windows/app-window";
@@ -129,6 +130,21 @@ const trigger = {
   testUpdatedNotice: devOnly.handler(() => {
     noteUpdate({ from: "0.0.0-simulated", to: app.getVersion() });
   }),
+  // Reports the sandbox as off for a reason, or as it is with none, so the
+  // bell's notice and Settings' warning show on a computer whose sandbox
+  // works. Nothing about how commands are held changes.
+  simulateSandboxOff: devOnly
+    .input(
+      z.object({
+        off: z
+          .enum(["no-bubblewrap", "no-seatbelt", "user-namespaces-closed"])
+          .optional(),
+      }),
+    )
+    .handler(({ input }) => {
+      simulateSandboxOff(input.off);
+      publisher.publish("notices.updated", null);
+    }),
 };
 
 const openOnboarding = devOnly.input(z.void()).handler(() => {

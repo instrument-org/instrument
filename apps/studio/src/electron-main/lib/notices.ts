@@ -9,7 +9,12 @@ import {
   NoticeSchema,
   NoticesResponseSchema,
 } from "@/shared/notices";
+import { SANDBOX_OFF_NOTICE, SANDBOX_OFF_TITLE } from "@/shared/sandbox-off";
 import { APP_NAME } from "@instrument-org/shared";
+import {
+  nativeSandboxOff,
+  type SandboxOff,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
 
 import { createScopedLogger } from "./electron-logger";
@@ -133,6 +138,10 @@ export function listNotices(now = Date.now()): BellNotice[] {
   if (updated && updated.to === app.getVersion()) {
     all.push(updatedNotice(updated));
   }
+  const off = nativeSandboxOff();
+  if (off && off !== "windows") {
+    all.push(sandboxOffNotice(off));
+  }
   const { chatsLeftBehind, missingFolders } = getNoticesStore().store;
   if (missingFolders) {
     all.push(missingFoldersNotice(missingFolders));
@@ -168,6 +177,30 @@ function updatedNotice({
     publishedAt: new Date(at).toISOString(),
     severity: "info",
     title: `${APP_NAME} updated to ${to}`,
+  };
+}
+
+/** When this process started, which a notice about this launch is dated by. */
+const LAUNCHED_AT = new Date().toISOString();
+
+/**
+ * The notice for programs the agent runs having no sandbox on macOS or Linux,
+ * which the app makes itself whenever the computer's own settings show it
+ * cannot make one. It is critical, so it toasts and stays until closed, and
+ * its id carries the reason and the build, so a dismissed one comes back
+ * with the next update while the cause is still there.
+ */
+function sandboxOffNotice(
+  off: Exclude<SandboxOff, "windows">,
+): Omit<BellNotice, "seen"> {
+  return {
+    action: { label: "See why", settings: "Permissions" },
+    body: SANDBOX_OFF_NOTICE,
+    id: `sandbox-off-${off}-${app.getVersion()}`,
+    kind: "security",
+    publishedAt: LAUNCHED_AT,
+    severity: "critical",
+    title: SANDBOX_OFF_TITLE,
   };
 }
 

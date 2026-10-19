@@ -1,4 +1,5 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
 import {
   Popover,
@@ -19,6 +20,7 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -42,6 +44,11 @@ export function NotificationsBell() {
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
   const appTabs = useAppTabs();
   const openAction = (notice: BellNotice) => {
+    if (notice.action && "settings" in notice.action) {
+      setOpen(false);
+      openSettings({ tab: notice.action.settings });
+      return;
+    }
     if (notice.action && "href" in notice.action) {
       setOpen(false);
       appTabs.open(notice.action.href);
@@ -195,14 +202,21 @@ function NoticeItem({
       toast.error("Couldn't dismiss it", { cause: error });
     },
   });
-  const Icon = NOTICE_ICON[notice.kind];
+  const Icon =
+    notice.severity === "critical"
+      ? ShieldWarningIcon
+      : NOTICE_ICON[notice.kind];
 
   return (
     <div className="flex gap-3 px-4 py-3">
       <span
         className={cn(
           "mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted",
-          notice.kind === "fixed" ? "text-success-700" : "text-brand-600",
+          notice.severity === "critical"
+            ? "text-warning-700 dark:text-warning-300"
+            : notice.kind === "fixed"
+              ? "text-success-700"
+              : "text-brand-600",
         )}
       >
         <Icon className="size-4" />

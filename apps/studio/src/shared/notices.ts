@@ -31,9 +31,13 @@ export const NoticesResponseSchema = z.object({
 
 /**
  * A notice as the bell shows it: whether the person has seen it yet, and, for
- * one the app makes itself, an action that opens a page in the app.
+ * one the app makes itself, an action that opens a page in the app or a page
+ * of Settings.
  */
 export type BellNotice = Omit<Notice, "action"> & {
-  action?: { href: string; label: string } | Notice["action"];
+  action?:
+    | { href: string; label: string }
+    | { label: string; settings: "Permissions" }
+    | Notice["action"];
   seen: boolean;
 };

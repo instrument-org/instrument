@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getCurrentDate } from "../../lib/get-current-date";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { homeDataLayout, workspaceLayout } from "../../lib/workspace-layout";
-import { nativeSandboxEnforced } from "../../lib/native-sandbox";
+import { nativeSandboxOff, type SandboxOff } from "../../lib/native-sandbox";
 import {
   type Level,
   LevelSchema,
@@ -54,10 +54,17 @@ const PermissionsViewSchema = z.object({
     z.object({ addedAt: z.date(), level: LevelSchema, name: z.string() }),
   ),
   /**
-   * Whether the programs the agent runs are held to the list by the system,
-   * which Settings says plainly where they are not.
+   * Why the programs the agent runs are not held to the list by the system,
+   * which Settings says plainly; absent where they are.
    */
-  enforced: z.boolean(),
+  sandboxOff: z
+    .enum([
+      "no-bubblewrap",
+      "no-seatbelt",
+      "user-namespaces-closed",
+      "windows",
+    ] satisfies SandboxOff[])
+    .optional(),
   folders: z.array(
     z.object({ addedAt: z.date(), level: LevelSchema, path: z.string() }),
   ),
@@ -86,7 +93,7 @@ function view(
       workFolders: homeDataLayout(home).workDir,
     },
     apps: settings.apps,
-    enforced: nativeSandboxEnforced(),
+    sandboxOff: nativeSandboxOff(),
     folders: settings.folders,
     home,
     places: places.map((place) => ({

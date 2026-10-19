@@ -3,8 +3,15 @@ import { getAuthServerPort } from "@/electron-main/auth/state";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
+import {
+  platformApiBaseUrl,
+  platformApiOrigin,
+} from "@/electron-main/platform-api/base-url";
 import { getToken } from "@/electron-main/platform-api/utils";
-import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import {
+  forgetSessionToken,
+  setSessionToken,
+} from "@/electron-main/stores/workspace/session";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { createAuthClient } from "better-auth/client";
@@ -13,9 +20,10 @@ import { z } from "zod";
 
 import { captureServerException } from "../lib/capture-server-exception";
 
-const auth = createAuthClient({
-  baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth`,
-});
+/** The auth client of the platform API at `baseUrl`. */
+function authClientFor(baseUrl: string) {
+  return createAuthClient({ baseURL: `${baseUrl}/auth` });
+}
 
 const DesktopSignInSchema = z.object({
   token: z.string().min(1),
@@ -34,7 +42,7 @@ async function exchangeDesktopSignIn({
   token: string;
 }) {
   const response = await fetch(
-    `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/exchange`,
+    `${platformApiBaseUrl()}/auth-desktop/exchange`,
     {
       body: JSON.stringify({ token, verifier: codeVerifier }),
       headers: {
@@ -89,9 +97,7 @@ export async function signInSocial(): Promise<
 
   const codeVerifier = randomBytes(32).toString("base64url");
   const result = await signIns.start(async ({ received, state }) => {
-    const url = new URL(
-      `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/start`,
-    );
+    const url = new URL(`${platformApiBaseUrl()}/auth-desktop/start`);
     url.searchParams.set("callback_version", "2");
     url.searchParams.set("port", String(authServerPort));
     url.searchParams.set("state", state);
@@ -116,7 +122,7 @@ export async function signInSocial(): Promise<
         throw new Error(`Sign-in ended with ${ended ?? "no token"}`);
       }
       const signedIn = await exchangeDesktopSignIn({ codeVerifier, token });
-      getSessionStore().set("apiBearerToken", signedIn.token);
+      setSessionToken(platformApiOrigin(), signedIn.token);
       getWorkspaceState().set("hasCompletedProviderSetup", true);
       email = signedIn.user.email;
     } catch (error) {
@@ -134,12 +140,16 @@ export function cancelSignInSocial() {
 }
 
 /**
- * End the platform session a bearer token belongs to. Reported rather than
- * thrown when the platform refuses, since every caller goes on to drop the
- * token either way.
+ * End the platform session a bearer token belongs to, on the server at
+ * `baseUrl` (the one this process talks to unless named). Reported rather
+ * than thrown when the platform refuses, since every caller goes on to drop
+ * the token either way.
  */
-export async function revokeSession(token: string) {
-  const response = await auth.signOut({
+export async function revokeSession(
+  token: string,
+  baseUrl = platformApiBaseUrl(),
+) {
+  const response = await authClientFor(baseUrl).signOut({
     fetchOptions: {
       headers: {
         authorization: `Bearer ${token}`,
@@ -157,9 +167,9 @@ export async function revokeSession(token: string) {
 
 export async function signOut() {
   const response = await revokeSession(getToken() ?? "");
-  // The whole record, not just the bearer token, so nothing an earlier
-  // sign-in left beside it outlives the sign-out.
-  getSessionStore().clear();
+  // This server's sign-in alone: another server's is kept for when the app
+  // is pointed back at it.
+  forgetSessionToken(platformApiOrigin());
   void setDefaultModel({ replacing: "ours" });
   return response;
 }

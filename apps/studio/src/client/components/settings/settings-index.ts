@@ -76,6 +76,13 @@ export const SETTINGS_INDEX = [
     title: "Open source",
   },
   {
+    detail: "Switch which API server the app uses.",
+    developerOnly: true,
+    id: "api-server",
+    tab: "General",
+    title: "API server",
+  },
+  {
     detail: "Get beta versions before they ship.",
     developerOnly: true,
     id: "release-channel",

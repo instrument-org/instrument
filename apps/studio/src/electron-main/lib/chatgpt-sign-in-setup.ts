@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { z } from "zod";
@@ -81,7 +82,7 @@ export const BUILT_IN_SIGN_IN_SETUP: SignInSetup = {
  * token, so a signed-in person's sign-in stays unlinked to their account.
  */
 export async function fetchSignInSetup(): Promise<SignInSetup | undefined> {
-  const base = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
+  const base = platformApiBaseUrl();
   if (!base) {
     return undefined;
   }

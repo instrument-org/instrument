@@ -82,7 +82,7 @@ export function WindowCorner() {
   const isDeveloperMode = useDeveloperMode();
   return (
     <>
-      {/* Which app and workspace this is, when either is not the usual one. */}
+      {/* Which app, API server and workspace this is, when any is not the usual one. */}
       <AppIdentityChip />
       {/* What the main process threw, beside the panel a developer would
         reach for next; developer mode only, like the panel. */}

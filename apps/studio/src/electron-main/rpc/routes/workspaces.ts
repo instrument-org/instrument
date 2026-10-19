@@ -36,7 +36,11 @@ import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
-import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
+import {
+  platformApiBaseUrl,
+  platformApiOrigin,
+} from "@/electron-main/platform-api/base-url";
+import { readBearerTokensIn } from "@/electron-main/stores/workspace/session";
 import {
   instrumentFolderUnchosen,
   removeIfEmptySync,
@@ -230,18 +234,21 @@ const remove = devOnly
     if (blocked) {
       throw errors.UNAUTHORIZED({ message: blocked });
     }
-    // The sign-in goes with the workspace, so the platform session behind it
-    // ends too, unless another workspace holds the same one (a workspace made
-    // with the sign-in copied shares its session), which would be signed out
-    // with it.
-    const token = readBearerTokenIn(keysDirOf(getUserDataDir(), listing));
-    const sharedWith = listings.some(
-      (other) =>
-        other !== listing &&
-        readBearerTokenIn(keysDirOf(getUserDataDir(), other)) === token,
-    );
-    if (token !== null && !sharedWith) {
-      await revokeSession(token).catch((error: unknown) => {
+    // The sign-ins go with the workspace, so the platform session behind
+    // each ends too, on its own server, unless another workspace holds the
+    // same one (a workspace made with the sign-in copied shares its
+    // session), which would be signed out with it.
+    const others = listings
+      .filter((other) => other !== listing)
+      .map((other) => readBearerTokensIn(keysDirOf(getUserDataDir(), other)));
+    const tokens = readBearerTokensIn(keysDirOf(getUserDataDir(), listing));
+    for (const [origin, token] of Object.entries(tokens)) {
+      if (others.some((held) => held[origin] === token)) {
+        continue;
+      }
+      const baseUrl =
+        origin === platformApiOrigin() ? platformApiBaseUrl() : origin;
+      await revokeSession(token, baseUrl).catch((error: unknown) => {
         logger.warn("Could not end the deleted workspace's session", error);
       });
     }

@@ -26,6 +26,8 @@ import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import { settleWorkFolders } from "./lib/work-folders";
 import { finishPendingMove, storedPathRewrites } from "./lib/workspace-move";
+import { settlePlatformApiServer } from "./platform-api/base-url";
+import { getMachinePreferences } from "./stores/machine/preferences";
 import {
   inspectWorkspaceFolder,
   setWorkspaceRefusal,
@@ -154,6 +156,10 @@ function openWorkspace() {
   ]) {
     logger.info(`Settings migration: ${step}`);
   }
+  // After the machine settings migration, which writes the store this reads,
+  // and before anything asks the platform API: the server stays the same for
+  // the life of the process.
+  settlePlatformApiServer(getMachinePreferences().get("platformApiServer"));
 
   // After the settings migration, which brings what predates workspaces into
   // the folder this takes it from.

@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { getAuthServerPort } from "@/electron-main/auth/state";
 import {
@@ -105,7 +106,7 @@ const STAGING_API_BASE_URL = "https://staging.api.tryinstrument.com";
  * with it, so an API running on this machine borrows staging's relay.
  */
 export function appOAuthRelayUrl(service: string): string {
-  const api = URL.parse(import.meta.env.MAIN_VITE_APP_API_BASE_URL ?? "");
+  const api = URL.parse(platformApiBaseUrl());
   const base = api?.protocol === "https:" ? api.origin : STAGING_API_BASE_URL;
   return `${base}/oauth/${service}/callback`;
 }

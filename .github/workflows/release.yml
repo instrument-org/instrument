@@ -253,7 +253,6 @@ jobs:
             ${{ runner.temp }}/dist/*.AppImage
             ${{ runner.temp }}/dist/*.deb
             ${{ runner.temp }}/dist/*.rpm
-            ${{ runner.temp }}/dist/*.tar.gz
             ${{ runner.temp }}/dist/*.yml
             ${{ runner.temp }}/dist/*.blockmap
             ${{ runner.temp }}/dist/*.snap

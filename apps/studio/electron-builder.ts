@@ -229,9 +229,9 @@ const config: Configuration = {
     executableName: previewPackageName ?? APP_EXECUTABLE,
     icon: `build/${iconDir}icons`,
     // A preview runs from where it was unpacked, never installed system-wide.
-    target: isPreview
-      ? ["AppImage", "tar.gz"]
-      : ["AppImage", "deb", "rpm", "tar.gz"],
+    // A release ships no tar.gz: nothing updates one, and on Ubuntu it
+    // cannot start without a root-owned chrome-sandbox.
+    target: isPreview ? ["AppImage", "tar.gz"] : ["AppImage", "deb", "rpm"],
   },
   // electron-builder's own dependencies for each package, which `depends`
   // replaces rather than adds to, plus bubblewrap: the sandbox the agent's

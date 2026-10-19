@@ -95,7 +95,7 @@ The feed URL is re-applied before every check, so a release-channel change in pr
 
 ## Linux install path
 
-Linux publishes four targets (`AppImage`, `deb`, `rpm`, `tar.gz`) and every one of them is fed by the same update feed, so the install path is chosen by the package that produced the running installation rather than by the platform. electron-builder records that as a `package-type` file beside the app resources, holding `deb`, `rpm` or `pacman`; an AppImage build ships no such file. `isDebInstall` reads it, which is the same marker electron-updater consults to pick between its `DebUpdater`, `RpmUpdater`, `PacmanUpdater` and `AppImageUpdater`, so the two never disagree about which package is being replaced.
+Linux releases publish three targets (`AppImage`, `deb`, `rpm`), each fed by the same update feed, so the install path is chosen by the package that produced the running installation rather than by the platform. A preview also builds a `tar.gz` for the test hosts, which nothing updates. electron-builder records that as a `package-type` file beside the app resources, holding `deb`, `rpm` or `pacman`; an AppImage build ships no such file. `isDebInstall` reads it, which is the same marker electron-updater consults to pick between its `DebUpdater`, `RpmUpdater`, `PacmanUpdater` and `AppImageUpdater`, so the two never disagree about which package is being replaced.
 
 Everything but the Debian package installs through `autoUpdater.quitAndInstall()`, which reaches whichever of those installers matches, and leaves `autoInstallOnAppQuit` at its default so an ordinary quit applies a staged build too.
 

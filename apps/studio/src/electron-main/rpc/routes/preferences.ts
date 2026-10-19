@@ -128,17 +128,11 @@ const setReleaseChannel = base
     return context.appUpdater.checkForUpdates({ notify: true });
   });
 
-const checkForUpdates = base
-  .input(
-    z.object({
-      notify: z.boolean().optional().default(true),
-    }),
-  )
-  .handler(async ({ context, input }) => {
-    setLastUpdateCheck();
+const checkForUpdates = base.handler(async ({ context }) => {
+  setLastUpdateCheck();
 
-    return context.appUpdater.checkForUpdates({ notify: input.notify });
-  });
+  return context.appUpdater.checkForUpdates({ notify: true });
+});
 
 const quitAndInstall = base.handler(({ context }) => {
   return context.appUpdater.quitAndInstall();

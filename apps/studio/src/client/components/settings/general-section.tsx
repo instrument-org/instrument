@@ -134,9 +134,7 @@ function About() {
   );
 
   const handleCheckForUpdates = () => {
-    checkForUpdatesMutation.mutate({
-      notify: true,
-    });
+    checkForUpdatesMutation.mutate();
   };
 
   const formatLastChecked = (date: Date) => {

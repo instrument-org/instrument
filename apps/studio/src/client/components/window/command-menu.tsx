@@ -294,7 +294,7 @@ export function useCommandMenuRows({
         if (import.meta.env.DEV) {
           simulateNoUpdate.mutate(undefined);
         } else {
-          checkForUpdates.mutate({ notify: true });
+          checkForUpdates.mutate();
         }
       },
     },

@@ -1,5 +1,4 @@
 import { TabIconsSchema } from "@instrument-org/shared/icons";
-import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
 // A tab's memory-history stack, captured on close so reopening restores the
@@ -21,7 +20,6 @@ export const TabSchema = z.object({
   iconName: TabIconsSchema.optional(),
   id: TabIdSchema,
   pathname: z.string(),
-  chatId: ChatIdSchema.optional(),
   title: z.string().optional(),
 });
 

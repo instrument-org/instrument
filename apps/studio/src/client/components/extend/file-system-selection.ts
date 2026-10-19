@@ -168,3 +168,28 @@ export function keepShown(
   if (held.every(isShown)) return current;
   return selectExactly(current, held.filter(isShown));
 }
+
+/**
+ * A box dragged across the rows: what it touches, on its own or with what was
+ * selected when the drag began. Shift adds what it touches to that; ⌘ flips
+ * each thing it touches, the way the Finder's box does. A box touching
+ * nothing with no modifier leaves what the press itself selected.
+ */
+export function marqueeSelection(
+  base: Selection,
+  touched: readonly string[],
+  mode: null | SelectionMode,
+): Selection {
+  const held = selectedPathsOf(base);
+  if (mode === null) {
+    return touched.length === 0 ? base : selectExactly(base, touched);
+  }
+  const paths =
+    mode === "extend"
+      ? [...held, ...touched.filter((path) => !held.includes(path))]
+      : [
+          ...held.filter((path) => !touched.includes(path)),
+          ...touched.filter((path) => !held.includes(path)),
+        ];
+  return selectExactly(base, paths);
+}

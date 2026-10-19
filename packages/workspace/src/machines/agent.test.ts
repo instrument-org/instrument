@@ -67,9 +67,7 @@ describe("agentMachine", () => {
                 cancellationReason = input.reason;
                 return Promise.resolve();
               }),
-              executeToolLogic: fromPromise(
-                () => new Promise<void>(noop),
-              ),
+              executeToolLogic: fromPromise(() => new Promise<void>(noop)),
             },
           }),
           llmRequestLogic: fromPromise(() =>
@@ -302,15 +300,13 @@ describe("agentMachine", () => {
         actors: {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
-              executeToolLogic: fromPromise(
-                async (): Promise<void> => {
-                  running++;
-                  mostRunning = Math.max(mostRunning, running);
-                  await new Promise((resolve) => setTimeout(resolve, 10));
-                  running--;
-                  finished++;
-                },
-              ),
+              executeToolLogic: fromPromise(async (): Promise<void> => {
+                running++;
+                mostRunning = Math.max(mostRunning, running);
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                running--;
+                finished++;
+              }),
             },
           }),
           llmRequestLogic: fromPromise(() =>
@@ -365,9 +361,7 @@ describe("agentMachine", () => {
           // stream does.
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
-              executeToolLogic: fromPromise(
-                () => new Promise<void>(noop),
-              ),
+              executeToolLogic: fromPromise(() => new Promise<void>(noop)),
             },
           }),
           llmRequestLogic: fromPromise(async () => {
@@ -446,9 +440,7 @@ describe("agentMachine", () => {
         actors: {
           executeToolCallMachine: executeToolCallMachine.provide({
             actors: {
-              executeToolLogic: fromPromise(
-                () => new Promise<void>(noop),
-              ),
+              executeToolLogic: fromPromise(() => new Promise<void>(noop)),
             },
           }),
           llmRequestLogic: fromPromise(async () => {

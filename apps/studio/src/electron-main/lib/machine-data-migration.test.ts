@@ -590,17 +590,20 @@ describe("moveMachineData", () => {
   it("moves what a failed launch left even after the conversion raised the format", () => {
     seedBeta();
     const root = defaultWorkspacePath(userDataDir);
-    const old = path.join(root, ".instrument", "settings", "providers.json.enc");
+    const old = path.join(
+      root,
+      ".instrument",
+      "settings",
+      "providers.json.enc",
+    );
     const rename = fs.renameSync.bind(fs);
-    const once = vi
-      .spyOn(fs, "renameSync")
-      .mockImplementation((from, to) => {
-        if (String(from) === old) {
-          once.mockImplementation(rename);
-          throw Object.assign(new Error("in use"), { code: "EACCES" });
-        }
-        rename(from, to);
-      });
+    const once = vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      if (String(from) === old) {
+        once.mockImplementation(rename);
+        throw Object.assign(new Error("in use"), { code: "EACCES" });
+      }
+      rename(from, to);
+    });
 
     const { machineDir } = moveMachineData({
       userDataDir,

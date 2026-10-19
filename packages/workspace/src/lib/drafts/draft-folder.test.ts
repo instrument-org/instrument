@@ -278,7 +278,9 @@ describe("the drafts folder", () => {
     fs.symlinkSync(victim, path.join(made.dir, "out"));
     const with_ = {
       ...made.draft,
-      attached: [{ kind: "file" as const, path: path.join("out", "report.txt") }],
+      attached: [
+        { kind: "file" as const, path: path.join("out", "report.txt") },
+      ],
     };
     writeDraftFile(made.file, with_);
 

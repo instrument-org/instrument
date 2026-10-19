@@ -568,7 +568,10 @@ export function projectReason(project: string): string | undefined {
  */
 function workspaceAbove(
   project: string,
-  { ownManifest, ownWorkspace }: { ownManifest: boolean; ownWorkspace: boolean },
+  {
+    ownManifest,
+    ownWorkspace,
+  }: { ownManifest: boolean; ownWorkspace: boolean },
 ): string | undefined {
   if (ownWorkspace) {
     return undefined;

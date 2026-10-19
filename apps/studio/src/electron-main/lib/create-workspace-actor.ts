@@ -45,6 +45,7 @@ import {
   moveMemoriesToFolder,
   moveSkillsToFolder,
   moveTopicsToFolder,
+  settleKeyFolderCase,
   convertTopicsToTopicFiles,
   prepareBundledSkills,
   settleDrafts,
@@ -145,6 +146,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
   await convertChatDatabases(deviceId, rootDir);
+  // A folder of the six under another case (`skills/`, which a build before
+  // kept there) is the one each step below finds under the app's name on a
+  // file system that reads both as one, so it takes that name first.
+  for (const step of settleKeyFolderCase(rootDir)) {
+    logger.info(`Folder case: ${step}`);
+  }
   // The person's own folders come out of `.instrument/` before anything
   // reads one of them.
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));

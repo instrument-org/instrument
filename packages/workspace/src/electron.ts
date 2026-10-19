@@ -116,6 +116,7 @@ export {
 } from "./lib/apps-move";
 export { type FolderMoved } from "./lib/move-out-of-data-dir";
 export { moveSkillsToFolder, type SkillsMoved } from "./lib/skills-move";
+export { settleKeyFolderCase } from "./lib/key-folder-case";
 export {
   convertTopicsToTopicFiles,
   type TopicFilesConverted,

@@ -122,10 +122,7 @@ export type Step =
 export type Plan = { refusal: string } | { steps: Step[] };
 
 /** A name as the destination's disk compares it. */
-function nameKey(
-  name: string,
-  { caseSensitive, unicodeSensitive }: NameRules,
-) {
+function nameKey(name: string, { caseSensitive, unicodeSensitive }: NameRules) {
   const composed = unicodeSensitive ? name : name.normalize("NFC");
   return caseSensitive ? composed : composed.toLowerCase();
 }

@@ -54,7 +54,9 @@ describe("asking about names already taken", () => {
   it("asks one at a time, Keep Both first under Return, with the wording for what each is", async () => {
     const settled = askAbout([FILE_OVER_FILE]);
 
-    expect(screen.getByRole("alertdialog").textContent).toMatchInlineSnapshot(`"“notes.txt” already exists in “Reports”Do you want to replace it with the one you’re moving?StopReplaceKeep Both"`);
+    expect(screen.getByRole("alertdialog").textContent).toMatchInlineSnapshot(
+      `"“notes.txt” already exists in “Reports”Do you want to replace it with the one you’re moving?StopReplaceKeep Both"`,
+    );
     await waitFor(() => {
       expect(document.activeElement?.textContent).toBe("Keep Both");
     });

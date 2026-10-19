@@ -37,31 +37,6 @@ const byIdWithMessagesAndParts = base
     return session.value;
   });
 
-const list = base
-  .input(
-    z.object({
-      id: ChatIdSchema,
-      includeChildSessions: z.boolean().default(false),
-    }),
-  )
-  .output(z.array(Session.Schema))
-  .handler(async ({ errors, input }) => {
-    const { id, includeChildSessions } = input;
-    const chatId = id;
-    const sessions = await ChatReads.sessions({
-      chatId,
-      includeChildSessions,
-    });
-    if (sessions.isErr()) {
-      throw toORPCError(sessions.error, errors);
-    }
-
-    const recency = (s: (typeof sessions.value)[number]) =>
-      (s.updatedAt ?? s.createdAt).getTime();
-
-    return [...sessions.value].sort((a, b) => recency(b) - recency(a));
-  });
-
 // Run the agent over the session as it stands, with nothing added to it. What
 // the agent answers is the request already in the transcript, so a turn that
 // failed on its way to the model is asked for again exactly as it was sent the
@@ -247,7 +222,6 @@ const live = {
 
 export const session = {
   byIdWithMessagesAndParts,
-  list,
   live,
   run,
   stop,

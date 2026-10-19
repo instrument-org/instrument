@@ -11,9 +11,13 @@ In the chat's record folder (`chats/<id>/`, resolved by `record-folders.ts`):
 | Name | What it holds |
 |---|---|
 | `<session>.<device>.jsonl` | One session's log, as that device wrote it: its header, its messages and parts, where its context window was reset, who stopped its turn, what it was told |
-| `marks.<device>.jsonl` | What the person did to the chat from that device: title, star, archive, unread, topic, Stop |
+| `settings.<device>.jsonl` | Every per-chat value that device set, one `set` line per change: each session's title, star, archive, unread, topic and Stop, and the chat's model on its own session. `marks.<device>.jsonl` from older builds reads as one |
+| `state.<device>.json` | Where that device left off in the chat (its tabs, the cards its agent waits on), written and read by that device alone (`chat-record.ts`) |
 | `blobs/sha256-<hex>.<ext>` | The bytes a part points at, named by their hash, so the same bytes get the same name on every device |
-| `settings.json` | What the app knows about the chat: the model and effort its sessions run on, the folders granted in it |
+
+Nothing in the folder is rewritten whole by more than one device. What a chat is comes from its logs: its own session is the one whose header names no parent (`chatSessionIn` in `record-folders.ts`), its start is that session's, the build it began on is the `app` in its first log's header, and its last activity is the newest log record of any of its sessions. A setting merges per session and field, the newest `at` winning and the larger device id breaking a tie, so two computers changing different things about one chat both keep their change.
+
+What is this computer's about a chat stays in the workspace's machine folder: the name of the chat's own folder under `Chats/` (`chat-folders.json`, `chat-folders/own-folder.ts`), and what the chat allowed and refused (`permissions.json`). The name is where to look first; where that folder is gone, the one folder under `Chats/` no other chat claims whose `CHAT.md` names the chat is taken as its own, at launch and at the end of each turn, so a folder renamed in a file manager is followed.
 
 A record is one JSON object on one line, `t`, `seq` and `at` first (`records/record.ts`). A device only ever appends to files that carry its own id, so two devices writing the same chat never write the same file, and a sync engine has nothing to merge. The conflict copies it makes anyway (`file-names.ts` knows their shapes) are read like any other file.
 
@@ -31,7 +35,7 @@ A tool's returned bytes go to a blob and the part keeps the blob's name, media t
 
 `ChatReads` (`lib/chat-reads.ts`) answers every read, from one `ChatRead`: the fold, the writes still on their way to disk over it, and the running turn beside them. A process with no records in place holds no chat at all and is told so rather than left to assume.
 
-`fold.ts` reads every log and marks file in the folder into sessions, their messages and parts. Folding is order-independent: any file order, duplicates, truncations or conflict copies give the same chat. `read-records.ts` takes a record only from a line that ends in `\n`, parses, and carries a larger `seq` than the one before it; everything else is counted and skipped, which is what makes a crash mid-append a skipped line rather than a broken chat.
+`fold.ts` reads every log and settings file in the folder into sessions, their messages and parts. Folding is order-independent: any file order, duplicates, truncations or conflict copies give the same chat. `read-records.ts` takes a record only from a line that ends in `\n`, parses, and carries a larger `seq` than the one before it; everything else is counted and skipped, which is what makes a crash mid-append a skipped line rather than a broken chat.
 
 The views (`records/views.ts`) are what callers actually use: `list` (the chat list and header), `conversation` (what the chat view draws), `steps` (tool calls, reasoning and the developer-only parts), `live` (the running turn, memory only), and `modelHistory` (what a request is built from, blobs read back at send time). The agent reads other chats from the files themselves: `$INSTRUMENT_CHATS` opens this folder of every chat's records to it, read-only, and the `chat-history` system skill, loaded on demand, says what is in it (its `records.md` is generated from `records/records-guide.ts`, which is keyed by the record types). A task's history is read, never copied: its parent's messages up to `forkedAtMessageId`, then its own.
 
@@ -45,7 +49,9 @@ The views (`records/views.ts`) are what callers actually use: `list` (the chat l
 
 The chat id is how the routes, the window and the agent name a chat. A new one is the local date, up to 24 characters of the first message's words (`chat` when it has none), and four random Crockford base32 characters (`2026-10-19-fix-the-login-bug-7k3q`, `chat-folder-name.ts`), so two computers that have not synced yet do not both make the same chat; a suffix this computer already has is drawn again. Older ids end in the words or a `-N` counter, as do chats the 1.x migration makes, and stay valid. Its session ids are internal to its records; an address written before (`/chats/ses_…`, in an older reply or a memory) is opened at its chat through `chats.ofSession`.
 
-`chat.db` was the SQLite store a chat was kept in before this. Nothing writes one now. What remains is the path in: `records/convert/read-chat-db.ts` reads one through a copy, with the store migrations and the interrupted-call sweep applied first, and `convert-chat.ts` writes its logs, marks and blobs, verifies the fold against the read field by field, and sets the database aside. A chat that differs stays on `chat.db`, is logged, and is retried at the next launch. The key-value table, `superjson` and the storage wrappers under that reader are all part of reading one, which is why they outlive the store itself.
+`chat.db` was the SQLite store a chat was kept in before this. Nothing writes one now. What remains is the path in: `records/convert/read-chat-db.ts` reads one through a copy, with the store migrations and the interrupted-call sweep applied first, and `convert-chat.ts` writes its logs, settings and blobs, verifies the fold against the read field by field, and sets the database aside. A chat that differs stays on `chat.db`, is logged, and is retried at the next launch. The key-value table, `superjson` and the storage wrappers under that reader are all part of reading one, which is why they outlive the store itself.
+
+`settings.json` was the file every device rewrote whole beside a chat's records. Nothing writes one now. At launch, after the database converter, `records/convert/convert-chat-settings.ts` carries what one holds (the model onto the chat's own session, the folder name and permissions into the machine folder, an earlier build's state into this device's state file) and removes it. A chat still on its `chat.db` keeps its file, which names the chat's session until its records do.
 
 ## Syncing
 

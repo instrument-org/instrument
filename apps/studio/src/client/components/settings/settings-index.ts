@@ -76,11 +76,11 @@ export const SETTINGS_INDEX = [
     title: "Open source",
   },
   {
-    detail: "Which builds this computer updates to.",
+    detail: "Get beta versions before they ship.",
     developerOnly: true,
     id: "release-channel",
     tab: "General",
-    title: "Update from",
+    title: "Release channel",
   },
   {
     detail: "A local record to send with a problem report",

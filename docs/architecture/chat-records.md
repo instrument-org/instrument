@@ -43,7 +43,7 @@ The views (`records/views.ts`) are what callers actually use: `list` (the chat l
 
 ## A chat's id, and `chat.db`
 
-The chat id is how the routes, the window and the agent name a chat. Its session ids are internal to its records; an address written before (`/chats/ses_…`, in an older reply or a memory) is opened at its chat through `chats.ofSession`.
+The chat id is how the routes, the window and the agent name a chat. A new one is the local date, up to 24 characters of the first message's words (`chat` when it has none), and four random Crockford base32 characters (`2026-10-19-fix-the-login-bug-7k3q`, `chat-folder-name.ts`), so two computers that have not synced yet do not both make the same chat; a suffix this computer already has is drawn again. Older ids end in the words or a `-N` counter, as do chats the 1.x migration makes, and stay valid. Its session ids are internal to its records; an address written before (`/chats/ses_…`, in an older reply or a memory) is opened at its chat through `chats.ofSession`.
 
 `chat.db` was the SQLite store a chat was kept in before this. Nothing writes one now. What remains is the path in: `records/convert/read-chat-db.ts` reads one through a copy, with the store migrations and the interrupted-call sweep applied first, and `convert-chat.ts` writes its logs, marks and blobs, verifies the fold against the read field by field, and sets the database aside. A chat that differs stays on `chat.db`, is logged, and is retried at the next launch. The key-value table, `superjson` and the storage wrappers under that reader are all part of reading one, which is why they outlive the store itself.
 

@@ -80,7 +80,7 @@ function relative(dir: string) {
 }
 
 describe("chat folder names", () => {
-  it("names a chat the way a task is named, with a shorter slug", () => {
+  it("names a migrated 1.x task's chat the way a task was named, with a shorter slug", () => {
     const taken = new Set(["2026-09-24-transcribe-the-new-20"]);
     expect([
       chatFolderName({
@@ -135,9 +135,14 @@ describe("record folders", () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
 
     expect(chatIdTaken(chat)).toBe(true);
-    expect(
-      newChatId({ preferredFolderName: ChatIdSchema.parse(chat) }),
-    ).not.toBe(chat);
+    const fallback = newChatId({
+      preferredFolderName: ChatIdSchema.parse(chat),
+      prompt: "Transcribe a note",
+    });
+    expect(fallback).not.toBe(chat);
+    expect(fallback).toMatch(
+      /^\d{4}-\d{2}-\d{2}-transcribe-a-note-[0-9a-z]{4}$/,
+    );
   });
 
   it("makes a chat's records, and no work folder until its agent needs one", async () => {

@@ -55,6 +55,25 @@ export function useBrowserFind({
     [guest],
   );
 
+  // Close the bar when the page goes to a new address, as a browser does. A
+  // reload commits the same address and keeps the bar; an in-page (hash)
+  // navigation fires `did-navigate-in-page` instead, so it keeps it too.
+  useEffect(() => {
+    if (!guest) {
+      return;
+    }
+    let committedUrl = guest.url();
+    return guest.on("did-navigate", ({ url }) => {
+      if (url === committedUrl) {
+        return;
+      }
+      committedUrl = url;
+      setFindOpen(false);
+      setFindQuery("");
+      setFindResult(null);
+    });
+  }, [guest]);
+
   // The guest outlives this panel (it's pooled, not reaped on panel close), so a
   // find left highlighted stays highlighted when the panel remounts with the bar
   // closed. Clear the guest's highlight on unmount so a reopen starts clean.

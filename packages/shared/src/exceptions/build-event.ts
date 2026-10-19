@@ -302,8 +302,7 @@ type Scrubber = {
 
 /** Reads the home folder as `~` in a string, or in every string of a value. */
 function homeScrubber(home: string | undefined): Scrubber {
-  const text = (value: string) =>
-    home ? value.split(home).join("~") : value;
+  const text = (value: string) => (home ? value.split(home).join("~") : value);
   const deep = (value: unknown): unknown => {
     if (typeof value === "string") {
       return text(value);

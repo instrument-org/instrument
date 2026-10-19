@@ -129,7 +129,9 @@ export function className(value: object): string {
       return "Object";
     }
     const constructor: unknown =
-      typeof prototype === "object" ? Reflect.get(prototype, "constructor") : undefined;
+      typeof prototype === "object"
+        ? Reflect.get(prototype, "constructor")
+        : undefined;
     const name: unknown =
       typeof constructor === "function" ? constructor.name : undefined;
     return typeof name === "string" && name ? name : "Object";

@@ -38,7 +38,7 @@ export async function recordAsk(
     sessionId: asker.sessionId,
   };
   await updateChatState(chatDir(asker.chatId), (state) => {
-    const asks = state.waitingOn ?? [];
+    const asks = state.waitingOn;
     const open = asks.find(
       (ask): ask is PermissionAsk =>
         ask.kind !== "question" && ask.kind === kind && ask.target === target,
@@ -81,7 +81,7 @@ export async function recordQuestion(
   const id = ulid();
   await updateChatState(chatDir(asker.chatId), (state) => ({
     waitingOn: [
-      ...(state.waitingOn ?? []),
+      ...state.waitingOn,
       {
         askedAt: getCurrentDate(),
         askers: [{ partId: asker.partId, sessionId: asker.sessionId }],
@@ -105,14 +105,14 @@ export async function closeQuestions(chatId: ChatId): Promise<void> {
     return;
   }
   await updateChatState(chatDir(chatId), (state) => ({
-    waitingOn: (state.waitingOn ?? []).filter((ask) => ask.kind !== "question"),
+    waitingOn: state.waitingOn.filter((ask) => ask.kind !== "question"),
   }));
 }
 
 /** The chat's open asks, oldest first. */
 export async function openAsks(chatId: ChatId): Promise<Ask[]> {
   const state = await getChatState(chatDir(chatId));
-  return state.waitingOn ?? [];
+  return state.waitingOn;
 }
 
 /** The chat's open asks a session is on, waiting to be woken with the answer, oldest first. */
@@ -156,7 +156,7 @@ export async function refusedByMacos(
   allowed: "allowed" | "always",
 ): Promise<void> {
   await updateChatState(chatDir(chatId), (state) => ({
-    waitingOn: (state.waitingOn ?? []).map((ask) =>
+    waitingOn: state.waitingOn.map((ask) =>
       ask.id === askId && ask.kind !== "question"
         ? { ...ask, allowed, status: "macos-refused" as const }
         : ask,
@@ -182,7 +182,7 @@ async function closeWhere<Closed extends Ask>(
 ): Promise<Closed | undefined> {
   let closed: Closed | undefined;
   await updateChatState(chatDir(chatId), (state) => {
-    const asks = state.waitingOn ?? [];
+    const asks = state.waitingOn;
     closed = asks.find(matches);
     return closed ? { waitingOn: asks.filter((ask) => ask !== closed) } : {};
   });
@@ -208,7 +208,7 @@ export async function closeAsksOf(
     return;
   }
   await updateChatState(chatDir(chatId), (state) => ({
-    waitingOn: (state.waitingOn ?? []).flatMap((ask) => {
+    waitingOn: state.waitingOn.flatMap((ask) => {
       const askers = ask.askers.filter(stays);
       return askers.length ? [{ ...ask, askers }] : [];
     }),

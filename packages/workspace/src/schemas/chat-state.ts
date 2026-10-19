@@ -104,16 +104,14 @@ export type Ask = z.output<typeof AskSchema>;
 // Where this device left off in a chat, in its own `state.<device>.json`.
 // Read on open, and across chats only by the chat list for its open cards,
 // through `openAsks`.
-export const StoredChatStateSchema = z
-  .object({
-    // The apps whose guide this chat was handed, so `instrument app request`
-    // hands the guide over once and then gets out of the way.
-    appGuidesShown: z.array(z.string()).optional(),
-    browserTabs: z.array(HeldTabSchema).default([]),
-    // What the agent is waiting on the person to answer, oldest first. One
-    // that will not parse costs the chat its open cards alone.
-    waitingOn: z.array(AskSchema).optional().catch(undefined),
-  })
-  .default(() => ({ browserTabs: [] }));
+export const StoredChatStateSchema = z.object({
+  // The apps whose guide this chat was handed, so `instrument app request`
+  // hands the guide over once and then gets out of the way.
+  appGuidesShown: z.array(z.string()).catch([]).default([]),
+  browserTabs: z.array(HeldTabSchema).default([]),
+  // What the agent is waiting on the person to answer, oldest first. One
+  // that will not parse costs the chat its open cards alone.
+  waitingOn: z.array(AskSchema).catch([]).default([]),
+});
 
 export type ChatState = z.output<typeof StoredChatStateSchema>;

@@ -211,7 +211,9 @@ describe("updateChatRecord", () => {
 describe("this device's state", () => {
   it("answers empty for a chat with no state file", async () => {
     await expect(getChatState(chatDir(chatId))).resolves.toEqual({
+      appGuidesShown: [],
       browserTabs: [],
+      waitingOn: [],
     });
   });
 
@@ -253,6 +255,7 @@ describe("this device's state", () => {
     expect(await getChatState(chatDir(chatId))).toEqual({
       appGuidesShown: ["github", "y"],
       browserTabs: [],
+      waitingOn: [],
     });
     expect(await readJson(statePath(other))).toEqual({
       ...theirs,
@@ -267,7 +270,11 @@ describe("this device's state", () => {
     expect((await readChatRecord(chatDir(chatId))).settings).toMatchObject({
       createdWithAppVersion: "2.0.0",
     });
-    expect(await getChatState(chatDir(chatId))).toEqual({ browserTabs: [] });
+    expect(await getChatState(chatDir(chatId))).toEqual({
+      appGuidesShown: [],
+      browserTabs: [],
+      waitingOn: [],
+    });
   });
 
   it("carries forward a field it cannot read", async () => {
@@ -317,7 +324,7 @@ describe("state an earlier build kept in the settings", () => {
     const state = await getChatState(chatDir(chatId));
 
     expect(state.appGuidesShown).toEqual(["github"]);
-    expect(state.waitingOn?.map((ask) => ask.id)).toEqual(["ask-1"]);
+    expect(state.waitingOn.map((ask) => ask.id)).toEqual(["ask-1"]);
     expect(await readJson(recordPath())).toEqual({
       createdWithAppVersion: "2.0.0",
     });
@@ -338,6 +345,7 @@ describe("state an earlier build kept in the settings", () => {
     expect(await getChatState(chatDir(chatId))).toEqual({
       appGuidesShown: ["mine"],
       browserTabs: [],
+      waitingOn: [],
     });
     expect(await readJson(recordPath())).toEqual({});
   });

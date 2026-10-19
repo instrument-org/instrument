@@ -45,12 +45,7 @@ type InvalidFolder =
 export function StorageSection() {
   return (
     <div className="space-y-8">
-      <div>
-        <h3 className="text-base font-semibold">Storage</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Where {APP_NAME} keeps your chats, topics, and memories
-        </p>
-      </div>
+      <h3 className="text-base font-semibold">Storage</h3>
       <InstrumentFolder />
       <UnrecognizedFolders />
     </div>

@@ -43,7 +43,7 @@ The views (`records/views.ts`) are what callers actually use: `list` (the chat l
 
 ## The index
 
-`workspace.db`, on this computer, holds what the files say so the app does not refold every chat to draw a list: per-file cursors, the chats, sessions and messages tables, and the index of every device's activity log of model requests, whose lines live in the workspace's `.instrument/devices/<device>/activity/<YYYY-MM>.jsonl`, one writer per file like the chat logs. Index tables are rebuildable and are dropped and refolded when their schema version moves (`records-index.ts`, `workspace-index.ts`). It also keeps where this device last left its newest log of each session (`own-log-cursors.ts`), which `openLog` checks the file against before appending: a log a sync engine or a restored backup put back as an older copy is left alone, and the device starts its next log.
+`workspace.db`, on this computer, holds what the files say so the app does not refold every chat to draw a list: a value derived per session, kept under a stamp of its chat's files' sizes and modification times and derived again once they move, so a changed chat is folded whole (`workspace-index.ts`), and the index of every device's activity log of model requests, whose lines live in the workspace's `.instrument/devices/<device>/activity/<YYYY-MM>.jsonl`, one writer per file like the chat logs. Index tables are rebuildable and are dropped and rebuilt when their schema version moves. It also keeps where this device last left its newest log of each session (`own-log-cursors.ts`), which `openLog` checks the file against before appending: a log a sync engine or a restored backup put back as an older copy is left alone, and the device starts its next log.
 
 ## A chat's id, and `chat.db`
 

@@ -1,10 +1,10 @@
 import { openLogin } from "@/client/atoms/login-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
+import { LogOutButton } from "@/client/components/log-out-button";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useLiveUser } from "@/client/hooks/use-live-user";
-import { logOut } from "@/client/lib/log-out";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -47,13 +47,7 @@ export function AccountInfo() {
                         <Skeleton className="h-4 w-48" />
                       </div>
                     </div>
-                    <Button
-                      onClick={() => {
-                        void logOut();
-                      }}
-                    >
-                      Log out
-                    </Button>
+                    <LogOutButton />
                   </div>
                 )}
                 {!user && error && (
@@ -67,25 +61,13 @@ export function AccountInfo() {
                       {error.message}
                     </ContactErrorAlert>
                     <div className="flex justify-end gap-4">
-                      <Button
-                        onClick={() => {
-                          void logOut();
-                        }}
-                      >
-                        Log out
-                      </Button>
+                      <LogOutButton />
                     </div>
                   </>
                 )}
                 {!isLoading && !error && (
                   <div className="flex justify-end gap-4">
-                    <Button
-                      onClick={() => {
-                        void logOut();
-                      }}
-                    >
-                      Log out
-                    </Button>
+                    <LogOutButton />
                   </div>
                 )}
               </>

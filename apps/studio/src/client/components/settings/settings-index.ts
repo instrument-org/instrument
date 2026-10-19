@@ -113,6 +113,12 @@ export const SETTINGS_INDEX = [
     title: "Claude account",
   },
   {
+    detail: "Use your SuperGrok or X Premium+ plan.",
+    id: "grok-account",
+    tab: "Providers",
+    title: "Grok account",
+  },
+  {
     detail: `Every request ${APP_NAME} sends to an AI, with its model, tokens, and time`,
     id: "activity",
     page: true,
@@ -246,7 +252,7 @@ export const SETTINGS_PAGES: Record<
     detail: `Which folders and places on this computer ${APP_NAME} may use.`,
   },
   Providers: {
-    detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
+    detail: `The AI models ${APP_NAME} can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.`,
   },
   Activity: {
     detail: `Every request ${APP_NAME} made to an AI model, which you can filter, sort, and export.`,

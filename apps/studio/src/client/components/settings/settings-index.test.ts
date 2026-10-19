@@ -54,6 +54,7 @@ describe("matchSettings", () => {
     ["theme", "Theme"],
     ["diag log", "Diagnostic log"],
     ["claude", "Claude account"],
+    ["grok", "Grok account"],
   ])("finds %s", (query, title) => {
     expect(titles(query)[0]).toBe(title);
   });
@@ -75,6 +76,7 @@ describe("matchSettings", () => {
         "dark": [],
         "pro": [
           "Add provider",
+          "Grok account",
           "Claude account",
           "ChatGPT account",
         ],

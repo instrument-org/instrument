@@ -64,7 +64,7 @@ const NoticesStoreSchema = z.object({
       z.object({
         at: z.number(),
         label: z.string().optional(),
-        type: z.enum(["chatgpt-account", "claude-account"]),
+        type: z.enum(["chatgpt-account", "claude-account", "grok-account"]),
       }),
     )
     .default({})

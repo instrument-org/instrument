@@ -35,11 +35,12 @@ Which folders and places on this computer Instrument may use.
 
 ### Providers (`providers`)
 
-The AI models Instrument can use: your ChatGPT or Claude plan, or a provider you add with your own key.
+The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.
 
 - **Add provider** (`add-provider`): Use a model with your own key.
 - **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
 - **Claude account** (`claude-account`): Use your Claude plan.
+- **Grok account** (`grok-account`): Use your SuperGrok or X Premium+ plan.
 
 ### Activity (`activity`)
 

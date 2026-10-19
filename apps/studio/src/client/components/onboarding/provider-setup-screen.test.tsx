@@ -46,6 +46,9 @@ vi.mock("@/client/components/chatgpt-login-button", () => ({
 vi.mock("@/client/components/claude-login-button", () => ({
   ClaudeLoginButton: () => <button>Continue with Claude</button>,
 }));
+vi.mock("@/client/components/grok-login-button", () => ({
+  GrokLoginButton: () => <button>Continue with Grok</button>,
+}));
 
 describe("provider setup Claude sign-in", () => {
   it.each([
@@ -82,8 +85,8 @@ describe("provider setup Claude sign-in", () => {
         expect(
           screen.getByText(
             visible
-              ? "Use the ChatGPT or Claude plan you already pay for."
-              : "Use the ChatGPT plan you already pay for.",
+              ? "Use the ChatGPT, Claude or Grok plan you already pay for."
+              : "Use the ChatGPT or Grok plan you already pay for.",
           ),
         ).toBeTruthy();
       }

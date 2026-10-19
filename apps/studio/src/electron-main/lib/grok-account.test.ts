@@ -26,6 +26,8 @@ vi.mock("@/electron-main/platform-api/headers", () => ({
   getAnonymousPlatformApiHeaders: () => ({ "user-agent": "Instrument/test" }),
 }));
 
+vi.mock("@/electron-main/lib/notices", () => ({ noteSignedOut: vi.fn() }));
+
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));

@@ -118,7 +118,7 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
  * The run's working folder, which the chat's tasks work in too, and the
  * chat's own folder, where finished work goes.
  */
-function treeDirs({ chatId }: Context): string[] {
+function treeDirs({ chatId }: { chatId: ChatId }): string[] {
   return [workDir(chatId), chatOutputFolder(chatId)];
 }
 
@@ -186,8 +186,12 @@ export function recentFilesUnder(
 
 /** Every file the run could have written, wherever it put it. */
 async function writtenFiles(ctx: Context): Promise<string[]> {
-  const dirs = [HOME, ...treeDirs(ctx)];
-  const since = runStartedAt(ctx.sessions);
+  return writtenSince(ctx, runStartedAt(ctx.sessions));
+}
+
+/** What changed since `since` where a run could have written it. */
+function writtenSince(run: { chatId: ChatId }, since: number): string[] {
+  const dirs = [HOME, ...treeDirs(run)];
   // The top of the Instrument folder too, where "in my workspace folder"
   // puts a file, leaving out other chats' own folders under Chats/.
   const otherChats = path.join(workspaceFolder(), CHATS_FOLDER_NAME);
@@ -349,20 +353,13 @@ const OLDER_PDFS = [
   ["Receipts/Hardware Store.pdf", "Receipt from Dalton Hardware, $38.12."],
 ] as const;
 
+/** When this case last seeded Downloads, which its run's own files postdate. */
+let pdfsSeededAt = 0;
+
 function seedDownloads() {
   const downloads = path.join(HOME, "Downloads");
-  // Every model's run of this case seeds the same Downloads, and checks run
-  // once all of them are done, so an earlier run's summaries stay; they are
-  // older than this run, which the checks already leave out.
-  fs.mkdirSync(downloads, { recursive: true });
-  for (const entry of fs
-    .readdirSync(downloads, { withFileTypes: true })
-    .filter((one) => !(one.isDirectory() && PDF_SUMMARIES.test(one.name)))) {
-    fs.rmSync(path.join(downloads, entry.name), {
-      force: true,
-      recursive: true,
-    });
-  }
+  fs.rmSync(downloads, { force: true, recursive: true });
+  pdfsSeededAt = Date.now();
   RECENT_PDFS.forEach(({ file, lines }, index) => {
     writeAged(
       path.join(downloads, file),
@@ -664,10 +661,60 @@ async function folderNamed(ctx: Context, name: RegExp) {
 
 const PDF_SUMMARIES = /^pdf[\s_-]?summaries$/i;
 
+const SUMMARIES_SNAPSHOT = (chatId: ChatId) =>
+  path.join(HOME, ".eval-snapshots", "pdf-summaries", chatId);
+
+/**
+ * Copies the run's PDF summaries folders as they stand when it ends. Every
+ * model's run of this case reseeds Downloads, where a summaries folder often
+ * goes, and checks run once all of them are done.
+ */
+function snapshotSummaries({ chatId }: { chatId: ChatId }) {
+  const into = SUMMARIES_SNAPSHOT(chatId);
+  fs.rmSync(into, { force: true, recursive: true });
+  const dirs = [
+    ...new Set(
+      writtenSince({ chatId }, pdfsSeededAt)
+        .map((file) => path.dirname(file))
+        .filter((dir) => PDF_SUMMARIES.test(path.basename(dir))),
+    ),
+  ];
+  const folders = dirs.map((dir, index) => {
+    const copy = path.join(into, String(index));
+    fs.mkdirSync(copy, { recursive: true });
+    const files = fs
+      .readdirSync(dir)
+      .filter((name) => fs.statSync(path.join(dir, name)).isFile())
+      .map((name) => {
+        fs.copyFileSync(path.join(dir, name), path.join(copy, name));
+        return path.join(copy, name);
+      });
+    return { dir, files };
+  });
+  fs.mkdirSync(into, { recursive: true });
+  fs.writeFileSync(path.join(into, "folders.json"), JSON.stringify(folders));
+}
+
+/** The run's summaries folders, as it left them, or as they are now. */
+async function summaryFolders(
+  ctx: Context,
+): Promise<{ dir: string; files: string[] }[]> {
+  try {
+    return JSON.parse(
+      fs.readFileSync(
+        path.join(SUMMARIES_SNAPSHOT(ctx.chatId), "folders.json"),
+        "utf8",
+      ),
+    ) as { dir: string; files: string[] }[];
+  } catch {
+    return folderNamed(ctx, PDF_SUMMARIES);
+  }
+}
+
 const wroteThreeSummaries: Assertion = {
   check: async (ctx) => {
     const text = "wrote three summaries into a PDF summaries folder";
-    const folders = await folderNamed(ctx, PDF_SUMMARIES);
+    const folders = await summaryFolders(ctx);
     const best = folders.toSorted((a, b) => b.files.length - a.files.length)[0];
     const evidence = best
       ? `${path.relative(HOME, best.dir)}: ${best.files.map((file) => path.basename(file)).join(", ")}`
@@ -682,7 +729,7 @@ const wroteThreeSummaries: Assertion = {
 const summarizedTheRightPdfs: Assertion = {
   check: async (ctx) => {
     const text = "the summaries are of the three most recent PDFs";
-    const folders = await folderNamed(ctx, PDF_SUMMARIES);
+    const folders = await summaryFolders(ctx);
     // A summary written as a PDF is compressed, so its name is what can be
     // read; one written as text is read whole. Compared with everything but
     // letters and digits gone, so "roadmap-review-summary.pdf" names
@@ -2646,6 +2693,7 @@ const SCENARIOS: Scenario[] = [
       "Look through the PDFs in my Downloads folder, pick the three most recent, and write a one-page summary of each into a folder called PDF summaries. Tell me which ones you picked.",
     setup: seedDownloads,
     slug: "pdfs",
+    teardown: snapshotSummaries,
   },
   {
     // Seen: the user's "willing to consider" became the brief's "do not

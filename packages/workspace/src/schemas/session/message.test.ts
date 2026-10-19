@@ -893,6 +893,76 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  // A file in the workspace is kept by its place there, so the note names it
+  // under the root of whichever computer the chat is read on, while one kept
+  // at its absolute path by an earlier build is named as it was.
+  it("names a file kept by its place in the workspace under this computer's root", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const messages = [
+      {
+        id: StoreId.newMessageId(),
+        metadata: messageMetadata,
+        parts: [
+          SessionMessagePart.coerce({
+            data: {
+              files: [
+                {
+                  filename: "plan.md",
+                  filePath: "workspace:/Notes/plan.md",
+                  mimeType: "text/markdown",
+                  modifiedAt: 1_718_198_400_000,
+                  size: 120,
+                },
+                {
+                  filename: "old.md",
+                  filePath: "/Users/jeremy/Instrument/Notes/old.md",
+                  mimeType: "text/markdown",
+                  modifiedAt: 1_718_198_400_000,
+                  size: 120,
+                },
+              ],
+            },
+            metadata: partMetadata,
+            type: "data-attachments",
+          }),
+          { metadata: partMetadata, text: "read these", type: "text" },
+        ],
+        role: "user",
+      },
+    ] satisfies SessionMessage.WithParts[];
+    const listed = async (options: SessionMessage.ModelNoteOptions) => {
+      const [message] = await SessionMessage.toModelMessages(
+        messages,
+        TOOLS_FOR_MODEL_OUTPUT,
+        options,
+      );
+      const content = Array.isArray(message?.content) ? message.content : [];
+      return content
+        .flatMap((part) => (part.type === "text" ? part.text.split("\n") : []))
+        .filter((line) => line.startsWith("- "));
+    };
+
+    expect(await listed({ workspaceRoot: "/home/alex/Instrument" }))
+      .toMatchInlineSnapshot(`
+      [
+        "- /home/alex/Instrument/Notes/plan.md (120B)",
+        "- /Users/jeremy/Instrument/Notes/old.md (120B)",
+      ]
+    `);
+    expect(
+      await listed({
+        shellPath: (hostPath) =>
+          hostPath.replace(/^C:\\/, "/c/").replaceAll("\\", "/"),
+        workspaceRoot: String.raw`C:\Users\alex\Instrument`,
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "- /c/Users/alex/Instrument/Notes/plan.md (120B)",
+        "- /Users/jeremy/Instrument/Notes/old.md (120B)",
+      ]
+    `);
+  });
+
   // A tool's output schema outgrows the sessions already recorded against it,
   // and every one of those results is mapped again on each turn and each
   // transcript render. Reading a field the record predates used to fail the

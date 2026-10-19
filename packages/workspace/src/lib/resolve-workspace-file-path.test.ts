@@ -20,6 +20,7 @@ import { workDir } from "./work-dir";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+import { inWorkspacePath } from "./workspace-relative-path";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 describe("resolveWorkspaceFilePath", () => {
@@ -87,6 +88,39 @@ describe("resolveWorkspaceFilePath", () => {
 
     expect(resolved).toBe(onDisk);
   });
+
+  // A message written on another computer, where the workspace was somewhere
+  // else, names the file by its place in the workspace, which is read under
+  // the root this computer has, and still held to the chat's rules.
+  it.each([
+    [
+      "a granted folder",
+      "Photos/cat.png",
+      () => path.join(photosRoot, "cat.png"),
+    ],
+    ["a folder the chat does not reach", "Unattached/cat.png", () => null],
+  ])(
+    "resolves a file kept by its place in the workspace, in %s",
+    async (_label, inWorkspace, expected) => {
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        rootDir: WorkspaceDirSchema.parse(root),
+      });
+      await fs.mkdir(path.join(root, "Unattached"), { recursive: true });
+      await fs.writeFile(path.join(root, "Unattached", "cat.png"), "secret");
+      const stored = inWorkspacePath(
+        path.posix.join("/Users/jeremy/Instrument", inWorkspace),
+        "/Users/jeremy/Instrument",
+      );
+
+      const resolved = await resolveWorkspaceFilePath({
+        filePath: WorkspaceFilePathSchema.parse(stored),
+        chatId,
+      });
+
+      expect(resolved).toBe(expected());
+    },
+  );
 
   it("resolves a workspace skill's file by its full path", async () => {
     setWorkspaceConfig({

@@ -19,6 +19,11 @@ import {
   shellPath,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
+import { getWorkspaceConfig } from "./workspace-config";
+import {
+  isInWorkspacePath,
+  workspaceHostPath,
+} from "./workspace-relative-path";
 
 /**
  * Where an earlier build showed the agent its chat's task folders, each
@@ -71,8 +76,9 @@ export async function resolveWorkspaceFilePaths({
 
 /**
  * Where a path a chat's messages kept is on this computer, as the person's
- * views read it back: relative to the work folder, or absolute in a folder
- * the chat reaches, held to the chat's rules.
+ * views read it back: relative to the work folder, by its place in the
+ * workspace (`workspace:/Notes/plan.md`), or absolute in a folder the chat
+ * reaches, held to the chat's rules.
  *
  * A path kept before a migration moved what held it is read where it went:
  * a chat's files and its records were once one folder, so a relative path
@@ -85,9 +91,18 @@ function storedPathOnDisk(
   layout: WorkspaceFsLayout,
   stored: string,
 ): AbsolutePath | null {
+  const trimmed = stored.trim();
+  // A file kept by its place in the workspace is under the workspace's root
+  // here, wherever that root was when the message was written.
+  const inWorkspace = isInWorkspacePath(trimmed)
+    ? workspaceHostPath(trimmed, getWorkspaceConfig().rootDir)
+    : undefined;
+  if (inWorkspace === null) {
+    return null;
+  }
   // A Windows path (`C:\Users\sam`) in the shell's spelling (`/c/Users/sam`),
   // which the layout resolves.
-  const spelled = shellPath(stored.trim());
+  const spelled = shellPath(inWorkspace ?? trimmed);
   const found = path.posix.isAbsolute(spelled)
     ? absoluteOnDisk(layout, spelled)
     : relativeOnDisk(layout, spelled);

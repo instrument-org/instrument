@@ -41,6 +41,7 @@ import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { shellPath } from "./workspace-fs-layout";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * Marks a message said for this request only and kept nowhere. A model that
@@ -290,6 +291,7 @@ export async function prepareModelMessages({
     {
       attachmentsDir: shellPath(chatAttachmentsDir(chatDir(chatId))),
       shellPath,
+      workspaceRoot: getWorkspaceConfig().rootDir,
     },
   );
 

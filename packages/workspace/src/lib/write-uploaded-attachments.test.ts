@@ -15,6 +15,7 @@ import {
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { workspaceHostPath } from "./workspace-relative-path";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the record is concerned";
@@ -124,6 +125,27 @@ describe("writeUploadedAttachments", () => {
       path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
     );
     await expect(attachmentsIn(recordDir)).resolves.toEqual(["photo.jpg"]);
+  });
+
+  // The record syncs with the workspace, so a file in it is kept by its place
+  // there and found again on a computer where the workspace is elsewhere.
+  it("records a file in the workspace by its place there", async () => {
+    const workspaceRoot = path.join(root, "workspace");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(workspaceRoot),
+    });
+    const file = await writeSourceFile(
+      path.join(workspaceRoot, "Notes", "Trip plan.jpg"),
+    );
+
+    const [attached] = await attach([file]);
+
+    expect(attached?.filePath).toBe("workspace:/Notes/Trip plan.jpg");
+    expect(
+      workspaceHostPath(attached?.filePath ?? "", "/Volumes/Other/Instrument"),
+    ).toBe("/Volumes/Other/Instrument/Notes/Trip plan.jpg");
+    await expect(attachmentsIn(recordDir)).resolves.toEqual([]);
   });
 
   // Pasted bytes have no file behind them, so they are written into the

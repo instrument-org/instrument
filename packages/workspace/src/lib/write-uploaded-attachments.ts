@@ -6,6 +6,7 @@ import { CHAT_FOLDER_NAMES } from "../constants";
 import { type FileUpload } from "../schemas/file-upload";
 import {
   type AbsolutePath,
+  type InWorkspacePath,
   type RelativePath,
   RelativePathSchema,
   type ChatDir,
@@ -23,6 +24,7 @@ import { chatOwnFolder } from "./record-folders";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
+import { inWorkspacePath } from "./workspace-relative-path";
 import { sanitizeFilename } from "./sanitize-filename";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
@@ -34,7 +36,7 @@ interface PreparedUploadedFile {
   // nothing to write and `filePath` names the file itself.
   inPlace: boolean;
   mimeType: string;
-  storedPath: AbsolutePath | RelativePath;
+  storedPath: AbsolutePath | InWorkspacePath | RelativePath;
 }
 
 export async function writeUploadedAttachments({
@@ -194,7 +196,7 @@ function prepareUploadedFiles({
           input: file,
           inPlace: true,
           mimeType: file.mimeType,
-          storedPath: file.path,
+          storedPath: attachedInPlaceStoredPath(file.path),
         });
         continue;
       }
@@ -226,6 +228,26 @@ function prepareUploadedFiles({
 
     return ok(preparedFiles);
   });
+}
+
+/**
+ * How the message keeps a file attached where it lies. The record syncs with
+ * the workspace and is never rewritten, so a file in the workspace is kept by
+ * its place there, which names it on another computer and after the
+ * workspace moves; a file outside it has only its absolute path.
+ */
+function attachedInPlaceStoredPath(
+  given: AbsolutePath,
+): AbsolutePath | InWorkspacePath {
+  if (!hasWorkspaceConfig()) {
+    return given;
+  }
+  return (
+    inWorkspacePath(
+      path.resolve(given),
+      path.resolve(getWorkspaceConfig().rootDir),
+    ) ?? given
+  );
 }
 
 /**

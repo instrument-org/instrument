@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { EnvironmentChangeSchema } from "../environment";
-import { AbsolutePathSchema, RelativePathSchema } from "../paths";
+import {
+  AbsolutePathSchema,
+  InWorkspacePathSchema,
+  RelativePathSchema,
+} from "../paths";
 import { StoreId } from "../store-id";
 
 export namespace SessionMessageDataPart {
@@ -112,11 +116,18 @@ export namespace SessionMessageDataPart {
 
   const FileAttachmentDataPartSchema = z.object({
     filename: z.string(),
-    // A file the person attached is the file itself, at its own absolute path,
-    // so the agent reads and edits what they pointed at. A relative path is a
-    // copy in the record folder's `attachments/`, which is where pasted bytes
-    // land and where every attachment written before this lives.
-    filePath: z.union([AbsolutePathSchema, RelativePathSchema]),
+    // A file the person attached is the file itself, so the agent reads and
+    // edits what they pointed at: one in the workspace by its place there
+    // (`workspace:/Notes/plan.md`), which holds on every computer the record
+    // syncs to, and one outside it at its own absolute path. An absolute path
+    // into the workspace is what earlier builds wrote, and is read as it is.
+    // A relative path is a copy in the chat's `attachments/`, which is where
+    // pasted bytes land.
+    filePath: z.union([
+      AbsolutePathSchema,
+      InWorkspacePathSchema,
+      RelativePathSchema,
+    ]),
     mimeType: z.string(),
     // Attachments written before this field existed have none, and it is a
     // cache-buster for the asset URL: 0 costs those files nothing, since they

@@ -16,9 +16,9 @@ You can choose to run them anyway, with the switch in that warning in Settings �
 
 **Linux, without bubblewrap.** Instrument looks for bubblewrap at `/usr/bin/bwrap`. Installing your distribution's `bubblewrap` package puts it there.
 
-**The sandbox didn't start, for a reason the settings don't show.** Instrument tries again with every program, so this can clear up on its own. If it keeps happening, please tell us with Report a Problem in the Help menu.
+**The sandbox didn't start, for a reason the settings don't show.** Instrument tries again with every program, so this can clear up on its own. If it keeps happening, please use Send a report beside the warning in Settings › Permissions.
 
-**macOS, without `sandbox-exec`.** Instrument uses the system's own `/usr/bin/sandbox-exec` when its built-in launcher can't apply the rules. Every supported version of macOS ships it, so seeing this warning on a Mac is unexpected. Please tell us about it with Report a Problem in the Help menu.
+**macOS, without `sandbox-exec`.** Instrument uses the system's own `/usr/bin/sandbox-exec` when its built-in launcher can't apply the rules. Every supported version of macOS ships it, so seeing this warning on a Mac is unexpected. Please use Send a report beside the warning in Settings › Permissions.
 
 **Windows.** Instrument can't yet sandbox programs on Windows, and Settings › Permissions says so on every Windows computer. See [the Windows sandbox](windows-sandbox.md).
 

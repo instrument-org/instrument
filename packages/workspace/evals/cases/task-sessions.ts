@@ -37,14 +37,12 @@ import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
 import { openAsks } from "../../src/lib/chat/asks";
-import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import { deliveredFile } from "../lib/delivered-file";
 
 type Context = Parameters<Assertion["check"]>[0];
-
-const WORKSPACE = outputFolderPath();
 
 function pass(text: string, evidence: string): AssertionResult {
   return { evidence, passed: true, text };
@@ -108,10 +106,10 @@ const startedOneTaskAsT1: Assertion = {
 function wrote(name: string, holds: RegExp): Assertion {
   const text = `wrote ${name} holding ${String(holds)}`;
   return {
-    check: () => {
-      const file = path.join(WORKSPACE, name);
-      if (!fs.existsSync(file)) {
-        return fail(text, `no ${file}`);
+    check: ({ chatId }) => {
+      const file = deliveredFile(chatId, name);
+      if (!file) {
+        return fail(text, `no ${name} in the chat's folder or the workspace's`);
       }
       const body = fs.readFileSync(file, "utf8");
       return (holds.test(body) ? pass : fail)(text, body.slice(0, 200));

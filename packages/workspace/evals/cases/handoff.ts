@@ -21,7 +21,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { AGENT_MESSAGE_LANGUAGE } from "../../src/constants";
-import { outputFolderPath } from "../../src/lib/chat/output-folder";
+import {
+  chatOutputFolder,
+  outputFolderPath,
+} from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { workDir } from "../../src/lib/work-dir";
@@ -34,6 +37,7 @@ import {
   defineEval,
   type EvalCase,
 } from "../harness";
+import { deliveredFile } from "../lib/delivered-file";
 import { sheetHasAChart, sheetRecomputes, wroteADocument } from "./worker";
 
 export type Context = Parameters<Assertion["check"]>[0];
@@ -103,9 +107,12 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
   return said(sessions).at(-1)?.text ?? "";
 }
 
-/** The run's working folder, which the chat's tasks work in too. */
+/**
+ * The run's working folder, which the chat's tasks work in too, and the
+ * chat's own folder, where finished work goes.
+ */
 function treeDirs({ chatId }: Context): string[] {
-  return [workDir(chatId)];
+  return [workDir(chatId), chatOutputFolder(chatId)];
 }
 
 /**
@@ -979,17 +986,17 @@ const steppedOnlyThroughTheCorrection: Assertion = {
 };
 
 const wroteTheGroceryList: Assertion = {
-  check: ({ sessions }) => {
+  check: ({ chatId, sessions }) => {
     const since = runStartedAt(sessions);
     const text =
       "wrote groceries.md in the workspace folder as a checklist of all four";
-    const file = path.join(WORKSPACE, "groceries.md");
-    const body = readText(file).toLowerCase();
+    const file = deliveredFile(chatId, "groceries.md");
+    const body = file ? readText(file).toLowerCase() : "";
     if (!body) {
       return fail(
         text,
-        `no groceries.md; the run wrote: ${recentFilesUnder(HOME, since)
-          .map((one) => path.relative(HOME, one))
+        `no groceries.md; the run wrote: ${[HOME, chatOutputFolder(chatId)]
+          .flatMap((dir) => recentFilesUnder(dir, since))
           .join(", ")}`,
       );
     }

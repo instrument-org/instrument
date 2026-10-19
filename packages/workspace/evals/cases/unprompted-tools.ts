@@ -18,6 +18,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
+import { chatOutputFolder } from "../../src/lib/chat/output-folder";
 import { workDir } from "../../src/lib/work-dir";
 import { ChatWrites } from "../../src/lib/chat-writes";
 import { shellPath } from "../../src/lib/workspace-fs-layout";
@@ -149,8 +150,8 @@ async function filesWritten(
         ),
     ) + 2000;
   const files = new Set(
-    [HOME, workDir(ctx.chatId), ...extra].flatMap((dir) =>
-      recentFilesUnder(dir, since),
+    [HOME, workDir(ctx.chatId), chatOutputFolder(ctx.chatId), ...extra].flatMap(
+      (dir) => recentFilesUnder(dir, since),
     ),
   );
   return [...files].filter((file) => fs.statSync(file).mtimeMs <= until);

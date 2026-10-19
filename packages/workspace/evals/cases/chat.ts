@@ -24,6 +24,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  chatOutputFolder,
+  outputFolderPath,
+} from "../../src/lib/chat/output-folder";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { workDir } from "../../src/lib/work-dir";
@@ -31,6 +35,7 @@ import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import { deliveredFile } from "../lib/delivered-file";
 
 type Context = Parameters<Assertion["check"]>[0];
 
@@ -269,6 +274,26 @@ function repliedWith(phrase: string): Assertion {
   };
 }
 
+/**
+ * A file landed in the user's Instrument folder: in the chat's own folder
+ * there, where `$INSTRUMENT_OUTPUT` points, or at its top level. Deeper is
+ * another chat's folder.
+ */
+const wroteIntoTheInstrumentFolder: Assertion = {
+  check: ({ chatId }) => {
+    const text = "a file landed in the user's Instrument folder";
+    const top = outputFolderPath();
+    const written = [
+      ...recentFilesUnder(chatOutputFolder(chatId)),
+      ...recentFilesUnder(top).filter((file) => path.dirname(file) === top),
+    ];
+    return written.length > 0
+      ? pass(text, written.join(", "))
+      : fail(text, `nothing this run wrote is in ${top}`);
+  },
+  text: "a file landed in the user's Instrument folder",
+};
+
 function wroteInto(folder: string): Assertion {
   const text = `a file landed in the user's ${folder} folder`;
   return {
@@ -289,9 +314,11 @@ function madeDocuments(extensions: string[]): Assertion {
   return {
     check: async ({ chatId }) => {
       // The chat's tasks work in its folder.
-      const written = [os.homedir(), workDir(chatId)].flatMap((dir) =>
-        recentFilesUnder(dir),
-      );
+      const written = [
+        os.homedir(),
+        workDir(chatId),
+        chatOutputFolder(chatId),
+      ].flatMap((dir) => recentFilesUnder(dir));
       const missing = extensions.filter(
         (extension) => !written.some((file) => file.endsWith(extension)),
       );
@@ -307,9 +334,9 @@ function madeDocuments(extensions: string[]): Assertion {
 function essayAtMost(file: string, words: number): Assertion {
   const text = `${file} is at most ${words} words`;
   return {
-    check: () => {
-      const target = path.join(os.homedir(), "Documents", "Instrument", file);
-      if (!fs.existsSync(target)) {
+    check: ({ chatId }) => {
+      const target = deliveredFile(chatId, file);
+      if (!target) {
         return fail(text, `no ${file} in the Instrument folder`);
       }
       const count = fs
@@ -330,7 +357,7 @@ function essayAtMost(file: string, words: number): Assertion {
 
 export const CHAT_EVALS = [
   defineEval({
-    assertions: [wroteInto("Documents/Instrument"), linkedAFileThatExists],
+    assertions: [wroteIntoTheInstrumentFolder, linkedAFileThatExists],
     kind: "chat",
     name: "chat-one-file",
     prompt:

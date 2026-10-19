@@ -44,6 +44,7 @@ import { buildFrames, type Frame, type FrameMark } from "../-transcript/frames";
 import { scenarios } from "../-transcript/scenarios";
 import {
   autoScrollAtom,
+  chatPresentationAtom,
   developerModeAtom,
   replayAtom,
   showsBottomEdgeAtom,
@@ -333,6 +334,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useAtom(speedAtom);
   const [isDeveloperMode, setIsDeveloperMode] = useAtom(developerModeAtom);
+  const [isChat, setIsChat] = useAtom(chatPresentationAtom);
   const [autoScrolls, setAutoScrolls] = useAtom(autoScrollAtom);
   const [showsBottomEdge, setShowsBottomEdge] = useAtom(showsBottomEdgeAtom);
   const [shownMs, setShownMs] = useState<number>();
@@ -432,6 +434,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     onModelChange={noop}
                     onRetry={noop}
                     onRunAgain={noop}
+                    presentation={isChat ? "chat" : undefined}
                     chatInfo={chatInfo}
                   />
                 </Profiler>
@@ -529,6 +532,12 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
             id="transcript-developer-mode"
             label="Dev mode"
             onChange={setIsDeveloperMode}
+          />
+          <Toggle
+            checked={isChat}
+            id="transcript-chat"
+            label="Chat"
+            onChange={setIsChat}
           />
           {/* Both of these are about watching frames land, and nothing lands
               when the transcript is simply there. */}

@@ -185,6 +185,24 @@ export const summarize = async (source: string, destination: string) => {
 ].join("\n\n");
 
 /**
+ * Code the way a reply mixes it into prose: inline spans mid-sentence, then a
+ * fence in each of the languages a reply reaches for most.
+ *
+ * The inline spans are the ones that used to read worst -- a command, a
+ * variable, a filename, an arrow a font would turn into a glyph -- and every
+ * fence carries an operator a coding font ligates, so a screen of it shows at a
+ * glance whether the characters drawn are the characters written.
+ */
+const CODE_LANGUAGES = [
+  "To squash the last three commits, run `git rebase -i HEAD~3`. Git opens the list in whatever `$EDITOR` points at. The retry count lives in `config.yaml`, and the handler is still `() => {}` until the next step.",
+  "```javascript\nconst retry = async (task, attempts = 3) => {\n  for (let attempt = 1; attempt <= attempts; attempt++) {\n    try {\n      return await task();\n    } catch (error) {\n      if (attempt >= attempts) throw error;\n    }\n  }\n};\n```",
+  '```python\ndef totals_by_region(rows: list[dict]) -> dict[str, float]:\n    totals: dict[str, float] = {}\n    for row in rows:\n        if row["amount"] != 0:\n            totals[row["region"]] = totals.get(row["region"], 0) + row["amount"]\n    return totals\n```',
+  '```bash\ngit rebase -i HEAD~3\nexport EDITOR="code --wait"\n[ -f config.yaml ] && echo "retries: 3" >> config.yaml\n```',
+  '```json\n{\n  "name": "reports",\n  "version": "1.2.0",\n  "private": true,\n  "retries": 3,\n  "scripts": { "build": "tsc -p ." }\n}\n```',
+  "The helper itself is in [`src/retry.js`](src/retry.js), and the [`retry` docs](https://example.com/docs/retry) cover the options. Each block keeps its own copy button, so you can paste any one of them straight into a terminal.",
+].join("\n\n");
+
+/**
  * Tables at the three widths that are laid out differently.
  *
  * A table is the one block with a width of its own, and the whole of the
@@ -1108,6 +1126,14 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     script: [
       user("Show me what you wrote, and the output it produced."),
       prose(CODE_BLOCKS, 90),
+    ],
+  },
+  {
+    id: "code-languages",
+    name: "Code across languages",
+    script: [
+      user("How do I squash my last three commits, and what changed?"),
+      prose(CODE_LANGUAGES, 90),
     ],
   },
   {

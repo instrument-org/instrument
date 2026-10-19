@@ -17,16 +17,15 @@ import { Card } from "@/client/components/ui/card";
 import { DropdownMenuItem } from "@/client/components/ui/dropdown-menu";
 import {
   ProviderMoreMenu,
-  TurnOffItem,
+  DisableItem,
   useProviderSwitch,
 } from "@/client/components/settings/provider-switch";
 import { cn } from "@/client/lib/utils";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
@@ -44,8 +43,8 @@ type Account = NonNullable<
 /**
  * The ChatGPT account as a row among the providers, laid out like
  * `ProviderConfigListItem` so it reads as one of them: the mark, a name and a
- * line, and the actions at the right. Each signed-in account is a line of its
- * own under the name, and adding another stays a quiet link below them.
+ * line, and the actions at the right. Several accounts each get a line of
+ * their own under the name, and adding another is in the more menu.
  */
 export function ChatGPTAccountCard() {
   const { data: status } = useQuery(
@@ -114,6 +113,47 @@ export function ChatGPTAccountCard() {
 
   const accounts = status?.accounts ?? [];
   const providerSwitch = useProviderSwitch();
+  // One account reads like every other card, its line under the name and its
+  // actions at the right; several each get a line of their own.
+  const single = accounts.length === 1 ? accounts[0] : undefined;
+  const isOff = (account: Account) =>
+    account.state === "signed-in" && providerSwitch.isOff(account.id);
+  const actionsFor = (account: Account) => ({
+    off: isOff(account),
+    onCancelSignIn: cancelSignIn,
+    onSetEnabled: (enabled: boolean) => {
+      providerSwitch.setEnabled(
+        AIProviderConfigIdSchema.parse(account.id),
+        enabled,
+      );
+    },
+    onSignIn: () => {
+      void continueWithChatGPT(account.id);
+    },
+    onSignOut: () => {
+      setConfirmingSignOut(account);
+    },
+    waiting: waiting === account.id,
+  });
+  const addAnother = (
+    <DropdownMenuItem
+      onSelect={() => {
+        void continueWithChatGPT();
+      }}
+    >
+      Add another account
+    </DropdownMenuItem>
+  );
+  const manageUsage = (
+    <Button
+      onClick={() => {
+        openLink(USAGE_URL, { addReferral: false });
+      }}
+      variant="outline"
+    >
+      Manage usage
+    </Button>
+  );
 
   return (
     // The accounts signed in, so the card settles in when a sign-in finished
@@ -126,7 +166,12 @@ export function ChatGPTAccountCard() {
           className="flex items-start justify-between gap-4"
           {...settingAnchor("chatgpt-account")}
         >
-          <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-start gap-3",
+              single && isOff(single) && "opacity-50 grayscale",
+            )}
+          >
             <div className="flex size-8 shrink-0 items-center justify-center">
               <AIProviderIcon type="chatgpt-account" />
             </div>
@@ -134,26 +179,25 @@ export function ChatGPTAccountCard() {
               <h3 className="truncate font-medium text-foreground">
                 ChatGPT account
               </h3>
-              {accounts.length === 0 && (
+              {waiting === NEW_ACCOUNT ? (
                 <p className="text-sm text-muted-foreground">
-                  {waiting === NEW_ACCOUNT
-                    ? "Finish signing in with ChatGPT in your browser."
-                    : "Pay for ChatGPT Plus or Pro? Use it here."}
+                  Finish signing in with ChatGPT in your browser.
                 </p>
+              ) : single ? (
+                <p className="truncate text-sm text-muted-foreground">
+                  {describe(single, waiting === single.id, isOff(single))}
+                </p>
+              ) : (
+                accounts.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Pay for ChatGPT Plus or Pro? Use it here.
+                  </p>
+                )
               )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {accounts.length > 0 ? (
-              <Button
-                onClick={() => {
-                  openLink(USAGE_URL, { addReferral: false });
-                }}
-                variant="outline"
-              >
-                Manage usage
-              </Button>
-            ) : (
+            {accounts.length === 0 || waiting === NEW_ACCOUNT ? (
               <BrowserHandoffButton
                 onCancel={cancelSignIn}
                 onStart={() => {
@@ -161,57 +205,50 @@ export function ChatGPTAccountCard() {
                 }}
                 waiting={waiting === NEW_ACCOUNT}
               >
-                Continue with ChatGPT
+                {accounts.length === 0
+                  ? "Continue with ChatGPT"
+                  : "Add another account"}
               </BrowserHandoffButton>
+            ) : single ? (
+              <AccountActions
+                account={single}
+                {...actionsFor(single)}
+                manageUsage={manageUsage}
+              >
+                {addAnother}
+              </AccountActions>
+            ) : (
+              <>
+                {manageUsage}
+                <ProviderMoreMenu label="ChatGPT account">
+                  {addAnother}
+                </ProviderMoreMenu>
+              </>
             )}
           </div>
         </div>
-        {accounts.length > 0 && (
+        {accounts.length > 1 && (
           <div className="mt-1 flex flex-col gap-1 pl-11">
             {accounts.map((account) => (
-              <AccountRow
-                account={account}
+              <div
+                className="flex min-h-8 items-center justify-between gap-4"
                 key={account.id}
-                off={
-                  account.state === "signed-in" &&
-                  providerSwitch.isOff(account.id)
-                }
-                onCancelSignIn={cancelSignIn}
-                onSetEnabled={(enabled) => {
-                  providerSwitch.setEnabled(
-                    AIProviderConfigIdSchema.parse(account.id),
-                    enabled,
-                  );
-                }}
-                onSignIn={() => {
-                  void continueWithChatGPT(account.id);
-                }}
-                onSignOut={() => {
-                  setConfirmingSignOut(account);
-                }}
-                waiting={waiting === account.id}
-              />
-            ))}
-            <div className="flex items-center gap-2">
-              <BrowserHandoffButton
-                className="-ml-2 text-muted-foreground"
-                icon={<PlusIcon />}
-                onCancel={cancelSignIn}
-                onStart={() => {
-                  void continueWithChatGPT();
-                }}
-                size="xs"
-                variant="ghost"
-                waiting={waiting === NEW_ACCOUNT}
               >
-                Add another account
-              </BrowserHandoffButton>
-              {waiting === NEW_ACCOUNT && (
-                <p className="text-xs text-muted-foreground">
-                  Finish signing in with ChatGPT in your browser
+                <p
+                  className={cn(
+                    "min-w-0 truncate text-sm text-muted-foreground",
+                    isOff(account) && "opacity-60",
+                  )}
+                >
+                  {describe(account, waiting === account.id, isOff(account))}
                 </p>
-              )}
-            </div>
+                <AccountActions
+                  account={account}
+                  {...actionsFor(account)}
+                  size="sm"
+                />
+              </div>
+            ))}
           </div>
         )}
         <AlertDialog
@@ -251,75 +288,90 @@ export function ChatGPTAccountCard() {
   );
 }
 
-function AccountRow({
+/** An account's label, and where it stands when that needs saying. */
+function describe(account: Account, waiting: boolean, off: boolean) {
+  return `${account.label}${
+    waiting
+      ? " · Finish in your browser"
+      : account.state === "plan-disabled"
+        ? ` · ${APP_NAME} isn't allowed to use this plan yet`
+        : account.state === "signed-out"
+          ? " · Signed out"
+          : off
+            ? ` · Disabled, so ${APP_NAME} won’t use it`
+            : ""
+  }`;
+}
+
+/**
+ * What can be done with one account: sign in again or enable it when
+ * it needs that, otherwise `manageUsage` when given, then its more menu with
+ * `children` above Sign out.
+ */
+function AccountActions({
   account,
+  children,
+  manageUsage,
   off,
   onCancelSignIn,
   onSetEnabled,
   onSignIn,
   onSignOut,
+  size,
   waiting,
 }: {
   account: Account;
+  children?: ReactNode;
+  manageUsage?: ReactNode;
   off: boolean;
   onCancelSignIn: () => void;
   onSetEnabled: (enabled: boolean) => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  /** `sm` on an account's own line under the name. */
+  size?: "sm";
   waiting: boolean;
 }) {
   return (
-    <div className="flex min-h-8 items-center justify-between gap-4">
-      <p
-        className={cn(
-          "min-w-0 truncate text-sm text-muted-foreground",
-          off && "opacity-60",
-        )}
+    <div className="flex shrink-0 items-center gap-2">
+      {account.state !== "signed-in" ? (
+        <BrowserHandoffButton
+          onCancel={onCancelSignIn}
+          onStart={onSignIn}
+          size={size}
+          waiting={waiting}
+        >
+          {account.state === "plan-disabled"
+            ? "Allow plan use"
+            : "Sign in again"}
+        </BrowserHandoffButton>
+      ) : off ? (
+        <Button
+          onClick={() => {
+            onSetEnabled(true);
+          }}
+          size={size}
+          variant="outline"
+        >
+          Enable
+        </Button>
+      ) : (
+        manageUsage
+      )}
+      <ProviderMoreMenu
+        label={account.label}
+        size={size === "sm" ? "icon-sm" : "icon"}
       >
-        {account.label}
-        {waiting
-          ? " · Finish in your browser"
-          : account.state === "plan-disabled"
-            ? ` · ${APP_NAME} isn't allowed to use this plan yet`
-            : account.state === "signed-out"
-              ? " · Signed out"
-              : off && ` · Turned off, so ${APP_NAME} won’t use it`}
-      </p>
-      <div className="flex shrink-0 items-center gap-2">
-        {account.state !== "signed-in" && (
-          <BrowserHandoffButton
-            onCancel={onCancelSignIn}
-            onStart={onSignIn}
-            size="sm"
-            waiting={waiting}
-          >
-            {account.state === "plan-disabled"
-              ? "Allow plan use"
-              : "Sign in again"}
-          </BrowserHandoffButton>
-        )}
-        {off && (
-          <Button
-            onClick={() => {
-              onSetEnabled(true);
+        {account.state === "signed-in" && !off && (
+          <DisableItem
+            onSelect={() => {
+              onSetEnabled(false);
             }}
-            size="sm"
-            variant="outline"
-          >
-            Turn on
-          </Button>
+          />
         )}
-        <ProviderMoreMenu label={account.label} size="icon-sm">
-          {account.state === "signed-in" && !off && (
-            <TurnOffItem
-              onSelect={() => {
-                onSetEnabled(false);
-              }}
-            />
-          )}
-          <DropdownMenuItem onSelect={onSignOut}>Sign out…</DropdownMenuItem>
-        </ProviderMoreMenu>
-      </div>
+        {children}
+        <DropdownMenuItem onSelect={onSignOut}>Sign out…</DropdownMenuItem>
+      </ProviderMoreMenu>
     </div>
   );
 }

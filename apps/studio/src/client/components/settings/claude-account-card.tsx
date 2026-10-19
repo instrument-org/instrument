@@ -11,8 +11,8 @@ import { DropdownMenuItem } from "@/client/components/ui/dropdown-menu";
 import { Progress } from "@/client/components/ui/progress";
 import {
   ProviderMoreMenu,
-  TURNED_OFF_LINE,
-  TurnOffItem,
+  DISABLED_LINE,
+  DisableItem,
   useProviderSwitch,
 } from "@/client/components/settings/provider-switch";
 import { cn } from "@/client/lib/utils";
@@ -114,7 +114,7 @@ export function ClaudeAccountCard() {
               Claude account
             </h3>
             <p className="text-sm text-muted-foreground">
-              {off ? TURNED_OFF_LINE : (hint ?? describe(status))}
+              {off ? DISABLED_LINE : (hint ?? describe(status))}
             </p>
           </div>
         </div>
@@ -126,7 +126,7 @@ export function ClaudeAccountCard() {
               }}
               variant="outline"
             >
-              Turn on
+              Enable
             </Button>
           ) : status.kind === "signed-in" ? (
             <Button
@@ -149,7 +149,7 @@ export function ClaudeAccountCard() {
           {status.kind === "signed-in" ? (
             <ProviderMoreMenu label="Claude account">
               {!off && (
-                <TurnOffItem
+                <DisableItem
                   onSelect={() => {
                     providerSwitch.setEnabled(CLAUDE_ID, false);
                   }}

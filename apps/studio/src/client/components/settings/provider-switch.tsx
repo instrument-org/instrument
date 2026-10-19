@@ -12,11 +12,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 /** What a card says in place of its description while its provider is off. */
-export const TURNED_OFF_LINE = `Turned off, so ${APP_NAME} won’t use it until you turn it back on.`;
+export const DISABLED_LINE = `Disabled, so ${APP_NAME} won’t use it until you enable it again.`;
 
 /**
- * Which providers are turned off, and the switch. Turning one off is kept
- * behind each card's more menu, since few people need it; turning it back on
+ * Which providers are disabled, and the switch. Disabling one is kept
+ * behind each card's more menu, since few people need it; enabling it again
  * is a button on the grayed card.
  */
 export function useProviderSwitch() {
@@ -58,6 +58,6 @@ export function ProviderMoreMenu({
   );
 }
 
-export function TurnOffItem({ onSelect }: { onSelect: () => void }) {
-  return <DropdownMenuItem onSelect={onSelect}>Turn off</DropdownMenuItem>;
+export function DisableItem({ onSelect }: { onSelect: () => void }) {
+  return <DropdownMenuItem onSelect={onSelect}>Disable</DropdownMenuItem>;
 }
